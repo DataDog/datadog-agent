@@ -23,14 +23,15 @@ import (
 )
 
 const (
-	defaultBasicPort   = 9182
-	defaultOAuthPort   = 9183
-	defaultMaxAttempts = 3
-	defaultMaxPages    = 100
-	defaultMaxCount    = "2000"
-	defaultLookback    = "30minutesAgo"
-	defaultHTTPTimeout = 10
-	defaultHTTPScheme  = "https"
+	defaultBasicPort        = 9182
+	defaultOAuthPort        = 9183
+	defaultMaxAttempts      = 3
+	defaultMaxPages         = 100
+	defaultMaxCount         = "2000"
+	defaultLookback         = "30minutesAgo"
+	defaultExtendedLookback = "1daysAgo"
+	defaultHTTPTimeout      = 10
+	defaultHTTPScheme       = "https"
 )
 
 // Useful for mocking
@@ -46,18 +47,21 @@ type Client struct {
 	directorToken       string
 	directorTokenExpiry time.Time
 	// Session token for Analytics endpoints (always uses session auth)
-	sessionToken        string
-	sessionTokenExpiry  time.Time
-	username            string
-	password            string
-	clientID            string
-	clientSecret        string
-	authMethod          authMethod
-	authenticationMutex *sync.Mutex
-	maxAttempts         int
-	maxPages            int
-	maxCount            string // Stored as string to be passed as an HTTP param
-	lookback            string
+	sessionToken           string
+	sessionTokenExpiry     time.Time
+	username               string
+	password               string
+	clientID               string
+	clientSecret           string
+	authMethod             authMethod
+	authenticationMutex    *sync.Mutex
+	maxAttempts            int
+	maxPages               int
+	maxCount               string // Stored as string to be passed as an HTTP param
+	lookback               string
+	extendedLookback       string // Use for endpoints that require longer lookback windows
+	useStartPagination     bool   // Use "start" instead of "offset" for pagination (necessary for some deployments)
+	useAlternateAppliances bool   // Use GetAppliances instead of GetChildAppliancesDetail for appliance collection
 }
 
 // ClientOptions are the functional options for the Versa client
@@ -125,6 +129,7 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		maxPages:            defaultMaxPages,
 		maxCount:            defaultMaxCount,
 		lookback:            defaultLookback,
+		extendedLookback:    defaultExtendedLookback,
 	}
 
 	for _, opt := range options {
@@ -145,6 +150,14 @@ func validateParams(directorEndpoint string, directorPort int, analyticsEndpoint
 		return fmt.Errorf("invalid analytics endpoint")
 	}
 	return nil
+}
+
+// WithTimeout is a functional option to set the HTTP Client timeout
+// in seconds
+func WithTimeout(timeoutSeconds int) ClientOptions {
+	return func(c *Client) {
+		c.httpClient.Timeout = time.Duration(timeoutSeconds) * time.Second
+	}
 }
 
 // WithTLSConfig is a functional option to set the HTTP Client TLS Config
@@ -200,10 +213,39 @@ func WithMaxPages(maxPages int) ClientOptions {
 }
 
 // WithLookback is a functional option to set the client lookback interval
-func WithLookback(lookback int) ClientOptions {
+func WithLookback(lookback string) ClientOptions {
 	return func(c *Client) {
-		c.lookback = createLookbackString(lookback)
+		c.lookback = lookback
 	}
+}
+
+// WithExtendedLookback is a functional option to set the client extended lookback interval
+func WithExtendedLookback(extendedLookback string) ClientOptions {
+	return func(c *Client) {
+		c.extendedLookback = extendedLookback
+	}
+}
+
+// WithStartPagination is a functional option to enable using "start" instead of "offset" for pagination
+func WithStartPagination(useStart bool) ClientOptions {
+	return func(c *Client) {
+		c.useStartPagination = useStart
+	}
+}
+
+// WithAlternateAppliances is a functional option to enable using GetAppliances instead of GetChildAppliancesDetail
+func WithAlternateAppliances(useAlternate bool) ClientOptions {
+	return func(c *Client) {
+		c.useAlternateAppliances = useAlternate
+	}
+}
+
+// getOffsetParamName returns the pagination parameter name based on the feature flag
+func (client *Client) getOffsetParamName() string {
+	if client.useStartPagination {
+		return "start"
+	}
+	return "offset"
 }
 
 // GetOrganizations retrieves a list of organizations
@@ -220,8 +262,8 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 	totalPages := (resp.TotalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
 	for i := 1; i < totalPages; i++ {                         // start from 1 to skip the first page
 		params := map[string]string{
-			"limit":  client.maxCount,
-			"offset": strconv.Itoa(i * maxCount),
+			"limit":                     client.maxCount,
+			client.getOffsetParamName(): strconv.Itoa(i * maxCount),
 		}
 		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
 		if err != nil {
@@ -243,9 +285,9 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	uri := "/vnms/dashboard/childAppliancesDetail/" + tenant
 	var appliances []Appliance
 	params := map[string]string{
-		"fetch":  "count",
-		"limit":  client.maxCount,
-		"offset": "0",
+		"fetch":                     "count",
+		"limit":                     client.maxCount,
+		client.getOffsetParamName(): "0",
 	}
 
 	// Get the total count of appliances
@@ -262,7 +304,7 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	totalPages := (*totalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
-		params["offset"] = fmt.Sprintf("%d", i*maxCount)
+		params[client.getOffsetParamName()] = fmt.Sprintf("%d", i*maxCount)
 		resp, err := get[[]Appliance](client, uri, params, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
@@ -280,8 +322,8 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 func (client *Client) GetAppliances() ([]Appliance, error) {
 	var allAppliances []Appliance
 	params := map[string]string{
-		"limit":  client.maxCount,
-		"offset": "0",
+		"limit":                     client.maxCount,
+		client.getOffsetParamName(): "0",
 	}
 
 	// Make the first request to get the first page and total count
@@ -306,7 +348,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 
 	// Paginate through the remaining pages
 	for i := 1; i < totalPages; i++ {
-		params["offset"] = strconv.Itoa(i * maxCount)
+		params[client.getOffsetParamName()] = strconv.Itoa(i * maxCount)
 
 		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
 		if err != nil {
@@ -471,7 +513,7 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 		client,
 		tenant,
 		"SDWAN",
-		client.lookback,
+		client.extendedLookback,
 		"pathcos(localsitename,remotesitename)",
 		"",
 		"",
@@ -557,12 +599,12 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 
 // GetApplicationsByAppliance retrieves applications by appliance metrics from the Versa Analytics API
 func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsByApplianceMetrics, error) {
-	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
+	// Uses extended lookback since no data is returned for short lookback periods
 	return getPaginatedAnalytics(
 		client,
 		tenant,
 		"SDWAN",
-		"1daysAgo",
+		client.extendedLookback,
 		"app(site,appId)",
 		"",
 		"",
@@ -580,12 +622,11 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 
 // GetTopUsers retrieves top users of applications by appliance from the Versa Analytics API
 func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
-	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
 	return getPaginatedAnalytics(
 		client,
 		tenant,
 		"SDWAN",
-		"1daysAgo",
+		client.extendedLookback,
 		"appUser(site,user)",
 		"",
 		"",
@@ -611,7 +652,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 		client,
 		tenant,
 		"SYSTEM",
-		client.lookback,
+		client.extendedLookback,
 		"tunnelstats(appliance,ipsecLocalIp,ipsecPeerIp,ipsecVpnProfName)",
 		"",
 		"",
@@ -633,7 +674,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 		client,
 		tenant,
 		"SDWAN",
-		"1daysAgo",
+		client.extendedLookback,
 		"usage(site,accckt,accckt.ip)",
 		"(accessType:DIA)",
 		"",
@@ -717,8 +758,4 @@ func buildAnalyticsPath(tenant string, feature string, lookback string, query st
 		params.Add("metrics", m)
 	}
 	return path + "?" + params.Encode()
-}
-
-func createLookbackString(lookbackMinutes int) string {
-	return fmt.Sprintf("%dminutesAgo", lookbackMinutes)
 }
