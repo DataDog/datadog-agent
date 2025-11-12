@@ -145,9 +145,7 @@ type TracerPayload struct {
 	// a collection of key to value pairs common in all `chunks`
 	Attributes map[uint32]*AnyValue `protobuf:"bytes,10,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// chunks specifies list of containing trace chunks.
-	Chunks []*TraceChunk `protobuf:"bytes,11,rep,name=chunks,proto3" json:"chunks,omitempty"`
-	// APMMode specifies whether using "full" or "edge" APM mode. It is unset — and therefore ignored — by default.
-	APMMode       string `protobuf:"bytes,12,opt,name=APMMode,proto3" json:"APMMode,omitempty"`
+	Chunks        []*TraceChunk `protobuf:"bytes,11,rep,name=chunks,proto3" json:"chunks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,13 +257,6 @@ func (x *TracerPayload) GetChunks() []*TraceChunk {
 	return nil
 }
 
-func (x *TracerPayload) GetAPMMode() string {
-	if x != nil {
-		return x.APMMode
-	}
-	return ""
-}
-
 var File_datadog_trace_idx_tracer_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
@@ -284,7 +275,7 @@ const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"\x11samplingMechanism\x18\a \x01(\rR\x11samplingMechanism\x1aZ\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x121\n" +
-	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01\"\xda\x04\n" +
+	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01\"\xc0\x04\n" +
 	"\rTracerPayload\x12\x18\n" +
 	"\astrings\x18\x01 \x03(\tR\astrings\x12&\n" +
 	"\x0econtainerIDRef\x18\x02 \x01(\rR\x0econtainerIDRef\x12(\n" +
@@ -299,8 +290,7 @@ const file_datadog_trace_idx_tracer_payload_proto_rawDesc = "" +
 	"attributes\x18\n" +
 	" \x03(\v20.datadog.trace.idx.TracerPayload.AttributesEntryR\n" +
 	"attributes\x125\n" +
-	"\x06chunks\x18\v \x03(\v2\x1d.datadog.trace.idx.TraceChunkR\x06chunks\x12\x18\n" +
-	"\aAPMMode\x18\f \x01(\tR\aAPMMode\x1aZ\n" +
+	"\x06chunks\x18\v \x03(\v2\x1d.datadog.trace.idx.TraceChunkR\x06chunks\x1aZ\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\rR\x03key\x121\n" +
 	"\x05value\x18\x02 \x01(\v2\x1b.datadog.trace.idx.AnyValueR\x05value:\x028\x01B;Z9github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idxb\x06proto3"

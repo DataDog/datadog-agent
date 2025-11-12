@@ -258,7 +258,7 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		IdxTracerPayloads:  protoPayloads,
-		APMMode:            w.apmMode,
+		Tags:               map[string]string{tagAPMMode: w.apmMode},
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

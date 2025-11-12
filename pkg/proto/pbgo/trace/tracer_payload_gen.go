@@ -173,9 +173,9 @@ func (z *TraceChunk) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *TracerPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 11
+	// map header, size 10
 	// string "container_id"
-	o = append(o, 0x8b, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
+	o = append(o, 0x8a, 0xac, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64)
 	o = msgp.AppendString(o, z.ContainerID)
 	// string "language_name"
 	o = append(o, 0xad, 0x6c, 0x61, 0x6e, 0x67, 0x75, 0x61, 0x67, 0x65, 0x5f, 0x6e, 0x61, 0x6d, 0x65)
@@ -219,9 +219,6 @@ func (z *TracerPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "app_version"
 	o = append(o, 0xab, 0x61, 0x70, 0x70, 0x5f, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.AppVersion)
-	// string "apm_mode"
-	o = append(o, 0xa8, 0x61, 0x70, 0x6d, 0x5f, 0x6d, 0x6f, 0x64, 0x65)
-	o = msgp.AppendString(o, z.APMMode)
 	return
 }
 
@@ -349,12 +346,6 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "AppVersion")
 				return
 			}
-		case "apm_mode":
-			z.APMMode, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "APMMode")
-				return
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -384,6 +375,6 @@ func (z *TracerPayload) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0002) + msgp.StringPrefixSize + len(za0003)
 		}
 	}
-	s += 4 + msgp.StringPrefixSize + len(z.Env) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 12 + msgp.StringPrefixSize + len(z.AppVersion) + 9 + msgp.StringPrefixSize + len(z.APMMode)
+	s += 4 + msgp.StringPrefixSize + len(z.Env) + 9 + msgp.StringPrefixSize + len(z.Hostname) + 12 + msgp.StringPrefixSize + len(z.AppVersion)
 	return
 }

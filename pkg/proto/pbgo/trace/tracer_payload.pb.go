@@ -140,10 +140,7 @@ type TracerPayload struct {
 	Hostname string `protobuf:"bytes,9,opt,name=hostname,proto3" json:"hostname" msg:"hostname"`
 	// version specifies `version` tag that set with the tracer.
 	// @gotags: json:"app_version" msg:"app_version"
-	AppVersion string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
-	// APMMode specifies whether using "full" or "edge" APM mode. It is unset — and therefore ignored — by default.
-	// @gotags: json:"apm_mode" msg:"apm_mode"
-	APMMode       string `protobuf:"bytes,11,opt,name=APMMode,proto3" json:"apm_mode" msg:"apm_mode"`
+	AppVersion    string `protobuf:"bytes,10,opt,name=appVersion,proto3" json:"app_version" msg:"app_version"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -248,13 +245,6 @@ func (x *TracerPayload) GetAppVersion() string {
 	return ""
 }
 
-func (x *TracerPayload) GetAPMMode() string {
-	if x != nil {
-		return x.APMMode
-	}
-	return ""
-}
-
 var File_datadog_trace_tracer_payload_proto protoreflect.FileDescriptor
 
 const file_datadog_trace_tracer_payload_proto_rawDesc = "" +
@@ -269,7 +259,7 @@ const file_datadog_trace_tracer_payload_proto_rawDesc = "" +
 	"\fdroppedTrace\x18\x05 \x01(\bR\fdroppedTrace\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd3\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb9\x03\n" +
 	"\rTracerPayload\x12 \n" +
 	"\vcontainerID\x18\x01 \x01(\tR\vcontainerID\x12\"\n" +
 	"\flanguageName\x18\x02 \x01(\tR\flanguageName\x12(\n" +
@@ -283,8 +273,7 @@ const file_datadog_trace_tracer_payload_proto_rawDesc = "" +
 	"\n" +
 	"appVersion\x18\n" +
 	" \x01(\tR\n" +
-	"appVersion\x12\x18\n" +
-	"\aAPMMode\x18\v \x01(\tR\aAPMMode\x1a7\n" +
+	"appVersion\x1a7\n" +
 	"\tTagsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\x16Z\x14pkg/proto/pbgo/traceb\x06proto3"

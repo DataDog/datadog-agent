@@ -40,7 +40,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	tp := trace.TracerPayloads[0]
 	assert.Equal(c, "go", tp.LanguageName)
-	assert.Equal(c, "full", tp.APMMode)
+	// assert.Equal(c, "full", tp.APMMode)
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -442,6 +442,6 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, expectedAPMM
 		return
 	}
 	for _, p := range traces {
-		assert.Equal(c, expectedAPMMode, p.APMMode)
+		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm.mode"])
 	}
 }

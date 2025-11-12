@@ -9,9 +9,9 @@ import (
 // MarshalMsg implements msgp.Marshaler
 func (z *AgentPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 9
+	// map header, size 8
 	// string "HostName"
-	o = append(o, 0x89, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x4e, 0x61, 0x6d, 0x65)
+	o = append(o, 0x88, 0xa8, 0x48, 0x6f, 0x73, 0x74, 0x4e, 0x61, 0x6d, 0x65)
 	o = msgp.AppendString(o, z.HostName)
 	// string "Env"
 	o = append(o, 0xa3, 0x45, 0x6e, 0x76)
@@ -49,9 +49,6 @@ func (z *AgentPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "RareSamplerEnabled"
 	o = append(o, 0xb2, 0x52, 0x61, 0x72, 0x65, 0x53, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x72, 0x45, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x64)
 	o = msgp.AppendBool(o, z.RareSamplerEnabled)
-	// string "APMMode"
-	o = append(o, 0xa7, 0x41, 0x50, 0x4d, 0x4d, 0x6f, 0x64, 0x65)
-	o = msgp.AppendString(o, z.APMMode)
 	return
 }
 
@@ -167,12 +164,6 @@ func (z *AgentPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "RareSamplerEnabled")
 				return
 			}
-		case "APMMode":
-			z.APMMode, bts, err = msgp.ReadStringBytes(bts)
-			if err != nil {
-				err = msgp.WrapError(err, "APMMode")
-				return
-			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -202,6 +193,6 @@ func (z *AgentPayload) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(za0002) + msgp.StringPrefixSize + len(za0003)
 		}
 	}
-	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 10 + msgp.Float64Size + 9 + msgp.Float64Size + 19 + msgp.BoolSize + 8 + msgp.StringPrefixSize + len(z.APMMode)
+	s += 13 + msgp.StringPrefixSize + len(z.AgentVersion) + 10 + msgp.Float64Size + 9 + msgp.Float64Size + 19 + msgp.BoolSize
 	return
 }

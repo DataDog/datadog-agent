@@ -438,7 +438,7 @@ func TestTraceWriterAPMMode(t *testing.T) {
 			require.Len(t, srv.payloads, 1)
 			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
 			assert.Nil(t, err)
-			assert.Equal(t, tc.expected, ap.APMMode)
+			assert.Equal(t, tc.expected, ap.Tags[tagAPMMode])
 		})
 	}
 }

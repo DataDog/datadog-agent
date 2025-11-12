@@ -27,6 +27,9 @@ const pathTraces = "/api/v0.2/traces"
 
 const defaultConnectionLimit = 5
 
+// What's the best way to define this only once, so as not to duplicate in the agent package and here?
+const tagAPMMode = "_dd.apm.mode"
+
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
@@ -273,7 +276,7 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		APMMode:            w.apmMode,
+		Tags:               map[string]string{tagAPMMode: w.apmMode},
 		TracerPayloads:     payloads,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
