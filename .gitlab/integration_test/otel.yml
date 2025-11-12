@@ -93,15 +93,16 @@ ddot_byoc_package_build_test_rpm:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
-        --target artifact \
-        --output type=local,dest=./ \
-        --build-arg AGENT_VERSION=$AGENT_VERSION \
-        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-        --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
-        --build-arg PACKAGE_TYPE=rpm \
-        --build-arg DDA_VERSION=$DDA_VERSION \
-        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+      --target artifact \
+      --output type=local,dest=./ \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
+      --build-arg PACKAGE_TYPE=rpm \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
     - |
       RPM_PATH=ddot-byoc/datadog-agent-ddot-byoc-${AGENT_VERSION}-1.x86_64.rpm
       if [ ! -f "$RPM_PATH" ]; then
@@ -127,15 +128,16 @@ ddot_byoc_package_build_test_deb:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
-        --target artifact \
-        --output type=local,dest=./ \
-        --build-arg AGENT_VERSION=$AGENT_VERSION \
-        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-        --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
-        --build-arg PACKAGE_TYPE=deb \
-        --build-arg DDA_VERSION=$DDA_VERSION \
-        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+      --target artifact \
+      --output type=local,dest=./ \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
+      --build-arg PACKAGE_TYPE=deb \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
     - |
       DEB_PATH=ddot-byoc/datadog-agent-ddot-byoc_${AGENT_VERSION}_amd64.deb
       if [ ! -f "$DEB_PATH" ]; then
@@ -167,15 +169,16 @@ ddot_byoc_binary_build_test_ubuntu2004:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
-        --target artifact \
-        --output type=local,dest=./ \
-        --build-arg AGENT_VERSION=$AGENT_VERSION \
-        --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
-        --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
-        --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
-        --build-arg UBUNTU_VERSION=20.04 \
-        --build-arg DDA_VERSION=$DDA_VERSION \
-        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+      --target artifact \
+      --output type=local,dest=./ \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
+      --build-arg UBUNTU_VERSION=20.04 \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
     - |
       BIN_PATH=ddot-byoc/otel-agent
       if [ ! -f "$BIN_PATH" ]; then
