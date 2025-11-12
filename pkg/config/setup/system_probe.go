@@ -45,9 +45,9 @@ const (
 	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
 
 	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
-	// info for dynamic instrumentation this is the directory where the debug
-	// info is decompressed into during processing.
-	defaultDynamicInstrumentationDebugInfoDir = "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+	// info for Dynamic Instrumentation. This is the directory where the DWARF
+	// data from analyzed binaries is decompressed into during processing.
+	defaultDynamicInstrumentationDebugInfoDir = "/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
 
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
