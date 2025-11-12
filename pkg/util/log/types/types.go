@@ -101,3 +101,35 @@ const (
 func (level LogLevel) String() string {
 	return seelog.LogLevel(level).String()
 }
+
+var capitalized = map[LogLevel]string{
+	TraceLvl:    "Trace",
+	DebugLvl:    "Debug",
+	InfoLvl:     "Info",
+	WarnLvl:     "Warn",
+	ErrorLvl:    "Error",
+	CriticalLvl: "Critical",
+	Off:         "Off",
+}
+
+var uppercased = map[LogLevel]string{
+	TraceLvl:    "TRACE",
+	DebugLvl:    "DEBUG",
+	InfoLvl:     "INFO",
+	WarnLvl:     "WARN",
+	ErrorLvl:    "ERROR",
+	CriticalLvl: "CRITICAL",
+	Off:         "OFF",
+}
+
+// Capitalized returns a capitalized string representation of the log level
+// Avoids allocations when logging.
+func (level LogLevel) Capitalized() string {
+	return capitalized[level]
+}
+
+// Uppercase returns an uppercase string representation of the log level
+// Avoids allocations when logging.
+func (level LogLevel) Uppercase() string {
+	return uppercased[level]
+}
