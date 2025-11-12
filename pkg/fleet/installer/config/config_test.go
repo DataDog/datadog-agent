@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -548,4 +549,94 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 
 	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
+}
+
+func TestConfig_SimpleStartPromote(t *testing.T) {
+	stableDir := t.TempDir()     // This acts as the 'Stable' config directory
+	experimentDir := t.TempDir() // This acts as the 'Experiment' config directory
+
+	// Place a simple base config in the stable directory
+	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
+	baseContent := []byte("log_level: info\n")
+	assert.NoError(t, os.WriteFile(baseConfigPath, baseContent, 0644))
+
+	dirs := &Directories{
+		StablePath:     stableDir,
+		ExperimentPath: experimentDir,
+	}
+
+	// Start experiment: create a new config in experiment
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "exp-001",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level": "debug"}`),
+			},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/mycheck.d/config.yaml",
+				Patch:             []byte(`{"integration_setting": true}`),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Promote experiment
+	err = dirs.PromoteExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// After promote: stable has the new content
+	finalContent, err := os.ReadFile(filepath.Join(stableDir, "datadog.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(finalContent), "log_level: debug\n")
+	finalConfDContent, err := os.ReadFile(filepath.Join(stableDir, "conf.d", "mycheck.d", "config.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(finalConfDContent), "integration_setting: true\n")
+}
+
+func TestConfig_SimpleStartStop(t *testing.T) {
+	stableDir := t.TempDir()
+	experimentDir := t.TempDir()
+
+	// Place a simple base config in the stable directory
+	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
+	baseContent := []byte("log_level: warn\n")
+	assert.NoError(t, os.WriteFile(baseConfigPath, baseContent, 0644))
+
+	dirs := &Directories{
+		StablePath:     stableDir,
+		ExperimentPath: experimentDir,
+	}
+
+	// Start experiment: patch config
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "exp-002",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level": "debug"}`),
+			},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/mycheck.d/config.yaml",
+				Patch:             []byte(`{"integration_setting": true}`),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Stop experiment (rollback to stable)
+	err = dirs.RemoveExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// Stable should remain unchanged
+	finalContent, err := os.ReadFile(filepath.Join(stableDir, "datadog.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(baseContent), string(finalContent))
+	_, err = os.ReadFile(filepath.Join(stableDir, "conf.d", "mycheck.d", "config.yaml"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
 }
