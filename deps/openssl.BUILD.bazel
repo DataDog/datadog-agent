@@ -26,7 +26,6 @@ configure_make(
         # most probably due to race condition.
         "@platforms//os:windows": [
             "-j 16",
-            "depend",
         ],
         "//conditions:default": [
             "-j 16",
@@ -103,5 +102,11 @@ configure_make(
             "@zlib",
         ],
         "@platforms//os:windows": [],
+    }),
+    targets = select({
+        "@platforms//os:windows": [
+            "",
+        ],
+        "//conditions:default": ["", "install"],
     }),
 )
