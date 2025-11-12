@@ -16,8 +16,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-secret-backend/backend"
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/backend"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 var appVersion = "dev"

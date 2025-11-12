@@ -14,7 +14,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/DataDog/datadog-secret-backend/secret"
+	"github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 )
 
 // JSONBackendConfig is the configuration for a JSON backend

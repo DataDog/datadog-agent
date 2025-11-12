@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-secret-backend
+module github.com/DataDog/datadog-agent/cmd/secret-backend
 
 go 1.25.3
 

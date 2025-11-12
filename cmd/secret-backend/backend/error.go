@@ -6,7 +6,7 @@
 
 package backend
 
-import "github.com/DataDog/datadog-secret-backend/secret"
+import "github.com/DataDog/datadog-agent/cmd/secret-backend/secret"
 
 // errorBackend links an error to its backend
 type errorBackend struct {
