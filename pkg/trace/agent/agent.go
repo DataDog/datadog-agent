@@ -693,7 +693,7 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	if p.TracerPayload.AppVersion == "" {
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
-	// Or should this be lazy loaded? Like, only intialize if we have something to add?
+	// Or should this be lazy loaded? Like, only initialize if we have something to add?
 	if p.TracerPayload.Tags == nil {
 		p.TracerPayload.Tags = make(map[string]string)
 	}
