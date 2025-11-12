@@ -218,7 +218,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
-			statSpan, ok := sc.NewStatSpanFromPB(s, nil)
+			statSpan, ok := sc.NewStatSpanFromPB(s, nil, nil)
 			assert.True(b, ok, "Statically defined benchmark spans should require stats")
 			benchStatSpans = append(benchStatSpans, statSpan)
 		}
@@ -276,7 +276,7 @@ func BenchmarkHandleSpanRandom(b *testing.B) {
 		sb := NewRawBucket(0, 1e9)
 		var benchStatSpans []*StatSpan
 		for _, s := range benchSpans {
-			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags)
+			statSpan, ok := sc.NewStatSpanFromPB(s, peerTags, nil)
 			assert.True(b, ok, "Statically defined benchmark spans should require stats")
 			benchStatSpans = append(benchStatSpans, statSpan)
 		}

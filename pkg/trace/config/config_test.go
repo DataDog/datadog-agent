@@ -68,6 +68,26 @@ func TestPeerTagsAggregation(t *testing.T) {
 	})
 }
 
+func TestSpanDerivedPrimaryTags(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.SpanDerivedPrimaryTags)
+		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTags())
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTags = []string{"aws.s3.bucket", "http.url"}
+		assert.Equal(t, []string{"aws.s3.bucket", "http.url"}, cfg.ConfiguredSpanDerivedPrimaryTags())
+	})
+
+	t.Run("dedup", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTags = []string{"tag1", "tag2", "tag1"}
+		assert.Equal(t, []string{"tag1", "tag2"}, cfg.ConfiguredSpanDerivedPrimaryTags())
+	})
+}
+
 func TestMRFFailoverAPM(t *testing.T) {
 	t.Run("undefined", func(t *testing.T) {
 		cfg := New()
