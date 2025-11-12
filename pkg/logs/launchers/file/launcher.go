@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/procfilestats"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -61,8 +62,16 @@ type Launcher struct {
 	filesTailedBetweenScans []*tailer.File
 	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
 	oldInfoMap    map[string]*oldTailerInfo
+	fileOpener    opener.FileOpener
 	fingerprinter tailer.Fingerprinter
 }
+
+const (
+	// WildcardModeByName is the default mode and prioritizes files by name in reverse order
+	WildcardModeByName string = "by_name"
+	// WildcardModeByModificationTime prioritizes files by modification time
+	WildcardModeByModificationTime string = "by_modification_time"
+)
 
 type oldTailerInfo struct {
 	Pattern      *regexp.Regexp
@@ -70,13 +79,23 @@ type oldTailerInfo struct {
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component, fingerprintConfig types.FingerprintConfig) *Launcher {
+func NewLauncher(
+	tailingLimit int,
+	tailerSleepDuration time.Duration,
+	validatePodContainerID bool,
+	scanPeriod time.Duration,
+	wildcardMode string,
+	flarecontroller *flareController.FlareController,
+	tagger tagger.Component,
+	fileOpener opener.FileOpener,
+	fingerprinter tailer.Fingerprinter,
+) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
-	case "by_modification_time":
+	case WildcardModeByModificationTime:
 		wildcardStrategy = fileprovider.WildcardUseFileModTime
-	case "by_name":
+	case WildcardModeByName:
 		wildcardStrategy = fileprovider.WildcardUseFileName
 	default:
 		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'by_name' strategy.", wildcardMode)
@@ -97,7 +116,8 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		tagger:                 tagger,
 		filesChan:              make(chan []*tailer.File, 1),
 		oldInfoMap:             make(map[string]*oldTailerInfo),
-		fingerprinter:          tailer.NewFingerprinter(fingerprintConfig),
+		fileOpener:             fileOpener,
+		fingerprinter:          fingerprinter,
 	}
 }
 
@@ -450,7 +470,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 	}
 
 	// Create decoder with stored pattern if available
-	var decoderInstance *decoder.Decoder
+	var decoderInstance decoder.Decoder
 	if oldInfo.Pattern != nil {
 		decoderInstance = decoder.NewDecoderFromSourceWithPattern(file.Source, oldInfo.Pattern, tailerInfo)
 	} else {
@@ -468,6 +488,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
 		Rotated:         true,
+		FileOpener:      s.fileOpener,
 	}
 
 	if fingerprint != nil {
@@ -593,6 +614,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		CapacityMonitor: capacityMonitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		FileOpener:      s.fileOpener,
 	}
 
 	if fingerprint != nil {
