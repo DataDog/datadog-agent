@@ -60,7 +60,7 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("sudo yum install -y bind-utils httpd-tools")
+	v.Env().RemoteHost.MustExecute("sudo yum install -y openssh-server bind-utils httpd-tools")
 	v.Env().RemoteHost.MustExecute("sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo")
 	v.Env().RemoteHost.MustExecute("sudo yum install -y docker-ce docker-ce-cli")
 	v.Env().RemoteHost.MustExecute("sudo systemctl start docker")
