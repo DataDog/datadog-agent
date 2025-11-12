@@ -1,0 +1,21 @@
+dd_url: http://127.0.0.1:9091
+logs_config:
+  logs_dd_url: localhost:9092
+  logs_no_ssl: true
+  container_collect_all: true
+process_config:
+  process_dd_url: http://localhost:9093
+container_image:
+  dd_url: http://localhost:9094
+
+telemetry:
+  enabled: true
+  checks: '*'
+
+checks_tag_cardinality: high
+dogstatsd_origin_detection: true
+dogstatsd_tag_cardinality: high
+log_enabled: true
+logs_enabled: true
+
+dogstatsd_socket: /tmp/dsd.socket
