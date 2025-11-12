@@ -562,8 +562,7 @@ func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string,
 // StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
 // It first sets the config catalog and then starts the experiment.
 func (d *DatadogInstaller) StartConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
-	// First set the config catalog
-	//_, err := d.SetConfigExperiment(config)
+	// Convert ConfigExperiment to installerConfig format
 	operations := map[string]interface{}{
 		"deployment_id":   config.ID,
 		"file_operations": convertFilesToOperations(config.Files),
@@ -573,10 +572,11 @@ func (d *DatadogInstaller) StartConfigExperiment(packageName string, config Conf
 	if err != nil {
 		return "", err
 	}
-	// Then start the config experiment
+	// Escape quotes in the JSON string to handle PowerShell quoting properly
 	opsStr := strings.ReplaceAll(string(serializedOps), `"`, `\"`)
+
+	// Then start the config experiment
 	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, opsStr))
-	//return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
 }
 
 // PromoteConfigExperiment promotes a config experiment through the daemon.
