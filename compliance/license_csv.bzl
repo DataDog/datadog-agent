@@ -60,7 +60,8 @@ def _handle_attribute_provider(
         args = None,
         inputs = None,
         report = None,
-        attribute_to_consumers = None):
+        attribute_to_consumers = None,
+        attribute_kinds = None):
     """Handle an individual metadata attribute provider.
 
     Args:
@@ -72,6 +73,7 @@ def _handle_attribute_provider(
                 This is for illustrating how to use these rules, and
                 is not needed for the SBOM.
         attribute_to_consumers: Map of attribute providers back to the packages that use them.
+        attribute_kinds: Map of attribute files to their type.
     """
 
     # We are presuming having metadata means you are a PackageMetadataInfo
@@ -96,8 +98,10 @@ def _handle_attribute_provider(
 
     if hasattr(metadata_provider, "attributes"):
         update_attribute_to_consumers(attribute_to_consumers, metadata_provider.attributes, target)
+        attribute_kinds[metadata_provider.attributes.path] = kind
 
-        report.append("  Attribute data: %s" % metadata_provider.attributes.short_path)
+        #report.append("  Attribute data (%s): %s" % (metadata_provider.attributes.kind, metadata_provider.attributes.short_path))
+        report.append("  Attribute data  %s" % metadata_provider.attributes.short_path)
         if hasattr(metadata_provider, "files"):
             inputs.extend(metadata_provider.files.to_list())
             for f in metadata_provider.files.to_list():
@@ -112,7 +116,7 @@ def _handle_attribute_provider(
         value = getattr(metadata_provider, field)
         report.append("Extra field: %s: %s" % (field, value))
 
-def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consumers):
+def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consumers, attribute_kinds):
     """Process a TransitiveMetadataInfo.
 
     Args:
@@ -124,6 +128,7 @@ def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consu
                 is not needed for the SBOM.
         attribute_to_consumers: Map of attribute providers back to the
                  packages that use them.
+        attribute_kinds: Map of attribute files to their type.
     """
     if hasattr(t_m_i, "metadata"):
         report.append("Target %s" % t_m_i.target)
@@ -136,19 +141,13 @@ def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consu
                 inputs = inputs,
                 report = report,
                 attribute_to_consumers = attribute_to_consumers,
+                attribute_kinds = attribute_kinds,
             )
         if hasattr(t_m_i, "trans"):
             fail("TransititiveMetadataInfo contains both metadata and trans." + str(t_m_i))
 
 def _license_csv_impl(ctx):
     # Gather all metadata and make a report from that
-
-    # TODO: Replace this
-    # The code below just dumps the collected metadata providers in a somewhat
-    # pretty printed way.  In reality, we need to read the files associated with
-    # each attribute to get the real data. So this should be a rule to pass
-    # all the files to a helper which generates a formated report.
-    # That is clearly a job for another day.
 
     if TransitiveMetadataInfo not in ctx.attr.target:
         fail("Missing metadata for %s" % ctx.attr.target)
@@ -160,6 +159,7 @@ def _license_csv_impl(ctx):
     inputs = []
     report = []
     attribute_to_consumers = {}
+    attribute_kinds = {}
 
     args = ctx.actions.args()
     args.add("--output", ctx.outputs.out.path)
@@ -182,11 +182,12 @@ def _license_csv_impl(ctx):
                 inputs = inputs,
                 report = report,
                 attribute_to_consumers = attribute_to_consumers,
+                attribute_kinds = attribute_kinds,
             )
 
     if hasattr(t_m_i, "trans"):
         for trans in t_m_i.trans.to_list():
-            _handle_transitive_collector(trans, args, inputs, report, attribute_to_consumers)
+            _handle_transitive_collector(trans, args, inputs, report, attribute_to_consumers, attribute_kinds)
 
     # For the next few months of co-development with supply-chain, print a
     # report of what we have. It's not the final output. It just helps see what
@@ -206,6 +207,7 @@ def _license_csv_impl(ctx):
     else:
         map_file = ctx.outputs.usage_map_private
     inputs.append(map_file)
+
     usage_map = {key.path: value for key, value in attribute_to_consumers.items()}
     if DEBUG_LEVEL > 1:
         # buildifier: disable=print
@@ -213,8 +215,13 @@ def _license_csv_impl(ctx):
     ctx.actions.write(map_file, json.encode_indent(usage_map, indent = " "))
     args.add("--usage_map", map_file.path)
 
+    kinds_map_file = ctx.actions.declare_file("_%s_kinds_map.json" % ctx.label.name)
+    ctx.actions.write(kinds_map_file, json.encode_indent(attribute_kinds, indent = " "))
+    inputs.append(kinds_map_file)
+    args.add("--kinds", kinds_map_file.path)
+
     ctx.actions.run(
-        mnemonic = "GatherLicenses",
+        mnemonic = "GatherLicenseMetadata",
         progress_message = "Writing: %s" % ctx.outputs.out.path,
         # inputs = inputs,
         inputs = inputs,
@@ -233,7 +240,7 @@ def _license_csv_impl(ctx):
 
 license_csv = rule(
     implementation = _license_csv_impl,
-    doc = """Create a csv format list of the licenses used by a target.""",
+    doc = """Create a CSV format list of the licenses used by a target.""",
     attrs = {
         "target": attr.label(
             doc = """Targets to gather licenses for.""",
@@ -249,7 +256,7 @@ license_csv = rule(
         ),
         "_processor": attr.label(
             doc = """processor to read individual atttributes and turn into the CSV file.""",
-            default = Label("//bazel/rules/compliance:gather_licenses"),
+            default = Label("//compliance:gather_licenses"),
             cfg = "exec",
             executable = True,
             allow_files = True,
