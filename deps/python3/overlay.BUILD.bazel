@@ -233,17 +233,18 @@ filegroup(
     ] + PYTHON_CORE_MODULES_SRCS,
 )
 
+filegroup(
+    name = "mimalloc_headers",
+    srcs = glob(["Include/internal/mimalloc/mimalloc/*.h"])
+)
+
 cc_library(
     name = "mimalloc",
     srcs = [
         "Objects/obmalloc.c",
         "Include/internal/pycore_mimalloc.h",
         "Include/internal/mimalloc/mimalloc.h",
-        "Include/internal/mimalloc/mimalloc/atomic.h",
-        "Include/internal/mimalloc/mimalloc/internal.h",
-        "Include/internal/mimalloc/mimalloc/prim.h",
-        "Include/internal/mimalloc/mimalloc/track.h",
-        "Include/internal/mimalloc/mimalloc/types.h",
+        ":mimalloc_headers",
         ":python_headers",
     ],
     textual_hdrs = [
@@ -383,17 +384,32 @@ filegroup(
 )
 
 filegroup(
+    name = "general_headers",
+    srcs = glob(["Include/*.h"]),
+)
+
+filegroup(
+    name = "internal_headers",
+    srcs = glob(["Include/internal/*.h"]),
+)
+
+filegroup(
+    name = "cpython_headers",
+    srcs = glob(["Include/cpython/*.h"]),
+)
+
+filegroup(
     name = "python_headers",
     srcs = glob([
-        "Include/*.h",
-        "Include/cpython/*.h",
-        "Include/internal/*.h",
         "Objects/stringlib/**/*.h",
         "Objects/clinic/*.h",
-        "Python/*.h",
         "Python/clinic/*.h",
         "Modules/clinic/*.h",
+        "Python/*.h",
     ]) + [
+        ":cpython_headers",
+        ":internal_headers",
+        ":general_headers",
         ":copy_pyconfig",
         ":pegen_headers",
         ":tokenizer_headers",
@@ -544,7 +560,7 @@ cc_library(
 )
 
 cc_binary(
-    name = "python",
+    name = "python3",
     srcs = [
         "Programs/python.c",
         ":dynload_shlib",
@@ -562,4 +578,73 @@ cc_binary(
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
     }),
+)
+
+cc_shared_library(
+    name = "python",
+    deps = [":libpython"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    libname = "libpython",
+    src = ":python",
+    version = "3.13",
+)
+
+# Headers need to be split by folders, as they are otherwise flattened to the same directory
+# with some files having a conflicting name, which causes failures
+pkg_files(
+    name = "install_general_headers",
+    srcs = [":general_headers"],
+    prefix = "include/python-3.13",
+)
+
+pkg_files(
+    name = "install_internal_headers",
+    srcs = [":internal_headers"],
+    prefix = "include/python-3.13/internal",
+)
+
+pkg_files(
+    name = "install_mimalloc_headers",
+    srcs = [":mimalloc_headers"],
+    prefix = "include/python-3.13/internal/mimalloc/mimalloc",
+)
+
+pkg_files(
+    name = "install_mimalloc_main_header",
+    srcs = ["Include/internal/mimalloc/mimalloc.h"],
+    prefix = "include/python-3.13/internal/mimalloc",
+)
+
+pkg_files(
+    name = "install_cpython_headers",
+    srcs = [":cpython_headers"],
+    prefix = "include/python-3.13/cpython",
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [":python"],
+    prefix = "bin",
+)
+
+pkg_files(
+    name = "module_files",
+    srcs = glob(["Lib/*.py"]),
+    prefix = "lib/python-3.13",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":install_general_headers",
+        ":install_internal_headers",
+        ":install_mimalloc_headers",
+        ":install_cpython_headers",
+        ":lib_files",
+        ":bin_files",
+    ],
 )
