@@ -1,0 +1,38 @@
+helm:
+  charts:
+    - chartName: "ingress-nginx"
+      installName: "ingress-nginx"
+      repo: "https://kubernetes.github.io/ingress-nginx"
+      namespace: "ingress-nginx"
+      values:
+        - key: "controller.resources.requests.memory"
+          value: "100Mi"
+  apps:
+    - name: python
+      namespace: application
+      values:
+        image:
+          repository: registry.ddbuild.io/ci/injector-dev/python
+          tag: 2cd78ded
+        podLabels:
+          tags.datadoghq.com/env: local
+        service:
+          port: "8080"
+  versions:
+    agent: 7.64.0
+    cluster_agent:
+      version: 7.64.0
+      build: {}
+    injector:
+      version: 0.37.0
+      build: {}
+  config:
+    datadog:
+      apm:
+        instrumentation:
+          enabled: true
+          targets:
+            - name: "ingress-nginx"
+              ddTraceVersions:
+                nginx: "v1.13.3"
+                python: "v3"
