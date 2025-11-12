@@ -1,8 +1,7 @@
-:: %1: a file from sourcedir
-:: %2: a file from destdir
-
-for %%F in (%1) do set sourcedir=%%~dpF
-for %%F in (%2) do set destdir=%%~dpF
+:: Retrieve the directory from the given input file
+for %%F in (%SRCFILE%) do set sourcedir=%%~dpF
+:: Make sure the destdir is a proper Windows path
+for %%F in (%OUTDIR%) do set destdir=%%~fF\\
 
 :: Make paths for external deps absolute
 :: Once in the MSBuild invocation we can't rely on relative paths
@@ -17,6 +16,9 @@ set LIBFFI_DIR=%cd%\%LIBFFI_DIR%\\
 set OPENSSL_DIR=%cd%\%OPENSSL_DIR%\\
 set TCLTK_DIR=%cd%\%TCLTK_DIR%\\
 
+:: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
+:: the flag is still needed because otherwise modules depending on some of those external dependencies
+:: won't be built.
 :: Properties pointing at external dependencies directories are taken from PCbuild/python.props
 :: Note that the build.bat script only accepts 9 extra arguments that can be passed through to MSBuild,
 :: if we ever go over that limit, we'd neet to find a different mechanism to set these.
@@ -33,5 +35,11 @@ call %sourcedir%\PCbuild\build.bat -e^
 
 if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
-xcopy /y/e/s %sourcedir%PCbuild\amd64 %destdir%
+@echo on
 
+:: Create final layout from the build
+:: --include-dev - include include/ and libs/ directories
+:: --include-venv - necessary for ensurepip to work
+:: --include-stable - adds python3.dll
+set build_outdir=%sourcedir%\PCbuild\amd64
+%build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
