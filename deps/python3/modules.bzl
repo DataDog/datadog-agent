@@ -1,4 +1,4 @@
-#Generated with ./deps/python3/gen_modules.py /home/hugo.beauzee/dev/cpython/build-native/Makefile deps/python3/modules.bzl
+#Generated with deps/python3/gen_modules.py /home/hugo.beauzee/dev/cpython/build-native/Makefile deps/python3/modules.bzl
 PYTHON_CORE_MODULES_SRCS =[
     "Modules/atexitmodule.c",
     "Modules/faulthandler.c",
@@ -616,5 +616,87 @@ PYTHON_MODULES = {
         "srcs": [
             "Modules/pwdmodule.c"
         ]
+    }
+}
+PYTHON_FROZEN_MODULES = {
+    "abc": {
+        "src": "Lib/abc.py",
+        "output": "Python/frozen_modules/abc.h"
+    },
+    "codecs": {
+        "src": "Lib/codecs.py",
+        "output": "Python/frozen_modules/codecs.h"
+    },
+    "io": {
+        "src": "Lib/io.py",
+        "output": "Python/frozen_modules/io.h"
+    },
+    "_collections_abc": {
+        "src": "Lib/_collections_abc.py",
+        "output": "Python/frozen_modules/_collections_abc.h"
+    },
+    "_sitebuiltins": {
+        "src": "Lib/_sitebuiltins.py",
+        "output": "Python/frozen_modules/_sitebuiltins.h"
+    },
+    "genericpath": {
+        "src": "Lib/genericpath.py",
+        "output": "Python/frozen_modules/genericpath.h"
+    },
+    "ntpath": {
+        "src": "Lib/ntpath.py",
+        "output": "Python/frozen_modules/ntpath.h"
+    },
+    "posixpath": {
+        "src": "Lib/posixpath.py",
+        "output": "Python/frozen_modules/posixpath.h"
+    },
+    "os": {
+        "src": "Lib/os.py",
+        "output": "Python/frozen_modules/os.h"
+    },
+    "site": {
+        "src": "Lib/site.py",
+        "output": "Python/frozen_modules/site.h"
+    },
+    "stat": {
+        "src": "Lib/stat.py",
+        "output": "Python/frozen_modules/stat.h"
+    },
+    "importlib.util": {
+        "src": "Lib/importlib/util.py",
+        "output": "Python/frozen_modules/importlib.util.h"
+    },
+    "importlib.machinery": {
+        "src": "Lib/importlib/machinery.py",
+        "output": "Python/frozen_modules/importlib.machinery.h"
+    },
+    "runpy": {
+        "src": "Lib/runpy.py",
+        "output": "Python/frozen_modules/runpy.h"
+    },
+    "__hello__": {
+        "src": "Lib/__hello__.py",
+        "output": "Python/frozen_modules/__hello__.h"
+    },
+    "__phello__": {
+        "src": "Lib/__phello__/__init__.py",
+        "output": "Python/frozen_modules/__phello__.h"
+    },
+    "__phello__.ham": {
+        "src": "Lib/__phello__/ham/__init__.py",
+        "output": "Python/frozen_modules/__phello__.ham.h"
+    },
+    "__phello__.ham.eggs": {
+        "src": "Lib/__phello__/ham/eggs.py",
+        "output": "Python/frozen_modules/__phello__.ham.eggs.h"
+    },
+    "__phello__.spam": {
+        "src": "Lib/__phello__/spam.py",
+        "output": "Python/frozen_modules/__phello__.spam.h"
+    },
+    "frozen_only": {
+        "src": "Tools/freeze/flag.py",
+        "output": "Python/frozen_modules/frozen_only.h"
     }
 }

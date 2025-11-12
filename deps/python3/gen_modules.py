@@ -31,10 +31,33 @@ def postprocess(modules):
     del modules["_curses_panel"]
 
 
-def gen_modules_list(makefile: str):
+def read_makefile(makefile: str):
+    core_modules = []
     modules = {}
+    frozen_modules = {}
     with open(makefile) as m:
-        for line in m.readlines():
+        lines = m.readlines()
+    for idx in range(len(lines)):
+        line = lines[idx]
+        if line.startswith('MODOBJS='):
+            objects = line[len('MODOBJS=') :].strip().split()
+            core_modules = [str(pathlib.Path(o).with_suffix('.c')) for o in objects]
+        # We are looking for lines such as these:
+        # Python/frozen_modules/abc.h: Lib/abc.py $(FREEZE_MODULE_DEPS)
+        #     $(FREEZE_MODULE) abc $(srcdir)/Lib/abc.py Python/frozen_modules/abc.h
+        # with $(FREEZE_MODULE) being the tool built early in the build process
+        # abc is the module name
+        # abc.py is the input file to be frozen
+        # abc.h is the output file containing the frozen module.
+        # The FREEZE_MODULE parameters are positional so we can easily fetch them
+        # by spliti the command line
+        elif line.rstrip().endswith('$(FREEZE_MODULE_DEPS)'):
+            idx += 1
+            rule = lines[idx]
+            params = rule.split()
+            src = params[2].replace('$(srcdir)/', '')
+            frozen_modules[params[1]] = {"src": src, "output": params[3]}
+        else:
             match = re.search(r"^Modules/([\w-]+)\$\(EXT_SUFFIX\):\s+([\w\s\./-]+).*$", line)
             if match is None:
                 continue
@@ -43,18 +66,7 @@ def gen_modules_list(makefile: str):
             modules[module_name] = {"srcs": sources}
 
     postprocess(modules)
-    return modules
-
-
-def gen_core_modules_list(makefile):
-    with open(makefile) as m:
-        for line in m.readlines():
-            if not line.startswith('MODOBJS='):
-                continue
-            objects = line[len('MODOBJS=') :].strip().split()
-            modules = [str(pathlib.Path(o).with_suffix('.c')) for o in objects]
-            return modules
-    return []
+    return core_modules, modules, frozen_modules
 
 
 def main(argv):
@@ -63,8 +75,7 @@ def main(argv):
         sys.exit(1)
     makefile = sys.argv[1]
     output = sys.argv[2]
-    core_modules = gen_core_modules_list(makefile)
-    modules = gen_modules_list(makefile)
+    core_modules, modules, frozen_modules = read_makefile(makefile)
 
     with open(output, 'w') as o:
         o.write(f"#Generated with {' '.join(sys.argv)}\n")
@@ -72,6 +83,8 @@ def main(argv):
         json.dump(core_modules, o, indent=4)
         o.write("\nPYTHON_MODULES = ")
         json.dump(modules, o, indent=4)
+        o.write("\nPYTHON_FROZEN_MODULES = ")
+        json.dump(frozen_modules, o, indent=4)
 
 
 if __name__ == "__main__":
