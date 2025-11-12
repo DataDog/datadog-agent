@@ -142,6 +142,7 @@ func (sc *SpanConcentrator) NewStatSpanFromPB(s *pb.Span, peerTags []string) (st
 			s.Error,
 			s.Meta,
 			s.Metrics,
+			&sync.RWMutex{},
 			peerTags,
 			"",
 			"",
@@ -161,6 +162,7 @@ type StatSpanConfig struct {
 	Error        int32
 	Meta         map[string]string
 	Metrics      map[string]float64
+	Mutex 		 *sync.RWMutex // protects Meta and Metrics
 	PeerTags     []string
 	HTTPMethod   string
 	HTTPEndpoint string
@@ -176,14 +178,22 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	if config.Metrics == nil {
 		config.Metrics = make(map[string]float64)
 	}
+
+	// Lock to read Meta and Metrics
+	config.Mutex.RLock()
+	defer config.Mutex.RUnlock()
+
 	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKind(config.Meta["span.kind"])
+	isMeasured := traceutil.IsMeasuredMetrics(config.Metrics)
 	isTopLevel := traceutil.HasTopLevelMetrics(config.Metrics)
-	if !(isTopLevel || traceutil.IsMeasuredMetrics(config.Metrics) || eligibleSpanKind) {
+	if !(isTopLevel || isMeasured || eligibleSpanKind) {
 		return nil, false
 	}
+
 	if traceutil.IsPartialSnapshotMetrics(config.Metrics) {
 		return nil, false
 	}
+
 	return &StatSpan{
 		service:          config.Service,
 		resource:         config.Resource,
@@ -197,11 +207,9 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 		statusCode:       getStatusCode(config.Meta, config.Metrics),
 		isTopLevel:       isTopLevel,
 		matchingPeerTags: matchingPeerTags(config.Meta, config.PeerTags),
-
-		grpcStatusCode: getGRPCStatusCode(config.Meta, config.Metrics),
-
-		httpMethod:   config.HTTPMethod,
-		httpEndpoint: config.HTTPEndpoint,
+		grpcStatusCode:   getGRPCStatusCode(config.Meta, config.Metrics),
+		httpMethod:       config.HTTPMethod,
+		httpEndpoint:     config.HTTPEndpoint,
 	}, true
 }
 
@@ -262,6 +270,7 @@ func (sc *SpanConcentrator) NewStatSpan(
 			error,
 			meta,
 			metrics,
+			&sync.RWMutex{},
 			peerTags,
 			"",
 			"",
