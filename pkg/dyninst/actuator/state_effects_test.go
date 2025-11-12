@@ -125,7 +125,6 @@ func (er *effectRecorder) yamlNodes() ([]*yaml.Node, error) {
 // Implementation of effectHandler interface using the unified system
 
 func (er *effectRecorder) loadProgram(
-	_ tenantID,
 	programID ir.ProgramID,
 	executable Executable,
 	processID ProcessID,

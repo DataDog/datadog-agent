@@ -66,7 +66,7 @@ type Tailer struct {
 	evtapi     evtapi.API
 	source     *sources.LogSource
 	config     *Config
-	decoder    *decoder.Decoder
+	decoder    decoder.Decoder
 	outputChan chan *message.Message
 
 	cancelTail context.CancelFunc
@@ -148,7 +148,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 
-	for decodedMessage := range t.decoder.OutputChan {
+	for decodedMessage := range t.decoder.OutputChan() {
 		if len(decodedMessage.GetContent()) > 0 {
 			// Leverage the existing message instead of creating a new one
 			// This preserves all bookmark information and is more efficient
@@ -325,7 +325,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 	}
 
 	t.source.RecordBytes(int64(len(msg.GetContent())))
-	t.decoder.InputChan <- msg
+	t.decoder.InputChan() <- msg
 }
 
 // enrichEvent renders event record fields using EvtFormatMessage and adds them to the map.

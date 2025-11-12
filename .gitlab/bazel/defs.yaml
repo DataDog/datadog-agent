@@ -33,10 +33,10 @@
   extends: .linux_arm64
 
 .bazel:runner:macos-amd64:
-  tags: [ "macos:ventura-amd64", "specific:true" ]
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
 
 .bazel:runner:macos-arm64:
-  tags: [ "macos:ventura-arm64", "specific:true" ]
+  tags: [ "macos:sonoma-arm64", "specific:true" ]
 
 .bazel:runner:windows-amd64:
   extends: .windows_docker_default
