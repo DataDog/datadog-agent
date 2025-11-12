@@ -26,7 +26,8 @@ class WiFiIPCServer {
         // Create socket path based on current user's UID
         let uid = getuid()
         self.socketPath = "/var/run/datadog-agent/wifi-\(uid).sock"
-        self.acceptQueue = DispatchQueue(label: "com.datadoghq.wifi.ipc", qos: .userInitiated)
+        // Use .background QoS for agent telemetry collection (not user-facing work)
+        self.acceptQueue = DispatchQueue(label: "com.datadoghq.wifi.ipc", qos: .background)
 
         NSLog("[WiFiIPCServer] Initialized with socket path: \(socketPath)")
     }
@@ -175,8 +176,8 @@ class WiFiIPCServer {
                 continue
             }
 
-            // Handle client connection on a separate dispatch
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // Handle client connection on a separate dispatch (background QoS for telemetry)
+            DispatchQueue.global(qos: .background).async { [weak self] in
                 self?.handleClient(clientFD)
             }
         }
