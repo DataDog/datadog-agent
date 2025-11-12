@@ -161,7 +161,6 @@ func (a *effects) loadProgram(
 		if err != nil {
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: programID,
-				err:       err,
 			})
 			return
 		}
@@ -198,7 +197,6 @@ func (a *effects) attachToProcess(
 		if err != nil {
 			a.sendEvent(eventProgramAttachingFailed{
 				programID: loaded.programID,
-				err:       fmt.Errorf("failed to attach to process: %w", err),
 			})
 			return
 		}

@@ -9,7 +9,6 @@ package actuator
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"syscall"
@@ -98,7 +97,6 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 	case eventProgramLoadingFailed:
 		return encodeNodeTag("!loading-failed", map[string]any{
 			"program_id": int(ev.programID),
-			"error":      ev.err.Error(),
 		})
 
 	case eventProgramAttached:
@@ -111,7 +109,6 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 		return encodeNodeTag("!attaching-failed", map[string]any{
 			"program_id": int(ev.programID),
 			"process_id": int(ev.processID.PID),
-			"error":      ev.err.Error(),
 		})
 
 	case eventProgramDetached:
@@ -240,7 +237,6 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramLoadingFailed{
 			programID: ir.ProgramID(eventData.ProgramID),
-			err:       errors.New(eventData.Error),
 		}
 
 	case "attached":
@@ -272,7 +268,6 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramAttachingFailed{
 			programID: ir.ProgramID(eventData.ProgramID),
 			processID: ProcessID{PID: int32(eventData.ProcessID)},
-			err:       errors.New(eventData.Error),
 		}
 
 	case "detached":

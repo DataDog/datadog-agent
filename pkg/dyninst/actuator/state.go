@@ -232,9 +232,6 @@ type process struct {
 	// same ID as the currentProgram. Will be nil if there is no program
 	// attached.
 	attachedProgram *attachedProgram
-
-	// Populated after the program has failed to compile or load.
-	err error
 }
 
 type probeKey struct {
@@ -294,7 +291,7 @@ func handleEvent(
 
 	case eventProgramLoadingFailed:
 		sm.counters.loadFailed++
-		err = handleProgramLoadingFailure(sm, ev.programID, ev.err)
+		err = handleProgramLoadingFailure(sm, ev.programID)
 
 	case eventProgramAttached:
 		sm.counters.attached++
@@ -583,7 +580,7 @@ func clearProcessProgram(
 }
 
 func handleProgramLoadingFailure(
-	sm *state, progID ir.ProgramID, failureError error,
+	sm *state, progID ir.ProgramID,
 ) error {
 	prog, ok := sm.programs[progID]
 	if !ok {
@@ -607,7 +604,6 @@ func handleProgramLoadingFailure(
 		} else {
 			proc.state = processStateLoadingFailed
 			proc.currentProgram = 0
-			proc.err = failureError
 		}
 	default:
 		return fmt.Errorf(
@@ -696,7 +692,6 @@ func handleProgramAttachingFailed(
 			// going to say we're in a failed state, but maybe that's
 			// not the right thing to do.
 			proc.state = processStateLoadingFailed
-			proc.err = ev.err
 		}
 		return nil
 
