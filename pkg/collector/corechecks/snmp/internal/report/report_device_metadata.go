@@ -30,14 +30,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
-const interfaceStatusMetric = "snmp.interface.status"
-const topologyLinkSourceTypeLLDP = "lldp"
-const topologyLinkSourceTypeCDP = "cdp"
-const ciscoNetworkProtocolIPv4 = "1"
-const ciscoNetworkProtocolIPv6 = "20"
+const (
+	interfaceStatusMetric      = "snmp.interface.status"
+	topologyLinkSourceTypeLLDP = "lldp"
+	topologyLinkSourceTypeCDP  = "cdp"
+	ciscoNetworkProtocolIPv4   = "1"
+	ciscoNetworkProtocolIPv6   = "20"
+)
 
-const inetAddressUnknown = "0"
-const inetAddressIPv4 = "1"
+const (
+	inetAddressUnknown = "0"
+	inetAddressIPv4    = "1"
+)
 
 var ciscoIPsecStatusByValue = map[string]string{
 	"1": "active",
@@ -468,7 +472,7 @@ func buildNetworkTopologyMetadataWithCDP(deviceID string, store *metadata.Store,
 					IPAddress:   remoteDeviceAddress,
 				},
 				Interface: &devicemetadata.TopologyLinkInterface{
-					ID:          store.GetColumnAsString("cdp_remote.interface_id", strIndex),
+					ID:          store.GetColumnAsString("interface.name", strIndex),
 					IDType:      devicemetadata.IDTypeInterfaceName,
 					Description: "",
 				},
