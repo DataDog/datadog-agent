@@ -10,6 +10,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -30,6 +31,7 @@ type ConnectionsModeler struct {
 	ipc             ipCache
 	routeIndex      map[string]RouteIdx
 	tagsSet         *network.TagsSet
+	tagger          tagger.Component
 }
 
 // NewConnectionsModeler initializes the connection modeler with encoders, dns formatter for
@@ -37,7 +39,7 @@ type ConnectionsModeler struct {
 // It also includes formatted connection telemetry related to all batches, not specific batches.
 // Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
 // rather than just individual batches.
-func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+func NewConnectionsModeler(conns *network.Connections, tagger tagger.Component) *ConnectionsModeler {
 	ipc := make(ipCache, len(conns.Conns)/2)
 	return &ConnectionsModeler{
 		httpEncoder:     newHTTPEncoder(conns.HTTP),
@@ -49,6 +51,7 @@ func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
 		dnsFormatter:    newDNSFormatter(conns, ipc),
 		routeIndex:      make(map[string]RouteIdx),
 		tagsSet:         network.NewTagsSet(),
+		tagger:          tagger,
 	}
 }
 
@@ -73,7 +76,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 
 	for _, conn := range conns.Conns {
 		builder.AddConns(func(builder *model.ConnectionBuilder) {
-			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.redisEncoder, c.dnsFormatter, c.ipc, c.tagsSet)
+			FormatConnection(builder, conn, c.routeIndex, c.httpEncoder, c.http2Encoder, c.kafkaEncoder, c.postgresEncoder, c.redisEncoder, c.dnsFormatter, c.ipc, c.tagsSet, c.tagger)
 		})
 	}
 
