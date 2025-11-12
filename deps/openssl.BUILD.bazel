@@ -44,6 +44,8 @@ configure_make(
         "@//:macos_x86_64": [
             "darwin64-x86_64-cc",
         ] + DEFAULT_CONFIG,
+        # We build openssl for Windows without zlib.
+        # Hence, excluding last DEFAULT_CONFIG entry.
         "@platforms//os:windows": [
             "mingw64",
         ] + DEFAULT_CONFIG[:-1],
