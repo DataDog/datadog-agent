@@ -219,18 +219,8 @@ func TestRequestScan(t *testing.T) {
 			}
 
 			assert.EventuallyWithT(t, func(t *assert.CollectT) {
-				actualDeviceScans := cloneDeviceScans(scanManager)
-				assert.Equal(t, len(tt.expectedDeviceScans), len(actualDeviceScans))
-				for _, actualScan := range actualDeviceScans {
-					expectedScan, exists := tt.expectedDeviceScans[actualScan.DeviceIP]
-					assert.True(t, exists)
-
-					assert.NotNil(t, actualScan.ScanEndTs)
-					actualScan.ScanEndTs = nil
-
-					assert.Equal(t, expectedScan, actualScan)
-				}
-			}, 4*time.Second, 200*time.Millisecond)
+				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
+			}, 2*time.Second, 100*time.Millisecond)
 
 			err = mockLifecycle.Stop(context.Background())
 			assert.NoError(t, err)
@@ -249,12 +239,14 @@ func TestProcessScanRequest(t *testing.T) {
 		scanRequest             snmpscanmanager.ScanRequest
 		expectedDeviceScans     deviceScansByIP
 		expectedCacheContent    []deviceScan
+		expectedScanTasks       []*scanTask
 		expectError             bool
 	}{
 		{
 			name: "config provider returns an error",
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
+
 				mockConfigProvider.On("GetDeviceConfig",
 					"127.0.0.1", mock.Anything, mock.Anything).
 					Return(nil, "", errors.New("some error")).
@@ -284,12 +276,14 @@ func TestProcessScanRequest(t *testing.T) {
 					ScanStatus: failedStatus,
 				},
 			},
-			expectError: true,
+			expectedScanTasks: []*scanTask{},
+			expectError:       true,
 		},
 		{
 			name: "scan returns an error",
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
+
 				mockConfigProvider.On("GetDeviceConfig",
 					"127.0.0.1", mock.Anything, mock.Anything).
 					Return(&snmpparse.SNMPConfig{
@@ -328,12 +322,14 @@ func TestProcessScanRequest(t *testing.T) {
 					ScanStatus: failedStatus,
 				},
 			},
-			expectError: true,
+			expectedScanTasks: []*scanTask{},
+			expectError:       true,
 		},
 		{
 			name: "scan ok",
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
+
 				mockConfigProvider.On("GetDeviceConfig",
 					"127.0.0.1", mock.Anything, mock.Anything).
 					Return(&snmpparse.SNMPConfig{
@@ -370,6 +366,13 @@ func TestProcessScanRequest(t *testing.T) {
 				{
 					DeviceIP:   "127.0.0.1",
 					ScanStatus: successStatus,
+				},
+			},
+			expectedScanTasks: []*scanTask{
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.1",
+					},
 				},
 			},
 			expectError: false,
@@ -417,27 +420,21 @@ func TestProcessScanRequest(t *testing.T) {
 			} else {
 				assert.NoError(t, scanErr)
 
-				actualDeviceScans := cloneDeviceScans(scanManager)
-				assert.Equal(t, len(tt.expectedDeviceScans), len(actualDeviceScans))
-				for _, actualScan := range actualDeviceScans {
-					expectedScan, exists := tt.expectedDeviceScans[actualScan.DeviceIP]
-					assert.True(t, exists)
-
-					assert.NotNil(t, actualScan.ScanEndTs)
-					actualScan.ScanEndTs = nil
-
-					assert.Equal(t, expectedScan, actualScan)
-				}
+				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
 
 				cacheContent, err := persistentcache.Read(cacheKey)
 				assert.NoError(t, err)
 				var actualCacheContent []deviceScan
 				assert.NoError(t, json.Unmarshal([]byte(cacheContent), &actualCacheContent))
-				for i := range actualCacheContent {
-					assert.NotNil(t, actualCacheContent[i].ScanEndTs)
-					actualCacheContent[i].ScanEndTs = nil
+				assert.Equal(t, len(tt.expectedCacheContent), len(actualCacheContent))
+				for _, actualScan := range actualCacheContent {
+					assert.NotNil(t, actualScan.ScanEndTs)
+					actualScan.ScanEndTs = nil
+
+					assert.Contains(t, tt.expectedCacheContent, actualScan)
 				}
-				assert.ElementsMatch(t, tt.expectedCacheContent, actualCacheContent)
+
+				assertScanTasks(t, tt.expectedScanTasks, scanManager)
 			}
 
 			mockScanner.AssertExpectations(t)
@@ -451,11 +448,13 @@ func TestCacheIsLoaded(t *testing.T) {
 		name                     string
 		cacheContent             string
 		buildExpectedDeviceScans func() deviceScansByIP
+		expectedScanTasks        []*scanTask
 	}{
 		{
 			name:                     "empty cache",
 			cacheContent:             "",
 			buildExpectedDeviceScans: func() deviceScansByIP { return deviceScansByIP{} },
+			expectedScanTasks:        []*scanTask{},
 		},
 		{
 			name: "cache with multiple device scans",
@@ -485,6 +484,13 @@ func TestCacheIsLoaded(t *testing.T) {
 						ScanStatus: failedStatus,
 					},
 				}
+			},
+			expectedScanTasks: []*scanTask{
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.1",
+					},
+				},
 			},
 		},
 	}
@@ -517,6 +523,8 @@ func TestCacheIsLoaded(t *testing.T) {
 			scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
 			assert.True(t, ok)
 			assert.Equal(t, tt.buildExpectedDeviceScans(), cloneDeviceScans(scanManager))
+
+			assertScanTasks(t, tt.expectedScanTasks, scanManager)
 		})
 	}
 }
@@ -641,6 +649,165 @@ func TestWriteCache(t *testing.T) {
 			assert.NoError(t, json.Unmarshal([]byte(cacheContent), &actualCacheContent))
 			assert.ElementsMatch(t, tt.buildExpectedCacheContent(), actualCacheContent)
 		})
+	}
+}
+
+func TestScanScheduler(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name                    string
+		scanTasks               []scanTask
+		buildMockConfigProvider func() *snmpConfigProviderMock
+		buildMockScanner        func() *snmpscanmock.SnmpScanMock
+		expectedDeviceScans     deviceScansByIP
+	}{
+		{
+			name: "due scans are queued",
+			scanTasks: []scanTask{
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "10.0.0.1",
+					},
+					nextScanTs: now.Add(999 * time.Hour), // Not a due scan
+				},
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.1",
+					},
+					nextScanTs: now.Add(-1 * time.Minute), // Due scan
+				},
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.2",
+					},
+					nextScanTs: now.Add(-2 * time.Minute), // Due scan
+				},
+			},
+			buildMockConfigProvider: func() *snmpConfigProviderMock {
+				mockConfigProvider := newSnmpConfigProviderMock()
+
+				mockConfigProvider.On("GetDeviceConfig",
+					"127.0.0.1", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "127.0.0.1",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
+				mockConfigProvider.On("GetDeviceConfig",
+					"127.0.0.2", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "127.0.0.2",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
+				return mockConfigProvider
+			},
+			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
+				scanner := snmpscanmock.Mock(t)
+				mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
+				assert.True(t, ok)
+
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil).
+					Once()
+
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(nil).
+					Once()
+
+				return mockScanner
+			},
+			expectedDeviceScans: deviceScansByIP{
+				"127.0.0.1": {
+					DeviceIP:   "127.0.0.1",
+					ScanStatus: successStatus,
+				},
+				"127.0.0.2": {
+					DeviceIP:   "127.0.0.2",
+					ScanStatus: successStatus,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("run_path", testDir)
+
+			mockLifecycle := compdef.NewTestLifecycle(t)
+			mockLogger := logmock.New(t)
+			mockIPC := ipcmock.New(t)
+			mockScanner := tt.buildMockScanner()
+
+			reqs := Requires{
+				Lifecycle:  mockLifecycle,
+				Logger:     mockLogger,
+				Config:     mockConfig,
+				HTTPClient: mockIPC.GetClient(),
+				Scanner:    mockScanner,
+			}
+
+			provides, err := NewComponent(reqs)
+			assert.NoError(t, err)
+
+			scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
+			assert.True(t, ok)
+
+			mockConfigProvider := tt.buildMockConfigProvider()
+			scanManager.snmpConfigProvider = mockConfigProvider
+
+			for _, st := range tt.scanTasks {
+				scanManager.scanScheduler.QueueScanTask(st)
+			}
+
+			err = mockLifecycle.Start(context.Background())
+			assert.NoError(t, err)
+
+			assert.EventuallyWithT(t, func(t *assert.CollectT) {
+				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
+			}, 2*time.Second, 100*time.Millisecond)
+
+			err = mockLifecycle.Stop(context.Background())
+			assert.NoError(t, err)
+
+			mockScanner.AssertExpectations(t)
+			mockConfigProvider.AssertExpectations(t)
+		})
+	}
+}
+
+func assertDeviceScans(t assert.TestingT, expectedDeviceScans deviceScansByIP, scanManager *snmpScanManagerImpl) {
+	actualDeviceScans := cloneDeviceScans(scanManager)
+	assert.Equal(t, len(expectedDeviceScans), len(actualDeviceScans))
+	for _, actualScan := range actualDeviceScans {
+		expectedScan, exists := expectedDeviceScans[actualScan.DeviceIP]
+		assert.True(t, exists)
+
+		assert.NotNil(t, actualScan.ScanEndTs)
+		actualScan.ScanEndTs = nil
+
+		assert.Equal(t, expectedScan, actualScan)
+	}
+}
+
+func assertScanTasks(t assert.TestingT, expectedScanTasks []*scanTask, scanManager *snmpScanManagerImpl) {
+	sc, ok := scanManager.scanScheduler.(*scanSchedulerImpl)
+	assert.True(t, ok)
+	assert.Equal(t, len(expectedScanTasks), len(sc.taskQueue))
+	for _, actualTask := range sc.taskQueue {
+		assert.NotEmpty(t, actualTask.nextScanTs)
+		actualTask.nextScanTs = time.Time{}
+
+		assert.Contains(t, expectedScanTasks, actualTask)
 	}
 }
 
