@@ -8,6 +8,7 @@
 package kubelet
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -138,7 +139,8 @@ func TestQuery(t *testing.T) {
 					apiServerHost: APIServer.URL,
 					nodeName:      "abc",
 				},
-				kubeletURL: kubelet.URL,
+				kubeletURL:      kubelet.URL,
+				ressponseBuffer: bytes.NewBuffer(make([]byte, 0, 64*1024)),
 			}
 
 			_, status, err := kc.query(context.Background(), kubeletPodPath)
