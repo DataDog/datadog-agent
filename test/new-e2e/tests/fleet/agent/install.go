@@ -167,7 +167,7 @@ start-process msiexec -Wait -ArgumentList ('/log', 'C:\uninst.log', '/q', '/x', 
 	if err != nil {
 		return err
 	}
-	_, err = a.host.RemoteHost.Execute(`Remove-Item -Recurse -Force "C:\ProgramData\Datadog"`)
+	_, err = a.host.RemoteHost.Execute(`cmd /c rmdir /s /q "C:\ProgramData\Datadog"`)
 	return err
 }
 
