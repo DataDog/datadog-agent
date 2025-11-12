@@ -72,7 +72,11 @@ func TestFormatterFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			formatter := streamlogs.Formatter{}
-			result := formatter.Format(tt.message, "", []byte(tt.message.GetContent()))
+			var content []byte
+			if tt.message != nil {
+				content = tt.message.GetContent()
+			}
+			result := formatter.Format(tt.message, "", content)
 			require.Equal(t, tt.expected, result)
 		})
 	}
