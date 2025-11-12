@@ -321,7 +321,6 @@ single-machine-performance-regression_detector:
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
 
-
 single-machine-performance-metal-runners-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
