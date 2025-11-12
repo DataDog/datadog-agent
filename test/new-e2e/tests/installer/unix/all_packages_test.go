@@ -236,7 +236,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 				(s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version) {
 				s.T().Skip("Ansible doesn't install support Python2 anymore")
 			} else {
-				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd", ansiblePrefix))
+				_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%sansible-galaxy git+https://github.com/DataDog/ansible-datadog.git,tbavelier/agentonb-2675-disable-legacy-apm-path", ansiblePrefix))
 			}
 			if err == nil {
 				break
@@ -350,7 +350,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
       become: true
       retries: 3
       import_role:
-        name: datadog.dd.agent
+        name: ansible-datadog
 `
 	playbookStringSuffix := `
   vars:
