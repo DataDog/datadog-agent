@@ -109,7 +109,6 @@ type serieWriter interface {
 	writeSerie(serie *metrics.Serie) error
 	startPayload() error
 	finishPayload() error
-	transactionPayloads() []*transaction.BytesPayload
 }
 
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
@@ -119,22 +118,25 @@ type serieWriter interface {
 // compressed protobuf marshaled MetricPayload objects.
 func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
 	pbs := make([]serieWriter, 0, len(pipelines))
-
+	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
-		var pb serieWriter
-		var error error
 		if pipelineConfig.V3 {
 			bufferContext := marshaler.NewBufferContext()
-			pb, err = series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
+			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = &pb
+			pbs = append(pbs, sw)
 		} else {
-			pb, err = series.newPayloadsBuilderV3(config, strategy, pipelineConfig, pipelineContext)
+			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = pb
+			pbs = append(pbs, sw)
 		}
-		if err != nil {
-			return err
-		}
-		pbs = append(pbs, pb)
-
-		err = pb.startPayload()
+		err := sw.startPayload()
 		if err != nil {
 			return err
 		}
@@ -476,10 +478,6 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	}
 
 	return nil
-}
-
-func (pb *PayloadsBuilder) transactionPayloads() []*transaction.BytesPayload {
-	return pb.payloads
 }
 
 func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {
