@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/benbjohnson/clock"
+	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	logstypes "github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -59,9 +60,9 @@ type Tailer struct {
 	// fullpath is the absolute path to file.Path.
 	fullpath string
 
-	// osFile is the os.File object from which log data is read.  The read implementation
+	// osFile is the afero.File object from which log data is read.  The read implementation
 	// is platform-specific, and not every platform will have a non-nil value here.
-	osFile *os.File
+	osFile afero.File
 
 	// tags are the tags to be attached to each log message, excluding tags provided
 	// by the tag provider.
@@ -75,7 +76,7 @@ type Tailer struct {
 	outputChan chan *message.Message
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
-	decoder *decoder.Decoder
+	decoder decoder.Decoder
 
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
@@ -130,6 +131,7 @@ type Tailer struct {
 	fingerprint     *logstypes.Fingerprint
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
+	fileOpener      opener.FileOpener
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -137,13 +139,14 @@ type TailerOptions struct {
 	OutputChan      chan *message.Message    // Required
 	File            *File                    // Required
 	SleepDuration   time.Duration            // Required
-	Decoder         *decoder.Decoder         // Required
+	Decoder         decoder.Decoder          // Required
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
 	Fingerprint     *logstypes.Fingerprint   //Optional
 	Registry        auditor.Registry         //Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
+	FileOpener      opener.FileOpener        // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -202,6 +205,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		fingerprint:                  opts.Fingerprint,
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
+		fileOpener:                   opts.FileOpener,
 	}
 
 	if fileRotated {
@@ -223,7 +227,7 @@ func (t *Tailer) NewRotatedTailer(
 	file *File,
 	outputChan chan *message.Message,
 	capacityMonitor *metrics.CapacityMonitor,
-	decoder *decoder.Decoder,
+	decoder decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
 	fingerprint *logstypes.Fingerprint,
@@ -240,6 +244,7 @@ func (t *Tailer) NewRotatedTailer(
 		CapacityMonitor: capacityMonitor,
 		Fingerprint:     fingerprint,
 		Registry:        registry,
+		FileOpener:      t.fileOpener,
 	}
 
 	return NewTailer(options)
@@ -379,7 +384,7 @@ func (t *Tailer) forwardMessages() {
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range t.decoder.OutputChan() {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
 		// Track post-framer log line sizes
 		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
