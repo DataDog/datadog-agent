@@ -43,3 +43,6 @@ if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 :: --include-stable - adds python3.dll
 set build_outdir=%sourcedir%\PCbuild\amd64
 %build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
+
+:: Bootstrap pip
+%destdir%\python.exe -m ensurepip
