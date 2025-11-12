@@ -80,10 +80,7 @@ def _impl(ctx):
                     ACTION_NAMES.cpp_link_static_library,
                 ],
                 env_entries = [
-                    # Use Windows-style paths that are guaranteed to work with both Windows and MSYS2.
-                    # Delimiter is semicolon which will be converted to colon by rules_foreign_cc
-                    # to run external build systems in MSYS2 bash instead of powershell.
-                    env_entry("PATH", "/C/tools/msys64/usr/bin;{}/bin".format(ctx.attr.MINGW_PATH)),
+                    env_entry("PATH", "C:/tools/msys64/usr/bin;{}/bin".format(ctx.attr.MINGW_PATH)),
                 ],
             ),
         ],
