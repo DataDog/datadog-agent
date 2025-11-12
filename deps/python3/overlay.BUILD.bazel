@@ -165,159 +165,28 @@ genrule(
     outs = ["config.c"],
 )
 
-# The filegroups below follow the naming patterns in cpython/Makefile.pre.in
-# For instance PEGEN_OBJS -> pegen_srcs
-filegroup(
-    name = "pegen_srcs",
-    srcs = [
-        "Parser/pegen.c",
-        "Parser/pegen_errors.c",
-        "Parser/action_helpers.c",
-        "Parser/parser.c",
-        "Parser/string_parser.c",
-        "Parser/peg_api.c",
-        "Parser/token.c"
-    ]
-)
-
-filegroup(
-    name = "tokenizer_srcs",
-    srcs = [
-        "Parser/lexer/buffer.c",
-        "Parser/lexer/lexer.c",
-        "Parser/lexer/state.c",
-        "Parser/tokenizer/file_tokenizer.c",
-        "Parser/tokenizer/readline_tokenizer.c",
-        "Parser/tokenizer/string_tokenizer.c",
-        "Parser/tokenizer/utf8_tokenizer.c",
-        "Parser/tokenizer/helpers.c",
-    ],
-)
-
-filegroup(
-    name = "pegen_headers",
-    srcs = [
-        "Include/internal/pycore_parser.h",
-        "Parser/pegen.h",
-        "Parser/string_parser.h",
-    ]
-)
-
-filegroup(
-    name = "tokenizer_headers",
-    srcs = [
-        "Parser/lexer/buffer.h",
-        "Parser/lexer/lexer.h",
-        "Parser/lexer/state.h",
-        "Parser/tokenizer/tokenizer.h",
-        "Parser/tokenizer/helpers.h",
-    ]
-)
-
 filegroup(
     name = "parser_srcs",
-    srcs = [
-        ":pobjs_srcs",
-        ":pegen_srcs",
-        ":tokenizer_srcs",
-        "Parser/myreadline.c",
-    ],
+    srcs = glob(["Parser/**/*.c"])
 )
 
 filegroup(
     name = "parser_headers",
-    srcs = [
-        ":pegen_headers",
-        ":tokenizer_headers",
+    srcs = glob(["Parser/**/*.h"]) + [
+        "Include/internal/pycore_parser.h",
     ]
 )
 
 filegroup(
     name = "python_srcs",
-    srcs = [
-        "Python/_warnings.c",
-        "Python/Python-ast.c",
-        "Python/Python-tokenize.c",
-        "Python/asdl.c",
-        "Python/assemble.c",
-        "Python/ast.c",
-        "Python/ast_opt.c",
-        "Python/ast_unparse.c",
-        "Python/bltinmodule.c",
-        "Python/brc.c",
-        "Python/ceval.c",
-        "Python/codecs.c",
-        "Python/compile.c",
-        "Python/context.c",
-        "Python/critical_section.c",
-        "Python/crossinterp.c",
-        "Python/dynamic_annotations.c",
-        "Python/errors.c",
-        "Python/flowgraph.c",
-        "Python/frame.c",
-        "Python/frozenmain.c",
-        "Python/future.c",
-        "Python/gc.c",
-        "Python/gc_free_threading.c",
-        "Python/gc_gil.c",
-        "Python/getargs.c",
-        "Python/getcompiler.c",
-        "Python/getcopyright.c",
-        "Python/getplatform.c",
-        "Python/getversion.c",
-        "Python/ceval_gil.c",
-        "Python/hamt.c",
-        "Python/hashtable.c",
-        "Python/import.c",
-        "Python/importdl.c",
-        "Python/initconfig.c",
-        "Python/interpconfig.c",
-        "Python/instrumentation.c",
-        "Python/instruction_sequence.c",
-        "Python/intrinsics.c",
-        "Python/jit.c",
-        "Python/legacy_tracing.c",
-        "Python/lock.c",
-        "Python/marshal.c",
-        "Python/modsupport.c",
-        "Python/mysnprintf.c",
-        "Python/mystrtoul.c",
-        "Python/object_stack.c",
-        "Python/optimizer.c",
-        "Python/optimizer_analysis.c",
-        "Python/optimizer_symbols.c",
-        "Python/parking_lot.c",
-        "Python/pathconfig.c",
-        "Python/preconfig.c",
-        "Python/pyarena.c",
-        "Python/pyctype.c",
-        "Python/pyfpe.c",
-        "Python/pyhash.c",
-        "Python/pylifecycle.c",
-        "Python/pymath.c",
-        "Python/pystate.c",
-        "Python/pythonrun.c",
-        "Python/pytime.c",
-        "Python/qsbr.c",
-        "Python/bootstrap_hash.c",
-        "Python/specialize.c",
-        "Python/structmember.c",
-        "Python/symtable.c",
-        "Python/sysmodule.c",
-        "Python/thread.c",
-        "Python/traceback.c",
-        "Python/tracemalloc.c",
-        "Python/getopt.c",
-        "Python/pystrcmp.c",
-        "Python/pystrtod.c",
-        "Python/pystrhex.c",
-        "Python/dtoa.c",
-        "Python/formatter_unicode.c",
-        "Python/fileutils.c",
-        "Python/suggestions.c",
-        "Python/perf_trampoline.c",
-        "Python/perf_jit_trampoline.c",
-    ],
+    srcs = glob(["Python/*.c"], exclude=[
+        "Python/bytecodes.c",
+        "Python/dup2.c",
+        "Python/dynload*.c",
+        "Python/emscripten_*.c",
+        "Python/optimizer_bytecodes.c",
+        "Python/frozen.c",
+    ])
 )
 
 cc_library(
@@ -336,51 +205,8 @@ cc_library(
 
 filegroup(
     name = "object_srcs",
-    srcs = [
-        "Objects/abstract.c",
-        "Objects/boolobject.c",
-        "Objects/bytes_methods.c",
-        "Objects/bytearrayobject.c",
-        "Objects/bytesobject.c",
-        "Objects/call.c",
-        "Objects/capsule.c",
-        "Objects/cellobject.c",
-        "Objects/classobject.c",
-        "Objects/codeobject.c",
-        "Objects/complexobject.c",
-        "Objects/descrobject.c",
-        "Objects/enumobject.c",
-        "Objects/exceptions.c",
-        "Objects/genericaliasobject.c",
-        "Objects/genobject.c",
-        "Objects/fileobject.c",
-        "Objects/floatobject.c",
-        "Objects/frameobject.c",
-        "Objects/funcobject.c",
-        "Objects/iterobject.c",
-        "Objects/listobject.c",
-        "Objects/longobject.c",
-        "Objects/dictobject.c",
-        "Objects/odictobject.c",
-        "Objects/memoryobject.c",
-        "Objects/methodobject.c",
-        "Objects/moduleobject.c",
-        "Objects/namespaceobject.c",
-        "Objects/object.c",
-        "Objects/obmalloc.c",
-        "Objects/picklebufobject.c",
-        "Objects/rangeobject.c",
-        "Objects/setobject.c",
-        "Objects/sliceobject.c",
-        "Objects/structseq.c",
-        "Objects/tupleobject.c",
-        "Objects/typeobject.c",
+    srcs = glob(["Objects/*.c"]) + [
         "Objects/typeslots.inc",
-        "Objects/typevarobject.c",
-        "Objects/unicodeobject.c",
-        "Objects/unicodectype.c",
-        "Objects/unionobject.c",
-        "Objects/weakrefobject.c",
     ] + select({
         "@platforms//os:linux": ["Python/asm_trampoline.S"],
         "//conditions:default": [],
