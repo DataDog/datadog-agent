@@ -24,6 +24,10 @@ license(
     visibility = ["//visibility:public"],
 )
 
+exports_files([
+    "LICENSE",
+])
+
 VERSION = "1.0.8"
 SONAME = "libbz2.so.%s" % VERSION
 

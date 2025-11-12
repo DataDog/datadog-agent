@@ -140,4 +140,5 @@ register_toolchains("@pythons_hub//:all")
 
 # Make our 3rd parties depencency repositories known
 include("//deps:repos.MODULE.bazel")
+include("//deps/acl:acl.MODULE.bazel")
 include("//deps/openssl3:openssl3.MODULE.bazel")
