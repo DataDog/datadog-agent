@@ -157,7 +157,9 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 
 	tracerTags := ev.GetProcessTracerTags()
 	for _, tag := range tracerTags {
-		p.Tags = append(p.Tags, intern.GetByString(tag))
+		if !isStandardTag(tag) {
+			p.Tags = append(p.Tags, intern.GetByString(tag))
+		}
 	}
 
 	if cid := ev.GetContainerID(); cid != "" {
@@ -165,6 +167,14 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	}
 
 	return p
+}
+
+// isStandardTag returns true if the tag is a standard service/env/version tag
+// that should not be included from tracer metadata to avoid conflicts with UST
+func isStandardTag(tag string) bool {
+	return strings.HasPrefix(tag, "service:") ||
+		strings.HasPrefix(tag, "env:") ||
+		strings.HasPrefix(tag, "version:")
 }
 
 // EventTypes returns the event types handled by this consumer
