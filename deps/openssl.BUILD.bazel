@@ -105,6 +105,7 @@ configure_make(
     }),
     targets = select({
         "@platforms//os:windows": [
+            "depend",
             "",
         ],
         "//conditions:default": ["", "install"],
