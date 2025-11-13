@@ -270,7 +270,7 @@ func WithDeviceCount(count int) NvmlMockOption {
 				if index >= count {
 					return nil, nvml.ERROR_INVALID_ARGUMENT
 				}
-				return GetDeviceMock(index), nvml.SUCCESS
+				return GetDeviceMock(index, o.deviceOptions...), nvml.SUCCESS
 			}
 		})
 	}
@@ -281,6 +281,18 @@ func WithEventSetCreate(eventSetCreate func() (nvml.EventSet, nvml.Return)) Nvml
 	return func(o *nvmlMockOptions) {
 		o.libOptions = append(o.libOptions, func(lib *nvmlmock.Interface) {
 			lib.EventSetCreateFunc = eventSetCreate
+		})
+	}
+}
+
+// WithProcessInfoCallback influences the return value of GetComputeRunningProcessesFunc for the nvml mock
+func WithProcessInfoCallback(callback func(uuid string) ([]nvml.ProcessInfo, nvml.Return)) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			uuid, _ := d.GetUUIDFunc()
+			d.GetComputeRunningProcessesFunc = func() ([]nvml.ProcessInfo, nvml.Return) {
+				return callback(uuid)
+			}
 		})
 	}
 }
