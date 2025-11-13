@@ -16,12 +16,12 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-// Name renders the name
+// Name returns the name
 func (m *snmpScanManagerImpl) Name() string {
 	return "SNMP"
 }
 
-// Section renders the section
+// Section returns the section
 func (m *snmpScanManagerImpl) Section() string {
 	return "SNMP"
 }
