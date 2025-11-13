@@ -18,11 +18,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
@@ -176,6 +177,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set(header.ContainerID, containerID)
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
+	}
+	if t.conf.ErrorTrackingStandalone {
+		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "true")
 	}
 
 	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server

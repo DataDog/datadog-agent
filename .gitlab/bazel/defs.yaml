@@ -23,16 +23,26 @@
     BAZEL_REPO_CONTENTS_CACHE: "$BAZEL_OUTPUT_USER_ROOT/repo-contents"
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
 
-.bazel:persistent-runner:linux-amd64:
+.bazel:runner:linux-amd64:
   cache: []
   variables:
     XDG_CACHE_HOME: /data/bzl
-  tags: [ "linux-persistent:amd64", "specific:true" ]
+  tags: [ "k8s-persistent:amd64", "specific:true" ]
 
-.bazel:ext:windows:
+.bazel:runner:linux-arm64:
+  extends: .linux_arm64
+
+.bazel:runner:macos-amd64:
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+
+.bazel:runner:macos-arm64:
+  tags: [ "macos:sonoma-arm64", "specific:true" ]
+
+.bazel:runner:windows-amd64:
   extends: .windows_docker_default
   timeout: 60m # pulling images alone can take more than 30m
   variables:
+    ARCH: x64
     GIT_DEPTH: 2
   script:
     - |-
@@ -42,7 +52,7 @@
       Set-StrictMode -Version 3.0
       '@
       Invoke-Expression $FailFast
-      $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($SCRIPT))
+      $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($POWERSHELL_SCRIPT))
       $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
     - >-
       docker run
