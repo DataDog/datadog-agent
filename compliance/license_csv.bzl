@@ -81,7 +81,7 @@ def _handle_attribute_provider(
     if hasattr(metadata_provider, "metadata"):
         # We should add a kind into the file itself and treat these like
         # other attributes. That requires upstream changes.
-        args.add("-metadata %s" % metadata_provider.metadata.path)
+        args.add("--metadata", metadata_provider.metadata.path)
         inputs.extend(metadata_provider.files.to_list())
         return
 
@@ -167,7 +167,7 @@ def _license_csv_impl(ctx):
     report.append("Top label: %s" % str(ctx.attr.target.label))
     if hasattr(t_m_i, "target"):
         report.append("Target: %s" % str(t_m_i.target))
-        args.add("--target '%s'" % str(t_m_i.target))
+        args.add("--target", str(t_m_i.target))
 
     # It is possible for the top level target to have metadata, but rare.
     if hasattr(t_m_i, "metadata"):
