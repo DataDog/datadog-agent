@@ -32,4 +32,4 @@ deploy_packages_tar-x64-7:
   variables:
     SRC_IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     TAG_SUFFIX: -7
-    FLAVOR: agent
+    FLAVOR: datadog-agent
