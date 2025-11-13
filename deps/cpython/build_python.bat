@@ -45,7 +45,7 @@ echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies
 :: won't be built.
-call %sourcedir%\PCbuild\build.bat -e
+call %sourcedir%\PCbuild\build.bat -e --pgo
 
 if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
