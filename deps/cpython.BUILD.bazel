@@ -1,5 +1,7 @@
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -60,4 +62,19 @@ run_binary(
     out_dirs = ["python_win"],
     tool = "build_python.bat",
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "install_files",
+    srcs = select({
+        "@platforms//os:windows": [":python_win"],
+    }),
+    renames = {
+        "python_win": REMOVE_BASE_DIRECTORY,
+    },
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":install_files"],
 )
