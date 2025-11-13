@@ -38,6 +38,16 @@ const (
 	cacheKey = "snmp_scanned_devices"
 )
 
+// scanRetryDelays defines how long to wait before retrying a failed scan.
+// Each duration represents the delay before the next retry attempt.
+var scanRetryDelays = []time.Duration{
+	1 * time.Hour,      // 1 hour
+	12 * time.Hour,     // 12 hours
+	24 * time.Hour,     // 1 day
+	3 * 24 * time.Hour, // 3 days
+	7 * 24 * time.Hour, // 1 week
+}
+
 // Requires defines the dependencies for the snmpscanmanager component
 type Requires struct {
 	compdef.In
@@ -178,13 +188,7 @@ func (m *snmpScanManagerImpl) scanWorker() {
 func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest) error {
 	snmpConfig, namespace, err := m.snmpConfigProvider.GetDeviceConfig(req.DeviceIP, m.agentConfig, m.httpClient)
 	if err != nil {
-		now := time.Now()
-		m.setDeviceScan(deviceScan{
-			DeviceIP:   req.DeviceIP,
-			ScanStatus: failedStatus,
-			ScanEndTs:  now,
-		})
-		m.writeCache()
+		m.onDeviceScanFailure(req, false)
 		return err
 	}
 
@@ -198,29 +202,62 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 			return nil
 		}
 
-		now := time.Now()
-		m.setDeviceScan(deviceScan{
-			DeviceIP:   req.DeviceIP,
-			ScanStatus: failedStatus,
-			ScanEndTs:  now,
-		})
-		m.writeCache()
+		m.onDeviceScanFailure(req, true)
 		return err
 	}
 
-	now := time.Now()
-	m.setDeviceScan(deviceScan{
-		DeviceIP:   req.DeviceIP,
-		ScanStatus: successStatus,
-		ScanEndTs:  now,
-	})
-	m.writeCache()
-
-	m.scheduleScanRefresh(req, now)
+	m.onDeviceScanSuccess(req)
 
 	m.log.Infof("Successfully processed default scan request for device '%s'", req.DeviceIP)
 
 	return nil
+}
+
+func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanRequest, canRetry bool) {
+	now := time.Now()
+
+	m.mtx.Lock()
+	var failuresCount int
+	if !canRetry {
+		failuresCount = -1 // -1 means that it will not be retried
+	} else {
+		oldScan, exists := m.deviceScans[req.DeviceIP]
+		if !exists {
+			failuresCount = 1
+		} else {
+			failuresCount = max(oldScan.Failures+1, 1)
+		}
+	}
+	m.deviceScans[req.DeviceIP] = deviceScan{
+		DeviceIP:   req.DeviceIP,
+		ScanStatus: failedScan,
+		ScanEndTs:  now,
+		Failures:   failuresCount,
+	}
+	m.mtx.Unlock()
+
+	m.writeCache()
+
+	if canRetry {
+		m.scheduleScanRetry(req, now, failuresCount)
+	}
+}
+
+func (m *snmpScanManagerImpl) onDeviceScanSuccess(req snmpscanmanager.ScanRequest) {
+	now := time.Now()
+
+	m.mtx.Lock()
+	m.deviceScans[req.DeviceIP] = deviceScan{
+		DeviceIP:   req.DeviceIP,
+		ScanStatus: successScan,
+		ScanEndTs:  now,
+		Failures:   0,
+	}
+	m.mtx.Unlock()
+
+	m.writeCache()
+
+	m.scheduleScanRefresh(req, now)
 }
 
 func (m *snmpScanManagerImpl) loadCache() {
@@ -251,6 +288,12 @@ func (m *snmpScanManagerImpl) loadCache() {
 			m.scheduleScanRefresh(snmpscanmanager.ScanRequest{
 				DeviceIP: scan.DeviceIP,
 			}, scan.ScanEndTs)
+		}
+
+		if scan.isFailed() {
+			m.scheduleScanRetry(snmpscanmanager.ScanRequest{
+				DeviceIP: scan.DeviceIP,
+			}, scan.ScanEndTs, scan.Failures)
 		}
 	}
 }
@@ -308,9 +351,14 @@ func (m *snmpScanManagerImpl) scheduleScanRefresh(req snmpscanmanager.ScanReques
 	})
 }
 
-func (m *snmpScanManagerImpl) setDeviceScan(deviceScan deviceScan) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
+func (m *snmpScanManagerImpl) scheduleScanRetry(req snmpscanmanager.ScanRequest, lastScanTs time.Time, failuresCount int) {
+	idx := failuresCount - 1
+	if idx < 0 || idx >= len(scanRetryDelays) {
+		return
+	}
 
-	m.deviceScans[deviceScan.DeviceIP] = deviceScan
+	m.scanScheduler.QueueScanTask(scanTask{
+		req:        req,
+		nextScanTs: lastScanTs.Add(scanRetryDelays[idx]),
+	})
 }
