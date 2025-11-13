@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -37,6 +38,22 @@ type runtimeImpl struct {
 	// crashes while loading programs. If empty, tombstone files are not
 	// created.
 	tombstoneFilePath string
+
+	stats runtimeStats
+}
+
+type runtimeStats struct {
+	eventPairingBufferFull        atomic.Uint64
+	eventPairingCallMapFull       atomic.Uint64
+	eventPairingCallCountExceeded atomic.Uint64
+}
+
+func (s *runtimeStats) asStats() map[string]any {
+	return map[string]any{
+		"event_pairing_buffer_full":         s.eventPairingBufferFull.Load(),
+		"event_pairing_call_map_full":       s.eventPairingCallMapFull.Load(),
+		"event_pairing_call_count_exceeded": s.eventPairingCallCountExceeded.Load(),
+	}
 }
 
 type irGenFailedError struct {
@@ -176,7 +193,8 @@ func (rt *runtimeImpl) Load(
 			EntityID:    entityID,
 			ContainerID: containerID,
 		}),
-		tree: rt.bufferedMessageTracker.newTree(),
+		tree:   rt.bufferedMessageTracker.newTree(),
+		probes: irProgram.Probes,
 	}
 	rt.dispatcher.RegisterSink(programID, s)
 
@@ -199,7 +217,9 @@ type loadedProgramImpl struct {
 	loadedProgram *loader.Program
 }
 
-func (l *loadedProgramImpl) Attach(processID actuator.ProcessID, executable actuator.Executable) (actuator.AttachedProgram, error) {
+func (l *loadedProgramImpl) Attach(
+	processID actuator.ProcessID, executable actuator.Executable,
+) (actuator.AttachedProgram, error) {
 	attached, err := l.runtime.attacher.Attach(l.loadedProgram, executable, processID)
 	if err != nil {
 		log.Errorf("failed to attach to process %v: %v", processID, err)
