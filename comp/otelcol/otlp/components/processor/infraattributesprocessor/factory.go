@@ -24,7 +24,7 @@ import (
 
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -61,7 +61,7 @@ func (f *factory) getOrCreateData() (*data, error) {
 		logfx.Module(),
 		telemetryModule(),
 		fxutil.FxAgentBase(),
-		remoteTaggerfx.Module(tagger.NewRemoteParams()),
+		remoteTaggerfx.Module(tagger.OptionalRemoteParams{Disable: func(cfg config.Component) bool { return cfg.GetInt("cmd_port") <= 0 }}, tagger.NewRemoteParams()),
 		fx.Provide(func(t tagger.Component) taggerTypes.TaggerClient {
 			return t
 		}),

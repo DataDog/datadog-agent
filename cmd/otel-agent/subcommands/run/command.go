@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -97,6 +97,10 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
+func disableIfCmdPortIsNegative(cfg coreconfig.Component) bool {
+	return cfg.GetInt("cmd_port") <= 0
+}
+
 func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Option) error {
 	acfg, err := agentConfig.NewConfigComponent(context.Background(), params.CoreConfPath, params.ConfPaths)
 	if err != nil && err != agentConfig.ErrNoDDExporter {
@@ -127,7 +131,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
-			remoteTaggerFx.Module(tagger.NewRemoteParams()),
+			remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: disableIfCmdPortIsNegative}, tagger.NewRemoteParams()),
 			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
@@ -212,7 +216,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		}),
 
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: disableIfCmdPortIsNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
