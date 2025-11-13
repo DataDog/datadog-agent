@@ -617,7 +617,7 @@ func TestWriteCache(t *testing.T) {
 	}
 }
 
-func TestScanScheduler(t *testing.T) {
+func TestQueueDueScans(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
@@ -733,6 +733,8 @@ func TestScanScheduler(t *testing.T) {
 			for _, st := range tt.scanTasks {
 				scanManager.scanScheduler.QueueScanTask(st)
 			}
+
+			scanManager.queueDueScans()
 
 			err = mockLifecycle.Start(context.Background())
 			assert.NoError(t, err)
