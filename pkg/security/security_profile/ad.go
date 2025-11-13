@@ -528,7 +528,7 @@ workloadLoop:
 		}
 
 		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
-			seclog.Warnf("%v", err)
+			seclog.Debugf("%v", err)
 		}
 	}
 }
