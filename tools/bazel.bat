@@ -54,7 +54,7 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
   echo startup --local_startup_timeout_secs=30  # instead of 120s, to fail faster for diagnostics
   echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
   echo common --config=ci
-  ::echo common --repo_contents_cache=!ext_repo_contents_cache!
+  echo common --repo_contents_cache=
   echo build --disk_cache=!BAZEL_DISK_CACHE!
 ) >"%~dp0..\user.bazelrc"
 
