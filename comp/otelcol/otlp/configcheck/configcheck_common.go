@@ -21,13 +21,6 @@ const confmapKeyDelimiter = "::"
 const viperKeyDelimiter = "."
 
 func readConfigSection(cfg configmodel.Reader, section string) map[string]interface{} {
-	//Well, I suppose we have some other use-case in our usage scenario, the function UnmarshalKey allows to read one-by-one config values by key+delimiter to some local variable like int, string, etc.
-	//And then use this local variables to apply some settings.
-	//As well, some test scenarios with nil sections and use of UnmarshalKey seems to fail.
-	//My expectations was that env. variables values will be resolved automatically during config yaml file parsing & reading and merged with config object, so there will be no need to do some extra manual steps.
-	//Currently we already have manual resolution of env. variables depending on their type (int or string) but merging of env variables and final config doesn't work well with nested configs.
-	//Ok, I will add manual processing of every env. variable and add local patch for this special use case to satisfy defaults requirements by @hush-hush.
-
 	// Viper doesn't work well when getting subsections, since it
 	// ignores environment variables and nil-but-present sections.
 	// To work around this, we do the following two steps:
