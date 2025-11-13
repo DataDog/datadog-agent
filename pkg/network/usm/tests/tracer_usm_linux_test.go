@@ -188,6 +188,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
+	cfg.BPFDebug = true
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
