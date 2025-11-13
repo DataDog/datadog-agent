@@ -23,6 +23,7 @@ import (
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
 const (
@@ -203,7 +204,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 			return nil
 		}
 
-		m.onDeviceScanFailure(req, true)
+		m.onDeviceScanFailure(req, isRetryableError(err))
 		return err
 	}
 
@@ -212,6 +213,23 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 	m.log.Infof("Successfully processed scan request for device '%s'", req.DeviceIP)
 
 	return nil
+}
+
+func (m *snmpScanManagerImpl) onDeviceScanSuccess(req snmpscanmanager.ScanRequest) {
+	now := time.Now()
+
+	m.mtx.Lock()
+	m.deviceScans[req.DeviceIP] = deviceScan{
+		DeviceIP:   req.DeviceIP,
+		ScanStatus: successScan,
+		ScanEndTs:  now,
+		Failures:   0,
+	}
+	m.mtx.Unlock()
+
+	m.writeCache()
+
+	m.scheduleScanRefresh(req, now)
 }
 
 func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanRequest, canRetry bool) {
@@ -244,21 +262,9 @@ func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanReques
 	}
 }
 
-func (m *snmpScanManagerImpl) onDeviceScanSuccess(req snmpscanmanager.ScanRequest) {
-	now := time.Now()
-
-	m.mtx.Lock()
-	m.deviceScans[req.DeviceIP] = deviceScan{
-		DeviceIP:   req.DeviceIP,
-		ScanStatus: successScan,
-		ScanEndTs:  now,
-		Failures:   0,
-	}
-	m.mtx.Unlock()
-
-	m.writeCache()
-
-	m.scheduleScanRefresh(req, now)
+func isRetryableError(err error) bool {
+	var connErr *gosnmplib.ConnectionError
+	return errors.As(err, &connErr)
 }
 
 func (m *snmpScanManagerImpl) loadCache() {
