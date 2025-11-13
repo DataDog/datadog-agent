@@ -506,10 +506,13 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 // applied in the time samplers.
 func (d *AgentDemultiplexer) SetSamplersFilterList(filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
 
+	// Most metrics coming from dogstatsd will have already been filtered at the source.
+	// Histogram metrics need aggregating before we determine the correct name to be filtered.
 	for _, worker := range d.statsd.workers {
 		worker.filterListChan <- histoFilterList
 	}
 
+	// Metrics from checks are only filtered here, so we need the full filter list.
 	d.aggregator.filterListChan <- filterList
 }
 
