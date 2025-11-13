@@ -121,6 +121,15 @@ func TestRequestScan(t *testing.T) {
 					}, "namespace", nil).
 					Once()
 
+				mockConfigProvider.On("GetDeviceConfig",
+					"10.0.0.2", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "10.0.0.2",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
 				return mockConfigProvider
 			},
 			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
@@ -146,6 +155,15 @@ func TestRequestScan(t *testing.T) {
 					Return(nil).
 					Once()
 
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, &snmpparse.SNMPConfig{
+						IPAddress:       "10.0.0.2",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", mock.Anything, mock.Anything).
+					Return(errors.New("some error")).
+					Once()
+
 				return mockScanner
 			},
 			scanReqs: []snmpscanmanager.ScanRequest{
@@ -161,19 +179,28 @@ func TestRequestScan(t *testing.T) {
 				{
 					DeviceIP: "10.0.0.1",
 				},
+				{
+					DeviceIP: "10.0.0.2",
+				},
 			},
 			expectedDeviceScans: deviceScansByIP{
 				"192.168.0.1": {
 					DeviceIP:   "192.168.0.1",
-					ScanStatus: successStatus,
+					ScanStatus: successScan,
 				},
 				"192.168.0.2": {
 					DeviceIP:   "192.168.0.2",
-					ScanStatus: failedStatus,
+					ScanStatus: failedScan,
+					Failures:   -1,
 				},
 				"10.0.0.1": {
 					DeviceIP:   "10.0.0.1",
-					ScanStatus: successStatus,
+					ScanStatus: successScan,
+				},
+				"10.0.0.2": {
+					DeviceIP:   "10.0.0.2",
+					ScanStatus: failedScan,
+					Failures:   1,
 				},
 			},
 		},
@@ -266,13 +293,15 @@ func TestProcessScanRequest(t *testing.T) {
 			expectedDeviceScans: deviceScansByIP{
 				"127.0.0.1": {
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: failedStatus,
+					ScanStatus: failedScan,
+					Failures:   -1,
 				},
 			},
 			expectedCacheContent: []deviceScan{
 				{
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: failedStatus,
+					ScanStatus: failedScan,
+					Failures:   -1,
 				},
 			},
 			expectedScanTasks: []*scanTask{},
@@ -312,17 +341,61 @@ func TestProcessScanRequest(t *testing.T) {
 			expectedDeviceScans: deviceScansByIP{
 				"127.0.0.1": {
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: failedStatus,
+					ScanStatus: failedScan,
+					Failures:   1,
 				},
 			},
 			expectedCacheContent: []deviceScan{
 				{
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: failedStatus,
+					ScanStatus: failedScan,
+					Failures:   1,
 				},
 			},
-			expectedScanTasks: []*scanTask{},
-			expectError:       true,
+			expectedScanTasks: []*scanTask{
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.1",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "scan returns a context canceled error",
+			buildMockConfigProvider: func() *snmpConfigProviderMock {
+				mockConfigProvider := newSnmpConfigProviderMock()
+
+				mockConfigProvider.On("GetDeviceConfig",
+					"127.0.0.1", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "127.0.0.1",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
+				return mockConfigProvider
+			},
+			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
+				scanner := snmpscanmock.Mock(t)
+				mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
+				assert.True(t, ok)
+
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(context.Canceled).
+					Once()
+
+				return mockScanner
+			},
+			scanRequest: snmpscanmanager.ScanRequest{
+				DeviceIP: "127.0.0.1",
+			},
+			expectedDeviceScans:  deviceScansByIP{},
+			expectedCacheContent: []deviceScan{},
+			expectedScanTasks:    []*scanTask{},
+			expectError:          false,
 		},
 		{
 			name: "scan ok",
@@ -358,13 +431,13 @@ func TestProcessScanRequest(t *testing.T) {
 			expectedDeviceScans: deviceScansByIP{
 				"127.0.0.1": {
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: successStatus,
+					ScanStatus: successScan,
 				},
 			},
 			expectedCacheContent: []deviceScan{
 				{
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: successStatus,
+					ScanStatus: successScan,
 				},
 			},
 			expectedScanTasks: []*scanTask{
@@ -418,11 +491,11 @@ func TestProcessScanRequest(t *testing.T) {
 				assert.Error(t, scanErr)
 			} else {
 				assert.NoError(t, scanErr)
-
-				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
-				assertCacheContent(t, tt.expectedCacheContent, cacheKey)
-				assertScanTasks(t, tt.expectedScanTasks, scanManager)
 			}
+
+			assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
+			assertCacheContent(t, tt.expectedCacheContent, cacheKey)
+			assertScanTasks(t, tt.expectedScanTasks, scanManager)
 
 			mockScanner.AssertExpectations(t)
 			mockConfigProvider.AssertExpectations(t)
@@ -454,7 +527,8 @@ func TestCacheIsLoaded(t *testing.T) {
     {
         "device_ip":"127.0.0.2",
         "scan_status":"failed",
-        "scan_end_ts":"2025-11-04T13:21:20.365221+01:00"
+        "scan_end_ts":"2025-11-04T13:21:20.365221+01:00",
+        "failures":2
     }
 ]`,
 			buildExpectedDeviceScans: func() deviceScansByIP {
@@ -464,13 +538,14 @@ func TestCacheIsLoaded(t *testing.T) {
 				return deviceScansByIP{
 					"127.0.0.1": {
 						DeviceIP:   "127.0.0.1",
-						ScanStatus: successStatus,
+						ScanStatus: successScan,
 						ScanEndTs:  scanEndTs,
 					},
 					"127.0.0.2": {
 						DeviceIP:   "127.0.0.2",
-						ScanStatus: failedStatus,
+						ScanStatus: failedScan,
 						ScanEndTs:  scanEndTs,
+						Failures:   2,
 					},
 				}
 			},
@@ -478,6 +553,11 @@ func TestCacheIsLoaded(t *testing.T) {
 				{
 					req: snmpscanmanager.ScanRequest{
 						DeviceIP: "127.0.0.1",
+					},
+				},
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.2",
 					},
 				},
 			},
@@ -538,17 +618,17 @@ func TestWriteCache(t *testing.T) {
 				return deviceScansByIP{
 					"127.0.0.1": {
 						DeviceIP:   "127.0.0.1",
-						ScanStatus: successStatus,
+						ScanStatus: successScan,
 						ScanEndTs:  scanEndTs,
 					},
 					"10.0.0.1": {
 						DeviceIP:   "10.0.0.1",
-						ScanStatus: successStatus,
+						ScanStatus: successScan,
 						ScanEndTs:  scanEndTs,
 					},
 					"10.0.0.2": {
 						DeviceIP:   "10.0.0.2",
-						ScanStatus: failedStatus,
+						ScanStatus: failedScan,
 						ScanEndTs:  scanEndTs,
 					},
 				}
@@ -560,17 +640,17 @@ func TestWriteCache(t *testing.T) {
 				return []deviceScan{
 					{
 						DeviceIP:   "127.0.0.1",
-						ScanStatus: successStatus,
+						ScanStatus: successScan,
 						ScanEndTs:  scanEndTs,
 					},
 					{
 						DeviceIP:   "10.0.0.1",
-						ScanStatus: successStatus,
+						ScanStatus: successScan,
 						ScanEndTs:  scanEndTs,
 					},
 					{
 						DeviceIP:   "10.0.0.2",
-						ScanStatus: failedStatus,
+						ScanStatus: failedScan,
 						ScanEndTs:  scanEndTs,
 					},
 				}
@@ -691,11 +771,11 @@ func TestQueueDueScans(t *testing.T) {
 			expectedDeviceScans: deviceScansByIP{
 				"127.0.0.1": {
 					DeviceIP:   "127.0.0.1",
-					ScanStatus: successStatus,
+					ScanStatus: successScan,
 				},
 				"127.0.0.2": {
 					DeviceIP:   "127.0.0.2",
-					ScanStatus: successStatus,
+					ScanStatus: successScan,
 				},
 			},
 		},
@@ -771,7 +851,9 @@ func assertCacheContent(t assert.TestingT, expectedCacheContent []deviceScan, ca
 	assert.NoError(t, err)
 
 	var actualCacheContent []deviceScan
-	assert.NoError(t, json.Unmarshal([]byte(cacheContent), &actualCacheContent))
+	if len(cacheContent) > 0 {
+		assert.NoError(t, json.Unmarshal([]byte(cacheContent), &actualCacheContent))
+	}
 
 	assert.Equal(t, len(expectedCacheContent), len(actualCacheContent))
 	for _, actualScan := range actualCacheContent {
