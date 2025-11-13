@@ -15,7 +15,6 @@ import (
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -58,19 +57,6 @@ type Config struct {
 	}
 }
 
-// erasedActuator is an erased type for an Actuator.
-type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
-	a A
-}
-
-func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
-	return e.a.NewTenant(name, rt)
-}
-
-func (e *erasedActuator[A, AT]) Shutdown() error {
-	return e.a.Shutdown()
-}
-
 // NewConfig creates a new Config object.
 func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	traceAgentURL := getTraceAgentURL(os.Getenv)
@@ -85,8 +71,8 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
-		SymDBCacheDir:          "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb_uploads",
-		ProbeTombstoneFilePath: "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger_probes_tombstone.json",
+		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
+		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
 	}

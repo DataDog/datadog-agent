@@ -32,7 +32,7 @@ func RunInit(logConfig *serverlessLog.Config) error {
 	log.Debugf("Launching subprocess %v\n", args)
 	err := execute(logConfig, args)
 	if err != nil {
-		log.Debugf("Error exiting: %v\n", err)
+		log.Errorf("ERROR: Failed to execute command: %v\n", err)
 		return err
 	}
 	return nil
