@@ -75,7 +75,7 @@ func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	assert.IsType(t, &serverlessTraceAgent{}, agent)
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeHttpSpan(t *testing.T) {
+func TestFilterSpanFromRuntimeHttpSpan(t *testing.T) {
 	httpSpanFromStatsD := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://127.0.0.1:8125/",
@@ -84,7 +84,7 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeHttpSpan(t *testing.T) {
 	assert.True(t, filterSpan(&httpSpanFromStatsD))
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeTcpSpan(t *testing.T) {
+func TestFilterSpanFromRuntimeTcpSpan(t *testing.T) {
 	tcpSpanFromStatsD := pb.Span{
 		Meta: map[string]string{
 			"tcp.remote.host": "127.0.0.1",
@@ -94,7 +94,7 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeTcpSpan(t *testing.T) {
 	assert.True(t, filterSpan(&tcpSpanFromStatsD))
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeDnsSpan(t *testing.T) {
+func TestFilterSpanFromRuntimeDnsSpan(t *testing.T) {
 	dnsSpanFromLocalhostAddress := pb.Span{
 		Meta: map[string]string{
 			"dns.address": "127.0.0.1",
@@ -111,7 +111,7 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeDnsSpan(t *testing.T) {
 	assert.True(t, filterSpan(&dnsSpanFromNonRoutableAddress))
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeLegitimateSpan(t *testing.T) {
+func TestFilterSpanFromRuntimeLegitimateSpan(t *testing.T) {
 	legitimateSpan := pb.Span{
 		Meta: map[string]string{
 			"http.url": "http://www.datadoghq.com",
