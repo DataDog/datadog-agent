@@ -30,7 +30,10 @@ python_externals = {
 run_binary(
     name = "python_win",
     srcs = (
-        glob(["**"]) + [
+        glob(
+            ["**"],
+            exclude = ["**/*.pyc"],
+        ) + [
             "bzip2_win_dir",
             "mpdecimal_win_dir",
             "sqlite_win_dir",

@@ -3,6 +3,16 @@ for %%F in (%SRCFILE%) do set sourcedir=%%~dpF
 :: Make sure the destdir is a proper Windows path
 for %%F in (%OUTDIR%) do set destdir=%%~fF\\
 
+set build_outdir=%sourcedir%\PCbuild\amd64
+
+:: Start from a clean state
+%MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
+rmdir /q /s %build_outdir%
+rmdir /q /s %sourcedir%\PCbuild\obj
+rmdir /q /s %sourcedir%\PCbuild\win32
+del /q %response_file%
+del /q %sourcedir%\python.bat
+
 :: Make paths for external deps absolute
 :: Once in the MSBuild invocation we can't rely on relative paths
 :: Note that these need to finish in a backslash separator specifically,
@@ -45,10 +55,17 @@ if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 :: --include-dev - include include/ and libs/ directories
 :: --include-venv - necessary for ensurepip to work
 :: --include-stable - adds python3.dll
-set build_outdir=%sourcedir%\PCbuild\amd64
 %build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
 
 if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
 :: Bootstrap pip
 %destdir%\python.exe -m ensurepip
+
+:: Clean so that no artifacts produced by the build remain
+%MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
+rmdir /q /s %build_outdir%
+rmdir /q /s %sourcedir%\PCbuild\obj
+rmdir /q /s %sourcedir%\PCbuild\win32
+del /q %response_file%
+del /q %sourcedir%\python.bat
