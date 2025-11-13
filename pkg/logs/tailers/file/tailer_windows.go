@@ -13,8 +13,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,11 +31,16 @@ func (t *Tailer) setup(offset int64, whence int) error {
 	t.tags = t.buildTailerTags()
 
 	log.Info("Opening ", t.fullpath)
-	f, err := filesystem.OpenShared(t.fullpath)
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return err
 	}
 	filePos, _ := f.Seek(offset, whence)
+	if st, statErr := f.Stat(); statErr == nil {
+		t.cachedFileSize.Store(st.Size())
+	} else {
+		t.cachedFileSize.Store(0)
+	}
 	f.Close()
 
 	t.lastReadOffset.Store(filePos)
@@ -50,7 +56,7 @@ func (t *Tailer) readAvailable() (int, error) {
 		return 0, io.EOF
 	}
 
-	var f *os.File
+	var f afero.File
 	defer func() {
 		if f != nil {
 			f.Close()
@@ -61,7 +67,7 @@ func (t *Tailer) readAvailable() (int, error) {
 	for {
 		if f == nil {
 			var err error
-			f, err = filesystem.OpenShared(t.fullpath)
+			f, err = t.fileOpener.OpenLogFile(t.fullpath)
 			if err != nil {
 				return bytes, err
 			}
@@ -101,7 +107,7 @@ func (t *Tailer) readAvailable() (int, error) {
 		// logs pipeline.
 		timer := time.NewTimer(t.windowsOpenFileTimeout)
 		select {
-		case t.decoder.InputChan <- decoder.NewInput(inBuf[:n]):
+		case t.decoder.InputChan() <- decoder.NewInput(inBuf[:n]):
 			timer.Stop()
 		case <-timer.C:
 			// The windowsOpenFileTimeout expired, and we want to avoid
@@ -114,7 +120,7 @@ func (t *Tailer) readAvailable() (int, error) {
 			f = nil
 
 			// blocking send to the decoder
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.decoder.InputChan() <- decoder.NewInput(inBuf[:n])
 		}
 	}
 }
