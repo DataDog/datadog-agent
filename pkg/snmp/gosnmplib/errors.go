@@ -5,20 +5,24 @@
 
 package gosnmplib
 
+// ConnectionError represents a connection error to a device
 type ConnectionError struct {
 	err error
 }
 
+// NewConnectionError creates a new ConnectionError
 func NewConnectionError(err error) *ConnectionError {
 	return &ConnectionError{
 		err: err,
 	}
 }
 
+// Error returns the error message
 func (e *ConnectionError) Error() string {
 	return e.err.Error()
 }
 
+// Unwrap returns the underlying error
 func (e *ConnectionError) Unwrap() error {
 	return e.err
 }
