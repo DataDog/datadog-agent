@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -38,7 +37,7 @@ func executePythonScript(ctx context.Context, installPath, scriptName string, ar
 	}
 
 	pythonCmd := append([]string{"-B", scriptPath}, args...)
-	cmd := exec.CommandContext(ctx, pythonPath, pythonCmd...)
+	cmd := telemetry.CommandContext(ctx, pythonPath, pythonCmd...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
