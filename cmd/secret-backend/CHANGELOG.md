@@ -1,5 +1,10 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.3.4 / 2025-11-13
+
+* Allow AWS Secrets Manager secret values to be non-strings (which will be stringified during retrieval)
+* Bump aws-sdk-go-v2, multiple packages (config, ssm, credentials)
+
 ## 1.3.3 / 2025-11-07
 
 * Fixing k8s login issue by handling authentication manually 
