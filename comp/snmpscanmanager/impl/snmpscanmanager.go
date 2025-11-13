@@ -283,8 +283,6 @@ func (m *snmpScanManagerImpl) scanSchedulerWorker() {
 	timeTicker := time.NewTicker(scanSchedulerCheckInterval)
 	defer timeTicker.Stop()
 
-	m.queueDueScans()
-
 	for {
 		select {
 		case <-m.ctx.Done():
