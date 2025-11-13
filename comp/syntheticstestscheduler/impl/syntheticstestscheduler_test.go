@@ -721,7 +721,8 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 				},
 			},
 		},
-		log: l,
+		flushInterval: 10 * time.Second,
+		log:           l,
 	}
 
 	// Flush at 'now'
@@ -729,12 +730,12 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if ctx.cfg.PublicID != "test1" {
 			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
 		}
 	case <-time.After(1 * time.Second):
-		t.Errorf("expected test1 to be enqueuedffff")
+		t.Errorf("expected test1 to be enqueued")
 	}
 
 	rt := scheduler.state.tests["test1"]
