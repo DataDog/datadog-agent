@@ -379,7 +379,7 @@ func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEven
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
-func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *Event, _ *UserSessionContext) {}
+func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
 func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecurityCredentials {
@@ -405,7 +405,7 @@ const (
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveUserSessionContext(event *Event, evtCtx *UserSessionContext)
+	ResolveUserSessionContext(evtCtx *UserSessionContext)
 	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }
