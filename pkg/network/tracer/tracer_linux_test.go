@@ -36,6 +36,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
@@ -50,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/containers"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -3270,4 +3272,100 @@ func (s *TracerSuite) TestTLSCertParsing() {
 		})
 	})
 
+}
+
+func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
+	// find a connection from Python client to CoreDNS
+	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
+		return c.Type == network.UDP &&
+			c.Dest.String() == "172.25.0.2" &&
+			c.DPort == 53 &&
+			c.Source.String() == "172.25.0.3"
+	})
+
+	require.NotNil(ct, conn, "could not find DNS connection from Python client to CoreDNS")
+
+	var foundDNSQuery bool
+	var successfulResponses uint32
+	for domain, byQueryType := range conn.DNSStats {
+		if domain.Get() == "my-server.local" {
+			foundDNSQuery = true
+			for _, stats := range byQueryType {
+				// rcode 0 means successful response
+				successfulResponses += stats.CountByRcode[0]
+			}
+		}
+	}
+
+	require.True(ct, foundDNSQuery, "expected to find my-server.local in DNSStats")
+
+	require.NotZero(ct, successfulResponses, "expected at least one successful DNS response for my-server.local")
+	return conn
+}
+
+// TestDNSWorkload creates a fake DNS workload with docker-compose, that has a known
+// resolv.conf inserted. It tests that we see the resolv.conf in the connections
+func (s *TracerSuite) TestDNSWorkload() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+
+	tr := setupTracer(t, cfg)
+
+	curDir, err := usmtestutil.CurDir()
+	require.NoError(t, err)
+
+	resolvConfBytes, err := os.ReadFile(filepath.Join(curDir, "testdata/dnsworkload/resolv.conf"))
+	require.NoError(t, err)
+	trueResolvConf := containers.StripResolvConf(string(resolvConfBytes))
+
+	err = RunDNSWorkload(t)
+	require.NoError(t, err, "failed to start DNS workload")
+
+	require.NoError(t, tr.reverseDNS.WaitForDomain("my-server.local"), "failed to wait for my-server.local domain")
+
+	// first, find the DNS connection just to grab the PID
+	var conn *network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn = expectDNSWorkload(ct, connections)
+	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper stats")
+
+	proc, err := process.NewProcessWithContext(context.Background(), int32(conn.Pid))
+	require.NoError(t, err)
+
+	createTime, err := proc.CreateTime()
+	require.NoError(t, err)
+
+	// StartTime is recorded as nanoseconds by security's EBPFResolver
+	createTime *= int64(time.Millisecond)
+
+	containerID := intern.GetByString("test-python-container")
+
+	// CWS is not running, so we need to inject a fake process event
+	procEvent := &events.Process{
+		Pid:         conn.Pid,
+		ContainerID: containerID,
+		StartTime:   createTime,
+	}
+	events.Consumer().HandleEvent(procEvent)
+
+	// next, do the real test, now that we marked the process with HandleEvent
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn = expectDNSWorkload(ct, connections)
+
+		require.Equal(ct, procEvent.Pid, conn.Pid, "unexpected connection PID")
+		require.Equal(ct, containerID, conn.ContainerID.Source, "unexpected container ID")
+
+		resolvConf, ok := connections.ResolvConfs[conn.ContainerID.Source]
+		require.True(ct, ok, "container didn't have a resolv.conf")
+		require.Equal(ct, trueResolvConf, resolvConf.Get(), "resolv.conf was found, but didn't match expected value")
+	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper resolv.conf")
 }
