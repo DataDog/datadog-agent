@@ -39,9 +39,9 @@ func OTLP(config pkgconfigmodel.Setup) {
 
 	// Logs
 	config.BindEnvAndSetDefault("otlp_config.logs.enabled", false)
-	config.BindEnv("otlp_config.logs.batch.min_size")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.logs.batch.max_size")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("otlp_config.logs.batch.flush_timeout") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("otlp_config.logs.batch.min_size", 8192)
+	config.BindEnvAndSetDefault("otlp_config.logs.batch.max_size", 0)
+	config.BindEnvAndSetDefault("otlp_config.logs.batch.flush_timeout", "200ms")
 
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.enabled", true)
