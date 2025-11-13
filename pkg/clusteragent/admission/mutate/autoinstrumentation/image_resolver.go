@@ -26,6 +26,7 @@ import (
 
 // Following rollout ordering from SRE
 var rolloutBucketMapping = map[string]int{
+	"datad0g.com":       1,
 	"ap1.datadoghq.com": 1,
 	"ap2.datadoghq.com": 2,
 	"us3.datadoghq.com": 2,
