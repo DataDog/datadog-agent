@@ -30,7 +30,6 @@ struct process_context_t {
     u32 netns;
     u32 is_kworker;
     u64 inode;
-    u64 user_session_id;
 };
 
 struct ktimeval {
