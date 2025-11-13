@@ -36,9 +36,12 @@ func CommandContext(ctx context.Context, name string, args ...string) *TracedCmd
 func (c *TracedCmd) Run() (err error) {
 	defer func() { c.span.Finish(err) }()
 	var stderr bytes.Buffer
+	var stdout bytes.Buffer
 	c.Cmd.Stderr = &stderr
+	c.Cmd.Stdout = &stdout
 	err = c.Cmd.Run()
 	c.span.SetTag("stderr", stderr.String())
+	c.span.SetTag("stdout", stdout.String())
 	if err != nil {
 		exitErr := &exec.ExitError{}
 		if errors.As(err, &exitErr) {
