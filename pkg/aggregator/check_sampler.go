@@ -164,7 +164,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 		name := context.Name + serie.NameSuffix
 		// Filter the metrics
 		if filterList != nil && filterList.Test(name) {
-			tlmDogstatsdFilteredMetrics.Inc()
+			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
 		serie.Name = name
@@ -191,7 +191,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 		series := cs.newSketchSeries(ck, points)
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
-			tlmDogstatsdFilteredMetrics.Inc()
+			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
 		cs.sketches = append(cs.sketches, series)
