@@ -7,6 +7,8 @@
 package snmpscan
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 
@@ -18,5 +20,11 @@ import (
 // Component is the component type.
 type Component interface {
 	RunSnmpWalk(snmpConection *gosnmp.GoSNMP, firstOid string) error
-	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanType metadata.ScanType) error
+	ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanParams ScanParams) error
+}
+
+// ScanParams contains options for a device scan
+type ScanParams struct {
+	ScanType     metadata.ScanType
+	CallInterval time.Duration // Duration to sleep between SNMP calls
 }

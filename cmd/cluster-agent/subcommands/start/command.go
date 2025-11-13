@@ -65,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
@@ -221,8 +222,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 				// we can include the tagger as part of the workloadmeta component.
-				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 				}),
 				haagentfx.Module(),
 				logscompressionfx.Module(),
@@ -511,6 +512,14 @@ func start(log log.Component,
 		if err = languagedetection.Start(mainCtx, wmeta, log, config); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
+	}
+
+	if config.GetBool("appsec.proxy.enabled") && config.GetBool("cluster_agent.appsec.injector.enabled") {
+		if err := appsec.Start(mainCtx, log, config, le.Subscribe); err != nil {
+			log.Errorf("Cannot start appsec injector: %v", err)
+		}
+	} else {
+		appsec.Cleanup(mainCtx, log, config, le.Subscribe)
 	}
 
 	if config.GetBool("admission_controller.enabled") {

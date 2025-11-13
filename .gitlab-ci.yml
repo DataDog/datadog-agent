@@ -164,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v79781370-ed414087
+  CI_IMAGE_BTF_GEN: v81809683-27a1a12f
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v79781370-ed414087
+  CI_IMAGE_DOCKER_X64: v81809683-27a1a12f
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v79781370-ed414087
+  CI_IMAGE_DOCKER_ARM64: v81809683-27a1a12f
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v79781370-ed414087
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v81809683-27a1a12f
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v79781370-ed414087
+  CI_IMAGE_LINUX: v81809683-27a1a12f
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v79781370-ed414087
+  CI_IMAGE_RPM_X64: v81809683-27a1a12f
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v79781370-ed414087
+  CI_IMAGE_RPM_ARM64: v81809683-27a1a12f
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v79781370-ed414087
+  CI_IMAGE_RPM_ARMHF: v81809683-27a1a12f
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v79330459-0f2eff53
+  CI_IMAGE_WIN_LTSC2022_X64: v81809683-27a1a12f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v79330459-0f2eff53
+  CI_IMAGE_WIN_LTSC2025_X64: v81809683-27a1a12f
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -683,6 +683,9 @@ workflow:
         - comp/core/workloadmeta/**/*
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
+        - comp/forwarder/defaultforwarder/**/*
+        - comp/serializer/**/*
+        - pkg/aggregator/*/**
         - comp/languagedetection/**/*
         - pkg/clusteragent/admission/mutate/**/*
         - pkg/collector/corechecks/cluster/**/*

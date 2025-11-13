@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -116,6 +118,8 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": tags.RancherContainer,
 	}
+
+	logLimiter = log.NewLogLimit(20, 10*time.Minute)
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -275,29 +279,35 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
 	process := ev.Entity.(*workloadmeta.Process)
 
-	// Only create tags if the process has service metadata with UST information
-	if process.Service == nil {
-		return nil
-	}
-
 	tagList := taglist.NewTagList()
 
 	// Add Unified Service Tagging tags if present in the service metadata
-	if process.Service.UST.Service != "" {
-		tagList.AddStandard(tags.Service, process.Service.UST.Service)
-	}
-	if process.Service.UST.Env != "" {
-		tagList.AddStandard(tags.Env, process.Service.UST.Env)
-	}
-	if process.Service.UST.Version != "" {
-		tagList.AddStandard(tags.Version, process.Service.UST.Version)
+	if process.Service != nil {
+		if process.Service.UST.Service != "" {
+			tagList.AddStandard(tags.Service, process.Service.UST.Service)
+		}
+		if process.Service.UST.Env != "" {
+			tagList.AddStandard(tags.Env, process.Service.UST.Env)
+		}
+		if process.Service.UST.Version != "" {
+			tagList.AddStandard(tags.Version, process.Service.UST.Version)
+		}
+
+		for _, tracerMeta := range process.Service.TracerMetadata {
+			parseProcessTags(tagList, tracerMeta.ProcessTags)
+		}
 	}
 
-	for _, tracerMeta := range process.Service.TracerMetadata {
-		tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
-		tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
-		tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
-		parseProcessTags(tagList, tracerMeta.ProcessTags)
+	for _, gpuEntityID := range process.GPUs {
+		gpu, err := c.store.GetGPU(gpuEntityID.ID)
+		if err != nil {
+			if logLimiter.ShouldLog() {
+				log.Debugf("cannot get GPU entity for process %s: %s", process.EntityID.ID, err)
+			}
+			continue
+		}
+
+		c.extractGPUTags(gpu, tagList)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -572,7 +582,11 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		})
 	}
 
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
+	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
+	// These deployments don't report a hostname (task is the unit of identity)
+	// IsFargateInstance() returns true for both ECS Fargate and managed instances in sidecar mode
+	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -587,8 +601,10 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	// Global tags only updated when a valid ClusterName is provided
 	// There exist edge cases in the metadata API returning a task without cluster info
 	if task.ClusterName != "" {
-		// add global cluster tags to EC2
-		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 {
+		// Add global cluster tags for EC2 and Managed Instances in daemon mode
+		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
+		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsFargateInstance()) {
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),
@@ -703,12 +719,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
 	tagList := taglist.NewTagList()
-
-	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
-	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
-	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
-	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
-	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
+	c.extractGPUTags(gpu, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -728,6 +739,15 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	}
 
 	return tagInfos
+}
+
+// extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
+func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
+	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
+	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
+	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
+	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

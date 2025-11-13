@@ -51,7 +51,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{})
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{}, nil)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
@@ -422,7 +422,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				return secondUpdateTime
 			}
 
-			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{})
+			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{}, nil)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -471,7 +471,6 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				assert.Nil(t, err)
 
 				expectedNextRun := secondUpdateTime
-				expectedLastRun := time.Time{}
 
 				// If the test existed before
 				if prevCfg, existed := previousParsedConfigs[newUpdate.PublicID]; existed {
@@ -486,7 +485,6 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 				cfg[newUpdate.PublicID] = &runningTestState{
 					cfg:     newUpdate,
-					lastRun: expectedLastRun,
 					nextRun: expectedNextRun,
 				}
 			}
@@ -565,7 +563,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx := context.TODO()
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{})
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, nil)
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}
@@ -711,6 +709,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	scheduler := &syntheticsTestScheduler{
 		timeNowFn:                    func() time.Time { return now },
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
+		running:                      true,
 		state: runningState{
 			tests: map[string]*runningTestState{
 				"test1": {
@@ -718,7 +717,6 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 						PublicID: "test1",
 						Interval: 10, // seconds
 					},
-					lastRun: now.Add(-20 * time.Second),
 					nextRun: now.Add(-10 * time.Second),
 				},
 			},
@@ -739,10 +737,7 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 		t.Errorf("expected test1 to be enqueuedffff")
 	}
 
-	// The lastRun should be updated to the old nextRun
 	rt := scheduler.state.tests["test1"]
-	expectedLastRun := now.Add(-10 * time.Second)
-	assert.Equal(t, expectedLastRun, rt.lastRun)
 
 	// The nextRun should be updated based on the old nextRun, not flushTime
 	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now

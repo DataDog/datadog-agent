@@ -1,6 +1,8 @@
 module github.com/DataDog/datadog-agent
 
-go 1.24.9
+go 1.24.6
+
+toolchain go1.24.10
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -30,7 +32,7 @@ require (
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.9.2
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.172
+	github.com/DataDog/agent-payload/v5 v5.0.175
 	github.com/DataDog/appsec-internal-go v1.14.0
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
@@ -178,10 +180,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.72.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
-	github.com/DataDog/datadog-traceroute v0.1.29
+	github.com/DataDog/datadog-traceroute v0.1.30
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
-	github.com/DataDog/ebpf-manager v0.7.14
+	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-libddwaf/v4 v4.3.2
 	github.com/DataDog/go-sqllexer v0.1.9
 	github.com/DataDog/gopsutil v1.2.2
@@ -223,7 +225,7 @@ require (
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.0.5
-	github.com/containerd/containerd v1.7.28
+	github.com/containerd/containerd v1.7.29
 	github.com/containerd/containerd/api v1.8.0
 	github.com/containerd/errdefs v1.0.0
 	github.com/containerd/typeurl/v2 v2.2.3
@@ -240,6 +242,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit/v2 v2.6.2
 	github.com/elastic/go-seccomp-bpf v1.6.0
+	github.com/envoyproxy/gateway v1.3.3
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structtag v1.2.0
@@ -282,7 +285,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.17 // indirect
-	github.com/jackc/pgx/v5 v5.6.0
+	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
@@ -364,7 +367,7 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	github.com/yusufpapurcu/wmi v1.2.4
-	go.etcd.io/bbolt v1.4.0
+	go.etcd.io/bbolt v1.4.3
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver/v2 v2.1.0
 	go.opentelemetry.io/collector/component v1.44.0
@@ -422,24 +425,27 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
+	istio.io/api v1.27.3
+	istio.io/client-go v1.27.3
 	k8s.io/api v0.32.3
-	k8s.io/apiextensions-apiserver v0.32.1
+	k8s.io/apiextensions-apiserver v0.32.3
 	k8s.io/apimachinery v0.32.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
-	k8s.io/cli-runtime v0.31.2
+	k8s.io/cli-runtime v0.32.2
 	k8s.io/client-go v0.32.3
-	k8s.io/component-base v0.32.1
+	k8s.io/component-base v0.32.2
 	k8s.io/cri-api v0.31.2
 	k8s.io/cri-client v0.31.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kube-aggregator v0.31.2
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
-	k8s.io/kubectl v0.31.2
+	k8s.io/kubectl v0.32.2
 	k8s.io/kubelet v0.31.2
-	k8s.io/metrics v0.31.2
-	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
+	k8s.io/metrics v0.32.2
+	k8s.io/utils v0.0.0-20241210054802-24370beab758
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.30.1-0.20241105195130-84dc8cfe2555
+	sigs.k8s.io/gateway-api v1.3.0
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -612,7 +618,7 @@ require (
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/go-zookeeper/zk v1.0.4 // indirect
-	github.com/gobuffalo/flect v1.0.2 // indirect
+	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/goccy/go-yaml v1.18.0
 	github.com/godror/knownpb v0.1.0 // indirect
@@ -655,8 +661,8 @@ require (
 	github.com/ionos-cloud/sdk-go/v6 v6.3.4 // indirect
 	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jaegertracing/jaeger-idl v0.6.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jlaffaye/ftp v0.1.0 // indirect
@@ -735,6 +741,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.138.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.138.0 // indirect
@@ -762,7 +769,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/zipkin v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/winperfcounters v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.138.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.138.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor v0.138.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.138.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/groupbyattrsprocessor v0.138.0 // indirect
@@ -864,11 +871,11 @@ require (
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector v0.138.0 // indirect
 	go.opentelemetry.io/collector/client v1.44.0 // indirect
-	go.opentelemetry.io/collector/component/componentstatus v0.138.0 // indirect
+	go.opentelemetry.io/collector/component/componentstatus v0.138.0
 	go.opentelemetry.io/collector/config/configauth v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.138.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.138.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.138.0
 	go.opentelemetry.io/collector/config/configmiddleware v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.44.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.44.0 // indirect
@@ -891,7 +898,7 @@ require (
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.138.0
 	go.opentelemetry.io/collector/exporter/xexporter v0.138.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.44.0 // indirect
-	go.opentelemetry.io/collector/extension/extensioncapabilities v0.138.0 // indirect
+	go.opentelemetry.io/collector/extension/extensioncapabilities v0.138.0
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.138.0 // indirect
 	go.opentelemetry.io/collector/extension/extensiontest v0.138.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.138.0 // indirect
@@ -928,7 +935,7 @@ require (
 	go.opentelemetry.io/contrib/zpages v0.63.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.14.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.14.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.38.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.38.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.60.0 // indirect
 	go.opentelemetry.io/otel/exporters/stdout/stdoutlog v0.14.0 // indirect
@@ -937,7 +944,7 @@ require (
 	go.opentelemetry.io/otel/log v0.14.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.14.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.38.0 // indirect
+	go.opentelemetry.io/otel/sdk/metric v1.38.0
 	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap/exp v0.3.0 // indirect
@@ -962,17 +969,19 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
-	k8s.io/apiserver v0.32.1 // indirect
+	k8s.io/apiserver v0.32.2 // indirect
 	k8s.io/kms v0.32.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20241105132330-32ad38e42d3f // indirect
+	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.1 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
-	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.5.0 // indirect
+	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
 )
+
+require go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
 
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
 replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
@@ -984,7 +993,7 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/commits/djc/main-dd-060
-replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20251024065956-6fa645cdca17
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20251106154236-a76e7d352d21
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
@@ -993,7 +1002,7 @@ replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.0.
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
 exclude go.opentelemetry.io/proto/otlp v1.1.0
 
-replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20250206221735-64e5a8c92d94
+replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e
 
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
 replace k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f => github.com/L3n41c/kube-state-metrics/v2 v2.13.1-0.20250808193648-ead8278ad9fb
@@ -1143,7 +1152,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ./pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
-	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ./pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache

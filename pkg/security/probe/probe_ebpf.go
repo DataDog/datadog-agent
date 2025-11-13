@@ -543,7 +543,9 @@ func (p *EBPFProbe) Init() error {
 		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
 		p.useFentry = false
 
-		_ = p.Manager.Stop(manager.CleanAll)
+		if err := p.Manager.Stop(manager.CleanAll); err != nil {
+			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+		}
 
 		if err = p.initEBPFManager(); err != nil {
 			return err
@@ -2369,6 +2371,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		return nil, err
 	}
 
+	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	}
+
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
@@ -2766,6 +2772,13 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 
 	if !p.config.Probe.CapabilitiesMonitoringEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
+	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
+	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
+	// and use the get_task_pid kretprobe fallback instead
+	if p.kernelVersion.Code < kernel.Kernel4_15 {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SchedProcessForkTracepointName)
 	}
 
 	return nil

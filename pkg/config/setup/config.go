@@ -529,6 +529,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("network_path.collector.filters") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
+	// Network Config Management
+	bindEnvAndSetLogsConfigKeys(config, "network_config_management.forwarder.")
+
 	// HA Agent
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
 	config.BindEnv("ha_agent.group") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -581,6 +584,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
+
+	// AppSec Injector in the cluster agent ( Experimental )
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.base_backoff", "5m")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.max_backoff", "1h")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.labels", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.annotations", map[string]string{})
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.name", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`
@@ -664,6 +678,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
+	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1089,7 +1104,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
-	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
+	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1145,6 +1160,13 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("language_detection.reporting.buffer_period", "10s")
 	// TTL refresh period represents how frequently actively detected languages are refreshed by reporting them again to the language detection handler in the cluster agent
 	config.BindEnvAndSetDefault("language_detection.reporting.refresh_period", "20m")
+
+	// Appsec Proxy Config Injection (Experimental)
+	config.BindEnvAndSetDefault("appsec.proxy.enabled", false)
+	config.BindEnvAndSetDefault("appsec.proxy.processor.port", "443")
+	config.BindEnvAndSetDefault("appsec.proxy.processor.address", "")
+	config.BindEnvAndSetDefault("appsec.proxy.auto_detect", true)
+	config.BindEnvAndSetDefault("appsec.proxy.proxies", []string{})
 
 	setupProcesses(config)
 
@@ -1280,10 +1302,38 @@ func agent(config pkgconfigmodel.Setup) {
 	// The possible values are: full, basic.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
+	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Note: All checks starting with "custom_" are always allowed.
+	config.BindEnvAndSetDefault("allowed_checks", []string{
+		"cpu",
+		"agent_telemetry",
+		"agentcrashdetect",
+		"disk",
+		"file_handle",
+		"filehandles",
+		"io",
+		"load",
+		"memory",
+		"network",
+		"ntp",
+		"process",
+		"service_discovery",
+		"system",
+		"system_core",
+		"system_swap",
+		"telemetry",
+		"telemetryCheck",
+		"uptime",
+		"win32_event_log",
+		"wincrashdetect",
+		"winkmem",
+		"winproc",
+	})
+
 	// Infrastructure basic mode - additional checks
 	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
 	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("allowed_additional_integrations", []string{})
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1319,6 +1369,10 @@ func agent(config pkgconfigmodel.Setup) {
 	// Notable Events (EUDM)
 	config.BindEnvAndSetDefault("notable_events.enabled", false)
 
+	// Event Management v2 API
+	// https://docs.datadoghq.com/api/latest/events#post-an-event
+	bindEnvAndSetLogsConfigKeys(config, "event_management.forwarder.")
+
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 }
 
@@ -1334,6 +1388,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.ca_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
+	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
 }
 
@@ -1501,6 +1558,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1530,6 +1588,28 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
+
+	// Set defaults for config keys that may be accessed but aren't relevant in serverless environments
+	// to avoid "config key is unknown" and "unable to cast nil" warnings
+	config.SetDefault("checks_tag_cardinality", "low")
+	config.SetDefault("dogstatsd_tag_cardinality", "low")
+	config.SetDefault("cel_workload_exclude", "")
+	config.SetDefault("sbom.container_image.exclude_pause_container", false)
+	config.SetDefault("sbom.container_image.container_include", []string{})
+	config.SetDefault("sbom.container_image.container_exclude", []string{})
+	config.SetDefault("ecs_collect_resource_tags_ec2", false)
+	config.SetDefault("kubernetes_persistent_volume_claims_as_tags", false)
+	config.SetDefault("docker_labels_as_tags", map[string]string{})
+	config.SetDefault("docker_env_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_node_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_resources_labels_as_tags", "{}")
+	config.SetDefault("kubernetes_resources_annotations_as_tags", "{}")
+	config.SetDefault("provider_kind", "")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
@@ -1926,7 +2006,6 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
-	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5)      // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
