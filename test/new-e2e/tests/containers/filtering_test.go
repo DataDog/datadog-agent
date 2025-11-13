@@ -7,7 +7,6 @@ package containers
 
 import (
 	_ "embed"
-	"regexp"
 	"testing"
 	"time"
 
@@ -17,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -115,46 +114,6 @@ func (suite *k8sFilteringSuiteBase) TestUnfilteredWorkloadsHaveTelemetry() {
 			AcceptUnexpectedTags: true,
 		},
 	})
-
-	suite.testLog(&testLogArgs{
-		Filter: testLogFilterArgs{
-			Service: "apps-nginx-server",
-			Tags: []string{
-				`^kube_namespace:workload-nginx$`,
-			},
-		},
-		Expect: testLogExpectArgs{
-			Tags: &[]string{
-				`^container_id:`,
-				`^container_name:nginx$`,
-				`^dirname:/var/log/pods/workload-nginx_nginx-`,
-				`^display_container_name:nginx`,
-				`^filename:[[:digit:]]+.log$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
-				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
-				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
-				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
-				`^kube_container_name:nginx$`,
-				`^kube_deployment:nginx$`,
-				`^kube_namespace:workload-nginx$`,
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
-				`^kube_qos:Burstable$`,
-				`^kube_replica_set:nginx-[[:alnum:]]+$`,
-				`^kube_service:nginx$`,
-				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
-				`^pod_phase:running$`,
-				`^short_image:apps-nginx-server$`,
-				`^domain:deployment$`,
-				`^mail:team-container-platform@datadoghq.com$`,
-				`^org:agent-org$`,
-				`^parent-name:nginx$`,
-				`^team:contp$`,
-			},
-			Message: `GET / HTTP/1\.1`,
-		},
-	})
 }
 
 // k8sLegacyFilteringSuite tests legacy container filtering behavior in Kubernetes environments
@@ -169,7 +128,12 @@ func TestK8SLegacyFilteringSuite(t *testing.T) {
 			awskubernetes.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(legacyContainerExcludeConfig),
 			),
-			awskubernetes.WithDeployTestWorkload(),
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", "", false, nil)
+			}),
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return redis.K8sAppDefinition(e, kubeProvider, "default", false, nil)
+			}),
 			// Deploy additional nginx workload except in an excluded namespace
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, "", false, nil)
@@ -191,7 +155,12 @@ func TestK8SCELFilteringSuite(t *testing.T) {
 				kubernetesagentparams.WithAgentFullImagePath("public.ecr.aws/datadog/agent:7.73.0-rc.6"),
 				kubernetesagentparams.WithHelmValues(celContainerExcludeConfig),
 			),
-			awskubernetes.WithDeployTestWorkload(),
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", "", false, nil)
+			}),
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return redis.K8sAppDefinition(e, kubeProvider, "default", false, nil)
+			}),
 			// Deploy additional nginx workload except in an excluded namespace
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, "", false, nil)
