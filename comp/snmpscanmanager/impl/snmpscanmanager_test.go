@@ -215,7 +215,7 @@ func TestRequestScan(t *testing.T) {
 			assert.NoError(t, err)
 
 			for _, req := range tt.scanReqs {
-				provides.Comp.RequestScan(req)
+				provides.Comp.RequestScan(req, false)
 			}
 
 			assert.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -421,19 +421,7 @@ func TestProcessScanRequest(t *testing.T) {
 				assert.NoError(t, scanErr)
 
 				assertDeviceScans(t, tt.expectedDeviceScans, scanManager)
-
-				cacheContent, err := persistentcache.Read(cacheKey)
-				assert.NoError(t, err)
-				var actualCacheContent []deviceScan
-				assert.NoError(t, json.Unmarshal([]byte(cacheContent), &actualCacheContent))
-				assert.Equal(t, len(tt.expectedCacheContent), len(actualCacheContent))
-				for _, actualScan := range actualCacheContent {
-					assert.NotNil(t, actualScan.ScanEndTs)
-					actualScan.ScanEndTs = nil
-
-					assert.Contains(t, tt.expectedCacheContent, actualScan)
-				}
-
+				assertCacheContent(t, tt.expectedCacheContent, cacheKey)
 				assertScanTasks(t, tt.expectedScanTasks, scanManager)
 			}
 
@@ -478,12 +466,12 @@ func TestCacheIsLoaded(t *testing.T) {
 					"127.0.0.1": {
 						DeviceIP:   "127.0.0.1",
 						ScanStatus: successStatus,
-						ScanEndTs:  &scanEndTs,
+						ScanEndTs:  scanEndTs,
 					},
 					"127.0.0.2": {
 						DeviceIP:   "127.0.0.2",
 						ScanStatus: failedStatus,
-						ScanEndTs:  &scanEndTs,
+						ScanEndTs:  scanEndTs,
 					},
 				}
 			},
@@ -552,16 +540,17 @@ func TestWriteCache(t *testing.T) {
 					"127.0.0.1": {
 						DeviceIP:   "127.0.0.1",
 						ScanStatus: successStatus,
-						ScanEndTs:  &scanEndTs,
+						ScanEndTs:  scanEndTs,
 					},
 					"10.0.0.1": {
 						DeviceIP:   "10.0.0.1",
 						ScanStatus: successStatus,
-						ScanEndTs:  &scanEndTs,
+						ScanEndTs:  scanEndTs,
 					},
 					"10.0.0.2": {
 						DeviceIP:   "10.0.0.2",
 						ScanStatus: failedStatus,
+						ScanEndTs:  scanEndTs,
 					},
 				}
 			},
@@ -573,43 +562,17 @@ func TestWriteCache(t *testing.T) {
 					{
 						DeviceIP:   "127.0.0.1",
 						ScanStatus: successStatus,
-						ScanEndTs:  &scanEndTs,
+						ScanEndTs:  scanEndTs,
 					},
 					{
 						DeviceIP:   "10.0.0.1",
 						ScanStatus: successStatus,
-						ScanEndTs:  &scanEndTs,
+						ScanEndTs:  scanEndTs,
 					},
 					{
 						DeviceIP:   "10.0.0.2",
 						ScanStatus: failedStatus,
-					},
-				}
-			},
-		},
-		{
-			name: "pending device scans are not written",
-			buildDeviceScans: func() deviceScansByIP {
-				return deviceScansByIP{
-					"127.0.0.1": {
-						DeviceIP:   "127.0.0.1",
-						ScanStatus: failedStatus,
-					},
-					"127.0.0.2": {
-						DeviceIP:   "127.0.0.2",
-						ScanStatus: pendingStatus,
-					},
-					"10.0.0.1": {
-						DeviceIP:   "10.0.0.1",
-						ScanStatus: pendingStatus,
-					},
-				}
-			},
-			buildExpectedCacheContent: func() []deviceScan {
-				return []deviceScan{
-					{
-						DeviceIP:   "127.0.0.1",
-						ScanStatus: failedStatus,
+						ScanEndTs:  scanEndTs,
 					},
 				}
 			},
@@ -794,16 +757,33 @@ func assertDeviceScans(t assert.TestingT, expectedDeviceScans deviceScansByIP, s
 		expectedScan, exists := expectedDeviceScans[actualScan.DeviceIP]
 		assert.True(t, exists)
 
-		assert.NotNil(t, actualScan.ScanEndTs)
-		actualScan.ScanEndTs = nil
+		assert.NotEmpty(t, actualScan.ScanEndTs)
+		actualScan.ScanEndTs = time.Time{}
 
 		assert.Equal(t, expectedScan, actualScan)
+	}
+}
+
+func assertCacheContent(t assert.TestingT, expectedCacheContent []deviceScan, cacheKey string) {
+	cacheContent, err := persistentcache.Read(cacheKey)
+	assert.NoError(t, err)
+
+	var actualCacheContent []deviceScan
+	assert.NoError(t, json.Unmarshal([]byte(cacheContent), &actualCacheContent))
+
+	assert.Equal(t, len(expectedCacheContent), len(actualCacheContent))
+	for _, actualScan := range actualCacheContent {
+		assert.NotEmpty(t, actualScan.ScanEndTs)
+		actualScan.ScanEndTs = time.Time{}
+
+		assert.Contains(t, expectedCacheContent, actualScan)
 	}
 }
 
 func assertScanTasks(t assert.TestingT, expectedScanTasks []*scanTask, scanManager *snmpScanManagerImpl) {
 	sc, ok := scanManager.scanScheduler.(*scanSchedulerImpl)
 	assert.True(t, ok)
+
 	assert.Equal(t, len(expectedScanTasks), len(sc.taskQueue))
 	for _, actualTask := range sc.taskQueue {
 		assert.NotEmpty(t, actualTask.nextScanTs)
