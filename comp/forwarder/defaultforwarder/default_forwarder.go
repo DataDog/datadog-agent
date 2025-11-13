@@ -519,42 +519,56 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
-			drDomain := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
-			// Autoscaling failover payloads, and only them, should go to the local resolver.
-			if (payload.Destination == transaction.LocalOnly) != dr.IsLocal() {
-				continue
-			}
-			// Autoscaling failover endpoint can only receive series payloads.
-			if dr.IsLocal() && endpoint != endpoints.SeriesEndpoint {
-				continue
-			}
-
-			for _, auth := range dr.GetAuthorizers() {
-				t := transaction.NewHTTPTransaction()
-				t.Domain = drDomain
-				t.Endpoint = endpoint
-				t.Payload = payload
-				t.Priority = priority
-				t.Kind = kind
-				t.StorableOnDisk = storableOnDisk
-				t.Destination = payload.Destination
-				auth.Authorize(t)
-				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
-				if allowArbitraryTags {
-					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+			if payload.Destination == transaction.LocalOnly {
+				// if it is local payload, we should not send it to the remote endpoint
+				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
+					t := transaction.NewHTTPTransaction()
+					t.Domain = drDomain
+					t.Endpoint = endpoint
+					t.Payload = payload
+					t.Priority = priority
+					t.Kind = kind
+					t.StorableOnDisk = storableOnDisk
+					t.Destination = payload.Destination
+					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
+					for key := range extra {
+						t.Headers.Set(key, extra.Get(key))
+					}
+					tlmTxInputCount.Inc(drDomain, endpoint.Name)
+					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+					transactions = append(transactions, t)
 				}
+			} else {
+				for _, apiKey := range dr.GetAPIKeys() {
+					t := transaction.NewHTTPTransaction()
+					t.Domain = drDomain
+					t.Endpoint = endpoint
+					t.Payload = payload
+					t.Priority = priority
+					t.Kind = kind
+					t.StorableOnDisk = storableOnDisk
+					t.Destination = payload.Destination
+					t.Headers.Set(apiHTTPHeaderKey, apiKey)
+					t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+					if allowArbitraryTags {
+						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
+					}
 
-				tlmTxInputCount.Inc(domain, endpoint.Name)
-				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-				transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+					tlmTxInputCount.Inc(domain, endpoint.Name)
+					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
 
-				for key := range extra {
-					t.Headers.Set(key, extra.Get(key))
+					for key := range extra {
+						t.Headers.Set(key, extra.Get(key))
+					}
+					transactions = append(transactions, t)
 				}
-				transactions = append(transactions, t)
 			}
 		}
 	}
