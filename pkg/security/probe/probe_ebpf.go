@@ -543,7 +543,9 @@ func (p *EBPFProbe) Init() error {
 		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
 		p.useFentry = false
 
-		_ = p.Manager.Stop(manager.CleanAll)
+		if err := p.Manager.Stop(manager.CleanAll); err != nil {
+			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+		}
 
 		if err = p.initEBPFManager(); err != nil {
 			return err
