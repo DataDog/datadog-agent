@@ -24,15 +24,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Following rollout ordering from SRE
 var rolloutBucketMapping = map[string]int{
-	"ap2.datadoghq.com": 1,
-	"ap1.datadoghq.com": 2,
-	"ddog-gov.com":      3,
+	"ap1.datadoghq.com": 1,
+	"ap2.datadoghq.com": 2,
+	"us3.datadoghq.com": 2,
+	"us5.datadoghq.com": 3,
 	"datadoghq.eu":      4,
-	"us5.datadoghq.com": 5,
-	"us3.datadoghq.com": 6,
-	"datadoghq.com":     7,
+	"datadoghq.com":     5,
+	"ddog-gov.com":      6,
 }
+
+var numRolloutBuckets = 6
 
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
@@ -320,7 +323,7 @@ func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter str
 	rolloutBucket, exists := rolloutBucketMapping[datacenter]
 	if !exists {
 		// Fallback to the last bucket if the datacenter is not found
-		rolloutBucket = len(rolloutBucketMapping)
+		rolloutBucket = numRolloutBuckets
 	}
 	return &tagBasedImageResolver{
 		datadoghqRegistries: datadoghqRegistries,
