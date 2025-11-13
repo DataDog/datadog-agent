@@ -122,7 +122,7 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 			}
 			version := span.Meta["version"]
 			component := span.Meta["component"]
-			kindStr := span.Meta["kind"]
+			kindStr := span.Meta["span.kind"]
 			var kind idx.SpanKind
 			switch kindStr {
 			case "server":

@@ -114,7 +114,7 @@ func TestConvertToIdx_KindFieldMatchesOTELSpec(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			meta := map[string]string{}
 			if tt.kindMeta != "" {
-				meta["kind"] = tt.kindMeta
+				meta["span.kind"] = tt.kindMeta
 			}
 
 			payload := &pb.TracerPayload{

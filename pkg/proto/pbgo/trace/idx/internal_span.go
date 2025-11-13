@@ -1129,6 +1129,11 @@ func (se *InternalSpanEvent) Attributes() map[uint32]*AnyValue {
 	return se.event.Attributes
 }
 
+// Time returns the time from the span event.
+func (se *InternalSpanEvent) Time() uint64 {
+	return se.event.Time
+}
+
 // Msgsize returns the size of the message when serialized.
 func (se *SpanEvent) Msgsize() int {
 	size := 0

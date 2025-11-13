@@ -115,7 +115,6 @@ func (s *fakeBackend) handleStats(_ http.ResponseWriter, req *http.Request) {
 }
 
 func (s *fakeBackend) handleTraces(_ http.ResponseWriter, req *http.Request) {
-	fmt.Printf("handle traces called\n")
 	var payload pb.AgentPayload
 	if err := readProtoRequest(req, &payload); err != nil {
 		log.Println("server: error reading traces: ", err)
