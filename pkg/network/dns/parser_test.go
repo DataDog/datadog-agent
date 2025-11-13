@@ -8,7 +8,6 @@
 package dns
 
 import (
-	"runtime"
 	"testing"
 
 	"github.com/google/gopacket/layers"
@@ -20,15 +19,8 @@ func TestGetDefaultRecordedQueryTypes(t *testing.T) {
 	result := getDefaultRecordedQueryTypes()
 	require.NotNil(t, result)
 
-	// Check platform-specific behavior
-	if runtime.GOOS == "linux" {
-		assert.Equal(t, result, map[layers.DNSType]struct{}{
-			layers.DNSTypeA:    {},
-			layers.DNSTypeAAAA: {},
-		})
-	} else {
-		assert.Equal(t, result, map[layers.DNSType]struct{}{
-			layers.DNSTypeA: {},
-		})
-	}
+	assert.Equal(t, result, map[layers.DNSType]struct{}{
+		layers.DNSTypeA:    {},
+		layers.DNSTypeAAAA: {},
+	})
 }
