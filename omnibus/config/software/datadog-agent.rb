@@ -153,7 +153,7 @@ build do
     if heroku_target?
       # shouldn't be needed in practice, but it is used by the systemd service,
       # which is used when installing the deb manually
-      copy "cmd/trace-loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
+      copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
       command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
     else
       command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
