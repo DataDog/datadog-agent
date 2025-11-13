@@ -31,6 +31,9 @@ func DefaultFxLoggingOption() fx.Option {
 // Logger is a logger that logs fx events.
 type Logger interface {
 	Debug(v ...interface{})
+	Debugf(format string, params ...interface{})
+	Infof(format string, params ...interface{})
+	Errorf(format string, params ...interface{}) error
 }
 
 // EnableFxLoggingOnDebug enables the logs for FX events when log_level is debug.
@@ -39,10 +42,13 @@ type Logger interface {
 // When TRACE_FX is set to 0, it will disable the logging.
 func EnableFxLoggingOnDebug[T Logger]() fx.Option {
 	return fx.Decorate(func(logger T) fxevent.Logger {
+		var fxLogger fxevent.Logger
 		if os.Getenv("TRACE_FX") == "0" {
-			return fxevent.NopLogger
+			fxLogger = fxevent.NopLogger
+		} else {
+			fxLogger = &fxevent.ConsoleLogger{W: fxEventLogger{logger: logger}}
 		}
-		return &fxevent.ConsoleLogger{W: fxEventLogger{logger: logger}}
+		return withFxTracer(fxLogger, logger)
 	})
 }
 
