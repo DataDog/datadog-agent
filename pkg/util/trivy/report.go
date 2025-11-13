@@ -34,7 +34,7 @@ func newReport(id string, report *types.Report, marshaler cyclonedx.Marshaler, d
 		bom.Dependencies = nil
 	}
 
-	bom14 := bomconvert.ConvertBOM(bom)
+	bom14 := bomconvert.ConvertBOM(bom, false)
 
 	return &Report{
 		id:  id,
