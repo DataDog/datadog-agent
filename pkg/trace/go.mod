@@ -51,7 +51,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/api v0.70.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
-	github.com/shirou/gopsutil/v4 v4.25.9
+	github.com/shirou/gopsutil/v4 v4.25.10
 	go.opentelemetry.io/collector/component/componenttest v0.139.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4
 )
