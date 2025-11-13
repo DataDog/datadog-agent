@@ -16,7 +16,7 @@
       fi
     - IMG_SOURCE=${SRC_IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
     - 'echo "IMG_SOURCE: ${IMG_SOURCE}"'
-    - TAR_FILENAME="datadog-${FLAVOR}-${VERSION}-${ARCH}.tar"
+    - TAR_FILENAME="${FLAVOR}_${VERSION}_${ARCH}.tar"
     - 'echo "TAR_FILENAME: ${TAR_FILENAME}"'
     - 'skopeo copy --override-os linux --override-arch ${ARCH} docker://${IMG_SOURCE} docker-archive:${TAR_FILENAME}:datadog/${FLAVOR}:${VERSION}'
     - $S3_CP_CMD --recursive --exclude "*" --include "${TAR_FILENAME}" . "${S3_RELEASE_ARTIFACTS_URI}/tar/${ARCH}/"
