@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
@@ -83,7 +85,27 @@ func (suite *k8sFilteringSuite) TestContainerExcludeNoMetrics() {
 		}
 		return foundMetric
 	}, 1*time.Minute, 5*time.Second, "Metrics were found for a container in a filtered namespace")
+}
 
+// TestContainerExcludeForAutodiscovery verifies that integrations are NOT auto-discovered
+// on containers that match the exclusion filter, even for auto config enabled integrations
+func (suite *k8sFilteringSuite) TestContainerExcludeForAutodiscovery() {
+	// redis workload is excluded by its container name and should not have auto-config metrics
+	suite.Never(func() bool {
+		metrics, err := suite.Fakeintake.FilterMetrics(
+			"redis.net.instantaneous_ops_per_sec",
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
+				`container_name:` + filteredAppName,
+			}),
+		)
+		suite.NoError(err, "Error querying metrics")
+		return len(metrics) > 0
+	}, 1*time.Minute, 5*time.Second, "Metrics were found for filtered redis workload")
+}
+
+// TestUnfilteredWorkloadsHaveTelemetry confirms that workloads not included in the container exclude filter
+// continue to run and collect telemetry.
+func (suite *k8sFilteringSuite) TestUnfilteredWorkloadsHaveTelemetry() {
 	// nginx workload in default namespace should have metrics
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -105,20 +127,44 @@ func (suite *k8sFilteringSuite) TestContainerExcludeNoMetrics() {
 			AcceptUnexpectedTags: true,
 		},
 	})
-}
 
-// TestContainerExcludeForAutodiscovery verifies that integrations are NOT auto-discovered
-// on containers that match the exclusion filter, even for auto config enabled integrations
-func (suite *k8sFilteringSuite) TestContainerExcludeForAutodiscovery() {
-	// redis workload is excluded by its container name and should not have auto-config metrics
-	suite.Never(func() bool {
-		metrics, err := suite.Fakeintake.FilterMetrics(
-			"redis.net.instantaneous_ops_per_sec",
-			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-				`container_name:` + filteredAppName,
-			}),
-		)
-		suite.NoError(err, "Error querying metrics")
-		return len(metrics) > 0
-	}, 1*time.Minute, 5*time.Second, "Metrics were found for filtered redis workload")
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+			Tags: []string{
+				`^kube_namespace:workload-nginx$`,
+			},
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^dirname:/var/log/pods/workload-nginx_nginx-`,
+				`^display_container_name:nginx`,
+				`^filename:[[:digit:]]+.log$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+				`^domain:deployment$`,
+				`^mail:team-container-platform@datadoghq.com$`,
+				`^org:agent-org$`,
+				`^parent-name:nginx$`,
+				`^team:contp$`,
+			},
+			Message: `GET / HTTP/1\.1`,
+		},
+	})
 }
