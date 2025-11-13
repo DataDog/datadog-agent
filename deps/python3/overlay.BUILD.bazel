@@ -11,6 +11,7 @@ load("@@//deps:python3/modules.bzl", "PYTHON_MODULES", "PYTHON_CORE_MODULES_SRCS
 load("@@//deps:python3/freeze.bzl", "python_freeze")
 
 _VERSION = "3.13.7"
+_VERSION_FOR_SO = ".".join(_VERSION.split('.')[:2])
 
 license(
     name = "license",
@@ -199,8 +200,8 @@ cc_library(
     includes = _COMMON_INCLUDE_DIRS,
     deps = [
         ":mimalloc",
-    ]
-
+    ],
+    linkstatic = True,
 )
 
 filegroup(
@@ -230,7 +231,9 @@ filegroup(
         ":object_srcs",
         ":python_srcs",
         ":modules_srcs",
-    ] + PYTHON_CORE_MODULES_SRCS,
+    ] + select({
+        "@platforms//os:linux": [":dynload_shlib"],
+    }) + PYTHON_CORE_MODULES_SRCS,
 )
 
 filegroup(
@@ -274,7 +277,8 @@ cc_library(
         "Include/internal/mimalloc",
         "Objects/mimalloc",
     ],
-    local_defines = PY_CORE_DEFINES
+    local_defines = PY_CORE_DEFINES,
+    linkstatic = True,
 )
 
 filegroup(
@@ -361,15 +365,8 @@ cc_library(
     includes = _COMMON_INCLUDE_DIRS,
     deps = [
         ":mimalloc",
-    ]
-)
-
-filegroup(
-    name = "library_srcs",
-    srcs = [
-        ":library_srcs_omit_frozen",
-        "Python/frozen.c",
-    ]
+    ],
+    linkstatic = True,
 )
 
 filegroup(
@@ -424,9 +421,7 @@ cc_binary(
         "@platforms//os:linux": ["-lutil"],
     }),
     copts = COMMON_COPTS,
-    deps = select({
-        "@platforms//os:linux": [":dynload_shlib"],
-    }) + [
+    deps = [
         ":mimalloc",
     ] + [":module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
@@ -472,16 +467,14 @@ cc_binary(
     srcs = [
         "Programs/_bootstrap_python.c",
         ":library_srcs_omit_frozen",
-        ":modules_getpath",
         ":bootstrap_headers",
         ":python_headers",
     ],
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
     }),
-    deps = select({
-        "@platforms//os:linux": [":dynload_shlib"],
-    }) + [
+    deps = [
+        ":modules_getpath",
         ":mimalloc",
     ] + [":module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
@@ -532,14 +525,15 @@ cc_library(
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
+    linkstatic = True,
 )
 
+# This should be a cc_library but static linking seems to be
+# ignored when using that rule.
 cc_library(
     name = "libpython",
     srcs = [
         ":library_srcs_omit_frozen",
-        ":modules_getpath",
-        ":frozen_o",
         ":python_headers",
         ":modules_headers",
     ],
@@ -548,40 +542,42 @@ cc_library(
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     deps = [
         ":mimalloc",
-    ]
+        ":frozen_o",
+        ":modules_getpath",
+    ] + select({
+        "@platforms//os:linux": [":dynload_shlib"],
+    }),
+    linkstatic = True,
 )
+
+cc_shared_library(
+    name = "python" + _VERSION_FOR_SO,
+    deps = [":libpython"],
+    visibility = ["//visibility:public"],
+)
+
 
 cc_binary(
     name = "python3",
     srcs = [
         "Programs/python.c",
-        ":dynload_shlib",
-        ":libpython",
-        ":modules_getpath",
-        ":frozen_o",
+        ":python_headers",
     ],
-    data = glob(["Lib/**/*.py"]),
+    dynamic_deps = [
+        ":python" + _VERSION_FOR_SO,
+    ],
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
-    deps = [
-        ":mimalloc",
-    ],
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
     }),
 )
 
-cc_shared_library(
-    name = "python",
-    deps = [":libpython"],
-    visibility = ["//visibility:public"],
-)
-
 so_symlink(
     name = "lib_files",
-    libname = "libpython3.13",
-    src = ":python",
+    libname = "libpython" + _VERSION_FOR_SO,
+    src = ":python" + _VERSION_FOR_SO,
     version = "1.0",
 )
 
@@ -590,7 +586,7 @@ so_symlink(
 pkg_files(
     name = "install_headers",
     srcs = [":public_headers", ":mimalloc_headers"],
-    prefix = "include/python-3.13",
+    prefix = "include/python" + _VERSION_FOR_SO,
     strip_prefix = strip_prefix.from_root("Include/"),
 )
 
@@ -603,8 +599,9 @@ pkg_files(
 
 pkg_files(
     name = "module_files",
-    srcs = glob(["Lib/*.py"]),
-    prefix = "lib/python-3.13",
+    srcs = glob(["Lib/**/*.py"]) + ["module_" + name for name in PYTHON_MODULES.keys()],
+    prefix = "lib/python" + _VERSION_FOR_SO,
+    strip_prefix = strip_prefix.from_root("Lib/"),
 )
 
 pkg_install(
