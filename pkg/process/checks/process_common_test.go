@@ -46,11 +46,11 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 	return &procutil.Process{
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
-		Stats:   makeProcessStats(pid),
+		Stats:   makeProcessStats(),
 	}
 }
 
-func makeProcessStats(pid int32) *procutil.Stats {
+func makeProcessStats() *procutil.Stats {
 	return &procutil.Stats{
 		CPUPercent: &procutil.CPUPercentStat{
 			UserPct:   float64(rand.Uint64()),

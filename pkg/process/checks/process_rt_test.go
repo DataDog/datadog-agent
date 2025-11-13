@@ -94,14 +94,14 @@ func TestProcessCheckRealtimeSecondRun(t *testing.T) {
 // TestFmtProcessStats test the chunking logic of fmtProcessStats
 func TestFmtProcessStats(t *testing.T) {
 	procs := map[int32]*procutil.Stats{
-		1: makeProcessStats(1),
-		2: makeProcessStats(2),
-		3: makeProcessStats(3),
+		1: makeProcessStats(),
+		2: makeProcessStats(),
+		3: makeProcessStats(),
 	}
 	lastProcs := map[int32]*procutil.Stats{
-		1: makeProcessStats(1),
-		2: makeProcessStats(2),
-		3: makeProcessStats(3),
+		1: makeProcessStats(),
+		2: makeProcessStats(),
+		3: makeProcessStats(),
 	}
 
 	type testCase struct {
