@@ -14,6 +14,7 @@ spec:
     metadata:
       labels:
         app: datadog-appsec-extproc
+        admission.datadoghq.com/enabled: "true"
     spec:
       containers:
         - name: datadog-appsec-extproc-container
