@@ -174,3 +174,70 @@ func TestSecretsManagerBackend_SecretNotFound(t *testing.T) {
 	assert.NotNil(t, secretOutput.Error)
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
+
+func TestSecretsManagerBackend_NonStringValues(t *testing.T) {
+	mockClient := &secretsManagerMockClient{
+		secrets: map[string]string{
+			"key1": `{
+				"username": "datadog",
+				"port": 3306,
+				"enabled": true,
+				"threshold": 0.75,
+				"nested": { "field": "value" }
+			}`,
+		},
+	}
+	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+		return mockClient
+	}
+
+	secretsManagerBackendParams := map[string]interface{}{
+		"backend_type": "aws.secrets",
+		"force_string": false,
+	}
+	secretsManagerSecretsBackend, err := NewSecretsManagerBackend(secretsManagerBackendParams)
+	assert.NoError(t, err)
+	assert.NotNil(t, secretsManagerSecretsBackend)
+
+	secretOutput := secretsManagerSecretsBackend.GetSecretOutput("key1;port")
+	assert.NotNil(t, secretOutput.Value)
+	assert.Equal(t, "3306", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
+
+	secretOutput = secretsManagerSecretsBackend.GetSecretOutput("key1;enabled")
+	assert.NotNil(t, secretOutput.Value)
+	assert.Equal(t, "true", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
+
+	secretOutput = secretsManagerSecretsBackend.GetSecretOutput("key1;threshold")
+	assert.NotNil(t, secretOutput.Value)
+	assert.Equal(t, "0.75", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
+
+	// Nested object should be JSON-encoded string
+	secretOutput = secretsManagerSecretsBackend.GetSecretOutput("key1;nested")
+	assert.NotNil(t, secretOutput.Value)
+	assert.JSONEq(t, `{"field":"value"}`, *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
+}
+
+func TestSecretsManagerBackend_NumberPrecision(t *testing.T) {
+	mockClient := &secretsManagerMockClient{
+		secrets: map[string]string{
+			"key1": `{"big_number": 123456789.123456789, "big_int": 12345678901234567890}`,
+		},
+	}
+	getSecretsManagerClient = func(_ aws.Config) secretsManagerClient {
+		return mockClient
+	}
+
+	params := map[string]interface{}{"backend_type": "aws.secrets", "force_string": false}
+	backend, err := NewSecretsManagerBackend(params)
+	assert.NoError(t, err)
+
+	out := backend.GetSecretOutput("key1;big_number")
+	assert.Equal(t, "123456789.123456789", *out.Value)
+
+	out = backend.GetSecretOutput("key1;big_int")
+	assert.Equal(t, "12345678901234567890", *out.Value)
+}
