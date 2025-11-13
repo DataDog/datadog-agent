@@ -27,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const commonRegistry = "gcr.io/datadoghq"
-
 var (
 	defaultLibraries = map[string]string{
 		"java":   "v1",
@@ -71,28 +69,6 @@ func defaultLibInfoWithVersion(l language, version string) libInfo {
 		repository: fmt.Sprintf("dd-lib-%s-init", l),
 		tag:        version,
 		ctrName:    "",
-	}
-}
-
-func defaultLibInfoWithRegsitryVersion(l language, version string, registry string) libInfo {
-	return libInfo{
-		lang:       l,
-		image:      fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, version),
-		registry:   registry,
-		repository: fmt.Sprintf("dd-lib-%s-init", l),
-		tag:        version,
-		ctrName:    "",
-	}
-}
-
-func defaultLibInfoWithContainerVersion(l language, version string, containerName string) libInfo {
-	return libInfo{
-		lang:       l,
-		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),
-		registry:   "registry",
-		repository: fmt.Sprintf("dd-lib-%s-init", l),
-		tag:        version,
-		ctrName:    containerName,
 	}
 }
 

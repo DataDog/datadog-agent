@@ -622,7 +622,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: defaultContainerNames,
 			},
 		},
-		"pod with instrumentation enabled should get all defualt libs": {
+		"pod with instrumentation enabled should get all default libs": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
@@ -1962,7 +1962,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 			},
 		},
-		"when a pod is created in a priveleged namespace, the default security context is set": {
+		"when a pod is created in a privileged namespace, the default security context is set": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
@@ -2384,13 +2384,13 @@ func TestAutoinstrumentation(t *testing.T) {
 				return
 			}
 
-			// Require the test to be setup correctly and for mutation to have occured.
+			// Require the test to be setup correctly and for mutation to have occurred.
 			require.NotNil(t, test.expected, "the test was not properly configured, mutation should have expectations")
 			require.NotEmpty(t, test.expected.containerNames, "the test was not properly configured, containerNames must be set")
 			require.NotEqual(t, test.pod, in, "the pod was not mutated when it was expected to be")
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
-			// Require injection to have occured.
+			// Require injection to have occurred.
 			validator := newPodValidator(in)
 			validator.requireInjection(t, test.expected.containerNames)
 
@@ -2810,7 +2810,7 @@ func (v *podValidator) requireInjection(t *testing.T, expectedContainers []strin
 	validator.requireCommand(t, "/bin/sh -c -- cp -r /opt/datadog-packages/datadog-apm-inject/* /datadog-inject && echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so > /datadog-etc/ld.so.preload && echo $(date +%s) >> /datadog-inject/c-init-time.datadog-init-apm-inject")
 
 	// Validate library init containers.
-	for lang, _ := range v.libraryVersions {
+	for lang := range v.libraryVersions {
 		validator, ok := v.initContainers[fmt.Sprintf("datadog-lib-%s-init", lang)]
 		require.True(t, ok, "could not find datadog library init container", lang)
 		expectedVolumeMounts := []corev1.VolumeMount{
@@ -2968,7 +2968,7 @@ func (v *containerValidator) requireEnvs(t *testing.T, expected map[string]strin
 func (v *containerValidator) requireMissingEnvs(t *testing.T, missing []string) {
 	for _, key := range missing {
 		actualValue, found := v.envs[key]
-		require.False(t, found, "found %s in enviroment set to %s when it was not expected to be set", key, actualValue)
+		require.False(t, found, "found %s in environment set to %s when it was not expected to be set", key, actualValue)
 	}
 }
 
@@ -3095,6 +3095,6 @@ func NewFakeImageResolver() *MockImageResolver {
 }
 
 // Resolve returns the original image reference.
-func (r *MockImageResolver) Resolve(registry string, repository string, tag string) (*autoinstrumentation.ResolvedImage, bool) {
+func (r *MockImageResolver) Resolve(_ string, _ string, _ string) (*autoinstrumentation.ResolvedImage, bool) {
 	return nil, false
 }
