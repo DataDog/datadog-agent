@@ -7,42 +7,67 @@ package snmpscanmanagerimpl
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsCacheable(t *testing.T) {
+func Test_deviceScan_isSuccess(t *testing.T) {
+	now := time.Now()
+
 	tests := []struct {
-		name               string
-		deviceScan         deviceScan
-		expectedIsCachable bool
+		name           string
+		deviceScan     deviceScan
+		expectedResult bool
 	}{
 		{
-			name: "pending device scan is not cachable",
+			name: "is not success",
 			deviceScan: deviceScan{
-				ScanStatus: pendingStatus,
-			},
-			expectedIsCachable: false,
-		},
-		{
-			name: "success device scan is cachable",
-			deviceScan: deviceScan{
-				ScanStatus: successStatus,
-			},
-			expectedIsCachable: true,
-		},
-		{
-			name: "failed device scan is cachable",
-			deviceScan: deviceScan{
+				DeviceIP:   "10.0.0.1",
 				ScanStatus: failedStatus,
+				ScanEndTs:  now,
 			},
-			expectedIsCachable: true,
+			expectedResult: false,
+		},
+		{
+			name: "is success",
+			deviceScan: deviceScan{
+				DeviceIP:   "10.0.0.1",
+				ScanStatus: successStatus,
+				ScanEndTs:  now,
+			},
+			expectedResult: true,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedIsCachable, tt.deviceScan.isCacheable())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isSuccess := test.deviceScan.isSuccess()
+			assert.Equal(t, test.expectedResult, isSuccess)
 		})
 	}
+}
+
+func Test_ipSet_add(t *testing.T) {
+	set := ipSet{}
+
+	set.add("10.0.0.1")
+	assert.Len(t, set, 1)
+	assert.Contains(t, set, "10.0.0.1")
+
+	set.add("10.0.0.2")
+	assert.Len(t, set, 2)
+	assert.Contains(t, set, "10.0.0.2")
+}
+
+func Test_ipSet_contains(t *testing.T) {
+	set := ipSet{}
+
+	set.add("10.0.0.1")
+	set.add("10.0.0.2")
+
+	assert.True(t, set.contains("10.0.0.1"))
+	assert.True(t, set.contains("10.0.0.2"))
+	assert.False(t, set.contains("10.0.0.3"))
+	assert.False(t, set.contains("10.0.0.4"))
 }
