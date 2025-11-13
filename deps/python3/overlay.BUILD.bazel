@@ -3,7 +3,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix", "pkg_attributes")
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 
@@ -580,9 +580,9 @@ cc_shared_library(
 
 so_symlink(
     name = "lib_files",
-    libname = "libpython",
+    libname = "libpython3.13",
     src = ":python",
-    version = "3.13",
+    version = "1.0",
 )
 
 # Headers need to be split by folders, as they are otherwise flattened to the same directory
@@ -596,8 +596,9 @@ pkg_files(
 
 pkg_files(
     name = "bin_files",
-    srcs = [":python"],
+    srcs = [":python3"],
     prefix = "bin",
+    attributes = pkg_attributes("0755"),
 )
 
 pkg_files(
@@ -610,6 +611,7 @@ pkg_install(
     name = "install",
     srcs = [
         ":install_headers",
+        ":module_files",
         ":lib_files",
         ":bin_files",
     ],
