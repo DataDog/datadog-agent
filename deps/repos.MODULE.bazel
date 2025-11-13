@@ -137,8 +137,8 @@ http_archive(
 
 http_archive(
     name = "attr",
-    build_file = "//deps:attr.BUILD.bazel",
     files = {
+        "BUILD.bazel": "//deps:attr/attr.BUILD.bazel",
         "config-linux-x86_64.h": "//deps:attr/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:attr/config-linux-arm64.h",
     },

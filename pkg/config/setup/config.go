@@ -529,6 +529,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("network_path.collector.filters") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
+	// Network Config Management
+	bindEnvAndSetLogsConfigKeys(config, "network_config_management.forwarder.")
+
 	// HA Agent
 	config.BindEnvAndSetDefault("ha_agent.enabled", false)
 	config.BindEnv("ha_agent.group") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -675,6 +678,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
+	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1100,7 +1104,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 	config.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
-	config.BindEnvAndSetDefault("runtime_security_config.event_gprc_server", "")
+	config.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 
 	// trace-agent's evp_proxy
 	config.BindEnv("evp_proxy_config.enabled")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1554,6 +1558,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1583,6 +1588,28 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
+
+	// Set defaults for config keys that may be accessed but aren't relevant in serverless environments
+	// to avoid "config key is unknown" and "unable to cast nil" warnings
+	config.SetDefault("checks_tag_cardinality", "low")
+	config.SetDefault("dogstatsd_tag_cardinality", "low")
+	config.SetDefault("cel_workload_exclude", "")
+	config.SetDefault("sbom.container_image.exclude_pause_container", false)
+	config.SetDefault("sbom.container_image.container_include", []string{})
+	config.SetDefault("sbom.container_image.container_exclude", []string{})
+	config.SetDefault("ecs_collect_resource_tags_ec2", false)
+	config.SetDefault("kubernetes_persistent_volume_claims_as_tags", false)
+	config.SetDefault("docker_labels_as_tags", map[string]string{})
+	config.SetDefault("docker_env_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_node_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_node_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_pod_labels_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_pod_annotations_as_tags", map[string]string{})
+	config.SetDefault("kubernetes_resources_labels_as_tags", "{}")
+	config.SetDefault("kubernetes_resources_annotations_as_tags", "{}")
+	config.SetDefault("provider_kind", "")
 }
 
 func forwarder(config pkgconfigmodel.Setup) {
@@ -1979,7 +2006,6 @@ func kubernetes(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
 	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
-	config.BindEnvAndSetDefault("kubelet_listener_polling_interval", 5)      // Polling frequency in seconds of the pod watcher to detect new pods/containers (affected by kubelet_cache_pods_duration setting)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
