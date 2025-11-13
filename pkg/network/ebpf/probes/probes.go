@@ -182,8 +182,13 @@ const (
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
 	// ConntrackHashInsert is the probe for new conntrack entries
-	ConntrackHashInsert ProbeFuncName = "kprobe___nf_conntrack_hash_insert"
-
+	ConntrackHashInsert ProbeFuncName = "kprobe__nf_conntrack_hash_insert"
+	// ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert (no kprobe needed since ct is a parameter)
+	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe_nf_conntrack_hash_check_insert"
+	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm entry
+	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
+	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return
+	ConntrackConfirmReturn ProbeFuncName = "kretprobe__nf_conntrack_confirm"
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
 )
@@ -219,6 +224,10 @@ const (
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
+	// Conntrack2Map is the map storing confirmed NAT connections
+	Conntrack2Map BPFMapName = "conntrack2"
+	// PendingConfirmsMap is the map for tracking pending confirmations
+	PendingConfirmsMap BPFMapName = "pending_confirms"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call

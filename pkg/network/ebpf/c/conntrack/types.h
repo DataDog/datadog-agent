@@ -22,6 +22,33 @@ typedef struct {
 
 typedef struct {
     __u64 registers;
+    __u64 kprobe__nf_conntrack_hash_insert_entry_count;
+    __u64 kprobe__nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count;
+    __u64 kprobe__nf_conntrack_hash_insert_regular_exists_count;
+    __u64 kprobe__nf_conntrack_hash_insert_reverse_exists_count;
+    __u64 kprobe__nf_conntrack_hash_insert_count;
+    __u64 kretprobe_nf_conntrack_hash_check_insert_count;
+    __u64 kprobe__nf_conntrack_confirm_entry_count;
+    __u64 kprobe__nf_conntrack_confirm_skb_null_count;
+    __u64 kprobe__nf_conntrack_confirm_nfct_null_count;
+    __u64 kprobe__nf_conntrack_confirm_ct_null_count;
+    __u64 kprobe__nf_conntrack_confirm_not_nat_count;
+    __u64 kprobe__nf_conntrack_confirm_pending_added_count;
+    __u64 kretprobe__nf_conntrack_confirm_entry_count;
+    __u64 kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count;
+    __u64 kretprobe__nf_conntrack_confirm_not_accepted_count;
+    __u64 kretprobe__nf_conntrack_confirm_not_confirmed_count;
+    __u64 kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count;
+    __u64 kretprobe__nf_conntrack_confirm_regular_exists_count;
+    __u64 kretprobe__nf_conntrack_confirm_reverse_exists_count;
+    __u64 kretprobe__nf_conntrack_confirm_success_count;
+    __u64 kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count;
+    __u64 kprobe_ctnetlink_fill_info_regular_exists_count;
+    __u64 kprobe_ctnetlink_fill_info_reverse_exists_count;
+    __u64 kprobe_ctnetlink_fill_info_added_count;
+    __u64 kprobe_ctnetlink_fill_info_regular_exists2_count;
+    __u64 kprobe_ctnetlink_fill_info_reverse_exists2_count;
+    __u64 kprobe_ctnetlink_fill_info_added_2_count;
 } conntrack_telemetry_t;
 
 

@@ -30,7 +30,8 @@ import (
 func patchPrintkNewline(m *manager.Manager) error {
 	kernelVersion, err := kernel.HostVersion()
 	if err != nil {
-		return err // can't detect kernel version, don't patch
+		log.Warnf("Could not detect kernel version for printk patching: %v", err)
+		return nil // Don't fail, just skip patching
 	}
 	if kernelVersion < kernel.VersionCode(5, 9, 0) {
 		return nil // Do nothing in older kernels
@@ -42,13 +43,24 @@ func patchPrintkNewline(m *manager.Manager) error {
 	}
 
 	var errs []error
+	totalPatches := 0
 
 	for _, p := range progs {
-		_, err := patchPrintkInstructions(p)
-		errs = append(errs, err)
+		patches, err := patchPrintkInstructions(p)
+		totalPatches += patches
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return errors.Join(errs...)
+	// Log the results but don't fail the entire operation
+	if len(errs) > 0 {
+		log.Warnf("Printk patcher encountered %d errors but continuing: %v", len(errs), errs)
+	}
+	log.Debugf("Printk patcher applied %d total patches across all programs", totalPatches)
+
+	// Return nil instead of errors.Join(errs...) to make it non-fatal
+	return nil
 }
 
 // patchPrintkInstructions patches the instructions of a program to remove the newline character

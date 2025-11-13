@@ -63,7 +63,7 @@ const tracerModuleName = "network_tracer"
 //
 // If we want to have a way to track the # of active TCP connections in the future we could use the procfs like here: https://github.com/DataDog/datadog-agent/pull/3728
 // to determine whether a connection is truly closed or not
-var tracerTelemetry = struct {
+var tracerTelemetry = struct { // JMWWED
 	skippedConns         telemetry.Counter
 	expiredTCPConns      telemetry.Counter
 	closedConns          *telemetry.StatCounterWrapper
@@ -73,7 +73,7 @@ var tracerTelemetry = struct {
 	telemetry.NewCounter(tracerModuleName, "skipped_conns", []string{"ip_proto"}, "Counter measuring skipped connections"),
 	telemetry.NewCounter(tracerModuleName, "expired_tcp_conns", []string{}, "Counter measuring expired TCP connections"),
 	telemetry.NewStatCounterWrapper(tracerModuleName, "closed_conns", []string{"ip_proto"}, "Counter measuring closed TCP connections"),
-	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"),
+	telemetry.NewGauge(tracerModuleName, "conn_stats_map_size", []string{}, "Gauge measuring the size of the active connections map"), // JMWWED
 	telemetry.NewGauge(tracerModuleName, "payload_conn_count", []string{"client_id", "ip_proto"}, "Gauge measuring the number of connections in the system-probe payload"),
 }
 
@@ -278,14 +278,24 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 		if c, err = loadEbpfConntracker(cfg, telemetryComponent); err != nil {
 			log.Warnf("error initializing ebpf conntracker: %s", err)
 			log.Info("falling back to netlink conntracker")
+			log.Warnf("JMW error initializing ebpf conntracker: %s", err)
+			log.Info("JMW falling back to netlink conntracker")
 		}
 
 		if clb, err = newCiliumLoadBalancerConntracker(cfg); err != nil {
-			log.Warnf("cilium lb conntracker is enabled, but failed to load: %s", err)
+			log.Infof("cilium lb conntracker is enabled, but failed to load: %s", err)
+			log.Infof("JMW cilium lb conntracker is enabled, but failed to load: %s", err)
 		}
+	}
+	if c != nil {
+		log.Infof("JMW newConntracker() successfully initialized ebpf conntracker")
+	}
+	if clb != nil {
+		log.Infof("JMW newConntracker() successfully initialized cilium lb conntracker")
 	}
 
 	if c == nil {
+		log.Infof("JMW newConntracker() trying netlink.NewConntracker()")
 		if c, err = netlink.NewConntracker(cfg, telemetryComponent); err != nil {
 			if errors.Is(err, netlink.ErrNotPermitted) || cfg.IgnoreConntrackInitFailure {
 				log.Warnf("could not initialize netlink conntracker: %s", err)
@@ -293,12 +303,16 @@ func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Co
 				return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 			}
 		}
+		if c != nil {
+			log.Infof("JMW newConntracker() successfully initialized netlink conntracker")
+		}
 	}
 
 	c = chainConntrackers(c, clb)
 	if c.GetType() == "" {
 		// no-op conntracker
 		log.Warnf("connection tracking is disabled")
+		log.Warnf("JMW connection tracking is disabled")
 	}
 
 	return c, nil
@@ -536,7 +550,7 @@ func (t *Tracer) getCachedConntrack() *cachedConntrack {
 	return newCachedConntrack(t.config.ProcRoot, newConntrack, 128)
 }
 
-// getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
+// getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes JMWCONNTRACKER
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
 	cachedConntrack := t.getCachedConntrack()
@@ -569,6 +583,11 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	activeConnections = activeBuffer.Connections()
+	log.Infof("JMW Tracer.getConnections() got %d connections", len(activeConnections))
+
+	// JMW: Compare both conntrack maps and log differences
+	t.compareAndLogConntrackMaps()
+
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(&activeConnections[i].ConnectionTuple)
 		// do gateway resolution only on active connections outside
@@ -848,6 +867,124 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (*DebugConntrackTable, 
 		Entries:     table,
 		IsTruncated: isTruncated,
 	}, nil
+}
+
+// DebugConntrackComparison compares all three conntrack maps and returns statistics
+func (t *Tracer) DebugConntrackComparison() (interface{}, error) {
+	// Check if we have an eBPF conntracker that supports comparison
+	if ebpfCt, ok := t.conntracker.(*ebpfConntracker); ok {
+		return ebpfCt.CompareConntrackMaps()
+	}
+	return nil, fmt.Errorf("conntrack comparison only supported with eBPF conntracker")
+}
+
+// compareAndLogConntrackMaps compares both conntrack maps and logs differences
+func (t *Tracer) compareAndLogConntrackMaps() {
+	// Check if we have an eBPF conntracker that supports comparison
+	ebpfCt, ok := t.conntracker.(*ebpfConntracker)
+	if !ok {
+		log.Debugf("JMW: conntrack comparison only supported with eBPF conntracker, current type: %s", t.conntracker.GetType())
+		return
+	}
+
+	comparison, err := ebpfCt.CompareConntrackMaps()
+	if err != nil {
+		log.Warnf("JMW: error comparing conntrack maps: %s", err)
+		return
+	}
+
+	// Log summary statistics
+	log.Infof("JMW CONNTRACK COMPARISON: conntrack=%d, conntrack2=%d, pending=%d",
+		comparison.ConntrackEntries,
+		comparison.Conntrack2Entries,
+		comparison.PendingConfirmsEntries)
+
+	// Log intersection statistics
+	log.Infof("JMW CONNTRACK INTERSECTIONS: common_1_2=%d",
+		comparison.CommonEntries12)
+
+	// Log unique entries (potential issues)
+	if comparison.OnlyInConntrack > 0 || comparison.OnlyInConntrack2 > 0 {
+		log.Warnf("JMW CONNTRACK DIFFERENCES: only_in_conntrack=%d, only_in_conntrack2=%d",
+			comparison.OnlyInConntrack,
+			comparison.OnlyInConntrack2)
+	}
+
+	// Log sample differences for debugging
+	if len(comparison.SampleDifferences) > 0 {
+		log.Debugf("JMW CONNTRACK SAMPLE DIFFERENCES:")
+		for i, diff := range comparison.SampleDifferences {
+			if i >= 5 { // Limit to first 5 for readability
+				break
+			}
+			log.Debugf("  %s - %s", diff.Tuple, diff.Description)
+		}
+	}
+
+	// Calculate and log efficiency metrics
+	if comparison.ConntrackEntries > 0 {
+		natProcessingRate := float64(comparison.Conntrack2Entries) / float64(comparison.ConntrackEntries) * 100
+		natConfirmationRate := float64(comparison.Conntrack2Entries) / float64(comparison.ConntrackEntries) * 100
+		log.Infof("JMW CONNTRACK EFFICIENCY: NAT_processing_rate=%.1f%%, NAT_confirmation_rate=%.1f%%",
+			natProcessingRate, natConfirmationRate)
+	}
+
+	// Log probe counters from eBPF telemetry
+	t.logConntrackProbeCounters(ebpfCt)
+}
+
+// logConntrackProbeCounters reads and logs the probe counters from eBPF telemetry
+func (t *Tracer) logConntrackProbeCounters(ebpfCt *ebpfConntracker) {
+	var zero uint32
+	var telemetry netebpf.ConntrackTelemetry
+
+	err := ebpfCt.telemetryMap.Lookup(&zero, &telemetry)
+	if err != nil {
+		log.Warnf("JMW: error reading conntrack telemetry: %s", err)
+		return
+	}
+
+	// Log probe counters
+	log.Infof("JMW PROBE COUNTERS 0: kprobe_ctnetlink_fill_info failed_to_get_conntrack_tuples=%d, conntrack map: regular_exists=%d, reverse_exists=%d, added=%d, conntrack2 map: regular_exists=%d, reverse_exists=%d, added=%d",
+		telemetry.Kprobe_ctnetlink_fill_info_failed_to_get_conntrack_tuples_count,
+		telemetry.Kprobe_ctnetlink_fill_info_regular_exists_count,
+		telemetry.Kprobe_ctnetlink_fill_info_reverse_exists_count,
+		telemetry.Kprobe_ctnetlink_fill_info_added_count,
+		telemetry.Kprobe_ctnetlink_fill_info_regular_exists2_count,
+		telemetry.Kprobe_ctnetlink_fill_info_reverse_exists2_count,
+		telemetry.Kprobe_ctnetlink_fill_info_added_2_count)
+
+	log.Infof("JMW PROBE COUNTERS 1: kprobe__nf_conntrack_hash_insert entry=%d, failed_to_get_conntrack_tuples=%d, regular_exists=%d, reverse_exists=%d, added=%d",
+		telemetry.Kprobe__nf_conntrack_hash_insert_entry_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_failed_to_get_conntrack_tuples_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_regular_exists_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_reverse_exists_count,
+		telemetry.Kprobe__nf_conntrack_hash_insert_count)
+
+	if telemetry.Kretprobe_nf_conntrack_hash_check_insert_count > 0 {
+		log.Infof("JMW PROBE COUNTERS 2: nf_conntrack_hash_check insert=%d", telemetry.Kretprobe_nf_conntrack_hash_check_insert_count)
+	}
+
+	log.Infof("JMW PROBE COUNTERS 3: kprobe__nf_conntrack_confirm entry=%d, skb_null=%d, nfct_null=%d, ct_null=%d, not_nat=%d, pending_added=%d",
+		telemetry.Kprobe__nf_conntrack_confirm_entry_count,
+		telemetry.Kprobe__nf_conntrack_confirm_skb_null_count,
+		telemetry.Kprobe__nf_conntrack_confirm_nfct_null_count,
+		telemetry.Kprobe__nf_conntrack_confirm_ct_null_count,
+		telemetry.Kprobe__nf_conntrack_confirm_not_nat_count,
+		telemetry.Kprobe__nf_conntrack_confirm_pending_added_count)
+
+	log.Infof("JMW PROBE COUNTERS 3: kretprobe__nf_conntrack_confirm entry=%d, no_matching_entry_probe=%d, not_accepted=%d, not_confirmed=%d, failed_to_get_conntrack_tuples=%d, regular_exists=%d, reverse_exists=%d, added=%d",
+		telemetry.Kretprobe__nf_conntrack_confirm_entry_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_no_matching_entry_probe_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_not_accepted_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_not_confirmed_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_failed_to_get_conntrack_tuples_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_regular_exists_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_reverse_exists_count,
+		telemetry.Kretprobe__nf_conntrack_confirm_success_count)
+
+	// Log registers count (existing telemetry)
+	log.Infof("JMW CONNTRACK REGISTERS: %d", telemetry.Registers)
 }
 
 // DebugDumpProcessCache dumps the process cache

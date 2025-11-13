@@ -427,8 +427,8 @@ static __always_inline bool is_ct_event(u64 what) {
     }
 }
 
-SEC("kprobe/__nf_conntrack_hash_insert")
-int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
+SEC("kprobe/nf_nat_packet")
+int kprobe_nf_nat_packet(struct pt_regs* ctx) {
     u64 zero = 0;
     conntrack_status_t* status = bpf_map_lookup_elem(&conntrack_status, &zero);
     if (status == NULL || !is_ct_event(status->what)) {
