@@ -504,6 +504,8 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 	requestsExist := make([]bool, len(requests))
 
 	assert.Eventually(t, func() bool {
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
+
 		stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
 
 		if len(stats) == 0 {
