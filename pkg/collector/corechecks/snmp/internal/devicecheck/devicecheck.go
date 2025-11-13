@@ -212,11 +212,6 @@ func (d *DeviceCheck) GetIPAddress() string {
 	return d.config.IPAddress
 }
 
-// GetNamespace returns namespace
-func (d *DeviceCheck) GetNamespace() string {
-	return d.config.Namespace
-}
-
 // GetDeviceID returns device ID
 func (d *DeviceCheck) GetDeviceID() string {
 	return d.config.DeviceID
