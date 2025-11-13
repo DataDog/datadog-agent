@@ -9,6 +9,7 @@ package workloadfilterlist
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"go.uber.org/fx"
 
@@ -130,7 +131,14 @@ func workloadFilterList(_ log.Component, filterComponent workloadfilter.Componen
 		return fmt.Errorf("failed to unmarshal filter configuration: %w", err)
 	}
 
-	for key, value := range filterConfig {
+	sortedKeys := make([]string, 0, len(filterConfig))
+	for key := range filterConfig {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+
+	for _, key := range sortedKeys {
+		value := filterConfig[key]
 		display := fmt.Sprintf("%v", value)
 		if display == "" || display == "[]" || display == "map[]" || display == "<nil>" {
 			display = color.HiYellowString("not configured")
