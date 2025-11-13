@@ -2624,7 +2624,31 @@ Types:
       GoRuntimeType: 39232
       GoKind: 26
 MaxTypeID: 186
-Issues: []
+Issues:
+    - probe_definition:
+        id: logProbe_no_snapshot_stringArg
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.stringArg}
+        tags: ['issue:UnsupportedFeature']
+        capture: {maxReferenceDepth: 1}
+        template: 's: {s}'
+        segments: [{json: {ref: s}, dsl: s}]
+        captureSnapshot: false
+      issue:
+        Kind: 3
+        Message: probe kind ProbeKindLog is not supported
+    - probe_definition:
+        id: spanProbe
+        version: 0
+        type: SPAN_PROBE
+        where:
+            methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+        tags: ['issue:UnsupportedFeature']
+        evaluateAt: exit
+      issue:
+        Kind: 3
+        Message: probe kind ProbeKindSpan is not supported
 GoModuledataInfo: {FirstModuledataAddr: "0x191240", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g

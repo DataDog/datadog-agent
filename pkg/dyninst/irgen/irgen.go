@@ -3269,6 +3269,18 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	}
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
+		switch probe.GetKind() {
+		case ir.ProbeKindSnapshot:
+		default:
+			issues = append(issues, ir.ProbeIssue{
+				ProbeDefinition: probe,
+				Issue: ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("probe kind %v is not supported", probe.GetKind()),
+				},
+			})
+			continue
+		}
 		switch where := probe.GetWhere().(type) {
 		case ir.FunctionWhere:
 			methodName := where.Location()
