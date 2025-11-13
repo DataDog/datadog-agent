@@ -40,24 +40,54 @@ func TestStatus(t *testing.T) {
 				"successScanCount": 0,
 				"failedScanIPs":    []string{},
 			},
-			expectedText: `  Device Scans
-  ============
-  Pending scans count: 0
-  Successful scans count: 0
-  No failed scans.
-`,
-			expectedHTML: `<div class="stat">
-  <span class="stat_title">Device Scans</span>
-  <span class="stat_data">
-    Pending scans count: 0</br>
-    Successful scans count: 0</br>
-    No failed scans.</br>
-  </span>
-</div>
-`,
+			expectedText: ``,
+			expectedHTML: ``,
 		},
 		{
-			name: "multiple devices",
+			name: "multiple devices without failures",
+			scanReqs: []snmpscanmanager.ScanRequest{
+				{
+					DeviceIP: "192.168.0.1",
+				},
+				{
+					DeviceIP: "192.168.0.2",
+				},
+			},
+			deviceScans: deviceScansByIP{
+				"10.0.0.1": deviceScan{
+					DeviceIP:   "10.0.0.1",
+					ScanStatus: successScan,
+					ScanEndTs:  now,
+				},
+				"10.0.0.2": deviceScan{
+					DeviceIP:   "10.0.0.2",
+					ScanStatus: successScan,
+					ScanEndTs:  now,
+				},
+			},
+			expectedJSON: map[string]interface{}{
+				"pendingScanCount": 2,
+				"successScanCount": 2,
+				"failedScanIPs":    []string{},
+			},
+			expectedText: `
+  Device Scans
+  ============
+  Pending scans count: 2
+  Successful scans count: 2
+  No failed scans.`,
+			expectedHTML: `
+<div class="stat">
+  <span class="stat_title">SNMP Device Scans</span>
+  <span class="stat_data">
+    Pending scans count: 2</br>
+    Successful scans count: 2</br>
+    No failed scans.</br>
+  </span>
+</div>`,
+		},
+		{
+			name: "multiple devices with failures",
 			scanReqs: []snmpscanmanager.ScanRequest{
 				{
 					DeviceIP: "192.168.0.1",
@@ -118,7 +148,8 @@ func TestStatus(t *testing.T) {
 					"10.0.0.6",
 				},
 			},
-			expectedText: `  Device Scans
+			expectedText: `
+  Device Scans
   ============
   Pending scans count: 4
   Successful scans count: 2
@@ -126,10 +157,10 @@ func TestStatus(t *testing.T) {
     - 10.0.0.3
     - 10.0.0.4
     - 10.0.0.5
-    - 10.0.0.6
-`,
-			expectedHTML: `<div class="stat">
-  <span class="stat_title">Device Scans</span>
+    - 10.0.0.6`,
+			expectedHTML: `
+<div class="stat">
+  <span class="stat_title">SNMP Device Scans</span>
   <span class="stat_data">
     Pending scans count: 4</br>
     Successful scans count: 2</br>
@@ -139,8 +170,7 @@ func TestStatus(t *testing.T) {
       - 10.0.0.5</br>
       - 10.0.0.6</br>
   </span>
-</div>
-`,
+</div>`,
 		},
 	}
 
