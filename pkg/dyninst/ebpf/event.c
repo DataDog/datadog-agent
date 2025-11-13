@@ -249,8 +249,7 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   if (!events_scratch_buf_submit(global_ctx.buf)) {
     // TODO: Report dropped events metric.
     LOG(1, "probe_run output dropped");
-  }
-  if (stack_hash != 0) {
+  } else if (stack_hash != 0) {
     upsert_stack_hash(stack_hash);
   }
   LOG(1, "probe_run done: %d steps", process_steps + chase_steps);
