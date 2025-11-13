@@ -66,6 +66,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ctx:        ctx,
 		cancelFunc: cancelFunc,
 	}
+	scanManager.loadCache()
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
@@ -101,8 +102,6 @@ type snmpScanManagerImpl struct {
 }
 
 func (m *snmpScanManagerImpl) start() {
-	m.loadCache()
-
 	for i := 0; i < scanWorkers; i++ {
 		m.wg.Add(1)
 		go m.scanWorker()

@@ -513,12 +513,6 @@ func TestCacheIsLoaded(t *testing.T) {
 			provides, err := NewComponent(reqs)
 			assert.NoError(t, err)
 
-			err = mockLifecycle.Start(context.Background())
-			assert.NoError(t, err)
-
-			err = mockLifecycle.Stop(context.Background())
-			assert.NoError(t, err)
-
 			scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
 			assert.True(t, ok)
 			assert.Equal(t, tt.buildExpectedDeviceScans(), scanManager.cloneDeviceScans())
