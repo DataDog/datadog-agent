@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -129,7 +130,7 @@ type logAgent struct {
 	started *atomic.Uint32
 
 	// make restart thread safe
-	restartMutex sync.Mutex
+	restartMutex   sync.Mutex
 	isShuttingDown atomic.Bool
 }
 
@@ -208,12 +209,65 @@ func (a *logAgent) start(context.Context) error {
 	return nil
 }
 
+func (a *logAgent) restart(context.Context) error {
+	a.log.Info("Re-starting logs-agent...")
+
+	// REBUILD endpoints
+	endpoints, err := buildEndpoints(a.config)
+	if err != nil {
+		message := fmt.Sprintf("Invalid endpoints: %v", err)
+		status.AddGlobalError(invalidEndpoints, message)
+		return errors.New(message)
+	}
+
+	a.endpoints = endpoints
+
+	// REBUILD pipeline
+	err = a.setupAgentForRestart()
+	if err != nil {
+		message := fmt.Sprintf("Could not re-start logs-agent: %v", err)
+		a.log.Error(message)
+		return errors.New(message)
+	}
+
+	a.restartPipelineWithHTTP()
+	return nil
+}
+
 func (a *logAgent) setupAgent() error {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
 		status.SetCurrentTransport(status.TransportTCP)
 	}
+
+	processingRules, fingerprintConfig, err := a.configureAgent()
+	if err != nil {
+		return err
+	}
+
+	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
+	return nil
+}
+
+func (a *logAgent) setupAgentForRestart() error {
+	// TODO do we even need this if case ? if we do, move this to configureAgent()
+	if a.endpoints.UseHTTP {
+		status.SetCurrentTransport(status.TransportHTTP)
+	} else {
+		status.SetCurrentTransport(status.TransportTCP)
+	}
+
+	processingRules, fingerprintConfig, err := a.configureAgent()
+	if err != nil {
+		return err
+	}
+
+	a.rebuildTransientComponents(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
+	return nil
+}
+
+func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
 	// The severless agent doesn't use FX for now. This means that the logs agent will not have 'inventoryAgent'
 	// initialized for serverless. This is ok since metadata is not enabled for serverless.
 	// TODO: (components) - This condition should be removed once the serverless agent use FX.
@@ -226,7 +280,7 @@ func (a *logAgent) setupAgent() error {
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
-		return errors.New(message)
+		return nil, nil, errors.New(message)
 	}
 
 	if config.HasMultiLineRule(processingRules) {
@@ -238,11 +292,10 @@ func (a *logAgent) setupAgent() error {
 	if err != nil {
 		message := fmt.Sprintf("Invalid fingerprinting config: %v", err)
 		status.AddGlobalError(invalidFingerprintConfig, message)
-		return errors.New(message)
+		return nil, nil, errors.New(message)
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
-	return nil
+	return processingRules, fingerprintConfig, nil
 }
 
 // Start starts all the elements of the data pipeline
@@ -261,6 +314,37 @@ func (a *logAgent) startPipeline() {
 	)
 	starter.Start()
 	a.startSchedulers()
+}
+
+func (a *logAgent) restartPipelineWithHTTP() error {
+	a.restartMutex.Lock()
+	defer a.restartMutex.Unlock()
+
+	if a.isShuttingDown.Load() {
+		return errors.New("agent shutting down")
+	}
+
+	a.log.Info("Attempting to restart pipeline with HTTP")
+
+	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
+	stopCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	if err := a.partialStop(stopCtx); err != nil {
+		a.log.Warn("Graceful partial stop timed out, force closing")
+	}
+
+	if err := a.setupAgentForRestart(); err != nil {
+		message := fmt.Sprintf("Failed to rebuild with HTTP: %v", err)
+		a.log.Error(message)
+		return errors.New(message)
+	}
+
+	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
+	starter.Start()
+
+	a.log.Info("Successfully restarted pipeline with HTTP")
+	return nil
 }
 
 func (a *logAgent) startSchedulers() {
@@ -293,15 +377,15 @@ func (a *logAgent) stop(context.Context) error {
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
-		
+
 	return nil
 }
 
-// gracefulStop stops only the transient components that will be recreated during restart.
+// partialStop stops only the transient components that will be recreated during restart.
 // This includes launchers, pipelineProvider, and destinationsCtx.
 // Persistent components (auditor, sources, tracker, schedulers, diagnosticMessageReceiver) remain running.
-func (a *logAgent) gracefulStop(ctx context.Context) error {
-	a.log.Info("Completing graceful stop of logs-agent")
+func (a *logAgent) partialStop(ctx context.Context) error {
+	a.log.Info("Completing graceful partial stop of logs-agent for restart")
 	status.Clear()
 
 	toStop := []startstop.Stoppable{a.schedulers,
@@ -333,18 +417,18 @@ func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose f
 		close(c)
 	}()
 	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
-	
+
 	select {
-    case <-c:
-        a.log.Debug("Components stopped gracefully")
-    case <-time.After(timeout):
-        a.log.Info("Timed out when stopping logs-agent, forcing it to stop now")
+	case <-c:
+		a.log.Debug("Components stopped gracefully")
+	case <-time.After(timeout):
+		a.log.Info("Timed out when stopping logs-agent, forcing it to stop now")
 		// We force all destinations to read/flush all the messages they get without
 		// trying to write to the network.
-        if forceClose != nil {
-            forceClose()
-        }
-        // Wait again for the stopper to complete.
+		if forceClose != nil {
+			forceClose()
+		}
+		// Wait again for the stopper to complete.
 		// In some situation, the stopper unfortunately never succeed to complete,
 		// we've already reached the grace period, give it some more seconds and
 		// then force quit.
@@ -359,7 +443,7 @@ func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose f
 				a.log.Warn(stack)
 			}
 		}
-    }
+	}
 	a.log.Info("logs-agent stopped")
 }
 

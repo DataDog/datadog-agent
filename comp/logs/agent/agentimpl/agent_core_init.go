@@ -58,30 +58,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	// setup the launchers
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 
-	fileLimits := a.config.GetInt("logs_config.open_files_limit")
-	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
-	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
-	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
-	fileOpener := opener.NewFileOpener()
-	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
-	lnchrs.AddLauncher(filelauncher.NewLauncher(
-		fileLimits,
-		filelauncher.DefaultSleepDuration,
-		fileValidatePodContainer,
-		fileScanPeriod,
-		fileWildcardSelectionMode,
-		a.flarecontroller,
-		a.tagger,
-		fileOpener,
-		fingerprinter,
-	))
-	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
-	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
-	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
-	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
-		afero.NewOsFs(),
-		a.sources, integrationsLogs))
+	a.addLauncherInstances(lnchrs, wmeta, integrationsLogs, fingerprintConfig)
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
@@ -97,4 +74,65 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+}
+
+func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+	// create NEW destinations context
+	destinationsCtx := client.NewDestinationsContext()
+
+	// NEW endpoints created in `agent.go`
+	// use OLD: auditor, diagnosticMessageReceiver
+	pipelineProvider := pipeline.NewProvider(
+		a.config.GetInt("logs_config.pipelines"),
+		a.auditor,
+		a.diagnosticMessageReceiver,
+		processingRules,
+		a.endpoints,
+		destinationsCtx,
+		NewStatusProvider(),
+		a.hostname,
+		a.config,
+		a.compression,
+		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
+		false, // serverless
+	)
+
+	// recreate laumcjers with new pipelineProvider
+	// use OLD: sources, auditor, tracker
+	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+	a.addLauncherInstances(lnchers, wmeta, integrationsLogs, fingerprintConfig)
+
+	// update agent with new components
+	// schedulers, sources, tracker, auditor, diagnosticMessageReceiver remain unchanged
+	a.destinationsCtx = destinationsCtx
+	a.pipelineProvider = pipelineProvider
+	a.launchers = lnchers
+}
+
+func (a *logAgent) addLauncherInstances(launchers *launchers.Launchers, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+	fileLimits := a.config.GetInt("logs_config.open_files_limit")
+	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
+	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
+	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
+	launchers.AddLauncher(filelauncher.NewLauncher(
+		fileLimits,
+		filelauncher.DefaultSleepDuration,
+		fileValidatePodContainer,
+		fileScanPeriod,
+		fileWildcardSelectionMode,
+		a.flarecontroller,
+		a.tagger,
+		fileOpener,
+		fingerprinter,
+	))
+	launchers.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
+	launchers.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
+	launchers.AddLauncher(windowsevent.NewLauncher())
+	launchers.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
+	launchers.AddLauncher(integrationLauncher.NewLauncher(
+		afero.NewOsFs(),
+		a.sources, integrationsLogs))
+
 }
