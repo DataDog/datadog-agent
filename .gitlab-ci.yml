@@ -684,7 +684,7 @@ workflow:
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
         - comp/forwarder/defaultforwarder/**/*
-        - comp/serializer/defaultforwarder/**/*
+        - comp/serializer/**/*
         - pkg/aggregator/*/**
         - comp/languagedetection/**/*
         - pkg/clusteragent/admission/mutate/**/*
