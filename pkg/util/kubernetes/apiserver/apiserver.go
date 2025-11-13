@@ -386,7 +386,8 @@ func (c *APIClient) connect() error {
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
