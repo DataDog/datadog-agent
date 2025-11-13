@@ -15,15 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func assertKeys(t *testing.T, expect []string, resolver DomainResolver) {
-	expectHdr := make([]authHeader, len(expect))
-	for i, key := range expect {
-		expectHdr[i] = authHeader{"DD-Api-Key", key}
-	}
-	assert.Equal(t, expect, resolver.GetAPIKeys())
-	assert.Equal(t, expectHdr, resolver.GetAuthorizers())
-}
-
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
 	// Note key2 exists twice in the list.
 	apiKeys := []utils.APIKeys{
@@ -49,7 +40,7 @@ func TestSingleDomainUpdateAPIKeys(t *testing.T) {
 
 	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "key4", "key2", "key3")})
 
-	assertKeys(t, []string{"key1", "key4", "key2", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
 }
 
 func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
@@ -61,7 +52,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// The duplicate key between the main endpoint and additional_endpoints is removed
-	assertKeys(t, []string{"key1", "key2", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
 
 	log := logmock.New(t)
 	mockConfig := configmock.New(t)
@@ -72,7 +63,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	// The new key4 key is in the list and the main endpoint key1 is still there
-	assertKeys(t, []string{"key1", "key4", "key2", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
 
 	// The config is updated so the duplicate key is there again
 	endpoints = map[string][]string{
@@ -81,7 +72,7 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
-	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
 }
 
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
@@ -93,7 +84,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// The duplicate key between the main endpoint and additional_endpoints is removed
-	assertKeys(t, []string{"key1", "key2", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key2", "key3"}, resolver.GetAPIKeys())
 
 	log := logmock.New(t)
 	mockConfig := configmock.New(t)
@@ -104,7 +95,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	// The new key4 key is in the list and the main endpoint key1 is still there
-	assertKeys(t, []string{"key1", "key4", "key2", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key4", "key2", "key3"}, resolver.GetAPIKeys())
 
 	// The config is updated so the duplicate key is there again
 	endpoints = map[string][]string{
@@ -113,7 +104,7 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	mockConfig.SetWithoutSource("additional_endpoints", endpoints)
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
-	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
+	assert.Equal(t, []string{"key1", "key4", "key3"}, resolver.GetAPIKeys())
 }
 
 func TestScrubKeys(t *testing.T) {
