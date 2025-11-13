@@ -52,10 +52,10 @@ if exist "!BAZEL_REPO_CONTENTS_CACHE!" (
 (
   echo startup --connect_timeout_secs=5  # instead of 30s, for quicker iterations in diagnostics
   echo startup --local_startup_timeout_secs=30  # instead of 120s, to fail faster for diagnostics
-  :: echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
+  echo startup --output_user_root=!BAZEL_OUTPUT_USER_ROOT!
   echo common --config=ci
   ::echo common --repo_contents_cache=!ext_repo_contents_cache!
-  ::echo build --disk_cache=!BAZEL_DISK_CACHE!
+  echo build --disk_cache=!BAZEL_DISK_CACHE!
 ) >"%~dp0..\user.bazelrc"
 
 :: Diagnostics: print any stalled client/server before `bazel` execution
