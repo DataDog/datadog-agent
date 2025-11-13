@@ -22,6 +22,7 @@ import (
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -162,7 +163,7 @@ func TestRequestScan(t *testing.T) {
 						Port:            161,
 						CommunityString: "public",
 					}, "namespace", mock.Anything, mock.Anything).
-					Return(errors.New("some error")).
+					Return(gosnmplib.NewConnectionError(errors.New("some error"))).
 					Once()
 
 				return mockScanner
@@ -309,60 +310,6 @@ func TestProcessScanRequest(t *testing.T) {
 			expectError:       true,
 		},
 		{
-			name: "scan returns an error",
-			buildMockConfigProvider: func() *snmpConfigProviderMock {
-				mockConfigProvider := newSnmpConfigProviderMock()
-
-				mockConfigProvider.On("GetDeviceConfig",
-					"127.0.0.1", mock.Anything, mock.Anything).
-					Return(&snmpparse.SNMPConfig{
-						IPAddress:       "127.0.0.1",
-						Port:            161,
-						CommunityString: "public",
-					}, "namespace", nil).
-					Once()
-
-				return mockConfigProvider
-			},
-			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
-				scanner := snmpscanmock.Mock(t)
-				mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
-				assert.True(t, ok)
-
-				mockScanner.On("ScanDeviceAndSendData",
-					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
-					Return(errors.New("some error")).
-					Once()
-
-				return mockScanner
-			},
-			scanRequest: snmpscanmanager.ScanRequest{
-				DeviceIP: "127.0.0.1",
-			},
-			expectedDeviceScans: deviceScansByIP{
-				"127.0.0.1": {
-					DeviceIP:   "127.0.0.1",
-					ScanStatus: failedScan,
-					Failures:   1,
-				},
-			},
-			expectedCacheContent: []deviceScan{
-				{
-					DeviceIP:   "127.0.0.1",
-					ScanStatus: failedScan,
-					Failures:   1,
-				},
-			},
-			expectedScanTasks: []*scanTask{
-				{
-					req: snmpscanmanager.ScanRequest{
-						DeviceIP: "127.0.0.1",
-					},
-				},
-			},
-			expectError: true,
-		},
-		{
 			name: "scan returns a context canceled error",
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
@@ -397,6 +344,108 @@ func TestProcessScanRequest(t *testing.T) {
 			expectedCacheContent: []deviceScan{},
 			expectedScanTasks:    []*scanTask{},
 			expectError:          false,
+		},
+		{
+			name: "scan returns a connection error (retryable)",
+			buildMockConfigProvider: func() *snmpConfigProviderMock {
+				mockConfigProvider := newSnmpConfigProviderMock()
+
+				mockConfigProvider.On("GetDeviceConfig",
+					"127.0.0.1", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "127.0.0.1",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
+				return mockConfigProvider
+			},
+			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
+				scanner := snmpscanmock.Mock(t)
+				mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
+				assert.True(t, ok)
+
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(gosnmplib.NewConnectionError(errors.New("some error"))).
+					Once()
+
+				return mockScanner
+			},
+			scanRequest: snmpscanmanager.ScanRequest{
+				DeviceIP: "127.0.0.1",
+			},
+			expectedDeviceScans: deviceScansByIP{
+				"127.0.0.1": {
+					DeviceIP:   "127.0.0.1",
+					ScanStatus: failedScan,
+					Failures:   1,
+				},
+			},
+			expectedCacheContent: []deviceScan{
+				{
+					DeviceIP:   "127.0.0.1",
+					ScanStatus: failedScan,
+					Failures:   1,
+				},
+			},
+			expectedScanTasks: []*scanTask{
+				{
+					req: snmpscanmanager.ScanRequest{
+						DeviceIP: "127.0.0.1",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "scan returns a normal error (not retryable)",
+			buildMockConfigProvider: func() *snmpConfigProviderMock {
+				mockConfigProvider := newSnmpConfigProviderMock()
+
+				mockConfigProvider.On("GetDeviceConfig",
+					"127.0.0.1", mock.Anything, mock.Anything).
+					Return(&snmpparse.SNMPConfig{
+						IPAddress:       "127.0.0.1",
+						Port:            161,
+						CommunityString: "public",
+					}, "namespace", nil).
+					Once()
+
+				return mockConfigProvider
+			},
+			buildMockScanner: func() *snmpscanmock.SnmpScanMock {
+				scanner := snmpscanmock.Mock(t)
+				mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
+				assert.True(t, ok)
+
+				mockScanner.On("ScanDeviceAndSendData",
+					mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(errors.New("some error")).
+					Once()
+
+				return mockScanner
+			},
+			scanRequest: snmpscanmanager.ScanRequest{
+				DeviceIP: "127.0.0.1",
+			},
+			expectedDeviceScans: deviceScansByIP{
+				"127.0.0.1": {
+					DeviceIP:   "127.0.0.1",
+					ScanStatus: failedScan,
+					Failures:   -1,
+				},
+			},
+			expectedCacheContent: []deviceScan{
+				{
+					DeviceIP:   "127.0.0.1",
+					ScanStatus: failedScan,
+					Failures:   -1,
+				},
+			},
+			expectedScanTasks: []*scanTask{},
+			expectError:       true,
 		},
 		{
 			name: "scan ok",
