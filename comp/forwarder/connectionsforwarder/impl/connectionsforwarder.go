@@ -7,6 +7,8 @@
 package connectionsforwarderimpl
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -49,8 +51,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
+	forwarder := defaultforwarder.NewDefaultForwarder(reqs.Config, reqs.Logger, processForwarderOpts)
+	reqs.Lifecycle.Append(compdef.Hook{
+		OnStart: func(context.Context) error { return forwarder.Start() },
+		OnStop:  func(context.Context) error { forwarder.Stop(); return nil },
+	})
+
 	return Provides{
-		defaultforwarder.NewForwarder(reqs.Config, reqs.Logger, reqs.Lifecycle, false, processForwarderOpts).Comp,
+		Comp: forwarder,
 	}, nil
 }
 
