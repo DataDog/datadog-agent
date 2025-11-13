@@ -100,6 +100,25 @@ var (
 	LogsTruncated = expvar.Int{}
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
+
+	// TlmLogLineSizes is a distribution of post-framer log line sizes
+	TlmLogLineSizes = telemetry.NewHistogram("logs", "log_line_sizes",
+		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
+
+	// TlmRotationsNix tracks file rotations detected on *nix platforms by rotation type (new_file vs truncated)
+	TlmRotationsNix = telemetry.NewCounter("logs", "rotations_nix",
+		[]string{"rotation_type"}, "Count of file rotations detected on *nix platforms, tagged by rotation_type (new_file or truncated)")
+
+	// TlmRotationSizeMismatch counts disagreements between cache-growth and offset-unread rotation detectors.
+	// The `detector` tag indicates which heuristic detected a potential rotation (not which claimed all was fine):
+	// - detector:cache = cache observed growth but offset indicates all data was read (likely missed rotation)
+	// - detector:offset = offset indicates unread data but cache saw no growth (likely false-positive rotation)
+	TlmRotationSizeMismatch = telemetry.NewCounter("logs", "rotation_size_mismatch",
+		[]string{"detector"}, "Count of disagreements between cache-growth and offset-unread rotation detectors")
+
+	// TlmRotationSizeDifferences records the absolute file size difference whenever the file size changes between checks
+	TlmRotationSizeDifferences = telemetry.NewHistogram("logs", "rotation_size_differences",
+		nil, "Distribution of absolute file size differences observed between consecutive file rotation checks", []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 10485760, 104857600})
 )
 
 func init() {

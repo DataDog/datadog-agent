@@ -29,6 +29,7 @@ const (
 	pullCollectorInterval         = 5 * time.Second
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
+	closeEventBundleChTimeout     = 10 * time.Second
 	eventChBufferSize             = 50
 )
 
@@ -915,7 +916,22 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-	ch <- bundle
+
+	// Send with timeout to prevent indefinite blocking
+	// There are two timeouts here:
+	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
+	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	select {
+	case ch <- bundle:
+		// Successfully sent
+	case <-time.After(closeEventBundleChTimeout):
+		// Timeout sending to channel - subscriber not reading, events will be lost
+		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		// Close acknowledgment channel to prevent resource leak
+		close(bundle.Ch)
+		return
+	}
 
 	if wait {
 		select {

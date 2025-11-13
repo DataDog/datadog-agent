@@ -1058,6 +1058,46 @@ cel_workload_exclude:
 	})
 }
 
+func TestCELWorkloadExcludeFilteringRuntimeErrors(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    pods:
+      - "100"
+- products:
+    - metrics
+  rules:
+    pods:
+      - "pod.annotations['non-existent-key'] != 'x'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	pod := workloadmetafilter.CreatePod(
+		&workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "my-pod",
+				Namespace: "test",
+			},
+		},
+	)
+
+	t.Run("Nonexistent annotation on pod", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+
+	t.Run("Non-boolean result on rule", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELGlobal)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+}
+
 func TestCELProcessLogsFiltering(t *testing.T) {
 	yamlConfig := `
 cel_workload_exclude:

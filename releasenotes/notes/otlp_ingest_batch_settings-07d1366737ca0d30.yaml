@@ -1,0 +1,8 @@
+enhancements:
+  - |
+    Add support for batch settings in the OTLP ingest endpoint (logs & metrics).
+    - `batch.min_size`
+    - `batch.max_size`
+    - `batch.flush_timeout`
+
+    These settings can be configured in the Agent config file or by using the environment variables.

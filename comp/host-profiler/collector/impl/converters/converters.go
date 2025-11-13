@@ -33,6 +33,9 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 	if err := removeDDProfilingExtension(confStringMap); err != nil {
 		return err
 	}
+	if err := removeHpFlareExtension(confStringMap); err != nil {
+		return err
+	}
 
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil

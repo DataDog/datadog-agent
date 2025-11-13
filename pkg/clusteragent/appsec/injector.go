@@ -15,12 +15,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,6 +26,13 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
 var (
@@ -75,7 +76,7 @@ func detectProxiesInCluster(ctx context.Context, cl *apiserver.APIClient, logger
 	for proxy, detector := range proxyDetectionMap {
 		found, err := detector(ctx, cl.DynamicCl)
 		if err != nil {
-			logger.Debug("error detecting proxy %s in cluster: %s", proxy, err)
+			logger.Debugf("error detecting proxy %s in cluster: %s", proxy, err)
 			continue
 		}
 		if found {

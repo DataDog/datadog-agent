@@ -78,29 +78,36 @@ agent_deb-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
-ddot_deb-x64:
-  extends: [.package_deb_common, .package_deb_x86]
+.ddot_deb_common:
+  extends: .package_deb_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-otel-agent-x64"]
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_DISABLE_VPA: true
 
+ddot_deb-x64:
+  extends: [.ddot_deb_common, .package_deb_x86]
+  needs: ["datadog-otel-agent-x64"]
+
 ddot_deb-arm64:
-  extends: [.package_deb_common, .package_deb_arm64]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+  extends: [.ddot_deb_common, .package_deb_arm64]
   needs: ["datadog-otel-agent-arm64"]
+
+ddot_deb-x64-fips:
+  extends: [.ddot_deb_common, .package_deb_x86]
+  needs: ["datadog-otel-agent-x64-fips"]
   variables:
-    DD_PROJECT: "ddot"
-    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
-    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_DISABLE_VPA: true
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+
+ddot_deb-arm64-fips:
+  extends: [.ddot_deb_common, .package_deb_arm64]
+  needs: ["datadog-otel-agent-arm64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
 
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]

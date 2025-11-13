@@ -6,7 +6,7 @@
         "JMXFETCH_HASH": "89adfa759b44d588da0e7fb93eaf00e61260c396ad0e55397bef12a56057ab99",
         "JMXFETCH_VERSION": "0.51.0",
         "OMNIBUS_RUBY_VERSION": "243a875a8db2072902e69a8f56d9782496f3794a",
-        "SECURITY_AGENT_POLICIES_VERSION": "v0.73.0",
+        "SECURITY_AGENT_POLICIES_VERSION": "v0.73.1",
         "WINDOWS_DDNPM_DRIVER": "release-signed",
         "WINDOWS_DDNPM_SHASUM": "6df0cd8f244420857822475403d73114121c2c4fe4030660e49a59eb1c4f133f",
         "WINDOWS_DDNPM_VERSION": "2.10.0",
@@ -16,6 +16,6 @@
     },
     "last_stable": {
         "6": "6.53.1",
-        "7": "7.71.2"
+        "7": "7.72.2"
     }
 }

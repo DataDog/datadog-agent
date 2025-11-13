@@ -34,8 +34,8 @@ import (
 
 // Module is the dynamic instrumentation system probe module.
 type Module struct {
-	tenant ActuatorTenant
-	symdb  symdbManagerInterface
+	actuator Actuator
+	symdb    symdbManagerInterface
 
 	store       *processStore
 	diagnostics *diagnosticsManager
@@ -115,13 +115,12 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 		bufferedMessageTracker:   bufferedMessagesTracker,
 		tombstoneFilePath:        tombstoneFilePath,
 	}
-	tenant := deps.Actuator.NewTenant("dyninst", runtime)
-
+	deps.Actuator.SetRuntime(runtime)
 	m := &Module{
 		store:       store,
 		diagnostics: diagnostics,
 		symdb:       deps.symdbManager,
-		tenant:      tenant,
+		actuator:    deps.Actuator,
 		cancel:      func() {}, // This gets overwritten in NewModule
 	}
 	if deps.ProcessSubscriber != nil {
@@ -149,7 +148,7 @@ type realDependencies struct {
 
 func (c *realDependencies) asDependencies() dependencies {
 	return dependencies{
-		Actuator:            &erasedActuator[*actuator.Actuator, *actuator.Tenant]{a: c.actuator},
+		Actuator:            c.actuator,
 		ProcessSubscriber:   c.procSubscriber,
 		Dispatcher:          c.dispatcher,
 		DecoderFactory:      c.decoderFactory,
@@ -266,7 +265,7 @@ func makeRealDependencies(
 	return ret, nil
 }
 
-// GetStats returns the stats of the module
+// GetStats returns the stats of the module.
 func (m *Module) GetStats() map[string]any {
 	stats := map[string]any{}
 	if m.shutdown.realDependencies.actuator != nil {
@@ -306,8 +305,8 @@ func (m *Module) Close() {
 func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 	if removals := update.Removals; len(removals) > 0 {
 		m.store.remove(removals, m.diagnostics)
-		if len(removals) > 0 && m.tenant != nil {
-			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
+		if len(removals) > 0 && m.actuator != nil {
+			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
 		}
 		for _, pid := range removals {
 			m.symdb.removeUploadByPID(pid)
@@ -333,8 +332,8 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				m.symdb.removeUpload(runtimeID)
 			}
 		}
-		if m.tenant != nil {
-			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
+		if m.actuator != nil {
+			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
 		}
 	}
 }

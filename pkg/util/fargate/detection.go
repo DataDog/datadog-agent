@@ -36,6 +36,9 @@ func GetOrchestrator() OrchestratorName {
 	if env.IsFeaturePresent(env.ECSFargate) {
 		return ECS
 	}
+	if env.IsFeaturePresent(env.ECSManagedInstances) {
+		return ECSManagedInstances
+	}
 	return Unknown
 }
 

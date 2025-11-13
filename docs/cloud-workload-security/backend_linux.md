@@ -942,6 +942,23 @@ Workload Protection events for Linux systems have the following JSON schema:
             ],
             "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
         },
+        "Layer": {
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "Layer": {
+                    "$ref": "#/$defs/Layer"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type",
+                "Layer"
+            ],
+            "description": "LayerSerializer defines a layer serializer"
+        },
         "MMapEvent": {
             "properties": {
                 "address": {
@@ -1758,6 +1775,12 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "dropped": {
                     "type": "boolean"
+                },
+                "layers": {
+                    "items": {
+                        "$ref": "#/$defs/Layer"
+                    },
+                    "type": "array"
                 }
             },
             "additionalProperties": false,
@@ -3753,6 +3776,35 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `port` | Port number |
 
 
+## `Layer`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "type": {
+            "type": "string"
+        },
+        "Layer": {
+            "$ref": "#/$defs/Layer"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "type",
+        "Layer"
+    ],
+    "description": "LayerSerializer defines a layer serializer"
+}
+
+{{< /code-block >}}
+
+
+| References |
+| ---------- |
+| [Layer](#layer) |
+
 ## `MMapEvent`
 
 
@@ -4901,6 +4953,12 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "dropped": {
             "type": "boolean"
+        },
+        "layers": {
+            "items": {
+                "$ref": "#/$defs/Layer"
+            },
+            "type": "array"
         }
     },
     "additionalProperties": false,

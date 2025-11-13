@@ -232,7 +232,9 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallCurrentWithOldInstallerScript$"
-      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestInstallScript$/TestReinstallAfterMSIUninstall$"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptWithAgentUser"
+      - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptChangesAgentUser$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUserOnDC$"
       # installer-package
       - EXTRA_PARAMS: --run "TestInstaller$"

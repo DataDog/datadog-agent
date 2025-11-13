@@ -1,6 +1,6 @@
 extensions:
   ddprofiling/default:
-
+  hpflare/default:
 receivers:
   otlp:
     protocols:
@@ -21,8 +21,7 @@ exporters:
     headers:
       dd-api-key: ${env:DD_API_KEY}
 service:
-  # ddprofiling/default is automatically removed when the Agent Core is not available  
-  # extensions: [ddprofiling/default]
+  extensions: [hpflare/default]
   pipelines:
     profiles:
       receivers: [hostprofiler]

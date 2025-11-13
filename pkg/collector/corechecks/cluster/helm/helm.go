@@ -447,6 +447,17 @@ func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStor
 	// one when there are no more revisions left.
 	if hc.instance.CollectEvents && !moreRevisionsLeft {
 		tags := hc.allTags(decodedRelease, storageDriver, false)
+
+		// The "helm_status" tag contains the last known status before
+		// uninstalling. Since the release is now deleted, we can set the status
+		// to "uninstalled".
+		for i, tag := range tags {
+			if strings.HasPrefix(tag, "helm_status:") {
+				tags[i] = "helm_status:uninstalled"
+				break
+			}
+		}
+
 		hc.eventsManager.addEventForDeletedRelease(decodedRelease, tags)
 	}
 }

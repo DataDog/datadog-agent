@@ -138,7 +138,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_DockerRequests() {
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate a connection
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
 
 	test1HostFakeIntakeNPM(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -164,7 +164,7 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM600cnxBucket_DockerRequests()
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " ab -n 600 -c 600 " + testURL)
 
 	test1HostFakeIntakeNPM600cnxBucket(&v.BaseSuite, v.Env().FakeIntake)
 }
@@ -187,8 +187,8 @@ func (v *ec2VMContainerizedSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests()
 	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
 
 	// generate connections
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
-	v.Env().RemoteHost.MustExecute("docker run ghcr.io/datadog/apps-npm-tools:" + apps.Version + " dig @8.8.8.8 www.google.ch")
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
 }

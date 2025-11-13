@@ -7,6 +7,10 @@
   rules:
     - !reference [.on_invoke_tasks_changes]
     - !reference [.except_mergequeue]
+    - changes:
+        paths:
+          - .gitlab/source_test/kmt_tasks.yml
+        compare_to: $COMPARE_TO_BRANCH
   script:
     - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
@@ -32,7 +36,7 @@ test_kmt_local_setup_macos:
   extends: .test_kmt_local_setup
   before_script:
     - !reference [.macos_gitlab, before_script]
-  tags: ["macos:ventura-amd64", "specific:true"]
+  tags: ["macos:sonoma-amd64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:
     # - Docker,Compiler,UserInDockerGroup: no docker-in-docker support in these jobs yet

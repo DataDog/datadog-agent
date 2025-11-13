@@ -8,6 +8,7 @@ package rules
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
@@ -36,7 +37,7 @@ func (rb *RuleBucket) AddRule(rule *Rule) error {
 		rb.fields[index] = field
 	}
 
-	if rule.Def != nil && rule.Def.Tags != nil && rule.Def.Tags[ExecutionContextTagName] == "true" {
+	if rule.Def != nil && rule.Def.Tags != nil && strings.EqualFold(rule.Def.Tags[ExecutionContextTagName], "true") {
 		rb.rules = append(rb.rules, nil)
 		copy(rb.rules[rb.execContextRuleCount+1:], rb.rules[rb.execContextRuleCount:])
 		rb.rules[rb.execContextRuleCount] = rule

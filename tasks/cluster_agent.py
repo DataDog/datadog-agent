@@ -12,7 +12,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import get_default_build_tags
+from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.libs.dependencies import get_effective_dependencies_env
@@ -44,7 +44,7 @@ def build(
     build_common(
         ctx,
         BIN_PATH,
-        get_default_build_tags(build="cluster-agent"),
+        compute_build_tags_for_flavor(build="cluster-agent", build_include=build_include, build_exclude=build_exclude),
         "",
         rebuild,
         build_include,
@@ -196,7 +196,8 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y bash-completion less vim tshark && \
     apt-get clean
 

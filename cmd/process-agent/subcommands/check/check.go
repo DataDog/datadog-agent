@@ -18,6 +18,8 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -52,6 +54,8 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
+		// Provide workloadfilter module
+		workloadfilterfx.Module(),
 
 		// Tagger must be initialized after agent config has been setup
 		remoteTaggerfx.Module(tagger.NewRemoteParams()),
@@ -60,8 +64,8 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 		// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 		// we can include the tagger as part of the workloadmeta component.
-		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-			proccontainers.InitSharedContainerProvider(wmeta, tagger)
+		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
 		fx.Provide(func() statsd.ClientInterface {
 			return &statsd.NoOpClient{}

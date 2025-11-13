@@ -173,6 +173,7 @@ func TestInitData(t *testing.T) {
 		"ec2_prefer_imdsv2":                           true,
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
+		"remote_updates":                              true,
 		"process_config.process_collection.enabled":   true,
 		"container_image.enabled":                     true,
 		"sbom.enabled":                                true,
@@ -208,6 +209,7 @@ func TestInitData(t *testing.T) {
 		"feature_imdsv2_enabled":                     true,
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
+		"feature_remote_updates_enabled":             true,
 		"feature_process_enabled":                    true,
 		"feature_container_images_enabled":           true,
 

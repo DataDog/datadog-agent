@@ -19,7 +19,7 @@ import (
 func TestCELFieldConfigurationErrors(t *testing.T) {
 	env, err := cel.NewEnv(
 		cel.Types(&filterdef.Container{}, &filterdef.Pod{}),
-		cel.Variable("container", cel.ObjectType("datadog.filter.FilterContainer")),
+		cel.Variable("container", cel.ObjectType("datadog.workloadfilter.FilterContainer")),
 	)
 	require.NoError(t, err)
 

@@ -8,8 +8,11 @@
 package serializers
 
 import (
+	json "encoding/json"
 	"fmt"
 	"slices"
+
+	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -259,6 +262,40 @@ type TLSContextSerializer struct {
 	Version string `json:"version,omitempty"`
 }
 
+// LayerSerializer defines a layer serializer
+type LayerSerializer struct {
+	Type string `json:"type"`
+	gopacket.Layer
+}
+
+// MarshalJSON marshals the layer serializer to JSON
+func (L *LayerSerializer) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(L.Layer)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) == 0 || data[0] != '{' {
+		return nil, nil
+	}
+
+	var v map[string]any
+	err = json.Unmarshal(data, &v)
+	if err != nil {
+		return nil, err
+	}
+	delete(v, "Contents")
+	delete(v, "Payload")
+
+	v["type"] = L.Type
+
+	data, err = json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // RawPacketSerializer defines a raw packet serializer
 // easyjson:json
 type RawPacketSerializer struct {
@@ -266,6 +303,7 @@ type RawPacketSerializer struct {
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
 	Dropped    *bool                 `json:"dropped,omitempty"`
+	Layers     []*LayerSerializer    `json:"layers,omitempty"`
 }
 
 // NetworkStatsSerializer defines a new network stats serializer
