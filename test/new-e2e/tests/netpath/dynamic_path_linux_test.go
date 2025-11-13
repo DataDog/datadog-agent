@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package netpath contains e2e tests for Network Path Integration feature
-package networkpathintegration
+package netpath
 
 import (
 	_ "embed"
@@ -18,32 +18,25 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
-type linuxNetworkPathIntegrationTestSuite struct {
+type linuxDynamicPathTestSuite struct {
 	baseNetworkPathIntegrationTestSuite
 }
 
-// TestNetworkPathIntegrationSuiteLinux runs the Network Path Integration e2e suite for linux
-func TestLinuxNetworkPathIntegrationSuite(t *testing.T) {
+// TestDynamicPathSuiteLinux runs the Network Path Integration e2e suite for linux
+func TestLinuxDynamicPathSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxNetworkPathIntegrationTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
+	e2e.Run(t, &linuxDynamicPathTestSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithAgentOptions(
-			agentparams.WithSystemProbeConfig(string(sysProbeConfig)),
-			agentparams.WithIntegration("network_path.d", string(networkPathIntegration)),
+			agentparams.WithAgentConfig(string(dynamicPathDatadogYaml)),
+			agentparams.WithSystemProbeConfig(string(dynamicPathSystemProbeYaml)),
 		)),
 	))
 
 }
 
-func (s *linuxNetworkPathIntegrationTestSuite) TestLinuxNetworkPathIntegrationMetrics() {
-	fakeIntake := s.Env().FakeIntake
+func (s *linuxDynamicPathTestSuite) TestLinuxDynamicPath() {
 	hostname := s.Env().Agent.Client.Hostname()
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		assertMetrics(fakeIntake, c, [][]string{
-			testAgentRunningMetricTagsTCP,
-			testAgentRunningMetricTagsUDP,
-		})
-
-		s.checkDatadogEUTCP(c, hostname)
-		s.checkGoogleDNSUDP(c, hostname)
+		s.checkDynamicPath(c, hostname)
 	}, 5*time.Minute, 3*time.Second)
 }

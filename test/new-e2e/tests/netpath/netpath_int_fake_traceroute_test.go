@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package netpath contains e2e tests for Network Path Integration feature
-package networkpathintegration
+package netpath
 
 import (
 	_ "embed"
