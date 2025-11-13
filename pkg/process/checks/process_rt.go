@@ -99,7 +99,12 @@ func fmtProcessStats(
 	now time.Time,
 ) [][]*model.ProcessStat {
 	chunked := make([][]*model.ProcessStat, 0)
-	chunk := make([]*model.ProcessStat, 0, maxBatchSize)
+	// set max chunk capacity to len(procs) since it can be set to MaxInt for manual checks
+	numChunks := len(procs)
+	if maxBatchSize > 0 && maxBatchSize < numChunks {
+		numChunks = maxBatchSize
+	}
+	chunk := make([]*model.ProcessStat, 0, numChunks)
 
 	for pid, fp := range procs {
 		// Skipping any processes that didn't exist in the previous run.
