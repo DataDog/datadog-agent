@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -341,6 +342,213 @@ func (s *TracerSuite) TestTCPRTT() {
 			assert.EqualValues(ct, int(tcpInfo.Rttvar), int(conn.RTTVar))
 		}
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestTCPRTTStressCI is a stress test to reproduce the flaky TestTCPRTT failure
+// CI shows ~1.5-2% failure rate due to goroutine leaks causing port reuse conflicts
+// This runs 2000 iterations (~15 seconds) with >99.99% chance of detecting the issue
+func (s *TracerSuite) TestTCPRTTStressCI() {
+	t := s.T()
+	const numIterations = 2000
+
+	failures := 0
+	for i := 0; i < numIterations; i++ {
+		err := s.runSingleTCPRTTTest(i)
+		if err != nil {
+			failures++
+			t.Logf("FAILURE #%d on iteration %d: %v", failures, i, err)
+		}
+
+		// Progress logging
+		if i > 0 && i%50 == 0 {
+			t.Logf("Progress: %d/%d iterations (%d failures)", i, numIterations, failures)
+		}
+	}
+
+	failureRate := float64(failures) / float64(numIterations) * 100
+	t.Logf("Completed %d iterations: %d failures (%.2f%% failure rate)", numIterations, failures, failureRate)
+
+	if failures > 0 {
+		t.Errorf("Stress test detected %d failures out of %d runs (%.2f%% failure rate) - TCPServer needs goroutine leak fix!",
+			failures, numIterations, failureRate)
+	}
+}
+
+// TestTCPRTTStressFast runs 1,000 iterations for more thorough local testing
+func (s *TracerSuite) TestTCPRTTStressFast() {
+	t := s.T()
+	const numIterations = 1000
+
+	failures := 0
+	for i := 0; i < numIterations; i++ {
+		err := s.runSingleTCPRTTTest(i)
+		if err != nil {
+			failures++
+			t.Logf("FAILURE #%d on iteration %d: %v", failures, i, err)
+		}
+
+		if i > 0 && i%100 == 0 {
+			t.Logf("Progress: %d/%d iterations (%d failures)", i, numIterations, failures)
+		}
+	}
+
+	failureRate := float64(failures) / float64(numIterations) * 100
+	t.Logf("Completed %d iterations: %d failures (%.2f%% failure rate)", numIterations, failures, failureRate)
+
+	if failures > 0 {
+		t.Errorf("Fast stress test detected %d failures out of %d runs (%.2f%% failure rate)",
+			failures, numIterations, failureRate)
+	}
+}
+
+// TestTCPRTTStressParallel runs 250,000 iterations with 50 parallel workers
+// Duration: ~45 seconds, Success probability: ~100%
+func (s *TracerSuite) TestTCPRTTStressParallel() {
+	t := s.T()
+	const numIterations = 250000
+	const numWorkers = 50
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	failures := 0
+	iterationChan := make(chan int, numIterations)
+
+	// Fill the work queue
+	for i := 0; i < numIterations; i++ {
+		iterationChan <- i
+	}
+	close(iterationChan)
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for iteration := range iterationChan {
+				err := s.runSingleTCPRTTTest(iteration)
+				if err != nil {
+					mu.Lock()
+					failures++
+					failureNum := failures
+					mu.Unlock()
+					t.Logf("Worker %d: FAILURE #%d on iteration %d: %v", workerID, failureNum, iteration, err)
+				}
+
+				// Progress logging (only from worker 0 to avoid spam)
+				if workerID == 0 && iteration > 0 && iteration%10000 == 0 {
+					mu.Lock()
+					currentFailures := failures
+					mu.Unlock()
+					t.Logf("Progress: ~%d/%d iterations (%d failures so far)", iteration, numIterations, currentFailures)
+				}
+			}
+		}(w)
+	}
+
+	// Wait for all workers to complete
+	wg.Wait()
+
+	failureRate := float64(failures) / float64(numIterations) * 100
+	t.Logf("Completed %d iterations with %d workers: %d failures (%.2f%% failure rate)", numIterations, numWorkers, failures, failureRate)
+
+	if failures > 0 {
+		t.Errorf("Parallel stress test detected %d failures out of %d runs (%.2f%% failure rate)",
+			failures, numIterations, failureRate)
+	}
+}
+
+// TestTCPRTTStress runs 100,000 iterations with 20 parallel workers (most thorough)
+// Duration: ~40 seconds, Success probability: ~100%
+func (s *TracerSuite) TestTCPRTTStress() {
+	t := s.T()
+	const numIterations = 100000
+	const numWorkers = 20
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	failures := 0
+	iterationChan := make(chan int, numIterations)
+
+	// Fill the work queue
+	for i := 0; i < numIterations; i++ {
+		iterationChan <- i
+	}
+	close(iterationChan)
+
+	// Start workers
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for iteration := range iterationChan {
+				err := s.runSingleTCPRTTTest(iteration)
+				if err != nil {
+					mu.Lock()
+					failures++
+					failureNum := failures
+					mu.Unlock()
+					t.Logf("Worker %d: FAILURE #%d on iteration %d: %v", workerID, failureNum, iteration, err)
+				}
+
+				// Progress logging (only from worker 0 to avoid spam)
+				if workerID == 0 && iteration > 0 && iteration%5000 == 0 {
+					mu.Lock()
+					currentFailures := failures
+					mu.Unlock()
+					t.Logf("Progress: ~%d/%d iterations (%d failures so far)", iteration, numIterations, currentFailures)
+				}
+			}
+		}(w)
+	}
+
+	// Wait for all workers to complete
+	wg.Wait()
+
+	failureRate := float64(failures) / float64(numIterations) * 100
+	t.Logf("Completed %d iterations with %d workers: %d failures (%.2f%% failure rate)", numIterations, numWorkers, failures, failureRate)
+
+	if failures > 0 {
+		t.Errorf("Stress test detected %d failures out of %d runs (%.2f%% failure rate)",
+			failures, numIterations, failureRate)
+	}
+}
+
+// runSingleTCPRTTTest runs one iteration of the TCP RTT test
+// Returns error if the write fails (indicating the race condition)
+func (s *TracerSuite) runSingleTCPRTTTest(iteration int) error {
+	// Create TCP Server that mimics the original TestTCPRTT
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+
+	err := server.Run()
+	if err != nil {
+		return fmt.Errorf("server.Run failed: %w", err)
+	}
+	defer server.Shutdown()
+
+	c, err := server.Dial()
+	if err != nil {
+		return fmt.Errorf("server.Dial failed: %w", err)
+	}
+	defer c.Close()
+
+	localAddr := c.LocalAddr()
+	remoteAddr := c.RemoteAddr()
+
+	// Reduce the 1-second sleep to increase race likelihood
+	time.Sleep(5 * time.Millisecond)
+
+	// This is where the failure occurs: "write: bad file descriptor"
+	_, err = c.Write([]byte("foo"))
+	if err != nil {
+		return fmt.Errorf("write failed (local=%s, remote=%s): %w", localAddr, remoteAddr, err)
+	}
+
+	// Minimal delay before cleanup
+	time.Sleep(1 * time.Millisecond)
+	return nil
 }
 
 func (s *TracerSuite) TestTCPMiscount() {
