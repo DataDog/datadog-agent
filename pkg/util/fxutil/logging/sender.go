@@ -36,8 +36,10 @@ type Span struct {
 
 // sendSpansToDatadog sends an array of TraceSpan to the local trace-agent.
 // It uses the v0.3/traces endpoint with JSON format (array of traces).
-func (l *fxTracingLogger) sendSpansToDatadog() {
+func (l *fxTracingLogger) sendSpansToDatadog(flavor string) {
 	l.mu.Lock()
+
+	globalMeta := map[string]string{"flavor": flavor}
 
 	// Generate a single trace ID for all spans
 	traceID := rand.Uint64()
@@ -61,6 +63,7 @@ func (l *fxTracingLogger) sendSpansToDatadog() {
 		Duration: l.endTime.Sub(l.startTime).Nanoseconds(),
 		Error:    errToCode(nil),
 		Type:     "custom",
+		Meta:     globalMeta,
 	}
 
 	// Create constructors aggregator span if we have constructors
@@ -74,6 +77,7 @@ func (l *fxTracingLogger) sendSpansToDatadog() {
 		Start:    l.startTime.UnixNano(),
 		Duration: l.lifecycleStart.Sub(l.startTime).Nanoseconds(),
 		Type:     "custom",
+		Meta:     globalMeta,
 	}
 
 	// Create onstart hooks aggregator span if we have onstart hooks
@@ -87,13 +91,14 @@ func (l *fxTracingLogger) sendSpansToDatadog() {
 		Start:    l.lifecycleStart.UnixNano(),
 		Duration: l.endTime.Sub(l.lifecycleStart).Nanoseconds(),
 		Type:     "custom",
+		Meta:     globalMeta,
 	}
 	spans := make([]*Span, 0, len(l.spans)+2)
 	spans = append(spans, appSpan, constructorsAggSpan, onStartAggSpan)
 
 	// Convert TraceSpans to JSON Spans
 	for _, ts := range l.spans {
-		span := convertToSpan(ts, traceID, constructorsSpanID, onStartHooksSpanID)
+		span := convertToSpan(ts, traceID, constructorsSpanID, onStartHooksSpanID, globalMeta)
 		spans = append(spans, span)
 	}
 	l.mu.Unlock()
@@ -116,7 +121,7 @@ func (l *fxTracingLogger) sendSpansToDatadog() {
 }
 
 // convertToSpan converts a TraceSpan to a JSON Span.
-func convertToSpan(ts *TraceSpan, traceID, constructorsSpanID, onStartHooksSpanID uint64) *Span {
+func convertToSpan(ts *TraceSpan, traceID, constructorsSpanID, onStartHooksSpanID uint64, globalMeta map[string]string) *Span {
 	var name string
 	var parentID uint64
 	switch ts.Type {
@@ -140,6 +145,7 @@ func convertToSpan(ts *TraceSpan, traceID, constructorsSpanID, onStartHooksSpanI
 		Duration: ts.Duration,
 		Error:    errToCode(ts.Error),
 		Type:     "custom",
+		Meta:     globalMeta,
 	}
 
 	return span

@@ -38,6 +38,7 @@ type TraceSpan struct {
 type fxTracingLogger struct {
 	fxLogger       fxevent.Logger
 	agentLogger    Logger
+	flavor         string
 	mu             sync.Mutex
 	spans          []*TraceSpan // Buffer spans during startup
 	startTime      time.Time    // Fx startup time
@@ -50,12 +51,13 @@ type fxTracingLogger struct {
 // Tracing is enabled when DD_FX_TRACING_ENABLED is set to true.
 // When enabled, it instruments Fx lifecycle events including component construction
 // and OnStart hooks, sending traces to the configured trace agent.
-func withFxTracer(fxlogger fxevent.Logger, agentLogger Logger) fxevent.Logger {
+func withFxTracer(fxlogger fxevent.Logger, agentLogger Logger, flavor string) fxevent.Logger {
 	if os.Getenv("DD_FX_TRACING_ENABLED") == "true" {
 		agentLogger.Infof("[Fx Tracing] Initialized - will capture component construction and OnStart hooks")
 		return &fxTracingLogger{
 			fxLogger:    fxlogger,
 			agentLogger: agentLogger,
+			flavor:      flavor,
 			spans:       make([]*TraceSpan, 0),
 		}
 	}
@@ -67,7 +69,6 @@ func withFxTracer(fxlogger fxevent.Logger, agentLogger Logger) fxevent.Logger {
 func (l *fxTracingLogger) LogEvent(event fxevent.Event) {
 	notificationTime := time.Now()
 	l.mu.Lock()
-	defer l.mu.Unlock()
 
 	switch e := event.(type) {
 	case *fxevent.LoggerInitialized:
@@ -82,7 +83,9 @@ func (l *fxTracingLogger) LogEvent(event fxevent.Event) {
 	case *fxevent.Started:
 		l.handleStarted(e, notificationTime)
 	}
+	l.mu.Unlock()
 
+	// Log the event to the original fxlogger
 	l.fxLogger.LogEvent(event)
 }
 
@@ -138,6 +141,6 @@ func (l *fxTracingLogger) handleStarted(e *fxevent.Started, notificationTime tim
 
 	// Send spans asynchronously (trace-agent might not be ready immediately)
 	if len(l.spans) > 0 {
-		go l.sendSpansToDatadog()
+		go l.sendSpansToDatadog(l.flavor)
 	}
 }

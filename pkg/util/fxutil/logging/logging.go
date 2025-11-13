@@ -40,7 +40,7 @@ type Logger interface {
 // This function requires that DefaultFxLoggingOption is part of the fx Options.
 // This function uses generics to avoid depending on the logger component.
 // When TRACE_FX is set to 0, it will disable the logging.
-func EnableFxLoggingOnDebug[T Logger]() fx.Option {
+func EnableFxLoggingOnDebug[T Logger](flavor string) fx.Option {
 	return fx.Decorate(func(logger T) fxevent.Logger {
 		var fxLogger fxevent.Logger
 		if os.Getenv("TRACE_FX") == "0" {
@@ -48,7 +48,7 @@ func EnableFxLoggingOnDebug[T Logger]() fx.Option {
 		} else {
 			fxLogger = &fxevent.ConsoleLogger{W: fxEventLogger{logger: logger}}
 		}
-		return withFxTracer(fxLogger, logger)
+		return withFxTracer(fxLogger, logger, flavor)
 	})
 }
 
