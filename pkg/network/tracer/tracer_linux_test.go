@@ -26,7 +26,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -358,7 +357,7 @@ func (s *TracerSuite) runTCPRTTStressSequential(numIterations, progressInterval 
 
 	failures := 0
 	for i := 0; i < numIterations; i++ {
-		err := s.runSingleTCPRTTTest(i)
+		err := s.runSingleTCPRTTTest()
 		if err != nil {
 			failures++
 			t.Logf("FAILURE #%d on iteration %d: %v", failures, i, err)
@@ -391,61 +390,61 @@ func (s *TracerSuite) runTCPRTTStressSequential(numIterations, progressInterval 
 // }
 
 // runTCPRTTStressParallel is a helper that runs parallel stress tests with configurable parameters
-func (s *TracerSuite) runTCPRTTStressParallel(numIterations, numWorkers, progressInterval int) {
-	t := s.T()
+// func (s *TracerSuite) runTCPRTTStressParallel(numIterations, numWorkers, progressInterval int) {
+// 	t := s.T()
 
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	failures := 0
-	iterationChan := make(chan int, numIterations)
+// 	var wg sync.WaitGroup
+// 	var mu sync.Mutex
+// 	failures := 0
+// 	iterationChan := make(chan int, numIterations)
 
-	// Fill the work queue
-	for i := 0; i < numIterations; i++ {
-		iterationChan <- i
-	}
-	close(iterationChan)
+// 	// Fill the work queue
+// 	for i := 0; i < numIterations; i++ {
+// 		iterationChan <- i
+// 	}
+// 	close(iterationChan)
 
-	// Start workers
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for iteration := range iterationChan {
-				err := s.runSingleTCPRTTTest(iteration)
-				if err != nil {
-					mu.Lock()
-					failures++
-					failureNum := failures
-					mu.Unlock()
-					t.Logf("Worker %d: FAILURE #%d on iteration %d: %v", workerID, failureNum, iteration, err)
-				}
+// 	// Start workers
+// 	for w := 0; w < numWorkers; w++ {
+// 		wg.Add(1)
+// 		go func(workerID int) {
+// 			defer wg.Done()
+// 			for iteration := range iterationChan {
+// 				err := s.runSingleTCPRTTTest(iteration)
+// 				if err != nil {
+// 					mu.Lock()
+// 					failures++
+// 					failureNum := failures
+// 					mu.Unlock()
+// 					t.Logf("Worker %d: FAILURE #%d on iteration %d: %v", workerID, failureNum, iteration, err)
+// 				}
 
-				// Progress logging (only from worker 0 to avoid spam)
-				if workerID == 0 && iteration > 0 && iteration%progressInterval == 0 {
-					mu.Lock()
-					currentFailures := failures
-					mu.Unlock()
-					t.Logf("Progress: ~%d/%d iterations (%d failures so far)", iteration, numIterations, currentFailures)
-				}
-			}
-		}(w)
-	}
+// 				// Progress logging (only from worker 0 to avoid spam)
+// 				if workerID == 0 && iteration > 0 && iteration%progressInterval == 0 {
+// 					mu.Lock()
+// 					currentFailures := failures
+// 					mu.Unlock()
+// 					t.Logf("Progress: ~%d/%d iterations (%d failures so far)", iteration, numIterations, currentFailures)
+// 				}
+// 			}
+// 		}(w)
+// 	}
 
-	// Wait for all workers to complete
-	wg.Wait()
+// 	// Wait for all workers to complete
+// 	wg.Wait()
 
-	failureRate := float64(failures) / float64(numIterations) * 100
-	t.Logf("Completed %d iterations with %d workers: %d failures (%.2f%% failure rate)", numIterations, numWorkers, failures, failureRate)
+// 	failureRate := float64(failures) / float64(numIterations) * 100
+// 	t.Logf("Completed %d iterations with %d workers: %d failures (%.2f%% failure rate)", numIterations, numWorkers, failures, failureRate)
 
-	if failures > 0 {
-		t.Errorf("Stress test detected %d failures out of %d runs (%.2f%% failure rate)",
-			failures, numIterations, failureRate)
-	}
-}
+// 	if failures > 0 {
+// 		t.Errorf("Stress test detected %d failures out of %d runs (%.2f%% failure rate)",
+// 			failures, numIterations, failureRate)
+// 	}
+// }
 
 // runSingleTCPRTTTest runs one iteration of the TCP RTT test
 // Returns error if the write fails (indicating the race condition)
-func (s *TracerSuite) runSingleTCPRTTTest(iteration int) error {
+func (s *TracerSuite) runSingleTCPRTTTest() error {
 	// Create TCP Server that mimics the original TestTCPRTT
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
