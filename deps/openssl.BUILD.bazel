@@ -55,7 +55,6 @@ configure_make(
         # Hence, excluding last DEFAULT_CONFIG entry.
         "@platforms//os:windows": [
             "mingw64",
-            "no-asm",
             "no-zlib",
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
