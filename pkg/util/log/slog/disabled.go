@@ -3,17 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package log
+package slog
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
-// LoggerInterface provides basic logging methods that can be used from outside the log package.
-type LoggerInterface = types.LoggerInterface
-
-// Disabled returns a disabled logger
-func Disabled() LoggerInterface {
-	return slog.Disabled()
+// Disabled returns a disabled logger.
+func Disabled() types.LoggerInterface {
+	disabledHandler := handlers.NewDisabled()
+	return NewWrapper(disabledHandler)
 }
