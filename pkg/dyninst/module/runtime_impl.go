@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uprobe"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/time/rate"
 )
 
 type runtimeImpl struct {
@@ -207,11 +209,21 @@ func (l *loadedProgramImpl) Attach(processID actuator.ProcessID, executable actu
 		return nil, err
 	}
 	l.runtime.onProgramAttached(l.programID, processID, l.runtimeID, l.ir)
+	probes := make([]ir.ProbeDefinition, 0, len(l.ir.Probes))
+	for _, probe := range l.ir.Probes {
+		probes = append(probes, probe.ProbeDefinition)
+	}
 	return &attachedProgramImpl{
 		runtime:   l.runtime,
+		runtimeID: l.runtimeID,
 		programID: l.programID,
+		probes:    probes,
 		inner:     attached,
 	}, nil
+}
+
+func (l *loadedProgramImpl) RuntimeStats() loader.RuntimeStats {
+	return l.loadedProgram.RuntimeStats()
 }
 
 func (l *loadedProgramImpl) Close() error {
@@ -227,12 +239,24 @@ func (l *loadedProgramImpl) IR() *ir.Program {
 
 type attachedProgramImpl struct {
 	runtime   *runtimeImpl
+	runtimeID procRuntimeID
 	programID ir.ProgramID
+	probes    []ir.ProbeDefinition
 	inner     actuator.AttachedProgram
 }
 
-func (a *attachedProgramImpl) Detach() error {
-	err := a.inner.Detach()
+var detachLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
+
+func (a *attachedProgramImpl) Detach(failure error) error {
+	err := a.inner.Detach(failure)
+	if failure != nil {
+		if detachLogLimiter.Allow() {
+			log.Warnf("detaching program %v from process %v due to error: %v", a.programID, a.runtimeID.ID, failure)
+		}
+		for _, probe := range a.probes {
+			a.runtime.diagnostics.reportError(a.runtimeID, probe, failure, "ExecutionFailed")
+		}
+	}
 	a.runtime.onProgramDetached(a.programID)
 	return err
 }

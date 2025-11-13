@@ -221,7 +221,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator()
+	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
