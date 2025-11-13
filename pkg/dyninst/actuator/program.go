@@ -13,7 +13,6 @@ import (
 
 type loadedProgram struct {
 	programID ir.ProgramID
-	tenantID  tenantID
 	loaded    LoadedProgram
 }
 
