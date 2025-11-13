@@ -127,6 +127,10 @@ type logAgent struct {
 
 	// started is true if the logs agent is running
 	started *atomic.Uint32
+
+	// make restart thread safe
+	restartMutex sync.Mutex
+	isShuttingDown atomic.Bool
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -277,14 +281,46 @@ func (a *logAgent) stop(context.Context) error {
 
 	status.Clear()
 
-	stopper := startstop.NewSerialStopper(
+	toStop := []startstop.Stoppable{
 		a.schedulers,
 		a.launchers,
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,
 		a.diagnosticMessageReceiver,
-	)
+	}
+
+	a.stopComponents(toStop, func() {
+		a.destinationsCtx.Stop()
+	})
+		
+	return nil
+}
+
+// gracefulStop stops only the transient components that will be recreated during restart.
+// This includes launchers, pipelineProvider, and destinationsCtx.
+// Persistent components (auditor, sources, tracker, schedulers, diagnosticMessageReceiver) remain running.
+func (a *logAgent) gracefulStop(ctx context.Context) error {
+	a.log.Info("Completing graceful stop of logs-agent")
+	status.Clear()
+
+	toStop := []startstop.Stoppable{a.schedulers,
+		a.launchers,
+		a.pipelineProvider,
+		a.destinationsCtx,
+	}
+
+	a.stopComponents(toStop, func() {
+		a.destinationsCtx.Stop()
+	})
+
+	return nil
+}
+
+// stopComponents stops the provided components using SerialStopper with a timeout.
+// If the timeout expires, it calls the forceClose function and waits an additional 5 seconds.
+func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose func()) {
+	stopper := startstop.NewSerialStopper(components...)
 
 	// This will try to stop everything in order, including the potentially blocking
 	// parts like the sender. After StopTimeout it will just stop the last part of the
@@ -297,14 +333,18 @@ func (a *logAgent) stop(context.Context) error {
 		close(c)
 	}()
 	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
+	
 	select {
-	case <-c:
-	case <-time.After(timeout):
-		a.log.Info("Timed out when stopping logs-agent, forcing it to stop now")
+    case <-c:
+        a.log.Debug("Components stopped gracefully")
+    case <-time.After(timeout):
+        a.log.Info("Timed out when stopping logs-agent, forcing it to stop now")
 		// We force all destinations to read/flush all the messages they get without
 		// trying to write to the network.
-		a.destinationsCtx.Stop()
-		// Wait again for the stopper to complete.
+        if forceClose != nil {
+            forceClose()
+        }
+        // Wait again for the stopper to complete.
 		// In some situation, the stopper unfortunately never succeed to complete,
 		// we've already reached the grace period, give it some more seconds and
 		// then force quit.
@@ -319,9 +359,8 @@ func (a *logAgent) stop(context.Context) error {
 				a.log.Warn(stack)
 			}
 		}
-	}
+    }
 	a.log.Info("logs-agent stopped")
-	return nil
 }
 
 // AddScheduler adds the given scheduler to the agent.
