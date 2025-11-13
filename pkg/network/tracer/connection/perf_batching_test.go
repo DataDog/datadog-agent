@@ -28,10 +28,8 @@ const (
 
 func TestGetPendingConns(t *testing.T) {
 	var pendingConns []*network.ConnectionStats
-	flushDone := make(chan struct{})
 	manager := newTestBatchManager(t, func(conn *network.ConnectionStats) {
 		if conn == nil {
-			flushDone <- struct{}{}
 			return
 		}
 		pendingConns = append(pendingConns, conn)
@@ -50,8 +48,7 @@ func TestGetPendingConns(t *testing.T) {
 	}
 	updateBatch()
 
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 	assert.GreaterOrEqual(t, len(pendingConns), 2)
 	for _, pid := range []uint32{pidMax + 1, pidMax + 2} {
 		found := false
@@ -71,10 +68,9 @@ func TestGetPendingConns(t *testing.T) {
 	batch.Len++
 	updateBatch()
 
-	// We should now get only the connection that hasn't been processed before
-	go manager.Flush()
 	pendingConns = pendingConns[:0]
-	<-flushDone
+	// We should now get only the connection that hasn't been processed before
+	manager.Flush()
 	assert.GreaterOrEqual(t, len(pendingConns), 1)
 	var found bool
 	for _, p := range pendingConns {
@@ -88,12 +84,8 @@ func TestGetPendingConns(t *testing.T) {
 }
 
 func TestPerfBatchStateCleanup(t *testing.T) {
-	flushDone := make(chan struct{})
-	manager := newTestBatchManager(t, func(stats *network.ConnectionStats) {
-		if stats == nil {
-			flushDone <- struct{}{}
-		}
-	})
+	// Callback is no-op since this test only validates state cleanup
+	manager := newTestBatchManager(t, func(_ *network.ConnectionStats) {})
 	manager.extractor.expiredStateInterval = 100 * time.Millisecond
 
 	batch := new(netebpf.Batch)
@@ -106,15 +98,13 @@ func TestPerfBatchStateCleanup(t *testing.T) {
 	err := manager.batchMap.Put(&cpu, batch)
 	require.NoError(t, err)
 
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 	_, ok := manager.extractor.stateByCPU[cpu].processed[batch.Id]
 	require.True(t, ok)
 	assert.Equal(t, uint16(2), manager.extractor.stateByCPU[cpu].processed[batch.Id].offset)
 
 	manager.extractor.CleanupExpiredState(time.Now().Add(manager.extractor.expiredStateInterval))
-	go manager.Flush()
-	<-flushDone
+	manager.Flush()
 
 	// state should not have been cleaned up, since no more connections have happened
 	_, ok = manager.extractor.stateByCPU[cpu].processed[batch.Id]

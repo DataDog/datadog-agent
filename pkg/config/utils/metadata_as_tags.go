@@ -175,6 +175,13 @@ func GetMetadataAsTags(c pkgconfigmodel.Reader) MetadataAsTags {
 func retrieveDoubleMappingFromConfig(cfg pkgconfigmodel.Reader, configKey string) map[string]map[string]string {
 	valueFromConfig := cfg.GetString(configKey)
 
+	// If the value is empty or just whitespace, return empty map without logging an error.
+	// This commonly occurs in serverless environments like Cloud Run or Azure Container Apps
+	// where Kubernetes metadata is not available.
+	if strings.TrimSpace(valueFromConfig) == "" {
+		return map[string]map[string]string{}
+	}
+
 	var doubleMap map[string]map[string]string
 	err := json.Unmarshal([]byte(valueFromConfig), &doubleMap)
 
