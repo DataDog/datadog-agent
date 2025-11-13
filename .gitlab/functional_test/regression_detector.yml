@@ -76,11 +76,6 @@ single_machine_performance-regression_detector-merge_base_check:
   timeout: 1h10m
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
   tags: ["arch:amd64", "specific:true"]
-  needs:
-    - job: single_machine_performance-regression_detector-merge_base_check
-      artifacts: true
-    - job: single_machine_performance-full-amd64-a7
-      artifacts: false
   artifacts:
     expire_in: 1 weeks
     paths:
@@ -309,6 +304,11 @@ single_machine_performance-regression_detector-merge_base_check:
 single-machine-performance-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  needs:
+    - job: single_machine_performance-regression_detector-merge_base_check
+      artifacts: true
+    - job: single_machine_performance-full-amd64-a7
+      artifacts: false
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.on_dev_branches]
@@ -323,6 +323,12 @@ single-machine-performance-regression_detector:
 single-machine-performance-metal-runners-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector
+  needs:
+    - job: single_machine_performance-regression_detector-merge_base_check
+      artifacts: true
+      optional: true
+    - job: single_machine_performance-full-amd64-a7
+      artifacts: false
   rules:
     - !reference [.except_coverage_pipeline] # Coverage pipeline creates a duplicate, specialized artifact that is not useful to run through SMP on every PR
     - !reference [.manual]
