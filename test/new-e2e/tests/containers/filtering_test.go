@@ -27,8 +27,8 @@ type k8sFilteringSuite struct {
 }
 
 const (
-	filteredAppName      = "nginx"
-	filteredAppNamespace = "filtered-ns"
+	filteredAppName   = "redis"
+	filteredNamespace = "filtered-ns"
 )
 
 // TestK8SFilteringSuite runs the Kubernetes filtering test suite
@@ -43,7 +43,7 @@ datadog:
 			),
 			awskubernetes.WithDeployTestWorkload(),
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, filteredAppNamespace, "", false, nil)
+				return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, "", false, nil)
 			}),
 		),
 	))
@@ -55,9 +55,10 @@ func (suite *k8sFilteringSuite) SetupSuite() {
 	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
 }
 
-// TestFilteredContainerNoMetrics verifies that the container core check does not collect
+// TestContainerExcludeNoMetrics verifies that the container core check does not collect
 // telemetry for containers that match the exclusion filter
-func (suite *k8sFilteringSuite) TestFilteredContainerNoMetrics() {
+func (suite *k8sFilteringSuite) TestContainerExcludeNoMetrics() {
+	// nginx workload in filtered namespace should never have metrics
 	suite.Never(func() bool {
 		containerMetrics := []string{
 			"container.cpu.usage",
@@ -72,7 +73,7 @@ func (suite *k8sFilteringSuite) TestFilteredContainerNoMetrics() {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				metricName,
 				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-					`kube_namespace` + filteredAppNamespace,
+					`kube_namespace` + filteredNamespace,
 				}),
 			)
 			suite.NoError(err, "Error querying metrics")
@@ -81,62 +82,43 @@ func (suite *k8sFilteringSuite) TestFilteredContainerNoMetrics() {
 			}
 		}
 		return foundMetric
-	}, 2*time.Minute, 15*time.Second, "Metrics were found for a container in a filtered namespace")
+	}, 1*time.Minute, 5*time.Second, "Metrics were found for a container in a filtered namespace")
 
-	suite.Never(func() bool {
-		containerMetrics := []string{
-			"container.cpu.usage",
-			"container.memory.usage",
-			"container.memory.working_set",
-			"container.io.read_bytes",
-			"container.io.write_bytes",
-		}
-
-		foundMetric := false
-		for _, metricName := range containerMetrics {
-			metrics, err := suite.Fakeintake.FilterMetrics(
-				metricName,
-				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-					`container_name:` + "redis",
-				}),
-			)
-			suite.NoError(err, "Error querying metrics")
-			if len(metrics) > 0 {
-				foundMetric = true
-			}
-		}
-		return foundMetric
-	}, 2*time.Minute, 15*time.Second, "Metrics were found for a container filtered by name")
+	// nginx workload in default namespace should have metrics
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				`^container_name:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_service:nginx$`,
+			},
+			AcceptUnexpectedTags: true,
+		},
+	})
 }
 
-// TestFilteredContainerNoAutodiscovery verifies that integrations are NOT auto-discovered
-// on containers that match the exclusion filter, even if they have AD annotations
-func (suite *k8sFilteringSuite) TestFilteredContainerNoAutodiscovery() {
-	// Query for nginx integration metrics should NOT exist
+// TestContainerExcludeForAutodiscovery verifies that integrations are NOT auto-discovered
+// on containers that match the exclusion filter, even for auto config enabled integrations
+func (suite *k8sFilteringSuite) TestContainerExcludeForAutodiscovery() {
+	// redis workload is excluded by its container name and should not have auto-config metrics
 	suite.Never(func() bool {
-		nginxMetrics := []string{
-			"nginx.net.request_per_s",
-			"nginx.net.conn_active",
-			"nginx.net.conn_reading",
-			"nginx.net.conn_writing",
-			"nginx.net.conn_waiting",
-		}
-
-		foundMetric := false
-		for _, metricName := range nginxMetrics {
-			suite.Run(metricName, func() {
-				metrics, err := suite.Fakeintake.FilterMetrics(
-					metricName,
-					fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-						`container_name:` + filteredAppName,
-					}),
-				)
-				suite.NoError(err, "Error querying metrics")
-				if len(metrics) > 0 {
-					foundMetric = true
-				}
-			})
-		}
-		return foundMetric
-	}, 2*time.Minute, 15*time.Second, "Metrics were found for a container filtered by namespace")
+		metrics, err := suite.Fakeintake.FilterMetrics(
+			"redis.net.instantaneous_ops_per_sec",
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
+				`container_name:` + filteredAppName,
+			}),
+		)
+		suite.NoError(err, "Error querying metrics")
+		return len(metrics) > 0
+	}, 1*time.Minute, 5*time.Second, "Metrics were found for filtered redis workload")
 }
