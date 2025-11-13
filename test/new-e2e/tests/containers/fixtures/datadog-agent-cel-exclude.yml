@@ -1,0 +1,9 @@
+datadog:
+  env:
+    - name: DD_CEL_WORKLOAD_EXCLUDE
+      value: |-
+        - products: ["global"]
+          rules:
+            containers:
+            - container.name == "redis"
+            - container.pod.namespace == "filtered-ns"
