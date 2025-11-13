@@ -54,7 +54,7 @@ func readConfigSection(cfg configmodel.Reader, section string) map[string]interf
 			// deep copy since `cfg.Get` returns a reference
 			var val interface{}
 			if _, ok := intConfigs[key]; ok {
-				val = deepcopy.Copy(cfg.GetInt(key)) // ensure to get an int even if it is set as a string in env vars
+				val = cfg.GetInt(key) // ensure to get an int even if it is set as a string in env vars
 			} else {
 				val = deepcopy.Copy(cfg.Get(key))
 			}
