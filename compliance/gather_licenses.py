@@ -53,7 +53,7 @@ class AttrUsage:
             text = license_text.read()
             # TODO: We should use the identifier for more precision, but we can't do that until we
             # rebuild the downstream processing of LICENSES.CSV
-            kinds = ", ".join([k["name"] for k in attr.get("license_kinds", [])])
+            kinds = "+".join([k["name"] for k in attr.get("license_kinds", [])])
             self.licenses[attr["label"]] = (kinds, text)
 
     def process_attribute_json(self, file, attr, users):
@@ -77,7 +77,7 @@ def main():
 
     attrs = AttrUsage()
 
-    # Load up the map that tells us the type of eac input file.
+    # Load up the map that tells us the type of each input file.
     with open(options.kinds) as inp:
         attrs.set_kinds(json.load(inp))
 
