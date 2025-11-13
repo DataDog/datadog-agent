@@ -40,8 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
-	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -66,20 +66,20 @@ type AgentTestSuite struct {
 	testLogFile string
 	fakeLogs    int64
 
-	source          *sources.LogSource
-	configOverrides map[string]interface{}
-	tagger          tagger.Component
-	healthRegistrar healthdef.Component
+	source              *sources.LogSource
+	configOverrides     map[string]interface{}
+	tagger              tagger.Component
+	kubeHealthRegistrar kubehealthdef.Component
 }
 
 type testDeps struct {
 	fx.In
 
-	Config          configComponent.Component
-	Log             log.Component
-	InventoryAgent  inventoryagent.Component
-	Auditor         auditor.Component
-	HealthRegistrar healthdef.Component
+	Config              configComponent.Component
+	Log                 log.Component
+	InventoryAgent      inventoryagent.Component
+	Auditor             auditor.Component
+	KubeHealthRegistrar kubehealthdef.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -139,11 +139,11 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		hostnameimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
-		fx.Provide(healthmock.NewProvides),
+		fx.Provide(kubehealthmock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
-	suite.healthRegistrar = deps.HealthRegistrar
+	suite.kubeHealthRegistrar = deps.KubeHealthRegistrar
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -323,7 +323,7 @@ func (suite *AgentTestSuite) TestAgentLiveness() {
 
 	var count int
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
-		count = suite.healthRegistrar.(*healthmock.Registrar).CountRegistered("logs-agent")
+		count = suite.kubeHealthRegistrar.(*kubehealthmock.Registrar).CountRegistered("logs-agent")
 		return count > 0
 	})
 
@@ -511,6 +511,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() option.Option[healthplatform.Component] {
 			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
 		}),
+		fx.Provide(kubehealthmock.NewProvides),
 	))
 }
 

@@ -9,10 +9,11 @@ import (
 	"bufio"
 	"hash/crc64"
 	"io"
-	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
+	"github.com/spf13/afero"
+
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -45,12 +46,14 @@ type Fingerprinter interface {
 // fingerprinterImpl is a struct that contains the fingerprinting configuration
 type fingerprinterImpl struct {
 	globalConfig types.FingerprintConfig
+	fileOpener   opener.FileOpener
 }
 
 // NewFingerprinter creates a new Fingerprinter with the given configuration
-func NewFingerprinter(fingerprintConfig types.FingerprintConfig) Fingerprinter {
+func NewFingerprinter(fingerprintConfig types.FingerprintConfig, opener opener.FileOpener) Fingerprinter {
 	return &fingerprinterImpl{
 		globalConfig: fingerprintConfig,
+		fileOpener:   opener,
 	}
 }
 
@@ -86,7 +89,7 @@ func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, finger
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return newInvalidFingerprint(nil), nil
 	}
-	return computeFingerprint(filepath, fingerprintConfig)
+	return f.computeFingerprint(filepath, fingerprintConfig)
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
@@ -112,21 +115,21 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 			MaxBytes:            fileFingerprintConfig.MaxBytes,
 		}
 
-		return computeFingerprint(file.Path, fingerprintConfig)
+		return f.computeFingerprint(file.Path, fingerprintConfig)
 	}
 
 	// If per-source config exists but no strategy is set, or no per-source config exists,
 	// fall back to global config
-	return computeFingerprint(file.Path, &f.globalConfig)
+	return f.computeFingerprint(file.Path, &f.globalConfig)
 }
 
 // computeFingerprint computes the fingerprint for the given file path
-func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
 		return newInvalidFingerprint(nil), nil
 	}
 
-	fpFile, err := opener.OpenLogFile(filePath)
+	fpFile, err := f.fileOpener.OpenLogFile(filePath)
 	if err != nil {
 		log.Warnf("could not open file for fingerprinting %s: %v", filePath, err)
 		return newInvalidFingerprint(nil), err
@@ -148,7 +151,7 @@ func computeFingerprint(filePath string, fingerprintConfig *types.FingerprintCon
 }
 
 // computeFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
-func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func computeFingerPrintByBytes(fpFile afero.File, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	bytesToSkip := fingerprintConfig.CountToSkip
 	maxBytes := fingerprintConfig.Count
 	// Skip the configured number of bytes
@@ -181,7 +184,7 @@ func computeFingerPrintByBytes(fpFile *os.File, filePath string, fingerprintConf
 }
 
 // computeFingerPrintByLines computes fingerprint using line-based approach for a given file path
-func computeFingerPrintByLines(fpFile *os.File, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	linesToSkip := fingerprintConfig.CountToSkip
 	maxLines := fingerprintConfig.Count
 	maxBytes := fingerprintConfig.MaxBytes
