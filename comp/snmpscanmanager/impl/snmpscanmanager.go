@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -61,7 +62,8 @@ type Requires struct {
 
 // Provides defines the output of the snmpscanmanager component
 type Provides struct {
-	Comp snmpscanmanager.Component
+	Comp   snmpscanmanager.Component
+	Status status.InformationProvider
 }
 
 // NewComponent creates a new snmpscanmanager component
@@ -97,7 +99,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	})
 
 	return Provides{
-		Comp: scanManager,
+		Comp:   scanManager,
+		Status: status.NewInformationProvider(scanManager),
 	}, nil
 }
 
