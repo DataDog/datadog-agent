@@ -37,6 +37,13 @@ func TestGetMetadataAsTagsNoError(t *testing.T) {
 			expectedAnnotationsAsTags:  map[string]map[string]string{},
 		},
 		{
+			name:                       "empty string configs (serverless environments)",
+			resourcesLabelsAsTags:      "",
+			resourcesAnnotationsAsTags: "",
+			expectedLabelsAsTags:       map[string]map[string]string{},
+			expectedAnnotationsAsTags:  map[string]map[string]string{},
+		},
+		{
 			name:                       "old configurations only",
 			podLabelsAsTags:            map[string]string{"l1": "v1", "l2": "v2"},
 			podAnnotationsAsTags:       map[string]string{"l3": "v3", "l4": "v4"},
