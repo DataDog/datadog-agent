@@ -112,7 +112,8 @@ RequestLoop:
 			return err
 		}
 		if !CmpOIDs(next, last).IsAfter() {
-			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after current OID '%s'", oid, lastOid)
+			session.Logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
+			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
 	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
