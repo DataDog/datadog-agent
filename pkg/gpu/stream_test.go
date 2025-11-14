@@ -971,17 +971,17 @@ func getPoolStats(t *testing.T, telemetryMock telemetry.Mock, pool string) poolS
 	active, err := telemetryMock.GetGaugeMetric("sync__pool", "active")
 	require.NoError(t, err)
 	require.NotEmpty(t, active)
-	activeCount := getMetricWithTags(t, active, map[string]string{"module": "gpu", "name": pool})
+	activeCount := getMetricWithTags(t, active, map[string]string{"module": "gpu", "pool_name": pool})
 
 	get, err := telemetryMock.GetCountMetric("sync__pool", "get")
 	require.NoError(t, err)
 	require.NotEmpty(t, get)
-	getCount := getMetricWithTags(t, get, map[string]string{"module": "gpu", "name": pool})
+	getCount := getMetricWithTags(t, get, map[string]string{"module": "gpu", "pool_name": pool})
 
 	put, err := telemetryMock.GetCountMetric("sync__pool", "put")
 	require.NoError(t, err)
 	require.NotEmpty(t, put)
-	putCount := getMetricWithTags(t, put, map[string]string{"module": "gpu", "name": pool})
+	putCount := getMetricWithTags(t, put, map[string]string{"module": "gpu", "pool_name": pool})
 
 	return poolStats{
 		active: activeCount,
