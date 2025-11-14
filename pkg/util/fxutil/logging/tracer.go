@@ -58,7 +58,7 @@ type fxTracingLogger struct {
 // Tracing is enabled when DD_FX_TRACING_ENABLED is set to true.
 // When enabled, it instruments Fx lifecycle events including component construction
 // and OnStart hooks, sending traces to the configured trace agent.
-func withFxTracer(fxlogger fxevent.Logger, startTime time.Time, agentLogger io.Writer) tracerLogger {
+func withFxTracer(fxlogger fxevent.Logger, startTime time.Time, agentLogger io.Writer) fxevent.Logger {
 	if os.Getenv("DD_FX_TRACING_ENABLED") != "true" {
 		return fxlogger
 	}
@@ -181,6 +181,7 @@ func (l *fxTracingLogger) handleStarted(e *fxevent.Started) {
 		ParentID: 0,
 		Start:    l.startTime.UnixNano(),
 		Duration: endTime.Sub(l.startTime).Nanoseconds(),
+		Error:    errToCode(e.Err),
 		Type:     "custom",
 	}
 
