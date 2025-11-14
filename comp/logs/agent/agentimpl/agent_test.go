@@ -507,11 +507,10 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 			return suite.tagger
 		}),
 		auditorfx.Module(),
-		fx.Provide(healthmock.NewProvides),
+		fx.Provide(kubehealthmock.NewProvides),
 		fx.Provide(func() option.Option[healthplatform.Component] {
 			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
 		}),
-		fx.Provide(kubehealthmock.NewProvides),
 	))
 }
 

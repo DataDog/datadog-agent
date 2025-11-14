@@ -111,8 +111,10 @@ type CheckConfig struct {
 	CheckName string
 	CheckID   string
 
-	// Callback is the function that performs the health check.
-	Callback func(context.Context) ([]Issue, error)
+	// Run is the function that performs the health check.
+	// Returns an issue report with minimal information, or nil if no issue.
+	// The health platform will build the full issue from the registry.
+	Run func(context.Context) (*IssueReport, error)
 }
 
 // IssueReport represents a lightweight issue report from an integration
@@ -138,16 +140,16 @@ type Component interface {
 
 	// ReportIssue reports an issue with context, and the health platform fills in remediation
 	// This is the preferred way for integrations to report issues
-	ReportIssue(checkID string, report IssueReport) error
+	// If report is nil, it clears any existing issue (issue resolution)
+	ReportIssue(checkID string, checkName string, report *IssueReport) error
 
-	// GetAllIssues returns all issues from all checks (indexed by check ID)
-	GetAllIssues() map[string][]Issue
+	// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
+	// Returns the total number of issues and a map of issues (nil for checks with no issues)
+	GetAllIssues() (int, map[string]*Issue)
 
-	// GetIssuesForCheck returns issues for a specific check
-	GetIssuesForCheck(checkID string) []Issue
-
-	// GetTotalIssueCount returns the total number of issues across all checks
-	GetTotalIssueCount() int
+	// GetIssueForCheck returns the issue for a specific check
+	// Returns nil if no issue
+	GetIssueForCheck(checkID string) *Issue
 
 	// ClearIssuesForCheck clears issues for a specific check (useful when issues are resolved)
 	ClearIssuesForCheck(checkID string)
@@ -155,6 +157,8 @@ type Component interface {
 	// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
 	ClearAllIssues()
 
-	// RunHealthChecksNow manually triggers health check execution (useful for testing)
-	RunHealthChecksNow()
+	// RunHealthChecks manually triggers health check execution
+	// If async is true, checks run in parallel goroutines
+	// If async is false, checks run synchronously (useful for testing)
+	RunHealthChecks(async bool)
 }

@@ -55,8 +55,8 @@ type healthPlatformImpl struct {
 	checksMux sync.RWMutex                          // Mutex for thread-safe access to checks
 
 	// Issue tracking
-	issues    map[string][]healthplatform.Issue // Issues detected by check ID
-	issuesMux sync.RWMutex                      // Mutex for thread-safe access to issues
+	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
+	issuesMux sync.RWMutex                     // Mutex for thread-safe access to issues
 
 	// Remediation management
 	remediationRegistry *remediations.Registry // Registry of remediation templates
@@ -68,6 +68,10 @@ type healthPlatformImpl struct {
 type telemetryMetrics struct {
 	issuesCounter telemetry.Counter
 }
+
+// ============================================================================
+// Constructor
+// ============================================================================
 
 // NewComponent creates a new health-platform component
 // It initializes the component with its dependencies, sets up lifecycle management,
@@ -97,8 +101,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		checksMux:           sync.RWMutex{},             // Initialize checks mutex
 
 		// Issue tracking
-		issues:    make(map[string][]healthplatform.Issue), // Initialize issues map
-		issuesMux: sync.RWMutex{},                          // Initialize issues mutex
+		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
+		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -125,6 +129,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	return provides, nil
 }
 
+// ============================================================================
+// Lifecycle Methods
+// ============================================================================
+
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
@@ -143,15 +151,9 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 	return nil
 }
 
-// RegisterDefaultChecks registers the default set of health checks
-// Currently empty as components now self-register their health checks
-func (h *healthPlatformImpl) RegisterDefaultChecks() {
-	h.checksMux.Lock()
-	defer h.checksMux.Unlock()
-
-	// Components like logs agent now register their own health checks during startup
-	// This keeps health check logic co-located with the component it monitors
-}
+// ============================================================================
+// Registration Methods
+// ============================================================================
 
 // RegisterCheck registers a health check with the platform
 func (h *healthPlatformImpl) RegisterCheck(check healthplatform.CheckConfig) error {
@@ -162,7 +164,7 @@ func (h *healthPlatformImpl) RegisterCheck(check healthplatform.CheckConfig) err
 		return fmt.Errorf("check ID cannot be empty")
 	}
 
-	if check.Callback == nil {
+	if check.Run == nil {
 		return fmt.Errorf("check callback cannot be nil")
 	}
 
@@ -171,59 +173,74 @@ func (h *healthPlatformImpl) RegisterCheck(check healthplatform.CheckConfig) err
 	return nil
 }
 
+// RegisterDefaultChecks registers the default set of health checks
+// Currently empty as components now self-register their health checks
+func (h *healthPlatformImpl) RegisterDefaultChecks() {
+	h.checksMux.Lock()
+	defer h.checksMux.Unlock()
+
+	// Components like logs agent now register their own health checks during startup
+	// This keeps health check logic co-located with the component it monitors
+}
+
+// ============================================================================
+// Core Public API
+// ============================================================================
+
 // ReportIssue reports an issue with context, and the health platform fills in all metadata and remediation
 // This is the preferred way for integrations to report issues as it keeps all issue knowledge
 // centralized in the health platform registry
-func (h *healthPlatformImpl) ReportIssue(checkID string, report healthplatform.IssueReport) error {
+// If report is nil, it clears any existing issue (issue resolution)
+func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
 	if checkID == "" {
 		return fmt.Errorf("check ID cannot be empty")
 	}
 
-	if report.IssueID == "" {
-		return fmt.Errorf("issue ID cannot be empty")
-	}
+	// Get previous issue for state change detection
+	h.issuesMux.RLock()
+	previousIssue := h.issues[checkID]
+	h.issuesMux.RUnlock()
 
-	// Build complete issue from the registry using the issue ID and context
-	issue, err := h.remediationRegistry.BuildIssue(report.IssueID, report.Context)
-	if err != nil {
-		return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
-	}
-
-	// Fill in timestamp
-	issue.DetectedAt = time.Now().Format(time.RFC3339)
-
-	// Append any additional tags from the report
-	if len(report.Tags) > 0 {
-		issue.Tags = append(issue.Tags, report.Tags...)
-	}
-
-	// Get the check name from the issue title
-	checkName := issue.Title
-
-	// Register a check that returns this issue
-	return h.RegisterCheck(healthplatform.CheckConfig{
-		CheckID:   checkID,
-		CheckName: checkName,
-		Callback: func(context.Context) ([]healthplatform.Issue, error) {
-			return []healthplatform.Issue{*issue}, nil
-		},
-	})
-}
-
-// runTicker runs the periodic ticker that executes health checks every 15 seconds
-func (h *healthPlatformImpl) runTicker() {
-	for {
-		select {
-		case <-h.ticker.C:
-			h.runHealthChecks()
-		case <-h.ctx.Done():
-			return
+	// Build the new issue (or nil if resolved)
+	var newIssue *healthplatform.Issue
+	if report != nil {
+		if report.IssueID == "" {
+			return fmt.Errorf("issue ID cannot be empty")
 		}
+
+		// Build complete issue from the registry using the issue ID and context
+		issue, err := h.remediationRegistry.BuildIssue(report.IssueID, report.Context)
+		if err != nil {
+			return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
+		}
+
+		// Append any additional tags from the report
+		if len(report.Tags) > 0 {
+			issue.Tags = append(issue.Tags, report.Tags...)
+		}
+
+		newIssue = issue
 	}
+
+	// Handle state change and logging (handles both new issues and resolution)
+	h.handleIssueStateChange(checkName, previousIssue, newIssue)
+
+	// Store the new issue (or delete if nil)
+	if newIssue != nil {
+		h.storeIssue(checkID, newIssue)
+	} else {
+		h.issuesMux.Lock()
+		delete(h.issues, checkID)
+		h.issuesMux.Unlock()
+	}
+
+	return nil
 }
 
-// runHealthChecks executes all registered health checks
-func (h *healthPlatformImpl) runHealthChecks() {
+// RunHealthChecks manually triggers health check execution
+// If async is true, checks run in parallel goroutines
+// If async is false, checks run synchronously (useful for testing)
+func (h *healthPlatformImpl) RunHealthChecks(async bool) {
 	h.checksMux.RLock()
 	defer h.checksMux.RUnlock()
 
@@ -232,30 +249,95 @@ func (h *healthPlatformImpl) runHealthChecks() {
 		return
 	}
 
-	// Check which checks already have issues
-	h.issuesMux.RLock()
-	checksToRun := make([]healthplatform.CheckConfig, 0)
+	mode := ""
+	if !async {
+		mode = " synchronously"
+	}
+	h.log.Debug("Running " + fmt.Sprintf("%d", len(h.checks)) + " health checks" + mode)
+
 	for _, check := range h.checks {
-		issues, exists := h.issues[check.CheckID]
-		if !exists {
-			// Never run - should run
-			checksToRun = append(checksToRun, check)
-		} else if len(issues) == 0 {
-			// Run but found no issues - should run again
-			checksToRun = append(checksToRun, check)
+		if async {
+			go h.executeCheck(check)
+		} else {
+			h.executeCheck(check)
 		}
-		// If len(issues) > 0, skip (has issues)
 	}
-	h.issuesMux.RUnlock()
+}
 
-	if len(checksToRun) == 0 {
-		h.log.Debug("All health checks already have issues detected, skipping execution")
-		return
+// ============================================================================
+// Query Methods
+// ============================================================================
+
+// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
+func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Issue) {
+	h.issuesMux.RLock()
+	defer h.issuesMux.RUnlock()
+
+	// Create a copy to avoid external modifications and count issues
+	count := 0
+	result := make(map[string]*healthplatform.Issue)
+	for checkID, issue := range h.issues {
+		if issue != nil {
+			issueCopy := *issue
+			result[checkID] = &issueCopy
+			count++
+		} else {
+			result[checkID] = nil
+		}
+	}
+	return count, result
+}
+
+// GetIssueForCheck returns the issue for a specific check (nil if no issue)
+func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Issue {
+	h.issuesMux.RLock()
+	defer h.issuesMux.RUnlock()
+
+	issue := h.issues[checkID]
+	if issue == nil {
+		return nil
 	}
 
-	h.log.Debug("Running " + fmt.Sprintf("%d", len(checksToRun)) + " health checks (skipping " + fmt.Sprintf("%d", len(h.checks)-len(checksToRun)) + " with existing issues)")
-	for _, check := range checksToRun {
-		go h.executeCheck(check)
+	// Return a copy to avoid external modifications
+	issueCopy := *issue
+	return &issueCopy
+}
+
+// ============================================================================
+// Clear Methods
+// ============================================================================
+
+// ClearIssuesForCheck clears the issue for a specific check (useful when issue is resolved)
+func (h *healthPlatformImpl) ClearIssuesForCheck(checkID string) {
+	h.issuesMux.Lock()
+	defer h.issuesMux.Unlock()
+
+	delete(h.issues, checkID)
+	h.log.Info("Cleared issue for check: " + checkID)
+}
+
+// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
+func (h *healthPlatformImpl) ClearAllIssues() {
+	h.issuesMux.Lock()
+	defer h.issuesMux.Unlock()
+
+	h.issues = make(map[string]*healthplatform.Issue)
+	h.log.Info("Cleared all issues")
+}
+
+// ============================================================================
+// Internal Helper Methods
+// ============================================================================
+
+// runTicker runs the periodic ticker that executes health checks every 15 seconds
+func (h *healthPlatformImpl) runTicker() {
+	for {
+		select {
+		case <-h.ticker.C:
+			h.RunHealthChecks(true)
+		case <-h.ctx.Done():
+			return
+		}
 	}
 }
 
@@ -268,144 +350,57 @@ func (h *healthPlatformImpl) executeCheck(check healthplatform.CheckConfig) {
 	}()
 
 	// Pass the component's context to the health check so it can respect cancellation
-	issues, err := check.Callback(h.ctx)
+	report, err := check.Run(h.ctx)
 	if err != nil {
 		h.log.Warn("Health check failed: " + check.CheckName + " - " + err.Error())
-		// Store empty issues for failed checks so they can run again
-		h.storeIssues(check.CheckID, []healthplatform.Issue{})
 		return
 	}
 
-	// Store the issues
-	h.storeIssues(check.CheckID, issues)
+	// Report the issue (or resolution if nil) - this handles all state management
+	_ = h.ReportIssue(check.CheckID, check.CheckName, report)
+}
 
-	if len(issues) > 0 {
-		h.log.Info("Health check found issues: " + check.CheckName + " - " + fmt.Sprintf("%d issues", len(issues)))
-		for _, issue := range issues {
-			h.log.Info("Issue: " + issue.Title + " (" + issue.Severity + ")")
-		}
-	} else {
-		h.log.Debug("Health check passed: " + check.CheckName)
+// handleIssueStateChange detects state changes and logs appropriately
+func (h *healthPlatformImpl) handleIssueStateChange(checkName string, oldIssue, newIssue *healthplatform.Issue) {
+	// If both are nil, no change
+	if oldIssue == nil && newIssue == nil {
+		return
+	}
+
+	// New issue detected
+	if newIssue != nil && oldIssue == nil {
+		h.log.Info("Health check found NEW issue: " + checkName)
+		h.log.Info("Issue: " + newIssue.Title + " (" + newIssue.Severity + ")")
+		return
+	}
+
+	// Issue resolved
+	if newIssue == nil && oldIssue != nil {
+		h.log.Info("Health check issue RESOLVED: " + checkName)
+		return
+	}
+
+	// Both exist, check if details changed
+	if oldIssue.ID != newIssue.ID ||
+		oldIssue.Title != newIssue.Title ||
+		oldIssue.Severity != newIssue.Severity ||
+		oldIssue.Description != newIssue.Description {
+		h.log.Info("Health check issue CHANGED: " + checkName)
+		h.log.Info("Issue: " + newIssue.Title + " (" + newIssue.Severity + ")")
 	}
 }
 
-// storeIssues stores issues for a specific check
-func (h *healthPlatformImpl) storeIssues(checkID string, issues []healthplatform.Issue) {
+// storeIssue stores an issue for a specific check (nil if no issue)
+func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 	defer h.issuesMux.Unlock()
 
-	// Add timestamp to issues
-	now := time.Now().Format(time.RFC3339)
-	for i := range issues {
-		issues[i].DetectedAt = now
-	}
-
-	h.issues[checkID] = issues
-
-	if len(issues) > 0 {
+	// Add timestamp to issue if present
+	if issue != nil {
+		issue.DetectedAt = time.Now().Format(time.RFC3339)
+		// Update telemetry
 		h.metrics.issuesCounter.Add(1, checkID)
 	}
-}
 
-// GetAllIssues returns all issues from all checks
-func (h *healthPlatformImpl) GetAllIssues() map[string][]healthplatform.Issue {
-	h.issuesMux.RLock()
-	defer h.issuesMux.RUnlock()
-
-	// Create a copy to avoid race conditions
-	result := make(map[string][]healthplatform.Issue)
-	for checkID, issues := range h.issues {
-		result[checkID] = make([]healthplatform.Issue, len(issues))
-		copy(result[checkID], issues)
-	}
-
-	return result
-}
-
-// GetIssuesForCheck returns issues for a specific check
-func (h *healthPlatformImpl) GetIssuesForCheck(checkID string) []healthplatform.Issue {
-	h.issuesMux.RLock()
-	defer h.issuesMux.RUnlock()
-
-	issues, exists := h.issues[checkID]
-	if !exists {
-		return []healthplatform.Issue{}
-	}
-
-	// Return a copy to avoid race conditions
-	result := make([]healthplatform.Issue, len(issues))
-	copy(result, issues)
-	return result
-}
-
-// GetTotalIssueCount returns the total number of issues across all checks
-func (h *healthPlatformImpl) GetTotalIssueCount() int {
-	h.issuesMux.RLock()
-	defer h.issuesMux.RUnlock()
-
-	total := 0
-	for _, issues := range h.issues {
-		total += len(issues)
-	}
-	return total
-}
-
-// ClearIssuesForCheck clears issues for a specific check (useful when issues are resolved)
-func (h *healthPlatformImpl) ClearIssuesForCheck(checkID string) {
-	h.issuesMux.Lock()
-	defer h.issuesMux.Unlock()
-
-	delete(h.issues, checkID)
-	h.log.Info("Cleared issues for check: " + checkID)
-}
-
-// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
-func (h *healthPlatformImpl) ClearAllIssues() {
-	h.issuesMux.Lock()
-	defer h.issuesMux.Unlock()
-
-	h.issues = make(map[string][]healthplatform.Issue)
-	h.log.Info("Cleared all issues")
-}
-
-// runHealthChecksSync runs health checks synchronously (useful for testing)
-func (h *healthPlatformImpl) runHealthChecksSync() {
-	h.checksMux.RLock()
-	defer h.checksMux.RUnlock()
-
-	if len(h.checks) == 0 {
-		h.log.Debug("No health checks registered")
-		return
-	}
-
-	// Check which checks already have issues
-	h.issuesMux.RLock()
-	checksToRun := make([]healthplatform.CheckConfig, 0)
-	for _, check := range h.checks {
-		issues, exists := h.issues[check.CheckID]
-		if !exists {
-			// Never run - should run
-			checksToRun = append(checksToRun, check)
-		} else if len(issues) == 0 {
-			// Run but found no issues - should run again
-			checksToRun = append(checksToRun, check)
-		}
-		// If len(issues) > 0, skip (has issues)
-	}
-	h.issuesMux.RUnlock()
-
-	if len(checksToRun) == 0 {
-		h.log.Debug("All health checks already have issues detected, skipping execution")
-		return
-	}
-
-	h.log.Debug("Running " + fmt.Sprintf("%d", len(checksToRun)) + " health checks synchronously (skipping " + fmt.Sprintf("%d", len(h.checks)-len(checksToRun)) + " with existing issues)")
-	for _, check := range checksToRun {
-		h.executeCheck(check)
-	}
-}
-
-// RunHealthChecksNow manually triggers health check execution (useful for testing)
-func (h *healthPlatformImpl) RunHealthChecksNow() {
-	h.runHealthChecksSync()
+	h.issues[checkID] = issue
 }

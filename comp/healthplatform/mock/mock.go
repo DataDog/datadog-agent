@@ -18,7 +18,7 @@ import (
 // It provides in-memory storage for testing purposes without running actual health checks
 type mockHealthPlatform struct {
 	checks map[string]healthplatform.CheckConfig
-	issues map[string][]healthplatform.Issue
+	issues map[string]*healthplatform.Issue
 }
 
 // Mock returns a mock for health-platform component.
@@ -26,7 +26,7 @@ type mockHealthPlatform struct {
 func Mock(_ *testing.T) healthplatform.Component {
 	return &mockHealthPlatform{
 		checks: make(map[string]healthplatform.CheckConfig),
-		issues: make(map[string][]healthplatform.Issue),
+		issues: make(map[string]*healthplatform.Issue),
 	}
 }
 
@@ -39,34 +39,30 @@ func (m *mockHealthPlatform) RegisterCheck(check healthplatform.CheckConfig) err
 	return nil
 }
 
-// GetAllIssues returns all issues from all checks
-func (m *mockHealthPlatform) GetAllIssues() map[string][]healthplatform.Issue {
-	result := make(map[string][]healthplatform.Issue)
-	for checkID, issues := range m.issues {
-		result[checkID] = make([]healthplatform.Issue, len(issues))
-		copy(result[checkID], issues)
+// GetAllIssues returns the count and all issues from all checks
+func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatform.Issue) {
+	count := 0
+	result := make(map[string]*healthplatform.Issue)
+	for checkID, issue := range m.issues {
+		if issue != nil {
+			issueCopy := *issue
+			result[checkID] = &issueCopy
+			count++
+		} else {
+			result[checkID] = nil
+		}
 	}
-	return result
+	return count, result
 }
 
-// GetIssuesForCheck returns issues for a specific check
-func (m *mockHealthPlatform) GetIssuesForCheck(checkID string) []healthplatform.Issue {
-	issues, exists := m.issues[checkID]
-	if !exists {
-		return []healthplatform.Issue{}
+// GetIssueForCheck returns the issue for a specific check
+func (m *mockHealthPlatform) GetIssueForCheck(checkID string) *healthplatform.Issue {
+	issue := m.issues[checkID]
+	if issue == nil {
+		return nil
 	}
-	result := make([]healthplatform.Issue, len(issues))
-	copy(result, issues)
-	return result
-}
-
-// GetTotalIssueCount returns the total number of issues across all checks
-func (m *mockHealthPlatform) GetTotalIssueCount() int {
-	total := 0
-	for _, issues := range m.issues {
-		total += len(issues)
-	}
-	return total
+	issueCopy := *issue
+	return &issueCopy
 }
 
 // ClearIssuesForCheck clears issues for a specific check
@@ -76,25 +72,35 @@ func (m *mockHealthPlatform) ClearIssuesForCheck(checkID string) {
 
 // ClearAllIssues clears all issues
 func (m *mockHealthPlatform) ClearAllIssues() {
-	m.issues = make(map[string][]healthplatform.Issue)
+	m.issues = make(map[string]*healthplatform.Issue)
 }
 
-// RunHealthChecksNow manually triggers health check execution (useful for testing)
-func (m *mockHealthPlatform) RunHealthChecksNow() {
+// RunHealthChecks manually triggers health check execution
+// If async is true, checks run in parallel goroutines
+// If async is false, checks run synchronously (useful for testing)
+func (m *mockHealthPlatform) RunHealthChecks(async bool) {
 	// Mock implementation - no-op since mock doesn't run actual health checks
+	_ = async
 }
 
 // ReportIssue reports an issue with minimal information
-// The mock implementation just registers a check with the provided issue
-func (m *mockHealthPlatform) ReportIssue(checkID string, report healthplatform.IssueReport) error {
+// The mock implementation just creates and stores a basic issue
+// If report is nil, it clears the issue (resolution)
+func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
 	if checkID == "" {
 		return nil // Mock doesn't validate
 	}
 
+	// If report is nil, clear the issue
+	if report == nil {
+		delete(m.issues, checkID)
+		return nil
+	}
+
 	// Create a basic issue from the report for testing purposes
-	issue := healthplatform.Issue{
+	issue := &healthplatform.Issue{
 		ID:                 report.IssueID,
-		Title:              report.IssueID,
+		Title:              checkName,
 		Description:        "Mock issue",
 		Category:           "test",
 		Location:           "test",
@@ -104,10 +110,7 @@ func (m *mockHealthPlatform) ReportIssue(checkID string, report healthplatform.I
 	}
 
 	// Store the issue
-	if m.issues[checkID] == nil {
-		m.issues[checkID] = []healthplatform.Issue{}
-	}
-	m.issues[checkID] = append(m.issues[checkID], issue)
+	m.issues[checkID] = issue
 
 	return nil
 }

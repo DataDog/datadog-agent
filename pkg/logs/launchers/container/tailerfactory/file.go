@@ -355,13 +355,17 @@ func (tf *factory) reportDockerPermissionIssue(dockerDir string) {
 	}
 
 	// Report the issue with minimal context - health platform registry provides all metadata and remediation
-	err := hp.ReportIssue("logs-docker-file-permissions", healthplatform.IssueReport{
-		IssueID: "docker-file-tailing-disabled",
-		Context: map[string]string{
-			"dockerDir": dockerDir,
-			"os":        runtime.GOOS,
+	err := hp.ReportIssue(
+		"logs-docker-file-permissions",
+		"Docker File Tailing Permissions",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
+			Context: map[string]string{
+				"dockerDir": dockerDir,
+				"os":        runtime.GOOS,
+			},
 		},
-	})
+	)
 
 	if err != nil {
 		log.Warnf("Failed to report Docker permission issue to health platform: %v", err)

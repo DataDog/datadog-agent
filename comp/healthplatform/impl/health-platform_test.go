@@ -91,8 +91,8 @@ func TestRegisterCheck(t *testing.T) {
 	validCheck := healthplatform.CheckConfig{
 		CheckName: "test-check",
 		CheckID:   "test-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-			return []healthplatform.Issue{}, nil
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+			return nil, nil
 		},
 	}
 
@@ -103,8 +103,8 @@ func TestRegisterCheck(t *testing.T) {
 	invalidCheck := healthplatform.CheckConfig{
 		CheckName: "invalid-check",
 		CheckID:   "",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-			return []healthplatform.Issue{}, nil
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+			return nil, nil
 		},
 	}
 
@@ -116,7 +116,6 @@ func TestRegisterCheck(t *testing.T) {
 	nilCallbackCheck := healthplatform.CheckConfig{
 		CheckName: "nil-callback-check",
 		CheckID:   "nil-callback-1",
-		Callback:  nil,
 	}
 
 	err = comp.RegisterCheck(nilCallbackCheck)
@@ -136,32 +135,19 @@ func TestIssueManagement(t *testing.T) {
 	require.NoError(t, err)
 	comp := provides.Comp
 
-	// Create test issues
-	testIssues := []healthplatform.Issue{
-		{
-			ID:          "issue-1",
-			IssueName:   "Test Issue 1",
-			Title:       "Test Title 1",
-			Description: "Test Description 1",
-			Category:    "test",
-			Severity:    "warning",
-		},
-		{
-			ID:          "issue-2",
-			IssueName:   "Test Issue 2",
-			Title:       "Test Title 2",
-			Description: "Test Description 2",
-			Category:    "test",
-			Severity:    "error",
-		},
-	}
-
-	// Register a health check that returns issues
+	// Register a health check that returns an issue report
+	// Using the docker-file-tailing-disabled issue that's in the registry
 	checkWithIssues := healthplatform.CheckConfig{
 		CheckName: "issue-check",
 		CheckID:   "issue-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-			return testIssues, nil
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+			return &healthplatform.IssueReport{
+				IssueID: "docker-file-tailing-disabled",
+				Context: map[string]string{
+					"dockerDir": "/var/lib/docker",
+					"os":        "linux",
+				},
+			}, nil
 		},
 	}
 
@@ -172,8 +158,8 @@ func TestIssueManagement(t *testing.T) {
 	checkWithoutIssues := healthplatform.CheckConfig{
 		CheckName: "no-issue-check",
 		CheckID:   "no-issue-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-			return []healthplatform.Issue{}, nil
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+			return nil, nil
 		},
 	}
 
@@ -186,40 +172,41 @@ func TestIssueManagement(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually trigger health checks for testing
-	comp.RunHealthChecksNow()
+	comp.RunHealthChecks(false)
 
 	// Test GetAllIssues
-	allIssues := comp.GetAllIssues()
+	count, allIssues := comp.GetAllIssues()
 	assert.NotNil(t, allIssues)
 	assert.Contains(t, allIssues, "issue-check-1")
-	assert.Contains(t, allIssues, "no-issue-check-1")
+	assert.Equal(t, 1, count)
+	// no-issue-check-1 returns nil, so it won't be in the map
 
-	// Test GetIssuesForCheck
-	issuesForCheck := comp.GetIssuesForCheck("issue-check-1")
-	assert.Len(t, issuesForCheck, 2)
-	assert.Equal(t, "issue-1", issuesForCheck[0].ID)
-	assert.Equal(t, "issue-2", issuesForCheck[1].ID)
+	// Test GetIssueForCheck
+	issueForCheck := comp.GetIssueForCheck("issue-check-1")
+	assert.NotNil(t, issueForCheck)
+	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.ID)
 
-	// Test GetIssuesForCheck with non-existent check
-	nonExistentIssues := comp.GetIssuesForCheck("non-existent")
-	assert.Len(t, nonExistentIssues, 0)
+	// Test GetIssueForCheck with non-existent check
+	nonExistentIssue := comp.GetIssueForCheck("non-existent")
+	assert.Nil(t, nonExistentIssue)
 
-	// Test GetTotalIssueCount
-	totalCount := comp.GetTotalIssueCount()
-	assert.Equal(t, 2, totalCount)
+	// Test issue count (1 check with issue, 1 without = 1 total)
+	totalCount, _ := comp.GetAllIssues()
+	assert.Equal(t, 1, totalCount)
 
 	// Test ClearIssuesForCheck
 	comp.ClearIssuesForCheck("issue-check-1")
-	clearedIssues := comp.GetIssuesForCheck("issue-check-1")
-	assert.Len(t, clearedIssues, 0)
+	clearedIssue := comp.GetIssueForCheck("issue-check-1")
+	assert.Nil(t, clearedIssue)
 
 	// Verify total count decreased
-	newTotalCount := comp.GetTotalIssueCount()
+	newTotalCount, _ := comp.GetAllIssues()
 	assert.Equal(t, 0, newTotalCount)
 
 	// Test ClearAllIssues
 	comp.ClearAllIssues()
-	allIssuesAfterClear := comp.GetAllIssues()
+	countAfterClear, allIssuesAfterClear := comp.GetAllIssues()
+	assert.Equal(t, 0, countAfterClear)
 	assert.Len(t, allIssuesAfterClear, 0)
 
 	// Stop the component
@@ -246,9 +233,9 @@ func TestHealthCheckExecution(t *testing.T) {
 	trackingCheck := healthplatform.CheckConfig{
 		CheckName: "tracking-check",
 		CheckID:   "tracking-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
 			callCount.Add(1)
-			return []healthplatform.Issue{}, nil
+			return nil, nil
 		},
 	}
 
@@ -261,7 +248,7 @@ func TestHealthCheckExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually trigger health checks for testing
-	comp.RunHealthChecksNow()
+	comp.RunHealthChecks(false)
 
 	// Verify the callback was called
 	assert.Greater(t, int(callCount.Load()), 0, "Health check callback should have been called")
@@ -287,7 +274,7 @@ func TestHealthCheckErrorHandling(t *testing.T) {
 	errorCheck := healthplatform.CheckConfig{
 		CheckName: "error-check",
 		CheckID:   "error-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
 			return nil, errors.New("test error")
 		},
 	}
@@ -301,11 +288,11 @@ func TestHealthCheckErrorHandling(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually trigger health checks for testing
-	comp.RunHealthChecksNow()
+	comp.RunHealthChecks(false)
 
-	// Verify no issues were stored due to error
-	issues := comp.GetIssuesForCheck("error-check-1")
-	assert.Len(t, issues, 0)
+	// Verify no issue was stored due to error
+	issue := comp.GetIssueForCheck("error-check-1")
+	assert.Nil(t, issue)
 
 	// Stop the component
 	err = lifecycle.Stop(context.Background())
@@ -328,7 +315,7 @@ func TestHealthCheckPanicRecovery(t *testing.T) {
 	panicCheck := healthplatform.CheckConfig{
 		CheckName: "panic-check",
 		CheckID:   "panic-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
 			panic("test panic")
 		},
 	}
@@ -342,11 +329,11 @@ func TestHealthCheckPanicRecovery(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually trigger health checks for testing
-	comp.RunHealthChecksNow()
+	comp.RunHealthChecks(false)
 
-	// Verify no issues were stored due to panic
-	issues := comp.GetIssuesForCheck("panic-check-1")
-	assert.Len(t, issues, 0)
+	// Verify no issue was stored due to panic
+	issue := comp.GetIssueForCheck("panic-check-1")
+	assert.Nil(t, issue)
 
 	// Stop the component
 	err = lifecycle.Stop(context.Background())
@@ -382,8 +369,8 @@ func TestConcurrentOperations(t *testing.T) {
 			check := healthplatform.CheckConfig{
 				CheckName: "concurrent-check",
 				CheckID:   "concurrent-check-" + string(rune(id)),
-				Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-					return []healthplatform.Issue{}, nil
+				Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+					return nil, nil
 				},
 			}
 			comp.RegisterCheck(check)
@@ -395,8 +382,7 @@ func TestConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			comp.GetAllIssues()
-			comp.GetTotalIssueCount()
+			_, _ = comp.GetAllIssues()
 		}()
 	}
 
@@ -424,8 +410,8 @@ func TestComponentLifecycle(t *testing.T) {
 	check := healthplatform.CheckConfig{
 		CheckName: "lifecycle-check",
 		CheckID:   "lifecycle-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-			return []healthplatform.Issue{}, nil
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+			return nil, nil
 		},
 	}
 
@@ -466,7 +452,7 @@ func TestDefaultChecksRegistration(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify default checks are registered by checking if any issues exist
-	allIssues := comp.GetAllIssues()
+	_, allIssues := comp.GetAllIssues()
 	assert.NotNil(t, allIssues)
 
 	// Stop the component
@@ -486,23 +472,18 @@ func TestIssueTimestamping(t *testing.T) {
 	require.NoError(t, err)
 	comp := provides.Comp
 
-	// Create a test issue without timestamp
-	testIssue := healthplatform.Issue{
-		ID:          "timestamp-test-issue",
-		IssueName:   "Timestamp Test Issue",
-		Title:       "Timestamp Test Title",
-		Description: "Timestamp Test Description",
-		Category:    "test",
-		Severity:    "warning",
-		DetectedAt:  "", // Empty timestamp
-	}
-
-	// Register a health check that returns the test issue
+	// Register a health check that returns an issue report
 	timestampCheck := healthplatform.CheckConfig{
 		CheckName: "timestamp-check",
 		CheckID:   "timestamp-check-1",
-		Callback: func(_ context.Context) ([]healthplatform.Issue, error) {
-			return []healthplatform.Issue{testIssue}, nil
+		Run: func(_ context.Context) (*healthplatform.IssueReport, error) {
+			return &healthplatform.IssueReport{
+				IssueID: "docker-file-tailing-disabled",
+				Context: map[string]string{
+					"dockerDir": "/var/lib/docker",
+					"os":        "linux",
+				},
+			}, nil
 		},
 	}
 
@@ -515,13 +496,13 @@ func TestIssueTimestamping(t *testing.T) {
 	require.NoError(t, err)
 
 	// Manually trigger health checks for testing
-	comp.RunHealthChecksNow()
+	comp.RunHealthChecks(false)
 
 	// Verify the issue got a timestamp
-	issues := comp.GetIssuesForCheck("timestamp-check-1")
-	require.Len(t, issues, 1)
-	assert.NotEmpty(t, issues[0].DetectedAt)
-	assert.NotEqual(t, "", issues[0].DetectedAt)
+	issue := comp.GetIssueForCheck("timestamp-check-1")
+	require.NotNil(t, issue)
+	assert.NotEmpty(t, issue.DetectedAt)
+	assert.NotEqual(t, "", issue.DetectedAt)
 
 	// Stop the component
 	err = lifecycle.Stop(context.Background())
@@ -547,12 +528,12 @@ func TestHealthCheckContextCancellation(t *testing.T) {
 	cancellableCheck := healthplatform.CheckConfig{
 		CheckName: "cancellable-check",
 		CheckID:   "cancellable-check-1",
-		Callback: func(ctx context.Context) ([]healthplatform.Issue, error) {
+		Run: func(ctx context.Context) (*healthplatform.IssueReport, error) {
 			// Simulate a long-running operation
 			select {
 			case <-time.After(5 * time.Second):
 				// This should not happen in the test
-				return []healthplatform.Issue{}, nil
+				return nil, nil
 			case <-ctx.Done():
 				// Context was cancelled, mark it
 				wasCancelled.Store(1)
@@ -570,7 +551,7 @@ func TestHealthCheckContextCancellation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Trigger the check asynchronously
-	go comp.RunHealthChecksNow()
+	comp.RunHealthChecks(true)
 
 	// Give it a moment to start
 	time.Sleep(100 * time.Millisecond)
