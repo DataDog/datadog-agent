@@ -111,7 +111,7 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 	// Check per-source config first (takes precedence over global config)
 	if fileFingerprintConfig != nil && fileFingerprintConfig.FingerprintStrategy != "" {
 		// Convert from config.FingerprintConfig to types.FingerprintConfig
-		// Do this BEFORE checking if disabled so Source field is always set
+		// This must happen before checking if fingerprinting is disabled so the Source field is always set
 		fingerprintConfig := &types.FingerprintConfig{
 			FingerprintStrategy: types.FingerprintStrategy(fileFingerprintConfig.FingerprintStrategy),
 			Count:               fileFingerprintConfig.Count,
