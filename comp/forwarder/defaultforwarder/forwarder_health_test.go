@@ -15,9 +15,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -454,15 +452,12 @@ func TestOneEndpointInvalid(t *testing.T) {
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
 }
 
-func TestInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
-	var refreshCalls atomic.Int32
-	var bypassValue atomic.Bool
+func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
+	triggered := false
 
 	secrets := secretsmock.New(t)
-	secrets.SetRefreshHook(func(bypass bool) (string, error) {
-		refreshCalls.Add(1)
-		bypassValue.Store(bypass)
-		return "", nil
+	secrets.SetTriggerRefreshHook(func() {
+		triggered = true
 	})
 
 	// test server that returns 403 for all keys
@@ -479,13 +474,9 @@ func TestInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 		secrets: secrets,
 	}
 	fh.init()
-
 	// keysPerAPIEndpoint needs to be set after init in this test to avoid being overwritten
-	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {"invalid_key"}}
+	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {"any_key"}}
 	fh.checkValidAPIKey()
 
-	assert.Eventually(t, func() bool {
-		return refreshCalls.Load() == 1
-	}, 1*time.Second, 10*time.Millisecond, "secrets.Refresh should be called once when API key is invalid")
-	assert.False(t, bypassValue.Load(), "secrets.Refresh should be called with bypassRateLimit=false")
+	assert.True(t, triggered, "secrets.TriggerRefresh should be called when API key is invalid")
 }
