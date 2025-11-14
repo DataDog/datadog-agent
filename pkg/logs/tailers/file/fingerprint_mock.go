@@ -32,6 +32,7 @@ func NewFingerprinterMock() *FingerprinterMock {
 type fingerprintStore struct {
 	idx          int
 	fingerprints []*types.Fingerprint
+	Config       *types.FingerprintConfig
 }
 
 func (f *fingerprintStore) Next() *types.Fingerprint {

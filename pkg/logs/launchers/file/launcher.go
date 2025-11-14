@@ -656,7 +656,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	} else {
 		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
 	}
-	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
+	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
 	addFingerprintConfigToTailerInfo(newTailer)
 
 	return newTailer
