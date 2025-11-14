@@ -38,6 +38,8 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
+	// Indicates if this payload is a snapshot for stream rotation
+	IsSnapshot bool
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -125,7 +127,9 @@ type MessageContent struct { //nolint:revive
 	content []byte
 	// structured content
 	structuredContent StructuredContent
-	State             MessageContentState
+	// rendered content preserved for pattern extraction (before encoding overwrites content)
+	renderedContent []byte
+	State           MessageContentState
 }
 
 // MessageContentState is used to represent the MessageContent state.
@@ -187,6 +191,7 @@ func (m *MessageContent) SetContent(content []byte) {
 // SetRendered sets the content for the MessageContent and sets MessageContent state to rendered.
 func (m *MessageContent) SetRendered(content []byte) {
 	m.content = content
+	m.renderedContent = content // Preserve for pattern extraction
 	m.State = StateRendered
 }
 
@@ -194,6 +199,12 @@ func (m *MessageContent) SetRendered(content []byte) {
 func (m *MessageContent) SetEncoded(content []byte) {
 	m.content = content
 	m.State = StateEncoded
+}
+
+// GetRenderedContent returns the preserved rendered content (before encoding).
+// This is used for pattern extraction which needs plain text, not encoded binary.
+func (m *MessageContent) GetRenderedContent() []byte {
+	return m.renderedContent
 }
 
 // ParsingExtra ships extra information parsers want to make available
