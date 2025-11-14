@@ -559,7 +559,7 @@ type AgentConfig struct {
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
 
-	// APMMode specifies whether using "full" or "edge" APM mode. It is "full" by default.
+	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
 	APMMode string
 }
 
@@ -660,7 +660,6 @@ func New() *AgentConfig {
 		Features:               make(map[string]struct{}),
 		PeerTagsAggregation:    true,
 		ComputeStatsBySpanKind: true,
-		APMMode:                "full",
 	}
 }
 

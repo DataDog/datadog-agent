@@ -2344,30 +2344,24 @@ func TestNormalizeAPMMode(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "valid_full",
-			envValue: "full",
-			expected: "full",
-		},
-		{
 			name:     "valid_edge",
 			envValue: "edge",
 			expected: "edge",
 		},
 		{
-			name:     "empty_defaults_to_full",
+			name:     "empty_defaults_to_empty",
 			envValue: "",
-			expected: "full",
+			expected: "",
 		},
 		{
-			name:     "invalid_defaults_to_full",
+			name:     "invalid_defaults_to_empty",
 			envValue: "invalid_mode",
-			expected: "full",
+			expected: "",
 		},
-		// TODO: Should we be normalizing capitilization at this stage?
 		{
-			name:     "case_insensitive",
+			name:     "case_sensitive",
 			envValue: "Edge",
-			expected: "Edge",
+			expected: "edge",
 		},
 	}
 

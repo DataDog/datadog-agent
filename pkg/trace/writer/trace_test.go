@@ -394,19 +394,14 @@ func TestTraceWriterAPMMode(t *testing.T) {
 		expected    string
 	}{
 		{
-			name:        "default",
-			configValue: "full",
-			expected:    "full",
+			name:        "default-empty",
+			configValue: "",
+			expected:    "",
 		},
 		{
 			name:        "edge",
 			configValue: "edge",
 			expected:    "edge",
-		},
-		{
-			name:        "case_preserved", // should it be?
-			configValue: "Edge",
-			expected:    "Edge",
 		},
 	}
 
@@ -425,7 +420,6 @@ func TestTraceWriterAPMMode(t *testing.T) {
 				SynchronousFlushing: true,
 				APMMode:             tc.configValue,
 			}
-
 			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, gzip.NewComponent())
 			defer tw.Stop()
 
@@ -438,7 +432,16 @@ func TestTraceWriterAPMMode(t *testing.T) {
 			require.Len(t, srv.payloads, 1)
 			ap, err := deserializePayload(*srv.payloads[0], tw.compressor)
 			assert.Nil(t, err)
-			assert.Equal(t, tc.expected, ap.Tags[tagAPMMode])
+			v, ok := ap.Tags[tagAPMMode]
+			// If APMMode is not set, the tag should not be present
+			if tc.expected == "" {
+				assert.False(t, ok)
+				assert.Empty(t, v)
+			} else {
+				// If APMMode is set, the tag should be present and equal to the expected value
+				assert.True(t, ok)
+				assert.Equal(t, tc.expected, v)
+			}
 		})
 	}
 }

@@ -158,18 +158,15 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
-// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config (full or edge. Invalid values are logged and default to "full".
+// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config. Currently only "edge" is supported.
 func normalizeAPMMode(mode string) string {
 	switch strings.ToLower(mode) {
-	case "full", "edge":
-		return mode
-	case "":
-		// If DD_APM_MODE is not set, we default to "full"
-		return "full"
+	case "edge":
+		return "edge"
 	}
-	// If DD_APM_MODE is set to an invalid value, warn about it and default to "full"
-	log.Warnf("invalid value for 'DD_APM_MODE': '%s' (defaulting to 'full')", mode)
-	return "full"
+	// If DD_APM_MODE is set to an invalid value, warn about it and return an empty string
+	log.Warnf("invalid value for 'DD_APM_MODE': '%s', dropping", mode)
+	return ""
 }
 
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {

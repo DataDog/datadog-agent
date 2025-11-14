@@ -27,7 +27,7 @@ const pathTraces = "/api/v0.2/traces"
 
 const defaultConnectionLimit = 5
 
-// What's the best way to define this only once, so as not to duplicate in the agent package and here?
+// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
 const tagAPMMode = "_dd.apm.mode"
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
@@ -86,7 +86,8 @@ type TraceWriter struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
-	apmMode    string
+	// apmMode exists here to propagate the value to the AgentPayload
+	apmMode string
 }
 
 // NewTraceWriter returns a new TraceWriter. It is created for the given agent configuration and
@@ -276,8 +277,10 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		Tags:               map[string]string{tagAPMMode: w.apmMode},
 		TracerPayloads:     payloads,
+	}
+	if w.apmMode != "" {
+		p.Tags = map[string]string{tagAPMMode: w.apmMode}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

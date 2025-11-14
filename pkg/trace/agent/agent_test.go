@@ -617,7 +617,7 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
-	t.Run("APMMode-full", func(t *testing.T) {
+	t.Run("APMMode-unset", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
@@ -625,7 +625,6 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
-		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "full"
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
@@ -634,7 +633,9 @@ func TestProcess(t *testing.T) {
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
 		tp = payloads[0].TracerPayload
-		assert.Equal(t, "full", tp.Tags[tagAPMMode])
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
 	})
 
 	t.Run("APMMode-edge", func(t *testing.T) {
@@ -655,26 +656,6 @@ func TestProcess(t *testing.T) {
 		assert.NotEmpty(t, payloads, "no payloads were written")
 		tp = payloads[0].TracerPayload
 		assert.Equal(t, "edge", tp.Tags[tagAPMMode])
-	})
-
-	t.Run("APMMode-case insensitive", func(t *testing.T) {
-		cfg := config.New()
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-		defer cancel()
-
-		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
-		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "Edge"
-		agnt.Process(&api.Payload{
-			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		})
-
-		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
-		assert.NotEmpty(t, payloads, "no payloads were written")
-		tp = payloads[0].TracerPayload
-		assert.Equal(t, "Edge", tp.Tags[tagAPMMode])
 	})
 
 	t.Run("APMMode-empty string", func(t *testing.T) {
@@ -698,7 +679,9 @@ func TestProcess(t *testing.T) {
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
 		tp = payloads[0].TracerPayload
-		assert.Equal(t, "", tp.Tags[tagAPMMode])
+		v, ok := tp.Tags[tagAPMMode]
+		assert.True(t, ok)
+		assert.Equal(t, "", v)
 		assert.Contains(t, b.String(), "[WARN] empty value for '_dd.apm.mode' span tag")
 	})
 
@@ -725,26 +708,6 @@ func TestProcess(t *testing.T) {
 		tp = payloads[0].TracerPayload
 		assert.Equal(t, "invalid", tp.Tags[tagAPMMode])
 		assert.Contains(t, b.String(), "[WARN] invalid value for '_dd.apm.mode' span tag: 'invalid'")
-	})
-
-	t.Run("APMMode-tag not present", func(t *testing.T) {
-		cfg := config.New()
-		cfg.Endpoints[0].APIKey = "test"
-		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
-		defer cancel()
-
-		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
-		// Do not set _dd.apm.mode in Meta
-		agnt.Process(&api.Payload{
-			TracerPayload: tp,
-			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
-		})
-
-		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
-		assert.NotEmpty(t, payloads, "no payloads were written")
-		tp = payloads[0].TracerPayload
-		assert.Equal(t, "", tp.Tags[tagAPMMode])
 	})
 
 	t.Run("aas", func(t *testing.T) {
