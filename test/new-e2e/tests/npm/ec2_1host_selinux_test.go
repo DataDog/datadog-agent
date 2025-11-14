@@ -29,7 +29,12 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(
 			// RHEL9
-			ec2.WithAMI("ami-0fe630eb857a6ec83", compos.AmazonLinux2, compos.AMD64Arch), ec2.WithInstanceType("t3.medium"))), nil)),
+			ec2.WithAMI(
+				"ami-04e7f0e0bde783f77", // https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462
+				compos.AmazonLinux2,
+				compos.AMD64Arch,
+			),
+			ec2.WithInstanceType("t3.medium"))), nil)),
 	}
 
 	// Source of our kitchen CI images test/kitchen/platforms.json
@@ -60,10 +65,6 @@ func (v *ec2VMSELinuxSuite) SetupSuite() {
 	// SetupSuite needs to defer CleanupOnSetupFailure() if what comes after BaseSuite.SetupSuite() can fail.
 	defer v.CleanupOnSetupFailure()
 
-	v.Env().RemoteHost.MustExecute("sudo yum install -y openssh-server bind-utils httpd-tools")
-	v.Env().RemoteHost.MustExecute("sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo")
-	v.Env().RemoteHost.MustExecute("sudo yum install -y docker-ce docker-ce-cli")
-	v.Env().RemoteHost.MustExecute("sudo systemctl start docker")
 	v.Env().RemoteHost.MustExecute("sudo usermod -a -G docker $(whoami)")
 	v.Env().RemoteHost.Reconnect()
 
