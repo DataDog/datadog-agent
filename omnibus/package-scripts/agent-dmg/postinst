@@ -107,7 +107,7 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
 fi
 
 # Start the tray icon app only when not in system-wide installation
-if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+if [ ! -f "/tmp/install-dda@efcd8852af4c4797b065f0653bdfd4852d2144c1gent/system-wide" ]; then
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
