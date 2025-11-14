@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 // This file was created by `orchestrion pin`, and is used to ensure the
 // `go.mod` file contains the necessary entries to ensure repeatable builds when
 // using `orchestrion`. It is also used to set up which integrations are enabled.
@@ -19,5 +24,5 @@ import (
 	// Do not remove.
 	_ "github.com/DataDog/orchestrion" // integration
 
-	_ "gopkg.in/DataDog/dd-trace-go.v1" // integration
+	_ "github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting" // integration
 )
