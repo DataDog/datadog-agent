@@ -642,7 +642,7 @@ func New() *AgentConfig {
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			MaxPayloadSize: 10 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
 			Enabled:    true,

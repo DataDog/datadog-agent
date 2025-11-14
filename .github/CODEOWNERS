@@ -29,8 +29,10 @@
 /MODULE.bazel*                          @DataDog/agent-build
 # Temporary during Bazel migration
 /**/BUILD.bazel                         @DataDog/agent-build
-# This should really be to a team that does not exist yet. It would cover supply chain in general.
+
+# The owner should really be to a team that does not exist yet. It would cover supply chain in general.
 # For now, agent-build are the experts in that.
+/compliance/                            @DataDog/agent-build
 /third_party/                           @DataDog/agent-build
 
 /CHANGELOG.rst                          @DataDog/agent-delivery
@@ -190,6 +192,8 @@
 /.gitlab/package_build/windows.yml                   @DataDog/agent-build @DataDog/windows-products
 /.gitlab/package_build/installer.yml                 @DataDog/agent-build @DataDog/fleet
 /.gitlab/packaging/                                  @DataDog/agent-build
+
+/.gitlab/network_device_build/                       @DataDog/agent-delivery
 
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
@@ -417,7 +421,7 @@
 /pkg/metrics/metricsource.go            @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-metric-pipelines @DataDog/agent-integrations
-/pkg/serverless/                        @DataDog/serverless @Datadog/serverless-aws
+/pkg/serverless/                        @DataDog/serverless @Datadog/serverless-azure-gcp
 /pkg/status/                            @DataDog/agent-configuration
 /pkg/status/health                      @DataDog/agent-runtimes
 /pkg/status/collector                   @DataDog/agent-runtimes
@@ -719,7 +723,7 @@
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/integration/                      @DataDog/serverless @Datadog/serverless-aws
+/test/integration/                      @DataDog/serverless @Datadog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
