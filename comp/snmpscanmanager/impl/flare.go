@@ -18,6 +18,10 @@ const (
 )
 
 func (m *snmpScanManagerImpl) fillFlare(fb flare.FlareBuilder) error {
+	if !persistentcache.Exists(cacheKey) {
+		return nil
+	}
+
 	filePath, err := persistentcache.GetFileForKey(cacheKey)
 	if err != nil {
 		return err

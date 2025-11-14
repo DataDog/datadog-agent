@@ -32,8 +32,8 @@ func TestFillFlare(t *testing.T) {
 	mockLifecycle := compdef.NewTestLifecycle(t)
 	mockLogger := logmock.New(t)
 	mockIPC := ipcmock.New(t)
-	scanner := snmpscanmock.Mock(t)
 
+	scanner := snmpscanmock.Mock(t)
 	mockScanner, ok := scanner.(*snmpscanmock.SnmpScanMock)
 	assert.True(t, ok)
 	mockScanner.On("ScanDeviceAndSendData",
@@ -102,4 +102,43 @@ func TestFillFlare(t *testing.T) {
 	flareBuilderMock.AssertFileContentMatch(
 		`{"device_ip":"10\.0\.0\.1","scan_status":"success","scan_end_ts":".+?","failures":0}`,
 		filePath)
+}
+
+func TestFillFlare_NoCache(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+
+	mockLifecycle := compdef.NewTestLifecycle(t)
+	mockLogger := logmock.New(t)
+	mockIPC := ipcmock.New(t)
+	scanner := snmpscanmock.Mock(t)
+
+	reqs := Requires{
+		Lifecycle:  mockLifecycle,
+		Logger:     mockLogger,
+		Config:     mockConfig,
+		HTTPClient: mockIPC.GetClient(),
+		Scanner:    scanner,
+	}
+
+	provides, err := NewComponent(reqs)
+	assert.NoError(t, err)
+
+	scanManager, ok := provides.Comp.(*snmpScanManagerImpl)
+	assert.True(t, ok)
+
+	err = mockLifecycle.Start(context.Background())
+	assert.NoError(t, err)
+
+	err = mockLifecycle.Stop(context.Background())
+	assert.NoError(t, err)
+
+	flareBuilderMock := helpers.NewFlareBuilderMock(t, false)
+
+	err = scanManager.fillFlare(flareBuilderMock)
+	assert.NoError(t, err)
+
+	filePath := filepath.Join(flareDirName, flareFileName)
+	flareBuilderMock.AssertNoFileExists(filePath)
 }
