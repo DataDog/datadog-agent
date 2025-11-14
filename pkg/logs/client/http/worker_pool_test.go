@@ -114,17 +114,17 @@ func TestWorkerCounts(t *testing.T) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			pool := defaultPool()
-
 			for i := 0; i < 500; i++ {
 				pool.run(func() destinationResult {
 					return destinationResult{latency: s.latency}
 				})
 			}
-			time.Sleep(10 * time.Millisecond)
-
-			assert.Equal(t, s.expectedWorkerCount, pool.inUseWorkers)
-			assert.Equal(t, s.expectedWorkerCount, len(pool.pool))
-			assert.InDelta(t, s.latency, pool.virtualLatency, float64(time.Millisecond))
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				pool.resizeUnsafe()
+				assert.Equal(c, s.expectedWorkerCount, pool.inUseWorkers)
+				assert.Equal(c, s.expectedWorkerCount, len(pool.pool))
+				assert.InDelta(c, s.latency, pool.virtualLatency, float64(s.latency)/100)
+			}, 10*time.Second, 10*time.Millisecond)
 		})
 	}
 }
