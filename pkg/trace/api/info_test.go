@@ -285,7 +285,9 @@ func TestInfoHandler(t *testing.T) {
 		SkipSSLValidation:           false,
 		Ignore:                      map[string][]string{"resource": {"(GET|POST) /healthcheck", "GET /ping"}},
 		RejectTags:                  []*config.Tag{{K: "env", V: "test"}, {K: "debug", V: ""}},
-		RejectTagsRegex:             []*config.TagRegex{{K: "version", V: regexp.MustCompile(".*-beta")}},
+		RequireTags:                 []*config.Tag{{K: "env", V: "prod"}},
+		RejectTagsRegex:             []*config.TagRegex{{K: "version", V: regexp.MustCompile(`.*-beta`)}},
+		RequireTagsRegex:            []*config.TagRegex{{K: "version", V: regexp.MustCompile(`v1\\..*`)}},
 		ReplaceTags:                 []*config.ReplaceRule{{Name: "a", Pattern: "*", Repl: "b"}},
 		AnalyzedRateByServiceLegacy: map[string]float64{"X": 1.2},
 		AnalyzedSpansByService:      map[string]map[string]float64{"X": {"Y": 2.4}},
@@ -317,9 +319,15 @@ func TestInfoHandler(t *testing.T) {
 		"peer_tags":                 nil,
 		"span_kinds_stats_computed": nil,
 		"obfuscation_version":       nil,
-		"reject_tags":               nil,
-		"reject_tags_regex":         nil,
-		"ignore_resources":          nil,
+		"filter_tags": map[string]any{
+			"require": nil,
+			"reject":  nil,
+		},
+		"filter_tags_regex": map[string]any{
+			"require": nil,
+			"reject":  nil,
+		},
+		"ignore_resources": nil,
 		"config": map[string]any{
 			"default_env":               nil,
 			"target_tps":                nil,
@@ -366,77 +374,73 @@ func TestInfoHandler(t *testing.T) {
 }
 
 func TestInfoHandlerFilterTags(t *testing.T) {
-	t.Run("with filters", func(t *testing.T) {
-		conf := config.New()
-		conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
-		conf.RejectTags = []*config.Tag{
-			{K: "env", V: "test"},
-			{K: "debug", V: ""},
-			{K: "internal", V: "true"},
-		}
-		conf.RejectTagsRegex = []*config.TagRegex{
-			{K: "version", V: regexp.MustCompile(".*-beta")},
-			{K: "experimental_.*", V: nil},
-		}
-		conf.Ignore = map[string][]string{
-			"resource": {"(GET|POST) /healthcheck", "GET /ping"},
-		}
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	conf.RequireTags = []*config.Tag{
+		{K: "env", V: "prod"},
+		{K: "team", V: "backend"},
+	}
+	conf.RejectTags = []*config.Tag{
+		{K: "env", V: "test"},
+		{K: "debug", V: ""},
+		{K: "internal", V: "true"},
+	}
+	conf.RequireTagsRegex = []*config.TagRegex{
+		{K: "service", V: regexp.MustCompile("^api-.*")},
+	}
+	conf.RejectTagsRegex = []*config.TagRegex{
+		{K: "version", V: regexp.MustCompile(".*-beta")},
+		{K: "experimental_.*", V: nil},
+	}
+	conf.Ignore = map[string][]string{
+		"resource": {"(GET|POST) /healthcheck", "GET /ping"},
+	}
 
-		rcv := newTestReceiverFromConfig(conf)
-		_, h := rcv.makeInfoHandler()
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/info", nil)
-		h.ServeHTTP(rec, req)
+	rcv := newTestReceiverFromConfig(conf)
+	_, h := rcv.makeInfoHandler()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/info", nil)
+	h.ServeHTTP(rec, req)
 
-		var result map[string]any
-		assert.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+	var result map[string]any
+	assert.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
 
-		// Check reject_tags
-		rejectTags, ok := result["reject_tags"].([]any)
-		assert.True(t, ok, "reject_tags should be present and should be an array")
+	// Check filter_tags
+	filterTags, ok := result["filter_tags"].(map[string]any)
+	assert.True(t, ok, "filter_tags should be present and should be a map")
 
-		assert.Len(t, rejectTags, 3)
-		assert.Contains(t, rejectTags, "env:test")
-		assert.Contains(t, rejectTags, "debug")
-		assert.Contains(t, rejectTags, "internal:true")
+	requireTags, ok := filterTags["require"].([]any)
+	assert.True(t, ok, "filter_tags.require should be an array")
+	assert.Len(t, requireTags, 2)
+	assert.Contains(t, requireTags, "env:prod")
+	assert.Contains(t, requireTags, "team:backend")
 
-		// Check reject_tags_regex
-		rejectTagsRegex, ok := result["reject_tags_regex"].([]any)
-		assert.True(t, ok, "reject_tags_regex should be present and should be an array")
+	rejectTags, ok := filterTags["reject"].([]any)
+	assert.True(t, ok, "filter_tags.reject should be an array")
+	assert.Len(t, rejectTags, 3)
+	assert.Contains(t, rejectTags, "env:test")
+	assert.Contains(t, rejectTags, "debug")
+	assert.Contains(t, rejectTags, "internal:true")
 
-		assert.Len(t, rejectTagsRegex, 2)
-		assert.Contains(t, rejectTagsRegex, "version:.*-beta")
-		assert.Contains(t, rejectTagsRegex, "experimental_.*")
+	// Check filter_tags_regex
+	filterTagsRegex, ok := result["filter_tags_regex"].(map[string]any)
+	assert.True(t, ok, "filter_tags_regex should be present and should be a map")
 
-		// Check ignore_resources
-		ignoreResources, ok := result["ignore_resources"].([]any)
-		assert.True(t, ok, "ignore_resources should be an array")
+	requireTagsRegex, ok := filterTagsRegex["require"].([]any)
+	assert.True(t, ok, "filter_tags_regex.require should be an array")
+	assert.Len(t, requireTagsRegex, 1)
+	assert.Contains(t, requireTagsRegex, "service:^api-.*")
 
-		assert.Len(t, ignoreResources, 2)
-		assert.Contains(t, ignoreResources, "(GET|POST) /healthcheck")
-		assert.Contains(t, ignoreResources, "GET /ping")
-	})
+	rejectTagsRegex, ok := filterTagsRegex["reject"].([]any)
+	assert.True(t, ok, "filter_tags_regex.reject should be an array")
+	assert.Len(t, rejectTagsRegex, 2)
+	assert.Contains(t, rejectTagsRegex, "version:.*-beta")
+	assert.Contains(t, rejectTagsRegex, "experimental_.*")
 
-	t.Run("without filters", func(t *testing.T) {
-		conf := config.New()
-		conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
-
-		rcv := newTestReceiverFromConfig(conf)
-		_, h := rcv.makeInfoHandler()
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", "/info", nil)
-		h.ServeHTTP(rec, req)
-
-		var result map[string]any
-		assert.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
-
-		_, hasRejectTags := result["reject_tags"]
-		assert.False(t, hasRejectTags, "reject_tags should be omitted when empty")
-
-		_, hasRejectTagsRegex := result["reject_tags_regex"]
-		assert.False(t, hasRejectTagsRegex, "reject_tags_regex should be omitted when empty")
-
-		_, hasIgnoreResources := result["ignore_resources"]
-		assert.False(t, hasIgnoreResources, "ignore_resources should be omitted when empty")
-	})
+	// Check ignore_resources
+	ignoreResources, ok := result["ignore_resources"].([]any)
+	assert.True(t, ok, "ignore_resources should be an array")
+	assert.Len(t, ignoreResources, 2)
+	assert.Contains(t, ignoreResources, "(GET|POST) /healthcheck")
+	assert.Contains(t, ignoreResources, "GET /ping")
 }
