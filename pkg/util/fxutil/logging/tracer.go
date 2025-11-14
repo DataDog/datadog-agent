@@ -17,8 +17,6 @@ import (
 	"go.uber.org/fx/fxevent"
 )
 
-type tracerLogger fxevent.Logger
-
 const (
 	serviceName = "dd-agent-fx-init"
 )
