@@ -18,9 +18,10 @@ cc_binary(
     copts = [
         "-std=c++17",
     ],
-    linkopts = [
-        "-lstdc++",
-    ],
+    linkopts = select({
+        "@platforms//os:macos": ["-nodefaultlibs", "-lc++", "-lSystem"],
+        "//conditions:default": ["-lstdc++"],
+    }),
     local_defines = [
         "D_FILE_OFFSET_BITS=64",
     ],
