@@ -14,22 +14,23 @@ from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import bin_name, environ, gitlab_section
 
 TOOL_LIST = [
+    'github.com/DataDog/orchestrion',
+    'github.com/aarzilli/whydeadcode',
     'github.com/frapposelli/wwhrd',
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',
     'github.com/stormcat24/protodep',
-    'gotest.tools/gotestsum',
+    'github.com/uber-go/gopatch',
     'github.com/vektra/mockery/v2',
     'github.com/wadey/gocovmerge',
-    'github.com/uber-go/gopatch',
-    'github.com/aarzilli/whydeadcode',
+    'gotest.tools/gotestsum',
 ]
 
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
-    'github.com/golang/protobuf/protoc-gen-go',
     'github.com/golang/mock/mockgen',
+    'github.com/golang/protobuf/protoc-gen-go',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
 ]
