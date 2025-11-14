@@ -25,6 +25,8 @@ var (
 
 	// SeriesEndpoint is the v2 endpoint used to send series
 	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
+	// V3SeriesEndpoint is the v3 endpoint used to send series
+	V3SeriesEndpoint = transaction.Endpoint{Route: "/api/v3/series", Name: "series_v3"}
 	// EventsEndpoint is the v2 endpoint used to send events
 	EventsEndpoint = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
 	// ServiceChecksEndpoint is the v2 endpoint used to send service checks
