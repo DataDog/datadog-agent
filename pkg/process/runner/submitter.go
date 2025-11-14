@@ -47,20 +47,15 @@ type Submitter interface {
 
 var _ Submitter = &CheckSubmitter{}
 
+type submitFunc func(transaction.BytesPayloads, http.Header) (chan defaultforwarder.Response, error)
+
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {
-	log log.Component
-	// Per-check Weighted Queues
-	processResults     *api.WeightedQueue
-	rtProcessResults   *api.WeightedQueue
-	eventResults       *api.WeightedQueue
-	connectionsResults *api.WeightedQueue
-
-	// Forwarders
-	processForwarder     defaultforwarder.Component
-	rtProcessForwarder   defaultforwarder.Component
-	connectionsForwarder defaultforwarder.Component
-	eventForwarder       defaultforwarder.Component
+	log            log.Component
+	queues         []*api.WeightedQueue
+	resultsQueue   map[string]*api.WeightedQueue
+	submitFuncs    map[string]submitFunc
+	realtimeUpdate map[string]bool
 
 	// Endpoints for logging purposes
 	processAPIEndpoints       []apicfg.Endpoint
@@ -142,17 +137,41 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		return nil, err
 	}
 
-	return &CheckSubmitter{
-		log:                log,
-		processResults:     processResults,
-		rtProcessResults:   rtProcessResults,
-		eventResults:       eventResults,
-		connectionsResults: connectionsResults,
+	processFwd := forwarders.GetProcessForwarder()
+	rtProcessFwd := forwarders.GetRTProcessForwarder()
 
-		processForwarder:     forwarders.GetProcessForwarder(),
-		rtProcessForwarder:   forwarders.GetRTProcessForwarder(),
-		connectionsForwarder: forwarders.GetConnectionsForwarder(),
-		eventForwarder:       forwarders.GetEventForwarder(),
+	return &CheckSubmitter{
+		log: log,
+		queues: []*api.WeightedQueue{
+			processResults,
+			rtProcessResults,
+			eventResults,
+			connectionsResults,
+		},
+		resultsQueue: map[string]*api.WeightedQueue{
+			checks.ProcessCheckName:       processResults,
+			checks.DiscoveryCheckName:     processResults,
+			checks.ContainerCheckName:     processResults,
+			checks.RTProcessCheckName:     rtProcessResults,
+			checks.RTContainerCheckName:   rtProcessResults,
+			checks.ProcessEventsCheckName: eventResults,
+			checks.ConnectionsCheckName:   connectionsResults,
+		},
+		submitFuncs: map[string]submitFunc{
+			checks.ProcessCheckName:       processFwd.SubmitProcessChecks,
+			checks.DiscoveryCheckName:     processFwd.SubmitProcessDiscoveryChecks,
+			checks.ContainerCheckName:     processFwd.SubmitContainerChecks,
+			checks.RTProcessCheckName:     rtProcessFwd.SubmitRTProcessChecks,
+			checks.RTContainerCheckName:   rtProcessFwd.SubmitRTContainerChecks,
+			checks.ProcessEventsCheckName: forwarders.GetEventForwarder().SubmitProcessEventChecks,
+			checks.ConnectionsCheckName:   forwarders.GetConnectionsForwarder().SubmitConnectionChecks,
+		},
+		realtimeUpdate: map[string]bool{
+			checks.ProcessCheckName:     true,
+			checks.RTProcessCheckName:   true,
+			checks.ContainerCheckName:   true,
+			checks.RTContainerCheckName: true,
+		},
 
 		processAPIEndpoints:       processAPIEndpoints,
 		processEventsAPIEndpoints: processEventsAPIEndpoints,
@@ -195,7 +214,7 @@ func printStartMessage(log log.Component, hostname string, processAPIEndpoints [
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Payload) {
-	results := s.resultsQueueForCheck(name)
+	results := s.resultsQueue[name]
 	s.messagesToResultsQueue(start, name, messages.Message, results)
 }
 
@@ -203,29 +222,13 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 func (s *CheckSubmitter) Start() error {
 	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
 
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.processResults, s.processForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.rtProcessResults, s.rtProcessForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.connectionsResults, s.connectionsForwarder)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.consumePayloads(s.eventResults, s.eventForwarder)
-	}()
+	for _, q := range s.queues {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.consumePayloads(q)
+		}()
+	}
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
 		heartbeatTicker := s.clock.Ticker(15 * time.Second)
@@ -251,14 +254,14 @@ func (s *CheckSubmitter) Start() error {
 			select {
 			case <-queueSizeTicker.C:
 				status.UpdateQueueStats(&status.QueueStats{
-					ProcessQueueSize:      s.processResults.Len(),
-					RtProcessQueueSize:    s.rtProcessResults.Len(),
-					ConnectionsQueueSize:  s.connectionsResults.Len(),
-					EventQueueSize:        s.eventResults.Len(),
-					ProcessQueueBytes:     s.processResults.Weight(),
-					RtProcessQueueBytes:   s.rtProcessResults.Weight(),
-					ConnectionsQueueBytes: s.connectionsResults.Weight(),
-					EventQueueBytes:       s.eventResults.Weight(),
+					ProcessQueueSize:      s.resultsQueue[checks.ProcessCheckName].Len(),
+					RtProcessQueueSize:    s.resultsQueue[checks.RTProcessCheckName].Len(),
+					ConnectionsQueueSize:  s.resultsQueue[checks.ConnectionsCheckName].Len(),
+					EventQueueSize:        s.resultsQueue[checks.ProcessEventsCheckName].Len(),
+					ProcessQueueBytes:     s.resultsQueue[checks.ProcessCheckName].Weight(),
+					RtProcessQueueBytes:   s.resultsQueue[checks.RTProcessCheckName].Weight(),
+					ConnectionsQueueBytes: s.resultsQueue[checks.ConnectionsCheckName].Weight(),
+					EventQueueBytes:       s.resultsQueue[checks.ProcessEventsCheckName].Weight(),
 				})
 			case <-queueLogTicker.C:
 				s.logQueuesSize()
@@ -275,10 +278,9 @@ func (s *CheckSubmitter) Start() error {
 func (s *CheckSubmitter) Stop() {
 	close(s.exit)
 
-	s.processResults.Stop()
-	s.rtProcessResults.Stop()
-	s.connectionsResults.Stop()
-	s.eventResults.Stop()
+	for _, q := range s.queues {
+		q.Stop()
+	}
 
 	close(s.stopHeartbeat)
 
@@ -292,7 +294,7 @@ func (s *CheckSubmitter) GetRTNotifierChan() <-chan types.RTResponse {
 	return s.rtNotifierChan
 }
 
-func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forwarder.Forwarder) {
+func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue) {
 	for {
 		// results.Poll() will return ok=false when stopped
 		item, ok := results.Poll()
@@ -312,28 +314,12 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 				continue
 			}
 
-			switch result.name {
-			case checks.ProcessCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitProcessChecks(forwarderPayload, payload.headers)
-			case checks.RTProcessCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitRTProcessChecks(forwarderPayload, payload.headers)
-			case checks.ContainerCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitContainerChecks(forwarderPayload, payload.headers)
-			case checks.RTContainerCheckName:
-				updateRTStatus = true
-				responses, err = fwd.SubmitRTContainerChecks(forwarderPayload, payload.headers)
-			case checks.ConnectionsCheckName:
-				responses, err = fwd.SubmitConnectionChecks(forwarderPayload, payload.headers)
-			case checks.DiscoveryCheckName:
-				// A Process Discovery check does not change the RT mode
-				responses, err = fwd.SubmitProcessDiscoveryChecks(forwarderPayload, payload.headers)
-			case checks.ProcessEventsCheckName:
-				responses, err = fwd.SubmitProcessEventChecks(forwarderPayload, payload.headers)
-			default:
+			submitFn, ok := s.submitFuncs[result.name]
+			updateRTStatus = s.realtimeUpdate[result.name]
+			if !ok {
 				err = fmt.Errorf("unsupported payload type: %s", result.name)
+			} else {
+				responses, err = submitFn(forwarderPayload, payload.headers)
 			}
 
 			if err != nil {
@@ -350,24 +336,12 @@ func (s *CheckSubmitter) consumePayloads(results *api.WeightedQueue, fwd forward
 	}
 }
 
-func (s *CheckSubmitter) resultsQueueForCheck(name string) *api.WeightedQueue {
-	switch name {
-	case checks.RTProcessCheckName, checks.RTContainerCheckName:
-		return s.rtProcessResults
-	case checks.ConnectionsCheckName:
-		return s.connectionsResults
-	case checks.ProcessEventsCheckName:
-		return s.eventResults
-	}
-	return s.processResults
-}
-
 func (s *CheckSubmitter) logQueuesSize() {
 	var (
-		processSize     = s.processResults.Len()
-		rtProcessSize   = s.rtProcessResults.Len()
-		connectionsSize = s.connectionsResults.Len()
-		eventsSize      = s.eventResults.Len()
+		processSize     = s.resultsQueue[checks.ProcessCheckName].Len()
+		rtProcessSize   = s.resultsQueue[checks.RTProcessCheckName].Len()
+		connectionsSize = s.resultsQueue[checks.ConnectionsCheckName].Len()
+		eventsSize      = s.resultsQueue[checks.ProcessEventsCheckName].Len()
 	)
 
 	if processSize == 0 &&
@@ -379,10 +353,10 @@ func (s *CheckSubmitter) logQueuesSize() {
 
 	s.log.Infof(
 		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d]",
-		processSize, s.processResults.Weight(),
-		rtProcessSize, s.rtProcessResults.Weight(),
-		connectionsSize, s.connectionsResults.Weight(),
-		eventsSize, s.eventResults.Weight(),
+		processSize, s.resultsQueue[checks.ProcessCheckName].Weight(),
+		rtProcessSize, s.resultsQueue[checks.RTProcessCheckName].Weight(),
+		connectionsSize, s.resultsQueue[checks.ConnectionsCheckName].Weight(),
+		eventsSize, s.resultsQueue[checks.ProcessEventsCheckName].Weight(),
 	)
 }
 
