@@ -25,10 +25,17 @@ const (
 )
 
 // ConditionalWalk mimics gosnmp.GoSNMP.Walk, except that the walkFn can return
-// a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional
-// rows.
+// a next OID to walk from. Use e.g. SkipOIDRowsNaive to skip over additional rows.
 // This code is adapated directly from gosnmp's walk function.
-func ConditionalWalk(ctx context.Context, session *gosnmp.GoSNMP, rootOID string, useBulk bool, callInterval time.Duration, walkFn func(dataUnit gosnmp.SnmpPDU) (string, error)) error {
+func ConditionalWalk(
+	ctx context.Context,
+	session *gosnmp.GoSNMP,
+	rootOID string,
+	useBulk bool,
+	callInterval time.Duration,
+	maxCallCount int,
+	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
+) error {
 	if rootOID == "" || rootOID == "." {
 		rootOID = baseOID
 	}
@@ -59,6 +66,11 @@ RequestLoop:
 		}
 
 		requests++
+		if maxCallCount > 0 && requests >= maxCallCount {
+			session.Logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
+			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
+		}
+
 		var response *gosnmp.SnmpPacket
 		var err error
 		if useBulk {
