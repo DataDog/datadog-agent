@@ -31,22 +31,19 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) *healthpla
 		osName = "linux" // fallback
 	}
 
-	integration := "docker"
-
 	return &healthplatform.Issue{
-		ID:                 "docker-file-tailing-disabled",
-		IssueName:          "docker_file_tailing_disabled",
-		Title:              "Host Agent Cannot Tail Docker Log Files",
-		Description:        fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s has restricted permissions, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", dockerDir),
-		Category:           "permissions",
-		Location:           "logs-agent",
-		Severity:           "medium",
-		DetectedAt:         "", // Will be filled by health platform
-		Integration:        &integration,
-		Extra:              fmt.Sprintf("Docker logs directory %s is not accessible due to permission restrictions on %s. The agent will fall back to socket tailing, which may hit limits with high volume logs.", dockerDir, osName),
-		IntegrationFeature: "logs",
-		Remediation:        t.buildRemediation(dockerDir, osName),
-		Tags:               []string{"docker", "logs", "permissions", "file-tailing", "socket-tailing", "host-install", osName},
+		ID:          "docker-file-tailing-disabled",
+		IssueName:   "docker_file_tailing_disabled",
+		Title:       "Host Agent Cannot Tail Docker Log Files",
+		Description: fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s has restricted permissions, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", dockerDir),
+		Category:    "permissions",
+		Location:    "logs-agent",
+		Severity:    "medium",
+		DetectedAt:  "", // Will be filled by health platform
+		Source:      "logs",
+		Extra:       fmt.Sprintf("Integration: docker. Docker logs directory %s is not accessible due to permission restrictions on %s. The agent will fall back to socket tailing, which may hit limits with high volume logs.", dockerDir, osName),
+		Remediation: t.buildRemediation(dockerDir, osName),
+		Tags:        []string{"docker", "logs", "permissions", "file-tailing", "socket-tailing", "host-install", osName},
 	}
 }
 

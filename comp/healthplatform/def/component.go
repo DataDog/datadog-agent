@@ -29,14 +29,11 @@ type Issue struct {
 	Severity string `json:"Severity"`
 	// DetectedAt is the timestamp when the issue was detected
 	DetectedAt string `json:"DetectedAt"`
-	// Integration is the specific feature of a sub-agent/product that is affected
-	// (e.g., "docker" for docker log collection in the logs agent)
-	Integration *string `json:"Integration,omitempty"`
+	// Source is the sub-agent or product that reported the issue
+	// (e.g., "logs", "apm", "error-tracking", "network-monitoring")
+	Source string `json:"Source"`
 	// Extra is optional complementary information
 	Extra string `json:"Extra"`
-	// IntegrationFeature is the sub-agent or product that is affected
-	// (e.g., "logs", "apm", "error-tracking", "network-monitoring")
-	IntegrationFeature string `json:"IntegrationFeature"`
 	// Remediation provides steps to fix the issue
 	Remediation *Remediation `json:"Remediation,omitempty"`
 	// Tags are additional labels for the issue
