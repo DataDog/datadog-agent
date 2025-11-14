@@ -342,8 +342,8 @@ def test(
     )
     # Setup orchestrion
     # export GOFLAGS="${GOFLAGS} '-toolexec=orchestrion toolexec'"
-    # os.environ["GOFLAGS"] = os.environ.get("GOFLAGS", "") + " '-toolexec=orchestrion toolexec'"
-    gotest_flags += ' -toolexec=orchestrion toolexec'
+    os.environ["GOFLAGS"] = os.environ.get("GOFLAGS", "") + " '-toolexec=orchestrion toolexec'"
+    # gobuild_flags += ' -toolexec=orchestrion toolexec'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
