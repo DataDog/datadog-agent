@@ -72,7 +72,7 @@ COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin
 RUN addgroup --system secret-manager \
     && chmod 755 entrypoint.sh \
     && chown root:secret-manager readsecret.sh readsecret_multiple_providers.sh \
-    && chmod 550 readsecret.sh readsecret_multiple_providers.sh \
+    && chmod 500 readsecret.sh readsecret_multiple_providers.sh \
     && chmod g+r,g+w,g+X -R /etc/datadog-agent/ \
     && chmod +x /opt/datadog-agent/bin/datadog-cluster-agent \
     && ln -s /opt/datadog-agent/bin/datadog-cluster-agent /opt/datadog-agent/bin/agent
