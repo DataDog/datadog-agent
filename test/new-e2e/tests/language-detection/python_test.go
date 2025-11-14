@@ -23,26 +23,26 @@ func (s *languageDetectionSuite) installPython() {
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr)))))
-	s.startPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr)))))
-	s.startPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processConfigStr)))))
-	s.startPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processConfigNoCheckStr)))))
-	s.startPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) startPython() string {

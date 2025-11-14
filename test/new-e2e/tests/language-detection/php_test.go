@@ -23,8 +23,8 @@ func (s *languageDetectionSuite) installPHP() {
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr)))))
-	s.startPHP()
-	s.checkDetectedLanguage("php", "php", "process_collector")
+	pid := s.startPHP()
+	s.checkDetectedLanguage(pid, "php", "process_collector")
 }
 
 func (s *languageDetectionSuite) startPHP() string {
