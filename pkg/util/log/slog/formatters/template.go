@@ -20,6 +20,35 @@ import (
 )
 
 // Template returns a function that formats a slog.Record as a string using a template.
+//
+// The formatter panics if it fails to parse the template or execute it. It is only meant to be used in tests,
+// so it makes the implementation simpler by not returning an error.
+//
+// Available context variables:
+// - record: the slog.Record
+// - time: the time.time of the record
+// - level: the string representation of the log level
+// - l: the first character of the log level string
+// - msg: the message string
+// - frame: the runtime.Frame of the caller
+// - line: the line number of the caller
+// - func: the function name of the caller
+// - file: the full path of the caller
+//
+// Available functions:
+// - Date(format string): formats the time of the record using the given format
+// - DateTime(): returns the time of the record in the format "2006-01-02 15:04:05.000 MST"
+// - Ns(): returns the nanosecond time of the record
+// - Lev(): returns the short log level
+// - Level(): returns the capitalized log level
+// - LEVEL(): returns the uppercase log level
+// - ToUpper(string): converts the given string to uppercase
+// - Quote(string): quotes the given string
+// - FuncShort(): returns the short function name
+// - ShortFilePath(): returns the short file path
+// - RelFile(): returns the relative file path
+// - ExtraTextContext(): returns the extra context in text format
+// - ExtraJSONContext(): returns the extra context in JSON format
 func Template(tmpl string) func(context.Context, slog.Record) string {
 	return func(_ context.Context, r slog.Record) string {
 		frames := runtime.CallersFrames([]uintptr{r.PC})
@@ -28,12 +57,13 @@ func Template(tmpl string) func(context.Context, slog.Record) string {
 			"record": r,
 			"time":   r.Time,
 			"level":  types.FromSlogLevel(r.Level).String(),
-			"l":      types.FromSlogLevel(r.Level).String()[0],
-			"msg":    r.Message,
-			"frame":  frame,
-			"line":   frame.Line,
-			"func":   frame.Function,
-			"file":   frame.File,
+			// https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L338
+			"l":     types.FromSlogLevel(r.Level).String()[0],
+			"msg":   r.Message,
+			"frame": frame,
+			"line":  frame.Line,
+			"func":  frame.Function,
+			"file":  frame.File,
 		}
 		funcs := template.FuncMap{
 			"Date":     func(format string) string { return r.Time.Format(format) },

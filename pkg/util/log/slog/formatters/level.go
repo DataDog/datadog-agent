@@ -16,9 +16,12 @@ func LevelToString(level slog.Level) string {
 	return types.FromSlogLevel(level).String()
 }
 
+// https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L314
 const wrongLogLevel = "WRONG_LOGLEVEL"
 
 // ShortLevel converts a slog.Level to a short string
+//
+// See https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L328
 func ShortLevel(level slog.Level) string {
 	switch types.FromSlogLevel(level) {
 	case types.TraceLvl:
@@ -41,6 +44,8 @@ func ShortLevel(level slog.Level) string {
 }
 
 // CapitalizedLevel returns a capitalized string representation of the log level
+//
+// See https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L318
 func CapitalizedLevel(level slog.Level) string {
 	switch types.FromSlogLevel(level) {
 	case types.TraceLvl:
@@ -63,6 +68,8 @@ func CapitalizedLevel(level slog.Level) string {
 }
 
 // UppercaseLevel returns an uppercase string representation of the log level
+//
+// See https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L365
 func UppercaseLevel(level slog.Level) string {
 	switch types.FromSlogLevel(level) {
 	case types.TraceLvl:

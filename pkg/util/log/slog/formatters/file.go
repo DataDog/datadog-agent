@@ -18,6 +18,8 @@ func ShortFilePath(frame runtime.Frame) string {
 }
 
 // ExtractShortPathFromFullPath extracts the short path from a full path.
+//
+// It is exported to be used from pkg/util/log/setup, and can be unexported once seelog is removed.
 func ExtractShortPathFromFullPath(fullPath string) string {
 	shortPath := ""
 	if strings.Contains(fullPath, "-agent/") {
@@ -41,6 +43,9 @@ func ExtractShortPathFromFullPath(fullPath string) string {
 }
 
 // RelFile removes the working directory from the full path.
+//
+// See https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/common_context.go#L45-L48
+// and shortPath in https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/common_context.go#L100-L106
 func RelFile(frame runtime.Frame) string {
 	workingDir := "/"
 	wd, err := os.Getwd()

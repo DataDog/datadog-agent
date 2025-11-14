@@ -11,13 +11,16 @@ const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format sy
 
 // Date returns a function that formats a time.Time to a string.
 func Date(logFormatRFC3339 bool) func(time.Time) string {
-	format := getLogDateFormat(logFormatRFC3339)
+	format := GetLogDateFormat(logFormatRFC3339)
 	return func(t time.Time) string {
 		return t.Format(format)
 	}
 }
 
-func getLogDateFormat(logFormatRFC3339 bool) string {
+// GetLogDateFormat returns the date format to use for the log.
+//
+// It is exported to be used from pkg/util/log/setup, and can be unexported once seelog is removed.
+func GetLogDateFormat(logFormatRFC3339 bool) string {
 	if logFormatRFC3339 {
 		return time.RFC3339
 	}

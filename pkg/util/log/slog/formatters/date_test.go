@@ -82,11 +82,11 @@ func TestDateZeroTime(t *testing.T) {
 
 func TestGetLogDateFormat(t *testing.T) {
 	// Test default format
-	format := getLogDateFormat(false)
+	format := GetLogDateFormat(false)
 	assert.Equal(t, logDateFormat, format)
 
 	// Test RFC3339 format
-	format = getLogDateFormat(true)
+	format = GetLogDateFormat(true)
 	assert.Equal(t, time.RFC3339, format)
 }
 
