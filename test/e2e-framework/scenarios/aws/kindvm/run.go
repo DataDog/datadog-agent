@@ -6,6 +6,8 @@
 package kindvm
 
 import (
+	_ "embed"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
