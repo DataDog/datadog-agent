@@ -1479,7 +1479,7 @@ func (suite *FingerprintTestSuite) TestComputeFingerprintPreservesConfigWhenDisa
 		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
 		Count:               1024,
 	}
-	fingerprinter := NewFingerprinter(globalConfig)
+	fingerprinter := NewFingerprinter(globalConfig, opener.NewFileOpener())
 
 	// Write test data
 	_, err := suite.testFile.WriteString("test data for fingerprinting\n")
@@ -1519,7 +1519,7 @@ func (suite *FingerprintTestSuite) TestComputeFingerprintWithEnabledConfig() {
 		Count:               1024,
 		Source:              types.FingerprintConfigSourceGlobal,
 	}
-	fingerprinter := NewFingerprinter(globalConfig)
+	fingerprinter := NewFingerprinter(globalConfig, opener.NewFileOpener())
 
 	// Write test data
 	testData := "test data for fingerprinting\n"

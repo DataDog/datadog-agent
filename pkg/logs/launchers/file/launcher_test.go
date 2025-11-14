@@ -1451,8 +1451,12 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 		Source:              types.FingerprintConfigSourceGlobal,
 	}
 
+	// Create fileOpener and fingerprinter
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := filetailer.NewFingerprinter(globalFingerprintConfig, fileOpener)
+
 	// Create new launcher
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, globalFingerprintConfig)
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, fileOpener, fingerprinter)
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 
