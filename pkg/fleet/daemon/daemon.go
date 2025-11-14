@@ -94,6 +94,7 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
+	clientID        string
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -142,12 +143,13 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		IsFromDaemon:         true,
 	}
 	installer := newInstaller(installerBin)
-	return newDaemon(rc, installer, env, taskDB), nil
+	return newDaemon(rc, installer, env, taskDB, rc.client.GetClientID()), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, clientID string) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
+		clientID:        clientID,
 		rc:              rc,
 		installer:       installer,
 		requests:        make(chan remoteAPIRequest, 32),
@@ -671,11 +673,11 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
 	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
-
-	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+	clientIDEqual := d.clientID == request.ExpectedState.ClientID
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual || !clientIDEqual) {
 		log.Infof(
-			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
-			request.ID, request.ExpectedState, s, c,
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v, client id: %s",
+			request.ID, request.ExpectedState, s, c, d.clientID,
 		)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
