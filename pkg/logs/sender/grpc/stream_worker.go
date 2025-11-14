@@ -27,13 +27,13 @@ import (
 )
 
 // TODO For PoC Stage 1
-// - implement snapshot state transmission
 // - better handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
 // - telemetries (send/recv, failure, rotations)
 
 // TODO for PoC Stage 2
 // - implement more graceful shutdown, the current version we could lose some acks
-// - currently, s.currentStream.stream.Send(batch) can still block, especially
+// - implement jitter is stream lifetime, otherwise all streams will rotate at the same time
+// - currently, s.currentStream.stream.Send(batch) can still BLOCK, especially
 //   if we have a lot of buffered payloads to re-send after a stream rotation,
 //   especially if we are flow controlled. This will block the supervisor loop
 // 	 and potentially backpressure the input channel
@@ -42,6 +42,25 @@ import (
 // TODO for production
 // - implement stream neotiation (state size, etc), able to downgrade to HTTP transport
 // - Testing plan
+
+// Notes on failure handling and backoff strategy:
+// Unlike HTTP transport, stateful transport is stream-based. Once the stream is established,
+// it's unlikely to fail sporadically at request level. The failure mode is likely to be:
+// - Proxy is not available
+//   fail in asyncCreateNewStream after connectionTimeout (10s)
+// - Proxy is available, but Intake is not available
+//   succeed in asyncCreateNewStream, but currentStream fails to send or receive any message
+// - Stream is functioning, but agent has wrong credentials configuration
+//   succeed in asyncCreateNewStream, but recv will fail with auth/perm error consistently
+// Note: again unlike HTTP transport where a Intake back-pressure shows up a rejection at request
+// level, in stateful transport, the back-pressure is more likely to show up as blocking send on
+// a functioning stream.
+// Due to reasons above, we will track the failures at stream level, and implement backoff
+// for stream creation only. We use the same backoff policy as HTTP transport (defined for endpoint)
+// with 1 tweak.
+//   - nbErrors is incremented for each send/recv/protocol-error/stream-creation failures
+//   - first time an valid ack is received on a new stream, we consider the stream established
+//     and reset nbErrors to 0 (via RecoveryReset=true)
 
 const (
 	// Various constants - may become configurable
@@ -159,7 +178,7 @@ func newStreamWorkerWithClock(
 		endpoint.BackoffBase,
 		endpoint.BackoffMax,
 		endpoint.RecoveryInterval,
-		endpoint.RecoveryReset,
+		true, // RecoveryReset = true (see stream failure comment above)
 	)
 
 	// Use provided inflightTracker (testing) or create default one
@@ -296,8 +315,8 @@ func (s *streamWorker) sendPayloads() {
 
 		// TODO Send call can block, by TCP/HTTP2 flow controls
 		if err := s.currentStream.stream.Send(batch); err != nil {
-			log.Warnf("Worker %s: Send failed, initiating stream rotation: %v", s.workerID, err)
-			s.beginStreamRotation()
+			log.Warnf("Worker %s: Send failed: %v, terminating stream", s.workerID, err)
+			s.tryBeginStreamRotation(true)
 			return // stop sending, payloads remain buffered for next rotation
 		}
 
@@ -321,8 +340,8 @@ func (s *streamWorker) sendSnapshot() bool {
 
 	// Send snapshot
 	if err := s.currentStream.stream.Send(batch); err != nil {
-		log.Warnf("Worker %s: Failed to send snapshot: %v, initiating stream rotation", s.workerID, err)
-		s.beginStreamRotation()
+		log.Warnf("Worker %s: Failed to send snapshot: %v, terminating stream", s.workerID, err)
+		s.tryBeginStreamRotation(true)
 		return false
 	}
 
@@ -349,9 +368,9 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 	// Verify we have "sent payloads" awaiting ack
 	if !s.inflight.hasUnacked() {
-		log.Errorf("Worker %s: Received ack for batch %d but no sent payloads in inflight tracker, "+
-			"irrecoverable error - initiating stream rotation", s.workerID, receivedBatchID)
-		s.beginStreamRotation()
+		log.Errorf("Worker %s: Received ack for batch %d but no sent payloads "+
+			"in inflight tracker, terminating stream", s.workerID, receivedBatchID)
+		s.tryBeginStreamRotation(true)
 		return
 	}
 
@@ -359,10 +378,16 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	expectedBatchID := s.inflight.getHeadBatchID()
 	if receivedBatchID != expectedBatchID {
 		log.Errorf("Worker %s: BatchID mismatch! Expected %d, received %d. "+
-			"ut-of-order or duplicate ack, irrecoverable error - initiating stream rotation",
+			"out-of-order or duplicate ack, terminating stream",
 			s.workerID, expectedBatchID, receivedBatchID)
-		s.beginStreamRotation()
+		s.tryBeginStreamRotation(true)
 		return
+	}
+
+	if receivedBatchID == 1 {
+		// Here we receive the ack of "first" real (non-snapshot) batch, so we can
+		// assume that the stream is really operational. decrement the nb error count.
+		s.nbErrors = s.backoffPolicy.DecError(s.nbErrors)
 	}
 
 	// Pop the acknowledged payload and send to auditor
@@ -372,7 +397,8 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 		case s.outputChan <- payload:
 			// Successfully sent to auditor
 		default:
-			log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d", s.workerID, receivedBatchID)
+			log.Warnf("Worker %s: Auditor channel full, dropping ack for batch %d",
+				s.workerID, receivedBatchID)
 		}
 	}
 
@@ -380,7 +406,7 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	if s.streamState == draining && !s.inflight.hasUnacked() {
 		log.Infof("Worker %s: All acks received in draining state, proceeding with rotation", s.workerID)
 		s.drainTimer.Stop()
-		s.beginStreamRotation()
+		s.tryBeginStreamRotation(false)
 	}
 }
 
@@ -391,8 +417,9 @@ func (s *streamWorker) handleRecvFailure(failedStream *streamInfo) {
 		return
 	}
 
-	log.Infof("Worker %s: Receiver reported failure (state: %v), initiating stream rotation", s.workerID, s.streamState)
-	s.beginStreamRotation()
+	log.Infof("Worker %s: Receiver reported failure (state: %v), terminating stream",
+		s.workerID, s.streamState)
+	s.tryBeginStreamRotation(true)
 }
 
 // handleStreamReady processes async stream creation results
@@ -402,10 +429,9 @@ func (s *streamWorker) handleStreamReady(result streamCreationResult) {
 	}
 
 	if result.err != nil {
-		s.nbErrors = s.backoffPolicy.IncError(s.nbErrors)
-		s.handleStreamCreationFailure(result.err)
+		log.Warnf("Worker %s: Stream creation failed: %v", s.workerID, result.err)
+		s.tryBeginStreamRotation(true)
 	} else {
-		s.nbErrors = s.backoffPolicy.DecError(s.nbErrors)
 		s.finishStreamRotation(result.info)
 	}
 }
@@ -424,7 +450,7 @@ func (s *streamWorker) handleStreamTimeout() {
 	} else {
 		log.Infof("Worker %s: Stream lifetime expired with no unacked payloads, rotating immediately",
 			s.workerID)
-		s.beginStreamRotation()
+		s.tryBeginStreamRotation(false)
 	}
 }
 
@@ -434,9 +460,9 @@ func (s *streamWorker) handleDrainTimeout() {
 		return
 	}
 
-	log.Warnf("Worker %s: Drain timer expired in draining state, proceeding with rotation (may lose some acks)",
-		s.workerID)
-	s.beginStreamRotation()
+	log.Warnf("Worker %s: Drain timer expired in draining state, proceeding with rotation "+
+		"(may lose some acks)", s.workerID)
+	s.tryBeginStreamRotation(false)
 }
 
 // handleBackoffTimeout processes backoff timer expiration and retries stream creation
@@ -459,19 +485,36 @@ func (s *streamWorker) handleShutdown() {
 	s.closeStream(s.currentStream)
 }
 
-// beginStreamRotation initiates stream rotation
-// Closes current stream and starts async creation of a new stream
-func (s *streamWorker) beginStreamRotation() {
-	log.Infof("Worker %s: Beginning stream rotation (state: %v → connecting)", s.workerID, s.streamState)
+// tryBeginStreamRotation try to initiates stream rotation
+// If dueToFailure is false (from soft rotation due stream lifetime expiration, or drain timeout),
+// the stream rotation is initiated immediately, otherwise (due to failure scenario), it transitions
+// to disconnected state and wait for the backoff duration.
+func (s *streamWorker) tryBeginStreamRotation(dueToFailure bool) {
 
-	s.closeStream(s.currentStream)
-	s.currentStream = nil
-	s.streamTimer.Stop()
-	s.drainTimer.Stop()
-	s.backoffTimer.Stop()
+	// Close current stream if it exists
+	if s.currentStream != nil {
+		s.closeStream(s.currentStream)
+		s.currentStream = nil
+		s.streamTimer.Stop()
+		s.drainTimer.Stop()
+		s.backoffTimer.Stop()
+	}
 
-	s.streamState = connecting
-	s.asyncCreateNewStream()
+	var backoffDuration time.Duration
+	if dueToFailure {
+		s.nbErrors = s.backoffPolicy.IncError(s.nbErrors)
+		backoffDuration = s.backoffPolicy.GetBackoffDuration(s.nbErrors)
+	}
+
+	if !dueToFailure || backoffDuration == 0 {
+		log.Infof("Worker %s: Beginning stream creation (state: %v → connecting)", s.workerID, s.streamState)
+		s.streamState = connecting
+		s.asyncCreateNewStream()
+	} else {
+		log.Infof("Worker %s: Backing off stream creation for %v (error count: %d)", s.workerID, backoffDuration, s.nbErrors)
+		s.streamState = disconnected
+		s.backoffTimer.Reset(backoffDuration)
+	}
 }
 
 // finishStreamRotation completes stream rotation (Connecting → Active transition)
@@ -501,26 +544,6 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 	// Then send the remaining buffered payloads (batch 1, 2, ...)
 	if s.inflight.hasUnSent() {
 		s.sendPayloads()
-	}
-}
-
-// handleStreamCreationFailure processes stream creation failures with exponential backoff
-func (s *streamWorker) handleStreamCreationFailure(err error) {
-	backoffDuration := s.backoffPolicy.GetBackoffDuration(s.nbErrors)
-
-	log.Warnf("Worker %s: Stream creation failed: %v. Backing off for %v (error count: %d)",
-		s.workerID, err, backoffDuration, s.nbErrors)
-
-	s.streamState = disconnected
-
-	if backoffDuration > 0 {
-		s.backoffTimer.Reset(backoffDuration)
-	} else {
-		// it shouldn't happen, but be defensive
-		// retry immediately by transitioning directly to connecting
-		log.Infof("Worker %s: Zero backoff duration, retrying immediately", s.workerID)
-		s.streamState = connecting
-		s.asyncCreateNewStream()
 	}
 }
 
@@ -686,10 +709,11 @@ func (s *streamWorker) signalBatchAck(streamInfo *streamInfo, msg *statefulpb.Ba
 
 // handleIrrecoverableError are errors that shouldn't be retried, and ideally
 // should be block the ingestion, until the error is resolved.
-func (s *streamWorker) handleIrrecoverableError(_ string, streamInfo *streamInfo) {
+func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *streamInfo) {
 	// Currently this is treated as stream error, which will trigger a stream rotation
 	// and retry of the same payload, which loops on. this IS NOT the desired behavior.
 	// TODO: Implement proper handling of irrecoverable errors, by blocking the ingestion
+	log.Infof("Worker %s: irrecoverable error detected: %s", s.workerID, reason)
 	s.signalRecvFailure(streamInfo)
 }
 
