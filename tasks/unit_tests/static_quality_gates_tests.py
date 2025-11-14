@@ -927,5 +927,335 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
             pass
 
 
+class TestSoftGatesFunctionality(unittest.TestCase):
+    """Test suite for soft quality gates functionality.
+
+    Soft gates are gates that can fail without causing the entire pipeline to fail.
+    They are reported as failures but don't raise exceptions, allowing the build to continue.
+    """
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    @patch(
+        "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+        return_value=ArtifactMeasurement(
+            "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+        ),
+    )
+    def test_soft_gate_failure_does_not_raise_exception(self, mock_send_metrics):
+        """Test that a soft gate failure doesn't raise an exception and continues execution."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        # Create a test config with just a soft gate
+        test_config = """
+static_quality_gate_iot_agent_deb_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+"""
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should not raise an exception
+            gates = parse_and_trigger_gates(ctx, "test_config.yml")
+
+        # Verify the gate was executed
+        self.assertEqual(len(gates), 1)
+        mock_send_metrics.assert_called_once()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    @patch(
+        "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+        new=MagicMock(
+            return_value=ArtifactMeasurement(
+                "/test/packages/datadog-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+            )
+        ),
+    )
+    def test_hard_gate_failure_raises_exception(self):
+        """Test that a hard gate (non-soft) failure raises an exception."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        # Create a test config with just a hard gate
+        test_config = """
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+"""
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should raise Exit exception because it's a hard gate
+            with self.assertRaises(Exit):
+                parse_and_trigger_gates(ctx, "test_config.yml")
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
+    @patch(
+        "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+        new=MagicMock(
+            side_effect=[
+                ArtifactMeasurement(
+                    "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+                ),  # soft gate exceeds
+                ArtifactMeasurement(
+                    "/test/packages/datadog-agent_7.0.0-1_amd64.deb", 50 * 1024 * 1024, 50 * 1024 * 1024
+                ),  # hard gate passes
+            ]
+        ),
+    )
+    def test_mixed_soft_and_hard_gates_soft_fails_hard_passes(self, mock_send_metrics):
+        """Test mixed scenario: soft gate fails, hard gate passes - should succeed overall."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        test_config = """
+static_quality_gate_iot_agent_deb_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+"""
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should not raise an exception despite soft gate failure
+            gates = parse_and_trigger_gates(ctx, "test_config.yml")
+
+        self.assertEqual(len(gates), 2)
+        mock_send_metrics.assert_called_once()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    @patch(
+        "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+        new=MagicMock(
+            side_effect=[
+                ArtifactMeasurement(
+                    "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+                ),  # soft gate exceeds
+                ArtifactMeasurement(
+                    "/test/packages/datadog-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+                ),  # hard gate exceeds
+            ]
+        ),
+    )
+    def test_mixed_soft_and_hard_gates_both_fail(self):
+        """Test mixed scenario: both soft and hard gates fail - should raise exception."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        test_config = """
+static_quality_gate_iot_agent_deb_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+"""
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should raise exception because hard gate failed
+            with self.assertRaises(Exit):
+                parse_and_trigger_gates(ctx, "test_config.yml")
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
+    @patch(
+        "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+        new=MagicMock(
+            return_value=ArtifactMeasurement(
+                "registry.ddbuild.io/ci/datadog-agent/dogstatsd:test", 150 * 1024 * 1024, 150 * 1024 * 1024
+            )
+        ),
+    )
+    def test_soft_gate_docker_dogstatsd_failure(self, mock_send_metrics):
+        """Test that docker_dogstatsd_arm64 soft gate failure doesn't raise exception."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        test_config = """
+static_quality_gate_docker_dogstatsd_arm64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+"""
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should not raise an exception
+            gates = parse_and_trigger_gates(ctx, "test_config.yml")
+
+        self.assertEqual(len(gates), 1)
+        mock_send_metrics.assert_called_once()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
+    @patch(
+        "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
+        new=MagicMock(
+            return_value=ArtifactMeasurement(
+                "registry.ddbuild.io/ci/datadog-agent/cws-instrumentation:test", 150 * 1024 * 1024, 150 * 1024 * 1024
+            )
+        ),
+    )
+    def test_soft_gate_cws_instrumentation_failure(self, mock_send_metrics):
+        """Test that docker_cws_instrumentation soft gates failure doesn't raise exception."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        test_config = """
+static_quality_gate_docker_cws_instrumentation_amd64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+static_quality_gate_docker_cws_instrumentation_arm64:
+  max_on_wire_size: 100 MiB
+  max_on_disk_size: 100 MiB
+"""
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should not raise an exception
+            gates = parse_and_trigger_gates(ctx, "test_config.yml")
+
+        self.assertEqual(len(gates), 2)
+        mock_send_metrics.assert_called_once()
+
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'test-branch',
+            'CI_COMMIT_BRANCH': 'test-branch',
+            'CI_COMMIT_REF_SLUG': 'test-branch',
+            'CI_COMMIT_SHORT_SHA': 'abc1234',
+            'CI_COMMIT_SHA': 'abc1234567890def',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/test/packages',
+            'CI_PIPELINE_ID': '12345',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
+    @patch(
+        "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
+        new=MagicMock(
+            return_value=ArtifactMeasurement("/test/packages/package.deb", 150 * 1024 * 1024, 150 * 1024 * 1024)
+        ),
+    )
+    def test_all_soft_gates_from_list(self, mock_send_metrics):
+        """Test all gates in SOFT_GATES_LIST to ensure they are handled as soft gates."""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+            }
+        )
+
+        # Mock all soft gates to exceed limits
+        soft_gates = [
+            "static_quality_gate_iot_agent_deb_amd64",
+            "static_quality_gate_iot_agent_deb_arm64",
+            "static_quality_gate_iot_agent_deb_armhf",
+            "static_quality_gate_iot_agent_rpm_amd64",
+            "static_quality_gate_iot_agent_suse_amd64",
+        ]
+
+        # Create config with all soft gates
+        test_config = "\n".join(
+            [f"{gate}:\n  max_on_wire_size: 100 MiB\n  max_on_disk_size: 100 MiB" for gate in soft_gates]
+        )
+
+        with patch('builtins.open', mock_open(read_data=test_config)):
+            # Should not raise an exception even though all gates fail
+            gates = parse_and_trigger_gates(ctx, "test_config.yml")
+
+        self.assertEqual(len(gates), len(soft_gates))
+        mock_send_metrics.assert_called_once()
+
+
 if __name__ == '__main__':
     unittest.main()
