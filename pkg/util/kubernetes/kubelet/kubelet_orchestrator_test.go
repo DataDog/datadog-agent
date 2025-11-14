@@ -28,7 +28,6 @@ func (suite *KubeletOrchestratorTestSuite) SetupTest() {
 	mockConfig := configmock.New(suite.T())
 
 	ResetGlobalKubeUtil()
-	ResetCache()
 
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 

@@ -232,7 +232,6 @@ func (suite *KubeletTestSuite) getCustomKubeUtil() KubeUtilInterface {
 // Make sure globalKubeUtil is deleted before each test
 func (suite *KubeletTestSuite) SetupTest() {
 	ResetGlobalKubeUtil()
-	ResetCache()
 
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 }
@@ -399,46 +398,6 @@ func (suite *KubeletTestSuite) TestGetNodename() {
 	case <-time.After(2 * time.Second):
 		require.FailNow(suite.T(), "Timeout on receive channel")
 	}
-}
-
-func (suite *KubeletTestSuite) TestPodlistCache() {
-	ctx := context.Background()
-	mockConfig := configmock.New(suite.T())
-
-	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "", "")
-	require.Nil(suite.T(), err)
-	ts, kubeletPort, err := kubelet.Start()
-	require.Nil(suite.T(), err)
-	defer ts.Close()
-
-	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
-	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
-
-	kubeutil := suite.getCustomKubeUtil()
-	kubelet.dropRequests() // Throwing away first GETs
-
-	kubeutil.GetLocalPodList(ctx)
-	r := <-kubelet.Requests
-	require.Equal(suite.T(), "/pods", r.URL.Path)
-
-	// The request should be cached now
-	_, err = kubeutil.GetLocalPodList(ctx)
-	require.Nil(suite.T(), err)
-
-	select {
-	case <-kubelet.Requests:
-		assert.FailNow(suite.T(), "podlist request should have been cached")
-	default:
-		// Cache working as expected
-	}
-
-	// test successful cache wipe
-	ResetCache()
-	_, err = kubeutil.GetLocalPodList(ctx)
-	require.Nil(suite.T(), err)
-	r = <-kubelet.Requests
-	require.Equal(suite.T(), "/pods", r.URL.Path)
 }
 
 func (suite *KubeletTestSuite) TestKubeletInitFailOnToken() {
