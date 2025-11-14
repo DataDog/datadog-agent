@@ -407,3 +407,11 @@ cel.dev/expr: TristonianJones <tswadell@google.com>
 github.com/google/go-tpm: Copyright (c) 2014, Google LLC All rights reserved.
 
 istio.io/*: Copyright Istio Authors
+
+github.com/minio/highwayhash: "Copyright (c) 2017 Minio Inc. All rights reserved."
+github.com/nats-io/jwt/v2: "Copyright 2018-2024 The NATS Authors"
+github.com/nats-io/nats-server/v2/*: "Copyright 2022-2024 The NATS Authors"
+github.com/nats-io/nats.go: "Copyright 2020-2022 The NATS Authors"
+github.com/nats-io/nats.go/*: "Copyright 2020-2022 The NATS Authors"
+github.com/nats-io/nkeys: "Copyright 2018-2019 The NATS Authors"
+github.com/nats-io/nuid: "Copyright 2016-2019 The NATS Authors"
