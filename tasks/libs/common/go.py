@@ -42,8 +42,11 @@ def go_build(
     check_deadcode: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
+    use_orchestrion: bool = False,
 ) -> Result:
     cmd = "go build"
+    if use_orchestrion:
+        cmd = "orchestrion " + cmd
     if coverage:
         cmd += " -cover -covermode=atomic"
         build_tags = build_tags or []

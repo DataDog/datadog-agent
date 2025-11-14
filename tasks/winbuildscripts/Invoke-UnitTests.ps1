@@ -146,6 +146,7 @@ Invoke-BuildScript `
         --python-home-3=$Env:Python3_ROOT_DIR `
         --result-json C:\mnt\$test_output_file `
         --build-stdlib `
+        --use-orchestrion `
         $TEST_WASHER_FLAG `
         $Env:EXTRA_OPTS
     $err = $LASTEXITCODE

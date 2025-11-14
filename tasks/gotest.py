@@ -270,7 +270,7 @@ def test(
     test_washer=False,
     extra_args=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
-    use_orchestrion=None,
+    use_orchestrion=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -286,7 +286,7 @@ def test(
         dda inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         dda inv test --module=. --race
 
-    If use_orchestrion is set to True, orchestrion will be used to run gotestsum for native instrumentation (True on CI by default).
+    If use_orchestrion is set to True, orchestrion will be used to run gotestsum for native instrumentation.
     """
     sanitize_env_vars()
 
@@ -345,7 +345,6 @@ def test(
     )
 
     # Use orchestrion to run gotestsum for native instrumentation
-    use_orchestrion = use_orchestrion if use_orchestrion is not None else running_in_ci()
     cmd_prefix = 'orchestrion toolexec' if use_orchestrion else ''
 
     cmd = f'{cmd_prefix} gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'

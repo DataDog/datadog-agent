@@ -34,6 +34,7 @@ from tasks.libs.common.utils import (
     get_goenv,
     get_version,
     gitlab_section,
+    running_in_ci,
 )
 from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
@@ -147,6 +148,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    use_orchestrion=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -154,6 +156,8 @@ def build(
 
     Example invokation:
         dda inv agent.build --build-exclude=systemd
+
+    If use_orchestrion is set to True, orchestrion will be used to build the agent.
     """
     flavor = AgentFlavor[flavor]
 
@@ -233,6 +237,7 @@ def build(
             build_tags=build_tags,
             check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+            use_orchestrion=use_orchestrion,
         )
 
     if embedded_path is None:
