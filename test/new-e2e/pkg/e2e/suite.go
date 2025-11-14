@@ -145,6 +145,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -177,6 +178,10 @@ const (
 	createTimeout          = 60 * time.Minute
 	deleteTimeout          = 30 * time.Minute
 	provisionerGracePeriod = 2 * time.Second
+)
+
+var (
+	keepStacks = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stacks at the end of the tests")
 )
 
 // Suite is a generic inteface used internally, only implemented by BaseSuite
@@ -598,8 +603,10 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
-	if err != nil {
+	if _, ok := err.(runner.NonFatalError); err != nil && !ok {
 		bs.T().Errorf("unable to create session output directory: %v", err)
+	} else if err != nil {
+		bs.T().Logf("Non-fatal error encountered creating the session output directory: %v", err)
 	}
 	bs.outputDir = sessionDirectory
 	bs.T().Logf("Suite session output directory: %s", bs.outputDir)
@@ -843,7 +850,7 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
 	if err != nil {
 		t.Logf("Unable to get DevMode value, DevMode will be disabled, error: %v", err)
-	} else if devMode {
+	} else if devMode || *keepStacks {
 		options = append(options, WithDevMode())
 	}
 
