@@ -39,6 +39,7 @@ const (
 	ProxyTypeIstio ProxyType = "istio"
 )
 
+// AllProxyTypes is the list of all supported proxy types for appsec injection mode
 var AllProxyTypes = []ProxyType{
 	ProxyTypeEnvoyGateway,
 	ProxyTypeIstio,
@@ -125,9 +126,9 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	}
 
 	staticLabels := map[string]string{
-		kubernetes.KubeAppComponentLabelKey:  "datadog-appsec-injector",
-		kubernetes.KubeAppPartOfLabelKey:     "datadog",
-		kubernetes.KubeAppManagedByLabelKey:  "datadog-cluster-agent",
+		kubernetes.KubeAppComponentLabelKey:      "datadog-appsec-injector",
+		kubernetes.KubeAppPartOfLabelKey:         "datadog",
+		kubernetes.KubeAppManagedByLabelKey:      "datadog-cluster-agent",
 		"appsec.datadoghq.com/injection-version": "v1",
 	}
 
