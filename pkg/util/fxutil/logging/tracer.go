@@ -6,141 +6,216 @@
 package logging
 
 import (
+	"io"
+	"math/rand"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/fx/fxevent"
 )
 
-const (
-	serviceName = "datadog-agent-fx"
-)
-
-type traceSpanType int
+type tracerLogger fxevent.Logger
 
 const (
-	fxConstructorType traceSpanType = iota
-	fxOnStartHookType
+	serviceName = "dd-agent-fx-init"
 )
 
-// TraceSpan represents a captured span from Fx events.
-type TraceSpan struct {
-	Type     traceSpanType
-	Resource string
-	Start    int64 // Unix timestamp in nanoseconds
-	Duration int64 // Duration in nanoseconds
-	Error    error
+// Span represents a Datadog APM span in JSON format for the v0.3/traces endpoint.
+type Span struct {
+	Service  string `json:"service"`
+	Name     string `json:"name"`
+	Resource string `json:"resource"`
+	TraceID  uint64 `json:"trace_id"`
+	SpanID   uint64 `json:"span_id"`
+	ParentID uint64 `json:"parent_id"`
+	Start    int64  `json:"start"`
+	Duration int64  `json:"duration"`
+	Error    int32  `json:"error"`
+	// Meta     map[string]string  `json:"meta,omitempty"`
+	// Metrics  map[string]float64 `json:"metrics,omitempty"`
+	Type string `json:"type,omitempty"`
 }
 
 // fxTracingLogger implements fxevent.fxTracingLogger interface to capture Fx lifecycle events
 // and send them as traces to Datadog.
 type fxTracingLogger struct {
-	fxLogger       fxevent.Logger
-	agentLogger    Logger
-	flavor         string
-	mu             sync.Mutex
-	spans          []*TraceSpan // Buffer spans during startup
-	startTime      time.Time    // Fx startup time
-	lifecycleStart time.Time    // Fx lifecycle start time
-	endTime        time.Time    // Fx completion time
-	err            error
+	fxLogger            fxevent.Logger
+	agentLogger         io.Writer
+	flavor              string
+	mu                  sync.Mutex
+	rootSpanID          uint64
+	traceID             uint64
+	spans               []*Span   // Buffer spans during startup
+	startTime           time.Time // Fx startup time
+	spansSendingEnabled bool
+	finished            bool // True when the Fx initialization is complete
 }
 
 // withFxTracer wraps the fxlogger with a fxTracingLogger.
 // Tracing is enabled when DD_FX_TRACING_ENABLED is set to true.
 // When enabled, it instruments Fx lifecycle events including component construction
 // and OnStart hooks, sending traces to the configured trace agent.
-func withFxTracer(fxlogger fxevent.Logger, agentLogger Logger, flavor string) fxevent.Logger {
-	if os.Getenv("DD_FX_TRACING_ENABLED") == "true" {
-		agentLogger.Infof("[Fx Tracing] Initialized - will capture component construction and OnStart hooks")
-		return &fxTracingLogger{
-			fxLogger:    fxlogger,
-			agentLogger: agentLogger,
-			flavor:      flavor,
-			spans:       make([]*TraceSpan, 0),
-		}
+func withFxTracer(fxlogger fxevent.Logger, startTime time.Time, agentLogger io.Writer) tracerLogger {
+	if os.Getenv("DD_FX_TRACING_ENABLED") != "true" {
+		return fxlogger
 	}
-
-	return fxlogger
+	return &fxTracingLogger{
+		fxLogger:    fxlogger,
+		agentLogger: agentLogger,
+		flavor:      filepath.Base(os.Args[0]),
+		rootSpanID:  rand.Uint64(),
+		traceID:     rand.Uint64(),
+		spans:       make([]*Span, 0),
+		startTime:   startTime,
+	}
 }
 
 // LogEvent implements the fxevent.Logger interface.
 func (l *fxTracingLogger) LogEvent(event fxevent.Event) {
-	notificationTime := time.Now()
-	l.mu.Lock()
+	if !l.finished {
+		switch e := event.(type) {
 
-	switch e := event.(type) {
-	case *fxevent.LoggerInitialized:
-		l.handleLoggerInitialized(e, notificationTime)
+		case *fxevent.Run:
+			l.handleRun(e)
 
-	case *fxevent.Run:
-		l.handleRun(e, notificationTime)
+		case *fxevent.OnStartExecuted:
+			l.handleOnStartExecuted(e)
 
-	case *fxevent.OnStartExecuted:
-		l.handleOnStartExecuted(e, notificationTime)
-
-	case *fxevent.Started:
-		l.handleStarted(e, notificationTime)
+		case *fxevent.Started:
+			l.handleStarted(e)
+		}
 	}
-	l.mu.Unlock()
 
 	// Log the event to the original fxlogger
 	l.fxLogger.LogEvent(event)
 }
 
-// handleLoggerInitialized records the start time.
-func (l *fxTracingLogger) handleLoggerInitialized(_ *fxevent.LoggerInitialized, notificationTime time.Time) {
-	l.startTime = notificationTime
-	l.agentLogger.Infof("[Fx Tracing] Started capturing Fx events")
+func (l *fxTracingLogger) UpdateInnerLoggers(logger fxevent.Logger, agentLogger io.Writer) {
+	l.mu.Lock()
+	l.fxLogger = logger
+	l.agentLogger = agentLogger
+	l.mu.Unlock()
+}
+
+// EnableSpansSending will allow the tracer to forward traces to the trace-agent when the Fx initialization is complete.
+func (l *fxTracingLogger) EnableSpansSending() {
+	l.mu.Lock()
+	l.spansSendingEnabled = true
+	l.mu.Unlock()
 }
 
 // handleRun captures constructor/decorator execution.
-func (l *fxTracingLogger) handleRun(e *fxevent.Run, notificationTime time.Time) {
+func (l *fxTracingLogger) handleRun(e *fxevent.Run) {
 	// Use the Runtime field from Fx event for duration
-	startTime := notificationTime.Add(-e.Runtime).UnixNano()
+	startTime := time.Now().Add(-e.Runtime).UnixNano()
 
-	span := &TraceSpan{
-		Type:     fxConstructorType,
-		Resource: e.Name,
+	name := extractShortPathFromFullPath(e.Name)
+
+	span := &Span{
+		Service:  serviceName,
+		Name:     name,
+		Resource: name,
+		TraceID:  l.traceID,
+		SpanID:   rand.Uint64(),
+		ParentID: l.rootSpanID,
 		Start:    startTime,
 		Duration: int64(e.Runtime),
-		Error:    e.Err,
+		Error:    errToCode(e.Err),
+		Type:     "custom",
 	}
 
+	l.mu.Lock()
 	l.spans = append(l.spans, span)
+	l.mu.Unlock()
 }
 
 // handleOnStartExecuted captures OnStart hook execution time.
-func (l *fxTracingLogger) handleOnStartExecuted(e *fxevent.OnStartExecuted, notificationTime time.Time) {
+func (l *fxTracingLogger) handleOnStartExecuted(e *fxevent.OnStartExecuted) {
 	// Use the Runtime field from Fx event for duration
-	startTime := notificationTime.Add(-e.Runtime)
+	startTime := time.Now().Add(-e.Runtime).UnixNano()
+	name := extractShortPathFromFullPath(e.FunctionName)
 
-	// Record the lifecycle start time if it hasn't been set yet
-	// Since the constructor and onstart are sequential, we can use the first one to represent the lifecycle start time
-	if l.lifecycleStart.IsZero() {
-		l.lifecycleStart = startTime
-	}
-
-	span := &TraceSpan{
-		Type:     fxOnStartHookType,
-		Resource: e.FunctionName,
-		Start:    startTime.UnixNano(),
+	span := &Span{
+		Service:  serviceName,
+		Name:     name,
+		Resource: name,
+		TraceID:  l.traceID,
+		SpanID:   rand.Uint64(),
+		ParentID: l.rootSpanID,
+		Start:    startTime,
 		Duration: int64(e.Runtime),
-		Error:    e.Err,
+		Error:    errToCode(e.Err),
+		Type:     "custom",
 	}
 
+	l.mu.Lock()
 	l.spans = append(l.spans, span)
+	l.mu.Unlock()
 }
 
 // handleStarted is called when Fx startup completes.
 // Sends all buffered spans to Datadog asynchronously with retry.
-func (l *fxTracingLogger) handleStarted(e *fxevent.Started, notificationTime time.Time) {
-	l.endTime = notificationTime
-	l.err = e.Err
+func (l *fxTracingLogger) handleStarted(e *fxevent.Started) {
+	endTime := time.Now()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Check if traceSending has been enabled during the Fx initialization
+	// If not cleanup the memory and return
+	if !l.spansSendingEnabled {
+		l.spans = nil
+		l.finished = true
+		return
+	}
+
+	// Create root span
+	rootSpan := &Span{
+		Service:  serviceName,
+		Name:     l.flavor,
+		Resource: l.flavor,
+		TraceID:  l.traceID,
+		SpanID:   l.rootSpanID,
+		ParentID: 0,
+		Start:    l.startTime.UnixNano(),
+		Duration: endTime.Sub(l.startTime).Nanoseconds(),
+		Type:     "custom",
+	}
+
+	l.spans = append(l.spans, rootSpan)
 
 	// Send spans asynchronously (trace-agent might not be ready immediately)
-	if len(l.spans) > 0 {
-		go l.sendSpansToDatadog(l.flavor)
+	go sendSpansToDatadog(l.agentLogger, l.spans)
+	l.finished = true
+}
+
+func errToCode(err error) int32 {
+	if err != nil {
+		return 1
 	}
+	return 0
+}
+
+func extractShortPathFromFullPath(fullPath string) string {
+	shortPath := ""
+	slices := strings.Split(fullPath, "github.com/DataDog/datadog-agent/")
+	if len(slices) > 1 {
+		// We want to trim the part containing the path of the project
+		// ie DataDog/datadog-agent/ or DataDog/datadog-process-agent/
+		shortPath = slices[len(slices)-1]
+	} else {
+		// For logging from dependencies, we want to log e.g.
+		// "collector@v0.35.0/service/collector.go"
+		slices := strings.Split(fullPath, "/")
+		atSignIndex := len(slices) - 1
+		for ; atSignIndex > 0; atSignIndex-- {
+			if strings.Contains(slices[atSignIndex], "@") {
+				break
+			}
+		}
+		shortPath = strings.Join(slices[atSignIndex:], "/")
+	}
+	return shortPath
 }
