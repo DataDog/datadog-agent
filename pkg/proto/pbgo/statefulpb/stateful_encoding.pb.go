@@ -773,7 +773,7 @@ func (x *StatefulBatch) GetData() []byte {
 
 type BatchStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	BatchId       int32                  `protobuf:"varint,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	BatchId       uint32                 `protobuf:"varint,1,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
 	Status        BatchStatus_Status     `protobuf:"varint,2,opt,name=status,proto3,enum=intake.BatchStatus_Status" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -809,7 +809,7 @@ func (*BatchStatus) Descriptor() ([]byte, []int) {
 	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *BatchStatus) GetBatchId() int32 {
+func (x *BatchStatus) GetBatchId() uint32 {
 	if x != nil {
 		return x.BatchId
 	}
@@ -875,7 +875,7 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\bbatch_id\x18\x01 \x01(\rR\abatchId\x12\x12\n" +
 	"\x04data\x18\x02 \x01(\fR\x04data\"{\n" +
 	"\vBatchStatus\x12\x19\n" +
-	"\bbatch_id\x18\x01 \x01(\x05R\abatchId\x122\n" +
+	"\bbatch_id\x18\x01 \x01(\rR\abatchId\x122\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x1a.intake.BatchStatus.StatusR\x06status\"\x1d\n" +
 	"\x06Status\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x06\n" +
