@@ -261,12 +261,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Then print the traditional report for any failures
     if final_state != "success":
         _print_quality_gates_report(gate_states)
-    print(f"+++Final state: {final_state}+++")
-    print(f"+++NIGHTLY RUN: {nightly_run}+++")
     # We don't need a PR notification nor gate failures on release branches
-    print(is_a_release_branch(ctx, branch))
     if not is_a_release_branch(ctx, branch):
-        print("+++NOT A RELEASE BRANCH+++")
         github = GithubAPI()
         if github.get_pr_for_branch(branch).totalCount > 0:
             ancestor = get_common_ancestor(ctx, "HEAD")
@@ -277,7 +273,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
         # Nightly pipelines have different package size and gates thresholds are unreliable for nightly pipelines
         if final_state != "success" and not nightly_run:
-            print("+++EXITING+++")
             metric_handler.generate_metric_reports(ctx, branch=branch, is_nightly=nightly_run)
             raise Exit(code=1)
     # We are generating our metric reports at the end to include relative size metrics
