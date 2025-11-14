@@ -340,6 +340,11 @@ def test(
     gotest_flags = (
         '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
     )
+    # Setup orchestrion
+    # export GOFLAGS="${GOFLAGS} '-toolexec=orchestrion toolexec'"
+    import os
+    os.environ["GOFLAGS"] = os.environ.get("GOFLAGS", "") + " '-toolexec=orchestrion toolexec'"
+    # gotest_flags += ' -toolexec=orchestrion toolexec'
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
