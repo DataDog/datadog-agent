@@ -195,7 +195,7 @@ func (agent *agentCommandRunner) WorkloadList() (*agentclient.Status, error) {
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
-	agent.t.Log("Waiting for the agent to be ready")
+	logf(agent.t, "%s - %s - Waiting for the agent to be ready", time.Now().Format("02-01-2006 15:04:05"), agent.t.Name())
 	err := backoff.Retry(func() error {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {
