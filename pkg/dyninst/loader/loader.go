@@ -190,24 +190,19 @@ type RuntimeStats struct {
 	CPU time.Duration
 }
 
-// RuntimeStats returns the runtime stats for the program.
-func (p *Program) RuntimeStats() (stats RuntimeStats) {
+// RuntimeStats returns the per-core runtime stats for the program.
+func (p *Program) RuntimeStats() []RuntimeStats {
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
-		return
+		return nil
 	}
 	entries := statsMap.Iterate()
 	var key uint32
-	var perCPUStats []RuntimeStats
-	if !entries.Next(&key, &perCPUStats) {
+	var stats []RuntimeStats
+	if !entries.Next(&key, &stats) {
 		return stats
 	}
-	for _, cpuStats := range perCPUStats {
-		stats.HitCnt += cpuStats.HitCnt
-		stats.ThrottledCnt += cpuStats.ThrottledCnt
-		stats.CPU += cpuStats.CPU
-	}
-	return
+	return stats
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB

@@ -23,9 +23,9 @@ import (
 type CircuitBreakerConfig struct {
 	// Interval is the interval at which probe CPU usage is checked.
 	Interval time.Duration
-	// PerProbeCPULimit is the limit on mean CPUs/s usage per probe within the interval.
+	// PerProbeCPULimit is the limit on mean CPUs/s usage per core per probe within the interval.
 	PerProbeCPULimit float64
-	// AllProbesCPULimit is the limit on mean CPUs/s usage for all probes within the interval.
+	// AllProbesCPULimit is the limit on mean CPUs/s usage per core for all probes within the interval.
 	AllProbesCPULimit float64
 	// InterruptOverhead is the estimate of the cost of an interrupt incurred on every probe hit.
 	InterruptOverhead time.Duration
