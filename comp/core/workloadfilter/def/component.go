@@ -46,4 +46,7 @@ type Component interface {
 	GetContainerRuntimeSecurityFilters() FilterBundle
 	// GetContainerComplianceFilters retrieves the container Compliance FilterBundle
 	GetContainerComplianceFilters() FilterBundle
+
+	// GetFilterConfigString retrieves a string representation of the raw filter configuration
+	GetFilterConfigString() (string, error)
 }
