@@ -88,14 +88,14 @@ func TestFromHostnameFileInvalid(t *testing.T) {
 // fromFargate
 
 func TestFromFargate(t *testing.T) {
-	defer func() { isFargateInstance = fargate.IsFargateInstance }()
+	defer func() { isSidecar = fargate.IsSidecar }()
 
-	isFargateInstance = func() bool { return true }
+	isSidecar = func() bool { return true }
 	hostname, err := fromFargate(context.TODO(), "")
 	require.NoError(t, err)
 	assert.Equal(t, "", hostname)
 
-	isFargateInstance = func() bool { return false }
+	isSidecar = func() bool { return false }
 	_, err = fromFargate(context.TODO(), "")
 	assert.Error(t, err)
 }
