@@ -462,7 +462,7 @@
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
-/pkg/clusteragent/appsec/               @DataDog/asm-go
+/pkg/clusteragent/appsec/               @DataDog/asm-go @DataDog/container-platform
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-runtimes
