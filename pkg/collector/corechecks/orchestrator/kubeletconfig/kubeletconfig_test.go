@@ -107,7 +107,6 @@ type KubeletConfigTestSuite struct {
 
 func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
-	kubelet.ResetCache()
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("cluster_agent.enabled", true)

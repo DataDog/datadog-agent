@@ -16,13 +16,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -131,6 +131,16 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 
 func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
+}
+
+type kubeUtilMock struct {
+	kubelet.KubeUtilInterface
+	mock.Mock
+}
+
+func (m *kubeUtilMock) GetNodename(_ context.Context) (string, error) {
+	args := m.Called()
+	return args.String(0), args.Error(1)
 }
 
 func TestKubeMetadataCollector_getMetadata(t *testing.T) {
@@ -422,19 +432,12 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 			},
 		},
 	}}
-	podsCache := kubelet.PodList{
-		Items: pods,
-	}
 
-	// Cache never expires because the unit tests below are not covering the case
-	// of cache miss. They are only testing parsePods behaves correctly depending
-	// on the cluster agent version and the agent configuration.
-	cache.Cache.Set("KubeletPodListCacheKey", podsCache, -1)
-
-	kubeUtilFake := &kubelet.KubeUtil{}
+	kubeUtilFake := &kubeUtilMock{}
+	kubeUtilFake.On("GetNodename").Return("nodename", nil)
 
 	type fields struct {
-		kubeUtil                    *kubelet.KubeUtil
+		kubeUtil                    kubelet.KubeUtilInterface
 		apiClient                   *apiserver.APIClient
 		dcaClient                   clusteragent.DCAClientInterface
 		lastUpdate                  time.Time

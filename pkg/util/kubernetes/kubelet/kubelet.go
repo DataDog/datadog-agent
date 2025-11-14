@@ -20,7 +20,6 @@ import (
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/errors"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -35,7 +34,6 @@ const (
 	kubeletMetricsPath     = "/metrics"
 	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
-	podListCacheKey        = "KubeletPodListCacheKey"
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
@@ -63,11 +61,10 @@ type KubeUtil struct {
 	// used to setup the KubeUtil
 	initRetry retry.Retrier
 
-	kubeletClient        *kubeletClient
-	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
-	podListCacheDuration time.Duration
-	podUnmarshaller      *podUnmarshaller
-	podResourcesClient   *PodResourcesClient
+	kubeletClient      *kubeletClient
+	rawConnectionInfo  map[string]string // kept to pass to the python kubelet check
+	podUnmarshaller    *podUnmarshaller
+	podResourcesClient *PodResourcesClient
 
 	useAPIServer bool
 
@@ -120,9 +117,8 @@ func (ku *KubeUtil) init() error {
 // NewKubeUtil returns a new KubeUtil
 func NewKubeUtil() *KubeUtil {
 	return &KubeUtil{
-		rawConnectionInfo:    make(map[string]string),
-		podListCacheDuration: pkgconfigsetup.Datadog().GetDuration("kubelet_cache_pods_duration") * time.Second,
-		podUnmarshaller:      newPodUnmarshaller(),
+		rawConnectionInfo: make(map[string]string),
+		podUnmarshaller:   newPodUnmarshaller(),
 	}
 }
 
@@ -132,11 +128,6 @@ func ResetGlobalKubeUtil() {
 	globalKubeUtilMutex.Lock()
 	defer globalKubeUtilMutex.Unlock()
 	globalKubeUtil = nil
-}
-
-// ResetCache deletes existing kubeutil related cache
-func ResetCache() {
-	cache.Cache.Delete(podListCacheKey)
 }
 
 // GetKubeUtilWithRetrier returns an instance of KubeUtil or a retrier
@@ -226,17 +217,7 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 }
 
 func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
-	var ok bool
 	pods := PodList{}
-
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
-		if !ok {
-			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-		} else {
-			return &pods, nil
-		}
-	}
 
 	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
 	if err != nil {
@@ -277,9 +258,6 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 		}
 	}
 	pods.Items = tmpSlice
-
-	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
 
 	return &pods, nil
 }
