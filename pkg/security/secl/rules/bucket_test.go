@@ -9,9 +9,10 @@
 package rules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"reflect"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -54,7 +55,7 @@ func TestRuleBucket_AddRule_Order(t *testing.T) {
 
 	// Create rules with unique fields
 	e1 := newTestRuleWithExecContextTag(t, "E1", "true")
-	e2 := newTestRuleWithExecContextTag(t, "E2", "true")
+	e2 := newTestRuleWithExecContextTag(t, "E2", "True") // handle all cases
 	e3 := newTestRuleWithExecContextTag(t, "E3", "true")
 	n1 := newTestRuleWithExecContextTag(t, "N1", "false")
 	n2 := newTestRuleWithExecContextTag(t, "N2", "false")
