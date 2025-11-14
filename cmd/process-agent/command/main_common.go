@@ -177,7 +177,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Provides specific features to our own fx wrapper (logging, lifecycle, shutdowner)
 		fxutil.FxAgentBase(),
-		logging.EnableFxLoggingOnDebug[logcomp.Component](),
+		logging.EnableFxInitInstrumentation(),
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),

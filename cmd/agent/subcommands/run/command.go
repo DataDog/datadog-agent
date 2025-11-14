@@ -220,6 +220,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
+			logging.EnableFxInitInstrumentation(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)

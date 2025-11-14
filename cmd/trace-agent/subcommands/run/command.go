@@ -35,6 +35,7 @@ import (
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil/logging"
 )
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
@@ -108,6 +109,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		logging.EnableFxInitInstrumentation(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 	)
