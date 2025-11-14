@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -177,6 +178,36 @@ func (p *Program) Close() {
 	if p.Collection != nil {
 		p.Collection.Close() // should already contain the program
 	}
+}
+
+// RuntimeStats are cumulative stats aggregated throughout program lifetime.
+type RuntimeStats struct {
+	// Number of probe hits.
+	HitCnt uint64
+	// Number of probe hits that skipped data capture due to throttling.
+	ThrottledCnt uint64
+	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
+	CPU time.Duration
+}
+
+// RuntimeStats returns the runtime stats for the program.
+func (p *Program) RuntimeStats() (stats RuntimeStats) {
+	statsMap, ok := p.Collection.Maps["stats_buf"]
+	if !ok {
+		return
+	}
+	entries := statsMap.Iterate()
+	var key uint32
+	var perCPUStats []RuntimeStats
+	if !entries.Next(&key, &perCPUStats) {
+		return stats
+	}
+	for _, cpuStats := range perCPUStats {
+		stats.HitCnt += cpuStats.HitCnt
+		stats.ThrottledCnt += cpuStats.ThrottledCnt
+		stats.CPU += cpuStats.CPU
+	}
+	return
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
