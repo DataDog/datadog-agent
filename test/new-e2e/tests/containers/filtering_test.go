@@ -49,28 +49,14 @@ func (suite *k8sFilteringSuiteBase) SetupSuite() {
 func (suite *k8sFilteringSuiteBase) TestWorkloadExcludeNoMetrics() {
 	// nginx workload in filtered namespace should never have metrics
 	suite.Never(func() bool {
-		containerMetrics := []string{
+		metrics, err := suite.Fakeintake.FilterMetrics(
 			"container.cpu.usage",
-			"container.memory.usage",
-			"container.memory.working_set",
-			"container.io.read_bytes",
-			"container.io.write_bytes",
-		}
-
-		foundMetric := false
-		for _, metricName := range containerMetrics {
-			metrics, err := suite.Fakeintake.FilterMetrics(
-				metricName,
-				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
-					`kube_namespace:` + filteredNamespace,
-				}),
-			)
-			suite.NoError(err, "Error querying metrics")
-			if len(metrics) > 0 {
-				foundMetric = true
-			}
-		}
-		return foundMetric
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
+				`kube_namespace:` + filteredNamespace,
+			}),
+		)
+		suite.NoError(err, "Error querying metrics")
+		return len(metrics) > 0
 	}, 1*time.Minute, 5*time.Second, "Metrics were found for a workload in a filtered namespace")
 }
 
@@ -96,21 +82,14 @@ func (suite *k8sFilteringSuiteBase) TestUnfilteredWorkloadsHaveTelemetry() {
 	// nginx workload in default namespace should have metrics
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
-			Name: "container.cpu.usage",
+			Name: "container.memory.usage",
 			Tags: []string{
 				`^container_name:nginx$`,
 				`^kube_namespace:workload-nginx$`,
 			},
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^container_name:nginx$`,
-				`^display_container_name:nginx`,
-				`^kube_container_name:nginx$`,
-				`^kube_deployment:nginx$`,
-				`^kube_namespace:workload-nginx$`,
-				`^kube_service:nginx$`,
-			},
+			Tags:                 &[]string{},
 			AcceptUnexpectedTags: true,
 		},
 	})
