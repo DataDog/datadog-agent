@@ -61,18 +61,18 @@ dda:linux:features:
   tags: ["arch:arm64", "specific:true"]
   dependencies: []
   script:
-    - pip install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
+    - pip install git+https://github.com/DataDog/datadog-agent-dev.git@main
     - which dda
-    - dda bzl
+    - dda self feature test-kevin
 
-dda:macos:features:
-  stage: setup
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["macos:ventura-amd64", "specific:true"]
-  dependencies: []
-  script:
-    - pip3 install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
-    - dda bzl
+# dda:macos:features:
+#   stage: setup
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+#   tags: ["macos:ventura-amd64", "specific:true"]
+#   dependencies: []
+#   script:
+#     - pip3 install git+https://github.com/DataDog/datadog-agent-dev.git@kfairise/support-feature-flag-ci
+#     - dda bzl
 
 dda:windows:features:
   stage: setup
