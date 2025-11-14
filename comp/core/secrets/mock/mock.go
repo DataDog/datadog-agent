@@ -19,9 +19,10 @@ import (
 
 // Mock is a mock of the secret Component useful for testing
 type Mock struct {
-	secretsCache map[string]string
-	callbacks    []secrets.SecretChangeCallback
-	refreshHook  func(bool) (string, error)
+	secretsCache       map[string]string
+	callbacks          []secrets.SecretChangeCallback
+	refreshHook        func(bool) (string, error)
+	triggerRefreshHook func()
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -97,4 +98,16 @@ func (m *Mock) Refresh(bypass bool) (string, error) {
 		return m.refreshHook(bypass)
 	}
 	return "", nil
+}
+
+// SetTriggerRefreshHook sets a hook function that will be called when TriggerRefresh is invoked
+func (m *Mock) SetTriggerRefreshHook(hook func()) {
+	m.triggerRefreshHook = hook
+}
+
+// TriggerRefresh is a non-blocking signal to the running refresh routine to refresh secrets
+func (m *Mock) TriggerRefresh() {
+	if m.triggerRefreshHook != nil {
+		m.triggerRefreshHook()
+	}
 }
