@@ -62,9 +62,18 @@ func WithAwsEnv(env *aws.Environment) ProvisionerOption {
 	}
 }
 
+// WithRunOptions adds options to the ECS scenario
 func WithRunOptions(opts ...scenecs.RunOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.runOptions = append(params.runOptions, opts...)
+		return nil
+	}
+}
+
+// WithExtraConfigParams adds extra config parameters to the environment
+func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.extraConfigParams = configMap
 		return nil
 	}
 }

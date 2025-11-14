@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -36,25 +37,26 @@ type windowsVMSuite struct {
 // TestWindowsVM tests that the FIPS Agent can report metrics to the fakeintake
 func TestWindowsVM(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.Provisioner(
-		// Enable FIPS mode on the host (done before Agent install)
-		awsHostWindows.WithFIPSModeOptions(fipsmode.WithFIPSModeEnabled()),
-		awsHostWindows.WithAgentOptions(
-			// Use FIPS Agent package
-			agentparams.WithFlavor(agentparams.FIPSFlavor),
-			// Install custom check that reports the FIPS mode of Python
-			// TODO ADXT-881: Need forward slashes to workaround test-infra bug
-			agentparams.WithFile(
-				`C:/ProgramData/Datadog/checks.d/e2e_fips_test.py`,
-				fipsTestCheck,
-				false,
-			),
-			agentparams.WithFile(
-				`C:/ProgramData/Datadog/conf.d/e2e_fips_test.yaml`,
-				`
+		awsHostWindows.WithRunOptions(
+			windows.WithFIPSModeOptions(fipsmode.WithFIPSModeEnabled()),
+			windows.WithAgentOptions(
+				// Use FIPS Agent package
+				agentparams.WithFlavor(agentparams.FIPSFlavor),
+				// Install custom check that reports the FIPS mode of Python
+				// TODO ADXT-881: Need forward slashes to workaround test-infra bug
+				agentparams.WithFile(
+					`C:/ProgramData/Datadog/checks.d/e2e_fips_test.py`,
+					fipsTestCheck,
+					false,
+				),
+				agentparams.WithFile(
+					`C:/ProgramData/Datadog/conf.d/e2e_fips_test.yaml`,
+					`
 init_config:
 instances: [{}]
 `,
-				false,
+					false,
+				),
 			),
 		),
 	))}

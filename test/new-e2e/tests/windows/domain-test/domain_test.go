@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 
+	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows"
 
@@ -45,10 +46,13 @@ func TestInstallsOnDomainController(t *testing.T) {
 		t.Run(reflect.TypeOf(suite).Elem().Name(), func(t *testing.T) {
 			t.Parallel()
 			e2e.Run(t, suite, e2e.WithProvisioner(awsHostWindows.ProvisionerNoAgent(
-				awsHostWindows.WithActiveDirectoryOptions(
-					activedirectory.WithDomainController(TestDomain, TestPassword),
-					activedirectory.WithDomainUser(TestUser, TestPassword),
-				))))
+				awsHostWindows.WithRunOptions(
+					scenwindows.WithActiveDirectoryOptions(
+						activedirectory.WithDomainController(TestDomain, TestPassword),
+						activedirectory.WithDomainUser(TestUser, TestPassword),
+					),
+				),
+			)))
 		})
 	}
 }

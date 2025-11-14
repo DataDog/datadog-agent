@@ -40,13 +40,13 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 			},
 		},
 		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-			awshost.WithName("authArtifactWindows"),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
-			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
-		)),
-		e2e.WithSkipCoverage(), // Test Suite is not compatible with built-in coverage computation, because auth tokens are removed at the end of the test
-	)
+			awshost.WithRunOptions(
+				ec2.WithName("authArtifactWindows"),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+				ec2.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
+			),
+		)))
 }
 
 // Implementation of [path.Join] for Windows.

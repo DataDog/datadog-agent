@@ -30,7 +30,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -323,7 +323,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		return nil
 	}, nil)
 
-	provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 
 	return provisioner
 }

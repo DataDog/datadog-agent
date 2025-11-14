@@ -59,8 +59,7 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 
 	// restart the agent, which validates the key using the fakeintake at startup
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
+		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)), ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1"))),
 	))
 
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {

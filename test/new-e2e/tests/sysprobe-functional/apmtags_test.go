@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -38,8 +39,10 @@ var systemProbeConfig string
 
 func TestUSMAutoTaggingSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithAgentOptions(
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
+		awsHostWindows.WithRunOptions(
+			scenwindows.WithAgentOptions(
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+			),
 		),
 	))}
 	if *devMode {

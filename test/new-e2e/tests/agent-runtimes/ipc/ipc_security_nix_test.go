@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -49,14 +50,16 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(coreconfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		),
-		awshost.WithAgentClientOptions(
-			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-			agentclientparams.WithProcessAgentOnPort(processCmdPort),
-			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(coreconfig),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			),
+			ec2.WithAgentClientOptions(
+				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
+				agentclientparams.WithProcessAgentOnPort(processCmdPort),
+				agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			),
 		),
 	))
 

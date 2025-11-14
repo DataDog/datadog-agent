@@ -26,10 +26,11 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeClient "k8s.io/client-go/kubernetes"
 
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
 
@@ -71,12 +72,16 @@ func TestK8sTestSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awskubernetes.KindProvisioner(
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-			}),
-			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		)),
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+					}),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+				),
+			),
+		),
 	}
 
 	e2e.Run(t, &K8sSuite{}, options...)
@@ -127,11 +132,13 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	})
 	require.NoError(t, err)
 
-	s.UpdateEnv(awskubernetes.KindProvisioner(
-		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-		}),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	s.UpdateEnv(provkindvm.Provisioner(
+		provkindvm.WithRunOptions(
+			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+			}),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+		),
 	))
 
 	var status AgentStatus
@@ -169,12 +176,16 @@ func TestK8sCoreAgentTestSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awskubernetes.KindProvisioner(
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-			}),
-			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		)),
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+					}),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+				),
+			),
+		),
 	}
 
 	e2e.Run(t, &K8sCoreAgentSuite{}, options...)
@@ -230,11 +241,13 @@ func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgentWithNPM() {
 	})
 	require.NoError(t, err)
 
-	s.UpdateEnv(awskubernetes.KindProvisioner(
-		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-		}),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	s.UpdateEnv(provkindvm.Provisioner(
+		provkindvm.WithRunOptions(
+			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+			}),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+		),
 	))
 
 	var status AgentStatus

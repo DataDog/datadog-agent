@@ -115,18 +115,18 @@ apm_config.enabled: true
 func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	options := vmSuiteOpts(uds,
 		// Enable the UDS receiver in the trace-agent
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, ""))))
+		awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, "")))))
 	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	options := vmSuiteOpts(tcp,
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(
 			// Enable the UDS receiver in the trace-agent
-			agentparams.WithAgentConfig(vmAgentConfig(tcp, "")),
+			scenec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(tcp, ""))),
+			scenec2.WithEC2InstanceOptions(),
 		),
-		awshost.WithEC2InstanceOptions(),
 	)
 	e2e.Run(t, NewVMFakeintakeSuite(tcp), options...)
 }
@@ -368,11 +368,16 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
-	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
-apm_config.probabilistic_sampler.enabled: true
+	cfg := `apm_config.probabilistic_sampler.enabled: true
 apm_config.probabilistic_sampler.sampling_percentage: 50
 apm_config.probabilistic_sampler.hash_seed: 22
-`))))...))
+`
+	opts := vmProvisionerOpts(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithAgentConfig(vmAgentConfig(s.transport, cfg)),
+		),
+	))
+	s.UpdateEnv(awshost.Provisioner(opts...))
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)

@@ -32,17 +32,18 @@ func TestECSSuite(t *testing.T) {
 	t.Parallel()
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsecs.Provisioner(
-			awsecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
-				return cpustress.EcsAppDefinition(e, clusterArn)
-			}),
-			awsecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
-				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
-			}),
-			awsecs.WithECSOptions(
-				ecs.WithFargateCapacityProvider(),
-				ecs.WithLinuxNodeGroup(),
-			),
-		)),
+			awsecs.WithRunOptions(
+				ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+					return cpustress.EcsAppDefinition(e, clusterArn)
+				}),
+				ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+					return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+				}),
+				ecs.WithECSOptions(
+					ecs.WithFargateCapacityProvider(),
+					ecs.WithLinuxNodeGroup(),
+				),
+			))),
 	}
 	e2e.Run(t, &ecsSuite{}, options...)
 }
