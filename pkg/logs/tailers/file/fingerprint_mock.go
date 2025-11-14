@@ -35,7 +35,6 @@ type fingerprintStore struct {
 }
 
 func (f *fingerprintStore) Next() *types.Fingerprint {
-	fmt.Println("Next", f.idx, len(f.fingerprints))
 	if len(f.fingerprints) == 0 {
 		return newInvalidFingerprint(nil)
 	}

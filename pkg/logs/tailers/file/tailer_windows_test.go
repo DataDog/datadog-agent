@@ -102,7 +102,6 @@ func TestReadAvailableRotation(t *testing.T) {
 	tailer, _ := newTestTailer(t, mockFile.Name(), nil, nil, opener, mockDecoderOptions)
 	tailer.windowsOpenFileTimeout = 0
 	go func() {
-		time.Sleep(10 * time.Millisecond)
 		<-tailer.decoder.InputChan()
 		<-tailer.decoder.InputChan()
 		tailer.decoder.Start()
@@ -171,7 +170,6 @@ func TestReadAvailableFingerprintMismatchMidRead(t *testing.T) {
 	tailer.fingerprint = originalFingerprint
 	tailer.windowsOpenFileTimeout = 0
 	go func() {
-		time.Sleep(10 * time.Millisecond)
 		<-tailer.decoder.InputChan()
 		tailer.decoder.Start()
 	}()
