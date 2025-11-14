@@ -1217,6 +1217,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	// Shared library check
+	config.BindEnvAndSetDefault("shared_library_check.enabled", false)
+	config.BindEnvAndSetDefault("shared_library_check.library_folder_path", defaultAdditionalChecksPath)
 }
 
 func agent(config pkgconfigmodel.Setup) {
