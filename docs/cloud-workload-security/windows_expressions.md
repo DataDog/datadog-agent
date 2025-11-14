@@ -1040,6 +1040,24 @@ Network directions are the supported directions of network packets.
 | `INGRESS` | all |
 | `EGRESS` | all |
 
+### `SSHAuthMethod` {#sshauthmethod}
+SSH authentication methods.
+
+| Name | Architectures |
+| ---- |---------------|
+| `password` | all |
+| `public_key` | all |
+| `unknown` | all |
+
+### `UserSessionTypes` {#usersessiontypes}
+UserSessionTypes are the supported user session types.
+
+| Name | Architectures |
+| ---- |---------------|
+| `unknown` | all |
+| `k8s` | all |
+| `ssh` | all |
+
 
 
 {{< partial name="whats-next/whats-next.html" >}}
