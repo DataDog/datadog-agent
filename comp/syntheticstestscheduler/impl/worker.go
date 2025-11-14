@@ -57,13 +57,13 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 			s.log.Info("stopped flush loop")
 			return
 		case flushTime := <-s.tickerC:
-			s.flush(flushTime)
+			s.flush(ctx, flushTime)
 		}
 	}
 }
 
 // flush enqueues tests whose nextRun is due.
-func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
+func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time) {
 	if !s.running {
 		return
 	}
@@ -77,15 +77,31 @@ func (s *syntheticsTestScheduler) flush(flushTime time.Time) {
 			testsToRun = append(testsToRun, rt)
 		}
 	}
+	if len(testsToRun) == 0 {
+		return
+	}
 
+	threshold := int(float64(cap(s.syntheticsTestProcessingChan)) * 0.7)
+	if len(s.syntheticsTestProcessingChan) >= threshold {
+		s.log.Warnf("test queue high usage (≥70%%), increase the number of workers")
+	}
+
+	maxWait := time.Duration(float64(s.flushInterval) / float64(len(testsToRun)) * 0.9)
 	for _, rt := range testsToRun {
 		if !s.running {
 			return
 		}
 		s.log.Debugf("enqueuing test %s", rt.cfg.PublicID)
-		s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
+		select {
+		case s.syntheticsTestProcessingChan <- SyntheticsTestCtx{
 			nextRun: flushTime,
 			cfg:     rt.cfg,
+		}:
+		case <-time.After(maxWait):
+			s.log.Warnf("enqueuing test %s timed out, increase the number of workers", rt.cfg.PublicID)
+		case <-ctx.Done():
+			s.log.Debugf("enqueuing test %s failed because we are stopping the process", rt.cfg.PublicID)
+			return
 		}
 		rt.nextRun = rt.nextRun.Add(time.Duration(rt.cfg.Interval) * time.Second)
 	}
@@ -103,6 +119,8 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
 				return
 			}
+			s.log.Debugf("[worker%d] received, publicID %s", workerID, syntheticsTestCtx.cfg.PublicID)
+
 			tracerouteCfg, err := toNetpathConfig(syntheticsTestCtx.cfg)
 			if err != nil {
 				s.log.Debugf("[worker%d] error interpreting test config: %s", workerID, err)
@@ -126,12 +144,12 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			wResult.finishedAt = s.timeNowFn()
 			wResult.duration = wResult.finishedAt.Sub(wResult.startedAt)
 			if tracerouteErr != nil {
-				s.log.Debugf("[worker%d] error running traceroute: %s", workerID, tracerouteErr)
+				s.log.Debugf("[worker%d] error running traceroute: %s, publicID %s", workerID, tracerouteErr, syntheticsTestCtx.cfg.PublicID)
 				wResult.tracerouteError = tracerouteErr
 				s.statsdClient.Incr(syntheticsMetricPrefix+"traceroute.error", []string{"reason:error_running_datadog_traceroute", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 				_, err := s.sendResult(wResult)
 				if err != nil {
-					s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+					s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
 					s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 				}
 				continue
@@ -148,7 +166,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 
 			status, err := s.sendResult(wResult)
 			if err != nil {
-				s.log.Debugf("[worker%d] error sending result: %s", workerID, err)
+				s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
 				s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
 			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{fmt.Sprintf("status:%s", status), fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
