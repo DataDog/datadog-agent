@@ -501,7 +501,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.True(t, cfg.ReceiverEnabled)
 
-	assert.Equal(t, "full", cfg.APMMode)
+	assert.Equal(t, "", cfg.APMMode)
 }
 
 func TestNoAPMConfig(t *testing.T) {

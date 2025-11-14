@@ -97,4 +97,4 @@ apm_config:
       enabled: true
       max_size: 5555555
 
-  mode: end_user_device
+  mode: edge

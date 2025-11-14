@@ -244,7 +244,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return out
 	})
-	config.BindEnvAndSetDefault("apm_config.mode", "full", "DD_APM_MODE")
+	config.BindEnv("apm_config.mode", "DD_APM_MODE")
 }
 
 func parseKVList(key string) func(string) []string {
