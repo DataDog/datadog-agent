@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// Following rollout ordering from SRE
+var rolloutBucketMapping = map[string]int{
+	"datad0g.com":       1,
+	"ap1.datadoghq.com": 1,
+	"ap2.datadoghq.com": 2,
+	"us3.datadoghq.com": 2,
+	"us5.datadoghq.com": 3,
+	"datadoghq.eu":      4,
+	"datadoghq.com":     5,
+	"ddog-gov.com":      6,
+}
+
+var numRolloutBuckets = 6
 
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
@@ -271,9 +286,9 @@ type RepositoryConfig struct {
 	Images         []ImageInfo `json:"images"`
 }
 
-// ResolvedImage represents a fully resolved image with digest and metadata.
+// ResolvedImage represents a fully resolved image.
 type ResolvedImage struct {
-	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@v3-rollout1"
 }
 
 func newResolvedImage(registry string, repositoryName string, imageInfo ImageInfo) *ResolvedImage {
@@ -282,10 +297,45 @@ func newResolvedImage(registry string, repositoryName string, imageInfo ImageInf
 	}
 }
 
+func newTagBasedImage(registry string, repository string, rolloutTag string) *ResolvedImage {
+	return &ResolvedImage{
+		FullImageRef: registry + "/" + repository + ":" + rolloutTag,
+	}
+}
+
+type tagBasedImageResolver struct {
+	datadoghqRegistries map[string]any
+	datacenter          string
+	rolloutBucket       string
+}
+
+func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
+		log.Debugf("Not a Datadoghq registry, not resolving")
+		return nil, false
+	}
+	normalizedTag := strings.TrimPrefix(tag, "v")
+
+	rolloutBucketTag := normalizedTag + "-rollout" + r.rolloutBucket
+	return newTagBasedImage(registry, repository, rolloutBucketTag), true
+}
+
+func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter string) ImageResolver {
+	rolloutBucket, exists := rolloutBucketMapping[datacenter]
+	if !exists {
+		// Fallback to the last bucket if the datacenter is not found
+		rolloutBucket = numRolloutBuckets
+	}
+	return &tagBasedImageResolver{
+		datadoghqRegistries: datadoghqRegistries,
+		datacenter:          datacenter,
+		rolloutBucket:       strconv.Itoa(rolloutBucket),
+	}
+}
+
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
-
 	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return newNoOpImageResolver()
@@ -294,6 +344,9 @@ func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageRe
 	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 
 	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
+	// TODO: Switch to the tag-based image resolverin the clean up PR
+	// datacenter := cfg.GetString("site")
+	// return newTagBasedImageResolver(datadogRegistriesSet, datacenter)
 }
 
 func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
