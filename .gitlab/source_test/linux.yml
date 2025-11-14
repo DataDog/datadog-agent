@@ -32,6 +32,14 @@
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
+    # TODO: Move this to windows / macos...
+    - |
+      export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
+      export DD_SERVICE=datadog-agent-ci
+      export DD_CIVISIBILITY_ENABLED=true
+      export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+      DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    # TODO: Build with orchestrion
     - dda inv -- -e agent.build
     - dda inv -- -e test $FLAVORS --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
   artifacts:
