@@ -13,6 +13,10 @@ import (
 // InvalidFingerprintValue is the value that is returned when a fingerprint cannot be produced
 const (
 	InvalidFingerprintValue = 0
+	// DefaultLinesCount is the default number of lines to use for fingerprinting when fingerprint_strategy is line_checksum
+	DefaultLinesCount = 1
+	// DefaultBytesCount is the default number of bytes to use for fingerprinting when fingerprint_strategy is byte_checksum
+	DefaultBytesCount = 1024
 )
 
 // Fingerprint struct that stores both the value and config used to derive that value
