@@ -426,9 +426,10 @@ func TestStreamWorkerReceiverFailureRotation(t *testing.T) {
 	stream1.injectRecvError(io.EOF)
 
 	// Wait for rotation to complete (stream changes and state is active again)
-	// Note: Rotation is very fast with mocks, so we just check for the new stream
+	// Recv failure triggers backoff, so advance clock to allow rotation
 	var stream2 *mockLogsStream
 	require.Eventually(t, func() bool {
+		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
 		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Should complete stream rotation with new stream")
@@ -746,8 +747,10 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	fixture.inputChan <- payload
 
 	// Wait for stream rotation (new stream created)
+	// Send failure triggers backoff, so advance clock to allow rotation
 	var stream2 *mockLogsStream
 	require.Eventually(t, func() bool {
+		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
 		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Worker should rotate to new stream after send error")
@@ -777,8 +780,10 @@ func TestStreamWorkerErrorRecovery(t *testing.T) {
 	fixture.inputChan <- payload2
 
 	// Wait for stream rotation (new stream created)
+	// Recv failure triggers backoff, so advance clock to allow rotation
 	var stream3 *mockLogsStream
 	require.Eventually(t, func() bool {
+		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream3 = fixture.mockClient.getCurrentStream()
 		return stream3 != nil && stream3 != stream2 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Worker should rotate to new stream after recv error")
@@ -945,8 +950,10 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 	stream1.injectRecvError(io.EOF)
 
 	// Wait for stream rotation
+	// Recv failure triggers backoff, so advance clock to allow rotation
 	var stream2 *mockLogsStream
 	require.Eventually(t, func() bool {
+		fixture.mockClock.Add(500 * time.Millisecond) // Advance past backoff period
 		stream2 = fixture.mockClient.getCurrentStream()
 		return stream2 != nil && stream2 != stream1 && worker.streamState == active
 	}, testTimeout, testTickInterval, "Stream should rotate after recv failure")
