@@ -112,48 +112,6 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 	return pattern, PatternNew
 }
 
-// GetCluster retrieves the cluster with the given signature.
-func (cm *ClusterManager) GetCluster(signature token.Signature) *Cluster {
-	hash := signature.Hash
-
-	cm.mu.RLock()
-	defer cm.mu.RUnlock()
-
-	clusters, exists := cm.hashBuckets[hash]
-	if !exists {
-		return nil
-	}
-
-	for _, cluster := range clusters {
-		if cluster.Signature.Equals(signature) {
-			return cluster
-		}
-	}
-
-	return nil
-}
-
-// GetAllPatterns returns all patterns across all clusters.
-// This is useful for re-sending pattern state after stream hard rotation or shutdown.
-// Patterns are returned in no particular order since we are resending all patterns.
-// Quite expensive for now, might need to be optimized later.
-func (cm *ClusterManager) GetAllPatterns() []*Pattern {
-	var allPatterns []*Pattern
-
-	cm.mu.RLock()
-	defer cm.mu.RUnlock()
-
-	// Iterate through all clusters in all hash buckets
-	for _, clusters := range cm.hashBuckets {
-		for _, cluster := range clusters {
-			// Collect all patterns from this cluster
-			allPatterns = append(allPatterns, cluster.Patterns...)
-		}
-	}
-
-	return allPatterns
-}
-
 // Clear removes all clusters.
 func (cm *ClusterManager) Clear() {
 	cm.mu.Lock()

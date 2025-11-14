@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
@@ -25,7 +26,7 @@ func TestCluster_NewCluster(t *testing.T) {
 
 	cluster := NewCluster(signature, tokenList)
 
-	assert.Equal(t, 0, cluster.Size(), "Expected cluster size 0 initially")
+	assert.Equal(t, 0, clusterSize(cluster), "Expected cluster size 0 initially")
 	assert.True(t, cluster.Signature.Equals(signature), "Cluster signature doesn't match expected signature")
 	assert.Empty(t, cluster.Patterns, "Patterns should be empty initially (computed lazily)")
 }
@@ -43,7 +44,7 @@ func TestCluster_AddTokenListToPatterns(t *testing.T) {
 	cluster := NewCluster(signature1, tokenList1)
 	cluster.AddTokenListToPatterns(tokenList1)
 
-	assert.Equal(t, 1, cluster.Size(), "Expected initial cluster size 1")
+	assert.Equal(t, 1, clusterSize(cluster), "Expected initial cluster size 1")
 
 	// Create second TokenList with same signature but different values
 	tokens2 := []token.Token{
@@ -56,7 +57,7 @@ func TestCluster_AddTokenListToPatterns(t *testing.T) {
 	// Add tokenList with matching signature
 	cluster.AddTokenListToPatterns(tokenList2)
 
-	assert.Equal(t, 2, cluster.Size(), "Expected cluster size 2 after adding")
+	assert.Equal(t, 2, clusterSize(cluster), "Expected cluster size 2 after adding")
 	assert.NotEmpty(t, cluster.Patterns, "Expected patterns to exist after adding TokenLists")
 }
 
@@ -76,12 +77,12 @@ func TestCluster_SinglePattern_SingleLog(t *testing.T) {
 	// Should have exactly one pattern (which is also the primary)
 	assert.Equal(t, 1, len(cluster.Patterns), "Should have exactly one pattern")
 
-	mostCommon := cluster.GetMostCommonPattern()
+	mostCommon := getMostCommonPattern(cluster)
 	assert.NotNil(t, mostCommon, "Most common pattern should not be nil")
 
 	pattern := mostCommon.Template
 	assert.NotNil(t, pattern, "Pattern template should not be nil")
-	assert.False(t, cluster.HasWildcards(), "Single log should not have wildcards")
+	assert.False(t, hasWildcards(cluster), "Single log should not have wildcards")
 	assert.Equal(t, tokenList.Length(), pattern.Length(), "Pattern length should match original TokenList")
 
 	for i, tok := range pattern.Tokens {
@@ -184,9 +185,9 @@ func TestCluster_FindMatchingPattern(t *testing.T) {
 	// Should return different patterns
 	assert.NotEqual(t, pattern1, pattern2, "Should create different patterns for different whitespace")
 
-	// FindMatchingPattern should return the correct pattern for each token list
-	found1 := cluster.FindMatchingPattern(tokenList1)
-	found2 := cluster.FindMatchingPattern(tokenList2)
+	// findMatchingPattern should return the correct pattern for each token list
+	found1 := findMatchingPattern(cluster, tokenList1)
+	found2 := findMatchingPattern(cluster, tokenList2)
 
 	assert.Equal(t, pattern1, found1, "Should find the first pattern for tokenList1")
 	assert.Equal(t, pattern2, found2, "Should find the second pattern for tokenList2")
@@ -222,7 +223,7 @@ func TestCluster_GetMostCommonPattern(t *testing.T) {
 	tokenList2 := token.NewTokenListWithTokens(tokens2)
 	cluster.AddTokenListToPatterns(tokenList2)
 
-	mostCommon := cluster.GetMostCommonPattern()
+	mostCommon := getMostCommonPattern(cluster)
 	assert.NotNil(t, mostCommon, "Most common pattern should not be nil")
 	assert.Equal(t, 3, mostCommon.LogCount, "Most common pattern should have 3 logs")
 }
@@ -257,7 +258,7 @@ func TestCluster_GetAllPatterns(t *testing.T) {
 	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens2))
 	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens3))
 
-	allPatterns := cluster.GetAllPatterns()
+	allPatterns := cluster.Patterns
 	assert.Len(t, allPatterns, 3, "Expected 3 patterns")
 }
 
@@ -291,7 +292,7 @@ func TestCluster_ExtractWildcardValues_MultiPattern(t *testing.T) {
 
 	// Both should merge into same pattern
 	// Extract wildcard values from tokenList2
-	values := cluster.ExtractWildcardValues(tokenList2)
+	values := extractWildcardValues(cluster, tokenList2)
 
 	// Should have one wildcard value for the last word token
 	assert.Len(t, values, 1, "Expected 1 wildcard value")
@@ -330,7 +331,7 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 	}
 
 	// Total size should be 5 (2 + 3)
-	assert.Equal(t, 5, cluster.Size(), "Expected cluster size 5 (2 + 3)")
+	assert.Equal(t, 5, clusterSize(cluster), "Expected cluster size 5 (2 + 3)")
 }
 
 func TestCluster_BackwardCompatibility(t *testing.T) {
@@ -357,14 +358,99 @@ func TestCluster_BackwardCompatibility(t *testing.T) {
 	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens1))
 	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens2))
 
-	patternString := cluster.GetPatternString()
-	assert.NotEmpty(t, patternString, "GetPatternString should return a valid pattern string")
+	patternString := getPatternString(cluster)
+	assert.NotEmpty(t, patternString, "getPatternString should return a valid pattern string")
 
-	hasWildcards := cluster.HasWildcards()
-	assert.True(t, hasWildcards, "Should have wildcards")
+	wildcards := hasWildcards(cluster)
+	assert.True(t, wildcards, "Should have wildcards")
 
-	wildcardPositions := cluster.GetWildcardPositions()
+	wildcardPositions := getWildcardPositions(cluster)
 	assert.NotEmpty(t, wildcardPositions, "Should have wildcard positions")
 
 	t.Logf("✅ Backward compatibility: pattern='%s', wildcards=%v", patternString, wildcardPositions)
+}
+
+// =============================================================================
+// Test Helper Functions
+// =============================================================================
+
+// getMostCommonPattern returns the pattern with the highest log count in the cluster.
+func getMostCommonPattern(c *Cluster) *Pattern {
+	if len(c.Patterns) == 0 {
+		return nil
+	}
+
+	mostCommonIdx := 0
+	maxLogCount := c.Patterns[0].LogCount
+	for idx, p := range c.Patterns {
+		if p.LogCount > maxLogCount {
+			maxLogCount = p.LogCount
+			mostCommonIdx = idx
+		}
+	}
+	return c.Patterns[mostCommonIdx]
+}
+
+// getPatternString returns a string representation of the most common pattern.
+func getPatternString(c *Cluster) string {
+	mostCommon := getMostCommonPattern(c)
+	if mostCommon == nil {
+		return ""
+	}
+	return mostCommon.GetPatternString()
+}
+
+// getWildcardPositions returns wildcard token positions for the most common pattern.
+func getWildcardPositions(c *Cluster) []int {
+	mostCommon := getMostCommonPattern(c)
+	if mostCommon == nil {
+		return nil
+	}
+	return mostCommon.Positions
+}
+
+// hasWildcards returns true if any pattern in this cluster contains wildcard positions.
+func hasWildcards(c *Cluster) bool {
+	for _, p := range c.Patterns {
+		if len(p.Positions) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// extractWildcardValues extracts wildcard values from a TokenList using the matching pattern.
+func extractWildcardValues(c *Cluster, tokenList *token.TokenList) []string {
+	p := findMatchingPattern(c, tokenList)
+	if p == nil {
+		return []string{}
+	}
+	return p.GetWildcardValues(tokenList)
+}
+
+// findMatchingPattern finds the Pattern that matches the given TokenList.
+func findMatchingPattern(c *Cluster, tokenList *token.TokenList) *Pattern {
+	if len(c.Patterns) == 0 {
+		return nil
+	}
+
+	// Try to find a Pattern where the TokenList can merge
+	for _, p := range c.Patterns {
+		// Check if this TokenList can merge with the pattern's sample
+		if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+			return p
+		}
+	}
+
+	// No matching pattern found
+	return nil
+}
+
+// clusterSize returns the total number of logs across all patterns in the cluster.
+func clusterSize(c *Cluster) int {
+	total := 0
+	for _, p := range c.Patterns {
+		total += p.LogCount
+	}
+	return total
 }

@@ -14,6 +14,35 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
+// Test-only helper functions
+
+// getWildcardCharPositions returns character indices where wildcards appear in the pattern string.
+func getWildcardCharPositions(p *Pattern) []int {
+	if p.Template == nil {
+		return nil
+	}
+
+	var charPositions []int
+	currentPos := 0
+
+	for _, tok := range p.Template.Tokens {
+		// Clean the token value for proper length calculation
+		cleaned := sanitizeForTemplate(tok.Value)
+
+		if tok.Wildcard == token.IsWildcard {
+			// Record the current character position for this wildcard
+			charPositions = append(charPositions, currentPos)
+			// Wildcard is represented as "*" (1 character)
+			currentPos += 1
+		} else if cleaned != "" {
+			// Add the length of the cleaned token value
+			currentPos += len(cleaned)
+		}
+	}
+
+	return charPositions
+}
+
 func TestNewPattern(t *testing.T) {
 	// Create a simple token list
 	tl := token.NewTokenList()
@@ -76,7 +105,7 @@ func TestGetPatternString_NoWildcards(t *testing.T) {
 	tl.Add(token.NewToken(token.TokenWord, "started", token.PotentialWildcard))
 
 	pattern := newPattern(tl, 12345)
-	result := pattern.getPatternString()
+	result := pattern.GetPatternString()
 
 	assert.Equal(t, "Service started", result)
 }
@@ -89,7 +118,7 @@ func TestGetPatternString_WithWildcards(t *testing.T) {
 
 	pattern := newPattern(tl, 12345)
 	pattern.Positions = []int{2}
-	result := pattern.getPatternString()
+	result := pattern.GetPatternString()
 
 	assert.Equal(t, "Service *", result)
 }
@@ -98,7 +127,7 @@ func TestGetPatternString_NilTemplate(t *testing.T) {
 	pattern := &Pattern{
 		Template: nil,
 	}
-	result := pattern.getPatternString()
+	result := pattern.GetPatternString()
 
 	assert.Equal(t, "", result)
 }
@@ -124,8 +153,7 @@ func TestGetWildcardPositions(t *testing.T) {
 	pattern := newPattern(tl, 12345)
 	pattern.Positions = []int{1, 3, 5}
 
-	positions := pattern.getWildcardPositions()
-	assert.Equal(t, []int{1, 3, 5}, positions)
+	assert.Equal(t, []int{1, 3, 5}, pattern.Positions)
 }
 
 // getParamCount returns the number of parameters/wildcards in a pattern.
@@ -157,7 +185,7 @@ func TestGetWildcardCharPositions(t *testing.T) {
 	pattern := newPattern(tl, 12345)
 	pattern.Positions = []int{2}
 
-	charPositions := pattern.getWildcardCharPositions()
+	charPositions := getWildcardCharPositions(pattern)
 	// "Service" (7 chars) + " " (1 char) = 8, wildcard at position 8
 	assert.Equal(t, []int{8}, charPositions)
 }
@@ -176,7 +204,7 @@ func TestGetWildcardCharPositions_MultipleWildcards(t *testing.T) {
 	pattern := newPattern(tl, 12345)
 	pattern.Positions = []int{2, 6}
 
-	charPositions := pattern.getWildcardCharPositions()
+	charPositions := getWildcardCharPositions(pattern)
 	// "Error " = 6 chars, wildcard at position 6
 	// "Error * in " = 6 + 1 (wildcard) + 4 (" in ") = 11, wildcard at position 11
 	assert.Equal(t, []int{6, 11}, charPositions)
@@ -187,7 +215,7 @@ func TestGetWildcardCharPositions_NilTemplate(t *testing.T) {
 		Template: nil,
 	}
 
-	charPositions := pattern.getWildcardCharPositions()
+	charPositions := getWildcardCharPositions(pattern)
 	assert.Nil(t, charPositions)
 }
 
@@ -208,7 +236,7 @@ func TestGetWildcardValues(t *testing.T) {
 	pattern.Template = tl
 	pattern.Positions = []int{2}
 
-	values := pattern.getWildcardValues()
+	values := pattern.GetWildcardValues(sample)
 	assert.Equal(t, []string{"started"}, values)
 }
 
@@ -219,8 +247,8 @@ func TestGetWildcardValues_NilTemplate(t *testing.T) {
 	pattern := newPattern(sample, 12345)
 	pattern.Template = nil
 
-	values := pattern.getWildcardValues()
-	assert.Nil(t, values)
+	values := pattern.GetWildcardValues(sample)
+	assert.Empty(t, values)
 }
 
 func TestGetWildcardValues_NilSample(t *testing.T) {
@@ -231,8 +259,9 @@ func TestGetWildcardValues_NilSample(t *testing.T) {
 	pattern.Sample = nil
 	pattern.Positions = []int{0}
 
-	values := pattern.getWildcardValues()
-	assert.Nil(t, values)
+	// Test with the template itself since sample is nil
+	values := pattern.GetWildcardValues(tl)
+	assert.Equal(t, []string{"Test"}, values)
 }
 
 func TestExtractWildcardValues(t *testing.T) {
@@ -252,7 +281,7 @@ func TestExtractWildcardValues(t *testing.T) {
 	incoming.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
 	incoming.Add(token.NewToken(token.TokenWord, "crashed", token.PotentialWildcard))
 
-	values := pattern.extractWildcardValues(incoming)
+	values := pattern.GetWildcardValues(incoming)
 	assert.Equal(t, []string{"crashed"}, values)
 }
 
@@ -285,7 +314,7 @@ func TestExtractWildcardValues_MultipleWildcards(t *testing.T) {
 	incoming.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
 	incoming.Add(token.NewToken(token.TokenWord, "line", token.PotentialWildcard))
 
-	values := pattern.extractWildcardValues(incoming)
+	values := pattern.GetWildcardValues(incoming)
 	assert.Equal(t, []string{"Error", "module", "line"}, values)
 }
 
@@ -298,7 +327,7 @@ func TestExtractWildcardValues_NilTemplate(t *testing.T) {
 	incoming := token.NewTokenList()
 	incoming.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
 
-	values := pattern.extractWildcardValues(incoming)
+	values := pattern.GetWildcardValues(incoming)
 	assert.Equal(t, []string{}, values)
 }
 
@@ -312,7 +341,7 @@ func TestExtractWildcardValues_NoPositions(t *testing.T) {
 	incoming := token.NewTokenList()
 	incoming.Add(token.NewToken(token.TokenWord, "Test", token.NotWildcard))
 
-	values := pattern.extractWildcardValues(incoming)
+	values := pattern.GetWildcardValues(incoming)
 	assert.Equal(t, []string{}, values)
 }
 
@@ -326,7 +355,7 @@ func TestExtractWildcardValues_PositionOutOfBounds(t *testing.T) {
 	incoming := token.NewTokenList()
 	incoming.Add(token.NewToken(token.TokenWord, "Value", token.PotentialWildcard))
 
-	values := pattern.extractWildcardValues(incoming)
+	values := pattern.GetWildcardValues(incoming)
 	assert.Equal(t, []string{"Value"}, values, "Should only extract valid positions")
 }
 
@@ -337,8 +366,9 @@ func TestMarkAsSent(t *testing.T) {
 	pattern := newPattern(tl, 12345)
 	assert.True(t, pattern.LastSentAt.IsZero(), "LastSentAt should be zero initially")
 
-	pattern.markAsSent()
+	pattern.MarkAsSent()
 	assert.False(t, pattern.LastSentAt.IsZero(), "LastSentAt should be set after marking")
+	assert.Equal(t, "Test", pattern.SentTemplate, "SentTemplate should be set")
 }
 
 func TestNeedsSending_NeverSent(t *testing.T) {
@@ -346,7 +376,9 @@ func TestNeedsSending_NeverSent(t *testing.T) {
 	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
 
 	pattern := newPattern(tl, 12345)
-	assert.True(t, pattern.needsSending(), "Should need sending if never sent")
+	needsSend, templateState := pattern.NeedsResend()
+	assert.True(t, needsSend, "Should need sending if never sent")
+	assert.Equal(t, TemplateIsNew, templateState, "Should be TemplateIsNew for first send")
 }
 
 func TestNeedsSending_AlreadySent_NotUpdated(t *testing.T) {
@@ -355,9 +387,11 @@ func TestNeedsSending_AlreadySent_NotUpdated(t *testing.T) {
 
 	pattern := newPattern(tl, 12345)
 	time.Sleep(1 * time.Millisecond)
-	pattern.markAsSent()
+	pattern.MarkAsSent()
 
-	assert.False(t, pattern.needsSending(), "Should not need sending if sent and not updated")
+	needsSend, templateState := pattern.NeedsResend()
+	assert.False(t, needsSend, "Should not need sending if sent and not updated")
+	assert.Equal(t, TemplateNotNeeded, templateState, "Should be TemplateNotNeeded")
 }
 
 func TestNeedsSending_UpdatedAfterSent(t *testing.T) {
@@ -365,13 +399,19 @@ func TestNeedsSending_UpdatedAfterSent(t *testing.T) {
 	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
 
 	pattern := newPattern(tl, 12345)
-	pattern.markAsSent()
+	pattern.MarkAsSent()
 
-	// Update pattern
+	// Update pattern template (not just timestamp)
 	time.Sleep(1 * time.Millisecond)
+	template := token.NewTokenList()
+	template.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
+	pattern.Template = template
+	pattern.Positions = []int{0}
 	pattern.UpdatedAt = time.Now()
 
-	assert.True(t, pattern.needsSending(), "Should need sending if updated after last sent")
+	needsSend, templateState := pattern.NeedsResend()
+	assert.True(t, needsSend, "Should need sending if template changed after last sent")
+	assert.Equal(t, TemplateChanged, templateState, "Should be TemplateChanged for template change")
 }
 
 func TestSanitizeForTemplate_PrintableChars(t *testing.T) {
@@ -431,7 +471,7 @@ func TestPattern_IntegrationScenario(t *testing.T) {
 
 	assert.Equal(t, 1, pattern.LogCount)
 	assert.False(t, pattern.hasWildcards())
-	assert.Equal(t, "ERROR: Database connection failed", pattern.getPatternString())
+	assert.Equal(t, "ERROR: Database connection failed", pattern.GetPatternString())
 
 	// 2. Pattern updated with wildcards (simulated)
 	template := token.NewTokenList()
@@ -452,7 +492,7 @@ func TestPattern_IntegrationScenario(t *testing.T) {
 	assert.Equal(t, 2, pattern.LogCount)
 	assert.True(t, pattern.hasWildcards())
 	assert.Equal(t, 3, getParamCount(pattern))
-	assert.Equal(t, "ERROR: * * *", pattern.getPatternString())
+	assert.Equal(t, "ERROR: * * *", pattern.GetPatternString())
 
 	// 3. Extract wildcard values from new log
 	log2 := token.NewTokenList()
@@ -465,17 +505,32 @@ func TestPattern_IntegrationScenario(t *testing.T) {
 	log2.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
 	log2.Add(token.NewToken(token.TokenWord, "reached", token.PotentialWildcard))
 
-	values := pattern.extractWildcardValues(log2)
+	values := pattern.GetWildcardValues(log2)
 	assert.Equal(t, []string{"Network", "timeout", "reached"}, values)
 
 	// 4. Check sending status
-	assert.True(t, pattern.needsSending())
-	pattern.markAsSent()
-	assert.False(t, pattern.needsSending())
+	needsSend, templateState := pattern.NeedsResend()
+	assert.True(t, needsSend)
+	assert.Equal(t, TemplateIsNew, templateState)
+	pattern.MarkAsSent()
+	needsSend, templateState = pattern.NeedsResend()
+	assert.False(t, needsSend)
+	assert.Equal(t, TemplateNotNeeded, templateState)
 
-	// 5. Update and check needs sending again
+	// 5. Update pattern (change template, not just log count)
 	time.Sleep(1 * time.Millisecond)
+	// Evolve template to add more wildcards
+	template2 := token.NewTokenList()
+	template2.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
+	template2.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
+	template2.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
+	template2.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
+	template2.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
+	pattern.Template = template2
+	pattern.Positions = []int{0, 2, 4}
 	pattern.LogCount++
 	pattern.UpdatedAt = time.Now()
-	assert.True(t, pattern.needsSending())
+	needsSend, templateState = pattern.NeedsResend()
+	assert.True(t, needsSend)
+	assert.Equal(t, TemplateChanged, templateState)
 }

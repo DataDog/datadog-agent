@@ -93,14 +93,13 @@ func (c *Cluster) regeneratePattern(p *Pattern, newTokenList *token.TokenList) {
 	// Incremental merge: merge new log with existing template
 	merged := merging.MergeTokenLists(p.Template, newTokenList)
 	if merged == nil {
-		// Merge failed (shouldn't happen since CanMergeTokenLists passed), keep current template
 		return
 	}
 
 	p.Template = merged
 	p.Positions = make([]int, 0, merged.Length())
 
-	// Build wildcard positions list
+	// Build wildcard positions list when 2 tokenlists are mergable.
 	for i := 0; i < merged.Length(); i++ {
 		tok := merged.Tokens[i]
 		if tok.Wildcard == token.IsWildcard {
@@ -116,163 +115,6 @@ func (c *Cluster) regeneratePattern(p *Pattern, newTokenList *token.TokenList) {
 
 	p.UpdatedAt = time.Now()
 }
-
-// =============================================================================
-// Pattern Access Methods
-// =============================================================================
-
-// FindMatchingPattern finds the Pattern that matches the given TokenList.
-// Returns the matching Pattern, or nil if no match found.
-func (c *Cluster) FindMatchingPattern(tokenList *token.TokenList) *Pattern {
-	// Ensure patterns are generated
-	if len(c.Patterns) == 0 {
-		return nil
-	}
-
-	// Try to find a Pattern where the TokenList can merge
-	for _, p := range c.Patterns {
-		// Check if this TokenList can merge with the pattern's sample
-		if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
-			return p
-		}
-	}
-
-	// Fallback: return most common pattern (largest group)
-	return c.GetMostCommonPattern()
-}
-
-// GetPatternString returns a string representation of the most common pattern.
-// For backward compatibility.
-func (c *Cluster) GetPatternString() string {
-	primary := c.GetMostCommonPattern()
-	if primary == nil {
-		return ""
-	}
-	return primary.getPatternString()
-}
-
-// GetMostCommonPattern returns the pattern with the highest log count in this cluster.
-// When a cluster contains multiple patterns (due to structural differences like special characters),
-// this returns the most frequently occurring pattern, which is typically the most representative.
-func (c *Cluster) GetMostCommonPattern() *Pattern {
-	if len(c.Patterns) == 0 {
-		return nil
-	}
-
-	mostCommonIdx := 0
-	maxLogCount := c.Patterns[0].LogCount
-	for idx, p := range c.Patterns {
-		if p.LogCount > maxLogCount {
-			maxLogCount = p.LogCount
-			mostCommonIdx = idx
-		}
-	}
-	return c.Patterns[mostCommonIdx]
-}
-
-// GetAllPatterns returns all Patterns in this cluster.
-func (c *Cluster) GetAllPatterns() []*Pattern {
-	return c.Patterns
-}
-
-// GetPatternID returns the pattern ID for the most common pattern.
-// For backward compatibility.
-func (c *Cluster) GetPatternID() uint64 {
-	primary := c.GetMostCommonPattern()
-	if primary == nil {
-		return 0
-	}
-	return primary.PatternID
-}
-
-// =============================================================================
-// Wildcard Methods
-// =============================================================================
-
-// HasWildcards returns true if any pattern in this cluster contains wildcard positions.
-func (c *Cluster) HasWildcards() bool {
-	for _, p := range c.Patterns {
-		if p.hasWildcards() {
-			return true
-		}
-	}
-	return false
-}
-
-// GetWildcardPositions returns wildcard token positions for the most common pattern.
-// For backward compatibility.
-func (c *Cluster) GetWildcardPositions() []int {
-	primary := c.GetMostCommonPattern()
-	if primary == nil {
-		return nil
-	}
-	return primary.getWildcardPositions()
-}
-
-// GetWildcardCharPositions returns character positions where wildcards appear in the most common pattern string.
-// For backward compatibility.
-func (c *Cluster) GetWildcardCharPositions() []int {
-	primary := c.GetMostCommonPattern()
-	if primary == nil {
-		return nil
-	}
-	return primary.getWildcardCharPositions()
-}
-
-// GetWildcardValues extracts the actual values from the most recent token list in the most common pattern.
-// For backward compatibility.
-func (c *Cluster) GetWildcardValues() []string {
-	primary := c.GetMostCommonPattern()
-	if primary == nil {
-		return nil
-	}
-	return primary.getWildcardValues()
-}
-
-// ExtractWildcardValues extracts the wildcard values from a specific TokenList.
-// Uses the matching Pattern to determine wildcard positions.
-func (c *Cluster) ExtractWildcardValues(tokenList *token.TokenList) []string {
-	// Find the matching pattern for this TokenList
-	p := c.FindMatchingPattern(tokenList)
-	if p == nil {
-		return []string{}
-	}
-	return p.extractWildcardValues(tokenList)
-}
-
-// =============================================================================
-// State Management & Metadata
-// =============================================================================
-
-// Size returns the total number of TokenLists across all patterns in this cluster.
-func (c *Cluster) Size() int {
-	total := 0
-	for _, p := range c.Patterns {
-		total += p.size()
-	}
-	return total
-}
-
-// MarkAsSent updates the LastSentAt timestamp for all patterns.
-func (c *Cluster) MarkAsSent() {
-	for _, p := range c.Patterns {
-		p.markAsSent()
-	}
-}
-
-// NeedsSending returns true if any pattern has never been sent or has been updated since last sent.
-func (c *Cluster) NeedsSending() bool {
-	for _, p := range c.Patterns {
-		if p.needsSending() {
-			return true
-		}
-	}
-	return false
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
 
 // getPathPattern converts a path to hierarchical wildcard pattern
 func getPathPattern(path string) string {
