@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -29,6 +30,37 @@ import (
 )
 
 const matchAllPackages = "*"
+
+// testsuiteError wraps an exec.ExitError from a testsuite to preserve its exit code
+type testsuiteError struct {
+	exitErr  *exec.ExitError
+	exitCode int // custom exit code extracted from test output
+}
+
+func (e *testsuiteError) Error() string {
+	return e.exitErr.Error()
+}
+
+func (e *testsuiteError) Unwrap() error {
+	return e.exitErr
+}
+
+// readExitCodeFromFile reads the exit code from the specified file
+// Returns -1 if the file doesn't exist or can't be read
+func readExitCodeFromFile(path string) int {
+	fmt.Printf("Reading exit code from file: %s\n", path)
+	if path == "" {
+		return -1
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
+		return -1
+	}
+	code := -1
+	fmt.Sscanf(string(data), "%d", &code)
+	return code
+}
 
 func init() {
 	color.NoColor = false
@@ -126,7 +158,7 @@ func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, e
 	return matches, nil
 }
 
-func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []string, testConfig *testConfig) []string {
+func buildCommandArgs(pkg string, xmlpath string, jsonpath string, exitCodeFile string, testArgs []string, testConfig *testConfig) []string {
 	verbosity := "testname"
 	if testConfig.verbose {
 		verbosity = "standard-verbose"
@@ -149,6 +181,11 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, testArgs []st
 		fmt.Sprintf("-test.count=%d", testConfig.runCount),
 		"-test.timeout="+getTimeout(pkg).String(),
 	)
+
+	// Pass exit code file to the testsuite
+	if exitCodeFile != "" {
+		args = append(args, "-exit-code-file", exitCodeFile)
+	}
 
 	if testConfig.extraParams != "" {
 		args = append(args, strings.Split(testConfig.extraParams, " ")...)
@@ -267,6 +304,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 	}
 
+	var firstTestError error
 	for _, testsuite := range testsuites {
 		pkg, err := filepath.Rel(testConfig.testDirRoot, filepath.Dir(testsuite))
 		if err != nil {
@@ -276,23 +314,45 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
 		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
 
+		// Only pass exit code file for security-agent functional tests (pkg/security/tests)
+		exitCodeFile := ""
+		if pkg == "pkg/security" || strings.HasPrefix(pkg, "pkg/security/tests") {
+			exitCodeFile = filepath.Join(jsonDir, fmt.Sprintf("%s.exitcode", junitfilePrefix))
+		}
+
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {
 			testsuiteArgs = testContainer.buildDockerExecArgs(testsuite, envVars)
 		}
 
-		args := buildCommandArgs(pkg, xmlpath, jsonpath, testsuiteArgs, testConfig)
+		args := buildCommandArgs(pkg, xmlpath, jsonpath, exitCodeFile, testsuiteArgs, testConfig)
 		cmd := exec.Command(filepath.Join(testConfig.testingTools, "go/bin/gotestsum"), args...)
 
 		cmd.Env = append(cmd.Environ(), envVars...)
 
 		cmd.Dir = filepath.Dir(testsuite)
+
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", testsuite, err)
+			// log error and capture the first one to preserve exit code
+			fmt.Fprintf(os.Stderr, "\n>>> cmd run %s: %s\n", testsuite, err)
+			if firstTestError == nil {
+				// Read exit code from file (written by testsuite)
+				fmt.Printf("exitCodeFile: %s\n", exitCodeFile)
+				exitCode := readExitCodeFromFile(exitCodeFile)
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) {
+					// Use exit code from file if found, otherwise use the one from exitErr
+					if exitCode == -1 {
+						exitCode = exitErr.ExitCode()
+					}
+					firstTestError = &testsuiteError{exitErr: exitErr, exitCode: exitCode}
+				} else {
+					firstTestError = fmt.Errorf("testsuite %s failed: %w", testsuite, err)
+				}
+			}
 		}
 
 		if err := addProperties(xmlpath, props); err != nil {
@@ -303,7 +363,9 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	if err := concatenateJsons(jsonDir, jsonOutDir); err != nil {
 		return fmt.Errorf("concat json: %s", err)
 	}
-	return nil
+
+	// Return the first test error to preserve the exit code
+	return firstTestError
 }
 
 func getRealPath(dir string) (string, error) {
@@ -469,6 +531,13 @@ func run() error {
 
 func main() {
 	if err := run(); err != nil {
+		// Preserve the original exit code from testsuite errors (e.g., exit code 44)
+		// For other errors, use exit code 1
+		var tsErr *testsuiteError
+		if errors.As(err, &tsErr) {
+			os.Exit(tsErr.exitCode)
+		}
+		// Not a testsuite error
 		fmt.Fprintf(os.Stderr, "%s\n", color.RedString(err.Error()))
 		os.Exit(1)
 	}
