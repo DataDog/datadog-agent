@@ -191,10 +191,14 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                     print(color_message(error_message, "red"))
                     raise StaticQualityGateError(error_message)
                 else:
-                    print(color_message(f"Gate {gate.config.gate_name} failed but is a soft gate. Skipping...", "orange"))
+                    print(
+                        color_message(f"Gate {gate.config.gate_name} failed but is a soft gate. Skipping...", "orange")
+                    )
                     error_type = "SoftQualityGateFailed"
                     error_message = f"Gate {gate.config.gate_name} failed but is a soft gate. Skipping..."
-            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": error_type, "message": error_message})
+            gate_states.append(
+                {"name": result.config.gate_name, "state": True, "error_type": error_type, "message": error_message}
+            )
         except StaticQualityGateError as e:
             final_state = "failure"
             gate_states.append(

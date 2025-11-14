@@ -929,7 +929,7 @@ class TestOnDiskImageSizeCalculation(unittest.TestCase):
 
 class TestSoftGatesFunctionality(unittest.TestCase):
     """Test suite for soft quality gates functionality.
-    
+
     Soft gates are gates that can fail without causing the entire pipeline to fail.
     They are reported as failures but don't raise exceptions, allowing the build to continue.
     """
@@ -966,9 +966,7 @@ class TestSoftGatesFunctionality(unittest.TestCase):
         # Mock a soft gate (iot_agent_deb_amd64) that exceeds limits
         # Return sizes that exceed the limits (150MB wire, 150MB disk vs 100MB/100MB limits)
         mock_measure.return_value = ArtifactMeasurement(
-            "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb",
-            150 * 1024 * 1024,
-            150 * 1024 * 1024
+            "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
         )
 
         # Create a test config with just a soft gate
@@ -980,7 +978,7 @@ static_quality_gate_iot_agent_deb_amd64:
         with patch('builtins.open', mock_open(read_data=test_config)):
             # Should not raise an exception
             gates = parse_and_trigger_gates(ctx, "test_config.yml")
-            
+
         # Verify the gate was executed
         self.assertEqual(len(gates), 1)
         mock_send_metrics.assert_called_once()
@@ -1016,9 +1014,7 @@ static_quality_gate_iot_agent_deb_amd64:
         # Mock a hard gate (agent_deb_amd64) that exceeds limits
         # Return sizes that exceed the limits
         mock_measure.return_value = ArtifactMeasurement(
-            "/test/packages/datadog-agent_7.0.0-1_amd64.deb",
-            150 * 1024 * 1024,
-            150 * 1024 * 1024
+            "/test/packages/datadog-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
         )
 
         # Create a test config with just a hard gate
@@ -1064,8 +1060,12 @@ static_quality_gate_agent_deb_amd64:
         # Mock different return values for different gates
         # Soft gate exceeds limits, hard gate is within limits
         mock_measure.side_effect = [
-            ArtifactMeasurement("/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024),  # soft gate exceeds
-            ArtifactMeasurement("/test/packages/datadog-agent_7.0.0-1_amd64.deb", 50 * 1024 * 1024, 50 * 1024 * 1024),    # hard gate passes
+            ArtifactMeasurement(
+                "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+            ),  # soft gate exceeds
+            ArtifactMeasurement(
+                "/test/packages/datadog-agent_7.0.0-1_amd64.deb", 50 * 1024 * 1024, 50 * 1024 * 1024
+            ),  # hard gate passes
         ]
 
         test_config = """
@@ -1079,7 +1079,7 @@ static_quality_gate_agent_deb_amd64:
         with patch('builtins.open', mock_open(read_data=test_config)):
             # Should not raise an exception despite soft gate failure
             gates = parse_and_trigger_gates(ctx, "test_config.yml")
-            
+
         self.assertEqual(len(gates), 2)
         mock_send_metrics.assert_called_once()
 
@@ -1113,8 +1113,12 @@ static_quality_gate_agent_deb_amd64:
 
         # Both gates exceed limits
         mock_measure.side_effect = [
-            ArtifactMeasurement("/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024),  # soft gate exceeds
-            ArtifactMeasurement("/test/packages/datadog-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024),  # hard gate exceeds
+            ArtifactMeasurement(
+                "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+            ),  # soft gate exceeds
+            ArtifactMeasurement(
+                "/test/packages/datadog-agent_7.0.0-1_amd64.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
+            ),  # hard gate exceeds
         ]
 
         test_config = """
@@ -1162,9 +1166,7 @@ static_quality_gate_agent_deb_amd64:
         # Mock a soft gate that passes
         # Return sizes within limits
         mock_measure.return_value = ArtifactMeasurement(
-            "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb",
-            50 * 1024 * 1024,
-            50 * 1024 * 1024
+            "/test/packages/datadog-iot-agent_7.0.0-1_amd64.deb", 50 * 1024 * 1024, 50 * 1024 * 1024
         )
 
         test_config = """
@@ -1174,7 +1176,7 @@ static_quality_gate_iot_agent_deb_amd64:
 """
         with patch('builtins.open', mock_open(read_data=test_config)):
             gates = parse_and_trigger_gates(ctx, "test_config.yml")
-            
+
         self.assertEqual(len(gates), 1)
         mock_send_metrics.assert_called_once()
 
@@ -1209,9 +1211,7 @@ static_quality_gate_iot_agent_deb_amd64:
 
         # Mock Docker image measurement that exceeds limits
         mock_measure.return_value = ArtifactMeasurement(
-            "registry.ddbuild.io/ci/datadog-agent/dogstatsd:test",
-            150 * 1024 * 1024,
-            150 * 1024 * 1024
+            "registry.ddbuild.io/ci/datadog-agent/dogstatsd:test", 150 * 1024 * 1024, 150 * 1024 * 1024
         )
 
         test_config = """
@@ -1222,7 +1222,7 @@ static_quality_gate_docker_dogstatsd_arm64:
         with patch('builtins.open', mock_open(read_data=test_config)):
             # Should not raise an exception
             gates = parse_and_trigger_gates(ctx, "test_config.yml")
-            
+
         self.assertEqual(len(gates), 1)
         mock_send_metrics.assert_called_once()
 
@@ -1257,9 +1257,7 @@ static_quality_gate_docker_dogstatsd_arm64:
 
         # Mock Docker image measurement that exceeds limits
         mock_measure.return_value = ArtifactMeasurement(
-            "registry.ddbuild.io/ci/datadog-agent/cws-instrumentation:test",
-            150 * 1024 * 1024,
-            150 * 1024 * 1024
+            "registry.ddbuild.io/ci/datadog-agent/cws-instrumentation:test", 150 * 1024 * 1024, 150 * 1024 * 1024
         )
 
         test_config = """
@@ -1273,7 +1271,7 @@ static_quality_gate_docker_cws_instrumentation_arm64:
         with patch('builtins.open', mock_open(read_data=test_config)):
             # Should not raise an exception
             gates = parse_and_trigger_gates(ctx, "test_config.yml")
-            
+
         self.assertEqual(len(gates), 2)
         mock_send_metrics.assert_called_once()
 
@@ -1314,24 +1312,21 @@ static_quality_gate_docker_cws_instrumentation_arm64:
             "static_quality_gate_iot_agent_rpm_amd64",
             "static_quality_gate_iot_agent_suse_amd64",
         ]
-        
+
         # All exceed limits
         mock_measure.return_value = ArtifactMeasurement(
-            "/test/packages/package.deb",
-            150 * 1024 * 1024,
-            150 * 1024 * 1024
+            "/test/packages/package.deb", 150 * 1024 * 1024, 150 * 1024 * 1024
         )
 
         # Create config with all soft gates
-        test_config = "\n".join([
-            f"{gate}:\n  max_on_wire_size: 100 MiB\n  max_on_disk_size: 100 MiB"
-            for gate in soft_gates
-        ])
-        
+        test_config = "\n".join(
+            [f"{gate}:\n  max_on_wire_size: 100 MiB\n  max_on_disk_size: 100 MiB" for gate in soft_gates]
+        )
+
         with patch('builtins.open', mock_open(read_data=test_config)):
             # Should not raise an exception even though all gates fail
             gates = parse_and_trigger_gates(ctx, "test_config.yml")
-            
+
         self.assertEqual(len(gates), len(soft_gates))
         mock_send_metrics.assert_called_once()
 
