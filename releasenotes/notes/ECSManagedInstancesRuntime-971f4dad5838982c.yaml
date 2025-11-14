@@ -7,6 +7,5 @@
 # Each section note must be formatted as reStructuredText.
 fixes:
   - |
-    For ECS Managed Instances we don't want to override the runtime to be ECS.
-    We want to let leave it for docker to fill in. This will help us configure
-    things correctly on the backend
+    For ECS Managed Instances, the Agent no longer overrides the runtime to `ECS`.
+    The runtime is now left for Docker to determine, ensuring correct backend configuration.
