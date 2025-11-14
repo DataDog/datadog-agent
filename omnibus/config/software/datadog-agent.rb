@@ -19,10 +19,6 @@ unless do_repackage?
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-  # Alternative memory allocator which has better support for memory allocated by cgo calls,
-  # especially at higher thread counts.
-  dependency "libjemalloc" if linux_target?
-
   dependency 'datadog-agent-dependencies'
 end
 
