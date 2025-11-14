@@ -147,12 +147,14 @@ func (m *testPackageManager) Close() error {
 type testRemoteConfigClient struct {
 	sync.Mutex
 	t         *testing.T
+	clientID  string
 	listeners map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
 }
 
 func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
 	return &testRemoteConfigClient{
 		t:         t,
+		clientID:  "test-client-id",
 		listeners: make(map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))),
 	}
 }
@@ -174,6 +176,10 @@ func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
 
 func (c *testRemoteConfigClient) GetInstallerState() *pbgo.ClientUpdater {
 	return nil
+}
+
+func (c *testRemoteConfigClient) GetClientID() string {
+	return c.clientID
 }
 
 func (c *testRemoteConfigClient) SubmitCatalog(catalog catalog) {
@@ -241,6 +247,7 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
 		taskDB,
+		rcc.GetClientID(),
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,
@@ -367,7 +374,7 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-1",
 		Method:        methodStartExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version, ClientID: i.rcc.GetClientID()},
 		Params:        versionParamsJSON,
 	}
 	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
@@ -380,7 +387,7 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-2",
 		Method:        methodStopExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version, ClientID: i.rcc.GetClientID()},
 	}
 	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
 	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
@@ -392,7 +399,7 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-3",
 		Method:        methodPromoteExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version, StableConfig: testStablePackage.Version, ClientID: i.rcc.GetClientID()},
 	}
 	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
 	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
