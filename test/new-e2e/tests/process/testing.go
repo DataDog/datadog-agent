@@ -367,7 +367,7 @@ func assertManualRTProcessCheck(t require.TestingT, check string) {
 	var rt agentmodel.CollectorRealTime
 	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
 	require.NoError(t, err)
-	assert.NotEmpty(t, rt.Stats, "no process stats in realtime output %s", check)
+	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
