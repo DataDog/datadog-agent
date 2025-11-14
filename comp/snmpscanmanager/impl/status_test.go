@@ -7,6 +7,7 @@ package snmpscanmanagerimpl
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 	"time"
 
@@ -209,15 +210,19 @@ func TestStatus(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedJSON, stats)
 
-			bf := new(bytes.Buffer)
-			err = scanManager.Text(false, bf)
+			bText := new(bytes.Buffer)
+			err = scanManager.Text(false, bText)
+			expectedText := strings.ReplaceAll(tt.expectedText, "\r\n", "\n")
+			outText := strings.ReplaceAll(bText.String(), "\r\n", "\n")
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedText, bf.String())
+			assert.Equal(t, expectedText, outText)
 
-			bf = new(bytes.Buffer)
-			err = scanManager.HTML(false, bf)
+			bHTML := new(bytes.Buffer)
+			err = scanManager.HTML(false, bHTML)
+			expectedHTML := strings.ReplaceAll(tt.expectedHTML, "\r\n", "\n")
+			outHTML := strings.ReplaceAll(bHTML.String(), "\r\n", "\n")
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedHTML, bf.String())
+			assert.Equal(t, expectedHTML, outHTML)
 		})
 	}
 }
