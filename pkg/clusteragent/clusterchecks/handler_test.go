@@ -156,7 +156,7 @@ func TestHandlerRun(t *testing.T) {
 		leaderStatusFreq:     100 * time.Millisecond,
 		warmupDuration:       250 * time.Millisecond,
 		leadershipChan:       make(chan state, 1),
-		dispatcher:           newDispatcher(fakeTagger),
+		dispatcher:           newDispatcher(fakeTagger, nil),
 		leaderStatusCallback: le.get,
 		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
 	}
