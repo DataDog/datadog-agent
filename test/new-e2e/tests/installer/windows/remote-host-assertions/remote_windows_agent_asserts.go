@@ -10,8 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 // RemoteWindowsAgentAssertions is a type that extends the SuiteAssertions to add assertions
