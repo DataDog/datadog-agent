@@ -1,5 +1,3 @@
-# type: ignore[reportArgumentType]
-
 from invoke.collection import Collection
 
 from tasks.localpodman.vm import create_vm, destroy_vm

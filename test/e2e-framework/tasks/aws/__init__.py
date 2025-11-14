@@ -1,5 +1,3 @@
-# type: ignore[reportArgumentType]
-
 from invoke.collection import Collection
 
 from tasks.aws.docker import create_docker, destroy_docker

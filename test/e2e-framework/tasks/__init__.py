@@ -1,5 +1,3 @@
-# type: ignore[reportArgumentType]
-
 from invoke.collection import Collection
 
 import tasks.ci as ci

@@ -688,8 +688,8 @@
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/servicediscovery* @DataDog/agent-discovery
 /test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx
-/test/new-e2e/pkg/components/datadog-installer @DataDog/windows-products
-/test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
+/test/new-e2e/testing/components/datadog-installer @DataDog/windows-products
+/test/new-e2e/testing/testcommon/check            @DataDog/agent-runtimes
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform

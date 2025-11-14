@@ -103,8 +103,8 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: Op
     kubeconfig_content = yaml.dump(kubeconfig_output)
     kubeconfig = f"{full_stack_name}-kubeconfig.yaml"
     f = os.open(path=kubeconfig, flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC), mode=0o600)
-    with open(f, "w") as f:
-        f.write(kubeconfig_content)
+    with open(f, "w") as file:
+        file.write(kubeconfig_content)
 
     try:
         local_config = config.get_local_config(config_path)

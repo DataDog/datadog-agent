@@ -1,5 +1,3 @@
-# type: ignore[reportArgumentType]
-
 from invoke.collection import Collection
 
 from tasks.gcp.gke import create_gke, destroy_gke
