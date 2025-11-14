@@ -44,6 +44,7 @@
   variables:
     ARCH: x64
     GIT_DEPTH: 2
+    BAZEL_OUTPUT_USER_ROOT: "C:/tmpbzl"
   script:
     - |-
       $FailFast = @'
