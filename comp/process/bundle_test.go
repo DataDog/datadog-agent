@@ -117,6 +117,7 @@ func TestBundleOneShot(t *testing.T) {
 		}),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
 		hostnameimpl.MockModule(),

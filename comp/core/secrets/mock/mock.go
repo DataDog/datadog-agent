@@ -11,15 +11,18 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v2"
+
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
-	"gopkg.in/yaml.v2"
 )
 
 // Mock is a mock of the secret Component useful for testing
 type Mock struct {
-	secretsCache map[string]string
-	callbacks    []secrets.SecretChangeCallback
+	secretsCache       map[string]string
+	callbacks          []secrets.SecretChangeCallback
+	refreshHook        func(bool) (string, error)
+	triggerRefreshHook func()
 }
 
 var _ secrets.Component = (*Mock)(nil)
@@ -84,5 +87,27 @@ func (m *Mock) SubscribeToChanges(callback secrets.SecretChangeCallback) {
 	m.callbacks = append(m.callbacks, callback)
 }
 
+// SetRefreshHook sets a hook function that will be called when Refresh is invoked
+func (m *Mock) SetRefreshHook(hook func(bool) (string, error)) {
+	m.refreshHook = hook
+}
+
 // Refresh will resolve secret handles again, notifying any subscribers of changed values
-func (m *Mock) Refresh() (string, error) { return "", nil }
+func (m *Mock) Refresh(bypass bool) (string, error) {
+	if m.refreshHook != nil {
+		return m.refreshHook(bypass)
+	}
+	return "", nil
+}
+
+// SetTriggerRefreshHook sets a hook function that will be called when TriggerRefresh is invoked
+func (m *Mock) SetTriggerRefreshHook(hook func()) {
+	m.triggerRefreshHook = hook
+}
+
+// TriggerRefresh is a non-blocking signal to the running refresh routine to refresh secrets
+func (m *Mock) TriggerRefresh() {
+	if m.triggerRefreshHook != nil {
+		m.triggerRefreshHook()
+	}
+}

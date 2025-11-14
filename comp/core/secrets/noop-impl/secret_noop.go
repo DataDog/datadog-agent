@@ -101,6 +101,9 @@ func (r *secretNoop) Resolve(data []byte, _ string, _ string, _ string) ([]byte,
 }
 
 // Refresh does nothing
-func (r *secretNoop) Refresh() (string, error) {
+func (r *secretNoop) Refresh(_ bool) (string, error) {
 	return "", nil
 }
+
+// TriggerRefresh does nothing
+func (r *secretNoop) TriggerRefresh() {}
