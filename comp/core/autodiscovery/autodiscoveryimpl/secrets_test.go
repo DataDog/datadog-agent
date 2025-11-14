@@ -55,6 +55,8 @@ func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
 	return "", nil
 }
 
+func (m *MockSecretResolver) TriggerRefresh() {}
+
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called == 0 {
