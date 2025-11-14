@@ -195,6 +195,8 @@
 /.gitlab/package_build/installer.yml                 @DataDog/agent-build @DataDog/fleet
 /.gitlab/packaging/                                  @DataDog/agent-build
 
+/.gitlab/network_device_build/                       @DataDog/agent-delivery
+
 /.gitlab/benchmarks/benchmarks.yml                   @DataDog/agent-apm
 
 /.gitlab/functional_test/regression_detector.yml     @DataDog/single-machine-performance
