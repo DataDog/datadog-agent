@@ -128,6 +128,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
+				workloadfilterfx.Module(),
 				ipcfx.ModuleReadWrite(),
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.NewRemoteParams()),
