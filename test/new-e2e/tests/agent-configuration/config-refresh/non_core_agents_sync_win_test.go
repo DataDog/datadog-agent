@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +30,7 @@ type configRefreshWindowsSuite struct {
 
 func TestConfigRefreshWindowsSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
+	e2e.Run(t, &configRefreshWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
 }
 
 func (v *configRefreshWindowsSuite) TestConfigRefresh() {
@@ -68,9 +67,9 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-			scenec2.WithAgentOptions(agentOptions...),
-			scenec2.WithAgentClientOptions(
+		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(agentOptions...),
+			ec2.WithAgentClientOptions(
 				agentclientparams.WithAuthTokenPath(authTokenFilePath),
 				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
 				agentclientparams.WithProcessAgentOnPort(processCmdPort),

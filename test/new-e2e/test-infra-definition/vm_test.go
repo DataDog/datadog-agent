@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,23 +55,23 @@ func TestVMSuite(t *testing.T) {
 	testCases := []vmTestCase{
 		{
 			testName:    "testWithAMI",
-			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithAMI(requestedAmi, os.AmazonLinux2, os.ARM64Arch)))),
+			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithAMI(requestedAmi, os.AmazonLinux2, os.ARM64Arch)))),
 			suite:       &vmSuiteWithAMI{},
 		},
 
 		{
 			testName:    "testWithInstanceType",
-			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithInstanceType(instanceType)))),
+			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithInstanceType(instanceType)))),
 			suite:       &vmSuiteWithInstanceType{},
 		},
 		{
 			testName:    "testWithArch",
-			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithOSArch(os.DebianDefault, os.ARM64Arch)))),
+			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOSArch(os.DebianDefault, os.ARM64Arch)))),
 			suite:       &vmSuiteWithArch{},
 		},
 		{
 			testName:    "testWithUserData",
-			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch " + userDataPath)))),
+			provisioner: awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch " + userDataPath)))),
 			suite:       &vmSuiteWithUserData{},
 		},
 	}
@@ -101,7 +100,7 @@ func (v *vmSuiteWithArch) TestWithArch() {
 }
 
 func (v *vmSuiteWithUserData) TestWithUserdata() {
-	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithoutAgent(), scenec2.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch "+userDataPath)))))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithoutAgent(), ec2.WithEC2InstanceOptions(ec2.WithUserData("#!/bin/bash\ntouch "+userDataPath)))))
 
 	output, err := v.Env().RemoteHost.Execute("ls " + userDataPath)
 	require.NoError(v.T(), err)

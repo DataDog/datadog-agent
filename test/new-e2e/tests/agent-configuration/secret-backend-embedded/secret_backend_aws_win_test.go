@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,8 +29,8 @@ secret_backend_config:
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-				scenec2.WithAgentOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithAgentOptions(
 					agentparams.WithSkipAPIKeyInConfig(),
 					agentparams.WithAgentConfig(config),
 				),

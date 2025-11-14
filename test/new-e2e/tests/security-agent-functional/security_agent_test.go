@@ -14,7 +14,6 @@ import (
 
 	componentsos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -38,7 +37,7 @@ var (
 func TestVMSuite(t *testing.T) {
 	flake.Mark(t)
 
-	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsServerDefault)))))}
+	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(componentsos.WindowsServerDefault)))))}
 	if *devMode {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}

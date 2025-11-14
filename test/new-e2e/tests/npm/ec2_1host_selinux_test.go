@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 type ec2VMSELinuxSuite struct {
@@ -27,7 +26,7 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 	s := &ec2VMSELinuxSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(scenec2.WithEC2InstanceOptions(
+		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(
 			// RHEL9
 			ec2.WithAMI(
 				"ami-04e7f0e0bde783f77", // https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462

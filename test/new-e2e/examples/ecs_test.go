@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
-	tifEcs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -26,7 +25,7 @@ type myECSSuite struct {
 }
 
 func TestMyECSSuite(t *testing.T) {
-	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithRunOptions(scenecs.WithECSOptions(tifEcs.WithLinuxNodeGroup())))))
+	e2e.Run(t, &myECSSuite{}, e2e.WithProvisioner(ecs.Provisioner(ecs.WithRunOptions(scenecs.WithECSOptions(scenecs.WithLinuxNodeGroup())))))
 }
 
 func (v *myECSSuite) TestECS() {

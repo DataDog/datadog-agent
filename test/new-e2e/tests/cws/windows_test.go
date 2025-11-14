@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	testos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -60,12 +59,12 @@ func TestAgentWindowsSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithRunOptions(
-					scenec2.WithAgentOptions(
+					ec2.WithAgentOptions(
 						agentparams.WithAgentConfig(agentConfig),
 						agentparams.WithSecurityAgentConfig(securityAgentConfig),
 						agentparams.WithSystemProbeConfig(systemProbeConfig),
 					),
-					scenec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
+					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 				),
 			),
 		),
