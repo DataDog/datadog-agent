@@ -504,6 +504,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		CapacityMonitor: monitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
 		Rotated:         true,
 		FileOpener:      s.fileOpener,
 	}
@@ -632,6 +633,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		CapacityMonitor: capacityMonitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
 		FileOpener:      s.fileOpener,
 	}
 
