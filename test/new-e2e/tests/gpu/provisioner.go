@@ -78,7 +78,7 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 
 // validationCommandMarker is a command that can be appended to all validation commands
 // to identify them in the output, which can be useful to later force retries. Retries
-// are controlled in test/new-e2e/testing/utils/infra/retriable_errors.go, and the way to
+// are controlled in test/e2e-framework/testing/utils/infra/retriable_errors.go, and the way to
 // identify them are based on the pulumi logs. This command will be echoed to the output
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
