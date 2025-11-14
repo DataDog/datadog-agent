@@ -9,8 +9,6 @@
 // and a list of issues.
 package healthplatform
 
-import "context"
-
 // team: agent-health
 
 // Issue represents an individual issue to be reported
@@ -106,17 +104,6 @@ type JSONAPIMeta struct {
 	EmittedAt     string `json:"emitted_at,omitempty"`
 }
 
-// CheckConfig is a configuration for a health check
-type CheckConfig struct {
-	CheckName string
-	CheckID   string
-
-	// Run is the function that performs the health check.
-	// Returns an issue report with minimal information, or nil if no issue.
-	// The health platform will build the full issue from the registry.
-	Run func(context.Context) (*IssueReport, error)
-}
-
 // IssueReport represents a lightweight issue report from an integration
 // The health platform fills in all metadata and remediation based on the issue ID
 type IssueReport struct {
@@ -135,11 +122,8 @@ type IssueReport struct {
 
 // Component is the health platform component interface
 type Component interface {
-	// RegisterCheck registers a health check with the platform
-	RegisterCheck(check CheckConfig) error
-
 	// ReportIssue reports an issue with context, and the health platform fills in remediation
-	// This is the preferred way for integrations to report issues
+	// This is the main way for integrations to report issues
 	// If report is nil, it clears any existing issue (issue resolution)
 	ReportIssue(checkID string, checkName string, report *IssueReport) error
 
@@ -156,9 +140,4 @@ type Component interface {
 
 	// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
 	ClearAllIssues()
-
-	// RunHealthChecks manually triggers health check execution
-	// If async is true, checks run in parallel goroutines
-	// If async is false, checks run synchronously (useful for testing)
-	RunHealthChecks(async bool)
 }
