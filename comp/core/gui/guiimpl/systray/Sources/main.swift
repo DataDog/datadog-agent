@@ -1,14 +1,17 @@
 import Cocoa
 
-// Check if another instance is already running
+// Check if another instance is already running (exclude self)
+let myPID = ProcessInfo.processInfo.processIdentifier
 let runningInstances = NSRunningApplication.runningApplications(
     withBundleIdentifier: "com.datadoghq.agent"
-)
-if runningInstances.count > 1 {
-    NSLog("[GUI] Another instance is already running, exiting")
+).filter { $0.processIdentifier != myPID }
+
+if !runningInstances.isEmpty {
+    if let otherPID = runningInstances.first?.processIdentifier {
+        NSLog("[GUI] Another instance is already running (PID: \(otherPID)), exiting")
+    }
     exit(0)
 }
-
 // Creates shared application, accessible through the NSApp variable.
 let app = NSApplication.shared
 
