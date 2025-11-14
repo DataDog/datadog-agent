@@ -1187,6 +1187,15 @@ workflow:
       export sectionname=
     }
 
+# Will setup the environment variables for native instrumentation.
+.setup_orchestrion_env:
+  - |
+    export DD_ENV=nativetest # TODO: Remove after testing native instrumentation
+    export DD_SERVICE=datadog-agent-ci
+    export DD_CIVISIBILITY_ENABLED=true
+    export DD_CIVISIBILITY_AGENTLESS_ENABLED=true
+    DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+
 .retry_only_infra_failure:
   retry:
     max: 2

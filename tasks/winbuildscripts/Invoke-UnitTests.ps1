@@ -127,6 +127,13 @@ Invoke-BuildScript `
         exit $err
     }
 
+    # Setup orchestrion environment variables
+    $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
+    $Env:DD_ENV="nativetest" # TODO: Remove after testing native instrumentation
+    $Env:DD_SERVICE="datadog-agent-ci"
+    $Env:DD_CIVISIBILITY_ENABLED="true"
+    $Env:DD_CIVISIBILITY_AGENTLESS_ENABLED="true"
+
     # Go unit tests
     $test_output_file = if ($Env:TEST_OUTPUT_FILE) { $Env:TEST_OUTPUT_FILE } else { "test_output.json" }
     $TEST_WASHER_FLAG=""
@@ -158,7 +165,6 @@ Invoke-BuildScript `
         Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
             Copy-Item -Path $_.FullName -Destination C:\mnt
         }
-        $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
         & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
         $localErr = $LASTEXITCODE
         if($localErr -ne 0){
