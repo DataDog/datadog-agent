@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	serverlessLog "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -35,14 +35,19 @@ const (
 
 var functionName = os.Getenv(functionNameEnvVar)
 
+type LambdaSpan struct {
+	TraceID []byte
+	Span    *idx.InternalSpan
+}
+
 type ColdStartSpanCreator struct {
 	TraceAgent            ServerlessTraceAgent
 	createSpan            sync.Once
-	LambdaSpanChan        <-chan *pb.Span
+	LambdaSpanChan        <-chan *LambdaSpan
 	LambdaInitMetricChan  <-chan *serverlessLog.LambdaInitMetric
 	syncSpanDurationMutex sync.Mutex
 	ColdStartSpanId       uint64
-	lambdaSpan            *pb.Span
+	lambdaSpan            *LambdaSpan
 	initDuration          float64
 	StopChan              chan struct{}
 	initStartTime         time.Time
@@ -73,8 +78,8 @@ func (c *ColdStartSpanCreator) Stop() {
 	c.StopChan <- struct{}{}
 }
 
-func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *pb.Span) {
-	if traceAgentSpan.Name == spanName {
+func (c *ColdStartSpanCreator) handleLambdaSpan(traceAgentSpan *LambdaSpan) {
+	if traceAgentSpan.Span.Name() == spanName {
 		return
 	}
 	c.syncSpanDurationMutex.Lock()
@@ -116,7 +121,7 @@ func (c *ColdStartSpanCreator) createIfReady() {
 
 func (c *ColdStartSpanCreator) create() {
 	// Prevent infinite loop from SpanModifier call
-	if c.lambdaSpan.Name == spanName {
+	if c.lambdaSpan.Span.Name() == spanName {
 		return
 	}
 
@@ -126,22 +131,27 @@ func (c *ColdStartSpanCreator) create() {
 	durationNs := c.initDuration * 1e6
 	var spanStartTime int64
 	durationInt := int64(durationNs)
-	if (c.initStartTime.UnixNano() + durationInt) < c.lambdaSpan.Start {
+	if (c.initStartTime.UnixNano() + durationInt) < int64(c.lambdaSpan.Span.Start()) {
 		spanStartTime = c.initStartTime.UnixNano()
 	} else {
-		spanStartTime = c.lambdaSpan.Start - durationInt
+		spanStartTime = int64(c.lambdaSpan.Span.Start()) - durationInt
 	}
 
-	coldStartSpan := &pb.Span{
-		Service:  service,
-		Name:     spanName,
-		Resource: functionName,
-		SpanID:   c.ColdStartSpanId,
-		TraceID:  c.lambdaSpan.TraceID,
-		ParentID: c.lambdaSpan.ParentID,
-		Start:    spanStartTime,
-		Duration: int64(durationNs),
-		Type:     "serverless",
+	st := idx.NewStringTable()
+	coldStartSpan := idx.NewInternalSpan(st, &idx.Span{
+		ServiceRef:  st.Add(service),
+		NameRef:     st.Add(spanName),
+		ResourceRef: st.Add(functionName),
+		SpanID:      c.ColdStartSpanId,
+		ParentID:    c.lambdaSpan.Span.ParentID(),
+		Start:       uint64(spanStartTime),
+		Duration:    uint64(durationNs),
+		TypeRef:     st.Add("serverless"),
+	})
+
+	coldStartLambdaSpan := &LambdaSpan{
+		TraceID: c.lambdaSpan.TraceID,
+		Span:    coldStartSpan,
 	}
 
 	c.createSpan.Do(func() {
@@ -150,24 +160,22 @@ func (c *ColdStartSpanCreator) create() {
 			log.Debugf("[ColdStartCreator] Cold start span already created for request ID %s", c.ColdStartRequestID)
 			return
 		}
-		c.processSpan(coldStartSpan)
+		c.processSpan(coldStartLambdaSpan)
 	})
 }
 
-func (c *ColdStartSpanCreator) processSpan(coldStartSpan *pb.Span) {
+func (c *ColdStartSpanCreator) processSpan(coldStartSpan *LambdaSpan) {
 	log.Debugf("[ColdStartCreator] Creating cold start span %v", coldStartSpan)
 
-	traceChunk := &pb.TraceChunk{
-		Origin:   "lambda",
-		Priority: int32(1),
-		Spans:    []*pb.Span{coldStartSpan},
+	traceChunk := idx.NewInternalTraceChunk(coldStartSpan.Span.Strings, int32(1), "lambda", nil, []*idx.InternalSpan{coldStartSpan.Span}, false, coldStartSpan.TraceID, 0)
+
+	tracerPayload := &idx.InternalTracerPayload{
+		Strings:    coldStartSpan.Span.Strings,
+		Chunks:     []*idx.InternalTraceChunk{traceChunk},
+		Attributes: make(map[uint32]*idx.AnyValue),
 	}
 
-	tracerPayload := &pb.TracerPayload{
-		Chunks: []*pb.TraceChunk{traceChunk},
-	}
-
-	c.TraceAgent.Process(&api.Payload{
+	c.TraceAgent.ProcessV1(&api.PayloadV1{
 		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})

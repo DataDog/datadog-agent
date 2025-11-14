@@ -23,12 +23,43 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// pathTraces is the target host API path for delivering traces.
+const pathTraces = "/api/v0.2/traces"
+
+const defaultConnectionLimit = 5
+
+// MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
+// a flush is triggered; replaced in tests.
+var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
+
+type samplerTPSReader interface {
+	GetTargetTPS() float64
+}
+
+type samplerEnabledReader interface {
+	IsEnabled() bool
+}
+
 // SampledChunksV1 is a wrapper around an InternalTracerPayload that contains the size of the payload, the number of spans, and the number of events
 type SampledChunksV1 struct {
 	TracerPayload *idx.InternalTracerPayload
 	Size          int
 	SpanCount     int64
 	EventCount    int64
+}
+
+var outPool = sync.Pool{}
+
+func getBS(size int) []byte {
+	b := outPool.Get()
+	if b == nil {
+		return make([]byte, size)
+	}
+	bs := b.([]byte)
+	if cap(bs) < size {
+		return make([]byte, size)
+	}
+	return bs[:size]
 }
 
 // TraceWriterV1 implements TraceWriterV1 interface, and buffers traces and APM events, flushing them to the Datadog API.

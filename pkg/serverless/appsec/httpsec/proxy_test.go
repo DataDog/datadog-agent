@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -42,7 +42,7 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 	spanModifier := lp.WrapSpanModifier(execCtx, nil)
 
 	// Helper function to run the proxy monitoring function in the expected order when integrated
-	runAppSec := func(requestId string, start invocationlifecycle.InvocationStartDetails) *pb.TraceChunk {
+	runAppSec := func(requestId string, start invocationlifecycle.InvocationStartDetails) *idx.InternalTraceChunk {
 		// Update the execution context with the data AppSec uses: the request id
 		execCtx.SetFromInvocation(start.InvokedFunctionARN, requestId)
 		// Run OnInvokeStart to mock the runtime API proxy calling it
@@ -55,26 +55,32 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 		// Run the span modifier to mock the trace-agent calling it when receiving a trace from the tracer
 		//nolint:revive // TODO(ASM) Fix revive linter
 		spanId := rand.Uint64()
-		chunk := &pb.TraceChunk{
-			Spans: []*pb.Span{
-				{
-					Name:     "aws.lambda",
-					Type:     "serverless",
-					Resource: "GET /",
-					Service:  "my-service",
-					TraceID:  spanId,
-					SpanID:   spanId,
-					Start:    start.StartTime.Unix(),
-					Duration: int64(time.Minute),
-					Meta: map[string]string{
-						"request_id":       requestId,
-						"http.status_code": "200",
-					},
-					Metrics: map[string]float64{},
-				},
-			},
+
+		// Create string table for the span
+		st := idx.NewStringTable()
+
+		// Create the internal span
+		span := idx.NewInternalSpan(st, &idx.Span{
+			NameRef:     st.Add("aws.lambda"),
+			TypeRef:     st.Add("serverless"),
+			ResourceRef: st.Add("GET /"),
+			ServiceRef:  st.Add("my-service"),
+			SpanID:      spanId,
+			Start:       uint64(start.StartTime.UnixNano()),
+			Duration:    uint64(time.Minute.Nanoseconds()),
+		})
+
+		// Set meta tags as attributes
+		span.SetAttributeFromString("request_id", requestId)
+		span.SetAttributeFromString("http.status_code", "200")
+
+		// Create the chunk
+		chunk := &idx.InternalTraceChunk{
+			Spans:   []*idx.InternalSpan{span},
+			Strings: st,
 		}
-		spanModifier.ModifySpan(chunk, chunk.Spans[0])
+
+		spanModifier.ModifySpan(chunk, span)
 		return chunk
 	}
 
@@ -85,7 +91,9 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span := chunk.Spans[0]
-		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+		appsecEnabled, ok := span.GetAttributeAsFloat64("_dd.appsec.enabled")
+		require.True(t, ok)
+		require.Equal(t, 1.0, appsecEnabled)
 
 		// Second invocation containing attacks
 		chunk = runAppSec("request 2", invocationlifecycle.InvocationStartDetails{
@@ -93,9 +101,12 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span = chunk.Spans[0]
-		require.Contains(t, span.Meta, "_dd.appsec.json")
+		_, ok = span.GetAttributeAsString("_dd.appsec.json")
+		require.True(t, ok, "expected _dd.appsec.json attribute to be present")
 		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
-		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+		appsecEnabled, ok = span.GetAttributeAsFloat64("_dd.appsec.enabled")
+		require.True(t, ok)
+		require.Equal(t, 1.0, appsecEnabled)
 	})
 
 	t.Run("api-gateway-kong", func(t *testing.T) {
@@ -105,7 +116,9 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span := chunk.Spans[0]
-		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+		appsecEnabled, ok := span.GetAttributeAsFloat64("_dd.appsec.enabled")
+		require.True(t, ok)
+		require.Equal(t, 1.0, appsecEnabled)
 
 		// Second invocation containing attacks
 		chunk = runAppSec("request", invocationlifecycle.InvocationStartDetails{
@@ -113,9 +126,12 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span = chunk.Spans[0]
-		require.Contains(t, span.Meta, "_dd.appsec.json")
+		_, ok = span.GetAttributeAsString("_dd.appsec.json")
+		require.True(t, ok, "expected _dd.appsec.json attribute to be present")
 		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
-		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+		appsecEnabled, ok = span.GetAttributeAsFloat64("_dd.appsec.enabled")
+		require.True(t, ok)
+		require.Equal(t, 1.0, appsecEnabled)
 	})
 
 	t.Run("unsupported-event-type", func(t *testing.T) {
@@ -124,7 +140,9 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span := chunk.Spans[0]
-		require.Equal(t, 1.0, span.Metrics["_dd.appsec.unsupported_event_type"])
+		unsupportedEventType, ok := span.GetAttributeAsFloat64("_dd.appsec.unsupported_event_type")
+		require.True(t, ok)
+		require.Equal(t, 1.0, unsupportedEventType)
 	})
 }
 

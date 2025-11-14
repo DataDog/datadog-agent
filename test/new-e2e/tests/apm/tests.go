@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -36,8 +37,8 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	if !assert.NotEmpty(c, trace.TracerPayloads) {
 		return
 	}
-	tp := trace.TracerPayloads[0]
-	assert.Equal(c, "go", tp.LanguageName)
+	tp := idx.FromProto(trace.IdxTracerPayloads[0])
+	assert.Equal(c, "go", tp)
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -46,14 +47,22 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(c, service, sp.Service)
-		assert.Contains(c, sp.Name, "tracegen")
-		assert.Contains(c, sp.Meta, "language")
-		assert.Equal(c, "go", sp.Meta["language"])
-		assert.Contains(c, sp.Metrics, "_sampling_priority_v1")
-		if sp.ParentID == 0 {
-			assert.Equal(c, float64(1), sp.Metrics["_dd.top_level"])
-			assert.Equal(c, float64(1), sp.Metrics["_top_level"])
+		assert.Equal(c, service, sp.Service())
+		assert.Contains(c, sp.Name(), "tracegen")
+		lang, ok := sp.GetAttributeAsString("language")
+		assert.True(c, ok)
+		assert.Equal(c, "go", lang)
+		priority, ok := sp.GetAttributeAsFloat64("_sampling_priority_v1")
+		assert.True(c, ok)
+		assert.Equal(c, 1, priority)
+		parentID := sp.ParentID()
+		if parentID == 0 {
+			topLevel, ok := sp.GetAttributeAsFloat64("_dd.top_level")
+			assert.True(c, ok)
+			assert.Equal(c, 1.0, topLevel)
+			topLevel, ok = sp.GetAttributeAsFloat64("_top_level")
+			assert.True(c, ok)
+			assert.Equal(c, 1.0, topLevel)
 		}
 	}
 }
