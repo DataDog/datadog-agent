@@ -120,7 +120,6 @@ type PodTestSuite struct {
 
 func (suite *PodTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
-	kubelet.ResetCache()
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
 	suite.dummyKubelet = newDummyKubelet()
