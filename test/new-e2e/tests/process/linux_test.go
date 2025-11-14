@@ -340,7 +340,7 @@ func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks rtprocess --json")
-		assertManualProcessCheck(c, check, false, "stress")
+		assertManualRTProcessCheck(c, check)
 	}, 2*time.Minute, 10*time.Second)
 }
 
