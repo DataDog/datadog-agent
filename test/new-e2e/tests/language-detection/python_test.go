@@ -32,6 +32,7 @@ func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(coreConfigNoCheckStr),
 	})...))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr)))))
 	s.startPython()
 	s.checkDetectedLanguage("python3", "python", "process_collector")
 }

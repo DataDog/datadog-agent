@@ -34,6 +34,7 @@ type RunParams struct {
 	operatorDDAOptions []agentwithoperatorparams.Option
 	deployDogstatsd    bool
 	deployTestWorkload bool
+	deployArgoRollout  bool
 }
 
 type RunOption = func(*RunParams) error
@@ -142,4 +143,9 @@ func WithDeployTestWorkload() RunOption {
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(p *RunParams) error { p.workloadAppFuncs = append(p.workloadAppFuncs, appFunc); return nil }
+}
+
+// WithDeployArgoRollout enables Argo Rollout deployment
+func WithDeployArgoRollout() RunOption {
+	return func(p *RunParams) error { p.deployArgoRollout = true; return nil }
 }

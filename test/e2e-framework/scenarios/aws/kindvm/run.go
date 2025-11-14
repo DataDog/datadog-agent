@@ -7,9 +7,7 @@ package kindvm
 
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
@@ -34,6 +32,9 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
+
+//go:embed agent_helm_values.yaml
+var agentHelmValues string
 
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resAws.NewEnvironment(ctx)
@@ -112,15 +113,8 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 	var dependsOnDDAgent pulumi.ResourceOption
 	// Agent
 	if params.agentOptions != nil && !params.deployOperator {
-		customValues := `
-datadog:
-  kubelet:
-    tlsVerify: false
-agents:
-  useHostNetwork: true
-`
 		k8sAgentOptions := make([]kubernetesagentparams.Option, 0)
-		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithHelmValues(customValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName))
+		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName))
 		if fakeIntake != nil {
 			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
 		}
@@ -143,30 +137,6 @@ agents:
 			return err
 		}
 		if err := operatorComp.Export(awsEnv.Ctx(), nil); err != nil {
-			return err
-		}
-
-		ddaConfig := agentwithoperatorparams.DDAConfig{
-			Name: "dda-with-operator",
-			YamlConfig: `
-apiVersion: datadoghq.com/v2alpha1
-kind: DatadogAgent
-spec:
-  global:
-    kubelet:
-      tlsVerify: false
-`}
-		ddaOptions := []agentwithoperatorparams.Option{agentwithoperatorparams.WithNamespace("datadog"), agentwithoperatorparams.WithDDAConfig(ddaConfig)}
-		if fakeIntake != nil {
-			ddaOptions = append(ddaOptions, agentwithoperatorparams.WithFakeIntake(fakeIntake))
-		}
-		ddaOptions = append(ddaOptions, params.operatorDDAOptions...)
-		k8sAgentWithOperatorComp, err := agent.NewDDAWithOperator(&awsEnv, awsEnv.CommonNamer().ResourceName("datadog-agent-with-operator"), kindKubeProvider, ddaOptions...)
-		if err != nil {
-			return err
-		}
-		dependsOnDDAgent = utils.PulumiDependsOn(k8sAgentWithOperatorComp)
-		if err := k8sAgentWithOperatorComp.Export(awsEnv.Ctx(), &env.Agent.KubernetesAgentOutput); err != nil {
 			return err
 		}
 	}
