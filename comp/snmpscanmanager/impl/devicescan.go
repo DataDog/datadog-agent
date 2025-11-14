@@ -15,17 +15,22 @@ type deviceScan struct {
 	DeviceIP   string     `json:"device_ip"`
 	ScanStatus scanStatus `json:"scan_status"`
 	ScanEndTs  time.Time  `json:"scan_end_ts"`
+	Failures   int        `json:"failures"`
 }
 
 type scanStatus string
 
 const (
-	successStatus scanStatus = "success"
-	failedStatus  scanStatus = "failed"
+	successScan scanStatus = "success"
+	failedScan  scanStatus = "failed"
 )
 
 func (ds *deviceScan) isSuccess() bool {
-	return ds.ScanStatus == successStatus
+	return ds.ScanStatus == successScan
+}
+
+func (ds *deviceScan) isFailed() bool {
+	return ds.ScanStatus == failedScan
 }
 
 type ipSet map[string]struct{}
