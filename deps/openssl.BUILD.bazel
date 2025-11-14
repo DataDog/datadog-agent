@@ -64,6 +64,7 @@ configure_make(
         "//conditions:default": {},
     }),
     lib_source = ":all",
+    out_include_dir = "include",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "libssl.so",
@@ -102,14 +103,13 @@ configure_make(
 )
 
 pkg_files(
-    name = "openssl_lib_files",
+    name = "openssl_files",
     srcs = [":openssl"],
-    prefix = "lib",
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":openssl_lib_files",
+        ":openssl_files",
     ],
 )
