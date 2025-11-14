@@ -5,8 +5,9 @@ subject: repo:DataDog/datadog-agent:environment:main
 
 claim_pattern:
   event_name: (workflow_dispatch|schedule)
-  ref: (refs/heads/main|refs/heads/test_release/.*)
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/create_rc_pr\.yml@refs/heads/(main|test_release/.*)
+  ref: refs/heads/main
+  ref_protected: "true"
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/update-kubernetes-versions\.yml@refs/heads/main
 
 permissions:
   contents: write
