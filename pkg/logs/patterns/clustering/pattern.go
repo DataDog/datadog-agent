@@ -28,6 +28,9 @@ type Pattern struct {
 	CreatedAt  time.Time // When pattern was first created
 	UpdatedAt  time.Time // When pattern was last modified
 	LastSentAt time.Time // When we last sent this pattern to gRPC
+
+	// State tracking for pattern messages
+	SentTemplate string // The template string that was last sent (for detecting changes)
 }
 
 // newPattern creates a new pattern from a single token list.
@@ -50,8 +53,8 @@ func (p *Pattern) size() int {
 	return p.LogCount
 }
 
-// getPatternString returns a string representation of the pattern.
-func (p *Pattern) getPatternString() string {
+// GetPatternString returns the pattern template as a string with wildcards marked as "*"
+func (p *Pattern) GetPatternString() string {
 	if p.Template == nil {
 		return ""
 	}
@@ -77,13 +80,8 @@ func (p *Pattern) hasWildcards() bool {
 	return len(p.Positions) > 0
 }
 
-// getWildcardPositions returns wildcard token positions (indices in token array).
-func (p *Pattern) getWildcardPositions() []int {
-	return p.Positions
-}
-
-// getWildcardCharPositions returns character indices where wildcards appear in the pattern string.
-func (p *Pattern) getWildcardCharPositions() []int {
+// GetWildcardCharPositions returns character indices where wildcards appear in the pattern string.
+func (p *Pattern) GetWildcardCharPositions() []int {
 	if p.Template == nil {
 		return nil
 	}
@@ -109,19 +107,9 @@ func (p *Pattern) getWildcardCharPositions() []int {
 	return charPositions
 }
 
-// getWildcardValues extracts wildcard values from the sample log.
-// Note: In practice, wildcard values are extracted from incoming logs, not stored ones.
-func (p *Pattern) getWildcardValues() []string {
-	if p.Template == nil || p.Sample == nil {
-		return nil
-	}
-
-	// Extract values from sample at wildcard positions
-	return p.extractWildcardValues(p.Sample)
-}
-
-// extractWildcardValues extracts the wildcard values from a specific TokenList.
-func (p *Pattern) extractWildcardValues(tokenList *token.TokenList) []string {
+// GetWildcardValues extracts the wildcard values from a specific TokenList.
+// This is called per-log to get that log's specific wildcard parameter values.
+func (p *Pattern) GetWildcardValues(tokenList *token.TokenList) []string {
 	if p.Template == nil || len(p.Positions) == 0 {
 		return []string{}
 	}
@@ -134,16 +122,6 @@ func (p *Pattern) extractWildcardValues(tokenList *token.TokenList) []string {
 	}
 
 	return wildcardValues
-}
-
-// markAsSent updates the LastSentAt timestamp to indicate this pattern was sent to gRPC.
-func (p *Pattern) markAsSent() {
-	p.LastSentAt = time.Now()
-}
-
-// needsSending returns true if this pattern has never been sent or has been updated since last sent.
-func (p *Pattern) needsSending() bool {
-	return p.LastSentAt.IsZero() || p.UpdatedAt.After(p.LastSentAt)
 }
 
 // sanitizeForTemplate removes non-printable characters from template strings

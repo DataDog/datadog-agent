@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -71,6 +72,11 @@ func (m *Payload) Size() int64 {
 type Message struct {
 	MessageContent
 	MessageMetadata
+
+	// Pattern extraction
+	Pattern              *clustering.Pattern              // The pattern this log matched
+	WildcardValues       []string                         // This log's specific wildcard values
+	PatternTemplateState clustering.PatternTemplateStatus // Whether a new/updated pattern template needs sending or if the pattern template stay unchanged (New/Update/None)
 }
 
 // StatefulMessage represents a log message for gRPC stateful streaming
