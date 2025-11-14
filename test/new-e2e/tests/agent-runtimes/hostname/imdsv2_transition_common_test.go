@@ -147,7 +147,7 @@ func (v *baseHostnameSuite) TestWithIMDSv1() {
 ec2_imdsv2_transition_payload_enabled: %t`, tt.ec2PreferIMDSv2, tt.legacyResolutionHostname)
 
 		instanceOpts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+			awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		}
 		runHostnameTest(v, instanceOpts, tt)
 	}
@@ -201,8 +201,10 @@ func (v *baseHostnameSuite) TestWithoutIMDSv1() {
 ec2_imdsv2_transition_payload_enabled: %t`, tt.ec2PreferIMDSv2, tt.legacyResolutionHostname)
 
 		instanceOpts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
-			awshost.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+				ec2.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()),
+			),
 		}
 		runHostnameTest(v, instanceOpts, tt)
 	}

@@ -10,7 +10,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"

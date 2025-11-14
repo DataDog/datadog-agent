@@ -28,11 +28,13 @@ func (v *baseHostnameDriftSuite) getSuiteOptions(osInstance osVM.Descriptor) []e
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(`hostname_drift_initial_delay: 10s
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithAgentConfig(`hostname_drift_initial_delay: 10s
 hostname_drift_recurring_interval: 15s`),
+				),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 			),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 		),
 	))
 

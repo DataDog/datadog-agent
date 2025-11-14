@@ -14,14 +14,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 type hostHttpbinEnv struct {
@@ -33,19 +31,19 @@ type ec2VMSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
 }
 
-func hostDockerHttpbinEnvProvisioner(opt ...scenec2.Option) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
+func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-		opts := []scenec2.Option{
-			scenec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		opts := []ec2.Option{
+			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 		}
 		if len(opt) > 0 {
 			opts = append(opts, opt...)
 		}
-		params := scenec2.GetParams(opts...)
+		params := ec2.GetParams(opts...)
 		if err := ec2.Run(ctx, awsEnv, &env.Host, params); err != nil {
 			return err
 		}

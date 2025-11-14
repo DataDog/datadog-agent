@@ -37,11 +37,13 @@ func (v *baseMultiProcessingLibSuite) getSuiteOptions(osInstance osVM.Descriptor
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithIntegration("multi_pid_check.d", multiPidCheckYaml),
-				agentparams.WithFile(v.checksdPath, multiPidCheckPy, true),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithIntegration("multi_pid_check.d", multiPidCheckYaml),
+					agentparams.WithFile(v.checksdPath, multiPidCheckPy, true),
+				),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 			),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(osInstance)),
 		),
 	))
 

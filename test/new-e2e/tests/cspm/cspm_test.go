@@ -22,9 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type cspmTestSuite struct {
@@ -172,7 +173,13 @@ var expectedFindingsWorkerNode = findings{
 var values string
 
 func TestCSPM(t *testing.T) {
-	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)))))
+	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(
+		provkindvm.Provisioner(
+			provkindvm.WithRunOptions(
+				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
+			),
+		),
+	))
 }
 
 func (s *cspmTestSuite) TestFindings() {

@@ -36,7 +36,9 @@ func (v *diskCheckSuite) getSuiteOptions() []e2e.SuiteOption {
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+			),
 		),
 	))
 

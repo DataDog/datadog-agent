@@ -21,8 +21,7 @@ import (
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
-	tifEcs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
-
+	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -36,10 +35,12 @@ type ECSFargateSuite struct {
 
 func getFargateProvisioner(configMap runner.ConfigMap) provisioners.TypedProvisioner[environments.ECS] {
 	return ecs.Provisioner(
-		ecs.WithECSOptions(tifEcs.WithFargateCapacityProvider()),
-		ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
-			return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
-		}),
+		ecs.WithRunOptions(
+			scenecs.WithECSOptions(scenecs.WithFargateCapacityProvider()),
+			scenecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+			}),
+		),
 		ecs.WithExtraConfigParams(configMap),
 	)
 }
