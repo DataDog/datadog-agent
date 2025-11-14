@@ -434,11 +434,7 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
 
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
-		go func() {
-			if _, err := secrets.Refresh(false); err != nil {
-				log.Debugf("error while refreshing secrets: %s", err)
-			}
-		}()
+		secrets.TriggerRefresh()
 
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
