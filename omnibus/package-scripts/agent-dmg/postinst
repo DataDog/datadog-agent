@@ -120,28 +120,17 @@ if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
   # Load the tray app service (this will start it due to RunAtLoad: true)
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
 
-  # Prompt user to grant location permission
-  echo "# Prompting for location permission..."
-
-  # Check if GUI is available (detect if we're in SSH/headless mode)
-  # GUI is available if osascript can run (more reliable than Python Quartz check)
-  if sudo -u "$INSTALL_USER" osascript -e 'tell app "System Events" to return name of current user' >/dev/null 2>&1; then
-    echo "# GUI environment detected, showing permission prompt to user"
-
-    # Open System Settings to Location Services (fail silently if it can't open)
-    if ! sudo -u "$INSTALL_USER" open "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices" 2>/dev/null; then
-      echo "# Warning: Could not open System Settings (this is expected in headless environments)"
-    fi
-
-    # Show dialog asking user to grant permission (fail silently if dialog can't be shown)
-    if ! sudo -u "$INSTALL_USER" osascript -e 'tell app "System Events" to display dialog "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID).\n\nPlease:\n1. In the System Settings window that just opened, scroll down to find \"Datadog Agent\"\n2. Enable the toggle switch next to \"Datadog Agent\"\n3. Click OK below when done" buttons {"OK"} default button "OK" with title "Enable Location Permission" with icon caution' 2>/dev/null; then
-      echo "# Warning: Could not show permission dialog (this is expected in headless environments)"
-    fi
-  else
-    echo "# Headless/SSH environment detected, skipping GUI permission prompt"
-    echo "# Note: To enable WiFi data collection (SSID/BSSID), manually grant Location permission:"
-    echo "#   System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
-  fi
+  # Inform user about location permission requirement
+  echo ""
+  echo "=========================================="
+  echo "Datadog Agent Location Permission"
+  echo "=========================================="
+  echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
+  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+  echo ""
+  echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
+  echo "=========================================="
+  echo ""
 fi
 
 # A little debriefing won't hurt
