@@ -135,6 +135,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     increment_kretprobe__nf_conntrack_confirm_success_count();
 
+    // JMWJMW???  can't we check pending_confirms here to see if we tracked this ct like in CO-RE?
     // For prebuilt version, we can't easily correlate entry/exit
     // So we'll just count successful returns
     // The actual conntrack entry population would need the ct pointer

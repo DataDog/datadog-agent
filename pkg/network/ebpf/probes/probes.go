@@ -224,7 +224,7 @@ const (
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
-	// Conntrack2Map is the map storing confirmed NAT connections
+	// Conntrack2Map is the map storing confirmed NAT connections JMW
 	Conntrack2Map BPFMapName = "conntrack2"
 	// PendingConfirmsMap is the map for tracking pending confirmations
 	PendingConfirmsMap BPFMapName = "pending_confirms"
