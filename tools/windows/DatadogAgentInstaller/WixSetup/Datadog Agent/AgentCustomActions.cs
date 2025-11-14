@@ -499,7 +499,9 @@ namespace WixSetup.Datadog_Agent
                            "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=[DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT]," +
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
-                           "FLEET_INSTALL=[FLEET_INSTALL]");
+                           "FLEET_INSTALL=[FLEET_INSTALL]," +
+                           "ORIGINALDATABASE=[OriginalDatabase]," +
+                           "DD_OTEL_OCI_INSTALL=[DD_OTEL_OCI_INSTALL]");
 
             RollbackOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackOciPackages)),
