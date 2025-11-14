@@ -146,9 +146,9 @@ func TestFmtProcessStats(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			chunked := fmtProcessStats(tc.maxBatchSize, procs, lastProcs, map[int]string{}, cpu.TimesStat{}, cpu.TimesStat{}, time.Now().Add(-time.Second), time.Now())
-			require.Len(t, chunked, tc.expectedNumChunks)
+			assert.Len(t, chunked, tc.expectedNumChunks)
 			for i, size := range tc.expectedChunkSizes {
-				require.Len(t, chunked[i], size)
+				assert.Len(t, chunked[i], size)
 			}
 		})
 	}

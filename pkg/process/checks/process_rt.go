@@ -99,7 +99,7 @@ func fmtProcessStats(
 	now time.Time,
 ) [][]*model.ProcessStat {
 	chunked := make([][]*model.ProcessStat, 0)
-	// set max chunk capacity to len(procs) since it can be set to MaxInt for manual checks
+	// set max chunk capacity to len(procs) since maxBatchSize can be set to MaxInt for manual checks
 	numChunks := len(procs)
 	if maxBatchSize > 0 && maxBatchSize < numChunks {
 		numChunks = maxBatchSize
