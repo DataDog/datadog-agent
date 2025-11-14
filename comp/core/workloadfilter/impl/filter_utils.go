@@ -9,7 +9,9 @@ package workloadfilterimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+
+	//nolint:revive // require systemprobe config
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:revive // require systemprobe config
 )
 
 // filterSelection stores pre-computed filter lists to avoid recalculating them on every call
