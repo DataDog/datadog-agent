@@ -1132,3 +1132,71 @@ func TestMemorySpanPool(t *testing.T) {
 		})
 	}, 10)
 }
+
+func TestGetKernelDataReturnsUnwrappedErrors(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+
+	t.Run("errFatbinParsingDisabled when cache is nil", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(false))
+		require.Nil(t, sysCtx.cudaKernelCache)
+
+		stream, err := newStreamHandler(streamMetadata{pid: 1, smVersion: 75}, sysCtx, config.New().StreamConfig, streamTelemetry)
+		require.NoError(t, err)
+
+		enrichedLaunch := &enrichedKernelLaunch{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Kernel_addr: 42,
+			},
+			stream: stream,
+		}
+
+		_, err = enrichedLaunch.getKernelData()
+		require.Error(t, err)
+		// Test that the error is the exact sentinel error, not wrapped
+		require.True(t, err == errFatbinParsingDisabled, "error should be the exact sentinel error errFatbinParsingDisabled")
+	})
+
+	t.Run("errFatbinParsingDisabled when smVersion is noSmVersion", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+		sysCtx.cudaKernelCache.Start()
+		t.Cleanup(sysCtx.cudaKernelCache.Stop)
+
+		stream, err := newStreamHandler(streamMetadata{pid: 1, smVersion: noSmVersion}, sysCtx, config.New().StreamConfig, streamTelemetry)
+		require.NoError(t, err)
+
+		enrichedLaunch := &enrichedKernelLaunch{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Kernel_addr: 42,
+			},
+			stream: stream,
+		}
+
+		_, err = enrichedLaunch.getKernelData()
+		require.Error(t, err)
+		// Test that the error is the exact sentinel error, not wrapped
+		require.True(t, err == errFatbinParsingDisabled, "error should be the exact sentinel error errFatbinParsingDisabled")
+	})
+
+	t.Run("cuda.ErrKernelNotProcessedYet when kernel not in cache", func(t *testing.T) {
+		proc := t.TempDir()
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true), withProcRoot(proc))
+		sysCtx.cudaKernelCache.Start()
+		t.Cleanup(sysCtx.cudaKernelCache.Stop)
+
+		stream, err := newStreamHandler(streamMetadata{pid: 1, smVersion: 75}, sysCtx, config.New().StreamConfig, streamTelemetry)
+		require.NoError(t, err)
+
+		enrichedLaunch := &enrichedKernelLaunch{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Kernel_addr: 42,
+			},
+			stream: stream,
+		}
+
+		_, err = enrichedLaunch.getKernelData()
+		require.Error(t, err)
+		// Test that the error is the exact sentinel error, not wrapped
+		require.True(t, err == cuda.ErrKernelNotProcessedYet, "error should be the exact sentinel error cuda.ErrKernelNotProcessedYet")
+	})
+}

@@ -70,6 +70,7 @@ func (e effectAttachToProcess) yamlData() map[string]any {
 type effectDetachFromProcess struct {
 	programID ir.ProgramID
 	processID ProcessID
+	failure   error
 }
 
 func (e effectDetachFromProcess) yamlTag() string {
@@ -77,9 +78,14 @@ func (e effectDetachFromProcess) yamlTag() string {
 }
 
 func (e effectDetachFromProcess) yamlData() map[string]any {
+	failureStr := "no"
+	if e.failure != nil {
+		failureStr = "yes"
+	}
 	return map[string]any{
 		"program_id": int(e.programID),
 		"process_id": int(e.processID.PID),
+		"failure":    failureStr,
 	}
 }
 
@@ -150,10 +156,11 @@ func (er *effectRecorder) attachToProcess(
 	})
 }
 
-func (er *effectRecorder) detachFromProcess(attached *attachedProgram) {
+func (er *effectRecorder) detachFromProcess(attached *attachedProgram, failure error) {
 	er.recordEffect(effectDetachFromProcess{
 		programID: attached.programID,
 		processID: attached.processID,
+		failure:   failure,
 	})
 }
 

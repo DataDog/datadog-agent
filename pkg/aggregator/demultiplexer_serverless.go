@@ -185,9 +185,10 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 	panic("not implemented.")
 }
 
-// SetTimeSamplersFilterList is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
-	d.statsdWorker.filterListChan <- filterList
+// SetSamplersFilterList is not supported in the Serverless Agent implementation.
+// Serverless does not run checks, so we don't need to set any filter list on checks here.
+func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
+	d.statsdWorker.filterListChan <- histoFilterList
 }
 
 // Serializer returns the shared serializer
