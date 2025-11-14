@@ -62,6 +62,10 @@ const (
 	oldInstallerDir       = "C:\\ProgramData\\Datadog Installer"
 )
 
+var (
+	errWatchdogTimeout = errors.New("watchdog timeout")
+)
+
 // postInstallDatadogAgent runs post install scripts for a given package.
 func postInstallDatadogAgent(ctx HookContext) error {
 	// must get env before uninstalling the Agent since it may read from the registry
@@ -184,16 +188,21 @@ func postStartExperimentDatadogAgentBackground(ctx context.Context) error {
 
 	// now we start our watchdog to make sure the Agent is running
 	// and we can restore the stable Agent if it stops.
-	err = startWatchdog(ctx, time.Now().Add(getWatchdogTimeout()))
-	if err != nil {
-		log.Errorf("Watchdog failed: %s", err)
+	watchdogErr := startWatchdog(ctx, time.Now().Add(getWatchdogTimeout()))
+	if watchdogErr != nil {
 		// we failed to start the watchdog, the Agent stopped, or we received a timeout
 		// we need to restore the stable Agent to leave the system in a consistent state.
 		restoreErr := restoreStableAgentFromExperiment(ctx, env)
 		if restoreErr != nil {
-			log.Error(restoreErr)
-			err = fmt.Errorf("%w, %w", err, restoreErr)
+			log.Error("restore failed: %w", restoreErr)
+			return fmt.Errorf("watchdog failed: %w, restore failed: %w", watchdogErr, restoreErr)
 		}
+		if errors.Is(watchdogErr, errWatchdogTimeout) {
+			// if the watchdog timed out, we can return without an error
+			// the experiment will be marked as DONE and the stable Agent will be restored
+			return nil
+		}
+		log.Errorf("watchdog failed: %s", watchdogErr)
 		return err
 	}
 
@@ -336,7 +345,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 
 	}
 
-	return fmt.Errorf("watchdog timeout")
+	return errWatchdogTimeout
 
 }
 
@@ -687,15 +696,21 @@ func postStartConfigExperimentDatadogAgentBackground(ctx context.Context) error 
 
 	// Start watchdog to monitor the agent service
 	timeout := getWatchdogTimeout()
-	err = startWatchdog(ctx, time.Now().Add(timeout))
-	if err != nil {
-		log.Errorf("Config watchdog failed: %s", err)
-		// If watchdog fails, restore stable config
+	watchdogErr := startWatchdog(ctx, time.Now().Add(timeout))
+	if watchdogErr != nil {
+		// we failed to start the watchdog, the Agent stopped, or we received a timeout
+		// we need to restore the stable Agent to leave the system in a consistent state.
 		restoreErr := restoreStableConfigFromExperiment(ctx)
 		if restoreErr != nil {
-			log.Error(restoreErr)
-			err = fmt.Errorf("%w, %w", err, restoreErr)
+			log.Error("restore failed: %w", restoreErr)
+			return fmt.Errorf("watchdog failed: %w, restore failed: %w", watchdogErr, restoreErr)
 		}
+		if errors.Is(watchdogErr, errWatchdogTimeout) {
+			// if the watchdog timed out, we can return without an error
+			// the experiment will be marked as DONE and the stable config will be restored
+			return nil
+		}
+		log.Errorf("watchdog failed: %s", watchdogErr)
 		return err
 	}
 
