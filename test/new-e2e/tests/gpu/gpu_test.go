@@ -58,7 +58,7 @@ const (
 // gpuSystems is a map of AMIs for different Ubuntu versions
 var gpuSystems = map[systemName]systemData{
 	gpuSystemUbuntu2204: {
-		ami:                          "ami-0066f213d20342af9",
+		ami:                          "ami-03ee78da2beb5b622",
 		os:                           os.Ubuntu2204,
 		cudaSanityCheckImage:         cuda12DockerImage,
 		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
