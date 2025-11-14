@@ -34,6 +34,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	batch "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/batch/v1"
+	core "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
+	meta "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -165,6 +169,11 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 	}
 
 	if params.deployTestWorkload {
+		coreDNSReady, err := waitForCoreDNS(ctx, cluster.KubeProvider)
+		if err != nil {
+			return err
+		}
+		dependsOnCoreDNS := utils.PulumiDependsOn(coreDNSReady)
 
 		if _, err := cpustress.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-cpustress"); err != nil {
 			return err
@@ -198,7 +207,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
-		if _, err := etcd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(cluster)); err != nil {
+		if _, err := etcd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, dependsOnCoreDNS); err != nil {
 			return err
 		}
 
@@ -232,4 +241,36 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 		}
 	}
 	return nil
+}
+
+// waitForCoreDNS creates a Kubernetes Job that waits for CoreDNS to be operational
+// This prevents DNS resolution failures when pods start before networking is fully ready
+func waitForCoreDNS(ctx *pulumi.Context, kubeProvider *kubernetes.Provider) (pulumi.Resource, error) {
+	return batch.NewJob(ctx, "wait-for-coredns", &batch.JobArgs{
+		Metadata: &meta.ObjectMetaArgs{
+			Name:      pulumi.String("wait-for-coredns"),
+			Namespace: pulumi.String("kube-system"),
+		},
+		Spec: &batch.JobSpecArgs{
+			BackoffLimit:            pulumi.Int(3),
+			ActiveDeadlineSeconds:   pulumi.Int(900), // Maximum 15 minutes total (5min × 3 retries)
+			TtlSecondsAfterFinished: pulumi.Int(300), // Clean up job 5 minutes after completion
+			Template: &core.PodTemplateSpecArgs{
+				Spec: &core.PodSpecArgs{
+					RestartPolicy: pulumi.String("OnFailure"),
+					Containers: core.ContainerArray{
+						&core.ContainerArgs{
+							Name:  pulumi.String("wait-for-coredns"),
+							Image: pulumi.String("public.ecr.aws/docker/library/busybox:1.36.1"),
+							Command: pulumi.StringArray{
+								pulumi.String("sh"),
+								pulumi.String("-c"),
+								pulumi.String("for i in $(seq 1 150); do nslookup kubernetes.default && exit 0 || sleep 2; done; exit 42"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}, pulumi.Provider(kubeProvider), pulumi.DeleteBeforeReplace(true))
 }
