@@ -37,8 +37,9 @@ type Module struct {
 	tenant ActuatorTenant
 	symdb  symdbManagerInterface
 
-	store       *processStore
-	diagnostics *diagnosticsManager
+	store        *processStore
+	diagnostics  *diagnosticsManager
+	runtimeStats *runtimeStats
 
 	cancel context.CancelFunc
 
@@ -118,11 +119,12 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	tenant := deps.Actuator.NewTenant("dyninst", runtime)
 
 	m := &Module{
-		store:       store,
-		diagnostics: diagnostics,
-		symdb:       deps.symdbManager,
-		tenant:      tenant,
-		cancel:      func() {}, // This gets overwritten in NewModule
+		store:        store,
+		diagnostics:  diagnostics,
+		symdb:        deps.symdbManager,
+		tenant:       tenant,
+		runtimeStats: &runtime.stats,
+		cancel:       func() {}, // This gets overwritten in NewModule
 	}
 	if deps.ProcessSubscriber != nil {
 		deps.ProcessSubscriber.Subscribe(m.handleProcessesUpdate)
@@ -274,6 +276,9 @@ func (m *Module) GetStats() map[string]any {
 		if actuatorStats != nil {
 			stats["actuator"] = actuatorStats
 		}
+	}
+	if m.runtimeStats != nil {
+		stats["runtime"] = m.runtimeStats.asStats()
 	}
 	return stats
 }
