@@ -22,7 +22,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -545,7 +544,7 @@ hostname: ENC[hostname]`
 	secretClient.SetSecret("hostname", "e2e.test")
 
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(scenec2.WithAgentOptions(
+		awshost.WithRunOptions(ec2.WithAgentOptions(
 			secretsutils.WithUnixSetupScript(secretResolverPath, true),
 			agentparams.WithAgentConfig(config),
 		)),
@@ -593,7 +592,7 @@ language_detection:
 log_level: debug
 `
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(scenec2.WithAgentOptions(
+		awshost.WithRunOptions(ec2.WithAgentOptions(
 			agentparams.WithAgentConfig(config),
 		),
 		)))
@@ -649,10 +648,10 @@ func (v *apiSuite) TestMetadataV5CanonicalCloudResourceID_IMDSVariants() {
 		v.T().Run(tt.name, func(t *testing.T) {
 			agentConfig := fmt.Sprintf(`ec2_prefer_imdsv2: %t`, tt.ec2PreferIMDSv2)
 			opts := []awshost.ProvisionerOption{
-				awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
+				awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 			}
 			if tt.withIMDSv1Off {
-				opts = append(opts, awshost.WithRunOptions(scenec2.WithEC2InstanceOptions(ec2.WithIMDSv1Disable())))
+				opts = append(opts, awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithIMDSv1Disable())))
 			}
 			v.UpdateEnv(awshost.ProvisionerNoFakeIntake(opts...))
 

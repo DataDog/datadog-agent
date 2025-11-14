@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -43,8 +42,8 @@ type LinuxFIPSComplianceSuite struct {
 func TestLinuxFIPSComplianceSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithRunOptions(
-			scenec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-			scenec2.WithAgentOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			ec2.WithAgentOptions(
 				agentparams.WithFlavor("datadog-fips-agent"),
 				// Install custom check that reports the FIPS mode of Python
 				// TODO ADXT-881: Need forward slashes to workaround test-infra bug
@@ -125,8 +124,8 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
-			scenec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-			scenec2.WithAgentOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			ec2.WithAgentOptions(
 				agentparams.WithFlavor("datadog-fips-agent"),
 				agentparams.WithSecurityAgentConfig(securityAgentConfig),
 				agentparams.WithSystemProbeConfig(systemProbeConfig),

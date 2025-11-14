@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	testos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -45,8 +44,8 @@ func TestWindowsVMFileTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault)),
-				scenec2.WithAgentOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault)),
+				ec2.WithAgentOptions(
 					agentparams.WithLogs(),
 					agentparams.WithIntegration("custom_logs.d", logConfig))))),
 	}

@@ -23,7 +23,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -76,11 +75,11 @@ sudo usermod -a -G docker dd-agent
 `
 	opts = append(opts,
 		awshost.WithRunOptions(
-			scenec2.WithDocker(),
+			ec2.WithDocker(),
 			// Create the /var/run/datadog directory and ensure
 			// permissions are correct so the agent can create
 			// unix sockets for the UDS transport and communicate with the docker socket.
-			scenec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
 		),
 	)
 	return opts
@@ -115,7 +114,7 @@ apm_config.enabled: true
 func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	options := vmSuiteOpts(uds,
 		// Enable the UDS receiver in the trace-agent
-		awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, "")))))
+		awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, "")))))
 	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
@@ -124,8 +123,8 @@ func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	options := vmSuiteOpts(tcp,
 		awshost.WithRunOptions(
 			// Enable the UDS receiver in the trace-agent
-			scenec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(tcp, ""))),
-			scenec2.WithEC2InstanceOptions(),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(tcp, ""))),
+			ec2.WithEC2InstanceOptions(),
 		),
 	)
 	e2e.Run(t, NewVMFakeintakeSuite(tcp), options...)
@@ -373,7 +372,7 @@ apm_config.probabilistic_sampler.sampling_percentage: 50
 apm_config.probabilistic_sampler.hash_seed: 22
 `
 	opts := vmProvisionerOpts(awshost.WithRunOptions(
-		scenec2.WithAgentOptions(
+		ec2.WithAgentOptions(
 			agentparams.WithAgentConfig(vmAgentConfig(s.transport, cfg)),
 		),
 	))
@@ -522,7 +521,7 @@ agent_ipc:
 	s.UpdateEnv(awshost.Provisioner(
 		vmProvisionerOpts(
 			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
+				ec2.WithAgentOptions(
 					agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
 					secretsutils.WithUnixSetupScript(secretResolverPath, true),
 					agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
