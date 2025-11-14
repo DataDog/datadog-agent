@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -86,7 +87,7 @@ func TestStartInvalidConfig(t *testing.T) {
 type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
-func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
+func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer, _ tagger.Component) (dogstatsdServer.ServerlessDogstatsd, error) {
 	return nil, fmt.Errorf("error")
 }
 
@@ -228,7 +229,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
 	require.NoError(t, err, "cannot start Demultiplexer")
 
-	s, err := dogstatsdServer.NewServerlessServer(demux)
+	s, err := dogstatsdServer.NewServerlessServer(demux, nooptagger.NewComponent())
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 

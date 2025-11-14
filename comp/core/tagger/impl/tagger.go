@@ -109,20 +109,20 @@ func NewComponent(req Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
+	// Main context passed to components, consistent with the one used in the WorkloadMeta component.
+	mainCtx, _ := common.GetMainCtxCancel()
+	taggerInstance.ctx, taggerInstance.cancel = context.WithCancel(mainCtx)
+
+	// Create the WorkloadMeta collector
+	taggerInstance.collector = collectors.NewWorkloadMetaCollector(
+		taggerInstance.ctx,
+		taggerInstance.cfg,
+		taggerInstance.workloadStore,
+		taggerInstance.tagStore,
+	)
+
 	req.Log.Info("Tagger is created")
 	req.Lc.Append(compdef.Hook{OnStart: func(context.Context) error {
-		// Main context passed to components, consistent with the one used in the WorkloadMeta component.
-		mainCtx, _ := common.GetMainCtxCancel()
-		taggerInstance.ctx, taggerInstance.cancel = context.WithCancel(mainCtx)
-
-		// Start the WorkloadMeta collector.
-		taggerInstance.collector = collectors.NewWorkloadMetaCollector(
-			taggerInstance.ctx,
-			taggerInstance.cfg,
-			taggerInstance.workloadStore,
-			taggerInstance.tagStore,
-		)
-
 		// Start the TagStore and the WorkloadMeta collector.
 		go taggerInstance.tagStore.Run(taggerInstance.ctx)
 		go taggerInstance.collector.Run(taggerInstance.ctx)
