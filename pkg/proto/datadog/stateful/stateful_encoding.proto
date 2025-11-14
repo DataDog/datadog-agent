@@ -91,7 +91,7 @@ message StatefulBatch {
 }
 
 message BatchStatus {
-  int32 batch_id = 1;
+  uint32 batch_id = 1;
 
   // See Status Code Mappings section below for more details
   enum Status {
