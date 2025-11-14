@@ -50,9 +50,14 @@ const (
 	gpuSystemUbuntu1804Driver430 systemName = "ubuntu1804-430"
 	gpuSystemUbuntu1804Driver510 systemName = "ubuntu1804-510"
 	defaultGpuSystem             systemName = gpuSystemUbuntu2204
+	defaultCudaVersion           string     = "12.4.1"
+	oldCudaVersion               string     = "10.2"
+	dockerRegistry               string     = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub"
+)
 
-	cuda12DockerImage    = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
-	pytorch19DockerImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/pytorch/pytorch:1.9.0-cuda10.2-cudnn7-runtime"
+var (
+	cuda12DockerImage    = fmt.Sprintf("%s/nvidia/cuda:%s-base-ubuntu22.04", dockerRegistry, defaultCudaVersion)
+	pytorch19DockerImage = fmt.Sprintf("%s/pytorch/pytorch:1.9.0-cuda%s-cudnn7-runtime", dockerRegistry, oldCudaVersion)
 )
 
 // gpuSystems is a map of AMIs for different Ubuntu versions
@@ -64,6 +69,7 @@ var gpuSystems = map[systemName]systemData{
 		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
 		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs
 		supportsSystemProbeComponent: true,
+		cudaVersion:                  defaultCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver430: {
 		ami:                          "ami-0cd4aa4912d788419",
@@ -72,6 +78,7 @@ var gpuSystems = map[systemName]systemData{
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
 		supportsSystemProbeComponent: false,
+		cudaVersion:                  oldCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver510: {
 		ami:                          "ami-0cbf114f88ec230fe",
@@ -80,6 +87,7 @@ var gpuSystems = map[systemName]systemData{
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs
 		supportsSystemProbeComponent: false,
+		cudaVersion:                  oldCudaVersion,
 	},
 }
 
