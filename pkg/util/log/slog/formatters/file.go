@@ -14,10 +14,11 @@ import (
 
 // ShortFilePath returns the short path of the file that the log message was emitted from.
 func ShortFilePath(frame runtime.Frame) string {
-	return extractShortPathFromFullPath(frame.File)
+	return ExtractShortPathFromFullPath(frame.File)
 }
 
-func extractShortPathFromFullPath(fullPath string) string {
+// ExtractShortPathFromFullPath extracts the short path from a full path.
+func ExtractShortPathFromFullPath(fullPath string) string {
 	shortPath := ""
 	if strings.Contains(fullPath, "-agent/") {
 		// We want to trim the part containing the path of the project

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestExtractContextString(t *testing.T) {
+func TestExtraContext(t *testing.T) {
 	assert.Equal(t, `,"foo":"bar"`, ExtraJSONContext(makeRecord("foo", "bar")))
 	assert.Equal(t, `foo:bar | `, ExtraTextContext(makeRecord("foo", "bar")))
 	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, ExtraJSONContext(makeRecord("foo", "bar", "bar", "buzz")))

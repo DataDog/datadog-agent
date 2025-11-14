@@ -19,16 +19,24 @@ const (
 )
 
 // ExtraJSONContext creates a JSON string of the record's attributes.
-func ExtraJSONContext(record slog.Record) string {
+func ExtraJSONContext(record AttrHolder) string {
 	return extractContextString(jsonFormat, record)
 }
 
 // ExtraTextContext creates a text string of the record's attributes.
-func ExtraTextContext(record slog.Record) string {
+func ExtraTextContext(record AttrHolder) string {
 	return extractContextString(textFormat, record)
 }
 
-func extractContextString(format contextFormat, record slog.Record) string {
+// AttrHolder provides attributes
+//
+// This is an abstraction to allow using it with both seelog and slog
+type AttrHolder interface {
+	Attrs(func(a slog.Attr) bool)
+	NumAttrs() int
+}
+
+func extractContextString(format contextFormat, record AttrHolder) string {
 	if record.NumAttrs() == 0 {
 		return ""
 	}
