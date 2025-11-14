@@ -8,7 +8,7 @@ package common
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // SetSystemProxy configures the Windows system proxy for both WinINET (per-user) and WinHTTP.

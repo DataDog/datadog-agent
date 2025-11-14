@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 //go:embed config/automulti.yaml
@@ -44,9 +45,10 @@ func TestMultiLineSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithAgentOptions(
-					agentparams.WithLogs(),
-				))),
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(
+						agentparams.WithLogs(),
+					)))),
 	}
 	t.Parallel()
 	e2e.Run(t, s, options...)
@@ -103,7 +105,8 @@ func (s *MultiLineSuite) detectsAutoMultiLine() {
 		agentparams.WithIntegration("custom_logs.d", autoMultiLineConfig),
 	}
 	// Update env to enable auto_multi_line_detection
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(agentOptions...))))
 
 	// auto_multi_line_detection uses the first 500 logs to detect a pattern
 	s.generateMultilineLogs(time.Now().Format(time.RFC3339), 700)
@@ -136,7 +139,8 @@ func (s *MultiLineSuite) detectsPatternMultiLine() {
 		agentparams.WithIntegration("custom_logs.d", multiLineLogPatternConfig),
 	}
 	// Update env to add log_processing_rules with multi_line pattern
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(agentOptions...))))
 
 	s.generateMultilineLogs("fake-log-prefix", 100)
 

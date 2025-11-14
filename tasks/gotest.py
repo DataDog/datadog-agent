@@ -459,6 +459,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         targeted = False
 
         assert best_module_path, f"No module found for {modified_file}"
+        print(f"Best module path: {best_module_path}")
         module = get_module_by_path(best_module_path)
         targets = module.lint_targets if lint else module.test_targets
 

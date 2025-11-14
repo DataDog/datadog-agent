@@ -7,12 +7,14 @@ default_stages:
   - pre-commit
 
 repos:
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.12.2
+- repo: local
   hooks:
-    - id: ruff
-      args: [ --fix ]
-    - id: ruff-format
+    - id: python-lint
+      name: python-lint
+      files: .*\.py$
+      pass_filenames: false
+      language: system
+      entry: dda inv linter.python
 - repo: https://github.com/jendrikseipp/vulture
   rev: e454d2ef39fc23e72549ff23a1a14e31c3a75605 # v2.14
   hooks:

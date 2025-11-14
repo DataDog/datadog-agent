@@ -11,10 +11,11 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
 )
 
 type DockerSuite struct {
@@ -22,7 +23,11 @@ type DockerSuite struct {
 }
 
 func TestDockerSuite(t *testing.T) {
-	e2e.Run(t, &DockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithTestingWorkload())))
+	e2e.Run(t, &DockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(
+		awsdocker.WithRunOptions(
+			scendocker.WithTestingWorkload(),
+		),
+	)))
 }
 
 func (suite *DockerSuite) SetupSuite() {
