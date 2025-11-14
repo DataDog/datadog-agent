@@ -10,7 +10,6 @@ package agentimpl
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -21,14 +20,12 @@ import (
 )
 
 func TestBuildServerlessEndpoints(t *testing.T) {
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "function")
 	config := config.NewMock(t)
 
 	endpoints, err := buildEndpoints(config)
 	assert.Nil(t, err)
 	assert.Equal(t, "http-intake.logs.datadoghq.com.", endpoints.Main.Host)
-	assert.Equal(t, "lambda-extension", string(endpoints.Main.Origin))
-	assert.Equal(t, endpoints.BatchWait, 365*24*time.Hour)
+	assert.Equal(t, "serverless", string(endpoints.Main.Origin))
 }
 
 func TestServerlessLogsAgent(t *testing.T) {
