@@ -103,23 +103,33 @@ build do
     ]
   end
 
-  # Out of abundance of caution, we put the feature flags first and then
-  # the crazy platform specific compiler flags at the end.
-  configure_args << env["CFLAGS"] << env["LDFLAGS"]
+  # Preserving old build for time being for FIPS.
+  if ENV["AGENT_FLAVOR"] == "fips"
+    # Out of abundance of caution, we put the feature flags first and then
+    # the crazy platform specific compiler flags at the end.
+    configure_args << [
+      "--with-fips",
+    ]
+    # the crazy platform specific compiler flags at the end.
+    configure_args << env["CFLAGS"] << env["LDFLAGS"]
 
-  # We don't use the regular configure wrapper function here since openssl's configure
-  # is not the usual autoconf configure but something handmade written in perl
-  command "#{configure_cmd} #{configure_args.join(' ')}", env: env
+    # We don't use the regular configure wrapper function here since openssl's configure
+    # is not the usual autoconf configure but something handmade written in perl
+    command "#{configure_cmd} #{configure_args.join(' ')}", env: env
 
-  command "make depend", env: env
-  command "make -j #{workers}", env: env
-  command "make install_sw install_ssldirs", env: env
-
-  delete "#{install_dir}/embedded/bin/c_rehash"
-  unless windows?
+    command "make depend", env: env
+    command "make -j #{workers}", env: env
+    command "make install_sw install_ssldirs", env: env
+    delete "#{install_dir}/embedded/bin/c_rehash"
     # Remove openssl static libraries here as we can't disable those at build time
     delete "#{install_dir}/embedded/lib/libcrypto.a"
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
+    command_on_repo_root "bazelisk run -- @openssl//:install --destdir='#{install_dir}/embedded'"
+    if linux_target?
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/libssl.so" \
+      " #{install_dir}/embedded/lib/libcrypto.so" \
+    end
   end
 end

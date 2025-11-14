@@ -21,16 +21,9 @@ DEFAULT_CONFIG = [
 configure_make(
     name = "openssl",
     # TODO(team:agent-build): Find a better way to utilize more than 1 core
-    args = select({
-        # Build on Windows fails with high parallelism
-        # most probably due to race condition.
-        "@platforms//os:windows": [
-            "-j 16",
-        ],
-        "//conditions:default": [
-            "-j 16",
-        ],
-    }),
+    args = [
+        "-j 16",
+    ],
     configure_prefix = select({
         "@platforms//os:windows": "perl",
         "//conditions:default": "",
@@ -104,4 +97,17 @@ configure_make(
         "@platforms//os:windows": [],
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
+)
+
+pkg_files(
+    name = "openssl_lib_files",
+    srcs = [":openssl"],
+    prefix = "lib",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":openssl_lib_files",
+    ],
 )
