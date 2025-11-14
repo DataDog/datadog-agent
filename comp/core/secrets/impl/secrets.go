@@ -129,6 +129,8 @@ type secretResolver struct {
 	apiKeyFailureRefreshInterval time.Duration
 	lastThrottledRefresh         time.Time
 	throttledRefreshMutex        sync.Mutex
+
+	refreshTrigger chan struct{}
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -142,6 +144,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 		clk:                     newClock(),
 		unresolvedSecrets:       make(map[string]struct{}),
+		refreshTrigger:          make(chan struct{}, 1),
 	}
 }
 
@@ -315,37 +318,51 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 }
 
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
-	if r.ticker != nil || r.refreshInterval == 0 {
+	if r.ticker != nil {
 		return
 	}
 
-	if r.refreshIntervalScatter {
-		var int63 int64
-		if rd == nil {
-			int63 = rand.Int63n(int64(r.refreshInterval))
+	var timer <-chan time.Time
+	if r.refreshInterval > 0 {
+		if r.refreshIntervalScatter {
+			var int63 int64
+			if rd == nil {
+				int63 = rand.Int63n(int64(r.refreshInterval))
+			} else {
+				int63 = rd.Int63n(int64(r.refreshInterval))
+			}
+			// Scatter when the refresh happens within the interval, with a minimum of 1 second
+			r.scatterDuration = time.Duration(int63) + time.Second
+			log.Infof("first secret refresh will happen in %s", r.scatterDuration)
 		} else {
-			int63 = rd.Int63n(int64(r.refreshInterval))
+			r.scatterDuration = r.refreshInterval
 		}
-		// Scatter when the refresh happens within the interval, with a minimum of 1 second
-		r.scatterDuration = time.Duration(int63) + time.Second
-		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
-	} else {
-		r.scatterDuration = r.refreshInterval
+		r.ticker = r.clk.Ticker(r.scatterDuration)
+		timer = r.ticker.C
 	}
-	r.ticker = r.clk.Ticker(r.scatterDuration)
 
 	go func() {
-		<-r.ticker.C
-		if _, err := r.Refresh(true); err != nil {
-			log.Infof("Error with refreshing secrets: %s", err)
-		}
-		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
-		r.ticker.Reset(r.refreshInterval)
-
-		for {
-			<-r.ticker.C
+		if timer != nil {
+			<-timer
 			if _, err := r.Refresh(true); err != nil {
 				log.Infof("Error with refreshing secrets: %s", err)
+			}
+			// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
+			r.ticker.Reset(r.refreshInterval)
+		}
+
+		for {
+			select {
+			case <-timer:
+				// scheduled refresh
+				if _, err := r.Refresh(true); err != nil {
+					log.Infof("Error with refreshing secrets: %s", err)
+				}
+			case <-r.refreshTrigger:
+				// triggered refresh
+				if _, err := r.Refresh(false); err != nil {
+					log.Infof("Error with refreshing secrets: %s", err)
+				}
 			}
 		}
 	}()
@@ -704,6 +721,14 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 	}
 
 	return result, auditRecordErr
+}
+
+// TriggerRefresh sends a non-blocking signal to refresh secrets on API key failures
+func (r *secretResolver) TriggerRefresh() {
+	select {
+	case r.refreshTrigger <- struct{}{}:
+	default:
+	}
 }
 
 type auditRecord struct {

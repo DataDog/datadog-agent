@@ -39,4 +39,6 @@ type Component interface {
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
 	// If bypassRateLimit is true, the refresh bypasses throttling; otherwise, it's rate-limited by APIKeyFailureRefreshInterval.
 	Refresh(bypassRateLimit bool) (string, error)
+	// TriggerRefresh is a non-blocking signal to the running refresh routine to refresh secrets
+	TriggerRefresh()
 }
