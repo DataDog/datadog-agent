@@ -325,7 +325,7 @@ func TestCompilePatterns(t *testing.T) {
 	ctx := context.Background()
 	injector := newMockSecurityInjector(ctx, mockClient, mockLogger, mockConfig)
 
-	patterns := injector.CompilePatterns()
+	patterns := injector.InstantiatePatterns()
 
 	require.Len(t, patterns, 1, "Should have one pattern for envoy-gateway")
 	assert.Contains(t, patterns, appsecconfig.ProxyTypeEnvoyGateway, "Should have envoy-gateway pattern")

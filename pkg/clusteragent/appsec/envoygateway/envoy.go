@@ -186,7 +186,7 @@ func (e *envoyGatewayInjectionPattern) Deleted(ctx context.Context, obj *unstruc
 }
 
 func (e *envoyGatewayInjectionPattern) createEnvoyExtensionPolicy(ctx context.Context, namespace string, gatewayName string) error {
-	policy := e.newPolicy(namespace)
+	policy := e.newPolicy(gatewayName, namespace)
 
 	unstructuredGrant, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&policy)
 	if err != nil {
@@ -212,7 +212,7 @@ func (e *envoyGatewayInjectionPattern) createEnvoyExtensionPolicy(ctx context.Co
 	return nil
 }
 
-func (e *envoyGatewayInjectionPattern) newPolicy(namespace string) egv1a1.EnvoyExtensionPolicy {
+func (e *envoyGatewayInjectionPattern) newPolicy(gwName, namespace string) egv1a1.EnvoyExtensionPolicy {
 	return egv1a1.EnvoyExtensionPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "gateway.envoyproxy.io/v1alpha1",

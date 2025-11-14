@@ -174,7 +174,7 @@ func TestIntegration_CompilePatterns_WithValidConfig(t *testing.T) {
 		leaderSub: leaderFakeSub,
 	}
 
-	patterns := si.CompilePatterns()
+	patterns := si.InstantiatePatterns()
 
 	require.Len(t, patterns, 1, "Should have one pattern")
 	assert.Contains(t, patterns, appsecconfig.ProxyTypeEnvoyGateway, "Should have envoy-gateway pattern")

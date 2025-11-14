@@ -39,7 +39,7 @@ const (
 	ProxyTypeIstio ProxyType = "istio"
 )
 
-var proxyList = []ProxyType{
+var AllProxyTypes = []ProxyType{
 	ProxyTypeEnvoyGateway,
 	ProxyTypeIstio,
 }
@@ -103,7 +103,7 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	proxiesMap := make(map[ProxyType]struct{}, len(proxiesEnabled))
 	for _, p := range proxiesEnabled {
 		proxyType := ProxyType(p)
-		if !slices.Contains(proxyList, proxyType) {
+		if !slices.Contains(AllProxyTypes, proxyType) {
 			logger.Warnf("Proxy type %s is not supported for appsec injection, ignoring...", proxyType)
 			continue
 		}
@@ -125,8 +125,10 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	}
 
 	staticLabels := map[string]string{
-		kubernetes.KubeAppComponentLabelKey: "datadog-appsec-injector",
-		kubernetes.KubeAppPartOfLabelKey:    "datadog",
+		kubernetes.KubeAppComponentLabelKey:  "datadog-appsec-injector",
+		kubernetes.KubeAppPartOfLabelKey:     "datadog",
+		kubernetes.KubeAppManagedByLabelKey:  "datadog-cluster-agent",
+		"appsec.datadoghq.com/injection-version": "v1",
 	}
 
 	staticAnnotations := map[string]string{
