@@ -11,6 +11,8 @@ package tools
 // This is the currently recommended approach: https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 
 import (
+	_ "github.com/DataDog/dd-trace-go/v2/internal/civisibility/integrations/gotesting" // integration
+	_ "github.com/DataDog/orchestrion" // integration
 	_ "github.com/aarzilli/whydeadcode"
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
