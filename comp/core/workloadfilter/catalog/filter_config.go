@@ -16,6 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
+	//nolint:revive // require systemprobe config
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:revive // require systemprobe config
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,6 +31,11 @@ type FilterConfig struct {
 	ContainerExcludeMetrics []string `json:"container_exclude_metrics"`
 	ContainerIncludeLogs    []string `json:"container_include_logs"`
 	ContainerExcludeLogs    []string `json:"container_exclude_logs"`
+
+	ContainerRuntimeSecurityInclude []string
+	ContainerRuntimeSecurityExclude []string
+	ContainerComplianceInclude      []string
+	ContainerComplianceExclude      []string
 
 	// Legacy AC filters
 	ACInclude []string `json:"ac_include"`
@@ -66,6 +73,8 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 		processBlacklistPatterns = cfg.GetStringSlice("process_config.blacklist_patterns")
 	}
 
+	systemProbeCfg := pkgconfigsetup.SystemProbe()
+
 	return &FilterConfig{
 		// Legacy container filters
 		ContainerInclude:        cfg.GetStringSlice("container_include"),
@@ -74,6 +83,12 @@ func NewFilterConfig(cfg config.Component) (*FilterConfig, error) {
 		ContainerExcludeMetrics: cfg.GetStringSlice("container_exclude_metrics"),
 		ContainerIncludeLogs:    cfg.GetStringSlice("container_include_logs"),
 		ContainerExcludeLogs:    cfg.GetStringSlice("container_exclude_logs"),
+
+		ContainerComplianceInclude: cfg.GetStringSlice("compliance_config.container_include"),
+		ContainerComplianceExclude: cfg.GetStringSlice("compliance_config.container_exclude"),
+
+		ContainerRuntimeSecurityInclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_include"),
+		ContainerRuntimeSecurityExclude: systemProbeCfg.GetStringSlice("runtime_security_config.container_exclude"),
 
 		// Legacy AC filters
 		ACInclude: cfg.GetStringSlice("ac_include"),

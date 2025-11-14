@@ -9,6 +9,9 @@ package workloadfilterimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+
+	//nolint:revive // require systemprobe config
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:revive // require systemprobe config
 )
 
 // filterSelection stores pre-computed filter lists to avoid recalculating them on every call
@@ -21,6 +24,8 @@ type filterSelection struct {
 	containerSharedMetric         [][]workloadfilter.ContainerFilter
 	containerPaused               [][]workloadfilter.ContainerFilter
 	containerSBOM                 [][]workloadfilter.ContainerFilter
+	containerCompliance           [][]workloadfilter.ContainerFilter
+	containerRuntimeSecurity      [][]workloadfilter.ContainerFilter
 
 	// Pod filters
 	podSharedMetric [][]workloadfilter.PodFilter
@@ -49,6 +54,9 @@ func (pf *filterSelection) initializeSelections(cfg config.Component) {
 	pf.containerAutodiscoveryMetrics = pf.computeContainerAutodiscoveryFilters(cfg, workloadfilter.MetricsFilter)
 	pf.containerAutodiscoveryLogs = pf.computeContainerAutodiscoveryFilters(cfg, workloadfilter.LogsFilter)
 	pf.containerSharedMetric = pf.computeContainerSharedMetricFilters(cfg)
+
+	pf.containerCompliance = pf.computeContainerComplianceFilters(cfg)
+	pf.containerRuntimeSecurity = pf.computeContainerRuntimeSecurityFilters(pkgconfigsetup.SystemProbe())
 
 	// Initialize container paused and SBOM filters
 	pf.containerPaused = pf.computeContainerPausedFilters(cfg)
@@ -245,4 +253,22 @@ func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Componen
 	flist[1] = low  // lowPrecedence
 
 	return flist
+}
+
+// computeContainerComplianceFilters computes container compliance filters
+func (pf *filterSelection) computeContainerComplianceFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	flist := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerCompliance}
+	if cfg.GetBool("compliance_config.exclude_pause_containers") {
+		flist = append(flist, workloadfilter.ContainerPaused)
+	}
+	return [][]workloadfilter.ContainerFilter{flist}
+}
+
+// computeContainerRuntimeSecurityFilters computes container runtime security filters
+func (pf *filterSelection) computeContainerRuntimeSecurityFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
+	flist := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerRuntimeSecurity}
+	if cfg.GetBool("runtime_security.exclude_pause_containers") {
+		flist = append(flist, workloadfilter.ContainerPaused)
+	}
+	return [][]workloadfilter.ContainerFilter{flist}
 }
