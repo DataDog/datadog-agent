@@ -98,8 +98,8 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
     kubeconfig_content = yaml.dump(kubeconfig_output)
     kubeconfig = f"{full_stack_name}-config.yaml"
     f = os.open(path=kubeconfig, flags=(os.O_WRONLY | os.O_CREAT | os.O_TRUNC), mode=0o600)
-    with open(f, "w") as f:
-        f.write(kubeconfig_content)
+    with open(f, "w") as file:
+        file.write(kubeconfig_content)
 
     command = f"KUBECONFIG={kubeconfig} kubectl get nodes"
 

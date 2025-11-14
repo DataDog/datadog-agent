@@ -1,5 +1,3 @@
-# type: ignore[reportArgumentType]
-
 from invoke.collection import Collection
 
 from tasks.azure.aks import create_aks, destroy_aks

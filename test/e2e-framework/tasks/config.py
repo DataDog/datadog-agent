@@ -3,7 +3,7 @@ from typing import Dict, Optional
 
 import yaml
 from invoke.exceptions import Exit
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, ConfigDict
 from termcolor import colored
 
 from .tool import info
@@ -11,9 +11,14 @@ from .tool import info
 profile_filename = ".test_infra_config.yaml"
 
 
-class Config(BaseModel, extra=Extra.forbid):
-    class Params(BaseModel, extra=Extra.forbid):
-        class Aws(BaseModel, extra=Extra.forbid):
+class Config(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    class Params(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+
+        class Aws(BaseModel):
+            model_config = ConfigDict(extra="forbid")
             keyPairName: Optional[str]
             publicKeyPath: Optional[str]
             privateKeyPath: Optional[str] = None
@@ -38,14 +43,16 @@ You should consider moving to the agent-sandbox account. Please follow https://d
 
         aws: Optional[Aws]
 
-        class Azure(BaseModel, extra=Extra.forbid):
+        class Azure(BaseModel):
+            model_config = ConfigDict(extra="forbid")
             _DEFAULT_ACCOUNT = "agent-sandbox"
             publicKeyPath: Optional[str] = None
             account: Optional[str] = _DEFAULT_ACCOUNT
 
         azure: Optional[Azure] = None
 
-        class GCP(BaseModel, extra=Extra.forbid):
+        class GCP(BaseModel):
+            model_config = ConfigDict(extra="forbid")
             _DEFAULT_ACCOUNT = "agent-sandbox"
             publicKeyPath: Optional[str] = None
             pullSecretPath: Optional[str] = None
@@ -53,19 +60,22 @@ You should consider moving to the agent-sandbox account. Please follow https://d
 
         gcp: Optional[GCP] = None
 
-        class Local(BaseModel, extra=Extra.forbid):
+        class Local(BaseModel):
+            model_config = ConfigDict(extra="forbid")
             publicKeyPath: Optional[str] = None
 
         local: Optional[Local] = None
 
-        class Agent(BaseModel, extra=Extra.forbid):
+        class Agent(BaseModel):
+            model_config = ConfigDict(extra="forbid")
             apiKey: Optional[str]
             appKey: Optional[str]
             verifyCodeSignature: Optional[bool] = True  # noqa used in e2e tests
 
         agent: Optional[Agent]
 
-        class Pulumi(BaseModel, extra=Extra.forbid):
+        class Pulumi(BaseModel):
+            model_config = ConfigDict(extra="forbid")
             logLevel: Optional[int] = None
             logToStdErr: Optional[bool] = None
             verboseProgressStreams: Optional[bool] = None  # noqa used in e2e tests
@@ -78,7 +88,8 @@ You should consider moving to the agent-sandbox account. Please follow https://d
 
     stackParams: Optional[Dict[str, Dict[str, str]]] = None
 
-    class Options(BaseModel, extra=Extra.forbid):
+    class Options(BaseModel):
+        model_config = ConfigDict(extra="forbid")
         checkKeyPair: Optional[bool]
 
     options: Optional[Options] = None
@@ -149,7 +160,7 @@ You should consider moving to the agent-sandbox account. Please follow https://d
         profile_path = get_full_profile_path(config_path)
         try:
             with open(profile_path, "w") as outfile:
-                yaml.dump(self.dict(), outfile)
+                yaml.dump(self.model_dump(), outfile)
         except Exception as e:
             raise Exit(f"Error saving config file {profile_path}: {e}")
         info(f"Configuration file saved at {profile_path}")
