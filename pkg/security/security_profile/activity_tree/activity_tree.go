@@ -37,7 +37,7 @@ const (
 	bindFamilyReason
 	brokenEventReason
 
-	minNodeDroppedReason   = eventTypeReason
+	minNodeDroppedReason   = eventTypeReason // this needs to be 0
 	maxNodeDroppedReason   = brokenEventReason
 	nodeDroppedReasonCount = maxNodeDroppedReason - minNodeDroppedReason + 1
 )
