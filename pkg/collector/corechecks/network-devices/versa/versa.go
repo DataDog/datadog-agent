@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/payload"
@@ -76,28 +77,17 @@ type VersaCheck struct {
 	interval      time.Duration
 	config        checkCfg
 	metricsSender *report.Sender
+	client        *client.Client
+	prevCheckID   checkid.ID
 }
 
 // Run executes the check
 func (v *VersaCheck) Run() error {
 	log.Infof("Running Versa check")
 
-	clientOptions, err := v.buildClientOptions()
+	c, err := v.getOrCreateClient()
 	if err != nil {
 		return err
-	}
-
-	authConfig := client.AuthConfig{
-		Method:       v.config.AuthMethod,
-		Username:     v.config.Username,
-		Password:     v.config.Password,
-		ClientID:     v.config.ClientID,
-		ClientSecret: v.config.ClientSecret,
-	}
-
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.UseHTTP, authConfig, clientOptions...)
-	if err != nil {
-		return fmt.Errorf("error creating Versa client: %w", err)
 	}
 
 	// Get all the organizations, so we can get the appliances
@@ -484,6 +474,59 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 	}
 
 	return clientOptions, nil
+}
+
+// getOrCreateClient returns the existing client if it's valid, or creates a new one if needed
+// In theory, we could compare and only update the client with what's needed, but I think this
+// approach is cleaner and more robust. Any changes to the client in the future are covered by this
+func (v *VersaCheck) getOrCreateClient() (*client.Client, error) {
+	// If we already have a client and the config has not changed, return the existing client
+	if v.client != nil && v.ID() == v.prevCheckID {
+		log.Trace("No config change, re-using existing Versa client...")
+		return v.client, nil
+	} else if v.client != nil {
+		// if the config has changed and the client exists,
+		// close the client to revoke the existing OAuth key
+		err := v.client.Close()
+		if err != nil {
+			log.Debugf("failed to close outdated Versa client: %v", err)
+		}
+	}
+	log.Trace("Config change detected, creating new Versa client...")
+
+	// Update prevCheckID to current check ID
+	v.prevCheckID = v.ID()
+
+	clientOptions, err := v.buildClientOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	authConfig := client.AuthConfig{
+		Method:       v.config.AuthMethod,
+		Username:     v.config.Username,
+		Password:     v.config.Password,
+		ClientID:     v.config.ClientID,
+		ClientSecret: v.config.ClientSecret,
+	}
+
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.UseHTTP, authConfig, clientOptions...)
+	if err != nil {
+		return nil, fmt.Errorf("error creating Versa client: %w", err)
+	}
+
+	v.client = c
+	return v.client, nil
+}
+
+// Cancel cleans up resources when the check is unscheduled
+func (v *VersaCheck) Cancel() {
+	log.Trace("Versa cancel called!")
+	err := v.client.Close()
+	if err != nil {
+		log.Errorf("Error closing client: %v", err)
+	}
+	v.client = nil
 }
 
 // Interval returns the scheduling time for the check
