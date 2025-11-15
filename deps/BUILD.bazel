@@ -22,6 +22,8 @@ filegroup(
             "@gcrypt",
             "@gpg-error",
             "@libsepol//:sepol",
+            "@libxml2",
+            "@libxslt",
             "@nghttp2",
             "@pcre2",
             "@popt",
