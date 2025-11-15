@@ -697,7 +697,7 @@ def ninja_generate(
 
 
 @task
-def build_libpcap(ctx):
+def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
@@ -716,12 +716,6 @@ def build_libpcap(ctx):
         # TODO check the checksum of the download before using
         ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
     with ctx.cd(lib_dir):
-        env = {}
-        # TODO cross-compile?
-        if os.getenv('DD_CC'):
-            env['CC'] = os.getenv('DD_CC')
-        if os.getenv('DD_CXX'):
-            env['CXX'] = os.getenv('DD_CXX')
         with environ(env):
             config_opts = [
                 f"--prefix={embedded_path}",
@@ -741,6 +735,8 @@ def build_libpcap(ctx):
                 "--without-snf",
                 "--without-turbocap",
             ]
+            if arch and arch.is_cross_compiling():
+                config_opts.append("--host=" + arch.gcc_prefix())
             ctx.run(f"./configure {' '.join(config_opts)}")
             ctx.run("make install")
     ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
@@ -862,7 +858,7 @@ def build_sysprobe_binary(
         build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not is_windows and "pcap" in build_tags:
-        build_libpcap(ctx)
+        build_libpcap(ctx, arch=arch_obj, env=env)
         cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
