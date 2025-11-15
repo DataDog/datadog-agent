@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -39,6 +40,10 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	ksmSharding                      *KSMShardingManager
+	ksmShardingMutex                 sync.Mutex         // Protects ksmShardedConfig and ksmShardedDigests
+	ksmShardedConfig                 integration.Config // Protected by ksmShardingMutex
+	ksmShardedDigests                []string           // Track digests of sharded configs for cleanup, protected by ksmShardingMutex
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
@@ -101,7 +106,6 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
-
 	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
 	if !advancedDispatchingEnabled {
 		return d
@@ -113,6 +117,23 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	} else {
 		d.advancedDispatching.Store(true)
 	}
+
+	// Initialize KSM sharding (requires advanced dispatching)
+	// Advanced dispatching is required for KSM sharding because it ensures shards are distributed across runners
+	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding_enabled")
+	if ksmShardingEnabled {
+		// Validate advanced dispatching is actually enabled
+		if !d.advancedDispatching.Load() {
+			log.Warn("KSM resource sharding requires advanced dispatching (cluster_checks.advanced_dispatching_enabled=true). Disabling KSM sharding.")
+			ksmShardingEnabled = false
+		} else {
+			// Validate cluster tagger (logs only and always allows sharding to proceed)
+			d.validateClusterTaggerForKSM()
+		}
+	}
+
+	d.ksmSharding = NewKSMShardingManager(ksmShardingEnabled)
+
 	return d
 }
 
@@ -148,6 +169,13 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			d.addEndpointConfig(patched, c.NodeName)
 			continue
 		}
+
+		// Try to handle KSM sharding
+		if d.scheduleKSMCheck(c) {
+			// KSM check was sharded and scheduled, skip normal scheduling
+			continue
+		}
+
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
@@ -163,6 +191,12 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
+
+		// Check if this is a sharded KSM check and remove all shards
+		if d.unscheduleKSMCheck(c) {
+			continue // Sharded configs were removed, skip normal unscheduling
+		}
+
 		if c.NodeName != "" {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
