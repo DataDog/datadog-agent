@@ -1,0 +1,8 @@
+traceroute:
+  enabled: true
+
+network_config:
+  ## @param enabled - boolean - optional - default: false
+  ## Set to true to enable Cloud Network Monitoring.
+  #
+  enabled: true
