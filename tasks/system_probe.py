@@ -88,9 +88,6 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
-# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
-# this version should be kept in sync with the one in the agent omnibus build
-LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
@@ -705,49 +702,12 @@ def build_libpcap(ctx):
     assert embedded_path, "Failed to find embedded path"
     target_file = os.path.join(embedded_path, "lib", "libpcap.a")
     if os.path.exists(target_file):
-        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
-        if version == LIBPCAP_VERSION:
-            ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
-            return
-    dist_dir = os.path.join(embedded_path, "dist")
-    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
-    ctx.run(f"rm -rf {lib_dir}")
-    with ctx.cd(dist_dir):
-        # TODO check the checksum of the download before using
-        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
-    with ctx.cd(lib_dir):
-        env = {}
-        # TODO cross-compile?
-        if os.getenv('DD_CC'):
-            env['CC'] = os.getenv('DD_CC')
-        if os.getenv('DD_CXX'):
-            env['CXX'] = os.getenv('DD_CXX')
-        with environ(env):
-            config_opts = [
-                f"--prefix={embedded_path}",
-                "--disable-shared",
-                "--disable-largefile",
-                "--disable-instrument-functions",
-                "--disable-remote",
-                "--disable-usb",
-                "--disable-netmap",
-                "--disable-bluetooth",
-                "--disable-dbus",
-                "--disable-rdma",
-                "--without-dag",
-                "--without-dpdk",
-                "--without-libnl",
-                "--without-septel",
-                "--without-snf",
-                "--without-turbocap",
-            ]
-            ctx.run(f"./configure {' '.join(config_opts)}")
-            ctx.run("make install")
-    ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
-    ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
-    ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
-    ctx.run(f"rm -rf {lib_dir}")
+        ctx.run(f"echo 'libpcap already exists at {target_file}'")
+        return
+    cmd = ["bazelisk", "run", "--", "@libpcap//:install", f"--destdir='{embedded_path}'"]
+    ctx.run(" ".join(cmd))
     ctx.run(f"strip -g {target_file}")
+    return
 
 
 def get_libpcap_cgo_flags(ctx, install_path: str = None):
