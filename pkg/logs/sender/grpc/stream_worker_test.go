@@ -73,8 +73,8 @@ type mockLogsStream struct {
 
 func newMockLogsStream(ctx context.Context) *mockLogsStream {
 	return &mockLogsStream{
-		sendCh:      make(chan *statefulpb.StatefulBatch, 100),
-		recvCh:      make(chan *statefulpb.BatchStatus, 100),
+		sendCh:      make(chan *statefulpb.StatefulBatch, 10),
+		recvCh:      make(chan *statefulpb.BatchStatus, 10),
 		errCh:       make(chan error, 1),
 		sentBatches: make([]*statefulpb.StatefulBatch, 0),
 		ctx:         ctx,
@@ -1056,5 +1056,96 @@ func TestStreamWorkerSnapshot(t *testing.T) {
 		require.Equal(t, batch3Payload, output)
 	case <-time.After(testTimeout):
 		t.Fatal("Batch 3 should appear in outputChan")
+	}
+}
+
+// TestStreamWorkerSupervisorResponsiveWhileSenderBlocked verifies that the supervisor
+// remains responsive to other events even when the sender goroutine is blocked on Send()
+func TestStreamWorkerSupervisorResponsiveWhileSenderBlocked(t *testing.T) {
+	fixture := newTestFixture(t)
+	defer fixture.cleanup()
+
+	worker := fixture.createWorker()
+	worker.start()
+
+	// Wait for active state
+	require.Eventually(t, func() bool {
+		return worker.streamState == active
+	}, testTimeout, testTickInterval)
+
+	stream := fixture.mockClient.getCurrentStream()
+	require.NotNil(t, stream)
+
+	// Step 1: Send a message normally to verify baseline functionality
+	payload1 := createWorkerTestPayload("message 1")
+	fixture.inputChan <- payload1
+
+	// Wait for it to be sent (should go through batchToSendCh to senderLoop to stream.sendCh)
+	require.Eventually(t, func() bool {
+		return stream.getSentBatchCount() >= 1
+	}, testTimeout, testTickInterval, "First message should be sent")
+
+	// Consume from stream.sendCh to confirm sender is working
+	<-stream.sendCh
+
+	// Step 2: Block the sender by filling stream.sendCh (capacity 10)
+	// Strategy: Fill stream.sendCh so senderLoop blocks, then verify supervisor is still responsive
+
+	// Send messages to fill:
+	// - stream.sendCh: 10 batches
+	// - batch being sent by senderLoop: 1 batch (blocked on stream.Send)
+	// - batchToSendCh: 10 batches
+	// Total = 21 messages needed
+	for i := 0; i < 21; i++ {
+		fixture.inputChan <- createWorkerTestPayload(string(rune('A' + (i % 26))))
+	}
+
+	// Give time for all messages to be consumed from inputChan by supervisor
+	// and queued through the pipeline
+	time.Sleep(testShortWait)
+
+	// At this point (since we're not consuming from stream.sendCh):
+	// - stream.sendCh should have ~10 batches
+	// - batchToSendCh should have ~10 batches
+	// - senderLoop is blocked on stream.Send() trying to write to full stream.sendCh
+	// - supervisor's select is blocked on the send case trying to write to full batchToSendCh
+
+	// Step 3: THE KEY TEST - Verify supervisor remains responsive while blocked on send
+
+	// Test 1: Verify we can still write to inputChan without blocking
+	// Even though supervisor is blocked on send case, it should wake up to accept input
+	payloadDuringBlock := createWorkerTestPayload("message while blocked")
+
+	// This write should not block because supervisor can wake from send to handle inputChan
+	done := make(chan bool, 1)
+	go func() {
+		fixture.inputChan <- payloadDuringBlock
+		done <- true
+	}()
+
+	// Verify the write completes quickly (doesn't block indefinitely)
+	select {
+	case <-done:
+		// Success - inputChan write didn't block
+	case <-time.After(testTimeout):
+		t.Fatal("Write to inputChan should not block even when supervisor is blocked on send")
+	}
+
+	// Give supervisor time to process the payload and attempt to send batch 23
+	time.Sleep(testShortWait)
+
+	// At this point, supervisor should have received the payload and be stuck trying to send batch 23
+	// because all channels are full
+
+	// Test 2: Verify supervisor can still handle acks while blocked on send
+	// This proves select can be woken by multiple different cases
+	stream.sendAck(1)
+
+	// Verify the ack is processed and payload1 appears in outputChan
+	select {
+	case output := <-fixture.outputChan:
+		require.Equal(t, payload1, output, "Ack should be processed even while supervisor is blocked on send")
+	case <-time.After(testTimeout):
+		t.Fatal("Supervisor should remain responsive to acks even while blocked on send")
 	}
 }
