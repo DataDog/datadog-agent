@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	"github.com/DataDog/datadog-agent/pkg/network/containers"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -98,7 +99,8 @@ type Tracer struct {
 	sysctlUDPConnTimeout       *sysctl.Int
 	sysctlUDPConnStreamTimeout *sysctl.Int
 
-	processCache *processCache
+	processCache   *processCache
+	containerStore *containers.ContainerStore
 
 	timeResolver *ktime.Resolver
 
@@ -215,6 +217,13 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 
 		events.RegisterHandler(tr.processCache)
+
+		if cfg.EnableContainerStore {
+			if tr.containerStore, err = containers.NewContainerStore(cfg.MaxContainersTracked); err != nil {
+				return nil, fmt.Errorf("could not create container store: %w", err)
+			}
+			events.RegisterHandler(tr.containerStore)
+		}
 	}
 
 	tr.sourceExcludes = filter.ParseConnectionFilters(cfg.ExcludedSourceConnections)
@@ -417,6 +426,10 @@ func (t *Tracer) Stop() {
 		t.processCache.Stop()
 		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
+	if t.containerStore != nil {
+		events.UnregisterHandler(t.containerStore)
+		t.containerStore.Stop()
+	}
 	t.connectionProtocolMapCleaner.Stop()
 }
 
@@ -458,6 +471,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 	buffer.ConnectionBuffer.Assign(delta.Conns)
 	conns := network.NewConnections(buffer)
 	conns.DNS = t.reverseDNS.Resolve(ips)
+	if t.containerStore != nil {
+		conns.ResolvConfs = t.containerStore.GetResolvConfMap(delta.Conns)
+	}
 	conns.USMData = delta.USMData
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
