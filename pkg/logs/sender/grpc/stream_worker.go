@@ -27,16 +27,12 @@ import (
 )
 
 // TODO For PoC Stage 1
-// - better handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
 // - telemetries (send/recv, failure, rotations)
 
 // TODO for PoC Stage 2
+// - better handle unrecoverable errors - auth/perm, protocol, stream-level gRPC status
 // - implement more graceful shutdown, the current version we could lose some acks
 // - implement jitter is stream lifetime, otherwise all streams will rotate at the same time
-// - currently, s.currentStream.stream.Send(batch) can still BLOCK, especially
-//   if we have a lot of buffered payloads to re-send after a stream rotation,
-//   especially if we are flow controlled. This will block the supervisor loop
-// 	 and potentially backpressure the input channel
 // - implement proper "stream/ordered" backpressure
 
 // TODO for production
@@ -64,10 +60,10 @@ import (
 
 const (
 	// Various constants - may become configurable
-	batchAckChanBuffer = 10
-	maxInflight        = 10000
-	connectionTimeout  = 10 * time.Second
-	drainTimeout       = 5 * time.Second
+	ioChanBufferSize  = 10
+	maxInflight       = 10000
+	connectionTimeout = 10 * time.Second
+	drainTimeout      = 5 * time.Second
 )
 
 // streamState represents the current state of the stream worker
@@ -105,8 +101,8 @@ type batchAck struct {
 	status *statefulpb.BatchStatus
 }
 
-// streamWorker manages a single gRPC bidirectional stream with Master-Slave threading model
-// Architecture: One supervisor/sender goroutine + one receiver goroutine per worker
+// streamWorker manages a single gRPC bidirectional stream with Master - 2 Slave threading model
+// Architecture: One supervisor goroutine + one sender goroutine + one receiver goroutine per stream
 type streamWorker struct {
 	// Configuration
 	workerID            string
@@ -122,15 +118,18 @@ type streamWorker struct {
 	client statefulpb.StatefulLogsServiceClient
 
 	// Stream management
-	currentStream  *streamInfo
-	streamState    streamState
-	recvFailureCh  chan *streamInfo          // Signal receiver failure with stream identity
-	batchAckCh     chan *batchAck            // Signal batch acknowledgments with stream identity
-	streamReadyCh  chan streamCreationResult // Signal when async stream creation completes
-	streamLifetime time.Duration
-	streamTimer    *clock.Timer // Timer for stream lifetime, trigger soft rotation
-	drainTimer     *clock.Timer // In case of unacked payloads, drain/wait before soft rotation
-	backoffTimer   *clock.Timer // In case of stream creation failure, backoff before retrying
+	currentStream   *streamInfo
+	streamState     streamState
+	streamFailureCh chan *streamInfo          // Signal sender/receiver failure with stream identity
+	streamReadyCh   chan streamCreationResult // Signal when async stream creation completes
+	streamLifetime  time.Duration
+	streamTimer     *clock.Timer // Timer for stream lifetime, trigger soft rotation
+	drainTimer      *clock.Timer // In case of unacked payloads, drain/wait before soft rotation
+	backoffTimer    *clock.Timer // In case of stream creation failure, backoff before retrying
+
+	// Channels for communication between supervisor and sender/receiver goroutines
+	batchToSendCh chan *statefulpb.StatefulBatch // Signal batch to send to sender goroutine
+	batchAckCh    chan *batchAck                 // Signal batch acknowledgments with stream identity
 
 	// Inflight tracking - tracks sent (awaiting ack) and buffered (not sent) payloads
 	inflight *inflightTracker
@@ -195,8 +194,8 @@ func newStreamWorkerWithClock(
 		conn:                conn,
 		client:              client,
 		streamState:         disconnected,
-		recvFailureCh:       make(chan *streamInfo),
-		batchAckCh:          make(chan *batchAck, batchAckChanBuffer),
+		streamFailureCh:     make(chan *streamInfo),
+		batchAckCh:          make(chan *batchAck, ioChanBufferSize),
 		streamReadyCh:       make(chan streamCreationResult),
 		streamLifetime:      streamLifetime,
 		inflight:            inflightTracker,
@@ -218,7 +217,7 @@ func (s *streamWorker) start() {
 	log.Infof("Starting gRPC stream worker %s", s.workerID)
 	s.outputChan = s.sink.Channel()
 
-	// Start supervisor/sender goroutine (master)
+	// Start supervisor goroutine
 	go s.supervisorLoop()
 
 	s.asyncCreateNewStream()
@@ -234,7 +233,10 @@ func (s *streamWorker) stop() {
 	log.Infof("Worker %s: Stopped", s.workerID)
 }
 
-// supervisorLoop is the master goroutine that handles sending and stream lifecycle
+// supervisorLoop is the main goroutine:
+// - it receives input from upstream and manages the inflight tracking
+// - it manages send/recv batches over the stream via sender/receiver goroutines
+// - it handles stream lifecycle, rotation and backoff
 func (s *streamWorker) supervisorLoop() {
 	defer close(s.done)
 
@@ -252,21 +254,37 @@ func (s *streamWorker) supervisorLoop() {
 			inputChan = nil // Disable reading
 		}
 
+		// Conditional send - only enabled when in active state with unsent payloads
+		// This allows supervisor to progress on sending or block, but be woken by other events
+		// Important: getNextBatch call is idempotent, it doesn't change inflight tracker state,
+		// so if write to sendChan is blocked, next iteration will try again with the same batch.
+		var nextBatch *statefulpb.StatefulBatch
+		var sendChan chan<- *statefulpb.StatefulBatch
+		if s.streamState == active && s.inflight.hasUnSent() {
+			sendChan = s.batchToSendCh // Enable sending
+			nextBatch = s.getNextBatch()
+		} else {
+			sendChan = nil // Disable sending
+		}
+
 		select {
 		case payload := <-inputChan:
 			// Fires in any state (gated only by inflight capacity), payload is always
-			// added to the inflight tracker. But we only proceed to send if we are
-			// in the active state with a valid stream
+			// added to the inflight tracker
 			s.inflight.append(payload)
-			s.sendPayloads()
+
+		case sendChan <- nextBatch:
+			// Only happens if inflight hasUnSent() and streamState is active
+			// Successfully queued batch to sender goroutine
+			s.inflight.markSent()
 
 		case ack := <-s.batchAckCh:
 			// Fires in any state
 			s.handleBatchAck(ack)
 
-		case failedStream := <-s.recvFailureCh:
+		case failedStream := <-s.streamFailureCh:
 			// Fires in active/draining/connecting states
-			s.handleRecvFailure(failedStream)
+			s.handleStreamFailure(failedStream)
 
 		case result := <-s.streamReadyCh:
 			// Fires only in connecting state
@@ -292,61 +310,6 @@ func (s *streamWorker) supervisorLoop() {
 			return
 		}
 	}
-}
-
-// sendPayloads attempts to send all buffered payloads when in Active state
-// the same function is used to send new payload in normal operation, and
-// to send (or resend) buffered payloads after a stream rotation
-func (s *streamWorker) sendPayloads() {
-	if s.streamState != active {
-		return
-	}
-
-	// Send all buffered payloads in order
-	for {
-		payload := s.inflight.nextToSend()
-		if payload == nil {
-			// No more buffered payloads to send
-			break
-		}
-
-		batchID := s.inflight.nextBatchID()
-		batch := createBatch(payload.Encoded, batchID)
-
-		// TODO Send call can block, by TCP/HTTP2 flow controls
-		if err := s.currentStream.stream.Send(batch); err != nil {
-			log.Warnf("Worker %s: Send failed: %v, terminating stream", s.workerID, err)
-			s.tryBeginStreamRotation(true)
-			return // stop sending, payloads remain buffered for next rotation
-		}
-
-		// Successfully sent, mark as sent in the inflight tracker
-		s.inflight.markSent()
-	}
-}
-
-// sendSnapshot sends the snapshot state as batch 0 on a new stream
-// Returns true if successful, initiates stream rotation and returns false if failed
-func (s *streamWorker) sendSnapshot() bool {
-	serialized := s.inflight.getSnapshot()
-
-	// Snapshot is empty means no state
-	if serialized == nil {
-		return true
-	}
-
-	// Create batch with batchID 0 (reserved for snapshot)
-	batch := createBatch(serialized, 0)
-
-	// Send snapshot
-	if err := s.currentStream.stream.Send(batch); err != nil {
-		log.Warnf("Worker %s: Failed to send snapshot: %v, terminating stream", s.workerID, err)
-		s.tryBeginStreamRotation(true)
-		return false
-	}
-
-	log.Infof("Worker %s: Sent snapshot (%d bytes)", s.workerID, len(serialized))
-	return true
 }
 
 // handleBatchAck processes a BatchStatus acknowledgment from the server
@@ -410,14 +373,14 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	}
 }
 
-// handleRecvFailure processes receiver failure signals
-func (s *streamWorker) handleRecvFailure(failedStream *streamInfo) {
+// handleStreamFailure processes sender/receiver failure signals
+func (s *streamWorker) handleStreamFailure(failedStream *streamInfo) {
 	// Ignore if: stale signal OR not in active/draining state
 	if failedStream != s.currentStream || (s.streamState != active && s.streamState != draining) {
 		return
 	}
 
-	log.Infof("Worker %s: Receiver reported failure (state: %v), terminating stream",
+	log.Infof("Worker %s: Sender or Receiver reported failure (state: %v), terminating stream",
 		s.workerID, s.streamState)
 	s.tryBeginStreamRotation(true)
 }
@@ -482,6 +445,9 @@ func (s *streamWorker) handleShutdown() {
 	s.streamTimer.Stop()
 	s.backoffTimer.Stop()
 	s.drainTimer.Stop()
+	if s.batchToSendCh != nil {
+		close(s.batchToSendCh)
+	}
 	s.closeStream(s.currentStream)
 }
 
@@ -493,6 +459,7 @@ func (s *streamWorker) tryBeginStreamRotation(dueToFailure bool) {
 
 	// Close current stream if it exists
 	if s.currentStream != nil {
+		close(s.batchToSendCh)
 		s.closeStream(s.currentStream)
 		s.currentStream = nil
 		s.streamTimer.Stop()
@@ -523,27 +490,29 @@ func (s *streamWorker) tryBeginStreamRotation(dueToFailure bool) {
 func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 	log.Infof("Worker %s: Finishing stream rotation (state: connecting → active)", s.workerID)
 
+	batchToSendCh := make(chan *statefulpb.StatefulBatch, ioChanBufferSize)
 	s.currentStream = streamInfo
 	s.streamState = active
+	s.batchToSendCh = batchToSendCh
 
+	// Start sender and receiver goroutines for this stream
+	go s.senderLoop(streamInfo, batchToSendCh)
 	go s.receiverLoop(streamInfo)
 
 	s.streamTimer.Reset(s.streamLifetime)
 
-	// Convert all the unacked items to buffered items by resetting inflight tracker
-	// because we need to resent them.
+	// Convert all the unacked items to buffered/unsent items by resetting inflight
+	// tracker. Supervisor loop will pick them up automatically and send them.
 	s.inflight.resetOnRotation()
 
 	log.Infof("Worker %s: Stream rotation complete, now active", s.workerID)
 
 	// Send snapshot state first (batch 0)
-	if !s.sendSnapshot() {
-		return
-	}
-
-	// Then send the remaining buffered payloads (batch 1, 2, ...)
-	if s.inflight.hasUnSent() {
-		s.sendPayloads()
+	serialized := s.inflight.getSnapshot()
+	if serialized != nil {
+		// Send snapshot to sender goroutine via channel
+		// This call won't block because it's buffered channel's first write
+		s.batchToSendCh <- createBatch(serialized, 0)
 	}
 }
 
@@ -597,6 +566,10 @@ func (s *streamWorker) asyncCreateNewStream() {
 	}()
 }
 
+// ensureConnectionReady ensures the gRPC connection is ready
+// It triggers the connection establishment to the remove server (if not already done).
+// It blocks until either the connection is ready or connectionTimeout is reached.
+// This function can block, since should be called in asyncCreateNewStream context.
 func (s *streamWorker) ensureConnectionReady() error {
 	// Skip connection check if conn is nil (for testing with mock clients)
 	if s.conn == nil {
@@ -625,33 +598,51 @@ func (s *streamWorker) ensureConnectionReady() error {
 	}
 }
 
-// closeStream safely closes a stream and cancels its context
+// closeStream safely closes a stream by cancelling its context
 func (s *streamWorker) closeStream(streamInfo *streamInfo) {
 	if streamInfo != nil {
-		if err := streamInfo.stream.CloseSend(); err != nil {
-			log.Debugf("Worker %s: Error closing stream send: %v", s.workerID, err)
-		}
 		streamInfo.cancel()
 	}
 }
 
+// senderLoop runs in the sender goroutine to send batches to the server
+// The sender is stateless - it only sends batches to the server and signals stream failure
+// This goroutine exits when the stream fails/terminates
+func (s *streamWorker) senderLoop(streamInfo *streamInfo, batchToSendCh chan *statefulpb.StatefulBatch) {
+	for batch := range batchToSendCh {
+		if err := streamInfo.stream.Send(batch); err != nil {
+			// Check if it's due to context cancellation (clean shutdown/rotation)
+			ctxErr := streamInfo.ctx.Err()
+			if errors.Is(ctxErr, context.Canceled) || errors.Is(ctxErr, context.DeadlineExceeded) {
+				log.Infof("Worker %s: Stream context cancelled, sender exiting", s.workerID)
+				return
+			}
+
+			// Real send failure, signal to supervisor
+			log.Warnf("Worker %s: Send failed: %v, terminating stream", s.workerID, err)
+			s.signalStreamFailure(streamInfo)
+			return
+		}
+	}
+	log.Infof("Worker %s: Sender channel closed, sender exiting", s.workerID)
+}
+
 // receiverLoop runs in the receiver goroutine to process server responses for a specific stream
 // The receiver is stateless - it only forwards acks/errors to the supervisor
-// This goroutine exits when the stream fails (after signaling the supervisor)
+// This goroutine exits when the stream fails/terminates
 func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
-	stream := streamInfo.stream
 	for {
-		msg, err := stream.Recv()
+		msg, err := streamInfo.stream.Recv()
 		if err == nil {
 			// Normal message (batch acknowledgment) - forward to supervisor
 			s.signalBatchAck(streamInfo, msg)
 			continue
 		}
 
-		// Clean inbound close (server OK in trailers): policy = signal receiver failure
+		// Clean inbound close (server OK in trailers): signal stream failure
 		if errors.Is(err, io.EOF) {
 			log.Warnf("Worker %s: Stream closed by server", s.workerID)
-			s.signalRecvFailure(streamInfo)
+			s.signalStreamFailure(streamInfo)
 			return
 		}
 
@@ -662,38 +653,37 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 			return
 		}
 
-		// Stream-level gRPC status (non-OK): RPC is over → signal receiver failure or block terminal
+		// Stream-level gRPC status (non-OK):
+		// RPC is over → signal stream failure or handle as irrecoverable
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.Unauthenticated, codes.PermissionDenied:
-				// Terminal until fixed; do not signal receiver failure here
 				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
 				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
-				// Terminal protocol/semantic issue; do not signal receiver failure
 				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
 				return
 			default:
-				// All other non-OK statuses: signal receiver failure
+				// All other non-OK statuses: signal stream failure
 				log.Warnf("Worker %s: gRPC error (code %v): %v", s.workerID, st.Code(), err)
-				s.signalRecvFailure(streamInfo)
+				s.signalStreamFailure(streamInfo)
 				return
 			}
 		}
 
-		// Transport error without status (RST/GOAWAY/TLS, socket close): signal receiver failure
+		// Transport error without status (RST/GOAWAY/TLS, socket close): signal stream failure
 		log.Warnf("Worker %s: Transport error: %v", s.workerID, err)
-		s.signalRecvFailure(streamInfo)
+		s.signalStreamFailure(streamInfo)
 		return
 	}
 }
 
-// signalRecvFailure signals the supervisor to rotate the stream
-func (s *streamWorker) signalRecvFailure(streamInfo *streamInfo) {
-	// This signaling is blocking by design, it's okey to block the receiver,
-	// since the only way we get here is through an irrecoverable error.
+// signalStreamFailure signals the supervisor to rotate the stream
+func (s *streamWorker) signalStreamFailure(streamInfo *streamInfo) {
+	// This signaling is blocking by design, it's okay to block the sender/receiver,
+	// since the only way we get here is through a stream error.
 	select {
-	case s.recvFailureCh <- streamInfo:
+	case s.streamFailureCh <- streamInfo:
 	case <-s.stopChan:
 	}
 }
@@ -714,7 +704,13 @@ func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *strea
 	// and retry of the same payload, which loops on. this IS NOT the desired behavior.
 	// TODO: Implement proper handling of irrecoverable errors, by blocking the ingestion
 	log.Infof("Worker %s: irrecoverable error detected: %s", s.workerID, reason)
-	s.signalRecvFailure(streamInfo)
+	s.signalStreamFailure(streamInfo)
+}
+
+// getNextBatch crafts a StatefulBatch with the next batch to send from the
+// inflight tracker. It doesn't change inflight tracker state
+func (s *streamWorker) getNextBatch() *statefulpb.StatefulBatch {
+	return createBatch(s.inflight.nextToSend().Encoded, s.inflight.nextBatchID())
 }
 
 // createBatch creates a StatefulBatch from serialized data and batch ID
