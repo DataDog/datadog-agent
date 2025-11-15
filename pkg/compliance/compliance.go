@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package compliance implements a specific part of the datadog-agent
+// responsible for scanning host and containers and report various
+// misconfigurations and compliance issues.
 package compliance
 
 import (
-	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"time"
 
@@ -18,11 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -33,14 +31,14 @@ import (
 // and checks.
 func StartCompliance(log log.Component,
 	config config.Component,
-	sysprobeconfig sysprobeconfig.Component,
 	hostname string,
 	stopper startstop.Stopper,
 	statsdClient ddgostatsd.ClientInterface,
 	wmeta workloadmeta.Component,
 	compression compression.Component,
 	ipc ipc.Component,
-) (*compliance.Agent, error) {
+	sysProbeClient SysProbeClient,
+) (*Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
 	configDir := config.GetString("compliance_config.dir")
@@ -57,33 +55,28 @@ func StartCompliance(log log.Component,
 	}
 	stopper.Add(context)
 
-	resolverOptions := compliance.ResolverOptions{
+	resolverOptions := ResolverOptions{
 		Hostname:           hostname,
 		HostRoot:           os.Getenv("HOST_ROOT"),
-		DockerProvider:     compliance.DefaultDockerProvider,
-		LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+		DockerProvider:     DefaultDockerProvider,
+		LinuxAuditProvider: DefaultLinuxAuditProvider,
 	}
 
 	if metricsEnabled {
 		resolverOptions.StatsdClient = statsdClient
 	}
 
-	var sysProbeClient *http.Client
-	if config := sysprobeconfig.SysProbeObject(); config != nil && config.SocketAddress != "" {
-		sysProbeClient = newSysProbeClient(config.SocketAddress)
-	}
-
-	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
-		compliance.KubernetesExporter,
+	enabledConfigurationsExporters := []ConfigurationExporter{
+		KubernetesExporter,
 	}
 	if config.GetBool("compliance_config.database_benchmarks.enabled") {
-		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
+		enabledConfigurationsExporters = append(enabledConfigurationsExporters, DBExporter)
 	}
 
-	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
+	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
-	agent := compliance.NewAgent(telemetrySender, wmeta, ipc, compliance.AgentOptions{
+	agent := NewAgent(telemetrySender, wmeta, ipc, AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,
@@ -122,20 +115,4 @@ func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName stri
 	}()
 
 	return heartbeat
-}
-
-func newSysProbeClient(address string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", address)
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
-	}
 }
