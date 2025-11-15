@@ -196,7 +196,8 @@ modules:
   pkg/config/viperconfig:
     used_by_otel: true
   pkg/dyninst/testprogs/progs: ignored
-  pkg/errors: default
+  pkg/errors:
+    used_by_otel: true
   pkg/fips:
     used_by_otel: true
   pkg/fleet/installer:
