@@ -1432,3 +1432,71 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	// Clean up
 	os.Remove(rotatedPath)
 }
+
+// TestTailerReceivesConfigWhenDisabled tests that tailers receive fingerprint config even when disabled
+func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
+	// Clean up existing state from SetupTest
+	suite.s.cleanup()
+
+	mockConfig := configmock.New(suite.T())
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+
+	// Create global fingerprint config
+	globalFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+		Source:              types.FingerprintConfigSourceGlobal,
+	}
+
+	// Create fileOpener and fingerprinter
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := filetailer.NewFingerprinter(globalFingerprintConfig, fileOpener)
+
+	// Create new launcher
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, fileOpener, fingerprinter)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+
+	// Create a source with per-source disabled fingerprinting config
+	perSourceConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: perSourceConfig,
+	}
+	source := sources.NewLogSource("test_disabled", sourceConfig)
+	s.activeSources = append(s.activeSources, source)
+	status.Clear()
+	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// Create file with content
+	f, err := os.Create(suite.testPath)
+	suite.Nil(err)
+	_, err = f.WriteString("test data\n")
+	suite.Nil(err)
+	f.Close()
+
+	// Scan for files
+	s.resolveActiveTailers(s.fileProvider.FilesToTail(context.Background(), s.validatePodContainerID, s.activeSources, s.registry))
+
+	// Verify tailer was created
+	scanKey := getScanKey(suite.testPath, source)
+	tailerInstance, exists := s.tailers.Get(scanKey)
+	suite.True(exists, "Tailer should be created even with disabled fingerprinting")
+
+	// Verify the tailer has the fingerprint config
+	fingerprint := tailerInstance.GetFingerprint()
+	suite.NotNil(fingerprint, "Tailer should have fingerprint")
+	suite.NotNil(fingerprint.Config, "Fingerprint should have config")
+	suite.Equal(types.FingerprintStrategyDisabled, fingerprint.Config.FingerprintStrategy, "Config should show disabled strategy")
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
+	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
+	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
+}
