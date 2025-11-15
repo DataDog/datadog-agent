@@ -9,6 +9,13 @@ load(
     "LIB_CRYPTO_SRCS_DARWIN_ARM64",
     "TEXTUAL_HEADERS",
 )
+load(
+    "linux_arm64_lib_contents.bzl",
+    "HDRS",
+    "HDRS_LINUX_ARM64",
+    "LIB_CRYPTO_SRCS_LINUX_ARM64",
+    "TEXTUAL_HEADERS",
+)
 
 package(
     default_applicable_licenses = [":license"],
@@ -59,10 +66,12 @@ DARWIN_ARM64_DEFINES = [
     "VPSM4_ASM",
 ]
 
+LINUX_ARM64_DEFINES = DARWIN_ARM64_DEFINES
+
 cc_library(
     name = "libcrypto",
     srcs = HDRS + select({
-        # TODO: This needs to be arch specific too.
+        "@platforms//os:linux": HDRS_LINUX_ARM64 + LIB_CRYPTO_SRCS_LINUX_ARM64,
         "@platforms//os:macos": HDRS_DARWIN_ARM64 + LIB_CRYPTO_SRCS_DARWIN_ARM64,
     }),
     # Yeech.  Includes polutes the build. But we can not use -I because we don't know
@@ -91,11 +100,14 @@ cc_library(
         ],
     }),
     local_defines = LOCAL_DEFINES + select({
+        "@platforms//os:linux": LINUX_ARM64_DEFINES,
         "@platforms//os:macos": DARWIN_ARM64_DEFINES,
     }),
     copts = select({
         "@platforms//os:linux": [
             "-fPIC",
+            "-Wa,--noexecstack",
+            "-pthread",
             # O3 and NDEBUG a pair you should consider together, that is why
             # it is a copt rather than define.
             "-DNDEBUG",
