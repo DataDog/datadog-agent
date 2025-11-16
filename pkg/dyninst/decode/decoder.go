@@ -226,6 +226,7 @@ type snapshotMessage struct {
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
 	Duration  uint64           `json:"duration,omitzero"`
+	Message   messageData      `json:"message,omitempty"`
 }
 
 func (s *snapshotMessage) init(
@@ -389,5 +390,13 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
+
+	if probe.Template != nil {
+		s.Message = messageData{
+			decoder:  decoder,
+			template: probe.Template,
+		}
+	}
+
 	return probe, nil
 }

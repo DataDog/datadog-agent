@@ -356,7 +356,7 @@ func runIntegrationTestSuite(
 							"output has probes that are not expected",
 						)
 					})
-					if !runAllDebugTests {
+					if debug && !runAllDebugTests {
 						t.Logf(
 							"skipping individual probe debug tests because %s is not set",
 							runAllDebugTestsEnv,

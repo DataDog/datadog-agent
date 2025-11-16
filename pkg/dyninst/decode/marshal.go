@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"time"
@@ -35,6 +36,149 @@ type logger struct {
 type debuggerData struct {
 	Snapshot         snapshotData      `json:"snapshot"`
 	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
+}
+
+type messageData struct {
+	decoder  *Decoder
+	template *ir.Template
+}
+
+func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
+	var result bytes.Buffer
+	limits := &formatLimits{
+		maxBytes:           maxLogLineBytes,
+		maxCollectionItems: maxLogCollectionItems,
+		maxFields:          maxLogFieldCount,
+	}
+
+	for _, segment := range m.template.Segments {
+		// Check if we've exceeded the total byte limit.
+		if result.Len() >= maxLogLineBytes {
+			break
+		}
+
+		switch seg := segment.(type) {
+		case ir.StringSegment:
+			// Literal string - append directly, but check limits.
+			segStr := string(seg)
+			remainingBytes := maxLogLineBytes - result.Len()
+			if len(segStr) > remainingBytes {
+				segStr = segStr[:remainingBytes]
+			}
+			result.WriteString(segStr)
+		case *ir.JSONSegment:
+			savedLen := result.Len()
+			// Update limits to reflect remaining bytes.
+			limits.maxBytes = maxLogLineBytes - savedLen
+			if err := m.processJSONSegment(&result, seg, limits); err != nil {
+				// Reset buffer to saved length and write error.
+				result.Truncate(savedLen)
+				limits.maxBytes = maxLogLineBytes - savedLen
+				writeBoundedError(&result, limits, "error", err.Error())
+			}
+			// Update limits after processing segment.
+			limits.maxBytes = maxLogLineBytes - result.Len()
+		case ir.InvalidSegment:
+			// Check limits for invalid segment.
+			limits.maxBytes = maxLogLineBytes - result.Len()
+			writeBoundedString(&result, limits, seg.Error)
+
+		default:
+			return fmt.Errorf(
+				"unexpected segment type: %T: %+#v", seg, seg,
+			)
+		}
+	}
+	return writeTokens(enc, jsontext.String(result.String()))
+}
+
+func (m *messageData) processJSONSegment(
+	result *bytes.Buffer,
+	seg *ir.JSONSegment,
+	limits *formatLimits,
+) error {
+	// Get encodingContext and root data from appropriate capture event.
+	var ctx *encodingContext
+	var rootType *ir.EventRootType
+	var rootData []byte
+
+	switch seg.EventKind {
+	case ir.EventKindEntry:
+		ctx = &m.decoder.entry.encodingContext
+		rootType = m.decoder.entry.rootType
+		rootData = m.decoder.entry.rootData
+	case ir.EventKindReturn:
+		ctx = &m.decoder._return.encodingContext
+		rootType = m.decoder._return.rootType
+		rootData = m.decoder._return.rootData
+	case ir.EventKindLine:
+		ctx = &m.decoder.line.capture.encodingContext
+		rootType = m.decoder.line.capture.rootType
+		rootData = m.decoder.line.capture.rootData
+	default:
+		return fmt.Errorf(
+			"unexpected event kind: %v", seg.EventKind,
+		)
+	}
+
+	if rootType == nil || rootData == nil {
+		if !limits.canWrite(len(formatUnavailable)) {
+			return nil
+		}
+		result.WriteString(formatUnavailable)
+		limits.consume(len(formatUnavailable))
+		return nil
+	}
+
+	// Expression reference - format the captured value.
+	exprIdx := seg.EventExpressionIndex
+	if exprIdx >= len(rootType.Expressions) {
+		if !limits.canWrite(len(formatUnavailable)) {
+			return nil
+		}
+		result.WriteString(formatUnavailable)
+		limits.consume(len(formatUnavailable))
+		return nil
+	}
+	expr := rootType.Expressions[exprIdx]
+
+	// Check presence bit using same logic as processExpression.
+	presenceBitsetSize := rootType.PresenceBitsetSize
+	if int(presenceBitsetSize) > len(rootData) {
+		return fmt.Errorf("presence bitset is out of bounds")
+	}
+	presenceBitSet := bitset(rootData[:presenceBitsetSize])
+	if exprIdx >= int(presenceBitsetSize)*8 {
+		return fmt.Errorf("expression index out of bounds")
+	}
+	if !presenceBitSet.get(exprIdx) {
+		// Expression evaluation failed.
+		if !limits.canWrite(len(formatUnavailable)) {
+			return nil
+		}
+		result.WriteString(formatUnavailable)
+		limits.consume(len(formatUnavailable))
+		return nil
+	}
+
+	// Get expression data.
+	exprDataStart := expr.Offset
+	exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
+	if exprDataEnd > uint32(len(rootData)) {
+		return fmt.Errorf("expression data out of bounds")
+	}
+	exprData := rootData[exprDataStart:exprDataEnd]
+
+	// Format the value based on type using encodingContext.
+	// formatType already consumes bytes internally, so we don't need to
+	// track here.
+	if err := formatType(
+		ctx, result, expr.Expression.Type, exprData, limits,
+	); err != nil {
+		return fmt.Errorf("error formatting expression: %w", err)
+	}
+
+	return nil
 }
 
 type evaluationError struct {

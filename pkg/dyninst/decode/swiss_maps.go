@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"slices"
@@ -114,4 +115,149 @@ func (s *goSwissMapHeaderType) encodeSwissMapGroup(
 		valuesEncoded++
 	}
 	return valuesEncoded, nil
+}
+
+// formatSwissMapTables traverses the table pointer slice and formats the data
+// items for each table.
+func (s *goSwissMapHeaderType) formatSwissMapTables(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	tablePtrSliceData []byte,
+	limits *formatLimits,
+) (totalElementsFormatted int, err error) {
+	addrs := []uint64{}
+	numPtrs := uint32(len(tablePtrSliceData) / 8)
+	for i := range numPtrs {
+		startIdx := i * 8
+		endIdx := startIdx + 8
+		if endIdx > uint32(len(tablePtrSliceData)) {
+			return totalElementsFormatted, fmt.Errorf(
+				"table pointer %d extends beyond data bounds: need %d bytes, have %d",
+				i, endIdx, len(tablePtrSliceData),
+			)
+		}
+		addrs = append(addrs, binary.NativeEndian.Uint64(tablePtrSliceData[startIdx:endIdx]))
+	}
+	// Deduplicate addrs by sorting and then removing duplicates.
+	// Go swiss maps may have multiple table pointers for the same group.
+	slices.Sort(addrs)
+	addrs = slices.Compact(addrs)
+	maxItems := limits.maxCollectionItems
+	for _, addr := range addrs {
+		if totalElementsFormatted >= maxItems {
+			break
+		}
+		if addr == 0 {
+			continue
+		}
+		tableDataItem, ok := c.getPtr(addr, s.tableTypeID)
+		if !ok {
+			continue
+		}
+		tableData, ok := tableDataItem.Data()
+		if !ok {
+			continue
+		}
+		groupsData := tableData[s.groupFieldOffset : s.groupFieldOffset+uint32(s.groupFieldSize)]
+		groupsPtrData := groupsData[s.dataFieldOffset : s.dataFieldOffset+uint32(s.dataFieldSize)]
+		groupsPtr := binary.NativeEndian.Uint64(groupsPtrData)
+		if groupsPtr == 0 {
+			continue
+		}
+		groupsArrayDataItem, ok := c.getPtr(groupsPtr, s.groupSliceTypeID)
+		if !ok {
+			continue
+		}
+		groupsArrayData, ok := groupsArrayDataItem.Data()
+		if !ok {
+			continue
+		}
+		numberOfGroups := uint32(len(groupsArrayData)) / s.elementTypeSize
+		for i := range numberOfGroups {
+			if totalElementsFormatted >= maxItems {
+				break
+			}
+			// Update limits to reflect remaining items we can format.
+			remainingItems := maxItems - totalElementsFormatted
+			originalMaxItems := limits.maxCollectionItems
+			limits.maxCollectionItems = remainingItems
+			singleGroupData := groupsArrayData[s.elementTypeSize*i : s.elementTypeSize*(i+1)]
+			elementsFormatted, err := s.formatSwissMapGroup(
+				c, buf, singleGroupData, totalElementsFormatted > 0, limits,
+			)
+			limits.maxCollectionItems = originalMaxItems
+			if err != nil {
+				return totalElementsFormatted, err
+			}
+			totalElementsFormatted += elementsFormatted
+			if totalElementsFormatted >= maxItems {
+				break
+			}
+		}
+	}
+	return totalElementsFormatted, nil
+}
+
+// formatSwissMapGroup formats entries from a single swiss map group.
+// It respects the remaining limit in maxCollectionItems and returns the number
+// of items formatted.
+func (s *goSwissMapHeaderType) formatSwissMapGroup(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	groupData []byte,
+	needComma bool,
+	limits *formatLimits,
+) (formattedItems int, err error) {
+	slotsData := groupData[s.slotsOffset : s.slotsOffset+s.slotsSize]
+	controlWord := binary.LittleEndian.Uint64(
+		groupData[s.ctrlOffset : s.ctrlOffset+uint32(s.ctrlSize)],
+	)
+	maxItems := limits.maxCollectionItems
+	for i := range 8 {
+		if formattedItems >= maxItems {
+			break
+		}
+		if controlWord&(1<<(7+(8*i))) != 0 {
+			// Slot is empty or deleted.
+			continue
+		}
+		if needComma || formattedItems > 0 {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				return formattedItems, nil
+			}
+		}
+		formattedItems++
+		entryData := slotsData[uint32(i)*s.slotsArrayEntrySize : uint32(i+1)*s.slotsArrayEntrySize]
+		keyData := entryData[s.keyFieldOffset : s.keyFieldOffset+s.keyTypeSize]
+		valueData := entryData[s.valueFieldOffset : s.valueFieldOffset+s.valueTypeSize]
+
+		// Format key.
+		keyType, ok := c.getType(s.keyTypeID)
+		if !ok {
+			return formattedItems, fmt.Errorf("key type not found: %d", s.keyTypeID)
+		}
+		keyBeforeLen := buf.Len()
+		if err := keyType.formatValueFields(c, buf, keyData, limits); err != nil {
+			return formattedItems, err
+		}
+		keyWritten := buf.Len() - keyBeforeLen
+		limits.consume(keyWritten)
+
+		if !writeBoundedString(buf, limits, formatColonSpace) {
+			return formattedItems, nil
+		}
+
+		// Format value.
+		valueType, ok := c.getType(s.valueTypeID)
+		if !ok {
+			return formattedItems, fmt.Errorf("value type not found: %d", s.valueTypeID)
+		}
+		valueBeforeLen := buf.Len()
+		if err := valueType.formatValueFields(c, buf, valueData, limits); err != nil {
+			return formattedItems, err
+		}
+		valueWritten := buf.Len() - valueBeforeLen
+		limits.consume(valueWritten)
+	}
+	return formattedItems, nil
 }

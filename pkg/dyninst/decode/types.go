@@ -8,6 +8,7 @@
 package decode
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -24,17 +25,121 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 )
 
-// decoderType is a decoder-specific representation of an ir.Type
-// It is used to so that specific types can implement their own
-// encoding methods. We can track these types in the decoder as a
-// way of caching type-specific information such as map key and
-// value types.
+// formatLimits tracks formatting limits for log output.
+type formatLimits struct {
+	maxBytes           int
+	maxCollectionItems int
+	maxFields          int
+}
+
+const (
+	maxLogLineBytes       = 8192
+	maxLogCollectionItems = 3
+	maxLogFieldCount      = 5
+)
+
+// Formatting constants for consistent output.
+const (
+	formatUnavailable     = "{unavailable}"
+	formatNil             = "nil"
+	formatCycle           = "{cycle}"
+	formatTruncated       = "{truncated}"
+	formatEllipsis        = "..."
+	formatEllipsisComma   = ", ..."
+	formatEllipsisCommaRB = ", ...}"
+	formatCommaSpace      = ", "
+	formatColonSpace      = ": "
+	formatEmptyMap        = "map[]"
+	formatEmptySlice      = "[]"
+	formatEmptyElement    = "{}"
+)
+
+// canWrite checks if we can write the specified number of bytes.
+func (fl *formatLimits) canWrite(bytes int) bool {
+	return fl.maxBytes >= bytes
+}
+
+// consume marks bytes as consumed.
+func (fl *formatLimits) consume(bytes int) {
+	if bytes < 0 {
+		return
+	}
+	fl.maxBytes -= bytes
+	if fl.maxBytes < 0 {
+		fl.maxBytes = 0
+	}
+}
+
+// writeBoundedString writes a string to the buffer if there's enough space.
+// Returns true if the string was written, false otherwise.
+func writeBoundedString(
+	buf *bytes.Buffer, limits *formatLimits, s string,
+) bool {
+	if !limits.canWrite(len(s)) {
+		return false
+	}
+	buf.WriteString(s)
+	limits.consume(len(s))
+	return true
+}
+
+// writeBoundedError writes an error message wrapped in braces, truncating the
+// inner message if needed to preserve the braces.
+func writeBoundedError(
+	buf *bytes.Buffer, limits *formatLimits, prefix, msg string,
+) bool {
+	var errorMsg string
+	if prefix == "" {
+		// Format: "{message}"
+		if !limits.canWrite(2) {
+			return false
+		}
+		available := limits.maxBytes - 2
+		if len(msg) > available {
+			msg = msg[:available]
+		}
+		errorMsg = "{" + msg + "}"
+	} else {
+		// Format: "{prefix: message}"
+		prefixLen := len(prefix) + 4 // "{prefix: }"
+		if !limits.canWrite(prefixLen) {
+			return false
+		}
+		available := limits.maxBytes - prefixLen
+		if len(msg) > available {
+			msg = msg[:available]
+		}
+		errorMsg = "{" + prefix + ": " + msg + "}"
+	}
+	buf.WriteString(errorMsg)
+	limits.consume(len(errorMsg))
+	return true
+}
+
+// writeBoundedFallback writes an error message when a type cannot be
+// formatted. The message describes the specific failure mode.
+func writeBoundedFallback(
+	buf *bytes.Buffer, limits *formatLimits, msg string,
+) bool {
+	return writeBoundedError(buf, limits, "", msg)
+}
+
+// decoderType is a decoder-specific representation of an ir.Type. It is used
+// so that specific types can implement their own encoding methods. We can
+// track these types in the decoder as a way of caching type-specific
+// information such as map key and value types.
 type decoderType interface {
 	irType() ir.Type
 	encodeValueFields(
 		c *encodingContext,
 		enc *jsontext.Encoder,
 		data []byte,
+	) error
+	formatValueFields(
+		c *encodingContext,
+		buf *bytes.Buffer,
+		data []byte,
+		limits *formatLimits,
 	) error
 }
 
@@ -514,6 +619,48 @@ func (b *baseType) encodeValueFields(
 	}
 }
 
+func (b *baseType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	kind, ok := b.GetGoKind()
+	if !ok {
+		if !writeBoundedFallback(
+			buf, limits, fmt.Sprintf("unknown kind for type %s", b.GetName()),
+		) {
+			return nil
+		}
+		return nil
+	}
+	var output string
+	switch kind {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		val := readInt(data, b.ByteSize)
+		output = strconv.FormatInt(val, 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		val := readUint(data, b.ByteSize)
+		output = strconv.FormatUint(val, 10)
+	case reflect.Float32, reflect.Float64:
+		val := readFloat(data, b.ByteSize)
+		output = strconv.FormatFloat(val, 'g', -1, 64)
+	case reflect.Bool:
+		if len(data) > 0 && data[0] != 0 {
+			output = "true"
+		} else {
+			output = "false"
+		}
+	default:
+		writeBoundedFallback(
+			buf, limits, fmt.Sprintf("unsupported kind %d for type %s", kind, b.GetName()),
+		)
+		return nil
+	}
+	writeBoundedString(buf, limits, output)
+	return nil
+}
+
 func (e *eventRootType) irType() ir.Type { return (*ir.EventRootType)(e) }
 func (e *eventRootType) encodeValueFields(
 	_ *encodingContext,
@@ -526,6 +673,16 @@ func (e *eventRootType) encodeValueFields(
 	)
 }
 
+func (e *eventRootType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	_ []byte,
+	limits *formatLimits,
+) error {
+	writeBoundedFallback(buf, limits, "unimplemented")
+	return nil
+}
+
 func (m *goMapType) irType() ir.Type { return (*ir.GoMapType)(m) }
 func (m *goMapType) encodeValueFields(
 	c *encodingContext,
@@ -534,6 +691,16 @@ func (m *goMapType) encodeValueFields(
 ) error {
 	const encodeAddress = false
 	return encodePointer(c, data, encodeAddress, m.HeaderType.GetID(), enc)
+}
+
+func (m *goMapType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	// Format maps similar to pointers - delegate to formatPointer
+	return formatPointer(c, buf, data, m.HeaderType.GetID(), m.HeaderType, limits)
 }
 
 func (h *goHMapHeaderType) irType() ir.Type { return h.GoHMapHeaderType }
@@ -604,6 +771,183 @@ func (h *goHMapHeaderType) encodeValueFields(
 		}
 	}
 	return nil
+}
+
+func (h *goHMapHeaderType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	maxOffset := max(h.countOffset+8, h.bucketsOffset+8, h.oldBucketsOffset+8)
+	if maxOffset > uint32(len(data)) {
+		writeBoundedError(buf, limits, "map", "data too short")
+		return nil
+	}
+	count := binary.NativeEndian.Uint64(data[h.countOffset : h.countOffset+8])
+	if count == 0 {
+		writeBoundedString(buf, limits, formatEmptyMap)
+	}
+
+	beforeLen := buf.Len()
+	mapPrefix := "map["
+	if !writeBoundedString(buf, limits, mapPrefix) {
+		return nil
+	}
+
+	var formattedItems int
+	maxItems := limits.maxCollectionItems
+	formatBuckets := func(dataItem output.DataItem) (items int, err error) {
+		if formattedItems >= maxItems {
+			return items, nil
+		}
+		data, ok := dataItem.Data()
+		if !ok {
+			return 0, nil
+		}
+		numBuckets := len(data) / int(h.bucketByteSize)
+		for i := range numBuckets {
+			if formattedItems >= maxItems {
+				break
+			}
+			bucketOffset := uint32(i) * h.bucketByteSize
+			bucketData := data[bucketOffset : bucketOffset+h.bucketByteSize]
+			bucketItems, err := formatHMapBucket(
+				c, buf, h, bucketData, formattedItems > 0, limits,
+			)
+			if err != nil {
+				return items, err
+			}
+			items += bucketItems
+			formattedItems += bucketItems
+			if formattedItems >= maxItems {
+				break
+			}
+		}
+		return items, nil
+	}
+
+	for _, offset := range []uint32{h.bucketsOffset, h.oldBucketsOffset} {
+		if formattedItems >= maxItems {
+			break
+		}
+		addr := binary.NativeEndian.Uint64(data[offset : offset+8])
+		if addr == 0 {
+			continue
+		}
+		item, ok := c.getPtr(addr, h.bucketsTypeID)
+		if !ok {
+			continue
+		}
+		_, err := formatBuckets(item)
+		if err != nil {
+			return err
+		}
+		if formattedItems >= maxItems {
+			break
+		}
+	}
+
+	if uint64(formattedItems) < count {
+		writeBoundedString(buf, limits, formatEllipsisComma)
+	}
+
+	closing := "]"
+	if !writeBoundedString(buf, limits, closing) {
+		buf.Truncate(beforeLen)
+	}
+	return nil
+}
+
+func formatHMapBucket(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	h *goHMapHeaderType,
+	bucketData []byte,
+	needComma bool,
+	limits *formatLimits,
+) (formattedItems int, err error) {
+	// See https://github.com/golang/go/blob/66d34c7d/src/runtime/map.go#L90-L99
+	const (
+		emptyRest      = 0 // this cell is empty, and there are no more non-empty cells
+		emptyOne       = 1 // this cell is empty
+		evacuatedX     = 2 // key/elem is valid.  Entry has been evacuated to first half of larger table.
+		evacuatedEmpty = 4 // cell is empty, bucket is evacuated.
+		topHashSize    = 8
+	)
+	upperBound := max(
+		h.keysOffset+h.keyTypeSize*topHashSize,
+		h.valuesOffset+h.valueTypeSize*topHashSize,
+		h.tophashOfset+topHashSize,
+		h.overflowOffset+8,
+	)
+	if upperBound > uint32(len(bucketData)) {
+		return formattedItems, fmt.Errorf(
+			"hmap bucket data for %q is too short to contain all fields: %d > %d",
+			h.Name, upperBound, len(bucketData),
+		)
+	}
+	topHash := bucketData[h.tophashOfset : h.tophashOfset+topHashSize]
+	maxItems := limits.maxCollectionItems
+	for i, b := range topHash {
+		if formattedItems >= maxItems {
+			break
+		}
+		if b == emptyRest || (b >= evacuatedX && b <= evacuatedEmpty) {
+			break
+		}
+		if b == emptyOne {
+			continue
+		}
+		if needComma || formattedItems > 0 {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				return formattedItems, nil
+			}
+		}
+		formattedItems++
+		keyOffset := h.keysOffset + uint32(i)*h.keyTypeSize
+		valueOffset := h.valuesOffset + uint32(i)*h.valueTypeSize
+		keyData := bucketData[keyOffset : keyOffset+h.keyTypeSize]
+		keyBeforeLen := buf.Len()
+		if err := formatType(c, buf, h.BucketType.KeyType, keyData, limits); err != nil {
+			return formattedItems, err
+		}
+		keyWritten := buf.Len() - keyBeforeLen
+		limits.consume(keyWritten)
+
+		if !writeBoundedString(buf, limits, formatColonSpace) {
+			return formattedItems, nil
+		}
+
+		valueData := bucketData[valueOffset : valueOffset+h.valueTypeSize]
+		valueBeforeLen := buf.Len()
+		if err := formatType(c, buf, h.BucketType.ValueType, valueData, limits); err != nil {
+			return formattedItems, err
+		}
+		valueWritten := buf.Len() - valueBeforeLen
+		limits.consume(valueWritten)
+	}
+	if formattedItems >= maxItems {
+		return formattedItems, nil
+	}
+	overflowAddr := binary.NativeEndian.Uint64(bucketData[h.overflowOffset : h.overflowOffset+8])
+	if overflowAddr != 0 {
+		overflowDataItem, ok := c.getPtr(overflowAddr, h.bucketTypeID)
+		var overflowData []byte
+		if ok {
+			overflowData, ok = overflowDataItem.Data()
+		}
+		if ok {
+			overflowItems, err := formatHMapBucket(
+				c, buf, h, overflowData, formattedItems > 0, limits,
+			)
+			if err != nil {
+				return formattedItems, err
+			}
+			formattedItems += overflowItems
+		}
+	}
+	return formattedItems, nil
 }
 
 func encodeHMapBucket(
@@ -685,6 +1029,12 @@ func (*goHMapBucketType) encodeValueFields(
 	*encodingContext, *jsontext.Encoder, []byte,
 ) error {
 	return fmt.Errorf("hmap bucket type is never directly encoded")
+}
+
+func (*goHMapBucketType) formatValueFields(
+	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
+) error {
+	return fmt.Errorf("hmap bucket type is never directly formatted")
 }
 
 func (s *goSwissMapHeaderType) irType() ir.Type { return s.GoSwissMapHeaderType }
@@ -776,6 +1126,100 @@ func (s *goSwissMapHeaderType) encodeValueFields(
 	return writeTokens(enc, jsontext.EndArray)
 }
 
+func (s *goSwissMapHeaderType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	// Check if we have enough data for the header fields.
+	maxOffset := max(
+		s.usedOffset+uint32(s.usedSize),
+		s.dirLenOffset+uint32(s.dirLenSize),
+		s.dirPtrOffset+uint32(s.dirPtrSize),
+	)
+	if maxOffset > uint32(len(data)) {
+		writeBoundedError(buf, limits, "swiss map", "data too short")
+		return nil
+	}
+
+	used := binary.NativeEndian.Uint64(
+		data[s.usedOffset : s.usedOffset+uint32(s.usedSize)],
+	)
+	if used == 0 {
+		writeBoundedString(buf, limits, formatEmptyMap)
+		return nil
+	}
+
+	beforeLen := buf.Len()
+	mapPrefix := "map["
+	if !writeBoundedString(buf, limits, mapPrefix) {
+		return nil
+	}
+
+	var formattedItems int
+	dirLen := binary.NativeEndian.Uint64(
+		data[s.dirLenOffset : s.dirLenOffset+uint32(s.dirLenSize)],
+	)
+	dirPtr := binary.NativeEndian.Uint64(
+		data[s.dirPtrOffset : s.dirPtrOffset+uint32(s.dirPtrSize)],
+	)
+
+	if dirLen == 0 {
+		// Small swiss map with a single group.
+		groupDataItem, ok := c.getPtr(dirPtr, s.groupTypeID)
+		if !ok {
+			writeBoundedError(buf, limits, "swiss map", "failed to capture group")
+			buf.Truncate(beforeLen)
+			return nil
+		}
+		groupData, ok := groupDataItem.Data()
+		if !ok {
+			writeBoundedError(buf, limits, "swiss map", "failed to read group")
+			buf.Truncate(beforeLen)
+			return nil
+		}
+		items, err := s.formatSwissMapGroup(
+			c, buf, groupData, formattedItems > 0, limits,
+		)
+		if err != nil {
+			return err
+		}
+		formattedItems = items
+	} else {
+		// Large swiss map with multiple groups.
+		tablePtrSliceDataItem, ok := c.getPtr(dirPtr, s.TablePtrSliceType.GetID())
+		if !ok {
+			writeBoundedError(buf, limits, "swiss map", "failed to capture tables")
+			buf.Truncate(beforeLen)
+			return nil
+		}
+		tablePtrSliceData, ok := tablePtrSliceDataItem.Data()
+		if !ok {
+			writeBoundedError(buf, limits, "swiss map", "failed to read tables")
+			buf.Truncate(beforeLen)
+			return nil
+		}
+		items, err := s.formatSwissMapTables(
+			c, buf, tablePtrSliceData, limits,
+		)
+		if err != nil {
+			return err
+		}
+		formattedItems = items
+	}
+
+	if uint64(formattedItems) < used {
+		writeBoundedString(buf, limits, formatEllipsisComma)
+	}
+
+	closing := "]"
+	if !writeBoundedString(buf, limits, closing) {
+		buf.Truncate(beforeLen)
+	}
+	return nil
+}
+
 func (s *goSwissMapGroupsType) irType() ir.Type { return (*ir.GoSwissMapGroupsType)(s) }
 func (s *goSwissMapGroupsType) encodeValueFields(
 	_ *encodingContext,
@@ -786,6 +1230,16 @@ func (s *goSwissMapGroupsType) encodeValueFields(
 		tokenNotCapturedReason,
 		tokenNotCapturedReasonUnimplemented,
 	)
+}
+
+func (s *goSwissMapGroupsType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	_ []byte,
+	limits *formatLimits,
+) error {
+	writeBoundedFallback(buf, limits, "unimplemented")
+	return nil
 }
 
 func (v *voidPointerType) irType() ir.Type { return (*ir.VoidPointerType)(v) }
@@ -803,6 +1257,21 @@ func (v *voidPointerType) encodeValueFields(
 	)
 }
 
+func (v *voidPointerType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	if len(data) < 8 {
+		writeBoundedError(buf, limits, "void pointer", "truncated")
+	}
+	addr := binary.NativeEndian.Uint64(data)
+	output := "0x" + strconv.FormatUint(addr, 16)
+	writeBoundedString(buf, limits, output)
+	return nil
+}
+
 func (p *pointerType) irType() ir.Type { return (*ir.PointerType)(p) }
 func (p *pointerType) encodeValueFields(
 	c *encodingContext,
@@ -818,6 +1287,60 @@ func (p *pointerType) encodeValueFields(
 	goKind, ok := p.Pointee.GetGoKind()
 	writeAddress := ok && goKind != reflect.Pointer
 	return encodePointer(c, data, writeAddress, p.Pointee.GetID(), enc)
+}
+
+func (p *pointerType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	return formatPointer(c, buf, data, p.Pointee.GetID(), p.Pointee, limits)
+}
+
+func formatPointer(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	pointee ir.TypeID,
+	pointeeType ir.Type,
+	limits *formatLimits,
+) error {
+	if len(data) < 8 {
+		writeBoundedError(buf, limits, "pointer", "truncated")
+	}
+	addr := binary.NativeEndian.Uint64(data)
+	if addr == 0 {
+		writeBoundedString(buf, limits, formatNil)
+		return nil
+	}
+
+	// Use encodingContext.recordPointer for cycle detection.
+	if release, ok := c.recordPointer(addr, pointee); ok {
+		defer release()
+
+		// Look up pointed-to data.
+		item, ok := c.getPtr(addr, pointee)
+		if !ok {
+			msg := fmt.Sprintf("not captured at 0x%x", addr)
+			writeBoundedError(buf, limits, "pointer", msg)
+			return nil
+		}
+
+		pointeeData, ok := item.Data()
+		if !ok {
+			msg := fmt.Sprintf("read failed at 0x%x", addr)
+			writeBoundedError(buf, limits, "pointer", msg)
+			return nil
+		}
+
+		// Dereference and format.
+		return formatType(c, buf, pointeeType, pointeeData, limits)
+	}
+
+	// Cycle detected.
+	writeBoundedString(buf, limits, formatCycle)
+	return nil
 }
 
 func encodePointer(
@@ -934,6 +1457,74 @@ func (s *structureType) encodeValueFields(
 	return writeTokens(enc, jsontext.EndObject)
 }
 
+func (s *structureType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	beforeLen := buf.Len()
+	if !limits.canWrite(5) {
+		return nil
+	}
+	buf.WriteByte('{')
+
+	fieldCount := 0
+	first := true
+	for field := range s.irType().(*ir.StructureType).Fields() {
+		if fieldCount >= limits.maxFields {
+			// Check if we can write ellipsis.
+			writeBoundedString(buf, limits, formatEllipsisCommaRB)
+			break
+		}
+
+		if !first {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				buf.Truncate(beforeLen)
+				return nil
+			}
+		}
+		first = false
+
+		fieldName := field.Name + ": "
+		if !limits.canWrite(len(fieldName)) {
+			buf.Truncate(beforeLen)
+			return nil
+		}
+		buf.WriteString(fieldName)
+		limits.consume(len(fieldName))
+
+		fieldEnd := field.Offset + field.Type.GetByteSize()
+		if fieldEnd > uint32(len(data)) {
+			if !writeBoundedString(buf, limits, formatTruncated) {
+				buf.Truncate(beforeLen)
+				return nil
+			}
+			fieldCount++
+			continue
+		}
+
+		fieldData := data[field.Offset:fieldEnd]
+		fieldBeforeLen := buf.Len()
+		if err := formatType(
+			c, buf, field.Type, fieldData, limits,
+		); err != nil {
+			return err
+		}
+		fieldWritten := buf.Len() - fieldBeforeLen
+		limits.consume(fieldWritten)
+		fieldCount++
+	}
+
+	if !limits.canWrite(1) {
+		buf.Truncate(beforeLen)
+		return nil
+	}
+	buf.WriteByte('}')
+	limits.consume(1)
+	return nil
+}
+
 func (a *arrayType) irType() ir.Type { return (*ir.ArrayType)(a) }
 func (a *arrayType) encodeValueFields(
 	c *encodingContext,
@@ -976,6 +1567,66 @@ func (a *arrayType) encodeValueFields(
 			tokenNotCapturedReasonPruned,
 		)
 	}
+	return nil
+}
+
+func (a *arrayType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	elementSize := int(a.Element.GetByteSize())
+	numElements := int(a.Count)
+
+	beforeLen := buf.Len()
+	if !limits.canWrite(1) {
+		return nil
+	}
+	buf.WriteByte('[')
+	limits.consume(1)
+
+	maxItems := limits.maxCollectionItems
+	if maxItems > numElements {
+		maxItems = numElements
+	}
+
+	for i := 0; i < maxItems; i++ {
+		if i > 0 {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				buf.Truncate(beforeLen)
+				return nil
+			}
+		}
+		offset := i * elementSize
+		endIdx := offset + elementSize
+		if endIdx > len(data) {
+			if !writeBoundedString(buf, limits, "...") {
+				buf.Truncate(beforeLen)
+				return nil
+			}
+			break
+		}
+		itemBeforeLen := buf.Len()
+		if err := formatType(
+			c, buf, a.Element, data[offset:endIdx], limits,
+		); err != nil {
+			return err
+		}
+		itemWritten := buf.Len() - itemBeforeLen
+		limits.consume(itemWritten)
+	}
+
+	if numElements > maxItems {
+		writeBoundedString(buf, limits, formatEllipsisComma)
+	}
+
+	if !limits.canWrite(1) {
+		buf.Truncate(beforeLen)
+		return nil
+	}
+	buf.WriteByte(']')
+	limits.consume(1)
 	return nil
 }
 
@@ -1073,6 +1724,120 @@ func (s *goSliceHeaderType) encodeValueFields(
 	return nil
 }
 
+func (s *goSliceHeaderType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	if len(data) < 24 {
+		writeBoundedError(buf, limits, "slice header", "data too short")
+		return nil
+	}
+
+	// Read slice header: ptr, len, cap.
+	ptr := binary.NativeEndian.Uint64(data[0:8])
+	length := binary.NativeEndian.Uint64(data[8:16])
+
+	if length == 0 {
+		writeBoundedString(buf, limits, formatEmptySlice)
+		return nil
+	}
+
+	// Limit display length to maxCollectionItems.
+	displayLen := length
+	maxItems := uint64(limits.maxCollectionItems)
+	if displayLen > maxItems {
+		displayLen = maxItems
+	}
+
+	elemSize := s.Data.Element.GetByteSize()
+	var sliceData []byte
+	if elemSize > 0 {
+		// Look up slice data using encodingContext.
+		item, ok := c.getPtr(ptr, s.Data.GetID())
+		if !ok {
+			msg := fmt.Sprintf("failed to capture slice: %d elements", length)
+			writeBoundedError(buf, limits, "", msg)
+			return nil
+		}
+
+		sliceData, ok = item.Data()
+		if !ok {
+			writeBoundedError(buf, limits, "failed to capture slice data", "read failed")
+			return nil
+		}
+	}
+
+	beforeLen := buf.Len()
+	if !limits.canWrite(1) {
+		return nil
+	}
+	buf.WriteByte('[')
+	limits.consume(1)
+
+	for i := uint64(0); i < displayLen; i++ {
+		if i > 0 {
+			if !writeBoundedString(buf, limits, formatCommaSpace) {
+				buf.Truncate(beforeLen)
+				return nil
+			}
+		}
+
+		var elemData []byte
+		if elemSize == 0 {
+			if !writeBoundedString(buf, limits, formatEmptyElement) {
+				buf.Truncate(beforeLen)
+				return nil
+			}
+		} else {
+			// Check for overflow before multiplication.
+			if elemSize > 0 && i > math.MaxUint64/uint64(elemSize) {
+				if !writeBoundedString(buf, limits, formatEllipsis) {
+					buf.Truncate(beforeLen)
+					return nil
+				}
+				break
+			}
+			elemStart := i * uint64(elemSize)
+			elemEnd := elemStart + uint64(elemSize)
+			if elemEnd > uint64(len(sliceData)) || elemEnd < elemStart {
+				if !writeBoundedString(buf, limits, formatEllipsis) {
+					buf.Truncate(beforeLen)
+					return nil
+				}
+				break
+			}
+			elemData = sliceData[elemStart:elemEnd]
+		}
+		if elemSize > 0 {
+			itemBeforeLen := buf.Len()
+			if err := formatType(
+				c, buf, s.Data.Element, elemData, limits,
+			); err != nil {
+				return err
+			}
+			itemWritten := buf.Len() - itemBeforeLen
+			limits.consume(itemWritten)
+		}
+	}
+
+	if length > displayLen {
+		if limits.canWrite(len(formatEllipsisComma)) {
+			buf.WriteString(formatEllipsisComma)
+			limits.consume(len(formatEllipsisComma))
+		}
+	}
+
+	if !limits.canWrite(1) {
+		buf.Truncate(beforeLen)
+		return nil
+	}
+	buf.WriteByte(']')
+	limits.consume(1)
+	return nil
+}
+
 func (s *goSliceDataType) irType() ir.Type { return (*ir.GoSliceDataType)(s) }
 func (s *goSliceDataType) encodeValueFields(
 	_ *encodingContext,
@@ -1083,6 +1848,16 @@ func (s *goSliceDataType) encodeValueFields(
 		tokenNotCapturedReason,
 		tokenNotCapturedReasonUnimplemented,
 	)
+}
+
+func (s *goSliceDataType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	_ []byte,
+	limits *formatLimits,
+) error {
+	writeBoundedFallback(buf, limits, "unimplemented")
+	return nil
 }
 
 func (s *goStringHeaderType) irType() ir.Type { return s.GoStringHeaderType }
@@ -1127,7 +1902,7 @@ func (s *goStringHeaderType) encodeValueFields(
 	}
 	length := stringValue.Header().Length
 	if strLen > uint64(length) {
-		// We captured partial data for the string, report truncation
+		// We captured partial data for the string, report truncation.
 		if err := writeTokens(enc,
 			jsontext.String("size"),
 			jsontext.String(strconv.FormatInt(int64(strLen), 10)),
@@ -1144,6 +1919,62 @@ func (s *goStringHeaderType) encodeValueFields(
 	return writeTokens(enc, jsontext.String(str))
 }
 
+func (s *goStringHeaderType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	if len(data) < 16 {
+		writeBoundedError(buf, limits, "string header", "data too short")
+		return nil
+	}
+
+	// Read string pointer and length from header.
+	ptr := binary.NativeEndian.Uint64(data[0:8])
+	length := binary.NativeEndian.Uint64(data[8:16])
+
+	// Empty string is formatted as literally just 0 bytes.
+	if ptr == 0 || length == 0 {
+		return nil
+	}
+
+	// Look up string data using encodingContext.
+	item, ok := c.getPtr(ptr, s.Data.GetID())
+	if !ok {
+		writeBoundedError(buf, limits, "string", "failed to capture string data")
+		return nil
+	}
+
+	strData, ok := item.Data()
+	if !ok {
+		writeBoundedError(buf, limits, "string", "failed to capture string data")
+		return nil
+	}
+
+	if uint64(len(strData)) < length {
+		length = uint64(len(strData))
+	}
+
+	// Truncate string if it would exceed remaining bytes.
+	str := string(strData[:length])
+	maxStrLen := limits.maxBytes - len(formatEllipsis)
+	if maxStrLen < 0 {
+		maxStrLen = 0
+	}
+	if len(str) > maxStrLen {
+		if maxStrLen > 0 {
+			str = str[:maxStrLen] + formatEllipsis
+		} else {
+			// Can't even fit ellipsis, return empty.
+			return nil
+		}
+	}
+
+	writeBoundedString(buf, limits, str)
+	return nil
+}
+
 func (s *goStringDataType) irType() ir.Type { return (*ir.GoStringDataType)(s) }
 func (s *goStringDataType) encodeValueFields(
 	_ *encodingContext,
@@ -1154,6 +1985,11 @@ func (s *goStringDataType) encodeValueFields(
 		tokenNotCapturedReason,
 		tokenNotCapturedReasonUnimplemented,
 	)
+}
+func (s *goStringDataType) formatValueFields(
+	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
+) error {
+	return fmt.Errorf("string data is not formatted")
 }
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
@@ -1167,6 +2003,12 @@ func (c *goChannelType) encodeValueFields(
 		tokenNotCapturedReasonUnimplemented,
 	)
 }
+func (c *goChannelType) formatValueFields(
+	_ *encodingContext, buf *bytes.Buffer, _ []byte, limits *formatLimits,
+) error {
+	writeBoundedString(buf, limits, "{chan}")
+	return nil
+}
 
 const goRuntimeTypeOffset = 0x00
 const goInterfaceDataOffset = 0x08
@@ -1179,6 +2021,14 @@ func (e *goEmptyInterfaceType) encodeValueFields(
 ) error {
 	return encodeInterface(c, enc, data)
 }
+func (e *goEmptyInterfaceType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	return formatInterface(c, buf, data, limits)
+}
 
 func (i *goInterfaceType) irType() ir.Type { return (*ir.GoInterfaceType)(i) }
 func (i *goInterfaceType) encodeValueFields(
@@ -1187,6 +2037,15 @@ func (i *goInterfaceType) encodeValueFields(
 	data []byte,
 ) error {
 	return encodeInterface(c, enc, data)
+}
+
+func (i *goInterfaceType) formatValueFields(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	return formatInterface(c, buf, data, limits)
 }
 
 func encodeInterface(
@@ -1222,7 +2081,9 @@ func encodeInterface(
 	if !ok {
 		name, err := c.ResolveTypeName(gotype.TypeID(runtimeType))
 		if err != nil {
-			name = fmt.Sprintf("UnknownType(0x%x): %v", runtimeType, err)
+			name = fmt.Sprintf(
+				"UnknownType(0x%x): %v", runtimeType, err,
+			)
 		}
 		if err := writeTokens(enc,
 			jsontext.String("type"),
@@ -1253,7 +2114,7 @@ func encodeInterface(
 		err = (*pointerType)(pt).encodeValueFields(c, enc, ptrData)
 	} else {
 		switch t := tt.(type) {
-		// Reference types need to be indirected appropriately
+		// Reference types need to be indirected appropriately.
 		case *ir.GoMapType /* *ir.GoChannelType, *ir.GoSubroutineType */ :
 			typeID = t.HeaderType.GetID()
 		}
@@ -1263,6 +2124,60 @@ func encodeInterface(
 		return err
 	}
 	return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
+}
+
+func formatInterface(
+	c *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	if len(data) != 16 {
+		writeBoundedError(buf, limits, "interface", "invalid data")
+		return nil
+	}
+
+	runtimeTypeData := data[goRuntimeTypeOffset : goRuntimeTypeOffset+8]
+	runtimeType := binary.NativeEndian.Uint64(runtimeTypeData)
+	if runtimeType == 0 {
+		writeBoundedString(buf, limits, formatNil)
+		return nil
+	}
+
+	typeID, ok := c.getTypeIDByGoRuntimeType(uint32(runtimeType))
+	if !ok {
+		name, err := c.ResolveTypeName(gotype.TypeID(runtimeType))
+		if err != nil {
+			name = fmt.Sprintf(
+				"UnknownType(0x%x): %v", runtimeType, err,
+			)
+		}
+		msg := "unknown type " + name
+		writeBoundedError(buf, limits, "interface", msg)
+		return nil
+	}
+
+	t, ok := c.getType(typeID)
+	if !ok {
+		writeBoundedError(buf, limits, "interface", "type not found")
+		return nil
+	}
+
+	tt := t.irType()
+	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
+	if pt, ok := tt.(*ir.PointerType); ok {
+		return (*pointerType)(pt).formatValueFields(c, buf, ptrData, limits)
+	}
+
+	// For non-pointer types, we need to format the pointed-to value.
+	// Handle map types specially.
+	switch t := tt.(type) {
+	case *ir.GoMapType:
+		typeID = t.HeaderType.GetID()
+		tt = t.HeaderType
+	}
+
+	return formatPointer(c, buf, ptrData, typeID, tt, limits)
 }
 
 func (s *goSubroutineType) irType() ir.Type { return (*ir.GoSubroutineType)(s) }
@@ -1277,6 +2192,13 @@ func (s *goSubroutineType) encodeValueFields(
 	)
 }
 
+func (s *goSubroutineType) formatValueFields(
+	_ *encodingContext, buf *bytes.Buffer, _ []byte, limits *formatLimits,
+) error {
+	writeBoundedString(buf, limits, "{func}")
+	return nil
+}
+
 func (u *unresolvedPointeeType) irType() ir.Type { return (*ir.UnresolvedPointeeType)(u) }
 func (u *unresolvedPointeeType) encodeValueFields(
 	_ *encodingContext,
@@ -1284,6 +2206,12 @@ func (u *unresolvedPointeeType) encodeValueFields(
 	_ []byte,
 ) error {
 	return writeTokens(enc, tokenNotCapturedReason, tokenNotCapturedReasonDepth)
+}
+
+func (u *unresolvedPointeeType) formatValueFields(
+	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
+) error {
+	return fmt.Errorf("depth limit reached")
 }
 
 func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {

@@ -86,6 +86,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{aBool: true, aString: one, aNumber: 2, nested: {anotherInt: 3, anotherString: four}}"
   }
 ]
