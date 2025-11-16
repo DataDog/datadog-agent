@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
@@ -356,8 +357,10 @@ func (s *HTTPTestSuite) TestSanity() {
 				tName := testNameHelper("with keep alive", "without keep alive", keepAliveEnabled)
 				t.Run(tName, func(t *testing.T) {
 					http.Debug = true
+					events.Debug = true
 					t.Cleanup(func() {
 						http.Debug = false
+						events.Debug = false
 					})
 					fmt.Printf("starting logs for %q\n", tName)
 					defer func() {

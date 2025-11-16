@@ -113,6 +113,9 @@ func (h *StatKeeper) GetAndResetAllStats() (stats map[Key]*RequestStats) {
 		h.mux.Lock()
 		defer h.mux.Unlock()
 
+		if Debug {
+			fmt.Printf("HTTP | GetAndResetAllStats | Flushing incomplete\n")
+		}
 		for _, tx := range h.incomplete.Flush() {
 			h.add(tx)
 		}

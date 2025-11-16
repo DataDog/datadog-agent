@@ -246,10 +246,13 @@ func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 }
 
 func (p *protocol) processHTTP(events []EbpfEvent) {
+	if Debug {
+		fmt.Printf("HTTP | Processing %d events\n", len(events))
+	}
 	for i := range events {
 		tx := &events[i]
 		if Debug {
-			fmt.Printf("HTTP | Processing tx %s\n", tx.String())
+			fmt.Printf("HTTP | processHTTP | Processing tx %s\n", tx.String())
 		}
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
