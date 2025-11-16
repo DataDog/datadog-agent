@@ -13,17 +13,9 @@ import (
 	"os"
 
 	"github.com/cilium/ebpf"
-)
 
-// PIDKeyedTLSMaps contains the names of all TLS eBPF maps that use pid_tgid as keys
-var PIDKeyedTLSMaps = []string{
-	"ssl_read_args",
-	"ssl_read_ex_args",
-	"ssl_write_args",
-	"ssl_write_ex_args",
-	"bio_new_socket_args",
-	"ssl_ctx_by_pid_tgid",
-}
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
+)
 
 // findMapByName searches for an eBPF map by name in the system
 // Note: eBPF map names are truncated to 15 characters in the kernel,
@@ -70,11 +62,12 @@ func findMapByName(name string) (*ebpf.Map, error) {
 // CheckPIDKeyedMaps checks all PID-keyed TLS maps for leaked entries
 // This function enumerates system-wide eBPF maps and checks each target map
 func CheckPIDKeyedMaps() (*LeakDetectionReport, error) {
+	pidKeyedMaps := usm.GetPIDKeyedTLSMapNames()
 	report := &LeakDetectionReport{
-		Maps: make([]MapLeakInfo, 0, len(PIDKeyedTLSMaps)),
+		Maps: make([]MapLeakInfo, 0, len(pidKeyedMaps)),
 	}
 
-	for _, mapName := range PIDKeyedTLSMaps {
+	for _, mapName := range pidKeyedMaps {
 		m, err := findMapByName(mapName)
 		if err != nil {
 			// Map not found - might not be loaded (e.g., TLS not enabled or system-probe not running)
