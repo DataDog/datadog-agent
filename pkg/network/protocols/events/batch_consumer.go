@@ -247,8 +247,8 @@ func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	events := unsafe.Slice(ptr, length)
 	if c.proto == "http" && Debug {
 		fmt.Printf("HTTP | processing %d events from cpu %d; end: %d; begin: %d; syncing: %v\n", len(events), cpu, end, begin, syncing)
-		for _, event := range events {
-			fmt.Printf("HTTP | BatchConsumer.process | Processing tx %#v\n", event)
+		for idx, event := range events {
+			fmt.Printf("HTTP | BatchConsumer.process | cpu %d | idx %d | out of %d | Processing tx %#v\n", cpu, idx, len(events), event)
 		}
 	}
 	c.callback(events)
