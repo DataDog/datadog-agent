@@ -117,20 +117,28 @@ if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-  # Load the tray app service (this will start it due to RunAtLoad: true)
-  sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+  # Only load GUI if WLAN check is enabled (conf.yaml exists)
+  # In the future, if WLAN enablement is done through the main config file, we may need to revisit this.
+  if [ -f "$INSTALL_DIR/etc/conf.d/wlan.d/conf.yaml" ]; then
+    echo "WLAN check enabled, loading GUI for WiFi data collection..."
+    # Load the tray app service (this will start it due to RunAtLoad: true)
+    sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
 
-  # Inform user about location permission requirement
-  echo ""
-  echo "=========================================="
-  echo "Datadog Agent Location Permission"
-  echo "=========================================="
-  echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
-  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
-  echo ""
-  echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
-  echo "=========================================="
-  echo ""
+    # Inform user about location permission requirement
+    echo ""
+    echo "=========================================="
+    echo "Datadog Agent Location Permission"
+    echo "=========================================="
+    echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
+    echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+    echo ""
+    echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
+    echo "=========================================="
+    echo ""
+  else
+    echo "WLAN check not enabled, skipping GUI installation"
+    echo ""
+  fi
 fi
 
 # A little debriefing won't hurt
