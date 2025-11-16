@@ -263,10 +263,6 @@ class AgentManager {
         let hasProcess = processInfo.exitCode == 0 &&
                         !processInfo.stdOut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        if hasProcess {
-            NSLog("[AgentManager] Agent process still running (PID: \(processInfo.stdOut.trimmingCharacters(in: .whitespacesAndNewlines)))")
-        }
-
         return hasProcess
     }
 

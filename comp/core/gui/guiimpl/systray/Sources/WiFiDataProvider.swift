@@ -71,20 +71,38 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// Check if GUI environment is available for the logged in user (can display dialogs)
-    /// Returns true if osascript can execute (GUI session active), false otherwise (headless/SSH)
+    /// Check if GUI environment is available (can display dialogs)
+    /// Returns true if running in an Aqua (GUI) session, false for Background/SSH/daemon sessions
+    /// Uses launchctl to avoid automation permission prompts triggered by commands like osascript
     private func isGUIAvailable() -> Bool {
         let task = Process()
-        task.launchPath = "/usr/bin/osascript"
-        task.arguments = ["-e", "tell app \"System Events\" to return name of current user"]
-        task.standardOutput = Pipe()
-        task.standardError = Pipe()
+        task.launchPath = "/bin/launchctl"
+        task.arguments = ["managername"]
         
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe() // discard errors, keep stderr silent (for cleaner logs)
+
         do {
             try task.run()
             task.waitUntilExit()
-            return task.terminationStatus == 0
+
+            guard task.terminationStatus == 0 else {
+                NSLog("[WiFiDataProvider] launchctl managername failed (exit code: \(task.terminationStatus))")
+                return false
+            }
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            NSLog("[WiFiDataProvider] Session manager type: \(output)")
+
+            // Only "Aqua" indicates a GUI session where dialogs can be displayed
+            // Other values: "Background" (SSH/daemon), "LoginWindow" (login screen)
+            return output == "Aqua"
+
         } catch {
+            NSLog("[WiFiDataProvider] Failed to check session type: \(error)")
             return false
         }
     }
