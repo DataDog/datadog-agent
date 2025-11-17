@@ -34,7 +34,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	trace := traces[0]
 	assert.Equal(c, agent.Hostname(), trace.HostName)
 	assert.Equal(c, "none", trace.Env)
-	if !assert.NotEmpty(c, trace.TracerPayloads) {
+	if !assert.NotEmpty(c, trace.IdxTracerPayloads) {
 		return
 	}
 	tp := idx.FromProto(trace.IdxTracerPayloads[0])
@@ -273,8 +273,9 @@ func hasPeerTagsStats(payloads []*aggregator.APMStatsPayload, fullTag string) bo
 
 func hasContainerTag(payloads []*aggregator.TracePayload, tag string) bool {
 	for _, p := range payloads {
-		for _, t := range p.AgentPayload.TracerPayloads {
-			tags, ok := t.Tags["_dd.tags.container"]
+		for _, t := range p.AgentPayload.IdxTracerPayloads {
+			idxPayload := idx.FromProto(t)
+			tags, ok := idxPayload.GetAttributeAsString("_dd.tags.container")
 			if ok && strings.Count(tags, tag) > 0 {
 				return true
 			}
