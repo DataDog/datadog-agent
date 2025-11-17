@@ -354,8 +354,10 @@ cc_library(
     ],
     local_defines = [
         'PYTHONPATH=\\"\\"',
-        'PREFIX=\\"/opt/datadog-agent/embedded\\"',
-        'EXEC_PREFIX=\\"/opt/datadog-agent/embedded\\"',
+        # 'PREFIX=\\"/opt/datadog-agent/embedded\\"',
+        # 'EXEC_PREFIX=\\"/opt/datadog-agent/embedded\\"',
+        'PREFIX=\\"/tmp/python-prefix\\"',
+        'EXEC_PREFIX=\\"/tmp/python-prefix\\"',
         "VERSION=" + _VERSION,
         'VPATH=\\"..\\"',
         'PLATLIBDIR=\\"lib\\"',
@@ -415,6 +417,7 @@ cc_binary(
         "Modules/getpath_noop.c",
         ":python_headers",
         ":library_srcs_omit_frozen",
+        ":modules_headers",
         "Objects/typeslots.inc",
     ],
     linkopts = select({
@@ -423,7 +426,7 @@ cc_binary(
     copts = COMMON_COPTS,
     deps = [
         ":mimalloc",
-    ] + [":module_" + m for m in PYTHON_MODULES.keys()],
+    ],# + [":module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
     visibility = ["@@//deps:__subpackages__"],
@@ -476,33 +479,35 @@ cc_binary(
     deps = [
         ":modules_getpath",
         ":mimalloc",
-    ] + [":module_" + m for m in PYTHON_MODULES.keys()],
+    ] + [":build_module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
 )
 
+# build_module_XXX represents the build definition of each module we need to build
+# and include as a dep to the bootstrap python target.
+# module_XXX represents the shared library that we need to install along the interpreter
 [
-        cc_binary(
-            name = "module_" + name,
-            srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
-            includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
-            local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
-            deps = [":mimalloc"] + info.get('deps', []),
-            copts = COMMON_COPTS,
-            linkshared=True,
-        )
-    if info.get('force_cc_binary', "no") == "yes" else
-        cc_library(
-            name = "module_" + name,
-            srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
-            includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
-            local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
-            deps = [":mimalloc"] + info.get('deps', []),
-            copts = COMMON_COPTS,
-            textual_hdrs = info.get('textual_hdrs', []),
-        )
+    cc_library(
+        name = "build_module_" + name,
+        srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
+        includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
+        local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
+        deps = [":mimalloc"] + info.get('deps', []),
+        copts = COMMON_COPTS,
+        textual_hdrs = info.get('textual_hdrs', []),
+    )
     for name, info in PYTHON_MODULES.items()
+]
+
+[
+    cc_shared_library(
+        name = "module_" + name,
+        shared_lib_name = name + ".cpython-313-x86_64-linux-gnu.so",
+        deps = ["build_module_" + name],
+    )
+    for name in PYTHON_MODULES.keys()
 ]
 
 [
@@ -598,17 +603,25 @@ pkg_files(
 )
 
 pkg_files(
-    name = "module_files",
-    srcs = glob(["Lib/**/*.py"]) + ["module_" + name for name in PYTHON_MODULES.keys()],
+    name = "python_module_files",
+    srcs = glob(["Lib/**/*.py"]),
     prefix = "lib/python" + _VERSION_FOR_SO,
     strip_prefix = strip_prefix.from_root("Lib/"),
+)
+
+pkg_files(
+    name = "built_module_files",
+    srcs = ["module_" + name for name in PYTHON_MODULES.keys()],
+    prefix = "lib/python{}/lib-dynload".format(_VERSION_FOR_SO),
+    strip_prefix = strip_prefix.from_root(),
 )
 
 pkg_install(
     name = "install",
     srcs = [
         ":install_headers",
-        ":module_files",
+        ":python_module_files",
+        ":built_module_files",
         ":lib_files",
         ":bin_files",
     ],
