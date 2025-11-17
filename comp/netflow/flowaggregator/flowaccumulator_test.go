@@ -253,7 +253,6 @@ func Test_flowAccumulator_flush(t *testing.T) {
 		FlowCollectionDuration: flushInterval,
 	}
 	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
-	acc.scheduler = &ImmediateFlowScheduler{flushConfig: flushConfig}
 	acc.add(flow)
 
 	// Then
