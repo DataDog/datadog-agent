@@ -200,7 +200,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 
 			return nil, nil
 		},
-		MockInfo: func(namespace string, ctn containerd.Container) (containers.Container, error) {
+		MockInfo: func(_ string, ctn containerd.Container) (containers.Container, error) {
 			if ctn.ID() == existingPauseContainerID || ctn.ID() == newPauseContainerID {
 				return containers.Container{
 					Image: "k8s.gcr.io/pause:3.7",
