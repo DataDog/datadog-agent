@@ -209,13 +209,25 @@ func (a *logAgent) start(context.Context) error {
 	return nil
 }
 
+// restart conducts a partial restart of the logs-agent pipeline.
+// This is used to switch between transport protocols (TCP to HTTP or vice versa)
+// without disrupting the entire agent.
+//
+// The restart process:
+// 1. Acquires a restart mutex to prevent concurrent restarts
+// 2. Performs a partial stop of transient components (launchers, pipeline, destinations)
+// 3. Rebuilds endpoints based on current configuration
+// 4. Rebuilds transient components while preserving persistent state (sources, auditor, tracker, schedulers)
+// 5. Restarts the pipeline with the new configuration
+//
+// Returns an error if the agent is shutting down, if endpoints are invalid,
+// or if the restart setup fails.
 func (a *logAgent) restart(context.Context) error {
 	a.log.Info("Attempting to restart logs-agent pipeline with HTTP")
 
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()
 
-	// TODO do we need this ? when will we be shutting down 
 	if a.isShuttingDown.Load() {
 		return errors.New("agent shutting down")
 	}
@@ -223,10 +235,10 @@ func (a *logAgent) restart(context.Context) error {
 	a.log.Info("Gracefully stopping logs-agent")
 
 	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
-	stopCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	_, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	if err := a.partialStop(stopCtx); err != nil {
+	if err := a.partialStop(); err != nil {
 		a.log.Warn("Graceful partial stop timed out, force closing")
 	}
 
@@ -264,6 +276,11 @@ func (a *logAgent) setupAgent() error {
 	return nil
 }
 
+// setupAgentForRestart configures and rebuilds only the transient components during a restart.
+// Unlike setupAgent, this preserves persistent components (sources, auditor, tracker, schedulers)
+// and only recreates components that need to be updated for the new configuration.
+//
+// Returns an error if configuration validation fails.
 func (a *logAgent) setupAgentForRestart() error {
 	processingRules, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
@@ -274,6 +291,14 @@ func (a *logAgent) setupAgentForRestart() error {
 	return nil
 }
 
+// configureAgent validates and retrieves configuration settings needed for agent operation.
+// This includes:
+//   - Setting the current transport (HTTP or TCP) in the status
+//   - Updating inventory metadata with transport information
+//   - Validating and retrieving global log processing rules
+//   - Validating and retrieving fingerprint configuration for file tailing
+//
+// Returns the processing rules and fingerprint config, or an error if validation fails.
 func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
@@ -329,6 +354,9 @@ func (a *logAgent) startPipeline() {
 	a.startSchedulers()
 }
 
+// restartPipelineWithHTTP restarts the logs pipeline after a transport switch.
+// Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
+// since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipelineWithHTTP() {
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
 
@@ -373,9 +401,24 @@ func (a *logAgent) stop(context.Context) error {
 }
 
 // partialStop stops only the transient components that will be recreated during restart.
-// This includes launchers, pipelineProvider, and destinationsCtx.
-// Persistent components (auditor, sources, tracker, schedulers, diagnosticMessageReceiver) remain running.
-func (a *logAgent) partialStop(ctx context.Context) error {
+// This allows switching transports without losing persistent state.
+//
+// Components stopped (transient):
+//   - launchers
+//   - pipelineProvider
+//   - destinationsCtx
+//
+// Components preserved (persistent):
+//   - auditor
+//   - sources
+//   - tracker
+//   - schedulers
+//   - diagnosticMessageReceiver
+//
+// The partial stop ensures that log sources remain configured and file positions
+// are maintained across the restart, allowing seamless continuation of log collection
+// with the new transport.
+func (a *logAgent) partialStop() error {
 	a.log.Info("Completing graceful partial stop of logs-agent for restart")
 	status.Clear()
 
@@ -389,11 +432,20 @@ func (a *logAgent) partialStop(ctx context.Context) error {
 		a.destinationsCtx.Stop()
 	})
 
+	// Immediately flush auditor to write current positions to disk
+	// TODO: this enables at-least-once delivery during restart (1-2 logs may be re-read)
+	a.log.Debug("Flushing auditor registry after pipeline stop")
+	a.auditor.Flush()
+
 	return nil
 }
 
-// stopComponents stops the provided components using SerialStopper with a timeout.
-// If the timeout expires, it calls the forceClose function and waits an additional 5 seconds.
+// stopComponents stops the provided components using SerialStopper with a grace period timeout.
+// The stop process:
+// 1. Attempts graceful shutdown within the configured stop_grace_period
+// 2. If timeout expires, calls forceClose to force-flush pending data
+// 3. Waits an additional 5 seconds for cleanup
+// 4. If still not complete, dumps goroutines for debugging and exits
 func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose func()) {
 	stopper := startstop.NewSerialStopper(components...)
 

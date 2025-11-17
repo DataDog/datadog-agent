@@ -67,7 +67,8 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	a.diagnosticMessageReceiver = diagnosticMessageReceiver
 }
 
-// buildEndpoints builds endpoints for the logs agent
+// buildEndpoints builds endpoints for the logs agent, either HTTP or TCP,
+// dependent on configuration and connectivity
 func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
@@ -76,6 +77,12 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
+// rebuildTransientComponents recreates only the components that need to change during a restart.
+//
+// Components recreated (transient):
+//   - destinationsCtx: New context for new transport connections
+//   - pipelineProvider: New pipeline with updated endpoints and configuration
+//   - launchers: New launchers connected to the new pipeline
 func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
 	// create NEW destinations context
 	destinationsCtx := client.NewDestinationsContext()
@@ -97,7 +104,7 @@ func (a *logAgent) rebuildTransientComponents(processingRules []*config.Processi
 		false, // serverless
 	)
 
-	// recreate laumcjers with new pipelineProvider
+	// recreate launchers with new pipelineProvider
 	// use OLD: sources, auditor, tracker
 	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	a.addLauncherInstances(lnchers, wmeta, integrationsLogs, fingerprintConfig)
