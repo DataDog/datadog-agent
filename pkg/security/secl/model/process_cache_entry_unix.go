@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 // SetAncestor sets the ancestor
@@ -88,8 +89,17 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 		child.CGroup = parent.CGroup
 	}
 
+	// Copy the SSH User Session Context from the parent
+	setSSHUserSession(parent, child)
+
 	// AUIDs should be inherited just like container IDs
 	child.Credentials.AUID = parent.Credentials.AUID
+}
+
+func setSSHUserSession(parent *ProcessCacheEntry, child *ProcessCacheEntry) {
+	if parent.ProcessContext.UserSession.ID != 0 && parent.ProcessContext.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
+		child.UserSession = parent.UserSession
+	}
 }
 
 // ApplyExecTimeOf replace previous entry values by the given one
@@ -177,6 +187,7 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.TracerTags = pc.TracerTags
 
 	childEntry.SetForkParent(pc)
+	setSSHUserSession(pc, childEntry)
 }
 
 // Equals returns whether process cache entries share the same values for file and args/envs

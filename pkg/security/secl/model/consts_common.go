@@ -440,6 +440,22 @@ var (
 		"STATIC":  Static,
 		"DYNAMIC": Dynamic,
 	}
+
+	// UserSessionTypes are the supported user session types
+	// generate_constants:UserSessionTypes,UserSessionTypes are the supported user session types.
+	UserSessionTypes = map[string]usersession.Type{
+		"unknown": usersession.UserSessionTypeUnknown,
+		"k8s":     usersession.UserSessionTypeK8S,
+		"ssh":     usersession.UserSessionTypeSSH,
+	}
+
+	// SSHAuthMethodConstants are the supported SSH authentication methods
+	// generate_constants:SSHAuthMethod,SSH authentication methods.
+	SSHAuthMethodConstants = map[string]usersession.AuthType{
+		"password":   usersession.SSHAuthMethodPassword,
+		"public_key": usersession.SSHAuthMethodPublicKey,
+		"unknown":    usersession.SSHAuthMethodUnknown,
+	}
 )
 
 var (
@@ -457,6 +473,10 @@ var (
 	compressionTypeStrings     = map[CompressionType]string{}
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
+	// UserSessionTypeStrings are the supported user session types
+	UserSessionTypeStrings = map[usersession.Type]string{}
+	// SSHAuthMethodStrings are the supported SSH authentication methods
+	SSHAuthMethodStrings = map[usersession.AuthType]string{}
 )
 
 // File flags
@@ -606,6 +626,22 @@ func initLinkageTypeConstants() {
 	}
 }
 
+// InitUserSessionTypes initialize the constants for user session types
+func InitUserSessionTypes() {
+	for k, v := range UserSessionTypes {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		UserSessionTypeStrings[v] = k
+	}
+}
+
+// InitSSHAuthMethodConstants initialize the constants for SSH auth methods
+func InitSSHAuthMethodConstants() {
+	for k, v := range SSHAuthMethodConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		SSHAuthMethodStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initBoolConstants()
 	initErrorConstants()
@@ -636,7 +672,6 @@ func initConstants() {
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	initAUIDConstants()
-	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
@@ -654,6 +689,8 @@ func initConstants() {
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
 	initPrCtlOptionConstants()
+	InitUserSessionTypes()
+	InitSSHAuthMethodConstants()
 }
 
 // RetValError represents a syscall return error value
