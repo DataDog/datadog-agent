@@ -289,7 +289,7 @@ def test(
     If use_orchestrion is set to True, orchestrion will be used to run gotestsum for native instrumentation.
     """
     # TODO
-    # sanitize_env_vars()
+    sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
