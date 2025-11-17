@@ -21,14 +21,18 @@ func parseShortFilePath(_ string) seelog.FormatterFunc {
 
 func createExtraJSONContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		return formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs(context.CustomContext())))
+		return formatters.ExtraJSONContext(toAttrHolder(context.CustomContext()))
 	}
 }
 
 func createExtraTextContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		return formatters.ExtraTextContext(attrHolderImpl(formatters.ToSlogAttrs(context.CustomContext())))
+		return formatters.ExtraTextContext(toAttrHolder(context.CustomContext()))
 	}
+}
+
+func toAttrHolder(context interface{}) formatters.AttrHolder {
+	return attrHolderImpl(formatters.ToSlogAttrs(context))
 }
 
 type attrHolderImpl []slog.Attr
