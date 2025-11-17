@@ -329,7 +329,8 @@ def test(
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
-    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    # TODO: Orchestrion only on option
+    stdlib_build_cmd = 'orchestrion go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
