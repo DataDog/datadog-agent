@@ -4,14 +4,13 @@
 .test_kmt_local_setup:
   stage: source_test
   needs: []
-  # TODO
-  # rules:
-  #   - !reference [.on_invoke_tasks_changes]
-  #   - !reference [.except_mergequeue]
-  #   - changes:
-  #       paths:
-  #         - .gitlab/source_test/kmt_tasks.yml
-  #       compare_to: $COMPARE_TO_BRANCH
+  rules:
+    - !reference [.on_invoke_tasks_changes]
+    - !reference [.except_mergequeue]
+    - changes:
+        paths:
+          - .gitlab/source_test/kmt_tasks.yml
+        compare_to: $COMPARE_TO_BRANCH
   script:
     - token="$(dda inv -- auth.gitlab --repo test-infra-definitions)"
     - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
