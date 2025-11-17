@@ -133,11 +133,13 @@ cc_library(
     copts = [
         "-Wno-implicit-function-declaration",
         #"-include $(location libattr/libattr.h)",
+        "-fpic",
         "-O2",
     ],
     local_defines = [
         # Tricky stuff. pcap.h changes behavior if you are bulding or using it.
         "BUILDING_PCAP",
+        "pcap_EXPORTS",
         "HAVE_CONFIG_H",
     ],
     visibility = ["//visibility:public"],
