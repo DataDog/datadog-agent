@@ -27,7 +27,8 @@ const HostPort = 8128
 
 // Socket defines the socket exposed by the dogstatsd standalone deployment.
 // It's not the default to avoid conflict with the agent.
-const Socket = "/var/run/datadog/dsd-standalone.socket"
+const Socket = "/run/datadog/dsd-standalone.socket"
+const criSocket = "/run/containerd/containerd.sock"
 
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, fakeIntake *fakeintake.Fakeintake, kubeletTLSVerify bool, clusterName string, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
@@ -106,7 +107,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		},
 		&corev1.EnvVarArgs{
 			Name:  pulumi.String("DD_CRI_SOCKET_PATH"),
-			Value: pulumi.String("/host/var/run/containerd/containerd.sock"),
+			Value: pulumi.String(criSocket),
 		},
 	}
 
@@ -176,11 +177,6 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 							},
 							VolumeMounts: &corev1.VolumeMountArray{
 								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("hostvar"),
-									MountPath: pulumi.String("/host/var"),
-									ReadOnly:  pulumi.BoolPtr(true),
-								},
-								&corev1.VolumeMountArgs{
 									Name:      pulumi.String("procdir"),
 									MountPath: pulumi.String("/host/proc"),
 									ReadOnly:  pulumi.BoolPtr(true),
@@ -191,24 +187,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 									ReadOnly:  pulumi.BoolPtr(true),
 								},
 								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("dsdsocket"),
-									MountPath: pulumi.String("/var/run/datadog"),
+									Name:      pulumi.String("datadog"),
+									MountPath: pulumi.String("/run/datadog"),
 								},
 								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("runtimesocket"),
-									MountPath: pulumi.String("/host/var/run/containerd/containerd.sock"),
+									Name:      pulumi.String("crisocket"),
+									MountPath: pulumi.String(criSocket),
 									ReadOnly:  pulumi.BoolPtr(true),
 								},
 							},
 						},
 					},
 					Volumes: corev1.VolumeArray{
-						&corev1.VolumeArgs{
-							Name: pulumi.String("hostvar"),
-							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/var"),
-							},
-						},
 						&corev1.VolumeArgs{
 							Name: pulumi.String("procdir"),
 							HostPath: &corev1.HostPathVolumeSourceArgs{
@@ -222,15 +212,15 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 							},
 						},
 						&corev1.VolumeArgs{
-							Name: pulumi.String("dsdsocket"),
+							Name: pulumi.String("datadog"),
 							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/var/run/datadog/"),
+								Path: pulumi.String("/run/datadog"),
 							},
 						},
 						&corev1.VolumeArgs{
-							Name: pulumi.String("runtimesocket"),
+							Name: pulumi.String("crisocket"),
 							HostPath: &corev1.HostPathVolumeSourceArgs{
-								Path: pulumi.String("/var/run/containerd/containerd.sock"),
+								Path: pulumi.String(criSocket),
 								Type: pulumi.String("Socket"),
 							},
 						},

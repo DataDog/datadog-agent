@@ -288,6 +288,8 @@ network_devices.netflow.forwarder.logs_dd_url: %[1]s:%[2]d
 network_devices.netflow.forwarder.logs_no_ssl: true
 network_path.forwarder.logs_dd_url: %[1]s:%[2]d
 network_path.forwarder.logs_no_ssl: true
+network_config_management.forwarder.logs_dd_url: %[1]s:%[2]d
+network_config_management.forwarder.logs_no_ssl: true
 synthetics.forwarder.logs_dd_url: %[1]s:%[2]d
 synthetics.forwarder.logs_no_ssl: true
 container_lifecycle.logs_dd_url: %[1]s:%[2]d

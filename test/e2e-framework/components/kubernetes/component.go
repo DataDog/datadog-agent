@@ -44,5 +44,4 @@ type Workload struct {
 	components.Component
 }
 
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
 type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*Workload, error)

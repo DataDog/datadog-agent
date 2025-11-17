@@ -32,6 +32,8 @@ const (
 	// Infra namespace
 	DDInfraEnvironment                      = "env"
 	DDInfraKubernetesVersion                = "kubernetesVersion"
+	DDInfraKindVersion                      = "kindVersion"
+	DDInfraKubeNodeURL                      = "kubeNodeUrl"
 	DDInfraOSDescriptor                     = "osDescriptor" // osDescriptor is expected in the format: <osFamily>:<osVersion>:<osArch>, see components/os/descriptor.go
 	DDInfraOSImageID                        = "osImageID"
 	DDInfraOSImageIDUseLatest               = "osImageIDUseLatest"
@@ -39,6 +41,8 @@ const (
 	DDInfraExtraResourcesTags               = "extraResourcesTags"
 	DDInfraSSHUser                          = "sshUser"
 	DDInfraInitOnly                         = "initOnly"
+	DDInfraDialErrorLimit                   = "dialErrorLimit"
+	DDInfraPerDialTimeoutSeconds            = "perDialTimeoutSeconds"
 
 	// Agent Namespace
 	DDAgentDeployParamName               = "deploy"
@@ -76,7 +80,8 @@ const (
 	DDUpdaterParamName = "deploy"
 
 	// Testing workload namerNamespace
-	DDTestingWorkloadDeployParamName = "deploy"
+	DDTestingWorkloadDeployParamName   = "deploy"
+	DDTestingWorkloadDeployArgoRollout = "deployArgoRollout"
 
 	// Dogstatsd namespace
 	DDDogstatsdDeployParamName        = "deploy"
@@ -112,9 +117,11 @@ type Env interface {
 	InfraOSDescriptor() string
 	InfraOSImageID() string
 	KubernetesVersion() string
+	KubeNodeURL() string
+	KindVersion() string
 	DefaultResourceTags() map[string]string
 	ExtraResourcesTags() map[string]string
-	ResourcesTags() pulumi.StringMap
+	ResourcesTags() pulumi.StringMapInput
 	AgentExtraEnvVars() map[string]string
 
 	AgentDeploy() bool
@@ -228,6 +235,14 @@ func (e *CommonEnvironment) KubernetesVersion() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.32")
 }
 
+func (e *CommonEnvironment) KindVersion() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.30.0")
+}
+
+func (e *CommonEnvironment) KubeNodeURL() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubeNodeURL, "")
+}
+
 func (e *CommonEnvironment) DefaultResourceTags() map[string]string {
 	return map[string]string{"managed-by": "pulumi", "username": e.username}
 }
@@ -248,6 +263,14 @@ func (e *CommonEnvironment) InfraSSHUser() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraSSHUser, "")
 }
 
+func (e *CommonEnvironment) InfraDialErrorLimit() int {
+	return e.GetIntWithDefault(e.InfraConfig, DDInfraDialErrorLimit, 0)
+}
+
+func (e *CommonEnvironment) InfraPerDialTimeoutSeconds() int {
+	return e.GetIntWithDefault(e.InfraConfig, DDInfraPerDialTimeoutSeconds, 0)
+}
+
 func EnvVariableResourceTags() map[string]string {
 	tags := map[string]string{}
 	lookupVars := []string{"TEAM", "PIPELINE_ID", "CI_PIPELINE_ID"}
@@ -259,7 +282,7 @@ func EnvVariableResourceTags() map[string]string {
 	return tags
 }
 
-func (e *CommonEnvironment) ResourcesTags() pulumi.StringMap {
+func (e *CommonEnvironment) ResourcesTags() pulumi.StringMapInput {
 	tags := pulumi.StringMap{}
 
 	// default tags
@@ -279,6 +302,10 @@ func (e *CommonEnvironment) AgentDeploy() bool {
 
 func (e *CommonEnvironment) AgentDeployWithOperator() bool {
 	return e.GetBoolWithDefault(e.AgentConfig, DDAgentDeployWithOperatorParamName, false)
+}
+
+func (e *CommonEnvironment) AgentDeployArgoRollout() bool {
+	return e.GetBoolWithDefault(e.TestingWorkloadConfig, DDTestingWorkloadDeployArgoRollout, false)
 }
 
 func (e *CommonEnvironment) AgentVersion() string {

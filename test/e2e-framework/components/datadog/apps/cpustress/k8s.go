@@ -68,7 +68,9 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 							Args: pulumi.StringArray{
 								pulumi.String("--cpu=1"),
 								pulumi.String("--cpu-load=15"),
+								pulumi.String("--temp-path=/tmp/"),
 							},
+							WorkingDir: pulumi.String("/tmp"),
 							Resources: &corev1.ResourceRequirementsArgs{
 								Limits: pulumi.StringMap{
 									"cpu":    pulumi.String("200m"),
@@ -79,6 +81,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 									"memory": pulumi.String("64Mi"),
 								},
 							},
+							VolumeMounts: corev1.VolumeMountArray{
+								corev1.VolumeMountArgs{
+									Name:      pulumi.String("temp-dir"),
+									MountPath: pulumi.String("/tmp"),
+								},
+							},
+						},
+					},
+					Volumes: corev1.VolumeArray{
+						corev1.VolumeArgs{
+							Name:     pulumi.String("temp-dir"),
+							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
 						},
 					},
 				},

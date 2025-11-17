@@ -12,4 +12,3 @@ containerdConfigPatches:
 networking:
   apiServerAddress: "0.0.0.0"
   apiServerPort: 8443
-

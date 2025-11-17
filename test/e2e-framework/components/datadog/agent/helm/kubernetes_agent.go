@@ -6,6 +6,8 @@
 package helm
 
 import (
+	"fmt"
+
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -24,7 +26,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			return err
 		}
 		comp.FIPSEnabled = pulumi.Bool(e.AgentFIPS() || params.FIPS).ToBoolOutput()
-
+		fmt.Printf("params: %+v\n", params)
 		pulumiResourceOptions := append(params.PulumiResourceOptions, pulumi.Parent(comp))
 
 		helmComponent, err := agent.NewHelmInstallation(e, agent.HelmInstallationArgs{

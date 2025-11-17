@@ -6,7 +6,6 @@
 package eks
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -32,7 +31,7 @@ const (
 
 func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	name := "linux"
-	lt, err := newLinuxLaunchTemplate(e, name+"-launch-template", opts...)
+	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +41,7 @@ func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *
 
 func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	name := "linux-arm"
-	lt, err := newLinuxLaunchTemplate(e, name+"-launch-template", opts...)
+	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
 
 	if err != nil {
 		return nil, err
@@ -67,40 +66,35 @@ func NewWindowsNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsI
 	return newManagedNodeGroup(e, "windows", cluster, nodeRole, windowsAmiType, e.DefaultInstanceType(), nil, opts...)
 }
 
-func newLinuxLaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
-	nodeGroupInstanceSG, err := awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName(name+"-security-group"),
-		&awsEc2.SecurityGroupArgs{
-			Description: pulumi.String("Security group for all nodes in the nodeGroup to allow SSH access"),
-			VpcId:       pulumi.StringPtr(e.DefaultVPCID()),
-			Ingress: awsEc2.SecurityGroupIngressArray{
-				&awsEc2.SecurityGroupIngressArgs{
-					CidrBlocks:     pulumi.ToStringArray(e.EKSAllowedInboundCIDRs()),
-					SecurityGroups: pulumi.ToStringArray(e.EKSAllowedInboundSecurityGroups()),
-					PrefixListIds:  pulumi.ToStringArray(e.EKSAllowedInboundPrefixLists()),
-					ToPort:         pulumi.Int(22),
-					FromPort:       pulumi.Int(22),
-					Protocol:       pulumi.String("tcp"),
-				},
-			},
-			// Egress to internet, both IPV4 and IPV6
-			Egress: awsEc2.SecurityGroupEgressArray{
-				&awsEc2.SecurityGroupEgressArgs{
-					Protocol:   pulumi.String("-1"),
-					FromPort:   pulumi.Int(0),
-					ToPort:     pulumi.Int(0),
-					CidrBlocks: pulumi.StringArray{pulumi.String("0.0.0.0/0")},
-				},
-				&awsEc2.SecurityGroupEgressArgs{
-					Protocol:       pulumi.String("-1"),
-					FromPort:       pulumi.Int(0),
-					ToPort:         pulumi.Int(0),
-					Ipv6CidrBlocks: pulumi.StringArray{pulumi.String("::/0")},
-				},
-			},
-		}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS, config.ProviderEKS))...)
+func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
+	prefixLists := make([]string, 0, len(e.EKSAllowedInboundManagedPrefixListNames()))
+	for _, plName := range e.EKSAllowedInboundManagedPrefixListNames() {
+		pl, err := awsEc2.LookupManagedPrefixList(e.Ctx(), &awsEc2.LookupManagedPrefixListArgs{
+			Name: &plName,
+		}, e.WithProvider(config.ProviderAWS))
+		if err != nil {
+			return nil, err
+		}
+		if pl != nil {
+			prefixLists = append(prefixLists, pl.Id)
+		}
+	}
 
+	sshSG, err := awsEc2.NewSecurityGroup(e.Ctx(), e.Namer.ResourceName(name+"-remote-access-sg"), &awsEc2.SecurityGroupArgs{
+		Description: pulumi.StringPtr("Security group for all nodes in the nodeGroup to allow direct SSH access"),
+		Ingress: awsEc2.SecurityGroupIngressArray{
+			awsEc2.SecurityGroupIngressArgs{
+				SecurityGroups: pulumi.ToStringArray(e.EKSAllowedInboundSecurityGroups()),
+				PrefixListIds:  pulumi.ToStringArray(append(e.EKSAllowedInboundPrefixLists(), prefixLists...)),
+				ToPort:         pulumi.Int(22),
+				FromPort:       pulumi.Int(22),
+				Protocol:       pulumi.String("tcp"),
+			},
+		},
+		VpcId: pulumi.StringPtr(e.DefaultVPCID()),
+	}, e.WithProviders(config.ProviderAWS))
 	if err != nil {
-		return nil, fmt.Errorf("error creating SSH access security group: %v", err)
+		return nil, err
 	}
 
 	return awsEc2.NewLaunchTemplate(e.Ctx(), name, &awsEc2.LaunchTemplateArgs{
@@ -111,6 +105,13 @@ func newLinuxLaunchTemplate(e aws.Environment, name string, opts ...pulumi.Resou
 		},
 		BlockDeviceMappings: awsEc2.LaunchTemplateBlockDeviceMappingArray{
 			&awsEc2.LaunchTemplateBlockDeviceMappingArgs{
+				/*
+					aws ssm get-parameter --name /aws/service/eks/optimized-ami/1.30/amazon-linux-2023/x86_64/standard/recommended/image_id --query "Parameter.Value" --output text
+					ami-0cd798eab7ada4d4d
+
+					 aws ec2 describe-images --image-ids ami-0cd798eab7ada4d4d   --query 'Images[0].RootDeviceName'
+					"/dev/xvda"
+				*/
 				DeviceName: pulumi.String("/dev/xvda"),
 				Ebs: &awsEc2.LaunchTemplateBlockDeviceMappingEbsArgs{
 					VolumeSize:          pulumi.Int(80),
@@ -122,8 +123,7 @@ func newLinuxLaunchTemplate(e aws.Environment, name string, opts ...pulumi.Resou
 		},
 		// Attach the SSH access Security Group created above, as well as the default security groups.
 		// This is done to replicate what EKS does behind the scenes when you don't specify a launch template
-		VpcSecurityGroupIds: append(pulumi.StringArray{nodeGroupInstanceSG.ID()},
-			pulumi.ToStringArray(e.DefaultSecurityGroups())...),
+		VpcSecurityGroupIds: append(pulumi.StringArray{sshSG.ID()}, pulumi.ToStringArray(e.DefaultSecurityGroups())...),
 	}, utils.MergeOptions(opts, e.WithProviders(config.ProviderAWS, config.ProviderEKS))...)
 }
 

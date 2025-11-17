@@ -13,7 +13,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func NewLinuxInstance(e gcp.Environment, name string, imageName string, instanceType string, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
+func NewLinuxInstance(e gcp.Environment, name string, imageName string, instanceType string, nestedVirt bool, opts ...pulumi.ResourceOption) (*compute.Instance, error) {
 
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
@@ -33,14 +33,9 @@ func NewLinuxInstance(e gcp.Environment, name string, imageName string, instance
 		},
 		Name:        e.Namer.DisplayName(63, pulumi.String(name)),
 		MachineType: pulumi.String(instanceType),
-		AdvancedMachineFeatures: func() *compute.InstanceAdvancedMachineFeaturesArgs {
-			if e.EnableNestedVirtualization() {
-				return &compute.InstanceAdvancedMachineFeaturesArgs{
-					EnableNestedVirtualization: pulumi.Bool(true),
-				}
-			}
-			return nil
-		}(),
+		AdvancedMachineFeatures: &compute.InstanceAdvancedMachineFeaturesArgs{
+			EnableNestedVirtualization: pulumi.BoolPtr(nestedVirt),
+		},
 		Tags: pulumi.StringArray{
 			pulumi.String("appgate-gateway"),
 			pulumi.String("nat-us-central1"),

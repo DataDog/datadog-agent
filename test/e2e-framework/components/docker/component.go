@@ -148,7 +148,7 @@ func (d *Manager) ComposeStrUp(name string, composeManifests []ComposeInlineMani
 func (d *Manager) install() (command.Command, error) {
 	opts := []pulumi.ResourceOption{pulumi.Parent(d)}
 	opts = utils.MergeOptions(d.opts, opts...)
-	dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker.io", nil, "docker", os.WithPulumiResourceOptions(opts...))
+	dockerInstall, err := d.Host.OS.PackageManager().Ensure("docker", nil, "docker", os.WithPulumiResourceOptions(opts...))
 	if err != nil {
 		return nil, err
 	}

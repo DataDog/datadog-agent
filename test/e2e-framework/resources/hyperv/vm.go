@@ -42,6 +42,8 @@ func NewVM(e Environment, args VMArgs, opts ...pulumi.ResourceOption) (*remote.H
 			"<SSH_USER_NAME>",
 			remote.WithPrivateKeyPath(e.DefaultPrivateKeyPath()),
 			remote.WithPrivateKeyPassword(e.DefaultPrivateKeyPassword()),
+			remote.WithDialErrorLimit(e.InfraDialErrorLimit()),
+			remote.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 		)
 		if err != nil {
 			return err

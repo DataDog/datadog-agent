@@ -59,17 +59,17 @@ const (
 	DDInfraEcsWindowsLTSCNodeGroup          = "aws/ecs/windowsLTSCNodeGroup"
 
 	// AWS EKS
-	DDInfraEKSPODSubnets                   = "aws/eks/podSubnets"
-	DDInfraEksAllowedInboundCIDRs          = "aws/eks/inboundCIDRBlocks"
-	DDInfraEksAllowedInboundSecurityGroups = "aws/eks/inboundSecurityGroups"
-	DDInfraEksAllowedInboundPrefixList     = "aws/eks/inboundPrefixLists"
-	DDInfraEksFargateNamespace             = "aws/eks/fargateNamespace"
-	DDInfraEksLinuxNodeGroup               = "aws/eks/linuxNodeGroup"
-	DDInfraEksLinuxARMNodeGroup            = "aws/eks/linuxARMNodeGroup"
-	DDInfraEksLinuxBottlerocketNodeGroup   = "aws/eks/linuxBottlerocketNodeGroup"
-	DDInfraEksWindowsNodeGroup             = "aws/eks/windowsNodeGroup"
-	DDInfraEksAccountAdminSSORole          = "aws/eks/accountAdminSSORole"
-	DDInfraEksReadOnlySSORole              = "aws/eks/readOnlySSORole"
+	DDInfraEKSPODSubnets                           = "aws/eks/podSubnets"
+	DDInfraEksAllowedInboundSecurityGroups         = "aws/eks/inboundSecurityGroups"
+	DDInfraEksAllowedInboundPrefixList             = "aws/eks/inboundPrefixLists"
+	DDInfraEksAllowedInboundManagedPrefixListNames = "aws/eks/inboundManagedPrefixListNames"
+	DDInfraEksFargateNamespace                     = "aws/eks/fargateNamespace"
+	DDInfraEksLinuxNodeGroup                       = "aws/eks/linuxNodeGroup"
+	DDInfraEksLinuxARMNodeGroup                    = "aws/eks/linuxARMNodeGroup"
+	DDInfraEksLinuxBottlerocketNodeGroup           = "aws/eks/linuxBottlerocketNodeGroup"
+	DDInfraEksWindowsNodeGroup                     = "aws/eks/windowsNodeGroup"
+	DDInfraEksAccountAdminSSORole                  = "aws/eks/accountAdminSSORole"
+	DDInfraEksReadOnlySSORole                      = "aws/eks/readOnlySSORole"
 )
 
 type Environment struct {
@@ -366,12 +366,6 @@ func (e *Environment) EKSPODSubnets() []DDInfraEKSPodSubnets {
 	return resObj.([]DDInfraEKSPodSubnets)
 }
 
-func (e *Environment) EKSAllowedInboundCIDRs() []string {
-	var arr []string
-	resObj := e.GetObjectWithDefault(e.InfraConfig, DDInfraEksAllowedInboundCIDRs, arr, e.envDefault.ddInfra.eks.allowedInboundCIDRs)
-	return resObj.([]string)
-}
-
 func (e *Environment) EKSAllowedInboundSecurityGroups() []string {
 	var arr []string
 	resObj := e.GetObjectWithDefault(e.InfraConfig, DDInfraEksAllowedInboundSecurityGroups, arr, e.envDefault.ddInfra.eks.allowedInboundSecurityGroups)
@@ -381,6 +375,12 @@ func (e *Environment) EKSAllowedInboundSecurityGroups() []string {
 func (e *Environment) EKSAllowedInboundPrefixLists() []string {
 	var arr []string
 	resObj := e.GetObjectWithDefault(e.InfraConfig, DDInfraEksAllowedInboundPrefixList, arr, e.envDefault.ddInfra.eks.allowedInboundPrefixList)
+	return resObj.([]string)
+}
+
+func (e *Environment) EKSAllowedInboundManagedPrefixListNames() []string {
+	var arr []string
+	resObj := e.GetObjectWithDefault(e.InfraConfig, DDInfraEksAllowedInboundManagedPrefixListNames, arr, e.envDefault.ddInfra.eks.allowedInboundManagedPrefixListNames)
 	return resObj.([]string)
 }
 

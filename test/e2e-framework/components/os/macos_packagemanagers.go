@@ -10,7 +10,11 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
+var (
+	brewPackageNameMapping = map[string]string{}
+)
+
 func newBrewManager(runner command.Runner) PackageManager {
 	return NewGenericPackageManager(runner, "brew", "brew install -y", "brew update -y", "brew uninstall -y",
-		pulumi.StringMap{"NONINTERACTIVE": pulumi.String("1")})
+		pulumi.StringMap{"NONINTERACTIVE": pulumi.String("1")}, brewPackageNameMapping)
 }

@@ -12,5 +12,8 @@ import (
 //go:embed scripts/apt-disable-unattended-upgrades.sh
 var APTDisableUnattendedUpgradesScriptContent string
 
+//go:embed scripts/ssh-allow-sftp-root.sh
+var SSHAllowSFTPRootScriptContent string
+
 //go:embed scripts/zypper-disable-unattended-upgrades.sh
 var ZypperDisableUnattendedUpgradesScriptContent string

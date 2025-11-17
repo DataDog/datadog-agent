@@ -8,12 +8,13 @@ package compute
 import (
 	"fmt"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp/compute"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 )
@@ -35,7 +36,7 @@ func NewVM(e gcp.Environment, name string, option ...VMOption) (*remote.Host, er
 
 	return components.NewComponent(&e, name, func(h *remote.Host) error {
 		h.CloudProvider = pulumi.String(components.CloudProviderGCP).ToStringOutput()
-		vm, err := compute.NewLinuxInstance(e, e.Namer.ResourceName(name), imageInfo.name, params.instanceType, pulumi.Parent(h))
+		vm, err := compute.NewLinuxInstance(e, e.Namer.ResourceName(name), imageInfo.name, params.instanceType, params.nestedVirt, pulumi.Parent(h))
 		if err != nil {
 			return err
 		}
@@ -45,6 +46,8 @@ func NewVM(e gcp.Environment, name string, option ...VMOption) (*remote.Host, er
 			"gce",
 			remote.WithPrivateKeyPath(e.DefaultPrivateKeyPath()),
 			remote.WithPrivateKeyPassword(e.DefaultPrivateKeyPassword()),
+			remote.WithDialErrorLimit(e.InfraDialErrorLimit()),
+			remote.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 		)
 		if err != nil {
 			return err

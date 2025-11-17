@@ -7,6 +7,7 @@ package kubernetesagentparams
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"

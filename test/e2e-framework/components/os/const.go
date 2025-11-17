@@ -34,9 +34,9 @@ type Family int
 const (
 	UnknownFamily Family = iota
 
-	LinuxFamily   Family = iota
-	WindowsFamily Family = iota
-	MacOSFamily   Family = iota
+	LinuxFamily
+	WindowsFamily
+	MacOSFamily
 )
 
 type Flavor int
@@ -45,22 +45,22 @@ const (
 	Unknown Flavor = iota
 
 	// Linux
-	Ubuntu         Flavor = iota
-	AmazonLinux    Flavor = iota
-	AmazonLinuxECS Flavor = iota
-	Debian         Flavor = iota
-	RedHat         Flavor = iota
-	Suse           Flavor = iota
-	Fedora         Flavor = iota
-	CentOS         Flavor = iota
-	RockyLinux     Flavor = iota
+	Ubuntu Flavor = (100 + iota)
+	AmazonLinux
+	AmazonLinuxECS
+	Debian
+	RedHat
+	Suse
+	Fedora
+	CentOS
+	RockyLinux
 
 	// Windows
-	WindowsServer Flavor = 500
-	WindowsClient Flavor = 501
+	WindowsServer Flavor = (500 + iota)
+	WindowsClient
 
 	// MacOS
-	MacosOS Flavor = 1000
+	MacosOS Flavor = (1000 + iota)
 )
 
 func FlavorFromString(flavorStr string) Flavor {

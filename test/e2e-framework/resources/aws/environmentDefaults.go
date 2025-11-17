@@ -69,17 +69,17 @@ type ddInfraECS struct {
 }
 
 type ddInfraEKS struct {
-	accountAdminSSORole          string
-	readOnlySSORole              string
-	podSubnets                   []DDInfraEKSPodSubnets
-	allowedInboundCIDRs          []string
-	allowedInboundSecurityGroups []string
-	allowedInboundPrefixList     []string
-	fargateNamespace             string
-	linuxNodeGroup               bool
-	linuxARMNodeGroup            bool
-	linuxBottlerocketNodeGroup   bool
-	windowsLTSCNodeGroup         bool
+	accountAdminSSORole                  string
+	readOnlySSORole                      string
+	podSubnets                           []DDInfraEKSPodSubnets
+	allowedInboundSecurityGroups         []string
+	allowedInboundPrefixList             []string
+	allowedInboundManagedPrefixListNames []string
+	fargateNamespace                     string
+	linuxNodeGroup                       bool
+	linuxARMNodeGroup                    bool
+	linuxBottlerocketNodeGroup           bool
+	windowsLTSCNodeGroup                 bool
 }
 
 type DDInfraEKSPodSubnets struct {
@@ -207,13 +207,13 @@ func agentSandboxDefault() environmentDefault {
 						SubnetID: "subnet-0ba7fbd4fed03bbdd",
 					},
 				},
-				allowedInboundCIDRs:          []string{"10.11.192.0/24", "10.11.193.0/24", "10.11.194.0/24"},
-				allowedInboundSecurityGroups: []string{"sg-038231b976eb13d44", "sg-0d82a3ae7646ca5f4"},
-				fargateNamespace:             "",
-				linuxNodeGroup:               true,
-				linuxARMNodeGroup:            true,
-				linuxBottlerocketNodeGroup:   true,
-				windowsLTSCNodeGroup:         true,
+				allowedInboundSecurityGroups:         []string{"sg-038231b976eb13d44"},
+				allowedInboundManagedPrefixListNames: []string{"vpn-services-commercial-appgate"},
+				fargateNamespace:                     "",
+				linuxNodeGroup:                       true,
+				linuxARMNodeGroup:                    true,
+				linuxBottlerocketNodeGroup:           true,
+				windowsLTSCNodeGroup:                 true,
 			},
 		},
 	}
@@ -278,14 +278,14 @@ func agentQADefault() environmentDefault {
 						SubnetID: "subnet-0c051745b55cce91c",
 					},
 				},
-				allowedInboundCIDRs:          []string{"10.11.192.0/24", "10.11.193.0/24", "10.11.194.0/24"},
-				allowedInboundSecurityGroups: []string{"sg-05e9573fcc582f22c", "sg-070023ab71cadf760"},
-				allowedInboundPrefixList:     []string{"pl-0a698837099ae16f4"},
-				fargateNamespace:             "",
-				linuxNodeGroup:               true,
-				linuxARMNodeGroup:            true,
-				linuxBottlerocketNodeGroup:   true,
-				windowsLTSCNodeGroup:         true,
+				allowedInboundSecurityGroups:         []string{"sg-05e9573fcc582f22c", "sg-070023ab71cadf760"},
+				allowedInboundPrefixList:             []string{"pl-0a698837099ae16f4"},
+				allowedInboundManagedPrefixListNames: []string{"vpn-services-commercial-appgate"},
+				fargateNamespace:                     "",
+				linuxNodeGroup:                       true,
+				linuxARMNodeGroup:                    true,
+				linuxBottlerocketNodeGroup:           true,
+				windowsLTSCNodeGroup:                 true,
 			},
 		},
 	}

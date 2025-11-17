@@ -12,12 +12,6 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-const (
-	// We retry every 5s maximum 100 times (~8 minutes)
-	dialTimeoutSeconds int = 5
-	dialErrorLimit     int = 100
-)
-
 // NewConnection creates a remote connection to a host.
 // Host and user are mandatory.
 func NewConnection(host pulumi.StringInput, user string, options ...ConnectionOption) (*remote.ConnectionArgs, error) {
@@ -29,8 +23,8 @@ func NewConnection(host pulumi.StringInput, user string, options ...ConnectionOp
 	conn := &remote.ConnectionArgs{
 		Host:           args.host,
 		User:           pulumi.String(args.user),
-		PerDialTimeout: pulumi.IntPtr(dialTimeoutSeconds),
-		DialErrorLimit: pulumi.IntPtr(dialErrorLimit),
+		PerDialTimeout: pulumi.IntPtr(args.perDialTimeoutSeconds),
+		DialErrorLimit: pulumi.IntPtr(args.dialErrorLimit),
 		Port:           pulumi.Float64Ptr(float64(args.port)),
 	}
 

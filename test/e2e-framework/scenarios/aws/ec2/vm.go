@@ -195,12 +195,15 @@ func defaultVMArgs(e aws.Environment, vmArgs *vmArgs) error {
 	} else if vmArgs.osInfo.Flavor == os.Suse {
 		defaultUserData = os.ZypperDisableUnattendedUpgradesScriptContent
 	}
-	userDataParts := make([]string, 0, 2)
+	userDataParts := make([]string, 0, 3)
 	if vmArgs.userData != "" {
 		userDataParts = append(userDataParts, vmArgs.userData)
 	}
 	if defaultUserData != "" {
 		userDataParts = append(userDataParts, defaultUserData)
+	}
+	if vmArgs.osInfo.Family() == os.LinuxFamily {
+		userDataParts = append(userDataParts, os.SSHAllowSFTPRootScriptContent)
 	}
 	vmArgs.userData = strings.Join(userDataParts, "\n")
 
