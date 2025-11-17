@@ -145,7 +145,7 @@ def create(ctx, path=".") -> None:
 @task(
     help={
         "tail": "Tail all containers logs if set (very verbose, tailing all agent processes). Default False",
-        "log_level": "Skaffold log leve (matches 'logrus' levels). Default warn",
+        "log_level": "Skaffold log level (matches 'logrus' levels). Default warn",
     },
 )
 def dev(ctx, tail: bool = False, log_level: str = "warn") -> None:
