@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package ssluprobes
+package network
 
 import (
 	"encoding/hex"

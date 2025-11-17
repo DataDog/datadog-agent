@@ -635,9 +635,13 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
-func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
+func (fh *EBPFFieldHandlers) ResolveUserSessionContext(event *model.Event, evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
+		id := evtCtx.ID
+		if id == 0 {
+			id = event.ProcessContext.UserSessionID
+		}
+		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(id)
 		if ctx != nil {
 			*evtCtx = *ctx
 		}
@@ -738,20 +742,20 @@ func (fh *EBPFFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(event *model.
 }
 
 // ResolveK8SUsername resolves the k8s username of the event
-func (fh *EBPFFieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	fh.ResolveUserSessionContext(evtCtx)
+func (fh *EBPFFieldHandlers) ResolveK8SUsername(event *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(event, evtCtx)
 	return evtCtx.K8SUsername
 }
 
 // ResolveK8SUID resolves the k8s UID of the event
-func (fh *EBPFFieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSessionContext) string {
-	fh.ResolveUserSessionContext(evtCtx)
+func (fh *EBPFFieldHandlers) ResolveK8SUID(event *model.Event, evtCtx *model.UserSessionContext) string {
+	fh.ResolveUserSessionContext(event, evtCtx)
 	return evtCtx.K8SUID
 }
 
 // ResolveK8SGroups resolves the k8s groups of the event
-func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
-	fh.ResolveUserSessionContext(evtCtx)
+func (fh *EBPFFieldHandlers) ResolveK8SGroups(event *model.Event, evtCtx *model.UserSessionContext) []string {
+	fh.ResolveUserSessionContext(event, evtCtx)
 	return evtCtx.K8SGroups
 }
 

@@ -6,7 +6,12 @@
 // Package types contains the types for the log package.
 package types
 
-import "github.com/cihub/seelog"
+import (
+	"fmt"
+	"log/slog"
+
+	"github.com/cihub/seelog"
+)
 
 // LoggerInterface provides basic logging methods that can be used from outside the log package.
 type LoggerInterface interface {
@@ -100,4 +105,60 @@ const (
 
 func (level LogLevel) String() string {
 	return seelog.LogLevel(level).String()
+}
+
+const (
+	slogTraceLvl    slog.Level = slog.LevelDebug - 4
+	slogDebugLvl    slog.Level = slog.LevelDebug
+	slogInfoLvl     slog.Level = slog.LevelInfo
+	slogWarnLvl     slog.Level = slog.LevelWarn
+	slogErrorLvl    slog.Level = slog.LevelError
+	slogCriticalLvl slog.Level = slog.LevelError + 4
+	slogOff         slog.Level = slog.LevelError + 8
+)
+
+// ToSlogLevel converts a LogLevel to a slog.Level
+func ToSlogLevel(level LogLevel) slog.Level {
+	switch level {
+	case TraceLvl:
+		return slogTraceLvl
+	case DebugLvl:
+		return slogDebugLvl
+	case InfoLvl:
+		return slogInfoLvl
+	case WarnLvl:
+		return slogWarnLvl
+	case ErrorLvl:
+		return slogErrorLvl
+	case CriticalLvl:
+		return slogCriticalLvl
+	case Off:
+		return slogOff
+	default:
+		// unreachable
+		panic(fmt.Sprintf("unknown log level: %d", level))
+	}
+}
+
+// FromSlogLevel converts a slog.Level to a LogLevel
+func FromSlogLevel(level slog.Level) LogLevel {
+	switch level {
+	case slogTraceLvl:
+		return TraceLvl
+	case slogDebugLvl:
+		return DebugLvl
+	case slogInfoLvl:
+		return InfoLvl
+	case slogWarnLvl:
+		return WarnLvl
+	case slogErrorLvl:
+		return ErrorLvl
+	case slogCriticalLvl:
+		return CriticalLvl
+	case slogOff:
+		return Off
+	default:
+		// unreachable
+		panic(fmt.Sprintf("unknown slog log level: %d", level))
+	}
 }
