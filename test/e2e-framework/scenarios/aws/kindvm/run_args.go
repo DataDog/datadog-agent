@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
 	kubecomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -20,6 +21,7 @@ import (
 )
 
 const defaultKindName = "kind"
+const csiDriverCommitSHA = "d91af776a15382b030035129e3b93dc8620d787e"
 
 // RunParams collects parameters for the Kind-on-VM scenario
 type RunParams struct {
@@ -32,6 +34,7 @@ type RunParams struct {
 
 	deployOperator     bool
 	operatorDDAOptions []agentwithoperatorparams.Option
+	operatorOptions    []operatorparams.Option
 	deployDogstatsd    bool
 	deployTestWorkload bool
 	deployArgoRollout  bool
@@ -148,4 +151,9 @@ func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 // WithDeployArgoRollout enables Argo Rollout deployment
 func WithDeployArgoRollout() RunOption {
 	return func(p *RunParams) error { p.deployArgoRollout = true; return nil }
+}
+
+// WithOperatorOptions sets operator options
+func WithOperatorOptions(opts ...operatorparams.Option) RunOption {
+	return func(p *RunParams) error { p.operatorOptions = append(p.operatorOptions, opts...); return nil }
 }

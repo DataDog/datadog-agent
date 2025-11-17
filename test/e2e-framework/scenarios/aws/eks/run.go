@@ -20,6 +20,7 @@ import (
 	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -54,97 +55,140 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		return err
 	}
 
+	if awsEnv.InitOnly() {
+		return nil
+	}
+
 	vpaCrd, err := vpa.DeployCRD(&awsEnv, cluster.KubeProvider)
 	if err != nil {
 		return err
 	}
 	dependsOnVPA := utils.PulumiDependsOn(vpaCrd)
 
-	if awsEnv.InitOnly() {
-		return nil
-	}
-
-	// Create fakeintake if needed
-	var fakeIntake *fakeintakeComp.Fakeintake
-
-	var dependsOnDDAgent pulumi.ResourceOption
-	var k8sAgentComponent *agent.KubernetesAgent
-	if awsEnv.AgentDeploy() {
-		if params.fakeintakeOptions != nil {
-			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", params.fakeintakeOptions...); err != nil {
-				return err
-			}
-			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
-				return err
-			}
-		} else {
-			env.FakeIntake = nil
-		}
-
-		k8sAgentOptions := make([]kubernetesagentparams.Option, 0)
-		k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)))
-		k8sAgentOptions = append(k8sAgentOptions, params.agentOptions...)
-		if params.fakeintakeOptions != nil {
-			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
-		}
-		if awsEnv.EKSWindowsNodeGroup() {
-			k8sAgentOptions = append(k8sAgentOptions, kubernetesagentparams.WithDeployWindows())
-		}
-
-		k8sAgentComponent, err = helm.NewKubernetesAgent(&awsEnv, awsEnv.Namer.ResourceName("datadog-agent"), cluster.KubeProvider, k8sAgentOptions...)
+	var dependsOnArgoRollout pulumi.ResourceOption
+	if params.deployArgoRollout {
+		argoParams, err := argorollouts.NewParams()
 		if err != nil {
 			return err
 		}
-		if err := k8sAgentComponent.Export(awsEnv.Ctx(), &env.Agent.KubernetesAgentOutput); err != nil {
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, cluster.KubeProvider)
+		if err != nil {
 			return err
 		}
-		dependsOnDDAgent = utils.PulumiDependsOn(k8sAgentComponent)
+		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
+	}
 
-		if params.deployDogstatsd {
-			if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
-				return err
-			}
+	var fakeIntake *fakeintakeComp.Fakeintake
+	if params.fakeintakeOptions != nil {
+		fakeIntakeOptions := []fakeintake.Option{
+			fakeintake.WithCPU(1024),
+			fakeintake.WithMemory(6144),
+		}
+		if awsEnv.GetCommonEnvironment().InfraShouldDeployFakeintakeWithLB() {
+			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
 		}
 
-		if params.deployTestWorkload {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent, dependsOnVPA); err != nil {
-				return err
-			}
-			if _, err := nginx.EksFargateAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx-fargate", k8sAgentComponent.ClusterAgentToken, dependsOnDDAgent); err != nil {
-				return err
-			}
-			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, dependsOnDDAgent, dependsOnVPA); err != nil {
-				return err
-			}
-			if _, err := cpustress.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-cpustress"); err != nil {
-				return err
-			}
-			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent); err != nil {
-				return err
-			}
-			if _, err := dogstatsd.EksFargateAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-fargate", k8sAgentComponent.ClusterAgentToken, dependsOnDDAgent); err != nil {
-				return err
-			}
-			if params.deployDogstatsd {
-				if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, dependsOnDDAgent); err != nil {
-					return err
-				}
-			}
-			if _, err := tracegen.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-tracegen"); err != nil {
-				return err
-			}
-			if _, err := prometheus.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-prometheus"); err != nil {
-				return err
-			}
-			if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent); err != nil {
-				return err
-			}
-			if _, err := etcd.K8sAppDefinition(&awsEnv, cluster.KubeProvider); err != nil {
-				return err
-			}
+		if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
+			return err
+		}
+		if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
+			return err
 		}
 	} else {
+		env.FakeIntake = nil
+	}
+
+	var dependsOnDDAgent pulumi.ResourceOption
+	var kubernetesAgent *agent.KubernetesAgent
+	// Deploy the agent
+	if params.agentOptions != nil {
+		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithFakeintake(fakeIntake), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
+
+		eksParams, err := NewParams(params.eksOptions...)
+		if err != nil {
+			return err
+		}
+		if eksParams.WindowsNodeGroup {
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
+		}
+
+		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+		err = kubernetesAgent.Export(ctx, &env.Agent.KubernetesAgentOutput)
+		if err != nil {
+			return err
+		}
+		dependsOnDDAgent = utils.PulumiDependsOn(kubernetesAgent)
+	} else {
 		env.Agent = nil
+	}
+	// Deploy standalone dogstatsd
+	if params.deployDogstatsd {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
+			return err
+		}
+	}
+
+	if params.deployTestWorkload {
+
+		if _, err := cpustress.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-cpustress"); err != nil {
+			return err
+		}
+
+		// dogstatsd clients that report to the Agent
+		if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd", 8125, "/var/run/datadog/dsd.socket", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if _, err := dogstatsd.EksFargateAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-fargate", kubernetesAgent.ClusterAgentToken, dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if params.deployDogstatsd {
+			// dogstatsd clients that report to the dogstatsd standalone deployment
+			if _, err := dogstatsd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-dogstatsd-standalone", dogstatsdstandalone.HostPort, dogstatsdstandalone.Socket, dependsOnDDAgent /* for admission */); err != nil {
+				return err
+			}
+		}
+
+		if _, err := tracegen.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-tracegen", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		if _, err := prometheus.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-prometheus", utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		if _, err := mutatedbyadmissioncontroller.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-mutated", "workload-mutated-lib-injection", dependsOnDDAgent /* for admission */); err != nil {
+			return err
+		}
+
+		if _, err := etcd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(cluster)); err != nil {
+			return err
+		}
+
+		// These resources cannot be deployed if the Agent is not installed, it requires some CRDs provided by the Helm chart
+		if params.agentOptions != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+
+			if _, err := nginx.EksFargateAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx-fargate", kubernetesAgent.ClusterAgentToken, dependsOnDDAgent); err != nil {
+				return err
+			}
+
+			if _, err := redis.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+				return err
+			}
+		}
+
+		if params.deployArgoRollout {
+			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Deploy workloads
@@ -154,6 +198,5 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 			return err
 		}
 	}
-
 	return nil
 }

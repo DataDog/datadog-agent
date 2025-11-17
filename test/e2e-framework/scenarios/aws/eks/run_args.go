@@ -45,6 +45,7 @@ type RunParams struct {
 	deployDogstatsd          bool
 	deployTestWorkload       bool
 	deployOperator           bool
+	deployArgoRollout        bool
 }
 
 type RunOption = func(*RunParams) error
@@ -237,6 +238,13 @@ func WithoutDDA() RunOption {
 func WithCiliumOptions(opts ...cilium.Option) RunOption {
 	return func(params *RunParams) error {
 		params.ciliumOptions = opts
+		return nil
+	}
+}
+
+func WithDeployArgoRollout() RunOption {
+	return func(params *RunParams) error {
+		params.deployArgoRollout = true
 		return nil
 	}
 }
