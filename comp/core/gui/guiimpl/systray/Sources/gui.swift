@@ -30,7 +30,7 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         super.init()
 
         // Initialize WiFi components
-        NSLog("[AgentGUI] Initializing WiFi IPC components...")
+        Logger.info("Initializing WiFi IPC components...", context: "AgentGUI")
         wifiDataProvider = WiFiDataProvider()
         if let provider = wifiDataProvider {
             wifiIPCServer = WiFiIPCServer(wifiDataProvider: provider)
@@ -124,10 +124,10 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         if let server = wifiIPCServer {
             do {
                 try server.start()
-                NSLog("[AgentGUI] WiFi IPC server started successfully")
+                Logger.info("WiFi IPC server started successfully", context: "AgentGUI")
             } catch {
-                NSLog("[AgentGUI] Failed to start WiFi IPC server: \(error.localizedDescription)")
-                NSLog("[AgentGUI] WiFi metrics will be unavailable for the agent")
+                Logger.error("Failed to start WiFi IPC server: \(error.localizedDescription)", context: "AgentGUI")
+                Logger.error("WiFi metrics will be unavailable for the agent", context: "AgentGUI")
             }
         }
 
@@ -210,17 +210,17 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
         // Check if agent process is still running
         if AgentManager.isProcessStillRunning() && retries > 0 {
             // Process still cleaning up, check again in 500ms
-            NSLog("[AgentGUI] Agent process still running, waiting for termination... (retries left: \(retries))")
+            Logger.debug("Agent process still running, waiting for termination... (retries left: \(retries))", context: "AgentGUI")
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500), execute: {
                 self.waitForProcessTerminationAndStart(retries: retries - 1)
             })
         } else if retries > 0 {
             // Process fully terminated, safe to start
-            NSLog("[AgentGUI] Agent process terminated, starting now...")
+            Logger.info("Agent process terminated, starting now...", context: "AgentGUI")
             self.commandAgentService(command: "start", display: "starting")
         } else {
             // Timeout after 10 seconds (20 retries * 500ms)
-            NSLog("[AgentGUI] WARNING: Timeout waiting for agent termination, forcing start...")
+            Logger.error("WARNING: Timeout waiting for agent termination, forcing start...", context: "AgentGUI")
             self.commandAgentService(command: "start", display: "starting")
         }
     }
@@ -228,7 +228,7 @@ class AgentGUI: NSObject, NSUserInterfaceValidations {
     @objc func exitGUI(_ sender: Any?) {
         // Stop WiFi IPC server before exiting
         wifiIPCServer?.stop()
-        NSLog("[AgentGUI] WiFi IPC server stopped")
+        Logger.info("WiFi IPC server stopped", context: "AgentGUI")
         NSApp.terminate(sender)
     }
 }
@@ -243,8 +243,7 @@ class AgentManager {
         let (exitCode, stdOut, stdErr) = call(launchPath: "/bin/launchctl", arguments: ["list", agentServiceName])
 
         if exitCode != 0 {
-            NSLog(stdOut)
-            NSLog(stdErr)
+            Logger.error("Command failed - stdout: \(stdOut), stderr: \(stdErr)", context: "AgentManager")
             return false
         }
 
@@ -271,10 +270,9 @@ class AgentManager {
     static func lifecycleCommand(command: String, callback: @escaping (Bool) -> Void) {
         let processInfo = agentServiceCall(command: command)
         if processInfo.exitCode != 0 {
-            NSLog(processInfo.stdOut)
-            NSLog(processInfo.stdErr)
+            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
         }
-        
+
 
         checkStatusAndCall(command: command, timeout: serviceTimeout, callback: callback)
     }
@@ -288,8 +286,7 @@ class AgentManager {
     static func agentCommand(command: String) {
         let processInfo = agentCall(command: command)
         if processInfo.exitCode != 0 {
-            NSLog(processInfo.stdOut)
-            NSLog(processInfo.stdErr)
+            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
         }
     }
 
@@ -305,8 +302,7 @@ class AgentManager {
         }
         let processInfo = bashCall(command: command)
         if processInfo.exitCode != 0 {
-            NSLog(processInfo.stdOut)
-            NSLog(processInfo.stdErr)
+            Logger.error("Command failed - stdout: \(processInfo.stdOut), stderr: \(processInfo.stdErr)", context: "AgentManager")
             return currentLoginStatus
         }
 

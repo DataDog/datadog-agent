@@ -1,5 +1,12 @@
 import Cocoa
 
+// Parse command-line arguments to determine logging mode
+let args = CommandLine.arguments
+let useFileLogging = args.contains("--use-file-logging")
+
+// Configure logging mode globally before any other operations
+Logger.configure(useFileLogging: useFileLogging)
+
 // Check if another instance is already running (exclude self)
 let myPID = ProcessInfo.processInfo.processIdentifier
 let runningInstances = NSRunningApplication.runningApplications(
@@ -8,7 +15,7 @@ let runningInstances = NSRunningApplication.runningApplications(
 
 if !runningInstances.isEmpty {
     if let otherPID = runningInstances.first?.processIdentifier {
-        NSLog("[GUI] Another instance is already running (PID: \(otherPID)), exiting")
+        Logger.info("Another instance is already running (PID: \(otherPID)), exiting", context: "GUI")
     }
     exit(0)
 }
