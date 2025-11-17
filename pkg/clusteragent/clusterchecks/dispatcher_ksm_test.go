@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func TestScheduleKSMCheck(t *testing.T) {
@@ -62,7 +61,7 @@ func TestScheduleKSMCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d := &dispatcher{
-				ksmSharding: NewKSMShardingManager(tt.shardingEnabled),
+				ksmSharding: newKSMShardingManager(tt.shardingEnabled),
 				store:       newClusterStore(),
 			}
 			d.advancedDispatching.Store(tt.advancedDispatching)
@@ -75,7 +74,7 @@ func TestScheduleKSMCheck(t *testing.T) {
 
 func TestScheduleKSMCheck_NoRunners(t *testing.T) {
 	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
+		ksmSharding: newKSMShardingManager(true),
 		store:       newClusterStore(),
 	}
 	d.advancedDispatching.Store(true)
@@ -92,7 +91,7 @@ func TestScheduleKSMCheck_NoRunners(t *testing.T) {
 
 func TestScheduleKSMCheck_AlreadySharded(t *testing.T) {
 	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
+		ksmSharding: newKSMShardingManager(true),
 		store:       newClusterStore(),
 	}
 	d.advancedDispatching.Store(true)
@@ -108,7 +107,7 @@ func TestScheduleKSMCheck_AlreadySharded(t *testing.T) {
 
 func TestIsAlreadySharded(t *testing.T) {
 	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
+		ksmSharding: newKSMShardingManager(true),
 		store:       newClusterStore(),
 	}
 
@@ -126,47 +125,6 @@ func TestIsAlreadySharded(t *testing.T) {
 	// Different config should not be marked
 	differentConfig := createTestKSMConfig([]string{"pods", "deployments"})
 	assert.False(t, d.isAlreadySharded(differentConfig))
-}
-
-func TestValidateClusterTaggerForKSM(t *testing.T) {
-	tests := []struct {
-		name                  string
-		collectKubernetesTags bool
-		remoteTaggerEnabled   bool
-		expectedResult        bool
-	}{
-		{
-			name:                  "all features enabled",
-			collectKubernetesTags: true,
-			remoteTaggerEnabled:   true,
-			expectedResult:        true,
-		},
-		{
-			name:                  "cluster tags disabled",
-			collectKubernetesTags: false,
-			remoteTaggerEnabled:   false,
-			expectedResult:        false,
-		},
-		{
-			name:                  "remote tagger disabled - still passes with warning",
-			collectKubernetesTags: true,
-			remoteTaggerEnabled:   false,
-			expectedResult:        true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := pkgconfigsetup.Datadog()
-			mockConfig.SetWithoutSource("cluster_agent.collect_kubernetes_tags", tt.collectKubernetesTags)
-			mockConfig.SetWithoutSource("clc_runner_remote_tagger_enabled", tt.remoteTaggerEnabled)
-
-			d := &dispatcher{}
-
-			result := d.validateClusterTaggerForKSM()
-			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
 }
 
 func TestMarkAsSharded(t *testing.T) {
@@ -189,7 +147,7 @@ func TestScheduleKSMCheck_Integration(t *testing.T) {
 	// This test simulates a successful sharding scenario
 	// Create a dispatcher with all requirements met
 	d := &dispatcher{
-		ksmSharding: NewKSMShardingManager(true),
+		ksmSharding: newKSMShardingManager(true),
 		store:       newClusterStore(),
 	}
 	d.advancedDispatching.Store(true)

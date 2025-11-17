@@ -9,14 +9,13 @@ package clusterchecks
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scheduleKSMCheck handles the special case of KSM checks with resource sharding
 // Returns true if the check was sharded, false if it should use normal scheduling
 func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
-	if !d.ksmSharding.IsEnabled() || !d.ksmSharding.IsKSMCheck(config) {
+	if !d.ksmSharding.isEnabled() || !d.ksmSharding.isKSMCheck(config) {
 		// Not a KSM check or sharding disabled, use normal scheduling
 		return false
 	}
@@ -53,7 +52,7 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 	// Create sharded configs based on resource groups
 	// Always do sharding (pods, nodes, others) regardless of current runner count
 	// Rebalancing will automatically distribute shards optimally as runners scale up/down
-	shardedConfigs, err := d.ksmSharding.CreateShardedKSMConfigs(config, runnerCount)
+	shardedConfigs, err := d.ksmSharding.CreateShardedKSMConfigs(config)
 	if err != nil {
 		log.Warnf("Failed to create resource-sharded KSM configs: %v, falling back to normal scheduling", err)
 		return false
@@ -97,10 +96,7 @@ func (d *dispatcher) isAlreadySharded(config integration.Config) bool {
 	d.ksmShardingMutex.Lock()
 	defer d.ksmShardingMutex.Unlock()
 
-	if d.ksmShardedConfig.Name != "" && d.ksmShardedConfig.Digest() == config.Digest() {
-		return true
-	}
-	return false
+	return d.ksmShardedConfig.Name != "" && d.ksmShardedConfig.Digest() == config.Digest()
 }
 
 // markAsSharded marks a KSM config as having been sharded and tracks the sharded digests
@@ -117,7 +113,7 @@ func (d *dispatcher) markAsSharded(config integration.Config, shardedDigests []s
 // Returns true if sharded configs were removed, false otherwise
 // Thread-safe: protected by ksmShardingMutex
 func (d *dispatcher) unscheduleKSMCheck(config integration.Config) bool {
-	if !d.ksmSharding.IsEnabled() || !d.ksmSharding.IsKSMCheck(config) {
+	if !d.ksmSharding.isEnabled() || !d.ksmSharding.isKSMCheck(config) {
 		return false
 	}
 
@@ -147,37 +143,4 @@ func (d *dispatcher) unscheduleKSMCheck(config integration.Config) bool {
 
 	log.Infof("Successfully unscheduled all sharded KSM configs")
 	return true
-}
-
-// validateClusterTaggerForKSM validates that cluster tagger is enabled for KSM resource sharding.
-// Returns true if Kubernetes resource collection is enabled, false if disabled.
-// Logs warnings if disabled, informing users about potential tag limitations.
-// Sharding always proceeds regardless of return value - this only informs the caller of the status.
-func (d *dispatcher) validateClusterTaggerForKSM() bool {
-	// KSM uses the cluster tagger only for namespace labels/annotations as tags.
-	// When cluster_agent.collect_kubernetes_tags is enabled:
-	// - DCA collects namespace objects into workloadmeta
-	// - Cluster tagger can propagate namespace labels/annotations as tags to objects in that namespace
-	//
-	// Note: This only works with global tag configuration (e.g., kubernetesResourcesLabelsAsTags),
-	// not with check-specific label configuration.
-	//
-	// KSM does NOT use the cluster tagger for pod→deployment or other cross-resource relationships.
-	// Those relationships are handled by KSM itself through the Kubernetes API.
-	//
-	// Important: Sharding can break the label_joins option in KSM configs, because label_joins
-	// requires the related objects to be collected in the same KSM instance. If your config uses
-	// label_joins across different resource types (e.g., joining pod labels to node metrics),
-	// those resources must be in the same shard or label_joins will not work correctly.
-
-	collectKubernetesTags := pkgconfigsetup.Datadog().GetBool("cluster_agent.collect_kubernetes_tags")
-
-	if !collectKubernetesTags {
-		log.Info("cluster_agent.collect_kubernetes_tags is disabled. KSM sharding will proceed but namespace labels/annotations will not be propagated as tags to resources.")
-		// Note: We proceed with sharding. KSM metrics will still be collected, but without
-		// namespace-level label/annotation tags from the cluster tagger.
-	} else {
-		log.Info("KSM resource sharding is enabled with namespace tag propagation (cluster_agent.collect_kubernetes_tags)")
-	}
-	return collectKubernetesTags
 }

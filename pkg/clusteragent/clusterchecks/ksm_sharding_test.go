@@ -18,7 +18,7 @@ import (
 )
 
 func TestIsKSMCheck(t *testing.T) {
-	manager := NewKSMShardingManager(true)
+	manager := newKSMShardingManager(true)
 
 	tests := []struct {
 		name     string
@@ -50,25 +50,25 @@ func TestIsKSMCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := manager.IsKSMCheck(tt.config)
+			result := manager.isKSMCheck(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
 func TestAnalyzeKSMConfig(t *testing.T) {
-	manager := NewKSMShardingManager(true)
+	manager := newKSMShardingManager(true)
 
 	tests := []struct {
 		name           string
 		config         integration.Config
-		expectedGroups []ResourceGroup
+		expectedGroups []resourceGroup
 		expectError    bool
 	}{
 		{
 			name:   "pods only",
 			config: createKSMConfig([]string{"pods"}),
-			expectedGroups: []ResourceGroup{
+			expectedGroups: []resourceGroup{
 				{Name: "pods", Collectors: []string{"pods"}},
 			},
 			expectError: false,
@@ -76,7 +76,7 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 		{
 			name:   "nodes only",
 			config: createKSMConfig([]string{"nodes"}),
-			expectedGroups: []ResourceGroup{
+			expectedGroups: []resourceGroup{
 				{Name: "nodes", Collectors: []string{"nodes"}},
 			},
 			expectError: false,
@@ -84,7 +84,7 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 		{
 			name:   "others only",
 			config: createKSMConfig([]string{"deployments", "services"}),
-			expectedGroups: []ResourceGroup{
+			expectedGroups: []resourceGroup{
 				{Name: "others", Collectors: []string{"deployments", "services"}},
 			},
 			expectError: false,
@@ -92,7 +92,7 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 		{
 			name:   "all three groups",
 			config: createKSMConfig([]string{"pods", "nodes", "deployments", "services", "configmaps"}),
-			expectedGroups: []ResourceGroup{
+			expectedGroups: []resourceGroup{
 				{Name: "pods", Collectors: []string{"pods"}},
 				{Name: "nodes", Collectors: []string{"nodes"}},
 				{Name: "others", Collectors: []string{"deployments", "services", "configmaps"}},
@@ -102,7 +102,7 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 		{
 			name:   "mixed order",
 			config: createKSMConfig([]string{"services", "pods", "deployments", "nodes"}),
-			expectedGroups: []ResourceGroup{
+			expectedGroups: []resourceGroup{
 				{Name: "pods", Collectors: []string{"pods"}},
 				{Name: "nodes", Collectors: []string{"nodes"}},
 				{Name: "others", Collectors: []string{"services", "deployments"}},
@@ -115,7 +115,7 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			// When collectors is empty, should use options.DefaultResources which includes:
 			// pods, nodes, deployments, services, configmaps, secrets, etc.
 			// Should create 3 groups: pods, nodes, others
-			expectedGroups: []ResourceGroup{
+			expectedGroups: []resourceGroup{
 				{Name: "pods", Collectors: []string{"pods"}},
 				{Name: "nodes", Collectors: []string{"nodes"}},
 				// others will contain all remaining default resources
@@ -151,7 +151,7 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			groups, err := manager.AnalyzeKSMConfig(tt.config)
+			groups, err := manager.analyzeKSMConfig(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -260,7 +260,7 @@ func TestShouldShardKSMCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			manager := NewKSMShardingManager(tt.enabled)
+			manager := newKSMShardingManager(tt.enabled)
 			result := manager.ShouldShardKSMCheck(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -268,47 +268,41 @@ func TestShouldShardKSMCheck(t *testing.T) {
 }
 
 func TestCreateShardedKSMConfigs(t *testing.T) {
-	manager := NewKSMShardingManager(true)
+	manager := newKSMShardingManager(true)
 
 	tests := []struct {
 		name           string
 		config         integration.Config
-		numRunners     int
 		expectedShards int
 		expectError    bool
 	}{
 		{
-			name:           "pods and nodes with 3 runners",
+			name:           "pods and nodes",
 			config:         createKSMConfig([]string{"pods", "nodes"}),
-			numRunners:     3,
 			expectedShards: 2,
 			expectError:    false,
 		},
 		{
-			name:           "all three groups with 3 runners",
+			name:           "all three groups",
 			config:         createKSMConfig([]string{"pods", "nodes", "deployments", "services"}),
-			numRunners:     3,
 			expectedShards: 3,
 			expectError:    false,
 		},
 		{
-			name:           "all three groups with 2 runners - always 3 shards",
+			name:           "all three groups - always 3 shards",
 			config:         createKSMConfig([]string{"pods", "nodes", "deployments", "services"}),
-			numRunners:     2,
 			expectedShards: 3, // Always create 3 shards (pods, nodes, others) regardless of runner count
 			expectError:    false,
 		},
 		{
-			name:           "pods and others with 3 runners",
+			name:           "pods and others",
 			config:         createKSMConfig([]string{"pods", "services", "deployments"}),
-			numRunners:     3,
 			expectedShards: 2,
 			expectError:    false,
 		},
 		{
 			name:           "empty collectors - uses defaults and creates 3 shards",
 			config:         createKSMConfig([]string{}),
-			numRunners:     3,
 			expectedShards: 3, // Should create 3 shards: pods, nodes, others
 			expectError:    false,
 		},
@@ -316,7 +310,7 @@ func TestCreateShardedKSMConfigs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, err := manager.CreateShardedKSMConfigs(tt.config, tt.numRunners)
+			configs, err := manager.CreateShardedKSMConfigs(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -351,12 +345,12 @@ func TestCreateShardedKSMConfigs(t *testing.T) {
 }
 
 func TestCreateShardedKSMConfigs_PreservesTags(t *testing.T) {
-	manager := NewKSMShardingManager(true)
+	manager := newKSMShardingManager(true)
 
 	// Create config with existing tags
 	config := createKSMConfigWithTags([]string{"pods", "nodes"}, []string{"env:prod", "team:platform"})
 
-	configs, err := manager.CreateShardedKSMConfigs(config, 3)
+	configs, err := manager.CreateShardedKSMConfigs(config)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(configs))
 
@@ -382,6 +376,15 @@ func TestCreateShardedKSMConfigs_PreservesTags(t *testing.T) {
 	}
 }
 
+func TestShouldShardKSMCheck_MultipleInstances(t *testing.T) {
+	manager := newKSMShardingManager(true)
+	config := createKSMConfigWithMultipleInstances()
+
+	// Should return false and log warning about multiple instances
+	result := manager.ShouldShardKSMCheck(config)
+	assert.False(t, result, "Should not shard when multiple instances configured")
+}
+
 // Helper functions
 
 func createKSMConfig(collectors []string) integration.Config {
@@ -403,15 +406,6 @@ func createKSMConfigWithTags(collectors []string, tags []string) integration.Con
 		Instances:    []integration.Data{integration.Data(data)},
 		ClusterCheck: true,
 	}
-}
-
-func TestShouldShardKSMCheck_MultipleInstances(t *testing.T) {
-	manager := NewKSMShardingManager(true)
-	config := createKSMConfigWithMultipleInstances()
-
-	// Should return false and log warning about multiple instances
-	result := manager.ShouldShardKSMCheck(config)
-	assert.False(t, result, "Should not shard when multiple instances configured")
 }
 
 func createKSMConfigWithMultipleInstances() integration.Config {

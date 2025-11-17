@@ -18,50 +18,40 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ResourceGroup represents a logical grouping of KSM collectors
-type ResourceGroup struct {
+// resourceGroup represents a logical grouping of KSM collectors
+type resourceGroup struct {
 	Name        string   // Human-readable name (pods, nodes, others)
 	Collectors  []string // KSM collector names
 	Description string   // Why these are grouped together
 }
 
-// KSMShardingManager handles the sharding logic for KSM checks by resource type
-type KSMShardingManager struct {
+// ksmShardingManager handles the sharding logic for KSM checks by resource type
+type ksmShardingManager struct {
 	enabled bool
 }
 
-// NewKSMShardingManager creates a new KSM sharding manager
-func NewKSMShardingManager(enabled bool) *KSMShardingManager {
-	return &KSMShardingManager{
+// newKSMShardingManager creates a new KSM sharding manager
+func newKSMShardingManager(enabled bool) *ksmShardingManager {
+	return &ksmShardingManager{
 		enabled: enabled,
 	}
 }
 
-// IsEnabled returns whether KSM sharding is enabled
-func (m *KSMShardingManager) IsEnabled() bool {
+// isEnabled returns whether KSM sharding is enabled
+func (m *ksmShardingManager) isEnabled() bool {
 	return m.enabled
 }
 
-// IsKSMCheck returns true if the config is a KSM check
+// isKSMCheck returns true if the config is a KSM check
 // Only kubernetes_state_core (Go implementation) is supported for sharding
 // The legacy kubernetes_state (Python) check doesn't support the "collectors" parameter
-func (m *KSMShardingManager) IsKSMCheck(config integration.Config) bool {
+func (m *ksmShardingManager) isKSMCheck(config integration.Config) bool {
 	return config.Name == "kubernetes_state_core"
 }
 
-// AnalyzeKSMConfig analyzes a KSM configuration and returns collectors grouped by resource type
+// analyzeKSMConfig analyzes a KSM configuration and returns collectors grouped by resource type
 // Simple strategy: {pods}, {nodes}, {everything else}
-func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]ResourceGroup, error) {
-	if !m.IsKSMCheck(config) {
-		return nil, fmt.Errorf("not a KSM check")
-	}
-
-	// Sharding only makes sense for cluster checks (dispatched to CLC runners)
-	// If ClusterCheck is false, the check runs locally on the DCA and doesn't need sharding
-	if !config.ClusterCheck {
-		return nil, fmt.Errorf("KSM sharding requires cluster_check: true, but got cluster_check: false")
-	}
-
+func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]resourceGroup, error) {
 	// Parse the KSM configuration
 	type ksmInstance struct {
 		Collectors []string `yaml:"collectors"`
@@ -116,10 +106,10 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 	}
 
 	// Build resource groups only for collectors that are present
-	var groups []ResourceGroup
+	var groups []resourceGroup
 
 	if hasPods {
-		groups = append(groups, ResourceGroup{
+		groups = append(groups, resourceGroup{
 			Name:        "pods",
 			Collectors:  []string{"pods"},
 			Description: "Pod metrics (highest cardinality)",
@@ -127,7 +117,7 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 	}
 
 	if hasNodes {
-		groups = append(groups, ResourceGroup{
+		groups = append(groups, resourceGroup{
 			Name:        "nodes",
 			Collectors:  []string{"nodes"},
 			Description: "Node metrics (high cardinality)",
@@ -135,7 +125,7 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 	}
 
 	if len(otherCollectors) > 0 {
-		groups = append(groups, ResourceGroup{
+		groups = append(groups, resourceGroup{
 			Name:        "others",
 			Collectors:  otherCollectors,
 			Description: "All other resource types",
@@ -150,12 +140,18 @@ func (m *KSMShardingManager) AnalyzeKSMConfig(config integration.Config) ([]Reso
 }
 
 // ShouldShardKSMCheck determines if a KSM check should be sharded
-func (m *KSMShardingManager) ShouldShardKSMCheck(config integration.Config) bool {
-	if !m.enabled || !m.IsKSMCheck(config) {
+func (m *ksmShardingManager) ShouldShardKSMCheck(config integration.Config) bool {
+	if !m.enabled || !m.isKSMCheck(config) {
+		return false
+	}
+	// Sharding only makes sense for cluster checks (dispatched to CLC runners)
+	// If ClusterCheck is false, the check runs locally on the DCA and doesn't need sharding
+	if !config.ClusterCheck {
+		log.Warnf("KSM sharding requires cluster_check: true, but got cluster_check: false")
 		return false
 	}
 
-	groups, err := m.AnalyzeKSMConfig(config)
+	groups, err := m.analyzeKSMConfig(config)
 	if err != nil {
 		log.Warnf("KSM sharding disabled: %v", err)
 		return false
@@ -184,12 +180,11 @@ func (m *KSMShardingManager) ShouldShardKSMCheck(config integration.Config) bool
 // - If config has nodes collectors: creates nodes shard
 // - If config has other collectors: creates others shard
 // Number of shards is independent of runner count - rebalancing handles distribution
-func (m *KSMShardingManager) CreateShardedKSMConfigs(
+func (m *ksmShardingManager) CreateShardedKSMConfigs(
 	baseConfig integration.Config,
-	numRunners int,
 ) ([]integration.Config, error) {
 
-	groups, err := m.AnalyzeKSMConfig(baseConfig)
+	groups, err := m.analyzeKSMConfig(baseConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -208,15 +203,15 @@ func (m *KSMShardingManager) CreateShardedKSMConfigs(
 		shardedConfigs = append(shardedConfigs, shardConfig)
 	}
 
-	log.Infof("Created %d resource-sharded KSM configs (current runners: %d)", len(shardedConfigs), numRunners)
+	log.Infof("Created %d resource-sharded KSM configs", len(shardedConfigs))
 
 	return shardedConfigs, nil
 }
 
 // createKSMConfigForResourceGroup creates a KSM config for a specific resource group
-func (m *KSMShardingManager) createKSMConfigForResourceGroup(
+func (m *ksmShardingManager) createKSMConfigForResourceGroup(
 	baseConfig integration.Config,
-	group ResourceGroup,
+	group resourceGroup,
 ) integration.Config {
 	// Create a new config by copying fields manually
 	config := integration.Config{

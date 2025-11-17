@@ -40,7 +40,7 @@ type dispatcher struct {
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
-	ksmSharding                      *KSMShardingManager
+	ksmSharding                      *ksmShardingManager
 	ksmShardingMutex                 sync.Mutex         // Protects ksmShardedConfig and ksmShardedDigests
 	ksmShardedConfig                 integration.Config // Protected by ksmShardingMutex
 	ksmShardedDigests                []string           // Track digests of sharded configs for cleanup, protected by ksmShardingMutex
@@ -127,12 +127,15 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 			log.Warn("KSM resource sharding requires advanced dispatching (cluster_checks.advanced_dispatching_enabled=true). Disabling KSM sharding.")
 			ksmShardingEnabled = false
 		} else {
-			// Validate cluster tagger (logs only and always allows sharding to proceed)
-			d.validateClusterTaggerForKSM()
+			// KSM sharding configuration notes:
+			// - Namespace labels/annotations as tags require GLOBAL config (kubernetes_resources_labels_as_tags)
+			// - Check-specific labels_as_tags in KSM config is NOT supported with sharding
+			// - Sharding also breaks check-specific label_joins across different resource types
+			log.Info("KSM resource sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
 		}
 	}
 
-	d.ksmSharding = NewKSMShardingManager(ksmShardingEnabled)
+	d.ksmSharding = newKSMShardingManager(ksmShardingEnabled)
 
 	return d
 }
