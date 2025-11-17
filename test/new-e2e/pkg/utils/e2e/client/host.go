@@ -164,32 +164,17 @@ func (h *sshExecutor) Execute(command string, options ...ExecuteOption) (string,
 	return h.executeAndReconnectOnError(command)
 }
 
-// Execute `fn` and try again after reconnecting when encountering a transient error.
-// See: https://app.datadoghq.com/incidents/45562
-func (h *sshExecutor) callAndReconnectOnError(command string, fn func() error) error {
+func (h *sshExecutor) executeAndReconnectOnError(command string) (string, error) {
 	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
 	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
-	err := fn()
-	if err == nil {
-		return nil
+	stdout, err := execute(h.client, command)
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.Reconnect()
+		if err != nil {
+			return "", err
+		}
+		stdout, err = execute(h.client, command)
 	}
-	errStr := err.Error()
-	if !strings.Contains(errStr, "failed to create session:") && !strings.Contains(errStr, "handshake failed:") {
-		return err
-	}
-	if err = h.Reconnect(); err != nil {
-		return err
-	}
-	return fn()
-}
-
-func (h *sshExecutor) executeAndReconnectOnError(command string) (string, error) {
-	var stdout string
-	err := h.callAndReconnectOnError(command, func() error {
-		var execErr error
-		stdout, execErr = execute(h.client, command)
-		return execErr
-	})
 	if err != nil {
 		return "", fmt.Errorf("%v: %w", stdout, err)
 	}
@@ -207,14 +192,16 @@ func (h *sshExecutor) Start(command string, options ...ExecuteOption) (*ssh.Sess
 }
 
 func (h *sshExecutor) startAndReconnectOnError(command string) (*ssh.Session, io.WriteCloser, io.Reader, error) {
-	var session *ssh.Session
-	var stdin io.WriteCloser
-	var stdout io.Reader
-	err := h.callAndReconnectOnError(command, func() error {
-		var startErr error
-		session, stdin, stdout, startErr = start(h.client, command)
-		return startErr
-	})
+	scrubbedCommand := h.scrubber.ScrubLine(command) // scrub the command in case it contains secrets
+	h.context.T().Logf("%s - %s - Executing command `%s`", time.Now().Format("02-01-2006 15:04:05"), h.context.T().Name(), scrubbedCommand)
+	session, stdin, stdout, err := start(h.client, command)
+	if err != nil && strings.Contains(err.Error(), "failed to create session:") {
+		err = h.Reconnect()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		session, stdin, stdout, err = start(h.client, command)
+	}
 	return session, stdin, stdout, err
 }
 
