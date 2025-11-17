@@ -50,12 +50,11 @@ type Config struct {
 // OrchestratorConfig contains configuration for sending orchestrator data to Datadog.
 type OrchestratorConfig struct {
 	// ClusterName is the name of the Kubernetes cluster to associate with the orchestrator data.
-	ClusterName string
-	Enabled     bool
-	Hostname    hostnameinterface.Component
-	Key         string
-	Site        string
-	Endpoint    string
+	Enabled  bool
+	Hostname hostnameinterface.Component
+	Key      string
+	Site     string
+	Endpoint string
 }
 
 type factory struct {

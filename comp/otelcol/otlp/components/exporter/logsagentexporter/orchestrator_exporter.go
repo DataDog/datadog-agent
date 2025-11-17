@@ -151,6 +151,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 	var isWatchEvent bool
 
 	var clusterID string
+	var clusterName string
 
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
 		resourceLogs := ld.ResourceLogs().At(i)
@@ -167,6 +168,14 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 					clusterID = k8sClusterID.AsString()
 				} else {
 					e.set.Logger.Error("Failed to get cluster ID, skipping manifest payload", zap.Error(err))
+					continue
+				}
+
+				k8sClusterName, ok := resource.Attributes().Get("k8s.cluster.name")
+				if ok {
+					clusterName = k8sClusterName.AsString()
+				} else {
+					e.set.Logger.Error("Failed to get cluster name, skipping manifest payload", zap.Error(err))
 					continue
 				}
 
@@ -238,7 +247,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 			zap.Int("chunk_index", i),
 			zap.Int("chunk_size", len(chunk)))
 
-		payload := toManifestPayload(chunk, hostname, e.orchestratorConfig.ClusterName, clusterID)
+		payload := toManifestPayload(chunk, hostname, clusterName, clusterID)
 
 		if err := sendManifestPayload(ctx, e.orchestratorConfig.Endpoint, e.orchestratorConfig.Key, payload, hostname, clusterID, e.set.Logger); err != nil {
 			e.set.Logger.Error("Failed to send collector manifest chunk",
