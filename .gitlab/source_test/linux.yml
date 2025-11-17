@@ -35,16 +35,16 @@
     - !reference [.setup_orchestrion_env]
     - dda inv -- -e agent.build --use-orchestrion
     - dda inv -- -e test $FLAVORS --race --profile --rerun-fails=2 --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer --use-orchestrion
-  artifacts:
-    expire_in: 2 weeks
-    when: always
-    paths:
-      - $TEST_OUTPUT_FILE
-      - junit-*.tgz
-    reports:
-      junit: "**/junit-out-*.xml"
-      annotations:
-        - $EXTERNAL_LINKS_PATH
+  # artifacts:
+  #   expire_in: 2 weeks
+  #   when: always
+  #   paths:
+  #     - $TEST_OUTPUT_FILE
+  #     - junit-*.tgz
+  #   reports:
+  #     junit: "**/junit-out-*.xml"
+  #     annotations:
+  #       - $EXTERNAL_LINKS_PATH
   retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
