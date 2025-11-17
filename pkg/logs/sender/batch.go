@@ -101,8 +101,8 @@ func (b *batch) processMessage(m *message.Message, outputChan chan *message.Payl
 		b.trainingSet = append(b.trainingSet, m.GetContent())
 	}
 
-	if len(b.trainingSet) >= 5000 {
-		dict, err := b.compression.TrainFromBuffer(b.trainingSet, 100*1024)
+	if len(b.trainingSet) >= 500 {
+		dict, err := b.compression.TrainFromBuffer(b.trainingSet, 64*1024)
 		if err != nil {
 			log.Warn("Training dictionary failed", err)
 			return // fail all future log collection
