@@ -95,7 +95,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	}()
 
 	// Process each event
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -242,7 +242,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	}
 	{
 		before, after := before.processes, after.processes
-		allIDs := make(map[processKey]bool)
+		allIDs := make(map[ProcessID]bool)
 		for id := range before {
 			allIDs[id] = true
 		}
@@ -253,12 +253,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
-			var key any
-			if id.tenantID != 0 {
-				key = fmt.Sprintf("t%d:%d", id.tenantID, id.PID)
-			} else {
-				key = int(id.PID)
-			}
+			key := int(id.PID)
 
 			var beforeState, afterState any
 			if beforeProc != nil {
@@ -314,13 +309,13 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			if beforeProg != nil {
 				beforeState = fmt.Sprintf(
 					"%s (proc %d)",
-					beforeProg.state.String(), beforeProg.PID,
+					beforeProg.state.String(), beforeProg.processID.PID,
 				)
 			}
 			if afterProg != nil {
 				afterState = fmt.Sprintf(
 					"%s (proc %d)",
-					afterProg.state.String(), afterProg.PID,
+					afterProg.state.String(), afterProg.processID.PID,
 				)
 			}
 

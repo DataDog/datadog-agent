@@ -295,6 +295,7 @@ func (s *Serializer) buildPipelines() []metricsserializer.Pipeline {
 		{
 			FilterFunc:  func(metric metricsserializer.Filterable) bool { return true },
 			Destination: transaction.AllRegions,
+			UseV3:       s.config.GetBool("serializer_experimental_use_v3_api_series"),
 		},
 	}
 }

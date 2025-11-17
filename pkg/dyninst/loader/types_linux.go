@@ -32,6 +32,11 @@ type throttlerParams struct {
 	Ns     uint64
 	Budget int64
 }
+type stats struct {
+	Cpu_ns        uint64
+	Hit_cnt       uint64
+	Throttled_cnt uint64
+}
 
 func opcodeByte(opcode compiler.Opcode) uint8 {
 	switch opcode {
