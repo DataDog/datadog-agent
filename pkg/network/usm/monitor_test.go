@@ -369,6 +369,8 @@ func (s *HTTPTestSuite) TestSanity() {
 					srvDoneFn()
 
 					// Ensure USM captured all requests.
+					// Patching the recent change by testify
+					time.Sleep(time.Second)
 					assertAllRequestsExists(t, monitor, requests)
 				})
 			}
