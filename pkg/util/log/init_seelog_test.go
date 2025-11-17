@@ -38,16 +38,16 @@ func BenchmarkLogFormatShortFilePath(b *testing.B) {
 }
 
 func TestExtractContextString(t *testing.T) {
-	assert.Equal(t, `,"foo":"bar"`, formatters.ExtraJSONContext(toSlogAttrs([]interface{}{"foo", "bar"})))
-	assert.Equal(t, `foo:bar | `, formatters.ExtraTextContext(toSlogAttrs([]interface{}{"foo", "bar"})))
-	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, formatters.ExtraJSONContext(toSlogAttrs([]interface{}{"foo", "bar", "bar", "buzz"})))
-	assert.Equal(t, `foo:bar,bar:buzz | `, formatters.ExtraTextContext(toSlogAttrs([]interface{}{"foo", "bar", "bar", "buzz"})))
-	assert.Equal(t, `,"foo":"b\"a\"r"`, formatters.ExtraJSONContext(toSlogAttrs([]interface{}{"foo", "b\"a\"r"})))
-	assert.Equal(t, `,"foo":"3"`, formatters.ExtraJSONContext(toSlogAttrs([]interface{}{"foo", 3})))
-	assert.Equal(t, `,"foo":"4.131313131"`, formatters.ExtraJSONContext(toSlogAttrs([]interface{}{"foo", float64(4.131313131)})))
-	assert.Equal(t, "", formatters.ExtraJSONContext(toSlogAttrs(nil)))
-	assert.Equal(t, "", formatters.ExtraJSONContext(toSlogAttrs([]interface{}{2, 3})))
-	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, formatters.ExtraJSONContext(toSlogAttrs([]interface{}{"foo", "bar", 2, 3, "bar", "buzz"})))
+	assert.Equal(t, `,"foo":"bar"`, formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", "bar"}))))
+	assert.Equal(t, `foo:bar | `, formatters.ExtraTextContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", "bar"}))))
+	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", "bar", "bar", "buzz"}))))
+	assert.Equal(t, `foo:bar,bar:buzz | `, formatters.ExtraTextContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", "bar", "bar", "buzz"}))))
+	assert.Equal(t, `,"foo":"b\"a\"r"`, formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", "b\"a\"r"}))))
+	assert.Equal(t, `,"foo":"3"`, formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", 3}))))
+	assert.Equal(t, `,"foo":"4.131313131"`, formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", float64(4.131313131)}))))
+	assert.Equal(t, "", formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs(nil))))
+	assert.Equal(t, "", formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{2, 3}))))
+	assert.Equal(t, `,"foo":"bar","bar":"buzz"`, formatters.ExtraJSONContext(attrHolderImpl(formatters.ToSlogAttrs([]interface{}{"foo", "bar", 2, 3, "bar", "buzz"}))))
 }
 
 func benchmarkLogFormatWithContext(logFormat string, b *testing.B) {
