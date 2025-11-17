@@ -194,8 +194,8 @@ cc_library(
     name = "dynload_shlib",
     srcs = ["Python/dynload_shlib.c", ":python_headers"],
     local_defines = select({
-        "@@//:linux_x86_64": ['SOABI=\\"cpython-315-x86_64-linux-gnu\\"'],
-        "@@//:linux_arm64": ['SOABI=\\"cpython-315-aarch64-linux-gnu\\"'],
+        "@@//:linux_x86_64": ['SOABI=\\"cpython-313-x86_64-linux-gnu\\"'],
+        "@@//:linux_arm64": ['SOABI=\\"cpython-313-aarch64-linux-gnu\\"'],
     }) + COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
