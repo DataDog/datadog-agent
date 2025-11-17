@@ -23,7 +23,7 @@ var (
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
-	usmEncoders  []usmEncoder
+	usmEncoders  []USMEncoder
 	dnsFormatter *dnsFormatter
 	ipc          ipCache
 	routeIndex   map[network.Via]RouteIdx
@@ -43,7 +43,7 @@ func NewConnectionsModeler(conns *network.Connections) (*ConnectionsModeler, err
 		return nil, fmt.Errorf("failed to get root namespace PID: %w", err)
 	}
 	return &ConnectionsModeler{
-		usmEncoders:  initializeUSMEncoders(conns),
+		usmEncoders:  InitializeUSMEncoders(conns),
 		ipc:          ipc,
 		dnsFormatter: newDNSFormatter(conns, ipc),
 		routeIndex:   make(map[network.Via]RouteIdx),

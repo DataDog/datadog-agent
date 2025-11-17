@@ -8,6 +8,7 @@
 package profile
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -39,6 +40,8 @@ const (
 	Timestamp MetadataType = "timestamp"
 	// ConfigSize represents capturing a number that would correlate with the size of a configuration
 	ConfigSize MetadataType = "config_size"
+	// Author represents the username/identifier of the person who made the latest change if available
+	Author MetadataType = "author"
 )
 
 // ValidationRule represents patterns that should be expected from valid output from a command
@@ -51,28 +54,35 @@ type ValidationRule struct {
 type RedactionRule struct {
 	Regex       *regexp.Regexp `json:"regex" yaml:"regex"`
 	Replacement string         `json:"replacement" yaml:"replacement"`
+	Multiline   bool           `json:"multiline" yaml:"multiline"`
 }
 
 // ExtractedMetadata is a means to hold metadata to be emitted as metrics or sent as part of the payload
 type ExtractedMetadata struct {
 	Timestamp  int64
 	ConfigSize int
+	Author     string
 }
 
 // ProcessCommandOutput is for applying redactions, validating, and extracting metadata from a configuration pulled from a device
 func (p *NCMProfile) ProcessCommandOutput(ct CommandType, output []byte) ([]byte, *ExtractedMetadata, error) {
-	if err := p.ValidateOutput(ct, output); err != nil {
+	normalizedOutput := normalizeOutput(output)
+	if err := p.ValidateOutput(ct, normalizedOutput); err != nil {
 		return []byte{}, nil, err
 	}
-	redactedOutput, err := p.applyRedactions(ct, output)
+	redactedOutput, err := p.applyRedactions(ct, normalizedOutput)
 	if err != nil {
 		return []byte{}, nil, err
 	}
-	metadata, err := p.extractMetadata(ct, output)
+	metadata, err := p.extractMetadata(ct, normalizedOutput)
 	if err != nil {
 		return []byte{}, nil, err
 	}
 	return redactedOutput, metadata, nil
+}
+
+func normalizeOutput(output []byte) []byte {
+	return bytes.ReplaceAll(output, []byte{'\r', '\n'}, []byte{'\n'})
 }
 
 func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedMetadata, error) {
@@ -89,7 +99,7 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 		switch rule.Type {
 		case Timestamp:
 			match := rule.Regex.FindSubmatch(output)
-			if match == nil || len(match) < 2 {
+			if len(match) < 2 {
 				log.Warnf("could not parse timestamp for profile %s", p.Name)
 				continue
 			}
@@ -113,6 +123,14 @@ func (p *NCMProfile) extractMetadata(ct CommandType, output []byte) (*ExtractedM
 				continue
 			}
 			result.ConfigSize = size
+		case Author:
+			matches := rule.Regex.FindSubmatch(output)
+			if len(matches) < 2 {
+				log.Warnf("could not parse author for profile %s", p.Name)
+				continue
+			}
+			author := string(matches[1])
+			result.Author = author
 		}
 	}
 	return result, nil
@@ -174,6 +192,10 @@ func (c *Commands) initializeScrubber() {
 			Regex: rules.RedactionRules[i].Regex,
 			Repl:  []byte(rules.RedactionRules[i].Replacement),
 		}
-		c.Scrubber.AddReplacer(scrubber.SingleLine, replacer)
+		mode := scrubber.SingleLine
+		if rules.RedactionRules[i].Multiline {
+			mode = scrubber.MultiLine
+		}
+		c.Scrubber.AddReplacer(mode, replacer)
 	}
 }

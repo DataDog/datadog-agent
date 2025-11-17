@@ -1,0 +1,23 @@
+From aa78a8a5114640551d1e08861d3d1ec33232a33f Mon Sep 17 00:00:00 2001
+From: Alex Lopez <alex.lopez@datadoghq.com>
+Date: Thu, 6 Nov 2025 16:29:59 +0100
+Subject: [PATCH] Tweak build script to allow injecting external dependencies
+
+---
+ PCbuild/build.bat | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/PCbuild/build.bat b/PCbuild/build.bat
+index 6c76f09a071..b4009671306 100644
+--- a/PCbuild/build.bat
++++ b/PCbuild/build.bat
+@@ -107,7 +107,7 @@ if "%IncludeCTypes%"=="" set IncludeCTypes=true
+ if "%IncludeSSL%"=="" set IncludeSSL=true
+ if "%IncludeTkinter%"=="" set IncludeTkinter=true
+ 
+-if "%IncludeExternals%"=="true" call "%dir%get_externals.bat"
++rem if "%IncludeExternals%"=="true" call "%dir%get_externals.bat"
+ 
+ if "%do_pgo%" EQU "true" if "%platf%" EQU "x64" (
+     if "%PROCESSOR_ARCHITEW6432%" NEQ "AMD64" if "%PROCESSOR_ARCHITECTURE%" NEQ "AMD64" (
+

@@ -39,8 +39,7 @@ func TestGetSyslogURI(t *testing.T) {
 func TestSetupLoggingNowhere(t *testing.T) {
 	// setup logger so that it logs nowhere: i.e.  not to file, not to syslog, not to console
 	mockConfig := configmock.New(t)
-	seelogConfig, _ = buildLoggerConfig("agent", log.InfoLvl, "", "", false, false, false, mockConfig)
-	loggerInterface, err := GenerateLoggerInterface(seelogConfig)
+	loggerInterface, err := buildLogger("agent", log.InfoLvl, "", "", false, false, false, mockConfig)
 
 	assert.Nil(t, loggerInterface)
 	assert.NotNil(t, err)

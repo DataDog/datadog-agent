@@ -102,6 +102,11 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	v, err := rd.Read()
 	log.Printf("err: %v", err)
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "expected deadline exceeded, got %#+v, %#+v", err, v)
+
+	// Check that throttling happened.
+	stats := program.RuntimeStats()
+	require.Greater(t, int(stats.HitCnt), expectedEvents)
+	require.Greater(t, int(stats.ThrottledCnt), 0)
 }
 
 func refreshesBudget(t *testing.T, busyloopPath string) {
