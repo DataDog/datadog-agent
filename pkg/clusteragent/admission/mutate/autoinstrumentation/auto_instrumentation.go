@@ -90,11 +90,9 @@ func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 type libInfoSource int
 
 const (
-	// libInfoSourceNone is no source provided.
-	libInfoSourceNone libInfoSource = iota
 	// libInfoSourceLibInjection is when the user sets up annotations on their pods for
 	// library injection and single step is disabled.
-	libInfoSourceLibInjection
+	libInfoSourceLibInjection libInfoSource = iota
 	// libInfoSourceSingleStepInstrumentation is when we are using the instrumentation config
 	// to determine which libraries to inject.
 	libInfoSourceSingleStepInstrumentation
