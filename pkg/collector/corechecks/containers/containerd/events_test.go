@@ -204,10 +204,6 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 		},
 	}
 
-	sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil)
-	sub.CheckEvents()
-	assert.Eventually(t, sub.isRunning, testTimeout, testTicker) // Wait until it's processing events
-
 	tests := []struct {
 		name                   string
 		containerID            string
@@ -251,6 +247,11 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 			defaultExcludePauseContainers := mockConfig.GetBool("exclude_pause_container")
 			mockConfig.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
+			// Create a new subscriber for each test case so it picks up the correct config value
+			sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil)
+			sub.CheckEvents()
+			assert.Eventually(t, sub.isRunning, testTimeout, testTicker) // Wait until it's processing events
+
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
 				assert.NoError(t, err)
@@ -265,24 +266,22 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 			assert.NoError(t, err)
 			cha <- &eventContainerDelete
 
-			if test.expectsEvents {
-				var flushed []containerdEvent
-				assert.Eventually(t, func() bool {
-					flushed = sub.Flush(time.Now().Unix())
-					if test.generateCreateEvent {
-						return len(flushed) == 3 // create container + delete task + delete container
-					}
-					return len(flushed) == 2 // delete task + delete container
-				}, testTimeout, testTicker)
+			// Stop the subscriber before checking events to avoid race condition
+			errorsCh <- fmt.Errorf("stop subscriber")
+			assert.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
+
+			flushed := sub.Flush(time.Now().Unix())
+			if !test.expectsEvents {
+				assert.Empty(t, flushed)
+			} else if test.generateCreateEvent {
+				assert.Len(t, flushed, 3) // create container + delete task + delete container
 			} else {
-				assert.Empty(t, sub.Flush(time.Now().Unix()))
+				assert.Len(t, flushed, 2) // delete task + delete container
 			}
 
 			mockConfig.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
-
-	errorsCh <- fmt.Errorf("stop subscriber")
 }
 
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
@@ -290,7 +289,8 @@ func TestComputeEvents(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	configYaml := `
 cel_workload_exclude:
-  - products: metrics
+  - products:
+      - metrics
     rules:
       containers:
         - container.image.reference.matches('not-monitored')

@@ -27,6 +27,7 @@ include:
   - .gitlab/internal_kubernetes_deploy/include.yml
   - .gitlab/lint/include.yml
   - .gitlab/maintenance_jobs/include.yml
+  - .gitlab/network_device_build/network_device_build.yml
   - .gitlab/notify/notify.yml
   - .gitlab/package_build/include.yml
   - .gitlab/packaging/include.yml
@@ -164,25 +165,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v79781370-ed414087
+  CI_IMAGE_BTF_GEN: v82436147-ae37cb6d
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v79781370-ed414087
+  CI_IMAGE_DOCKER_X64: v82436147-ae37cb6d
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v79781370-ed414087
+  CI_IMAGE_DOCKER_ARM64: v82436147-ae37cb6d
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v79781370-ed414087
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v82436147-ae37cb6d
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v79781370-ed414087
+  CI_IMAGE_LINUX: v82436147-ae37cb6d
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v79781370-ed414087
+  CI_IMAGE_RPM_X64: v82436147-ae37cb6d
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v79781370-ed414087
+  CI_IMAGE_RPM_ARM64: v82436147-ae37cb6d
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v79781370-ed414087
+  CI_IMAGE_RPM_ARMHF: v82436147-ae37cb6d
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v79330459-0f2eff53
+  CI_IMAGE_WIN_LTSC2022_X64: v81809683-27a1a12f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v79330459-0f2eff53
+  CI_IMAGE_WIN_LTSC2025_X64: v81809683-27a1a12f
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -683,6 +684,9 @@ workflow:
         - comp/core/workloadmeta/**/*
         - comp/core/autodiscovery/listeners/**/*
         - comp/core/autodiscovery/providers/**/*
+        - comp/forwarder/defaultforwarder/**/*
+        - comp/serializer/**/*
+        - pkg/aggregator/*/**
         - comp/languagedetection/**/*
         - pkg/clusteragent/admission/mutate/**/*
         - pkg/collector/corechecks/cluster/**/*
@@ -752,7 +756,6 @@ workflow:
         - comp/process/**/*
         - pkg/process/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
-        - comp/core/workloadmeta/collectors/internal/processlanguage/**/*
         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
       compare_to: $COMPARE_TO_BRANCH
 
@@ -1193,7 +1196,6 @@ workflow:
     max: 2
     exit_codes:
       - 42
-      - 101 # Failed to extract dependencies
     when:
       - runner_system_failure
       - stuck_or_timeout_failure

@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -227,6 +229,14 @@ type UserSessionContextSerializer struct {
 	K8SGroups []string `json:"k8s_groups,omitempty"`
 	// Extra of the Kubernetes "kubectl exec" session
 	K8SExtra map[string][]string `json:"k8s_extra,omitempty"`
+	// Port of the SSH session
+	SSHPort int `json:"ssh_port,omitempty"`
+	// Client IP of the SSH session
+	SSHClientIP string `json:"ssh_client_ip,omitempty"`
+	// Authentication method of the SSH session
+	SSHAuthMethod string `json:"ssh_auth_method,omitempty"`
+	// Public key of the SSH session
+	SSHPublicKey string `json:"ssh_public_key,omitempty"`
 }
 
 // ProcessSerializer serializes a process to JSON
@@ -976,15 +986,26 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 }
 
 func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event) *UserSessionContextSerializer {
-	e.FieldHandlers.ResolveUserSessionContext(ctx)
+	e.FieldHandlers.ResolveUserSessionContext(e, ctx)
+	// Init constants in case they are not initialized yet
+	if model.UserSessionTypeStrings == nil {
+		model.InitUserSessionTypes()
+	}
+	if model.SSHAuthMethodStrings == nil {
+		model.InitSSHAuthMethodConstants()
+	}
 
 	return &UserSessionContextSerializer{
-		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: usersession.Type(ctx.SessionType).String(),
-		K8SUsername: ctx.K8SUsername,
-		K8SUID:      ctx.K8SUID,
-		K8SGroups:   ctx.K8SGroups,
-		K8SExtra:    ctx.K8SExtra,
+		ID:            fmt.Sprintf("%x", ctx.ID),
+		SessionType:   model.UserSessionTypeStrings[usersession.Type(ctx.SessionType)],
+		K8SUsername:   ctx.K8SUsername,
+		K8SUID:        ctx.K8SUID,
+		K8SGroups:     ctx.K8SGroups,
+		K8SExtra:      ctx.K8SExtra,
+		SSHPort:       ctx.SSHPort,
+		SSHClientIP:   ctx.SSHClientIP.IP.String(),
+		SSHAuthMethod: model.SSHAuthMethodStrings[usersession.AuthType(ctx.SSHAuthMethod)],
+		SSHPublicKey:  ctx.SSHPublicKey,
 	}
 }
 
@@ -1210,6 +1231,12 @@ func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawP
 	if e.GetEventType() == model.RawPacketActionEventType {
 		rps.Dropped = new(bool)
 		*rps.Dropped = true
+	}
+
+	packet := gopacket.NewPacket(rp.Data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
+
+	for _, layer := range packet.Layers() {
+		rps.Layers = append(rps.Layers, &LayerSerializer{Type: layer.LayerType().String(), Layer: layer})
 	}
 
 	return rps

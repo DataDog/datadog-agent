@@ -647,7 +647,7 @@ func New() *AgentConfig {
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			MaxPayloadSize: 10 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
 			Enabled:    true,
@@ -664,7 +664,12 @@ func computeGlobalTags() map[string]string {
 	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
 	}
-	return make(map[string]string)
+
+	tags := make(map[string]string)
+	if inECSManagedInstancesSidecar() {
+		tags["origin"] = "ecs_managed_instances"
+	}
+	return tags
 }
 
 // ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
@@ -768,4 +773,8 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
+}
+
+func inECSManagedInstancesSidecar() bool {
+	return os.Getenv("DD_ECS_DEPLOYMENT_MODE") == "sidecar" && os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
 }
