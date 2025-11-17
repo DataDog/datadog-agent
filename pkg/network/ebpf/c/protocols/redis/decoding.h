@@ -161,9 +161,9 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
 
     // Declare transaction at function scope to help verifier
     redis_transaction_t transaction = {};
-    transaction.tags = tags;
-    transaction.request_started = bpf_ktime_get_ns();
     bool should_extract_key = false;
+
+    // Validate command first (cheap operations)
     if (bpf_memcmp(method, REDIS_CMD_SET, sizeof(REDIS_CMD_SET)-1) == 0) {
         transaction.command = REDIS_SET;
         should_extract_key = true;
@@ -173,8 +173,12 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     } else if (bpf_memcmp(method, REDIS_CMD_PING, sizeof(REDIS_CMD_PING)-1) == 0) {
         transaction.command = REDIS_PING;
     } else {
-        return;
+        return;  // Invalid command - avoid expensive work
     }
+
+    // Initialize transaction only after validation passes
+    transaction.tags = tags;
+    transaction.request_started = bpf_ktime_get_ns();
 
     if (should_extract_key && is_redis_with_key_monitoring_enabled()) {
         // Read key name (only for GET/SET, not PING)
