@@ -630,12 +630,10 @@ func createCalendarApp(ctx context.Context, s OTelTestSuite, ust bool, service s
 			Type: corev1.ServiceTypeClusterIP,
 			Ports: []corev1.ServicePort{
 				{
-					Port: 9090,
-					TargetPort: intstr.IntOrString{
-						StrVal: "http",
-					},
-					Protocol: "TCP",
-					Name:     "http",
+					Port:       9090,
+					TargetPort: intstr.FromString("http"),
+					Protocol:   "TCP",
+					Name:       "http",
 				},
 			},
 			Selector: map[string]string{

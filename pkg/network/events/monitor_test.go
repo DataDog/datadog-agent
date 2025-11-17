@@ -276,9 +276,9 @@ func TestEventHandleTracerTags(t *testing.T) {
 		receivedProc := handler.events[0]
 		assert.Equal(t, uint32(1234), receivedProc.Pid)
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:env-from-envp"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("service:my-service"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("env:my-env"))
-		assert.Contains(t, receivedProc.Tags, intern.GetByString("version:my-version"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("service:my-service"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("env:my-env"))
+		assert.NotContains(t, receivedProc.Tags, intern.GetByString("version:my-version"))
 		assert.Contains(t, receivedProc.Tags, intern.GetByString("entrypoint.name:my-entrypoint"))
 	})
 

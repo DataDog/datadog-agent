@@ -7,7 +7,7 @@ require github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 require (
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/tinylib/msgp v1.4.0 // indirect
+	github.com/tinylib/msgp v1.5.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
 

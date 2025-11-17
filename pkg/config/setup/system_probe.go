@@ -45,9 +45,9 @@ const (
 	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
 
 	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
-	// info for dynamic instrumentation this is the directory where the debug
-	// info is decompressed into during processing.
-	defaultDynamicInstrumentationDebugInfoDir = "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+	// info for Dynamic Instrumentation. This is the directory where the DWARF
+	// data from analyzed binaries is decompressed into during processing.
+	defaultDynamicInstrumentationDebugInfoDir = "/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
 
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
@@ -189,6 +189,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_bytes"), int64(512<<20 /* 512MiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_percent"), float64(0.0))
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interval"), 1*time.Second)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "per_probe_cpu_limit"), 0.1)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "all_probes_cpu_limit"), 0.5)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interrupt_overhead"), 5*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.

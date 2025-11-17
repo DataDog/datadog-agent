@@ -8,9 +8,7 @@ from __future__ import annotations
 import glob
 import json
 import os
-import platform
 import re
-import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -76,24 +74,6 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     token = token_info['token']
 
     return token
-
-
-def get_gitlab_bot_token():
-    if "GITLAB_BOT_TOKEN" not in os.environ:
-        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
-        if platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
-                )
-                if output:
-                    return output.strip()
-            except subprocess.CalledProcessError:
-                print("GITLAB_BOT_TOKEN not found in keychain...")
-                pass
-        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
-        raise Exit(code=1)
-    return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:

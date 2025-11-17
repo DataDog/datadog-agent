@@ -157,6 +157,17 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 	if err != nil {
 		return nil, err
 	}
+
+	// Rectify the count value to the appropriate default value if not set.
+	if !coreConfig.IsConfigured("logs_config.fingerprint_config.count") {
+		switch config.FingerprintStrategy {
+		case types.FingerprintStrategyLineChecksum:
+			config.Count = types.DefaultLinesCount
+		case types.FingerprintStrategyByteChecksum:
+			config.Count = types.DefaultBytesCount
+		default:
+		}
+	}
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 

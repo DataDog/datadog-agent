@@ -543,7 +543,9 @@ func (p *EBPFProbe) Init() error {
 		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
 		p.useFentry = false
 
-		_ = p.Manager.Stop(manager.CleanAll)
+		if err := p.Manager.Stop(manager.CleanAll); err != nil {
+			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+		}
 
 		if err = p.initEBPFManager(); err != nil {
 			return err
@@ -1576,6 +1578,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
 			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
+		// Second handle for exec event because the context is required to detect a ssh session
+	case model.ExecEventType:
+		p.HandleSSHUserSession(event)
+
+	case model.ForkEventType:
+		p.HandleSSHUserSession(event)
 	}
 	return true
 }
@@ -2148,7 +2156,6 @@ func (p *EBPFProbe) Close() error {
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	close(p.tcRequests)
-
 	return p.Resolvers.Close()
 }
 

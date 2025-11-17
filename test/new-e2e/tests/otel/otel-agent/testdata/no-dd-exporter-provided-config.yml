@@ -6,7 +6,6 @@ exporters:
       key: '[REDACTED]'
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -95,7 +94,6 @@ receivers:
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         traces_url_path: /v1/traces
         write_timeout: 0s

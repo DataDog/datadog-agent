@@ -6,7 +6,6 @@ exporters:
       key: "[REDACTED]"
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -70,7 +69,6 @@ extensions:
     endpoint: localhost:7777
     idle_timeout: 0s
     read_header_timeout: 0s
-    response_headers: {}
     tls: null
     write_timeout: 0s
   health_check/dd-autoconfigured:
@@ -84,7 +82,6 @@ extensions:
     path: /
     read_header_timeout: 0s
     response_body: null
-    response_headers: {}
     tls: null
     write_timeout: 0s
   pprof/dd-autoconfigured:
@@ -99,7 +96,6 @@ extensions:
       enabled: false
     idle_timeout: 0s
     read_header_timeout: 0s
-    response_headers: {}
     tls: null
     write_timeout: 0s
 processors:
@@ -118,7 +114,6 @@ receivers:
         cors: null
         idle_timeout: 0s
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         write_timeout: 0s
     config:

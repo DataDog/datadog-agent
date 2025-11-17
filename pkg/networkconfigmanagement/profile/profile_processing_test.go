@@ -66,9 +66,6 @@ func Test_extractMetadata(t *testing.T) {
 			if len(tt.expectedLogMsgs) > 0 {
 				logOutput := b.String()
 				for _, msg := range tt.expectedLogMsgs {
-					fmt.Println(logOutput)
-					fmt.Println(msg)
-					fmt.Print(strings.Contains(logOutput, msg))
 					assert.True(t, strings.Contains(logOutput, msg))
 				}
 			}

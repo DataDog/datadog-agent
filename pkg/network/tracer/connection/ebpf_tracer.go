@@ -327,7 +327,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	return tr, nil
 }
 
-type lookupCertCb = func(certID uint32, refreshTimestamp bool) unique.Handle[ssluprobes.CertInfo]
+type lookupCertCb = func(certID uint32, refreshTimestamp bool) unique.Handle[network.CertInfo]
 
 func initClosedConnEventHandler(config *config.Config, lookupCert lookupCertCb, closedCallback func(*network.ConnectionStats), pool ddsync.Pool[network.ConnectionStats], extractor *batchExtractor) (*perf.EventHandler, error) {
 	connHasher := newCookieHasher()
@@ -861,17 +861,17 @@ func (t *ebpfTracer) refreshCertTimestamp(certID uint32, certItem *netebpf.CertI
 	return nil
 }
 
-func (t *ebpfTracer) getSSLCertInfo(certID uint32, refreshTimestamp bool) unique.Handle[ssluprobes.CertInfo] {
+func (t *ebpfTracer) getSSLCertInfo(certID uint32, refreshTimestamp bool) unique.Handle[network.CertInfo] {
 	certItem, err := t.lookupSSLCertItem(certID)
 	if err != nil {
 		log.Warnf("getSSLCertInfoAndRefresh failed to lookupSSLCertItem: %s", err)
-		return unique.Handle[ssluprobes.CertInfo]{}
+		return unique.Handle[network.CertInfo]{}
 	}
 	if certItem == nil {
-		return unique.Handle[ssluprobes.CertInfo]{}
+		return unique.Handle[network.CertInfo]{}
 	}
 
-	var certInfo ssluprobes.CertInfo
+	var certInfo network.CertInfo
 	certInfo.FromCertItem(certItem)
 
 	if refreshTimestamp {

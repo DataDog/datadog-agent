@@ -557,9 +557,12 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 		worker.FilterListUpdate <- matcher
 	}
 
+	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
+
 	// send the histogram filterlist used right before flushing to the serializer
 	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
-	s.demultiplexer.SetTimeSamplersFilterList(&histoFilterList)
+
+	s.demultiplexer.SetSamplersFilterList(&filterList, &histoFilterList)
 }
 
 // create a list based on all `metricNames` but only containing metric names
