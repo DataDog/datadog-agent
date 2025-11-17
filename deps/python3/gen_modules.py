@@ -25,8 +25,9 @@ def postprocess(modules):
         modules[expat_module]["includes"] = ["Modules/expat"]
     del modules["_tkinter"]
     modules["_ctypes"]["deps"] = ["@libffi//:ffi"]
-    del modules["_hashlib"]  # tmp until openssl is merged in main
-    del modules["_ssl"]  # tmp until openssl is merged in main
+    modules["_hashlib"]["deps"] = ["@openssl//:openssl"]
+    modules["_ssl"]["deps"] = ["@openssl//:openssl"]
+    modules["_ssl"]["textual_hdrs"] = ["Modules/_ssl/debughelpers.c", "Modules/_ssl/misc.c", "Modules/_ssl/cert.c"]
     del modules["_curses"]
     del modules["_curses_panel"]
 

@@ -357,6 +357,27 @@ PYTHON_MODULES = {
             "@libffi//:ffi"
         ]
     },
+    "_ssl": {
+        "srcs": [
+            "Modules/_ssl.c"
+        ],
+        "deps": [
+            "@openssl//:openssl"
+        ],
+        "textual_hdrs": [
+            "Modules/_ssl/debughelpers.c",
+            "Modules/_ssl/misc.c",
+            "Modules/_ssl/cert.c"
+        ]
+    },
+    "_hashlib": {
+        "srcs": [
+            "Modules/_hashopenssl.c"
+        ],
+        "deps": [
+            "@openssl//:openssl"
+        ]
+    },
     "xxsubtype": {
         "srcs": [
             "Modules/xxsubtype.c"
