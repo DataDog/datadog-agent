@@ -29,13 +29,13 @@ class WiFiIPCServer {
         // Use .background QoS for agent telemetry collection (not user-facing work)
         self.acceptQueue = DispatchQueue(label: "com.datadoghq.wifi.ipc", qos: .background)
 
-        NSLog("[WiFiIPCServer] Initialized with socket path: \(socketPath)")
+        Logger.info("Initialized with socket path: \(socketPath)", context: "WiFiIPCServer")
     }
 
     /// Start the IPC server
     func start() throws {
         guard !isRunning else {
-            NSLog("[WiFiIPCServer] Server already running")
+            Logger.info("Server already running", context: "WiFiIPCServer")
             return
         }
 
@@ -95,7 +95,7 @@ class WiFiIPCServer {
         // Verify permissions (optional logging)
         if let attrs = try? FileManager.default.attributesOfItem(atPath: socketPath),
            let posixPerms = attrs[.posixPermissions] as? NSNumber {
-            NSLog("[WiFiIPCServer] Socket created with permissions: \(String(format: "%o", posixPerms.uint16Value))")
+            Logger.debug("Socket created with permissions: \(String(format: "%o", posixPerms.uint16Value))", context: "WiFiIPCServer")
         }
 
         // Listen for connections
@@ -107,7 +107,7 @@ class WiFiIPCServer {
         }
 
         isRunning = true
-        NSLog("[WiFiIPCServer] Server started on \(socketPath)")
+        Logger.info("Server started on \(socketPath)", context: "WiFiIPCServer")
 
         // Start accepting connections on background queue
         acceptQueue.async { [weak self] in
@@ -129,7 +129,7 @@ class WiFiIPCServer {
         // Clean up socket file
         try? FileManager.default.removeItem(atPath: socketPath)
 
-        NSLog("[WiFiIPCServer] Server stopped")
+        Logger.info("Server stopped", context: "WiFiIPCServer")
     }
 
     // Private Methods
@@ -141,7 +141,7 @@ class WiFiIPCServer {
         var isDirectory: ObjCBool = false
         if fileManager.fileExists(atPath: socketDir, isDirectory: &isDirectory) {
             if isDirectory.boolValue {
-                NSLog("[WiFiIPCServer] Socket directory exists: \(socketDir)")
+                Logger.debug("Socket directory exists: \(socketDir)", context: "WiFiIPCServer")
                 return // Directory already exists
             }
             // Path exists but is not a directory
@@ -152,26 +152,26 @@ class WiFiIPCServer {
         // Try to create directory (may fail if we don't have permissions)
         do {
             try fileManager.createDirectory(atPath: socketDir, withIntermediateDirectories: true, attributes: nil)
-            NSLog("[WiFiIPCServer] Created socket directory: \(socketDir)")
+            Logger.info("Created socket directory: \(socketDir)", context: "WiFiIPCServer")
         } catch {
             // Directory creation failed - log detailed error
-            NSLog("[WiFiIPCServer] ERROR: Cannot create socket directory \(socketDir)")
-            NSLog("[WiFiIPCServer] ERROR: \(error.localizedDescription)")
-            NSLog("[WiFiIPCServer] The agent installer must create this directory during installation")
+            Logger.error("Cannot create socket directory \(socketDir)", context: "WiFiIPCServer")
+            Logger.error("\(error.localizedDescription)", context: "WiFiIPCServer")
+            Logger.error("The agent installer must create this directory during installation", context: "WiFiIPCServer")
             throw NSError(domain: "WiFiIPCServer", code: 6,
                          userInfo: [NSLocalizedDescriptionKey: "Cannot create socket directory \(socketDir). Ensure /var/run/datadog-agent exists with proper permissions. Error: \(error.localizedDescription)"])
         }
     }
 
     private func acceptLoop() {
-        NSLog("[WiFiIPCServer] Accept loop started")
+        Logger.info("Accept loop started", context: "WiFiIPCServer")
 
         while isRunning {
             let clientFD = accept(socketFileDescriptor, nil, nil)
 
             if clientFD < 0 {
                 if isRunning {
-                    NSLog("[WiFiIPCServer] Accept failed: \(String(cString: strerror(errno)))")
+                    Logger.error("Accept failed: \(String(cString: strerror(errno)))", context: "WiFiIPCServer")
                 }
                 continue
             }
@@ -182,7 +182,7 @@ class WiFiIPCServer {
             }
         }
 
-        NSLog("[WiFiIPCServer] Accept loop ended")
+        Logger.info("Accept loop ended", context: "WiFiIPCServer")
     }
 
     private func handleClient(_ clientFD: Int32) {
@@ -199,7 +199,7 @@ class WiFiIPCServer {
         let bytesRead = read(clientFD, &buffer, buffer.count)
 
         guard bytesRead > 0 else {
-            NSLog("[WiFiIPCServer] Failed to read from client")
+            Logger.error("Failed to read from client", context: "WiFiIPCServer")
             return
         }
 
@@ -207,12 +207,12 @@ class WiFiIPCServer {
 
         // Parse request
         guard let request = try? JSONDecoder().decode(WiFiIPCRequest.self, from: requestData) else {
-            NSLog("[WiFiIPCServer] Failed to decode request")
+            Logger.error("Failed to decode request", context: "WiFiIPCServer")
             sendErrorResponse(clientFD, error: "Invalid request format")
             return
         }
 
-        NSLog("[WiFiIPCServer] Received command: \(request.command)")
+        Logger.debug("Received command: \(request.command)", context: "WiFiIPCServer")
 
         // Handle command
         switch request.command {
@@ -222,14 +222,14 @@ class WiFiIPCServer {
             sendResponse(clientFD, response: response)
 
         default:
-            NSLog("[WiFiIPCServer] Unknown command: \(request.command)")
+            Logger.error("Unknown command: \(request.command)", context: "WiFiIPCServer")
             sendErrorResponse(clientFD, error: "Unknown command: \(request.command)")
         }
     }
 
     private func sendResponse(_ clientFD: Int32, response: WiFiIPCResponse) {
         guard let responseData = try? JSONEncoder().encode(response) else {
-            NSLog("[WiFiIPCServer] Failed to encode response")
+            Logger.error("Failed to encode response", context: "WiFiIPCServer")
             return
         }
 

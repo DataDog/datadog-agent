@@ -54,19 +54,19 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         self.locationManager.delegate = self
         
         let status = getAuthorizationStatus()
-        NSLog("[WiFiDataProvider] Initialized with authorization status: \(authorizationStatusString())")
+        Logger.info("Initialized with authorization status: \(authorizationStatusString())", context: "WiFiDataProvider")
         
         // Log messages if permission not granted
         if status != .authorizedAlways {
-            NSLog("[WiFiDataProvider] Location permission not granted - SSID/BSSID will be unavailable")
-            NSLog("[WiFiDataProvider] To enable: System Settings → Privacy & Security → Location Services → Datadog Agent")
+            Logger.info("Location permission not granted - SSID/BSSID will be unavailable", context: "WiFiDataProvider")
+            Logger.info("To enable: System Settings → Privacy & Security → Location Services → Datadog Agent", context: "WiFiDataProvider")
             
             // Only attempt prompt if GUI environment is available (preserves retry opportunities in headless mode)
             if isGUIAvailable() {
-                NSLog("[WiFiDataProvider] GUI environment detected, attempting permission prompt...")
+                Logger.info("GUI environment detected, attempting permission prompt...", context: "WiFiDataProvider")
                 attemptPermissionPrompt()
             } else {
-                NSLog("[WiFiDataProvider] Headless environment detected, skipping permission prompt (will retry when GUI available)")
+                Logger.info("Headless environment detected, skipping permission prompt (will retry when GUI available)", context: "WiFiDataProvider")
             }
         }
     }
@@ -88,21 +88,21 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             task.waitUntilExit()
 
             guard task.terminationStatus == 0 else {
-                NSLog("[WiFiDataProvider] launchctl managername failed (exit code: \(task.terminationStatus))")
+                Logger.error("launchctl managername failed (exit code: \(task.terminationStatus))", context: "WiFiDataProvider")
                 return false
             }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-            NSLog("[WiFiDataProvider] Session manager type: \(output)")
+            Logger.info("Session manager type: \(output)", context: "WiFiDataProvider")
 
             // Only "Aqua" indicates a GUI session where dialogs can be displayed
             // Other values: "Background" (SSH/daemon), "LoginWindow" (login screen)
             return output == "Aqua"
 
         } catch {
-            NSLog("[WiFiDataProvider] Failed to check session type: \(error)")
+            Logger.error("Failed to check session type: \(error)", context: "WiFiDataProvider")
             return false
         }
     }
@@ -116,21 +116,21 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         guard authStatus != .authorizedAlways else {
             return
         }
-        
+
         // Only show once per session (prevents repeated prompts after dismissal)
         guard !sessionPromptAttempted else {
-            NSLog("[WiFiDataProvider] Permission prompt already attempted this session, skipping")
+            Logger.debug("Permission prompt already attempted this session, skipping", context: "WiFiDataProvider")
             return
         }
-        
+
         // Don't spawn duplicate if dialog process is currently running
         if let process = permissionPromptProcess, process.isRunning {
-            NSLog("[WiFiDataProvider] Permission dialog process still running, skipping duplicate")
+            Logger.debug("Permission dialog process still running, skipping duplicate", context: "WiFiDataProvider")
             return
         }
-        
-        NSLog("[WiFiDataProvider] Attempting to prompt for location permission via detached process...")
-        
+
+        Logger.info("Attempting to prompt for location permission via detached process...", context: "WiFiDataProvider")
+
         // Spawn detached osascript process to show dialog and open System Settings
         let script = """
         do shell script "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices'" & ¬
@@ -162,9 +162,9 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             // Don't wait for completion - let it run detached
             permissionPromptProcess = task
             sessionPromptAttempted = true  // Only set on successful spawn
-            NSLog("[WiFiDataProvider] Permission prompt process spawned (PID: \(task.processIdentifier))")
+            Logger.info("Permission prompt process spawned (PID: \(task.processIdentifier))", context: "WiFiDataProvider")
         } catch {
-            NSLog("[WiFiDataProvider] Failed to spawn permission prompt: \(error)")
+            Logger.error("Failed to spawn permission prompt: \(error)", context: "WiFiDataProvider")
             permissionPromptProcess = nil
             // sessionPromptAttempted stays false - can retry later
         }
@@ -180,10 +180,10 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         // for location permission (if GUI available)
         if !isAuthorized && !firstWiFiRequestMade {
             if isGUIAvailable() {
-                NSLog("[WiFiDataProvider] First WiFi data request without permission, attempting prompt...")
+                Logger.info("First WiFi data request without permission, attempting prompt...", context: "WiFiDataProvider")
                 attemptPermissionPrompt()
             } else {
-                NSLog("[WiFiDataProvider] First WiFi data request without permission, but headless environment - skipping prompt")
+                Logger.info("First WiFi data request without permission, but headless environment - skipping prompt", context: "WiFiDataProvider")
             }
             firstWiFiRequestMade = true
         }
@@ -192,7 +192,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let client = CWWiFiClient.shared()
 
         guard let interface = client.interface() else {
-            NSLog("[WiFiDataProvider] ERROR: No WiFi interface available")
+            Logger.error("No WiFi interface available", context: "WiFiDataProvider")
             return createErrorData(message: "No WiFi interface", authorized: isAuthorized)
         }
 
@@ -201,7 +201,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
         // Check if interface is active
         if phyModeStr == "None" {
-            NSLog("[WiFiDataProvider] WiFi interface is not active (PHY mode: None)")
+            Logger.info("WiFi interface is not active (PHY mode: None)", context: "WiFiDataProvider")
             return WiFiData(
                 rssi: 0,
                 ssid: "",
@@ -226,7 +226,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
         // Log if SSID/BSSID are empty (might indicate permission issue)
         if !isAuthorized && (ssid.isEmpty || bssid.isEmpty) {
-            NSLog("[WiFiDataProvider] WARN: SSID/BSSID empty - location permission not granted")
+            Logger.info("WARN: SSID/BSSID empty - location permission not granted", context: "WiFiDataProvider")
         }
 
         let wifiData = WiFiData(
@@ -245,7 +245,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             error: nil
         )
 
-        NSLog("[WiFiDataProvider] Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized)")
+        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized)", context: "WiFiDataProvider")
         return wifiData
     }
 
@@ -255,7 +255,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // not from programmatic permission requests (which don't work for LaunchAgent apps).
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = getAuthorizationStatus()
-        NSLog("[WiFiDataProvider] Location authorization changed to: \(authorizationStatusString())")
+        Logger.info("Location authorization changed to: \(authorizationStatusString())", context: "WiFiDataProvider")
         
         // Reset flags when authorization status changes
         // This allows showing the prompt again if permission is revoked or status changes
@@ -265,15 +265,15 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
 
         switch status {
         case .authorizedAlways:
-            NSLog("[WiFiDataProvider] Location permission GRANTED - WiFi SSID/BSSID will be available")
+            Logger.info("Location permission GRANTED - WiFi SSID/BSSID will be available", context: "WiFiDataProvider")
         case .denied:
-            NSLog("[WiFiDataProvider] Location permission DENIED - WiFi SSID/BSSID will be unavailable")
+            Logger.info("Location permission DENIED - WiFi SSID/BSSID will be unavailable", context: "WiFiDataProvider")
         case .restricted:
-            NSLog("[WiFiDataProvider] Location permission RESTRICTED")
+            Logger.info("Location permission RESTRICTED", context: "WiFiDataProvider")
         case .notDetermined:
-            NSLog("[WiFiDataProvider] Location permission NOT DETERMINED")
+            Logger.info("Location permission NOT DETERMINED", context: "WiFiDataProvider")
         @unknown default:
-            NSLog("[WiFiDataProvider] Unknown authorization status: \(status.rawValue)")
+            Logger.error("Unknown authorization status: \(status.rawValue)", context: "WiFiDataProvider")
         }
     }
 
