@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package compliance implements a specific part of the datadog-agent
+// responsible for scanning host and containers and report various
+// misconfigurations and compliance issues.
 package compliance
 
 import (
@@ -23,7 +26,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -42,7 +44,7 @@ func StartCompliance(log log.Component,
 	filterStore workloadfilter.Component,
 	compression compression.Component,
 	ipc ipc.Component,
-) (*compliance.Agent, error) {
+) (*Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
 	configDir := config.GetString("compliance_config.dir")
@@ -59,11 +61,11 @@ func StartCompliance(log log.Component,
 	}
 	stopper.Add(context)
 
-	resolverOptions := compliance.ResolverOptions{
+	resolverOptions := ResolverOptions{
 		Hostname:           hostname,
 		HostRoot:           os.Getenv("HOST_ROOT"),
-		DockerProvider:     compliance.DefaultDockerProvider,
-		LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
+		DockerProvider:     DefaultDockerProvider,
+		LinuxAuditProvider: DefaultLinuxAuditProvider,
 	}
 
 	if metricsEnabled {
@@ -75,17 +77,17 @@ func StartCompliance(log log.Component,
 		sysProbeClient = newSysProbeClient(config.SocketAddress)
 	}
 
-	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
-		compliance.KubernetesExporter,
+	enabledConfigurationsExporters := []ConfigurationExporter{
+		KubernetesExporter,
 	}
 	if config.GetBool("compliance_config.database_benchmarks.enabled") {
-		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
+		enabledConfigurationsExporters = append(enabledConfigurationsExporters, DBExporter)
 	}
 
-	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
+	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
-	agent := compliance.NewAgent(telemetrySender, wmeta, ipc, filterStore, compliance.AgentOptions{
+	agent := NewAgent(telemetrySender, wmeta, ipc, filterStore, AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,
