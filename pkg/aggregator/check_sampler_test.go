@@ -34,7 +34,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 
 func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -98,7 +98,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -152,7 +152,7 @@ func TestCheckRateSampling(t *testing.T) {
 
 func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -218,7 +218,7 @@ func TestHistogramCountSampling(t *testing.T) {
 
 func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -296,7 +296,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -350,9 +350,90 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue)
 }
 
+func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	checkSampler.addBucket(&metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           6.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Timestamp:       12400.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	})
+	checkSampler.commit(12401)
+
+	checkSampler.addBucket(&metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           9.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Timestamp:       12410.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+	})
+
+	checkSampler.commit(12411)
+
+	checkSampler.addBucket(&metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           2.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Timestamp:       12420.0,
+		Monotonic:       true,
+		FlushFirstValue: true,
+	})
+
+	checkSampler.commit(12421)
+
+	checkSampler.addBucket(&metrics.HistogramBucket{
+		Name:            "my.histogram",
+		Value:           1.0,
+		LowerBound:      10.0,
+		UpperBound:      20.0,
+		Timestamp:       12440.0,
+		Monotonic:       true,
+		FlushFirstValue: false,
+	})
+
+	checkSampler.commit(12441)
+
+	_, flushed := checkSampler.flush()
+
+	require.Len(t, flushed, 2)
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		Name:       "my.histogram",
+		ContextKey: generateContextKey(&metrics.HistogramBucket{Name: "my.histogram"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12410, Sketch: sketchOf(10, 20, 3)},
+		},
+	}, flushed[0], 0.01)
+
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		Name:       "my.histogram",
+		ContextKey: generateContextKey(&metrics.HistogramBucket{Name: "my.histogram"}),
+		Points: []metrics.SketchPoint{
+			{Ts: 12420, Sketch: sketchOf(10, 20, 2)},
+		},
+	}, flushed[1], 0.01)
+}
+
+func TestCheckHistogramBucketReset(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketReset)
+}
+
+func sketchOf(lower, upper float64, count uint) *quantile.Sketch {
+	s := quantile.Agent{}
+	s.InsertInterpolate(lower, upper, count)
+	return s.Finish()
+}
+
 func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	bucket1 := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -388,7 +469,7 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 
 func testCheckDistribution(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
