@@ -198,6 +198,7 @@ cc_library(
         "@@//:linux_arm64": ['SOABI=\\"cpython-315-aarch64-linux-gnu\\"'],
     }) + COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
     deps = [
         ":mimalloc",
     ],
@@ -277,6 +278,7 @@ cc_library(
         "Include/internal/mimalloc",
         "Objects/mimalloc",
     ],
+    copts = COMMON_COPTS,
     local_defines = PY_CORE_DEFINES,
     linkstatic = True,
 )
@@ -294,6 +296,7 @@ cc_library(
         "Modules/_decimal/libmpdec/mpsignal.c"
     ]) + [":python_headers"],
     includes = ["Modules/_decimal/libmpdec"],
+    copts = COMMON_COPTS,
     # These defines must be propagated to the dependents
     defines = [
         "CONFIG_64=1",
@@ -364,6 +367,7 @@ cc_library(
         #FIXME this is not correct when building for macOS
         'PYTHONFRAMEWORK=\\"\\"',
     ] + COMMON_DEFINES + PY_CORE_DEFINES,
+    copts = COMMON_COPTS,
     includes = _COMMON_INCLUDE_DIRS,
     deps = [
         ":mimalloc",
