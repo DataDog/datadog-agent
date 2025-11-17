@@ -368,16 +368,17 @@ def test(
         "extra_args": extra_args or "",
     }
 
-    # Test
-    if build_stdlib:
-        build_standard_lib(
-            ctx,
-            build_tags=unit_tests_tags,
-            cmd=stdlib_build_cmd,
-            env=env,
-            args=args,
-            test_profiler=test_profiler,
-        )
+    # TODO A
+    # # Test
+    # if build_stdlib:
+    #     build_standard_lib(
+    #         ctx,
+    #         build_tags=unit_tests_tags,
+    #         cmd=stdlib_build_cmd,
+    #         env=env,
+    #         args=args,
+    #         test_profiler=test_profiler,
+    #     )
 
     if only_modified_packages:
         modules = get_modified_packages(ctx, build_tags=unit_tests_tags)
