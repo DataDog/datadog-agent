@@ -656,6 +656,13 @@ pkg_files(
     prefix = "lib/python" + _VERSION_FOR_SO,
 )
 
+pkg_files(
+    name = "misc_module_files",
+    srcs = glob(["Lib/ensurepip/_bundled/*.whl"]),
+    prefix = "lib/python" + _VERSION_FOR_SO,
+    strip_prefix = strip_prefix.from_root("Lib/"),
+)
+
 pkg_install(
     name = "install",
     srcs = [
