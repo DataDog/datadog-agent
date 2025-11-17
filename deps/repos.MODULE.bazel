@@ -196,9 +196,9 @@ http_archive(
 
 http_archive(
     name = "libxml2",
-    sha256 = "c008bac08fd5c7b4a87f7b8a71f283fa581d80d80ff8d2efd3b26224c39bc54c",
-    url = "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.1.tar.xz",
-    strip_prefix = "libxml2-2.15.1",
+    sha256 = "03d006f3537616833c16c53addcdc32a0eb20e55443cba4038307e3fa7d8d44b",
+    url = "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.5.tar.xz",
+    strip_prefix = "libxml2-2.14.5",
     files = {
         "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
