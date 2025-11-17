@@ -309,6 +309,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
+	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
