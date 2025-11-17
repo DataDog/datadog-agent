@@ -202,7 +202,8 @@ def sanitize_env_vars():
     """
     for env in os.environ:
         # Allow the env var that enables NodeTreeModel for testing purposes
-        if env == "DD_CONF_NODETREEMODEL":
+        # TODO A
+        if env in ("DD_CONF_NODETREEMODEL", "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "DD_ENV", "DD_SERVICE", "DD_VERSION", "DD_CIVISIBILITY_ENABLED", "DD_CIVISIBILITY_AGENTLESS_ENABLED", "DD_API_KEY"):
             continue
         if env.startswith("DD_"):
             del os.environ[env]
