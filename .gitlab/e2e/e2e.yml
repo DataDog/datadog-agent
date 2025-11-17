@@ -659,12 +659,17 @@ new-e2e-apm:
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
     REMOTE_STACK_CLEANING: "true"
+    TARGETS: ./tests/fleet
 
 new-e2e-fleet-config:
   extends: .new_e2e_fleet_template
   variables:
-    TARGETS: ./tests/fleet
     EXTRA_PARAMS: --run TestFleetConfig
+
+new-e2e-fleet-upgrade:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetUpgrade
 
 new-e2e-installer-script:
   extends: .new_e2e_template
