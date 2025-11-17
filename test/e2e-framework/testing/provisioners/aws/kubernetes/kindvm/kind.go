@@ -59,6 +59,3 @@ func Provisioner(opts ...provisionerOption) provisioners.TypedProvisioner[enviro
 	provisioner.SetDiagnoseFunc(DiagnoseFunc)
 	return provisioner
 }
-
-// KindRunFunc is the Pulumi run function that runs the provisioner
-// KindRunFunc has been replaced by scenarios/aws/kindvm.RunWithEnv
