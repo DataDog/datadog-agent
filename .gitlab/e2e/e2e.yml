@@ -116,7 +116,6 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
-  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
@@ -259,6 +258,8 @@ new-e2e-containers-eks-init:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-containers-eks:
   extends: .new_e2e_template_needs_container_deploy
@@ -274,6 +275,8 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -467,6 +470,8 @@ new-e2e-npm-eks-init:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-npm-eks:
   extends: .new_e2e_template
@@ -484,6 +489,8 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -854,6 +861,8 @@ new-e2e-otel-eks-init:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-otel-eks:
   extends: .new_e2e_template
@@ -871,6 +880,8 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-otel:
   extends: .new_e2e_template
