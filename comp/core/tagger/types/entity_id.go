@@ -83,7 +83,7 @@ const (
 	GPU EntityIDPrefix = "gpu"
 	// Kubelet is the prefix `kubelet`
 	Kubelet EntityIDPrefix = "kubelet"
-	// CRD is the prefix `crd`
+	// Crd is the prefix `crd`
 	Crd EntityIDPrefix = "crd"
 )
 
