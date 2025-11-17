@@ -18,6 +18,7 @@ PROTO_PKGS = {
     'process': False,
     'workloadmeta': False,
     'languagedetection': False,
+    'privateactionrunner': False,
     'remoteagent': False,
     'autodiscovery': False,
     'trace/idx': False,

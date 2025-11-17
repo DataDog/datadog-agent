@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package actionsclient;
+
+option go_package = "datadog/privateactionrunner/actionsclient";
+
+enum Client {
+  UNSPECIFIED = 0;
+  WORKFLOWS = 1;
+  APP_BUILDER = 2;
+  WORKFLOWS_SINGLE_ACTION_RUNNER = 4;
+}
