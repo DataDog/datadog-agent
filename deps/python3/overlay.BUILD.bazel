@@ -187,7 +187,32 @@ filegroup(
         "Python/emscripten_*.c",
         "Python/optimizer_bytecodes.c",
         "Python/frozen.c",
-    ])
+        "Python/sysmodule.c",
+        "Python/getplatform.c",
+    ]),
+)
+
+cc_library(
+    name = "sysmodule_o",
+    srcs = ["Python/sysmodule.c", ":python_headers", ":mimalloc_headers"],
+    includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
+    local_defines = [
+        'MULTIARCH=\\"x86_64-linux-gnu\\"',
+        'ABIFLAGS=\\"\\"',
+    ] + COMMON_DEFINES + PY_CORE_DEFINES,
+    linkstatic = True,
+)
+
+cc_library(
+    name = "getplatform_o",
+    srcs = ["Python/getplatform.c", ":python_headers"],
+    includes = _COMMON_INCLUDE_DIRS,
+    copts = COMMON_COPTS,
+    local_defines = [
+        'PLATFORM=\\"linux\\"',
+    ] + COMMON_DEFINES + PY_CORE_DEFINES,
+    linkstatic = True,
 )
 
 cc_library(
@@ -232,6 +257,8 @@ filegroup(
         ":object_srcs",
         ":python_srcs",
         ":modules_srcs",
+        ":sysmodule_o",
+        ":getplatform_o",
     ] + select({
         "@platforms//os:linux": [":dynload_shlib"],
     }) + PYTHON_CORE_MODULES_SRCS,
@@ -628,5 +655,7 @@ pkg_install(
         ":built_module_files",
         ":lib_files",
         ":bin_files",
+        ":sysconfigdata_files",
+        ":misc_module_files",
     ],
 )
