@@ -3,6 +3,8 @@ module github.com/DataDog/datadog-agent/internal/tools
 go 1.24.0
 
 require (
+	github.com/DataDog/dd-trace-go/v2 v2.3.0
+	github.com/DataDog/orchestrion v1.6.1
 	github.com/aarzilli/whydeadcode v0.0.0-20241226171816-ed86f8ea0a6f
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.0
@@ -38,12 +40,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.71.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.71.2 // indirect
 	github.com/DataDog/datadog-go/v5 v5.8.1 // indirect
-	github.com/DataDog/dd-trace-go/v2 v2.3.0 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.6.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250806100345-ca5e7fdaf7b6 // indirect
-	github.com/DataDog/go-sqllexer v0.1.8 // indirect
+	github.com/DataDog/go-sqllexer v0.1.9 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
-	github.com/DataDog/orchestrion v1.6.1 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24 // indirect
 	github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.0 // indirect
@@ -213,7 +213,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
 	github.com/onsi/gomega v1.36.3 // indirect
-	github.com/otiai10/copy v1.14.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.138.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
@@ -235,7 +235,6 @@ require (
 	github.com/quasilyte/regex/syntax v0.0.0-20210819130434-b3f0c404a727 // indirect
 	github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryancurrah/gomodguard v1.3.3 // indirect
@@ -298,9 +297,12 @@ require (
 	go-simpler.org/sloglint v0.7.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/component v1.44.0 // indirect
+	go.opentelemetry.io/collector/component/componenttest v0.138.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.44.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.44.0 // indirect
 	go.opentelemetry.io/collector/internal/telemetry v0.138.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.44.0 // indirect
+	go.opentelemetry.io/collector/processor/processortest v0.138.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.13.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/log v0.14.0 // indirect
