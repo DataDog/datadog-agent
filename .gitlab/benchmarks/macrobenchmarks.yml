@@ -15,7 +15,7 @@ variables:
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
   script:
-    - token="$(dda inv auth.gitlab --repo benchmarking-platform)" || exit $?; export token
+    - token="$(dda inv auth.gitlab --repo benchmarking-platform)"
     - git clone --branch trace-agent https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     - ./steps/run-benchmarks.sh
   artifacts:
