@@ -38,7 +38,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 		return
 	}
 	tp := idx.FromProto(trace.IdxTracerPayloads[0])
-	assert.Equal(c, "go", tp)
+	assert.Equal(c, "go", tp.LanguageName())
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}
@@ -54,7 +54,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 		assert.Equal(c, "go", lang)
 		priority, ok := sp.GetAttributeAsFloat64("_sampling_priority_v1")
 		assert.True(c, ok)
-		assert.Equal(c, 1, priority)
+		assert.Equal(c, 1.0, priority)
 		parentID := sp.ParentID()
 		if parentID == 0 {
 			topLevel, ok := sp.GetAttributeAsFloat64("_dd.top_level")
