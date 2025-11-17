@@ -15,6 +15,7 @@ import (
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -49,6 +50,9 @@ type Config struct {
 	// ProcessSyncDisabled disables the process sync for the module.
 	ProcessSyncDisabled bool
 
+	// CircuitBreakerConfig is the configuration for the circuit breaker enforcing probe cpu-limits.
+	CircuitBreakerConfig actuator.CircuitBreakerConfig
+
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
 		IRGeneratorOverride       func(IRGenerator) IRGenerator
@@ -75,6 +79,7 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
+		CircuitBreakerConfig:   getCircuitBreakerConfig(),
 	}
 	return c, nil
 }
@@ -112,6 +117,20 @@ func getDebugInfoDiskCacheConfig() (
 	cacheConfig.RequiredDiskSpaceBytes = requiredDiskSpaceBytes
 	cacheConfig.RequiredDiskSpacePercent = cfg.GetFloat64(key("required_disk_space_percent"))
 	return
+}
+
+func getCircuitBreakerConfig() actuator.CircuitBreakerConfig {
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
+	key := func(k string) string {
+		return sysconfig.FullKeyPath(diNS, "circuit_breaker", k)
+	}
+	return actuator.CircuitBreakerConfig{
+		Interval:          cfg.GetDuration(key("interval")),
+		PerProbeCPULimit:  cfg.GetFloat64(key("per_probe_cpu_limit")),
+		AllProbesCPULimit: cfg.GetFloat64(key("all_probes_cpu_limit")),
+		InterruptOverhead: cfg.GetDuration(key("interrupt_overhead")),
+	}
 }
 
 func withPath(u url.URL, path string) string {
