@@ -141,9 +141,9 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
 			DeviceIP:   req.DeviceIP,
 			ScanStatus: pendingStatus,
 		}
-		m.log.Infof("Queued scan request for device %s", req.DeviceIP)
+		m.log.Infof("Queued default scan request for device %s", req.DeviceIP)
 	default:
-		m.log.Warnf("Dropping scan request for device %s, scan queue is full", req.DeviceIP)
+		m.log.Warnf("Dropping default scan request for device %s, scan queue is full", req.DeviceIP)
 	}
 }
 
@@ -161,7 +161,7 @@ func (m *snmpScanManagerImpl) scanWorker() {
 
 			err := m.processScanRequest(req)
 			if err != nil {
-				m.log.Errorf("Error processing scan request for device '%s': %v", req.DeviceIP, err)
+				m.log.Errorf("Error processing default scan request for device '%s': %v", req.DeviceIP, err)
 			}
 		}
 	}
@@ -208,7 +208,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 	})
 	m.writeCache()
 
-	m.log.Infof("Successfully processed scan request for device '%s'", req.DeviceIP)
+	m.log.Infof("Successfully processed default scan request for device '%s'", req.DeviceIP)
 
 	return nil
 }
