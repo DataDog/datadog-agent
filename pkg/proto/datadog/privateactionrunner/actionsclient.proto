@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package actionsclient;
+package datadog.privateactionrunner.actionsclient;
 
-option go_package = "datadog/privateactionrunner/actionsclient";
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient";
 
 enum Client {
   UNSPECIFIED = 0;

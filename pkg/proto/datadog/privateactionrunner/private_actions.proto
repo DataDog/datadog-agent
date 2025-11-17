@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package private_actions;
+package datadog.privateactionrunner.privateactions;
 
-option go_package = "pkg/proto/privateactionrunner/privateactions";
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "datadog/privateactionrunner/actionsclient.proto";
