@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +31,7 @@ import (
 
 // ConfigureDeviceCgroups configures the cgroups for a process to allow access to the NVIDIA character devices
 // reapplyInfinitely controls whether the configuration should be reapplied infinitely (true) or only once (false)
-func ConfigureDeviceCgroups(pid uint32, hostRoot string, reapplyInterval time.Duration, reapplyInfinitely bool) error {
+func ConfigureDeviceCgroups(ctx context.Context, pid uint32, hostRoot string, reapplyInterval time.Duration, reapplyInfinitely bool) error {
 	cgroupMode := cgroups.Mode()
 	cgroupPath, err := getAbsoluteCgroupForProcess("/", hostRoot, uint32(os.Getpid()), pid, cgroupMode)
 	if err != nil {
@@ -44,49 +45,47 @@ func ConfigureDeviceCgroups(pid uint32, hostRoot string, reapplyInterval time.Du
 	}
 
 	// Now configure the cgroup device allow, depending on the cgroup version
-	if cgroupMode == cgroups.Legacy {
-		log.Infof("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
-		err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
-	} else {
-		log.Infof("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
-		err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
-	}
-
-	if err != nil {
+	if err := doCgroupDeviceConfig(pid, hostRoot, cgroupPath, cgroupMode); err != nil {
 		return fmt.Errorf("failed to configure cgroup device allow for cgroup path %s: %w", cgroupPath, err)
 	}
 
 	// Schedule background re-application if configured
 	if reapplyInterval > 0 {
-		scheduleReapply(pid, hostRoot, cgroupPath, cgroupMode, reapplyInterval, reapplyInfinitely)
+		log.Infof("Scheduling background re-application of cgroup device configuration for pid %d in %v, infinite repeats: %t", pid, reapplyInterval, reapplyInfinitely)
+		go func() {
+			ticker := time.NewTicker(reapplyInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					err := doCgroupDeviceConfig(pid, hostRoot, cgroupPath, cgroupMode)
+					if err != nil {
+						log.Warnf("Failed to re-apply cgroup device configuration for pid %d: %v", pid, err)
+					} else {
+						log.Infof("Successfully re-applied cgroup device configuration for pid %d", pid)
+					}
+
+					if !reapplyInfinitely {
+						return
+					}
+				}
+			}
+		}()
 	}
 
 	return nil
 }
 
-// scheduleReapply schedules the reapplication of cgroup device configuration
-// If reapplyInfinitely is true, it will reschedule itself after each execution
-func scheduleReapply(pid uint32, hostRoot, cgroupPath string, cgroupMode cgroups.CGMode, reapplyInterval time.Duration, reapplyInfinitely bool) {
-	time.AfterFunc(reapplyInterval, func() {
-		// Re-apply only the cgroup device configuration, not systemd
-		var err error
-		if cgroupMode == cgroups.Legacy {
-			err = configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
-		} else {
-			err = detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
-		}
+func doCgroupDeviceConfig(pid uint32, hostRoot, cgroupPath string, cgroupMode cgroups.CGMode) error {
+	if cgroupMode == cgroups.Legacy {
+		log.Debugf("Configuring PID %d cgroupv1 device allow, cgroup path %s", pid, cgroupPath)
+		return configureCgroupV1DeviceAllow(hostRoot, cgroupPath, nvidiaDeviceMajor)
+	}
 
-		if err != nil {
-			log.Warnf("Failed to re-apply cgroup device configuration for pid %d: %v", pid, err)
-		} else {
-			log.Debugf("Successfully re-applied cgroup device configuration for pid %d after %v interval", pid, reapplyInterval)
-		}
-
-		// If infinite reapplication is enabled, schedule the next reapplication
-		if reapplyInfinitely {
-			scheduleReapply(pid, hostRoot, cgroupPath, cgroupMode, reapplyInterval, reapplyInfinitely)
-		}
-	})
+	log.Debugf("Configuring PID %d cgroupv2 device programs, cgroup path %s", pid, cgroupPath)
+	return detachAllDeviceCgroupPrograms(hostRoot, cgroupPath)
 }
 
 const (
