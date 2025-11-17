@@ -112,6 +112,14 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 				}
 				in.Delim('}')
 			}
+		case "ssh_port":
+			out.SSHPort = int(in.Int())
+		case "ssh_client_ip":
+			out.SSHClientIP = string(in.String())
+		case "ssh_auth_method":
+			out.SSHAuthMethod = string(in.String())
+		case "ssh_public_key":
+			out.SSHPublicKey = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -215,6 +223,46 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 			}
 			out.RawByte('}')
 		}
+	}
+	if in.SSHPort != 0 {
+		const prefix string = ",\"ssh_port\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(in.SSHPort))
+	}
+	if in.SSHClientIP != "" {
+		const prefix string = ",\"ssh_client_ip\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.SSHClientIP))
+	}
+	if in.SSHAuthMethod != "" {
+		const prefix string = ",\"ssh_auth_method\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.SSHAuthMethod))
+	}
+	if in.SSHPublicKey != "" {
+		const prefix string = ",\"ssh_public_key\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.SSHPublicKey))
 	}
 	out.RawByte('}')
 }
