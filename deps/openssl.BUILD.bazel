@@ -95,6 +95,10 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
+    out_lib_dir = select({
+        "@//:linux_x86_64": "lib64",
+        "//conditions:default": "lib",
+    }),
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,
