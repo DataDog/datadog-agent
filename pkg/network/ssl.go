@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package ssluprobes contains the attachment logic for TLS cert collecting uprobes
-package ssluprobes
+package network
 
 import (
 	"time"
