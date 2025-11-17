@@ -92,6 +92,7 @@ func createRequest(agentURL string, data []byte, traceCount int) (*http.Request,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	// Following the same logic as the dd-trace-go tracer by https://github.com/DataDog/dd-trace-go/blob/0268bdb68c5abdf91ab210fdd46bcab64c814964/ddtrace/tracer/transport.go#L73-L98
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Datadog-Meta-Lang", "go")
 	req.Header.Set("Datadog-Meta-Lang-Version", strings.TrimPrefix(runtime.Version(), "go"))

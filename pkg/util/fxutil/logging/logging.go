@@ -21,12 +21,11 @@ func DefaultFxLoggingOption() fx.Option {
 	return fx.Options(
 		fx.WithLogger(
 			func() fxevent.Logger {
+				var logger fxevent.Logger = fxevent.NopLogger
 				if os.Getenv("TRACE_FX") == "1" {
-					// We log to stderr to avoid polluting the log file with Fx events
-					return withFxTracer(&fxevent.ConsoleLogger{W: os.Stderr}, starttime, os.Stderr)
+					logger = &fxevent.ConsoleLogger{W: os.Stderr}
 				}
-				// We log to stderr to avoid polluting the log file with Fx events
-				return withFxTracer(fxevent.NopLogger, starttime, os.Stderr)
+				return withFxTracer(logger, starttime, os.Stderr)
 			},
 		),
 	)
@@ -49,22 +48,12 @@ func EnableFxLoggingOnDebug[T Logger]() fx.Option {
 
 		// In order to keep track of fx event in the tracer, we need to update the inner loggers
 		// instead of replacing it with a new logger
-		if instrumentedLogger, ok := originalFxLogger.(*fxTracingLogger); ok {
+		if instrumentedLogger, ok := originalFxLogger.(*FxTracingLogger); ok {
 			agentLogger := fxEventLogger{logger: logger}
 			instrumentedLogger.UpdateInnerLoggers(&fxevent.ConsoleLogger{W: agentLogger}, agentLogger)
 			return instrumentedLogger
 		}
 		return &fxevent.ConsoleLogger{W: fxEventLogger{logger: logger}}
-	})
-}
-
-// EnableFxInitInstrumentation enables the sending of spans to the trace agent when the Fx initialization is complete.
-// This will only happens if DD_FX_TRACING_ENABLED is set to true.
-func EnableFxInitInstrumentation() fx.Option {
-	return fx.Invoke(func(logger fxevent.Logger) {
-		if instrumentedLogger, ok := logger.(*fxTracingLogger); ok {
-			instrumentedLogger.EnableSpansSending()
-		}
 	})
 }
 
