@@ -39,6 +39,7 @@ const (
 	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 	deploymentSource     = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesDeployment)
 	gpuSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
+	crdSource            = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )

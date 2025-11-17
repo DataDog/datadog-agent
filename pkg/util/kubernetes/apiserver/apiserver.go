@@ -48,6 +48,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+
+	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 )
 
 var (
@@ -141,6 +143,9 @@ type APIClient struct {
 
 	// DynamicInformerFactory gives access to dynamic informers
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
+
+	// CustomResourceDefinitionsFactory gives access to CustomResourceDefinition informers
+	APIExentionsInformerFactory apiextentionsinformer.SharedInformerFactory
 
 	//
 	// Internal
@@ -320,6 +325,15 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 	return informers.NewSharedInformerFactoryWithOptions(c.InformerCl, *resyncPeriod, options...)
 }
 
+// GetAPIExtensionsInformerWithOptions return the informer factory for customResourceDefinitions
+func (c *APIClient) GetAPIExtensionsInformerWithOptions(resyncPeriod *time.Duration, options ...apiextentionsinformer.SharedInformerOption) apiextentionsinformer.SharedInformerFactory {
+	if resyncPeriod == nil {
+		resyncPeriod = &c.defaultInformerResyncPeriod
+	}
+
+	return apiextentionsinformer.NewSharedInformerFactoryWithOptions(c.CRDInformerClient, *resyncPeriod, options...)
+}
+
 func (c *APIClient) connect() error {
 	var err error
 	// Clients
@@ -379,6 +393,7 @@ func (c *APIClient) connect() error {
 
 	// Creating informers
 	c.InformerFactory = c.GetInformerWithOptions(nil)
+	c.APIExentionsInformerFactory = c.GetAPIExtensionsInformerWithOptions(nil)
 
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||

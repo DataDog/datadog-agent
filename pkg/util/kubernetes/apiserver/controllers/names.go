@@ -16,9 +16,11 @@ const (
 	autoscalersControllerName controllerName = "autoscalers"
 	servicesControllerName    controllerName = "services"
 	endpointsControllerName   controllerName = "endpoints"
+	crdControllerName         controllerName = "crd"
 )
 
 const (
 	endpointsInformer apiserver.InformerName = "v1/endpoints"
 	servicesInformer  apiserver.InformerName = "v1/services"
+	crdInformer       apiserver.InformerName = "v1/crd"
 )

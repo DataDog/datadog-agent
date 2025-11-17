@@ -167,6 +167,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubeDeployment(ev)...)
 			case workloadmeta.KindGPU:
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
+			case workloadmeta.KindCRD:
+				tagInfos = append(tagInfos, c.handleCRD(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -748,6 +750,31 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
+}
+
+func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
+	crd := ev.Entity.(*workloadmeta.CRD)
+
+	tagList := taglist.NewTagList()
+
+	tagList.AddLow("crd_group", crd.Group)
+	tagList.AddLow("crd_kind", crd.Kind)
+	tagList.AddLow("crd_version", crd.Version)
+
+	low, orch, high, standard := tagList.Compute()
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               crdSource,
+			EntityID:             common.BuildTaggerEntityID(crd.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

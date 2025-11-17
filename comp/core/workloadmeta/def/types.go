@@ -52,6 +52,7 @@ const (
 	KindProcess                Kind = "process"
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
+	KindCRD                    Kind = "crd"
 )
 
 // Source is the source name of an entity.
@@ -111,6 +112,9 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
+
+	// SourceCRDCollector represents metadata collected form the CRD collector
+	SourceCRDCollector Source = "crd_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -2063,6 +2067,56 @@ func (g GPU) String(verbose bool) string {
 	if g.DeviceType == GPUDeviceTypeMIG {
 		_, _ = fmt.Fprintln(&sb, "Device Type: MIG")
 	}
+
+	return sb.String()
+}
+
+// CRD struct exposes known CRD group/kind/versions
+type CRD struct {
+	EntityID
+	EntityMeta
+	Group   string
+	Kind    string
+	Version string
+}
+
+var _ Entity = CRD{}
+
+// GetID returns the CRD entity ID
+func (crd CRD) GetID() EntityID {
+	return crd.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (crd CRD) Merge(e Entity) error {
+	otherCrd, ok := e.(CRD)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(crd, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (crd CRD) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(crd).(CRD)
+	return copyCrd
+}
+
+// String return the string representation of the given CRD entity.
+// set verbose to true to increase verbosity.
+func (crd CRD) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, crd.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Group:", crd.Group)
+	_, _ = fmt.Fprintln(&sb, "Kind:", crd.Kind)
+	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
 
 	return sb.String()
 }
