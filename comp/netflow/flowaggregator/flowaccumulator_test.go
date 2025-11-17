@@ -95,7 +95,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
@@ -172,7 +172,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
 	}
-	acc := newFlowAccumulator(flushConfig, common.DefaultAggregatorFlushInterval*time.Second, 3, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval*time.Second, 3, false, logger, rdnsQuerier)
 	acc.add(flowA1)
 	acc.add(flowA2)
 
@@ -252,7 +252,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: flushInterval,
 	}
-	acc := newFlowAccumulator(flushConfig, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
 	acc.scheduler = &ImmediateFlowScheduler{flushConfig: flushConfig}
 	acc.add(flow)
 
@@ -400,7 +400,7 @@ func Test_flowAccumulator_detectHashCollision(t *testing.T) {
 	flushConfig := common.FlushConfig{
 		FlowCollectionDuration: flushInterval,
 	}
-	acc := newFlowAccumulator(flushConfig, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	acc := newFlowAccumulator(flushConfig, ImmediateFlowScheduler{flushConfig: flushConfig}, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
 
 	// Then
 	assert.Equal(t, uint64(0), acc.hashCollisionFlowCount.Load())

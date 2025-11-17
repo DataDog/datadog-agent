@@ -46,7 +46,7 @@ type flowAccumulator struct {
 	rdnsQuerier rdnsquerier.Component
 }
 
-func newFlowAccumulator(flushConfig common.FlushConfig, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
 		FlushConfig:            flushConfig,
@@ -55,7 +55,7 @@ func newFlowAccumulator(flushConfig common.FlushConfig, aggregatorFlowContextTTL
 		portRollupThreshold:    portRollupThreshold,
 		portRollupDisabled:     portRollupDisabled,
 		hashCollisionFlowCount: atomic.NewUint64(0),
-		scheduler:              ImmediateFlowScheduler{flushConfig: flushConfig},
+		scheduler:              flowScheduler,
 		logger:                 logger,
 		rdnsQuerier:            rdnsQuerier,
 	}

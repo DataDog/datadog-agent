@@ -42,7 +42,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
-	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 )
@@ -62,6 +61,7 @@ func TestAggregator(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		MaxFlowsPerPeriod:                      0,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -175,10 +175,6 @@ func TestAggregator(t *testing.T) {
 	aggregator.FlushConfig.FlushTickFrequency = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
-	}
-	aggregator.TopNRestrictor = topn.NoopFilter{}
-	aggregator.flowAcc.scheduler = ImmediateFlowScheduler{
-		flushConfig: aggregator.FlushConfig,
 	}
 	inChan := aggregator.GetFlowInChan()
 
@@ -1195,3 +1191,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 		})
 	}
 }
+
+//func TestFlowAggregator_topNFlows(t *testing.T) {
+//
+//}

@@ -6,7 +6,9 @@
 // Package topn defines business logic for filtering NetFlow records to the Top "N" occurrences.
 package topn
 
-import "github.com/DataDog/datadog-agent/comp/netflow/common"
+import (
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+)
 
 type throttler struct {
 	flushConfig common.FlushConfig

@@ -93,15 +93,19 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
 		FlushTickFrequency:     flushFlowsToSendInterval,
 	}
+
 	var topNFilter FlowFlushFilter = topn.NoopFilter{}
+	var flowScheduler FlowScheduler = ImmediateFlowScheduler{}
 	if config.MaxFlowsPerPeriod > 0 {
 		topNFilter = topn.NewPerFlushFilter(int64(config.MaxFlowsPerPeriod), flushConfig)
+		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
 	}
+
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushConfig, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
 		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
@@ -163,7 +167,6 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 			agg.logger.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
-		fmt.Println("flushed flow: ", string(payloadBytes))
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
@@ -251,11 +254,18 @@ func (agg *FlowAggregator) flushLoop() {
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
 
-			// normalize flush time to the nearest flush tick frequency, this lets us more deterministically calculate
-			// the # of periods we're covering in this flush
+			// Calculate how many flushes should have happened since the last tick. Ticks can be missed for various reasons,
+			// including CPU pauses or if this goroutine gets blocked longer than usual waiting on network requests.
 			var expectedFlushes int64 = 1
 			if !lastFlushTime.IsZero() {
-				expectedFlushes = int64(flushStartTime.Sub(lastFlushTime) / agg.FlushConfig.FlushTickFrequency)
+				// add one millisecond to account for small variations in the time.Ticker
+				timeSinceLast := flushStartTime.Sub(lastFlushTime) + time.Millisecond
+
+				// if we know it will be at least ≥ 1, calculate it. We do not want this to not default to 0 for small
+				// time deltas.
+				if timeSinceLast > agg.FlushConfig.FlushTickFrequency {
+					expectedFlushes = int64(timeSinceLast / agg.FlushConfig.FlushTickFrequency)
+				}
 			}
 			flushCtx := common.FlushContext{
 				FlushTime:     flushStartTime,
@@ -279,7 +289,6 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
 	flushTime := ctx.FlushTime
 	flowsToFlush := agg.flowAcc.flush(ctx)
-	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	// apply filtering
 	flowsBeforeFilter := len(flowsToFlush)
