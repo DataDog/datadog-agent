@@ -191,8 +191,8 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^ecs_container_name:nginx$`,
 				`^ecs_launch_type:ec2$`,
 				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-nginx-ec2$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                              // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
 				`^image_id:sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
