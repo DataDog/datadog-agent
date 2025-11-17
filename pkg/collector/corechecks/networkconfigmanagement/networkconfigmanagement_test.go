@@ -8,13 +8,14 @@
 package networkconfigmanagement
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
@@ -42,9 +43,13 @@ type MockRemoteClient struct {
 }
 
 const (
-	runningOutput = "Building configuration...\n! Last configuration change at 10:20:00 UTC Fri Aug 1 2025\ninterface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-	startupOutput = "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-	versionOutput = "Cisco Device Version 1.0"
+	runningOutput = `Building configuration...
+! Last configuration change at 10:20:00 UTC Fri Aug 1 2025
+interface GigabitEthernet0/1
+ ip address 192.168.1.1 255.255.255.0`
+	startupOutput = `interface GigabitEthernet0/1
+ip address 192.168.1.1 255.255.255.0`
+	versionOutput = `Cisco Device Version 1.0`
 )
 
 func newMockRemoteClient() *MockRemoteClient {
@@ -219,6 +224,7 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	// Set up mock sender expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
@@ -240,41 +246,42 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.True(t, mockClient.Closed, "Remote client should be closed after run")
-
-	runningBytes, _ := json.Marshal([]byte(runningOutput))
-	startupBytes, _ := json.Marshal([]byte(startupOutput))
-
-	var expectedEvent = []byte(fmt.Sprintf(`
-{
-  "namespace": "default",
-  "integration": "",
-  "configs": [
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "running",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": %s
-    },
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "startup",
-      "timestamp": 0,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": %s
-    }
-  ],
-  "collect_timestamp": 1754043600
-}
-`, runningBytes, startupBytes))
-
-	compactEvent := new(bytes.Buffer)
-	err = json.Compact(compactEvent, expectedEvent)
+	expectedTags := []string{
+		"device_namespace:default",
+		"device_ip:10.0.0.1",
+		"device_id:default:10.0.0.1",
+		"config_source:cli",
+		"profile:p2",
+	}
+	expectedPayload := report.NCMPayload{
+		Namespace: "default",
+		Configs: []report.NetworkDeviceConfig{
+			{
+				DeviceID:     "default:10.0.0.1",
+				DeviceIP:     "10.0.0.1",
+				ConfigType:   "running",
+				ConfigSource: "cli",
+				Timestamp:    1754043600,
+				Tags:         expectedTags,
+				Content:      runningOutput,
+			},
+			{
+				DeviceID:     "default:10.0.0.1",
+				DeviceIP:     "10.0.0.1",
+				ConfigType:   "startup",
+				ConfigSource: "cli",
+				Timestamp:    0,
+				Tags:         expectedTags,
+				Content:      startupOutput,
+			},
+		},
+		CollectTimestamp: 1754043600,
+	}
+	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
-	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "ndmconfig")
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
 
@@ -349,7 +356,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 		BaseProfile: profile.BaseProfile{
 			Name: "p2",
 		},
-		Commands: map[profile.CommandType]profile.Commands{
+		Commands: map[profile.CommandType]*profile.Commands{
 			profile.Running: {
 				CommandType: profile.Running,
 				Values:      []string{"show running-config"},
@@ -357,24 +364,27 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 					MetadataRules: []profile.MetadataRule{
 						{
 							Type:   profile.Timestamp,
-							Regex:  `! Last configuration change at (.*)`,
+							Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
 							Format: "15:04:05 MST Mon Jan 2 2006",
 						},
 						{
 							Type:  profile.ConfigSize,
-							Regex: `Current configuration : (?P<Size>\d+)`,
+							Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
 						},
 					},
 					ValidationRules: []profile.ValidationRule{
 						{
 							Type:    "valid_output",
-							Pattern: "Building configuration...",
+							Pattern: regexp.MustCompile(`Building configuration...`),
 						},
 					},
 					RedactionRules: []profile.RedactionRule{
-						{Regex: `(username .+ (password|secret) \d) .+`, Replacement: "<redacted secret>"},
+						{
+							Regex:       regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
+							Replacement: "$1 <redacted secret>"},
 					},
 				},
+				Scrubber: getRunningScrubber(),
 			},
 			profile.Startup: {
 				CommandType: profile.Startup,
@@ -385,7 +395,6 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 				Values:      []string{"show version"},
 			},
 		},
-		Scrubber: scrubber.New(),
 	}
 	assert.Equal(t, expected, actual)
 }
@@ -413,4 +422,13 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 	_, err = check.FindMatchingProfile()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to find matching profile for device")
+}
+
+func getRunningScrubber() *scrubber.Scrubber {
+	sc := scrubber.New()
+	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
+		Repl:  []byte(fmt.Sprintf(`$1 %s`, "<redacted secret>")),
+	})
+	return sc
 }

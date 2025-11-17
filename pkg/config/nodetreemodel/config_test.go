@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -151,12 +152,14 @@ func TestBasicUsage(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
+	t.Setenv("TEST_ENV", "3")
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("default", 0)
 	cfg.SetDefault("unknown", 0)
 	cfg.SetDefault("file", 0)
 	cfg.SetDefault("env", 0)
+	cfg.BindEnvAndSetDefault("env", 0)
 	cfg.SetDefault("runtime", 0)
 	cfg.SetDefault("localConfigProcess", 0)
 	cfg.SetDefault("rc", 0)
@@ -168,7 +171,7 @@ func TestSet(t *testing.T) {
 	assert.Equal(t, 0, cfg.Get("default"))
 	assert.Equal(t, 0, cfg.Get("unknown"))
 	assert.Equal(t, 0, cfg.Get("file"))
-	assert.Equal(t, 0, cfg.Get("env"))
+	assert.Equal(t, 3, cfg.Get("env"))
 	assert.Equal(t, 0, cfg.Get("runtime"))
 	assert.Equal(t, 0, cfg.Get("localConfigProcess"))
 	assert.Equal(t, 0, cfg.Get("rc"))
@@ -185,7 +188,6 @@ file: 2
 	assert.Equal(t, 2, cfg.Get("file"))
 
 	cfg.Set("unknown", 1, model.SourceUnknown)
-	cfg.Set("env", 3, model.SourceEnvVar)
 	cfg.Set("runtime", 4, model.SourceAgentRuntime)
 	cfg.Set("localConfigProcess", 5, model.SourceLocalConfigProcess)
 	cfg.Set("rc", 6, model.SourceRC)
@@ -1645,32 +1647,62 @@ fruit:
       inner(#ptr<000007>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable
-tree(#ptr<000009>) source=default
+  > donut
+      leaf(#ptr<000009>), val:12, source:file
+tree(#ptr<000010>) source=default
 > fruit
-  inner(#ptr<000010>)
+  inner(#ptr<000011>)
   > apple
     inner(#ptr<000002>)
     > core
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-tree(#ptr<000011>) source=file
+tree(#ptr<000012>) source=file
 > fruit
-  inner(#ptr<000012>)
+  inner(#ptr<000013>)
   > apple
-      leaf(#ptr<000013>), val:<nil>, source:file
+      leaf(#ptr<000014>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000014>), val:<nil>, source:file
-tree(#ptr<000015>) source=environment-variable
+      leaf(#ptr<000015>), val:<nil>, source:file
+  > donut
+      leaf(#ptr<000009>), val:12, source:file
+tree(#ptr<000016>) source=environment-variable
 > fruit
-  inner(#ptr<000016>)
+  inner(#ptr<000017>)
   > cherry
     inner(#ptr<000006>)
     > seed
       inner(#ptr<000007>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable`
+	assert.Equal(t, expect, txt)
+}
+
+func TestComplexMapValueStringify(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "", nil)
+	cfg.SetConfigType("yaml")
+	cfg.BindEnvAndSetDefault("kubernetes_node_annotations_as_tags", map[string]string{"cluster.k8s.io/machine": "kube_machine"})
+	cfg.BuildSchema()
+
+	confYaml := `kubernetes_node_annotations_as_tags:
+  cluster.k8s.io/machine: different
+`
+	err := cfg.ReadConfig(bytes.NewBuffer([]byte(confYaml)))
+	require.NoError(t, err)
+
+	// Validate that the schema ensures the correct shape: a leaf with a map value
+	txt := cfg.(*ntmConfig).Stringify("all", model.OmitPointerAddr)
+	expect := `tree(#ptr<000000>) source=root
+> kubernetes_node_annotations_as_tags
+    leaf(#ptr<000001>), val:map[cluster.k8s.io/machine:different], source:file
+tree(#ptr<000002>) source=default
+> kubernetes_node_annotations_as_tags
+    leaf(#ptr<000003>), val:map[cluster.k8s.io/machine:kube_machine], source:default
+tree(#ptr<000004>) source=file
+> kubernetes_node_annotations_as_tags
+    leaf(#ptr<000001>), val:map[cluster.k8s.io/machine:different], source:file`
 	assert.Equal(t, expect, txt)
 }

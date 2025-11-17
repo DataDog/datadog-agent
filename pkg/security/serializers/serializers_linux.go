@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -948,10 +950,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			}
 		}
 
-		if len(ps.ContainerID) != 0 {
+		if len(ps.ContainerContext.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
-				ID:        string(ps.ContainerID),
-				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.GetContainerCreatedAt()))),
+				ID:        string(ps.ContainerContext.ContainerID),
+				CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(e.ProcessContext.ContainerContext.CreatedAt))),
 			}
 		}
 
@@ -976,7 +978,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 }
 
 func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event) *UserSessionContextSerializer {
-	e.FieldHandlers.ResolveUserSessionContext(ctx)
+	e.FieldHandlers.ResolveUserSessionContext(e, ctx)
 
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
@@ -1081,9 +1083,6 @@ func newPTraceEventSerializer(e *model.Event) *PTraceEventSerializer {
 		BaseEvent: model.BaseEvent{
 			FieldHandlers:  e.FieldHandlers,
 			ProcessContext: e.PTrace.Tracee,
-			ContainerContext: &model.ContainerContext{
-				ContainerID: e.PTrace.Tracee.ContainerID,
-			},
 		},
 	}
 
@@ -1213,6 +1212,12 @@ func newRawPacketEventSerializer(rp *model.RawPacketEvent, e *model.Event) *RawP
 	if e.GetEventType() == model.RawPacketActionEventType {
 		rps.Dropped = new(bool)
 		*rps.Dropped = true
+	}
+
+	packet := gopacket.NewPacket(rp.Data, layers.LayerTypeEthernet, gopacket.DecodeOptions{NoCopy: true, Lazy: true, DecodeStreamsAsDatagrams: true})
+
+	for _, layer := range packet.Layers() {
+		rps.Layers = append(rps.Layers, &LayerSerializer{Type: layer.LayerType().String(), Layer: layer})
 	}
 
 	return rps
@@ -1482,14 +1487,14 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
-			Variables: newVariablesContext(event, rule, "container."),
+			Variables: newVariablesContext(event, rule, eval.ContainerScoperType),
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
-			ID:        string(event.CGroupContext.CGroupID),
-			Variables: newVariablesContext(event, rule, "cgroup."),
+			ID:        string(event.ProcessContext.CGroup.CGroupID),
+			Variables: newVariablesContext(event, rule, eval.CGroupScoperType),
 		}
 	}
 

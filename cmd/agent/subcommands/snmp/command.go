@@ -17,8 +17,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	"github.com/DataDog/datadog-agent/comp/aggregator"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -26,8 +24,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -98,8 +94,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				secretsfx.Module(),
 				snmpscanfx.Module(),
-				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				nooptagger.Module(),
@@ -163,9 +157,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 				secretsfx.Module(),
-				aggregator.Bundle(demultiplexerimpl.NewDefaultParams()),
 				orchestratorimpl.Module(orchestratorimpl.NewDefaultParams()),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithFeatures(defaultforwarder.CoreFeatures))),
 				eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 				eventplatformreceiverimpl.Module(),
 				nooptagger.Module(),
@@ -233,11 +225,7 @@ func maybeSplitIP(address string) (string, uint16, bool) {
 	return host, uint16(pnum), true
 }
 
-func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Component, client ipc.HTTPClient) error {
-	agentParams, agentError := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
-	if agentError != nil {
-		return agentError
-	}
+func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, agentParams *snmpparse.SNMPConfig) {
 	if connParams.Version == "" {
 		connParams.Version = agentParams.Version
 	}
@@ -271,7 +259,6 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, conf config.Componen
 	if connParams.Timeout == 0 {
 		connParams.Timeout = agentParams.Timeout
 	}
-	return nil
 }
 
 func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {
@@ -285,22 +272,27 @@ func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snm
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf, client)
+	agentParams, namespace, agentErr := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
+	} else {
+		setDefaultsFromAgent(connParams, agentParams)
 	}
-	namespace := conf.GetString("network_devices.namespace")
 	deviceID := namespace + ":" + connParams.IPAddress
 	// Start the scan
 	fmt.Printf("Launching scan for device: %s\n", deviceID)
-	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, metadata.ManualScan)
+	err := snmpScanner.ScanDeviceAndSendData(connParams, namespace, snmpscan.ScanParams{
+		ScanType: metadata.ManualScan,
+	})
 	if err != nil {
-		fmt.Printf("Unable to perform device scan for device %s : %e", deviceID, err)
+		fmt.Printf("Unable to perform device scan for device %s: %v\n", deviceID, err)
+		return err
 	}
+
 	fmt.Printf("Completed scan successfully for device: %s\n", deviceID)
-	return err
+	return nil
 }
 
 // snmpWalk prints every SNMP value, in the style of the unix snmpwalk command.
@@ -319,11 +311,13 @@ func snmpWalk(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmps
 	}
 	// Parse port from IP address
 	connParams.IPAddress, connParams.Port, _ = maybeSplitIP(deviceAddr)
-	agentErr := setDefaultsFromAgent(connParams, conf, client)
+	agentParams, _, agentErr := snmpparse.GetParamsFromAgent(connParams.IPAddress, conf, client)
 	if agentErr != nil {
 		// Warn that we couldn't contact the agent, but keep going in case the
 		// user provided enough arguments to do this anyway.
 		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", agentErr)
+	} else {
+		setDefaultsFromAgent(connParams, agentParams)
 	}
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, logger)

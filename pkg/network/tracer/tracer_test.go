@@ -963,7 +963,7 @@ func (s *UDPServer) Run(payloadSize int) error {
 			}
 			ret := s.onMessage(buf, n)
 			if ret != nil {
-				_, err = s.ln.WriteTo(ret, addr)
+				_, err = ln.WriteTo(ret, addr)
 				if err != nil {
 					if !errors.Is(err, net.ErrClosed) {
 						fmt.Printf("writeto: %s\n", err)
@@ -1173,6 +1173,7 @@ func (s *TracerSuite) TestTCPEstablished() {
 	c.Close()
 
 	// Wait for the connection to be sent from the perf buffer
+	time.Sleep(100 * time.Millisecond)
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool
 		connections, cleanup := getConnections(collect, tr)
@@ -1210,6 +1211,7 @@ func (s *TracerSuite) TestTCPEstablishedPreExistingConn() {
 	c.Close()
 
 	// Wait for the connection to be sent from the perf buffer
+	time.Sleep(100 * time.Millisecond)
 	var conn *network.ConnectionStats
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var ok bool

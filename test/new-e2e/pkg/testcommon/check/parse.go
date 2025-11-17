@@ -17,11 +17,19 @@ import (
 // Root is the root object of the check command output
 type Root struct {
 	Aggregator Aggregator `json:"aggregator"`
+	Runner     Runner     `json:"runner"`
 }
 
 // Aggregator contains the metrics emitted by a check
 type Aggregator struct {
 	Metrics []Metric `json:"metrics"`
+}
+
+// Runner contains the check execution information
+type Runner struct {
+	TotalRuns     int `json:"TotalRuns"`
+	TotalErrors   int `json:"TotalErrors"`
+	TotalWarnings int `json:"TotalWarnings"`
 }
 
 // Metric represents a metric emitted by a check

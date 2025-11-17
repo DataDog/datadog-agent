@@ -341,17 +341,18 @@ func testTraceAgentMetricTags(t *testing.T, c *assert.CollectT, service string, 
 		"datadog.trace_agent.receiver.traces_received":  {},
 		"datadog.trace_agent.receiver.spans_received":   {},
 		"datadog.trace_agent.receiver.traces_bytes":     {},
-		"datadog.trace_agent.receiver.traces_filtered":  {},
 		"datadog.trace_agent.receiver.spans_dropped":    {},
-		"datadog.trace_agent.receiver.spans_filtered":   {},
 		"datadog.trace_agent.receiver.traces_priority":  {},
 		// These metrics are only emitted when non-zero to reduce cardinality
-		//"datadog.trace_agent.normalizer.traces_dropped":         {},
-		//"datadog.trace_agent.normalizer.spans_malformed":        {},
-		"datadog.trace_agent.receiver.client_dropped_p0_spans":  {},
-		"datadog.trace_agent.receiver.client_dropped_p0_traces": {},
-		"datadog.trace_agent.receiver.events_sampled":           {},
-		"datadog.trace_agent.receiver.events_extracted":         {},
+		// "datadog.trace_agent.normalizer.traces_dropped":         {},
+		// "datadog.trace_agent.normalizer.spans_malformed":        {},
+		// "datadog.trace_agent.receiver.client_dropped_p0_spans":  {},
+		// "datadog.trace_agent.receiver.client_dropped_p0_traces": {},
+		// "datadog.trace_agent.receiver.events_sampled":   {},
+		// "datadog.trace_agent.receiver.events_extracted":         {},
+		// "datadog.trace_agent.receiver.traces_filtered":  {},
+		// "datadog.trace_agent.receiver.spans_filtered":  {},
+
 	}
 	serviceTag := "service:" + service
 	for m := range expected {

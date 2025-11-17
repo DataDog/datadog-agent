@@ -21,7 +21,7 @@ type agentSuite struct {
 }
 
 func TestAgentSuite(t *testing.T) {
-	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &agentSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()), e2e.WithSkipCoverage())
 }
 
 func (v *agentSuite) TestAgentCommandNoArg() {

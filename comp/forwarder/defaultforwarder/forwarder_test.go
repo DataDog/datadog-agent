@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -682,7 +683,7 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 }
 
 // Whilst high priority transactions are processed by the worker first,  because the transactions
-// are sent in a separate go func, the actual order the get sent will depend on the go scheduler.
+// are sent in a separate go func, the actual order they get sent will depend on the go scheduler.
 // This test ensures that we still on average send high priority transactions before low priority.
 func TestHighPriorityTransactionTendency(t *testing.T) {
 	var receivedRequests = make(map[string]struct{})
@@ -734,7 +735,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 			assert.Nil(t, f.SubmitHostMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		} else {
 			data := []byte(fmt.Sprintf("low priority %d", i))
-			assert.Nil(t, f.SubmitMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
+			assert.Nil(t, f.SubmitAgentChecksMetadata(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&data}), headers))
 		}
 
 		// Wait so that GetCreatedAt returns a different value for each HTTPTransaction
@@ -755,7 +756,7 @@ func TestHighPriorityTransactionTendency(t *testing.T) {
 	}
 
 	// Ensure the average position of the high priorities is less than the average position of the lows.
-	assert.Greater(t, lowPosition/50, highPosition/50)
+	assert.Greater(t, lowPosition, highPosition)
 }
 
 func TestHighPriorityTransaction(t *testing.T) {
@@ -816,4 +817,51 @@ func TestHighPriorityTransaction(t *testing.T) {
 	assert.Equal(t, string(dataHighPrio), <-requestChan)
 	assert.Equal(t, string(data2), <-requestChan)
 	assert.Equal(t, string(data1), <-requestChan)
+}
+
+func TestCreateTransactionsWithLocal(t *testing.T) {
+	log := logmock.New(t)
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("api_key", "test_key")
+	mockConfig.SetWithoutSource("dd_url", "https://example.test")
+	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
+	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
+	mockConfig.SetWithoutSource("cluster_agent.url", "https://cluster.agent.svc")
+	mockConfig.SetWithoutSource("cluster_agent.auth_token", "01234567890123456789012345678901")
+
+	opts, err := createOptions(NewParams(), mockConfig, log)
+	require.NoError(t, err)
+	f := NewDefaultForwarder(mockConfig, log, opts)
+
+	genericPayload := transaction.NewBytesPayload([]byte("content"), 0)
+	genericPayload.Destination = transaction.AllRegions
+	localPayload := transaction.NewBytesPayload([]byte("local"), 0)
+	localPayload.Destination = transaction.LocalOnly
+
+	txn := f.createAdvancedHTTPTransactions(
+		endpoints.SeriesEndpoint,
+		transaction.BytesPayloads{genericPayload, localPayload},
+		http.Header{},
+		transaction.TransactionPriorityNormal,
+		transaction.Series,
+		true,
+	)
+
+	require.Len(t, txn, 2)
+	// Resolvers are stored in a map and can be visited in any order.
+	sort.Slice(txn, func(i, j int) bool { return txn[i].Domain < txn[j].Domain })
+	assert.Equal(t, "https://cluster.agent.svc", txn[0].Domain)
+	assert.Equal(t, "https://example.test", txn[1].Domain)
+
+	txn = f.createAdvancedHTTPTransactions(
+		endpoints.V1IntakeEndpoint,
+		transaction.BytesPayloads{genericPayload},
+		http.Header{},
+		transaction.TransactionPriorityNormal,
+		transaction.Metadata,
+		true,
+	)
+
+	require.Len(t, txn, 1)
+	assert.Equal(t, "https://example.test", txn[0].Domain)
 }

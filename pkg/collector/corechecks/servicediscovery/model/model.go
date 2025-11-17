@@ -18,13 +18,11 @@ type Service struct {
 	GeneratedNameSource      string                          `json:"generated_name_source"`
 	AdditionalGeneratedNames []string                        `json:"additional_generated_names"`
 	TracerMetadata           []tracermetadata.TracerMetadata `json:"tracer_metadata,omitempty"`
-	DDService                string                          `json:"dd_service"`
 	TCPPorts                 []uint16                        `json:"tcp_ports,omitempty"`
 	UDPPorts                 []uint16                        `json:"udp_ports,omitempty"`
 	APMInstrumentation       bool                            `json:"apm_instrumentation"`
 	Language                 string                          `json:"language"`
 	Type                     string                          `json:"service_type"`
-	CommandLine              []string                        `json:"cmdline"`
 	UST                      UST                             `json:"ust"`
 }
 
@@ -39,15 +37,4 @@ type UST struct {
 type ServicesResponse struct {
 	Services     []Service `json:"services"`
 	InjectedPIDs []int     `json:"injected_pids"`
-}
-
-// NetworkStatsResponse is the response for the system-probe /discovery/network-stats endpoint.
-type NetworkStatsResponse struct {
-	Stats map[int]NetworkStats `json:"stats"`
-}
-
-// NetworkStats contains network statistics for a process.
-type NetworkStats struct {
-	RxBytes uint64 `json:"rx_bytes"`
-	TxBytes uint64 `json:"tx_bytes"`
 }

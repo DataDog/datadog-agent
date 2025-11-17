@@ -13,6 +13,8 @@ else
   dependency 'secret-generic-connector' unless heroku_target?
 end
 
+dependency "dd-compile-policy" if linux_target? and !heroku_target?
+
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
 

@@ -13,8 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +24,8 @@ type processState struct {
 	symbolicator     symbol.Symbolicator
 	symbolicatorFile io.Closer
 	symbolicatorErr  error
-	gitInfo          procmon.GitInfo
+	gitInfo          process.GitInfo
+	containerInfo    process.ContainerInfo
 }
 
 type processStore struct {
@@ -41,7 +41,7 @@ func newProcessStore() *processStore {
 	}
 }
 
-func (ps *processStore) remove(removals []procmon.ProcessID, dm *diagnosticsManager) {
+func (ps *processStore) remove(removals []process.ID, dm *diagnosticsManager) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	for _, pid := range removals {
@@ -57,29 +57,55 @@ func (ps *processStore) remove(removals []procmon.ProcessID, dm *diagnosticsMana
 	}
 }
 
-func (ps *processStore) ensureExists(update *rcscrape.ProcessUpdate) procRuntimeID {
+func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	proc, ok := ps.processes[update.ProcessID]
 	if !ok {
 		proc = &processState{
 			procRuntimeID: procRuntimeID{
-				ProcessID:   update.ProcessID,
+				ID:          update.ProcessID,
 				runtimeID:   update.RuntimeID,
 				service:     update.Service,
 				version:     update.Version,
 				environment: update.Environment,
 			},
-			executable: update.Executable,
-			gitInfo:    update.GitInfo,
+			executable:    update.Executable,
+			gitInfo:       update.GitInfo,
+			containerInfo: update.Container,
 		}
-		if update.GitInfo != (procmon.GitInfo{}) {
+		if update.GitInfo != (process.GitInfo{}) {
 			proc.procRuntimeID.gitInfo = &proc.gitInfo
 		}
-		if update.Container != (procmon.ContainerInfo{}) {
-			proc.procRuntimeID.containerInfo = &update.Container
+		if update.Container != (process.ContainerInfo{}) {
+			proc.procRuntimeID.containerInfo = &proc.containerInfo
 		}
 		ps.processes[update.ProcessID] = proc
+		return proc.procRuntimeID
+	}
+	// Update existing metadata with the latest information.
+	if update.Service != "" {
+		proc.service = update.Service
+	}
+	if update.Version != "" {
+		proc.version = update.Version
+	}
+	if update.Environment != "" {
+		proc.environment = update.Environment
+	}
+	if update.RuntimeID != "" {
+		proc.runtimeID = update.RuntimeID
+	}
+	if update.Executable.Path != "" {
+		proc.executable = update.Executable
+	}
+	if update.GitInfo != (process.GitInfo{}) {
+		proc.gitInfo = update.GitInfo
+		proc.procRuntimeID.gitInfo = &proc.gitInfo
+	}
+	if update.Container != (process.ContainerInfo{}) {
+		proc.containerInfo = update.Container
+		proc.procRuntimeID.containerInfo = &proc.containerInfo
 	}
 	return proc.procRuntimeID
 }

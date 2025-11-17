@@ -34,6 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -57,7 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -151,7 +153,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		// Provide statsd client module
 		compstatsd.Module(),
 		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
-			return statsd.CreateForHostPort(pkgconfigsetup.GetBindHost(config), config.GetInt("dogstatsd_port"))
+			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 
 		// Provide configsync module
@@ -167,6 +169,9 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
+
+		// Provide workloadfilter module
+		workloadfilterfx.Module(),
 
 		remoteTaggerfx.Module(tagger.NewRemoteParams()),
 
@@ -262,6 +267,7 @@ type miscDeps struct {
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
+	FilterStore  workloadfilter.Component
 	Logger       logcomp.Component
 	Tagger       tagger.Component
 	IPC          ipc.Component
@@ -279,7 +285,7 @@ func initMisc(deps miscDeps) error {
 	// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 	// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 	// we can include the tagger as part of the workloadmeta component.
-	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger)
+	proccontainers.InitSharedContainerProvider(deps.WorkloadMeta, deps.Tagger, deps.FilterStore)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg, deps.IPC.GetTLSServerConfig())
 
