@@ -338,3 +338,21 @@ require (
 	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
 )
+
+replace github.com/DataDog/datadog-agent/comp/core/tagger/origindetection => ../../comp/core/tagger/origindetection
+
+replace github.com/DataDog/datadog-agent/pkg/obfuscate => ../../pkg/obfuscate
+
+replace github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes => ../../pkg/opentelemetry-mapping-go/otlp/attributes
+
+replace github.com/DataDog/datadog-agent/pkg/proto => ../../pkg/proto
+
+replace github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../pkg/remoteconfig/state
+
+replace github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
+
+replace github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../pkg/util/scrubber
+
+replace github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
