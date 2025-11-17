@@ -479,7 +479,7 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 	}
 
 	state := s.host.State()
-	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "root", "root")
 	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
 	assert.NoError(s.T(), err)
 

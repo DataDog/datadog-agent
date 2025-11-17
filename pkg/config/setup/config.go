@@ -44,8 +44,10 @@ const (
 	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
 	DefaultLinesOrBytesToSkip = 0
 
-	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
-	DefaultFingerprintingMaxLines = 1
+	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
+	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
+	// value based on the configured fingerprint_strategy.
+	DefaultFingerprintingCount = 0
 
 	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
 	// Options are:
@@ -980,6 +982,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
 	config.BindEnvAndSetDefault("sbom.compute_dependencies", false)
+	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", false)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
@@ -1757,7 +1760,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// default fingerprint configuration
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingCount)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)

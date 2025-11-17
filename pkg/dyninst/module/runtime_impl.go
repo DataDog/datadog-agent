@@ -243,7 +243,7 @@ func (l *loadedProgramImpl) Attach(
 	}, nil
 }
 
-func (l *loadedProgramImpl) RuntimeStats() loader.RuntimeStats {
+func (l *loadedProgramImpl) RuntimeStats() []loader.RuntimeStats {
 	return l.loadedProgram.RuntimeStats()
 }
 
