@@ -27,23 +27,15 @@ import (
 
 var checkName = "network_config_management"
 var defaultCheckInterval = 15 * time.Minute
+var defaultSSHTimeout = 30 * time.Second
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-	Port     string `yaml:"port"`
-	Protocol string `yaml:"remote"`
-	// SSH-specific configurations
-	// TODO: Move to separate struct if needed (e.g., SSHConfig)
-	SSHCiphers      []string `yaml:"ssh_ciphers"`
-	SSHKeyExchanges []string `yaml:"ssh_key_exchanges"`
-	SSHHostKeyAlgos []string `yaml:"ssh_host_key_algorithms"`
-	// TODO: Uncomment and implement SSH key support
-	//SshKeyPath       string `yaml:"sshKeyPath"`       // path to the SSH key file
-	//SshKeyPassphrase string `yaml:"sshKeyPassphrase"` // passphrase for SSH key if needed
-	//Enable           bool   `yaml:"enable"`           // if true, will use enablePassword to enter privileged exec mode
-	//EnablePassword   string `yaml:"enable_password"`  // to be able to use privileged exec mode
+	Username string     `yaml:"username"`
+	Password string     `yaml:"password"`
+	Port     string     `yaml:"port"`
+	Protocol string     `yaml:"remote"`
+	SSH      *SSHConfig `yaml:"ssh"`
 }
 
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.
@@ -55,8 +47,20 @@ type DeviceInstance struct {
 
 // InitConfig holds the initial configuration for the NCM component, including the namespace and check interval.
 type InitConfig struct {
-	Namespace             string `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
-	MinCollectionInterval int    `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
+	Namespace             string     `yaml:"namespace"`               // Namespace for the NCM devices where configs are retrieved from, to help match a device on DD
+	MinCollectionInterval int        `yaml:"min_collection_interval"` // Interval in seconds to check for config changes
+	SSH                   *SSHConfig `yaml:"ssh"`                     // SSH holds global connection configurations that can apply to all devices if pertinent
+}
+
+// SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
+type SSHConfig struct {
+	KnownHostsPath     string        `yaml:"known_hosts_path"`     // KnownHostsPath is the location that contains public keys to servers and verify identity of servers we connect to
+	InsecureSkipVerify bool          `yaml:"insecure_skip_verify"` // InsecureSkipVerify is a boolean for development/testing purposes to skip host key validation (insecure)
+	Timeout            time.Duration `yaml:"timeout"`              // Timeout specifies max amount of time for the SSH client to allow the TCP connection to establish
+	// SSH-specific algorithms
+	Ciphers           []string `yaml:"ciphers"`
+	KeyExchanges      []string `yaml:"key_exchanges"`
+	HostKeyAlgorithms []string `yaml:"host_key_algorithms"`
 }
 
 // NcmCheckContext holds the processed config needed for an integration instance to run
@@ -83,17 +87,6 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	var deviceInstance DeviceInstance
 	var initConfig InitConfig
 
-	// Parse instance (for device)
-	err = yaml.Unmarshal(rawInstance, &deviceInstance)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
-	}
-	err = deviceInstance.ValidateDeviceInstance()
-	if err != nil {
-		return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
-	}
-	ncc.Device = &deviceInstance
-
 	//Parse init config
 	err = yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
@@ -106,6 +99,19 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 	ncc.Namespace = initConfig.Namespace
 	ncc.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
+
+	// Parse instance (for device)
+	err = yaml.Unmarshal(rawInstance, &deviceInstance)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
+	}
+	err = deviceInstance.ValidateDeviceInstance()
+	if err != nil {
+		return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
+	}
+	// if no SSH configs supplied, use the init config as a global SSH config
+	deviceInstance.applyDefaultSSHConfigFallback(initConfig.SSH)
+	ncc.Device = &deviceInstance
 
 	// Populate the profiles map (from defaults/OOTB)
 	profMap, err := profile.GetProfileMap("default_profiles")
@@ -219,6 +225,23 @@ func (ic *InitConfig) ValidateInitConfig() error {
 		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
 	}
 
+	if ic.SSH != nil {
+		if err = ic.SSH.validateSSHConfig(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (sc *SSHConfig) validateSSHConfig() error {
+	if sc.Timeout <= 0 {
+		log.Debugf("no or invalid SSH timeout specified in config, applying default: %d", defaultSSHTimeout)
+		sc.Timeout = defaultSSHTimeout
+	}
+	if err := sc.hasRequiredFields(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -228,6 +251,9 @@ func (dc *DeviceInstance) ValidateDeviceInstance() error {
 	dc.applyDefaults()
 
 	// check for missing fields that are required
+	if err := dc.hasRequiredFields(); err != nil {
+		return err
+	}
 	if dc.IPAddress == "" {
 		return fmt.Errorf("ip_address is required")
 	}
@@ -264,5 +290,35 @@ func (dc *DeviceInstance) applyDefaults() {
 	if dc.Auth.Protocol == "" {
 		log.Debugf("Applying default protocol for device %s: %s", dc.IPAddress, "tcp")
 		dc.Auth.Protocol = "tcp"
+	}
+}
+
+func (dc *DeviceInstance) hasRequiredFields() error {
+	// check for missing fields that are required for a device instance
+	if dc.IPAddress == "" {
+		return fmt.Errorf("ip_address is required")
+	}
+	authBaseString := "auth is required: missing %s for device %s"
+	if dc.Auth.Username == "" {
+		return fmt.Errorf(authBaseString, "username", dc.IPAddress)
+	}
+	if dc.Auth.Password == "" {
+		return fmt.Errorf(authBaseString, "password", dc.IPAddress)
+	}
+	return nil
+}
+
+func (sc *SSHConfig) hasRequiredFields() error {
+	// must have at least a known paths specified or skip verification (insecure, only for development/testing purposes)
+	if sc.KnownHostsPath == "" && !sc.InsecureSkipVerify {
+		return fmt.Errorf("no SSH host key configured: set known_hosts_path or enable insecure_skip_verify")
+	}
+	return nil
+}
+
+func (dc *DeviceInstance) applyDefaultSSHConfigFallback(sc *SSHConfig) {
+	if dc.Auth.SSH == nil && sc != nil {
+		log.Warnf("No SSH host key configured, applying init_config's SSH settings: %v", sc)
+		dc.Auth.SSH = sc
 	}
 }

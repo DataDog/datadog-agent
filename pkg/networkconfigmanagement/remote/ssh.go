@@ -10,11 +10,12 @@ package remote
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,20 +33,55 @@ type SSHSession struct {
 	session *ssh.Session
 }
 
-// SSHClientConfig holds configuration for SSH client
-type SSHClientConfig struct {
-	Timeout           time.Duration
-	HostKeyCallback   ssh.HostKeyCallback
-	Ciphers           []string // configurable ciphers
-	KeyExchanges      []string // configurable key exchanges
-	HostKeyAlgorithms []string // configurable host key algorithms
-}
-
 // NewSSHClient creates a new SSH client for the given device configuration
-func NewSSHClient(device *ncmconfig.DeviceInstance) *SSHClient {
+func NewSSHClient(device *ncmconfig.DeviceInstance) (*SSHClient, error) {
+	if device.Auth.SSH != nil {
+		if err := validateClientConfig(device.Auth.SSH); err != nil {
+			return nil, fmt.Errorf("error validating ssh client config: %s", err)
+		}
+	}
+
 	return &SSHClient{
 		device: device,
+	}, nil
+}
+
+func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, error) {
+	if config.KnownHostsPath != "" {
+		callbackFn, err := knownhosts.New(config.KnownHostsPath)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing known_hosts file from path: %s", err)
+		}
+		return callbackFn, nil
 	}
+	if config.InsecureSkipVerify {
+		log.Warnf("SSH host key verification is disabled - connects are insecure!")
+		return ssh.InsecureIgnoreHostKey(), nil
+	}
+	return nil, fmt.Errorf("No SSH host key configured: set known_hosts file path or enable insecure_skip_verify")
+}
+
+func validateClientConfig(config *ncmconfig.SSHConfig) error {
+	supportedAlgos := ssh.SupportedAlgorithms()
+	if err := validateSupportedAlgorithms("cipher", config.Ciphers, supportedAlgos.Ciphers); err != nil {
+		return err
+	}
+	if err := validateSupportedAlgorithms("key exchange", config.KeyExchanges, supportedAlgos.KeyExchanges); err != nil {
+		return err
+	}
+	if err := validateSupportedAlgorithms("host key algorithm", config.HostKeyAlgorithms, supportedAlgos.HostKeys); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateSupportedAlgorithms(algoType string, configuredAlgos []string, supportedAlgos []string) error {
+	for _, algo := range configuredAlgos {
+		if !slices.Contains(supportedAlgos, algo) {
+			return fmt.Errorf("unsupported %s: %s", algoType, algo)
+		}
+	}
+	return nil
 }
 
 // SetProfile sets the NCM profile for the device for the client to know which commands to be able to run
@@ -58,7 +94,7 @@ func (c *SSHClient) redial() error {
 	if c.client != nil {
 		_ = c.client.Close()
 	}
-	newClient, err := connectToHost(c.device.IPAddress, c.device.Auth, nil)
+	newClient, err := connectToHost(c.device.IPAddress, c.device.Auth, c.device.Auth.SSH)
 	if err != nil {
 		return err
 	}
@@ -74,15 +110,6 @@ func (c *SSHClient) Connect() error {
 	}
 	c.client = client
 	return nil
-}
-
-// DefaultSSHClientConfig returns a default SSH client configuration
-// TODO: To accept custom SSH configurations, we can pass the config as an argument to connectToHost
-func DefaultSSHClientConfig() *SSHClientConfig {
-	return &SSHClientConfig{
-		Timeout:         30 * time.Second,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // ⚠️ TODO: Use proper host key validation in production
-	}
 }
 
 // NewSession creates a new SSH session for the client (needed for every command execution)
@@ -191,24 +218,22 @@ func (s *SSHSession) Close() error {
 }
 
 // connectToHost establishes an SSH connection to the specified IP address using the provided authentication credentials
-func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *SSHClientConfig) (*ssh.Client, error) {
-	if config == nil {
-		config = DefaultSSHClientConfig()
+func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *ncmconfig.SSHConfig) (*ssh.Client, error) {
+	callback, err := buildHostKeyCallback(config)
+	if err != nil {
+		return nil, err
 	}
-
 	sshConfig := &ssh.ClientConfig{
 		User:            auth.Username,
 		Auth:            []ssh.AuthMethod{ssh.Password(auth.Password)},
-		HostKeyCallback: config.HostKeyCallback,
+		HostKeyCallback: callback,
 		Timeout:         config.Timeout,
 		Config: ssh.Config{
-			Ciphers:      auth.SSHCiphers,
-			KeyExchanges: auth.SSHKeyExchanges,
+			Ciphers:      config.Ciphers,
+			KeyExchanges: config.KeyExchanges,
 		},
-		HostKeyAlgorithms: auth.SSHHostKeyAlgos,
+		HostKeyAlgorithms: config.HostKeyAlgorithms,
 	}
-
-	// TODO: Add support for SSH key authentication
 
 	host := fmt.Sprintf("%s:%s", ipAddress, auth.Port)
 	client, err := ssh.Dial(auth.Protocol, host, sshConfig)

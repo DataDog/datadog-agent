@@ -9,6 +9,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,6 +129,53 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
+			}
+		})
+	}
+}
+
+func TestSSHConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *SSHConfig
+		expectedConfig *SSHConfig
+		errMsg         string
+	}{
+		{
+			name: "valid config: known_path is set",
+			config: &SSHConfig{
+				KnownHostsPath: "/test/directory",
+				Timeout:        60 * time.Second,
+			},
+			expectedConfig: &SSHConfig{
+				KnownHostsPath: "/test/directory",
+				Timeout:        60 * time.Second,
+			},
+		},
+		{
+			name: "valid config, missing timeout uses default",
+			config: &SSHConfig{
+				InsecureSkipVerify: true,
+			},
+			expectedConfig: &SSHConfig{
+				InsecureSkipVerify: true,
+				Timeout:            defaultSSHTimeout,
+			},
+		},
+		{
+			name:           "missing both known_hosts path and insecure_skip_verify",
+			config:         &SSHConfig{},
+			expectedConfig: &SSHConfig{},
+			errMsg:         "no SSH host key configured: set known_hosts_path or enable insecure_skip_verify",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.validateSSHConfig()
+			if tt.errMsg != "" {
+				assert.EqualError(t, err, tt.errMsg)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
