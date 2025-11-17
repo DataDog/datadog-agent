@@ -57,13 +57,12 @@ func Template(tmpl string) func(context.Context, slog.Record) string {
 			"record": r,
 			"time":   r.Time,
 			"level":  types.FromSlogLevel(r.Level).String(),
-			// https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L338
-			"l":     types.FromSlogLevel(r.Level).String()[0],
-			"msg":   r.Message,
-			"frame": frame,
-			"line":  frame.Line,
-			"func":  frame.Function,
-			"file":  frame.File,
+			"l":      ShortestLevel(r.Level),
+			"msg":    r.Message,
+			"frame":  frame,
+			"line":   frame.Line,
+			"func":   frame.Function,
+			"file":   frame.File,
 		}
 		funcs := template.FuncMap{
 			"Date":     func(format string) string { return r.Time.Format(format) },

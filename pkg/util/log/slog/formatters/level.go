@@ -90,3 +90,27 @@ func UppercaseLevel(level slog.Level) string {
 		return wrongLogLevel
 	}
 }
+
+// ShortestLevel returns a single character representation of the log level
+//
+// https://github.com/cihub/seelog/blob/f561c5e57575bb1e0a2167028b7339b3a8d16fb4/format.go#L338
+func ShortestLevel(level slog.Level) string {
+	switch types.FromSlogLevel(level) {
+	case types.TraceLvl:
+		return "t"
+	case types.DebugLvl:
+		return "d"
+	case types.InfoLvl:
+		return "i"
+	case types.WarnLvl:
+		return "w"
+	case types.ErrorLvl:
+		return "e"
+	case types.CriticalLvl:
+		return "c"
+	case types.Off:
+		return "o"
+	default:
+		return wrongLogLevel
+	}
+}
