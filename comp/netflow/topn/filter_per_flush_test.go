@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package topn
 
 import (
@@ -84,7 +89,7 @@ func TestPerFlushFilter(t *testing.T) {
 					FlowCollectionDuration: 1 * time.Hour,
 					FlushTickFrequency:     1 * time.Minute,
 				},
-				scheduler: newScheduler(120, common.FlushConfig{
+				scheduler: newThrottler(120, common.FlushConfig{
 					FlowCollectionDuration: 1 * time.Hour,
 					FlushTickFrequency:     1 * time.Minute,
 				}),

@@ -74,6 +74,7 @@ type sequenceDeltaValue struct {
 	Reset        bool
 }
 
+// FlowFlushFilter is an interface that can be used to filter flows before they are sent to the EP Forwarder.
 type FlowFlushFilter interface {
 	Filter(flushCtx common.FlushContext, flows []*common.Flow) []*common.Flow
 }

@@ -25,12 +25,15 @@ type JitterFlowScheduler struct {
 	flushConfig common.FlushConfig
 }
 
-// NextFlushTime implements FlowScheduler interface with jitter
+// NextFlushTime assigns the flush time for a given flow. It will choose a random time between currentTime
+// and currentTime + FlowCollectionDuration.
 func (s JitterFlowScheduler) NextFlushTime(currentTime time.Time) time.Time {
 	jitter := time.Duration(rand.Intn(int(s.flushConfig.FlowCollectionDuration)))
 	return currentTime.Add(jitter)
 }
 
+// RefreshFlushTime updates the flush time for a given flow. It will add FlowCollectionDuration to the current flush time.
+// There is no jitter after a flow is first assigned a time.
 func (s JitterFlowScheduler) RefreshFlushTime(flow flowContext) time.Time {
 	return flow.nextFlush.Add(s.flushConfig.FlowCollectionDuration)
 }
@@ -48,6 +51,7 @@ func (s ImmediateFlowScheduler) NextFlushTime(currentTime time.Time) time.Time {
 	return currentTime
 }
 
+// RefreshFlushTime updates the flush time for a given flow. It will add FlowCollectionDuration to the current flush time.
 func (s ImmediateFlowScheduler) RefreshFlushTime(flow flowContext) time.Time {
 	return flow.nextFlush.Add(s.flushConfig.FlowCollectionDuration)
 }

@@ -115,8 +115,8 @@ func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow
 	return flowsToFlush
 }
 
-func isFlowCtxExpired(flowCtx flowContext, flowTtl time.Duration, now time.Time) bool {
-	flowExpiresAt := flowCtx.lastSuccessfulFlush.Add(flowTtl)
+func isFlowCtxExpired(flowCtx flowContext, flowTTL time.Duration, now time.Time) bool {
+	flowExpiresAt := flowCtx.lastSuccessfulFlush.Add(flowTTL)
 	return now.After(flowExpiresAt)
 }
 

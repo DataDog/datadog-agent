@@ -1,8 +1,13 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package topn
 
 import "github.com/DataDog/datadog-agent/comp/netflow/common"
 
-type scheduler struct {
+type throttler struct {
 	flushConfig common.FlushConfig
 
 	k                       int64
@@ -10,12 +15,12 @@ type scheduler struct {
 	numFlushesWithExtraRows int64
 }
 
-func newScheduler(n int64, flushConfig common.FlushConfig) *scheduler {
+func newThrottler(n int64, flushConfig common.FlushConfig) *throttler {
 	flushesPerPeriod := int64(flushConfig.FlowCollectionDuration / flushConfig.FlushTickFrequency)
 	k := n / flushesPerPeriod
 	extraRows := n % flushesPerPeriod
 
-	return &scheduler{
+	return &throttler{
 		flushConfig: flushConfig,
 
 		k:                       k,
@@ -33,11 +38,11 @@ func newScheduler(n int64, flushConfig common.FlushConfig) *scheduler {
 //
 //	[ a, b, c, d, e, f, g, h, i, j, k, l, m ]<- "flush bucket"
 //	  2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1  <- # of flows published for bucket
-func (s *scheduler) GetNumRowsToFlushFor(ctx common.FlushContext) int {
+func (s *throttler) GetNumRowsToFlushFor(ctx common.FlushContext) int {
 	// convert the flush time to a frame of reference of the flush collection duration
 	// this lets us more deterministically calculate the # of periods we're covering in this flush
 	flushTimeNormalized := ctx.FlushTime.UnixNano() % int64(s.flushConfig.FlowCollectionDuration)
-	// determine the bucket the flush is occuring in, range is [0, n) where n is the # of ticks per flush period
+	// determine the bucket the flush is occurring in, range is [0, n) where n is the # of ticks per flush period
 	flushGenerationIndex := flushTimeNormalized / int64(s.flushConfig.FlushTickFrequency)
 
 	// clamp to the last generation if we're over for some reason
@@ -78,7 +83,7 @@ func (s *scheduler) GetNumRowsToFlushFor(ctx common.FlushContext) int {
 	return numRows
 }
 
-func (s *scheduler) calculateNumFlowsOverInterval(flushInterval struct {
+func (s *throttler) calculateNumFlowsOverInterval(flushInterval struct {
 	startInclusive int64
 	endInclusive   int64
 }) int {

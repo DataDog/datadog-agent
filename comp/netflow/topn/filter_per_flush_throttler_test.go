@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
 package topn
 
 import (
@@ -9,7 +14,7 @@ import (
 )
 
 func TestTopNScheduling(t *testing.T) {
-	config := newScheduler(630, common.FlushConfig{
+	config := newThrottler(630, common.FlushConfig{
 		// 60 buckets, make tests easier to set up + run
 		FlowCollectionDuration: 1 * time.Hour,
 		FlushTickFrequency:     1 * time.Minute,
