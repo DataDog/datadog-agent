@@ -137,18 +137,18 @@ def create(ctx, path=".") -> None:
 
     # Skaffold helm deployement will include '.skaffold/values.yaml'
     # so it must at least exists, it can be empty or filled by the user
-    helmValues = Path(".skaffold/values.yaml")
-    if not helmValues.exists():
-        helmValues.touch()
+    helm_values = Path(".skaffold/values.yaml")
+    if not helm_values.exists():
+        helm_values.touch()
 
 
 @task(
     help={
         "tail": "Tail all containers logs if set (very verbose, tailing all agent processes). Default False",
-        "logLevel": "Skaffold log leve (matches 'logrus' levels). Default warn",
+        "log_level": "Skaffold log leve (matches 'logrus' levels). Default warn",
     },
 )
-def dev(ctx, tail: bool = False, logLevel: str = "warn") -> None:
+def dev(ctx, tail: bool = False, log_level: str = "warn") -> None:
     """
     Start the Skaffold cluster
     """
@@ -176,7 +176,7 @@ def dev(ctx, tail: bool = False, logLevel: str = "warn") -> None:
         "--auto-deploy=false",
         "--auto-sync=false",
         "--port-forward=off",
-        f"--verbosity {logLevel}",
+        f"--verbosity {log_level}",
         f"--tail={tail}",
     ]
 
