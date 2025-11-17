@@ -445,7 +445,7 @@ func (v *gpuBaseSuite[Env]) TestWorkloadmetaHasGPUs() {
 		status, err := v.caps.Agent().WorkloadList()
 		assert.NoError(c, err)
 		out = status.Content
-		assert.Contains(c, out, "=== Entity gpu sources(merged):[runtime] id: ")
+		assert.Contains(c, out, "=== Entity gpu sources(merged):[nvml] id: ")
 	}, 30*time.Second, 1*time.Second)
 
 	if v.T().Failed() {
