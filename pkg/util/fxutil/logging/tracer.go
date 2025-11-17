@@ -52,10 +52,10 @@ type FxTracingLogger struct {
 	startTime  time.Time  // Fx startup time
 
 	// The following fields are subject to concurrent access.
-	fxLogger          fxevent.Logger // The underlying fxlogger, fxevent are forwarded to this logger.
-	debugLogger       io.Writer      // The logger used to write debug logs.
-	traceAgentAddress string         // The address of the trace agent
-	spans             []*Span        // Buffer spans during startup, reset to nil when the Fx initialization is complete.
+	fxLogger       fxevent.Logger // The underlying fxlogger, fxevent are forwarded to this logger.
+	debugLogger    io.Writer      // The logger used to write debug logs.
+	traceAgentPort string         // The port of the trace agent
+	spans          []*Span        // Buffer spans during startup, reset to nil when the Fx initialization is complete.
 }
 
 // withFxTracer wraps the fxlogger with a fxTracingLogger.
@@ -103,9 +103,9 @@ func (l *FxTracingLogger) UpdateInnerLoggers(logger fxevent.Logger, agentLogger 
 }
 
 // EnableSpansSending will allow the tracer to forward traces to the trace-agent when the Fx initialization is complete.
-func (l *FxTracingLogger) EnableSpansSending(traceAgentAddress string) {
+func (l *FxTracingLogger) EnableSpansSending(traceAgentPort string) {
 	l.mu.Lock()
-	l.traceAgentAddress = traceAgentAddress
+	l.traceAgentPort = traceAgentPort
 	l.mu.Unlock()
 }
 
@@ -180,7 +180,7 @@ func (l *FxTracingLogger) handleStarted(e *fxevent.Started) {
 
 	// Check if traceSending has been enabled during the Fx initialization
 	// If not cleanup the memory and return
-	if l.traceAgentAddress == "" {
+	if l.traceAgentPort == "" {
 		l.spans = nil
 		return
 	}
@@ -202,7 +202,7 @@ func (l *FxTracingLogger) handleStarted(e *fxevent.Started) {
 	l.spans = append(l.spans, rootSpan)
 
 	// Send spans asynchronously (trace-agent might not be ready immediately)
-	go sendSpansToDatadog(l.debugLogger, l.spans)
+	go sendSpansToDatadog(l.debugLogger, l.spans, l.traceAgentPort)
 	// reset the spans buffer
 	l.spans = nil
 }

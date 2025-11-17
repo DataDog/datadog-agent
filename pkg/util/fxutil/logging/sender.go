@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -20,7 +19,7 @@ import (
 
 // sendSpansToDatadog sends an array of TraceSpan to the local trace-agent.
 // It uses the v0.3/traces endpoint with JSON format (array of traces).
-func sendSpansToDatadog(agentLogger io.Writer, spans []*Span) {
+func sendSpansToDatadog(agentLogger io.Writer, spans []*Span, traceAgentPort string) {
 	// v0.3 format: array of traces, where each trace is an array of spans
 	// We put all spans into a single trace
 	traces := [][]*Span{spans}
@@ -35,17 +34,11 @@ func sendSpansToDatadog(agentLogger io.Writer, spans []*Span) {
 	fmt.Fprintf(agentLogger, "[Fx Tracing] Encoded %d spans into %d bytes of JSON data\n", len(spans), len(data)) //nolint:errcheck
 
 	// Send to trace-agent with retries
-	sendWithRetries(agentLogger, data, len(traces), 2*time.Second, 10*time.Second)
+	sendWithRetries(agentLogger, data, traceAgentPort, len(traces), 2*time.Second, 10*time.Second)
 }
 
 // sendWithRetries sends the JSON payload to the trace-agent with retry logic.
-func sendWithRetries(agentLogger io.Writer, data []byte, traceCount int, retryInterval time.Duration, timeout time.Duration) {
-	// We can't rely on the trace agent URL from the config because it's not set in the fxutil package.
-	// But we can still check for env variable override to set the trace agent URL.
-	traceAgentPort := os.Getenv("DD_APM_RECEIVER_PORT")
-	if traceAgentPort == "" {
-		traceAgentPort = "8126"
-	}
+func sendWithRetries(agentLogger io.Writer, data []byte, traceAgentPort string, traceCount int, retryInterval time.Duration, timeout time.Duration) {
 	// Use v0.3/traces endpoint (JSON format)
 	agentURL := "http://localhost:" + traceAgentPort + "/v0.3/traces"
 	client := &http.Client{Timeout: retryInterval}
