@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -21,25 +23,37 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr)),
+		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr)),
+		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigStr)),
+		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigNoCheckStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigNoCheckStr)),
+		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }

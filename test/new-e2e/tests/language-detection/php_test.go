@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -21,7 +23,10 @@ func (s *languageDetectionSuite) installPHP() {
 }
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr)),
+		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+	))
 	pid := s.startPHP()
 	s.checkDetectedLanguage(pid, "php", "process_collector")
 }

@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -45,7 +47,10 @@ func TestLanguageDetectionSuite(t *testing.T) {
 	}
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+			awshost.WithAgentOptions(agentParams...),
+			awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+		)),
 	}
 
 	e2e.Run(t, &languageDetectionSuite{}, options...)
