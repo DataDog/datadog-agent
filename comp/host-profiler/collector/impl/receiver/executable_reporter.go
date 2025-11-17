@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/zap"
 
+	log "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"github.com/DataDog/dd-otel-host-profiler/runner"
 
@@ -27,14 +28,14 @@ type executableReporter struct {
 	symbolUploader *reporter.DatadogSymbolUploader
 }
 
-func newExecutableReporter(config *reporter.SymbolUploaderConfig, logger *zap.Logger) (*executableReporter, error) {
+func newExecutableReporter(config *reporter.SymbolUploaderConfig) (*executableReporter, error) {
 	// Wrap zap.Logger to implement the Logger interface expected by the reporter
-	wrappedLogger := newLogger(logger)
+	wrappedLogger := newLogger()
 
 	config.SymbolEndpoints = runner.GetValidSymbolEndpoints(
 		os.Getenv("DD_SITE"), os.Getenv("DD_API_KEY"), os.Getenv("DD_APP_KEY"),
 		config.SymbolEndpoints,
-		func(msg string) { logger.Info(msg) }, func(msg string) { logger.Warn(msg) })
+		func(msg string) { wrappedLogger.Infof(msg) }, func(msg string) { wrappedLogger.Warnf(msg) })
 
 	symbolUploader, err := reporter.NewDatadogSymbolUploader(config, wrappedLogger)
 	if err != nil {
@@ -62,8 +63,9 @@ type zapLoggerWrapper struct {
 }
 
 // newLogger creates a Logger from a zap.Logger
-func newLogger(zapLogger *zap.Logger) reporter.Logger {
-	return &zapLoggerWrapper{logger: zapLogger}
+func newLogger() reporter.Logger {
+	// Add 1 to the call stack depth to skip the newLogger function
+	return &zapLoggerWrapper{logger: zap.New(log.NewZapCoreWithRelativeDepth(1))}
 }
 
 func (l *zapLoggerWrapper) Debugf(format string, args ...interface{}) {

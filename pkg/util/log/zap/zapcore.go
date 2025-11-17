@@ -15,7 +15,8 @@ import (
 var _ zapcore.Core = (*core)(nil)
 
 type core struct {
-	baseEncoder *encoder
+	baseEncoder    *encoder
+	callStackDepth int
 }
 
 func (c *core) Enabled(level zapcore.Level) bool {
@@ -42,7 +43,8 @@ func (c *core) With(fields []zapcore.Field) zapcore.Core {
 	}
 
 	return &core{
-		baseEncoder: enc,
+		baseEncoder:    enc,
+		callStackDepth: c.callStackDepth,
 	}
 }
 
@@ -66,21 +68,20 @@ func (c *core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		context = enc.ctx
 	}
 
-	const depth = 3
 	switch entry.Level {
 	case zapcore.DebugLevel:
-		log.DebugcStackDepth(entry.Message, depth, context...)
+		log.DebugcStackDepth(entry.Message, c.callStackDepth, context...)
 	case zapcore.InfoLevel:
-		log.InfocStackDepth(entry.Message, depth, context...)
+		log.InfocStackDepth(entry.Message, c.callStackDepth, context...)
 	// we ignore errors since these are not related to writing
 	case zapcore.WarnLevel:
-		_ = log.WarncStackDepth(entry.Message, depth, context...)
+		_ = log.WarncStackDepth(entry.Message, c.callStackDepth, context...)
 	case zapcore.ErrorLevel:
-		_ = log.ErrorcStackDepth(entry.Message, depth, context...)
+		_ = log.ErrorcStackDepth(entry.Message, c.callStackDepth, context...)
 	// zap's default core panics or exits at these levels;
 	// we just log them at critical level
 	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		_ = log.CriticalcStackDepth(entry.Message, depth, context...)
+		_ = log.CriticalcStackDepth(entry.Message, c.callStackDepth, context...)
 	}
 	return nil
 }
@@ -90,7 +91,14 @@ func (c *core) Sync() error {
 	return nil
 }
 
+const defaultCallStackDepth = 3
+
 // NewZapCore creates a new zap core that wraps the default agent log instance.
 func NewZapCore() zapcore.Core {
-	return &core{baseEncoder: &encoder{}}
+	return &core{baseEncoder: &encoder{}, callStackDepth: defaultCallStackDepth}
+}
+
+// NewZapCoreWithRelativeDepth creates a new zap core that wraps the default agent log instance with a relative call stack depth.
+func NewZapCoreWithRelativeDepth(relativeDepth int) zapcore.Core {
+	return &core{baseEncoder: &encoder{}, callStackDepth: defaultCallStackDepth + relativeDepth}
 }
