@@ -8,6 +8,10 @@
 // Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
+import (
+	"github.com/vishvananda/netlink"
+)
+
 var (
 	ethtoolMetricNames = map[string][]string{
 		// Example ethtool -S iface with ena driver:
@@ -499,4 +503,18 @@ var (
 	}
 
 	procfsSubdirectories = []string{"netstat", "snmp"}
+
+	netlinkStateMetricsMapping = map[uint8]string{
+		netlink.TCP_ESTABLISHED: "established",
+		netlink.TCP_SYN_SENT:    "opening",
+		netlink.TCP_SYN_RECV:    "opening",
+		netlink.TCP_FIN_WAIT1:   "closing",
+		netlink.TCP_FIN_WAIT2:   "closing",
+		netlink.TCP_TIME_WAIT:   "time_wait",
+		netlink.TCP_CLOSE:       "closing",
+		netlink.TCP_CLOSE_WAIT:  "closing",
+		netlink.TCP_LAST_ACK:    "closing",
+		netlink.TCP_LISTEN:      "listening",
+		netlink.TCP_CLOSING:     "closing",
+	}
 )

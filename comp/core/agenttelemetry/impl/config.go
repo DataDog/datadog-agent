@@ -210,6 +210,29 @@ var defaultProfiles = `
       start_after: 30
       iterations: 0
       period: 900
+  - name: network-check
+    metric:
+      metrics:
+        - name: net.connections.diff
+          aggregate_tags:
+            - protocol
+            - state
+        - name: net.recv_q.diff
+          aggregate_tags:
+            - protocol
+            - state
+        - name: net.send_q.diff
+          aggregate_tags:
+            - protocol
+            - state
+        - name: net.conntrack.diff
+          aggregate_tags:
+            - cpu
+            - field
+    schedule:
+      start_after: 30
+      iterations: 0
+      period: 900
   - name: logs-and-metrics
     metric:
       exclude:
