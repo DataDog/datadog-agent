@@ -247,7 +247,6 @@ func newTestInstaller(t *testing.T) *testInstaller {
 		func(_ *env.Env) installer.Installer { return pm },
 		&env.Env{RemoteUpdates: true},
 		taskDB,
-		rcc.GetClientID(),
 	)
 	i := &testInstaller{
 		daemonImpl: daemon,

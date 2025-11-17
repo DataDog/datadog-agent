@@ -143,13 +143,13 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		IsFromDaemon:         true,
 	}
 	installer := newInstaller(installerBin)
-	return newDaemon(rc, installer, env, taskDB, rc.client.GetClientID()), nil
+	return newDaemon(rc, installer, env, taskDB), nil
 }
 
-func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, clientID string) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
-		clientID:        clientID,
+		clientID:        rc.client.GetClientID(),
 		rc:              rc,
 		installer:       installer,
 		requests:        make(chan remoteAPIRequest, 32),
