@@ -1,8 +1,9 @@
 #include <windows.h>
-#include <roapi.h>
 #include <combaseapi.h>
-#include <iostream>
 #include <string>
+#include <vector>
+#include <cstring>
+#include <stdexcept>
 
 #include <winrt/base.h>
 #include <winrt/Windows.Foundation.h>
@@ -10,7 +11,6 @@
 #include <winrt/Windows.ApplicationModel.h>
 #include <winrt/Windows.ApplicationModel.Core.h>
 #include <winrt/Windows.Management.Deployment.h>
-#include <winrt/Windows.System.h>
 
 #include "msstoreapps.h"
 
@@ -20,16 +20,14 @@ using namespace winrt::Windows::ApplicationModel;
 using namespace winrt::Windows::Management::Deployment;
 using namespace winrt::Windows::System;
 
-static char* dup_utf8(const std::string& s) {
+
+static char* make_str(const std::string& s) {
     char* p = (char*)CoTaskMemAlloc(s.size() + 1);
     if (!p) throw std::bad_alloc{};
     memcpy(p, s.data(), s.size());
     p[s.size()] = '\0';
     return p;
 }
-static char* dup_h(hstring const& hs) { return dup_utf8(winrt::to_string(hs)); }
-static char* dup_lit(const char* lit) { return dup_utf8(lit); }
-
 static std::string ver_to_str(PackageVersion const& v) {
     char buf[32];
     _snprintf_s(buf, _TRUNCATE, "%u.%u.%u.%u", v.Major, v.Minor, v.Build, v.Revision);
@@ -54,42 +52,62 @@ int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
     *out_array = nullptr; *out_count = 0;
 
     try {
-        winrt::init_apartment(apartment_type::single_threaded);
+        winrt::init_apartment();
 
         PackageManager pm;
         std::vector<MSStoreEntry> rows;
-        rows.reserve(256);
 
-        auto iterable = pm.FindPackages();
+        auto packages = pm.FindPackagesWithPackageTypes(PackageTypes::Main);
 
-        for (auto const& pkg : iterable) {
+        for (auto const& pkg : packages) {
+            auto id = pkg.Id();
+            std::string displayName = winrt::to_string(id.Name());
+            std::string version = ver_to_str(id.Version());
+            std::string installDate;
+            // Not all packages have InstalledDate
             try {
-                if (pkg.IsFramework() || pkg.IsResourcePackage()) continue;
+                installDate = dt_to_iso(pkg.InstalledDate());
+            }
+            catch (...) {
+                installDate = "";
+            }
+            std::string publisher = winrt::to_string(id.Publisher());
+            std::string productCode = winrt::to_string(id.FamilyName());
+            uint8_t is64bit = is64(id.Architecture());
 
-                auto id = pkg.Id();
-                auto name = winrt::to_string(id.Name());
+            auto appListEntries = pkg.GetAppListEntries();
 
-                // Keep display name simple for now (avoid AppListEntries while diagnosing)
-                std::string display = name;
-
+            if (appListEntries.Size() == 0) {
                 MSStoreEntry e{};
-                e.display_name = dup_utf8(display);
-                e.version = dup_utf8(ver_to_str(id.Version()));
-                e.install_date = dup_utf8(dt_to_iso(pkg.InstalledDate()));
-                e.source = dup_lit("msstore");
-                e.is_64bit = is64(id.Architecture());
-                e.publisher = dup_h(id.Publisher());
-                e.status = dup_lit("installed");
-                e.product_code = dup_h(id.FamilyName());
+                e.display_name = make_str(displayName);
+                e.version = make_str(version);
+                e.install_date = make_str(installDate);
+                e.is_64bit = is64bit;
+                e.publisher = make_str(publisher);
+                e.product_code = make_str(productCode);
 
                 rows.push_back(e);
             }
-            catch (winrt::hresult_error const& e) {
-                std::string s = "[msstore] skip package, HRESULT=0x" +
-                    std::to_string((unsigned int)e.code().value) + "\n";
-                // skip and continue
-            }
-            catch (...) {
+            else {
+                for (auto const& appListEntry : appListEntries) {
+                    auto displayInfo = appListEntry.DisplayInfo();
+                    if (displayInfo) {
+                        auto dn = displayInfo.DisplayName();
+                        if (!dn.empty()) {
+                            displayName = winrt::to_string(dn);
+                        }
+                    }
+
+                    MSStoreEntry e{};
+                    e.display_name = make_str(displayName);
+                    e.version = make_str(version);
+                    e.install_date = make_str(installDate);
+                    e.is_64bit = is64bit;
+                    e.publisher = make_str(publisher);
+                    e.product_code = make_str(productCode);
+
+                    rows.push_back(e);
+                }
             }
         }
 
@@ -112,13 +130,11 @@ extern "C" __declspec(dllexport)
 void FreeStoreEntries(MSStoreEntry* entries, int32_t count) {
     if (!entries) return;
     for (int32_t i = 0; i < count; ++i) {
-        CoTaskMemFree((void*)entries[i].display_name);
-        CoTaskMemFree((void*)entries[i].version);
-        CoTaskMemFree((void*)entries[i].install_date);
-        CoTaskMemFree((void*)entries[i].source);
-        CoTaskMemFree((void*)entries[i].publisher);
-        CoTaskMemFree((void*)entries[i].status);
-        CoTaskMemFree((void*)entries[i].product_code);
+        CoTaskMemFree(entries[i].display_name);
+        CoTaskMemFree(entries[i].version);
+        CoTaskMemFree(entries[i].install_date);
+        CoTaskMemFree(entries[i].publisher);
+        CoTaskMemFree(entries[i].product_code);
     }
     CoTaskMemFree(entries);
 }

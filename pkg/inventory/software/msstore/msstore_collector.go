@@ -3,7 +3,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"syscall"
@@ -42,7 +41,6 @@ var (
 	mod           = syscall.NewLazyDLL("MSStoreApps.dll")
 	procList      = mod.NewProc("ListStoreEntries")
 	procFree      = mod.NewProc("FreeStoreEntries")
-	errCallFailed = errors.New("ListStoreEntries failed")
 )
 
 func cstr(p *byte) string {
@@ -59,22 +57,15 @@ func cstr(p *byte) string {
 
 // List returns MS Store installations mapped to Entry.
 func List() ([]Entry, error) {
-	if err := mod.Load(); err != nil {
-		return nil, err
-	}
-
 	var arrPtr uintptr
 	var count int32
 
-	r1, _, callErr := procList.Call(
+	r1, _, _ := procList.Call(
 		uintptr(unsafe.Pointer(&arrPtr)),
 		uintptr(unsafe.Pointer(&count)),
 	)
 	if r1 != 0 {
-		if callErr != syscall.Errno(0) {
-			return nil, callErr
-		}
-		return nil, errCallFailed
+		return nil, fmt.Errorf("ListStoreEntries failed: %d", r1)
 	}
 	if arrPtr == 0 || count == 0 {
 		return []Entry{}, nil
@@ -88,12 +79,12 @@ func List() ([]Entry, error) {
 			DisplayName: cstr(c.displayName),
 			Version:     cstr(c.version),
 			InstallDate: cstr(c.installDate),
-			Source:      cstr(c.source), // will be "msstore"
+			Source:      "msstore",
 			UserSID:     "",
-			Is64Bit:     c.is64bit != 0,
+			Is64Bit:     c.is64bit == 1,
 			Publisher:   cstr(c.publisher),
-			Status:      cstr(c.status), // "installed"
-			ProductCode: cstr(c.productCode), // family name
+			Status:      "installed",
+			ProductCode: cstr(c.productCode),
 		})
 	}
 	return out, nil
@@ -105,13 +96,16 @@ func main() {
 		log.Fatal(err)
 	}
 	for _, e := range entries {
-		fmt.Printf("%s (%s)\n", e.DisplayName, e.Version)
+		fmt.Printf("%s\n", e.DisplayName)
+		fmt.Printf("  Version: %s\n", e.Version)
+		fmt.Printf("  Install Date: %s\n", e.InstallDate)
+		fmt.Printf("  Source: %s\n", e.Source)
+		fmt.Printf("  User SID: %s\n", e.UserSID)
+		fmt.Printf("  Is 64-bit: %v\n", e.Is64Bit)
 		fmt.Printf("  Publisher: %s\n", e.Publisher)
-		fmt.Printf("  Code:      %s\n", e.ProductCode)
-		fmt.Printf("  64-bit:    %v\n", e.Is64Bit)
-		fmt.Printf("  Source:    %s\n", e.Source)
-		fmt.Printf("  Status:    %s\n", e.Status)
-		fmt.Printf("  Installed: %s\n", e.InstallDate)
+		fmt.Printf("  Status: %s\n", e.Status)
+		fmt.Printf("  Product Code: %s\n", e.ProductCode)
 		fmt.Println()
 	}
+	fmt.Printf("Total entries: %d\n", len(entries))
 }

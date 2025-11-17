@@ -6,14 +6,12 @@ extern "C" {
 #endif
 
     typedef struct {
-        const char* display_name;
-        const char* version;
-        const char* install_date;
-        const char* source;
+        char* display_name;
+        char* version;
+        char* install_date;
         uint8_t     is_64bit;
-        const char* publisher;
-        const char* status;
-        const char* product_code;
+        char* publisher;
+        char* product_code;
     } MSStoreEntry;
 
     __declspec(dllexport)
