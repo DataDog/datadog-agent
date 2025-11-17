@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -23,7 +22,7 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := opener.OpenLogFile(t.fullpath)
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
