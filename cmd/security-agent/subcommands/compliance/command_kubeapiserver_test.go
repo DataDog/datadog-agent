@@ -10,13 +10,13 @@ package compliance
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // This test suite requires build flags because the check child command requires them.
@@ -27,7 +27,7 @@ func TestCheckSubcommand(t *testing.T) {
 	tests := []struct {
 		name     string
 		cliInput []string
-		check    func(cliParams *check.CliParams, params core.BundleParams)
+		check    func(cliParams *cli.CheckParams, params core.BundleParams)
 	}{
 		{
 			name:     "compliance check",
