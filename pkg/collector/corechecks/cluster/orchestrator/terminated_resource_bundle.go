@@ -47,7 +47,7 @@ func (tb *TerminatedResourceBundle) Add(k8sCollector collectors.K8sCollector, ob
 	defer tb.mu.Unlock()
 
 	if _, ok := tb.terminatedResources[k8sCollector]; !ok {
-		tb.terminatedResources[k8sCollector] = []interface{}{}
+		tb.terminatedResources[k8sCollector] = make([]interface{}, 0, tb.runCfg.Config.MaxPerMessage)
 	}
 
 	resource, err := getResource(obj)
@@ -96,7 +96,7 @@ func (tb *TerminatedResourceBundle) Run() {
 			orchSender.OrchestratorManifest(result.Result.ManifestMessages, tb.runCfg.ClusterID)
 		}
 
-		tb.terminatedResources[collector] = tb.terminatedResources[collector][:0]
+		tb.terminatedResources[collector] = make([]interface{}, 0, tb.runCfg.Config.MaxPerMessage)
 	}
 }
 

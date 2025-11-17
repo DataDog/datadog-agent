@@ -211,15 +211,6 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
-	// Initialize collectors
-	o.collectorBundle.Initialize()
-
-	// access serializer
-	sender, err := o.GetSender()
-	if err != nil {
-		return err
-	}
-
 	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
@@ -236,10 +227,19 @@ func (o *OrchestratorCheck) Run() error {
 			}
 
 			_ = o.Warn("Leader Election error. Not running the Orchestrator check.")
-			return err
+			return errLeader
 		}
 
 		log.Tracef("Current leader: %q, running the Orchestrator check", leader)
+	}
+
+	// Initialize collectors
+	o.collectorBundle.Initialize()
+
+	// access serializer
+	sender, err := o.GetSender()
+	if err != nil {
+		return err
 	}
 
 	// Run all collectors.
