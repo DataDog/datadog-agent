@@ -204,10 +204,6 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 		},
 	}
 
-	sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil)
-	sub.CheckEvents()
-	assert.Eventually(t, sub.isRunning, testTimeout, testTicker) // Wait until it's processing events
-
 	tests := []struct {
 		name                   string
 		containerID            string
@@ -251,6 +247,11 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 			defaultExcludePauseContainers := mockConfig.GetBool("exclude_pause_container")
 			mockConfig.SetWithoutSource("exclude_pause_container", test.excludePauseContainers)
 
+			// Create a new subscriber for each test case so it picks up the correct config value
+			sub := createEventSubscriber("subscriberTestPauseContainers", containerdutil.ContainerdItf(itf), nil)
+			sub.CheckEvents()
+			assert.Eventually(t, sub.isRunning, testTimeout, testTicker) // Wait until it's processing events
+
 			if test.generateCreateEvent {
 				eventCreateContainer, err := createContainerEvent(testNamespace, test.containerID)
 				assert.NoError(t, err)
@@ -278,11 +279,13 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 				assert.Empty(t, sub.Flush(time.Now().Unix()))
 			}
 
+			// Stop the subscriber before next test case
+			errorsCh <- fmt.Errorf("stop subscriber")
+			assert.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
+
 			mockConfig.SetWithoutSource("exclude_pause_container", defaultExcludePauseContainers)
 		})
 	}
-
-	errorsCh <- fmt.Errorf("stop subscriber")
 }
 
 // TestComputeEvents checks the conversion of Containerd events to Datadog events
