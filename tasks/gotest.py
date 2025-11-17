@@ -202,8 +202,7 @@ def sanitize_env_vars():
     """
     for env in os.environ:
         # Allow the env var that enables NodeTreeModel for testing purposes
-        # TODO A
-        if env in ("DD_CONF_NODETREEMODEL", "DD_DYNAMIC_INSTRUMENTATION_ENABLED", "DD_ENV", "DD_SERVICE", "DD_VERSION", "DD_CIVISIBILITY_ENABLED", "DD_CIVISIBILITY_AGENTLESS_ENABLED", "DD_API_KEY"):
+        if env == "DD_CONF_NODETREEMODEL":
             continue
         if env.startswith("DD_"):
             del os.environ[env]
@@ -289,7 +288,8 @@ def test(
 
     If use_orchestrion is set to True, orchestrion will be used to run gotestsum for native instrumentation.
     """
-    sanitize_env_vars()
+    # TODO
+    # sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
@@ -331,7 +331,7 @@ def test(
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     # TODO: Orchestrion only on option
-    stdlib_build_cmd = 'orchestrion go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
@@ -347,7 +347,7 @@ def test(
     )
 
     # Use orchestrion to run gotestsum for native instrumentation
-    cmd_prefix = 'orchestrion toolexec' if use_orchestrion else ''
+    cmd_prefix = '' # 'orchestrion toolexec' if use_orchestrion else ''
 
     cmd = f'{cmd_prefix} gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
