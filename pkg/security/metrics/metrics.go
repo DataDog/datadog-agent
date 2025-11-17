@@ -479,6 +479,8 @@ var (
 	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
+
+	MetricPrctlCounter = newITRuntimeMetric("prctl", "counter")
 )
 
 var (
