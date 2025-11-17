@@ -36,6 +36,7 @@ type NetflowConfig struct {
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
 
 	ReverseDNSEnrichmentEnabled bool `mapstructure:"reverse_dns_enrichment_enabled"`
+	MaxFlowsPerPeriod           int  `mapstructure:"max_flows_per_collection_period"`
 }
 
 // ListenerConfig contains configuration for a single flow listener

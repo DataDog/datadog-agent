@@ -8,11 +8,13 @@ package flowaggregator
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 
@@ -39,7 +41,7 @@ const metricPrefix = "datadog.netflow."
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
 	flowIn                       chan *common.Flow
-	FlushFlowsToSendInterval     time.Duration // interval for checking flows to flush and send them to EP Forwarder
+	FlushConfig                  common.FlushConfig
 	rollupTrackerRefreshInterval time.Duration
 	flowAcc                      *flowAccumulator
 	sender                       sender.Sender
@@ -56,7 +58,8 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	logger log.Component
+	TopNRestrictor FlowFlushFilter
+	logger         log.Component
 }
 
 type sequenceDeltaKey struct {
@@ -71,6 +74,10 @@ type sequenceDeltaValue struct {
 	Reset        bool
 }
 
+type FlowFlushFilter interface {
+	Filter(flushCtx common.FlushContext, flows []*common.Flow) []*common.Flow
+}
+
 // maxNegativeSequenceDiffToReset are thresholds used to detect sequence reset
 var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 	common.TypeSFlow5:   -1000,
@@ -81,13 +88,20 @@ var maxNegativeSequenceDiffToReset = map[common.FlowType]int{
 
 // NewFlowAggregator returns a new FlowAggregator
 func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder, config *config.NetflowConfig, hostname string, logger log.Component, rdnsQuerier rdnsquerier.Component) *FlowAggregator {
-	flushInterval := time.Duration(config.AggregatorFlushInterval) * time.Second
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: time.Duration(config.AggregatorFlushInterval) * time.Second,
+		FlushTickFrequency:     flushFlowsToSendInterval,
+	}
+	var topNFilter FlowFlushFilter = topn.NoopFilter{}
+	if config.MaxFlowsPerPeriod > 0 {
+		topNFilter = topn.NewPerFlushFilter(int64(config.MaxFlowsPerPeriod), flushConfig)
+	}
 	flowContextTTL := time.Duration(config.AggregatorFlowContextTTL) * time.Second
 	rollupTrackerRefreshInterval := time.Duration(config.AggregatorRollupTrackerRefreshInterval) * time.Second
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
-		flowAcc:                      newFlowAccumulator(flushInterval, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
-		FlushFlowsToSendInterval:     flushFlowsToSendInterval,
+		flowAcc:                      newFlowAccumulator(flushConfig, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
+		FlushConfig:                  flushConfig,
 		rollupTrackerRefreshInterval: rollupTrackerRefreshInterval,
 		sender:                       sender,
 		epForwarder:                  epForwarder,
@@ -101,6 +115,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		TimeNowFunction:              time.Now,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
+		TopNRestrictor:               topNFilter,
 	}
 }
 
@@ -147,6 +162,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 			agg.logger.Errorf("Error marshalling device metadata: %s", err)
 			continue
 		}
+		fmt.Println("flushed flow: ", string(payloadBytes))
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
 		m := message.NewMessage(payloadBytes, nil, "", 0)
@@ -201,6 +217,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 				continue
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
+			fmt.Println("netflow exporter metadata payload: ", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
 			if err != nil {
@@ -211,19 +228,12 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 }
 
 func (agg *FlowAggregator) flushLoop() {
-	var flushFlowsToSendTicker <-chan time.Time
-
-	if agg.FlushFlowsToSendInterval > 0 {
-		flushTicker := time.NewTicker(agg.FlushFlowsToSendInterval)
-		flushFlowsToSendTicker = flushTicker.C
-		defer flushTicker.Stop()
-	} else {
+	flushFlowsToSendTicker := time.Tick(agg.FlushConfig.FlushTickFrequency)
+	if flushFlowsToSendTicker == nil {
 		agg.logger.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
 	}
 
-	rollupTicker := time.NewTicker(agg.rollupTrackerRefreshInterval)
-	defer rollupTicker.Stop()
-	rollupTrackersRefresh := rollupTicker.C
+	rollupTrackersRefresh := time.Tick(agg.rollupTrackerRefreshInterval)
 	// TODO: move rollup tracker refresh to a separate loop (separate PR) to avoid rollup tracker and flush flows impacting each other
 
 	var lastFlushTime time.Time
@@ -239,8 +249,21 @@ func (agg *FlowAggregator) flushLoop() {
 				flushInterval := flushStartTime.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
 			}
+
+			// normalize flush time to the nearest flush tick frequency, this lets us more deterministically calculate
+			// the # of periods we're covering in this flush
+			var expectedFlushes int64 = 1
+			if !lastFlushTime.IsZero() {
+				expectedFlushes = int64(flushStartTime.Sub(lastFlushTime) / agg.FlushConfig.FlushTickFrequency)
+			}
+			flushCtx := common.FlushContext{
+				FlushTime:     flushStartTime,
+				LastFlushedAt: lastFlushTime,
+				NumFlushes:    expectedFlushes,
+			}
+
 			lastFlushTime = flushStartTime
-			agg.flush()
+			agg.flush(flushCtx)
 			agg.sender.Gauge("datadog.netflow.aggregator.flush_duration", time.Since(flushStartTime).Seconds(), "", nil)
 			agg.sender.Commit()
 		// refresh rollup trackers
@@ -251,11 +274,18 @@ func (agg *FlowAggregator) flushLoop() {
 }
 
 // Flush flushes the aggregator
-func (agg *FlowAggregator) flush() int {
+func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	flowsContexts := agg.flowAcc.getFlowContextCount()
-	flushTime := agg.TimeNowFunction()
-	flowsToFlush := agg.flowAcc.flush()
+	flushTime := ctx.FlushTime
+	flowsToFlush := agg.flowAcc.flush(ctx)
 	agg.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
+
+	// apply filtering
+	flowsBeforeFilter := len(flowsToFlush)
+	flowsToFlush = agg.TopNRestrictor.Filter(ctx, flowsToFlush)
+	numRowsFiltered := flowsBeforeFilter - len(flowsToFlush)
+
+	agg.logger.Debugf("Flushing %d flows to the forwarder, %d have been dropped by TopN filtering (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), numRowsFiltered, time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	sequenceDeltaPerExporter := agg.getSequenceDelta(flowsToFlush)
 	for key, seqDelta := range sequenceDeltaPerExporter {
@@ -268,10 +298,12 @@ func (agg *FlowAggregator) flush() int {
 	}
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
+	// TODO: agg.TimeNowFunction() is a different clock than what we're using for ticking. Code is updated to use the ticker time for everything below, should we do the same here?
+	// should we just remove the # from the test consideration?
 	if len(flowsToFlush) > 0 {
-		agg.sendFlows(flowsToFlush, flushTime)
+		agg.sendFlows(flowsToFlush, agg.TimeNowFunction())
 	}
-	agg.sendExporterMetadata(flowsToFlush, flushTime)
+	agg.sendExporterMetadata(flowsToFlush, agg.TimeNowFunction())
 
 	flushCount := len(flowsToFlush)
 

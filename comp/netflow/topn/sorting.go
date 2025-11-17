@@ -1,0 +1,26 @@
+package topn
+
+import (
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+)
+
+type sortFunc[T any] func(a, b T) int
+
+func compareByBytesAscending(a, b *common.Flow) int {
+	var aBytes uint64
+	var bBytes uint64
+	if a != nil {
+		aBytes = a.Bytes
+	}
+	if b != nil {
+		bBytes = b.Bytes
+	}
+
+	return int(aBytes - bBytes)
+}
+
+func reversed[T any](sortFunc sortFunc[T]) sortFunc[T] {
+	return func(a, b T) int {
+		return -sortFunc(a, b)
+	}
+}

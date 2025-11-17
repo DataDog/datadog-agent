@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
+	"github.com/DataDog/datadog-agent/comp/netflow/topn"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 )
@@ -171,9 +172,13 @@ func TestAggregator(t *testing.T) {
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
-	aggregator.FlushFlowsToSendInterval = 1 * time.Second
+	aggregator.FlushConfig.FlushTickFrequency = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
+	}
+	aggregator.TopNRestrictor = topn.NoopFilter{}
+	aggregator.flowAcc.scheduler = ImmediateFlowScheduler{
+		flushConfig: aggregator.FlushConfig,
 	}
 	inChan := aggregator.GetFlowInChan()
 
@@ -274,7 +279,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	logger := logmock.New(t)
 	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
-	aggregator.FlushFlowsToSendInterval = 1 * time.Second
+	aggregator.FlushConfig.FlushTickFrequency = 1 * time.Second
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
@@ -372,7 +377,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 	})
 
 	// 2/ Act
-	aggregator.flush()
+	aggregator.flush(common.FlushContext{FlushTime: aggregator.TimeNowFunction()})
 
 	// 3/ Assert
 	w.Flush()
