@@ -126,6 +126,10 @@ build do
     delete "#{install_dir}/embedded/lib/libssl.a"
   else
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir='#{install_dir}/embedded'"
+    if windows?
+      # shutil generates temporary files during run install that are not removed afterwards.
+      command_on_repo_root "Remove-Item -Path #{install_dir}/embedded/include/openssl -Include tmp* -Force"
+    end
     if linux_target?
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libssl.so" \
