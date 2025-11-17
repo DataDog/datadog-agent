@@ -7,7 +7,7 @@ package(default_visibility = ["//visibility:public"])
 
 filegroup(
     name = "all",
-    srcs = glob(["**"]),
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
 
 DEFAULT_CONFIG = [
@@ -138,29 +138,23 @@ filegroup(
 )
 
 so_symlink(
-    name = "libssl_symlink",
+    name = "libssl_with_symlink",
     src = ":libssl",
     libname = "libssl",
-    version = "3",
+    version = "3.5.4",
 )
 
 so_symlink(
-    name = "libcrypto_symlink",
+    name = "libcrypto_with_symlink",
     src = ":libcrypto",
     libname = "libcrypto",
-    version = "3",
+    version = "3.5.4",
 )
 
 filegroup(
     name = "headers",
     srcs = [":openssl"],
     output_group = "include",
-)
-
-pkg_files(
-    name = "openssl_lib_files",
-    srcs = [":libssl", ":libcrypto"],
-    prefix = "lib",
 )
 
 pkg_files(
@@ -173,7 +167,8 @@ pkg_files(
 pkg_install(
     name = "install",
     srcs = [
-        ":openssl_lib_files",
         ":openssl_hdr_files",
+        ":libssl_with_symlink",
+        ":libcrypto_with_symlink",
     ],
 )
