@@ -7,7 +7,12 @@
 package idx
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"math"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/tinylib/msgp/msgp"
 )
@@ -34,9 +39,9 @@ func UnmarshalSpanList(bts []byte, strings *StringTable) (spans []*InternalSpan,
 
 // UnmarshalMsg unmarshals the wire representation of a Span from a byte stream, updating the strings slice with new strings
 // directly into an InternalSpan. Note that the Strings field of the InternalSpan must already be initialized.
-func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
-	if span.span == nil {
-		span.span = &Span{}
+func (s *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	if s.span == nil {
+		s.span = &Span{}
 	}
 	var numSpanFields uint32
 	numSpanFields, o, err = limitedReadMapHeaderBytes(bts)
@@ -55,28 +60,28 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 		switch fieldNum {
 		case 1:
 			var service uint32
-			service, o, err = UnmarshalStreamingString(o, span.Strings)
+			service, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span service")
 				return
 			}
-			span.span.ServiceRef = service
+			s.span.ServiceRef = service
 		case 2:
 			var name uint32
-			name, o, err = UnmarshalStreamingString(o, span.Strings)
+			name, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span name")
 				return
 			}
-			span.span.NameRef = name
+			s.span.NameRef = name
 		case 3:
 			var resc uint32
-			resc, o, err = UnmarshalStreamingString(o, span.Strings)
+			resc, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span resource")
 				return
 			}
-			span.span.ResourceRef = resc
+			s.span.ResourceRef = resc
 		case 4:
 			var spanID uint64
 			spanID, o, err = msgp.ReadUint64Bytes(o)
@@ -84,7 +89,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span spanID")
 				return
 			}
-			span.span.SpanID = spanID
+			s.span.SpanID = spanID
 		case 5:
 			var parentID uint64
 			parentID, o, err = msgp.ReadUint64Bytes(o)
@@ -92,7 +97,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span parentID")
 				return
 			}
-			span.span.ParentID = parentID
+			s.span.ParentID = parentID
 		case 6:
 			var start uint64
 			start, o, err = msgp.ReadUint64Bytes(o)
@@ -100,7 +105,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span start")
 				return
 			}
-			span.span.Start = start
+			s.span.Start = start
 		case 7:
 			var duration uint64
 			duration, o, err = msgp.ReadUint64Bytes(o)
@@ -108,7 +113,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span duration")
 				return
 			}
-			span.span.Duration = duration
+			s.span.Duration = duration
 		case 8:
 			var spanError bool
 			spanError, o, err = msgp.ReadBoolBytes(o)
@@ -116,63 +121,63 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span error")
 				return
 			}
-			span.span.Error = spanError
+			s.span.Error = spanError
 		case 9:
 			var kvl map[uint32]*AnyValue
-			kvl, o, err = UnmarshalKeyValueMap(o, span.Strings)
+			kvl, o, err = UnmarshalKeyValueMap(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span attributes")
 				return
 			}
-			span.span.Attributes = kvl
+			s.span.Attributes = kvl
 		case 10:
 			var typ uint32
-			typ, o, err = UnmarshalStreamingString(o, span.Strings)
+			typ, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span type")
 				return
 			}
-			span.span.TypeRef = typ
+			s.span.TypeRef = typ
 		case 11:
 			var spanLinks []*SpanLink
-			spanLinks, o, err = UnmarshalSpanLinks(o, span.Strings)
+			spanLinks, o, err = UnmarshalSpanLinks(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span links")
 				return
 			}
-			span.span.Links = spanLinks
+			s.span.Links = spanLinks
 		case 12:
 			var spanEvents []*SpanEvent
-			spanEvents, o, err = UnmarshalSpanEventList(o, span.Strings)
+			spanEvents, o, err = UnmarshalSpanEventList(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span events")
 				return
 			}
-			span.span.Events = spanEvents
+			s.span.Events = spanEvents
 		case 13:
 			var env uint32
-			env, o, err = UnmarshalStreamingString(o, span.Strings)
+			env, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span env")
 				return
 			}
-			span.span.EnvRef = env
+			s.span.EnvRef = env
 		case 14:
 			var version uint32
-			version, o, err = UnmarshalStreamingString(o, span.Strings)
+			version, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span version")
 				return
 			}
-			span.span.VersionRef = version
+			s.span.VersionRef = version
 		case 15:
 			var component uint32
-			component, o, err = UnmarshalStreamingString(o, span.Strings)
+			component, o, err = UnmarshalStreamingString(o, s.Strings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to read span component")
 				return
 			}
-			span.span.ComponentRef = component
+			s.span.ComponentRef = component
 		case 16:
 			var kind uint32
 			kind, o, err = msgp.ReadUint32Bytes(o)
@@ -180,7 +185,7 @@ func (span *InternalSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "Failed to read span kind")
 				return
 			}
-			span.span.Kind = SpanKind(kind)
+			s.span.Kind = SpanKind(kind)
 		default:
 		}
 	}
@@ -670,139 +675,139 @@ func (spanEvent *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStri
 }
 
 // MarshalMsg marshals a Span into a byte stream
-func (span *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
+func (s *InternalSpan) MarshalMsg(bts []byte, serStrings *SerializedStrings) (o []byte, err error) {
 	// Count non-default fields to determine map header size
 	numFields := 0
-	if span.span.ServiceRef != 0 {
+	if s.span.ServiceRef != 0 {
 		numFields++
 	}
-	if span.span.NameRef != 0 {
+	if s.span.NameRef != 0 {
 		numFields++
 	}
-	if span.span.ResourceRef != 0 {
+	if s.span.ResourceRef != 0 {
 		numFields++
 	}
-	if span.span.SpanID != 0 {
+	if s.span.SpanID != 0 {
 		numFields++
 	}
-	if span.span.ParentID != 0 {
+	if s.span.ParentID != 0 {
 		numFields++
 	}
-	if span.span.Start != 0 {
+	if s.span.Start != 0 {
 		numFields++
 	}
-	if span.span.Duration != 0 {
+	if s.span.Duration != 0 {
 		numFields++
 	}
-	if span.span.Error {
+	if s.span.Error {
 		numFields++
 	}
-	if len(span.span.Attributes) > 0 {
+	if len(s.span.Attributes) > 0 {
 		numFields++
 	}
-	if span.span.TypeRef != 0 {
+	if s.span.TypeRef != 0 {
 		numFields++
 	}
-	if len(span.span.Links) > 0 {
+	if len(s.span.Links) > 0 {
 		numFields++
 	}
-	if len(span.span.Events) > 0 {
+	if len(s.span.Events) > 0 {
 		numFields++
 	}
-	if span.span.EnvRef != 0 {
+	if s.span.EnvRef != 0 {
 		numFields++
 	}
-	if span.span.VersionRef != 0 {
+	if s.span.VersionRef != 0 {
 		numFields++
 	}
-	if span.span.ComponentRef != 0 {
+	if s.span.ComponentRef != 0 {
 		numFields++
 	}
-	if span.span.Kind != 0 {
+	if s.span.Kind != 0 {
 		numFields++
 	}
 	o = msgp.AppendMapHeader(bts, uint32(numFields))
-	if span.span.ServiceRef != 0 {
+	if s.span.ServiceRef != 0 {
 		o = msgp.AppendUint32(o, 1) // service
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.ServiceRef), span.span.ServiceRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.ServiceRef), s.span.ServiceRef, o)
 	}
-	if span.span.NameRef != 0 {
+	if s.span.NameRef != 0 {
 		o = msgp.AppendUint32(o, 2) // name
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.NameRef), span.span.NameRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.NameRef), s.span.NameRef, o)
 	}
-	if span.span.ResourceRef != 0 {
+	if s.span.ResourceRef != 0 {
 		o = msgp.AppendUint32(o, 3) // resource
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.ResourceRef), span.span.ResourceRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.ResourceRef), s.span.ResourceRef, o)
 	}
-	if span.span.SpanID != 0 {
+	if s.span.SpanID != 0 {
 		o = msgp.AppendUint32(o, 4) // spanID
-		o = msgp.AppendUint64(o, span.span.SpanID)
+		o = msgp.AppendUint64(o, s.span.SpanID)
 	}
-	if span.span.ParentID != 0 {
+	if s.span.ParentID != 0 {
 		o = msgp.AppendUint32(o, 5) // parentID
-		o = msgp.AppendUint64(o, span.span.ParentID)
+		o = msgp.AppendUint64(o, s.span.ParentID)
 	}
-	if span.span.Start != 0 {
+	if s.span.Start != 0 {
 		o = msgp.AppendUint32(o, 6) // start
-		o = msgp.AppendUint64(o, span.span.Start)
+		o = msgp.AppendUint64(o, s.span.Start)
 	}
-	if span.span.Duration != 0 {
+	if s.span.Duration != 0 {
 		o = msgp.AppendUint32(o, 7) // duration
-		o = msgp.AppendUint64(o, span.span.Duration)
+		o = msgp.AppendUint64(o, s.span.Duration)
 	}
-	if span.span.Error {
+	if s.span.Error {
 		o = msgp.AppendUint32(o, 8) // error
-		o = msgp.AppendBool(o, span.span.Error)
+		o = msgp.AppendBool(o, s.span.Error)
 	}
-	if len(span.span.Attributes) > 0 {
+	if len(s.span.Attributes) > 0 {
 		o = msgp.AppendUint32(o, 9) // attributes
-		o, err = MarshalAttributesMap(o, span.span.Attributes, span.Strings, serStrings)
+		o, err = MarshalAttributesMap(o, s.span.Attributes, s.Strings, serStrings)
 		if err != nil {
 			err = msgp.WrapError(err, "Failed to marshal attributes")
 			return
 		}
 	}
-	if span.span.TypeRef != 0 {
+	if s.span.TypeRef != 0 {
 		o = msgp.AppendUint32(o, 10) // type
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.TypeRef), span.span.TypeRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.TypeRef), s.span.TypeRef, o)
 	}
-	if len(span.span.Links) > 0 {
+	if len(s.span.Links) > 0 {
 		o = msgp.AppendUint32(o, 11) // span links
-		o = msgp.AppendArrayHeader(o, uint32(len(span.span.Links)))
-		for _, link := range span.span.Links {
-			o, err = link.MarshalMsg(o, span.Strings, serStrings)
+		o = msgp.AppendArrayHeader(o, uint32(len(s.span.Links)))
+		for _, link := range s.span.Links {
+			o, err = link.MarshalMsg(o, s.Strings, serStrings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to marshal span link")
 				return
 			}
 		}
 	}
-	if len(span.span.Events) > 0 {
+	if len(s.span.Events) > 0 {
 		o = msgp.AppendUint32(o, 12) // span events
-		o = msgp.AppendArrayHeader(o, uint32(len(span.span.Events)))
-		for _, event := range span.span.Events {
-			o, err = event.MarshalMsg(o, span.Strings, serStrings)
+		o = msgp.AppendArrayHeader(o, uint32(len(s.span.Events)))
+		for _, event := range s.span.Events {
+			o, err = event.MarshalMsg(o, s.Strings, serStrings)
 			if err != nil {
 				err = msgp.WrapError(err, "Failed to marshal span event")
 				return
 			}
 		}
 	}
-	if span.span.EnvRef != 0 {
+	if s.span.EnvRef != 0 {
 		o = msgp.AppendUint32(o, 13) // env
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.EnvRef), span.span.EnvRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.EnvRef), s.span.EnvRef, o)
 	}
-	if span.span.VersionRef != 0 {
+	if s.span.VersionRef != 0 {
 		o = msgp.AppendUint32(o, 14) // version
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.VersionRef), span.span.VersionRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.VersionRef), s.span.VersionRef, o)
 	}
-	if span.span.ComponentRef != 0 {
+	if s.span.ComponentRef != 0 {
 		o = msgp.AppendUint32(o, 15) // component
-		o = serStrings.AppendStreamingString(span.Strings.Get(span.span.ComponentRef), span.span.ComponentRef, o)
+		o = serStrings.AppendStreamingString(s.Strings.Get(s.span.ComponentRef), s.span.ComponentRef, o)
 	}
-	if span.span.Kind != 0 {
+	if s.span.Kind != 0 {
 		o = msgp.AppendUint32(o, 16) // kind
-		o = msgp.AppendUint32(o, uint32(span.span.Kind))
+		o = msgp.AppendUint32(o, uint32(s.span.Kind))
 	}
 	return
 }
@@ -835,4 +840,551 @@ func (s *SerializedStrings) AppendStreamingString(str string, strTableIndex uint
 		b = msgp.AppendUint32(b, index)
 	}
 	return b
+}
+
+// spanConvertedFields is used to collect fields from v4 spans that have been promoted to the chunk level
+type SpanConvertedFields struct {
+	TraceIDLower uint64 // the lower 64 bits of the trace ID
+	// traceIDUpper uint64 // the upper 64 bits of the trace ID
+}
+
+// UnmarshalMsgConverted unmarshals a v4 span directly into an InternalSpan for efficiency
+// The provided InternalSpan must have a non-nil Strings field
+func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanConvertedFields) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var numFields uint32
+	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for numFields > 0 {
+		numFields--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "service":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.ServiceRef = 0
+				break
+			}
+			s.span.ServiceRef, bts, err = parseStringBytes(s.Strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
+				return
+			}
+		case "name":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.NameRef = 0
+				break
+			}
+			s.span.NameRef, bts, err = parseStringBytes(s.Strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
+				return
+			}
+		case "resource":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.ResourceRef = 0
+				break
+			}
+			s.span.ResourceRef, bts, err = parseStringBytes(s.Strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Service")
+				return
+			}
+		case "trace_id":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if convertedFields.TraceIDLower != 0 {
+					err = fmt.Errorf("already found lower 64 bits of trace ID but found a 0 traceID")
+					break
+				}
+				break
+			}
+			convertedFields.TraceIDLower, bts, err = parseUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TraceID")
+				return
+			}
+		case "span_id":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.SpanID = 0
+				break
+			}
+			s.span.SpanID, bts, err = parseUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanID")
+				return
+			}
+		case "parent_id":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.ParentID = 0
+				break
+			}
+			s.span.ParentID, bts, err = parseUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "ParentID")
+				return
+			}
+		case "start":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.Start = 0
+				break
+			}
+			var spanStart int64
+			spanStart, bts, err = parseInt64Bytes(bts)
+			s.span.Start = uint64(spanStart)
+			if err != nil {
+				err = msgp.WrapError(err, "Start")
+				return
+			}
+		case "duration":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.Duration = 0
+				break
+			}
+			var spanDuration int64
+			spanDuration, bts, err = parseInt64Bytes(bts)
+			s.span.Duration = uint64(spanDuration)
+			if err != nil {
+				err = msgp.WrapError(err, "Duration")
+				return
+			}
+		case "error":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.Error = false
+				break
+			}
+			var spanError int32
+			spanError, bts, err = parseInt32Bytes(bts)
+			s.span.Error = spanError != 0
+			if err != nil {
+				err = msgp.WrapError(err, "Error")
+				return
+			}
+		case "meta":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				break
+			}
+			var numMetaFields uint32
+			numMetaFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Meta")
+				return
+			}
+			if s.span.Attributes == nil && numMetaFields > 0 {
+				s.span.Attributes = make(map[uint32]*AnyValue, numMetaFields)
+			}
+			for numMetaFields > 0 {
+				var metaVal uint32
+				numMetaFields--
+				var metaKey uint32
+				metaKey, bts, err = parseStringBytes(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Meta")
+					return
+				}
+				metaVal, bts, err = parseStringBytes(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Meta", metaKey)
+					return
+				}
+				s.span.Attributes[metaKey] = &AnyValue{
+					Value: &AnyValue_StringValueRef{
+						StringValueRef: metaVal,
+					},
+				}
+			}
+		case "metrics":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				break
+			}
+			var numMetricsFields uint32
+			numMetricsFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Metrics")
+				return
+			}
+			if s.span.Attributes == nil && numMetricsFields > 0 {
+				s.span.Attributes = make(map[uint32]*AnyValue, numMetricsFields)
+			}
+			for numMetricsFields > 0 {
+				var value float64
+				numMetricsFields--
+				var key uint32
+				key, bts, err = parseStringBytes(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Metrics")
+					return
+				}
+				value, bts, err = parseFloat64Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Metrics", key)
+					return
+				}
+				s.span.Attributes[key] = &AnyValue{
+					Value: &AnyValue_DoubleValue{
+						DoubleValue: value,
+					},
+				}
+			}
+		case "type":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				s.span.TypeRef = 0
+				break
+			}
+			s.span.TypeRef, bts, err = parseStringBytes(s.Strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Type")
+				return
+			}
+		case "meta_struct":
+			var numMetaStructFields uint32
+			numMetaStructFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "MetaStruct")
+				return
+			}
+			if s.span.Attributes == nil && numMetaStructFields > 0 {
+				s.span.Attributes = make(map[uint32]*AnyValue, numMetaStructFields)
+			}
+			for numMetaStructFields > 0 {
+				var value []byte
+				numMetaStructFields--
+				var key uint32
+				key, bts, err = parseStringBytes(s.Strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "MetaStruct")
+					return
+				}
+				value, bts, err = msgp.ReadBytesBytes(bts, value)
+				if err != nil {
+					err = msgp.WrapError(err, "MetaStruct", key)
+					return
+				}
+				s.span.Attributes[key] = &AnyValue{
+					Value: &AnyValue_BytesValue{
+						BytesValue: value,
+					},
+				}
+			}
+		// case "span_links":
+		// 	var numSpanLinks uint32
+		// 	numSpanLinks, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		// 	if err != nil {
+		// 		err = msgp.WrapError(err, "SpanLinks")
+		// 		return
+		// 	}
+		// 	if cap(s.span.Links) >= int(numSpanLinks) {
+		// 		s.span.Links = (s.span.Links)[:numSpanLinks]
+		// 	} else {
+		// 		s.span.Links = make([]*SpanLink, numSpanLinks)
+		// 	}
+		// 	for i := range s.span.Links {
+		// 		if msgp.IsNil(bts) {
+		// 			bts, err = msgp.ReadNilBytes(bts)
+		// 			if err != nil {
+		// 				return
+		// 			}
+		// 			s.span.Links[i] = nil
+		// 		} else {
+		// 			if s.span.Links[i] == nil {
+		// 				s.span.Links[i] = new(SpanLink)
+		// 			}
+		// 			bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
+		// 			if err != nil {
+		// 				err = msgp.WrapError(err, "SpanLinks", i)
+		// 				return
+		// 			}
+		// 		}
+		// 	}
+		// case "span_events":
+		// 	var zb0006 uint32
+		// 	zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		// 	if err != nil {
+		// 		err = msgp.WrapError(err, "SpanEvents")
+		// 		return
+		// 	}
+		// 	if cap(s.SpanEvents) >= int(zb0006) {
+		// 		s.SpanEvents = (s.SpanEvents)[:zb0006]
+		// 	} else {
+		// 		s.SpanEvents = make([]*SpanEvent, zb0006)
+		// 	}
+		// 	for za0008 := range s.SpanEvents {
+		// 		if msgp.IsNil(bts) {
+		// 			bts, err = msgp.ReadNilBytes(bts)
+		// 			if err != nil {
+		// 				return
+		// 			}
+		// 			s.SpanEvents[za0008] = nil
+		// 		} else {
+		// 			if s.SpanEvents[za0008] == nil {
+		// 				s.SpanEvents[za0008] = new(SpanEvent)
+		// 			}
+		// 			bts, err = s.SpanEvents[za0008].UnmarshalMsg(bts)
+		// 			if err != nil {
+		// 				err = msgp.WrapError(err, "SpanEvents", za0008)
+		// 				return
+		// 			}
+		// 		}
+		// 	}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// parseStringBytes reads the next type in the msgpack payload and
+// converts the BinType or the StrType in a valid string returning the index of the string in the string table
+func parseStringBytes(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var (
+		err error
+		i   []byte
+	)
+	switch t {
+	case msgp.BinType:
+		i, bts, err = msgp.ReadBytesZC(bts)
+	case msgp.StrType:
+		i, bts, err = msgp.ReadStringZC(bts)
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.StrType}
+	}
+	if err != nil {
+		return 0, bts, err
+	}
+	if utf8.Valid(i) {
+		return stringTable.Add(string(i)), bts, nil
+	}
+	return stringTable.Add(repairUTF8(msgp.UnsafeString(i))), bts, nil
+}
+
+// repairUTF8 ensures all characters in s are UTF-8 by replacing non-UTF-8 characters
+// with the replacement char �
+func repairUTF8(s string) string {
+	in := strings.NewReader(s)
+	var out bytes.Buffer
+	out.Grow(len(s))
+
+	for {
+		r, _, err := in.ReadRune()
+		if err != nil {
+			// note: by contract, if `in` contains non-valid utf-8, no error is returned. Rather the utf-8 replacement
+			// character is returned. Therefore, the only error should usually be io.EOF indicating end of string.
+			// If any other error is returned by chance, we quit as well, outputting whatever part of the string we
+			// had already constructed.
+			return out.String()
+		}
+		out.WriteRune(r)
+	}
+}
+
+// parseUint64Bytes parses an uint64 even if the sent value is an int64;
+// this is required because the language used for the encoding library
+// may not have unsigned types. An example is early version of Java
+// (and so JRuby interpreter) that encodes uint64 as int64:
+// http://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html
+func parseUint64Bytes(bts []byte) (uint64, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var (
+		i   int64
+		u   uint64
+		err error
+	)
+	switch t {
+	case msgp.UintType:
+		u, bts, err = msgp.ReadUint64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+		return u, bts, err
+	case msgp.IntType:
+		i, bts, err = msgp.ReadInt64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+		return uint64(i), bts, nil
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.IntType}
+	}
+}
+
+// parseInt64Bytes parses an int64 even if the sent value is an uint64;
+// this is required because the encoding library could remove bytes from the encoded
+// payload to reduce the size, if they're not needed.
+func parseInt64Bytes(bts []byte) (int64, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var (
+		i   int64
+		u   uint64
+		err error
+	)
+	switch t {
+	case msgp.IntType:
+		i, bts, err = msgp.ReadInt64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+		return i, bts, nil
+	case msgp.UintType:
+		u, bts, err = msgp.ReadUint64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+
+		// force-cast
+		i, ok := castInt64(u)
+		if !ok {
+			return 0, bts, errors.New("found uint64, overflows int64")
+		}
+		return i, bts, nil
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.IntType}
+	}
+}
+
+// cast to int64 values that are int64 but that are sent in uint64
+// over the wire. Set to 0 if they overflow the MaxInt64 size. This
+// cast should be used ONLY while decoding int64 values that are
+// sent as uint64 to reduce the payload size, otherwise the approach
+// is not correct in the general sense.
+func castInt64(v uint64) (int64, bool) {
+	if v > math.MaxInt64 {
+		return 0, false
+	}
+	return int64(v), true
+}
+
+// parseInt32Bytes parses an int32 even if the sent value is an uint32;
+// this is required because the encoding library could remove bytes from the encoded
+// payload to reduce the size, if they're not needed.
+func parseInt32Bytes(bts []byte) (int32, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var (
+		i   int32
+		u   uint32
+		err error
+	)
+	switch t {
+	case msgp.IntType:
+		i, bts, err = msgp.ReadInt32Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+		return i, bts, nil
+	case msgp.UintType:
+		u, bts, err = msgp.ReadUint32Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+
+		// force-cast
+		i, ok := castInt32(u)
+		if !ok {
+			return 0, bts, errors.New("found uint32, overflows int32")
+		}
+		return i, bts, nil
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.IntType}
+	}
+}
+
+// cast to int32 values that are int32 but that are sent in uint32
+// over the wire. Set to 0 if they overflow the MaxInt32 size. This
+// cast should be used ONLY while decoding int32 values that are
+// sent as uint32 to reduce the payload size, otherwise the approach
+// is not correct in the general sense.
+func castInt32(v uint32) (int32, bool) {
+	if v > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(v), true
+}
+
+// parseFloat64Bytes parses a float64 even if the sent value is an int64 or an uint64;
+// this is required because the encoding library could remove bytes from the encoded
+// payload to reduce the size, if they're not needed.
+func parseFloat64Bytes(bts []byte) (float64, []byte, error) {
+	if msgp.IsNil(bts) {
+		bts, err := msgp.ReadNilBytes(bts)
+		return 0, bts, err
+	}
+	// read the generic representation type without decoding
+	t := msgp.NextType(bts)
+
+	var err error
+	switch t {
+	case msgp.IntType:
+		var i int64
+		i, bts, err = msgp.ReadInt64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+
+		return float64(i), bts, nil
+	case msgp.UintType:
+		var i uint64
+		i, bts, err = msgp.ReadUint64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+
+		return float64(i), bts, nil
+	case msgp.Float64Type:
+		var f float64
+		f, bts, err = msgp.ReadFloat64Bytes(bts)
+		if err != nil {
+			return 0, bts, err
+		}
+
+		return f, bts, nil
+	default:
+		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.Float64Type}
+	}
 }

@@ -926,6 +926,15 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 	return 0, false
 }
 
+// GetAttribute returns the attribute as the underlying AnyValue
+func (s *InternalSpan) GetAttribute(key string) (*AnyValue, bool) {
+	keyIdx := s.Strings.Lookup(key)
+	if keyIdx == 0 {
+		return nil, false
+	}
+	return s.span.Attributes[keyIdx], true
+}
+
 // SetStringAttribute sets the attribute with key and value
 // For backwards compatibility, env, version, component, and span.kind will be set as fields instead of attributes
 func (s *InternalSpan) SetStringAttribute(key, value string) {
