@@ -67,17 +67,25 @@ func newLogger(zapLogger *zap.Logger) reporter.Logger {
 }
 
 func (l *zapLoggerWrapper) Debugf(format string, args ...interface{}) {
-	l.logger.Debug(fmt.Sprintf(format, args...))
+	if l.logger.Level() <= zap.DebugLevel {
+		l.logger.Debug(fmt.Sprintf(format, args...))
+	}
 }
 
 func (l *zapLoggerWrapper) Infof(format string, args ...interface{}) {
-	l.logger.Info(fmt.Sprintf(format, args...))
+	if l.logger.Level() <= zap.InfoLevel {
+		l.logger.Info(fmt.Sprintf(format, args...))
+	}
 }
 
 func (l *zapLoggerWrapper) Warnf(format string, args ...interface{}) {
-	l.logger.Warn(fmt.Sprintf(format, args...))
+	if l.logger.Level() <= zap.WarnLevel {
+		l.logger.Warn(fmt.Sprintf(format, args...))
+	}
 }
 
 func (l *zapLoggerWrapper) Errorf(format string, args ...interface{}) {
-	l.logger.Error(fmt.Sprintf(format, args...))
+	if l.logger.Level() <= zap.ErrorLevel {
+		l.logger.Error(fmt.Sprintf(format, args...))
+	}
 }
