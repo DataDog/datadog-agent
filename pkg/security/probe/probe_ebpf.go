@@ -76,6 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -1562,6 +1563,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if !p.regularUnmarshalEvent(&event.PrCtl, eventType, offset, dataLen, data) {
 			return false
 		}
+		prctlTelemetry.count.Inc(fmt.Sprintf("%d", event.PrCtl.Option))
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
 		}
@@ -3518,4 +3520,10 @@ func trimRightZeros(b []byte) []byte {
 		i--
 	}
 	return b[:i+1]
+}
+
+var prctlTelemetry = struct {
+	count telemetry.Counter
+}{
+	count: metrics.NewITCounter(metrics.MetricPrctlCounter, []string{"option"}, "Number of prctl going through the eBPF probe"),
 }
