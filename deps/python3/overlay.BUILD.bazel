@@ -647,6 +647,15 @@ pkg_files(
     strip_prefix = strip_prefix.from_root(),
 )
 
+pkg_files(
+    name = "sysconfigdata_files",
+    srcs = select({
+        "@//:linux_arm64": ["_sysconfigdata__linux_aarch64-linux-gnu.py"],
+        "@//:linux_x86_64": ["_sysconfigdata__linux_x86_64-linux-gnu.py"],
+    }),
+    prefix = "lib/python" + _VERSION_FOR_SO,
+)
+
 pkg_install(
     name = "install",
     srcs = [

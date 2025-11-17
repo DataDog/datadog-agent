@@ -221,5 +221,7 @@ http_archive(
         "config-linux-x86_64.h": "//deps:python3/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:python3/config-linux-arm64.h",
         "BUILD.bazel": "//deps:python3/overlay.BUILD.bazel",
+        "_sysconfigdata__linux_x86_64-linux-gnu.py": "//deps:python3/_sysconfigdata__linux_x86_64-linux-gnu.py",
+        "_sysconfigdata__linux_aarch64-linux-gnu.py": "//deps:python3/_sysconfigdata__linux_aarch64-linux-gnu.py"
     },
 )
