@@ -10,7 +10,6 @@ package workload
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 
@@ -32,7 +31,7 @@ type valuesItem struct {
 	namespace         string
 	name              string
 	receivedTimestamp time.Time
-	receivedVersion   string
+	receivedVersion   uint64
 	scalingValues     model.ScalingValues
 }
 
@@ -98,7 +97,7 @@ func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Workl
 		namespace:         values.Namespace,
 		name:              values.Name,
 		receivedTimestamp: timestamp,
-		receivedVersion:   strconv.FormatUint(receivedVersion, 10),
+		receivedVersion:   receivedVersion,
 		scalingValues:     scalingValues,
 	}
 
