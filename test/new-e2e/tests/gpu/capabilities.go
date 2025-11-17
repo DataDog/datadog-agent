@@ -15,6 +15,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
@@ -33,6 +34,7 @@ const jobQueryInterval = 500 * time.Millisecond
 const jobQueryTimeout = 120 * time.Second // Might take some time to create the container
 const errMsgNoCudaCapableDevice = "error code no CUDA-capable device is detected"
 const maxWorkloadRetries = 3
+const nvidiaRuntimeClassName = "nvidia"
 
 type agentComponent string
 
@@ -239,6 +241,7 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 	}
 
 	jobName := strings.ToLower("workload-" + common.RandString(5))
+	runtimeClassName := nvidiaRuntimeClassName
 
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -253,9 +256,15 @@ func (c *kubernetesCapabilities) RunContainerWorkloadWithGPUs(image string, argu
 							Name:    "workload",
 							Image:   image,
 							Command: arguments,
+							Resources: corev1.ResourceRequirements{
+								Limits: corev1.ResourceList{
+									"nvidia.com/gpu": resource.MustParse("1"),
+								},
+							},
 						},
 					},
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy:    corev1.RestartPolicyNever,
+					RuntimeClassName: &runtimeClassName,
 				},
 			},
 		},
