@@ -64,7 +64,7 @@ func ConfigureDeviceCgroups(ctx context.Context, pid uint32, hostRoot string, re
 					if err != nil {
 						log.Warnf("Failed to re-apply cgroup device configuration for pid %d: %v", pid, err)
 					} else {
-						log.Infof("Successfully re-applied cgroup device configuration for pid %d", pid)
+						log.Debugf("Successfully re-applied cgroup device configuration for pid %d", pid)
 					}
 
 					if !reapplyInfinitely {
