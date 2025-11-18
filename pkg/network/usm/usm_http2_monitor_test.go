@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 type pathType uint8
