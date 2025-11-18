@@ -15,8 +15,9 @@ load(
     "TransitiveMetadataInfo",
     "null_transitive_metadata_info",
 )
+load("//compliance/rules:ship_source_offer.bzl", "SHIP_SOURCE_ATTR_KIND")
 
-DEBUG_LEVEL = 0
+DEBUG_LEVEL = 1
 
 def update_attribute_to_consumers(attribute_to_consumers, file, target):
     """Maintains map of metadata attribute files to the targets using them.
@@ -95,6 +96,9 @@ def _handle_attribute_provider(
         print("##-- %s: %s" % (kind, str(metadata_provider)))
     if not kind:
         return
+    if kind == SHIP_SOURCE_ATTR_KIND:
+        # buildifier: disable=print
+        print("TODO: Couple this to creating the offer file.  Implementation TBD.")
 
     if hasattr(metadata_provider, "attributes"):
         update_attribute_to_consumers(attribute_to_consumers, metadata_provider.attributes, target)
