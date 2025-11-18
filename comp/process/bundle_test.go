@@ -89,7 +89,6 @@ func TestBundleOneShot(t *testing.T) {
 			"process",
 			"container",
 			"rtcontainer",
-			"process_events",
 			"connections",
 			"process_discovery",
 		}, names)

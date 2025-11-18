@@ -543,10 +543,6 @@ Package processcheck implements a component to handle Process data collection in
 
 Package processdiscoverycheck implements a component to handle Process Discovery data collection in the Process Agent for customers who do not pay for live processes.
 
-### [comp/process/processeventscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processeventscheck)
-
-Package processeventscheck implements a component to handle Process Events data collection in the Process Agent.
-
 ### [comp/process/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/profiler)
 
 Package profiler implements a component to handle starting and stopping the internal profiler.
