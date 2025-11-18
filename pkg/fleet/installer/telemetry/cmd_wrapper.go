@@ -54,7 +54,7 @@ func (c *TracedCmd) Run() (err error) {
 		if errors.As(err, &exitErr) {
 			c.span.SetTag("exit_code", exitErr.ExitCode())
 		}
+		return fmt.Errorf("%s\n%s\n%w", stdout.String(), stderr.String(), err)
 	}
-	err = fmt.Errorf("%s\n%s\n%w", stdout.String(), stderr.String(), err)
-	return err
+	return nil
 }
