@@ -33,97 +33,17 @@ const (
 	TagStatusCode = "http.status_code"
 )
 
-// span.Type constants for db systems
-const (
-	spanTypeSQL           = "sql"
-	spanTypeCassandra     = "cassandra"
-	spanTypeRedis         = "redis"
-	spanTypeMemcached     = "memcached"
-	spanTypeMongoDB       = "mongodb"
-	spanTypeElasticsearch = "elasticsearch"
-	spanTypeOpenSearch    = "opensearch"
-	spanTypeDB            = "db"
-)
-
-// DBTypes are semconv types that should map to span.Type values given in the mapping
-var dbTypes = map[string]string{
-	// SQL db types
-	semconv.DBSystemOtherSQL.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemMSSQL.Value.AsString():         spanTypeSQL,
-	semconv.DBSystemMySQL.Value.AsString():         spanTypeSQL,
-	semconv.DBSystemOracle.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemDB2.Value.AsString():           spanTypeSQL,
-	semconv.DBSystemPostgreSQL.Value.AsString():    spanTypeSQL,
-	semconv.DBSystemRedshift.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemCloudscape.Value.AsString():    spanTypeSQL,
-	semconv.DBSystemHSQLDB.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemMaxDB.Value.AsString():         spanTypeSQL,
-	semconv.DBSystemIngres.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemFirstSQL.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemEDB.Value.AsString():           spanTypeSQL,
-	semconv.DBSystemCache.Value.AsString():         spanTypeSQL,
-	semconv.DBSystemFirebird.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemDerby.Value.AsString():         spanTypeSQL,
-	semconv.DBSystemInformix.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemMariaDB.Value.AsString():       spanTypeSQL,
-	semconv.DBSystemSqlite.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemSybase.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemTeradata.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemVertica.Value.AsString():       spanTypeSQL,
-	semconv.DBSystemH2.Value.AsString():            spanTypeSQL,
-	semconv.DBSystemColdfusion.Value.AsString():    spanTypeSQL,
-	semconv.DBSystemCockroachdb.Value.AsString():   spanTypeSQL,
-	semconv.DBSystemProgress.Value.AsString():      spanTypeSQL,
-	semconv.DBSystemHanaDB.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemAdabas.Value.AsString():        spanTypeSQL,
-	semconv.DBSystemFilemaker.Value.AsString():     spanTypeSQL,
-	semconv.DBSystemInstantDB.Value.AsString():     spanTypeSQL,
-	semconv.DBSystemInterbase.Value.AsString():     spanTypeSQL,
-	semconv.DBSystemNetezza.Value.AsString():       spanTypeSQL,
-	semconv.DBSystemPervasive.Value.AsString():     spanTypeSQL,
-	semconv.DBSystemPointbase.Value.AsString():     spanTypeSQL,
-	semconv117.DBSystemClickhouse.Value.AsString(): spanTypeSQL, // not in semconv 1.6.1
-
-	// Cassandra db types
-	semconv.DBSystemCassandra.Value.AsString(): spanTypeCassandra,
-
-	// Redis db types
-	semconv.DBSystemRedis.Value.AsString(): spanTypeRedis,
-
-	// Memcached db types
-	semconv.DBSystemMemcached.Value.AsString(): spanTypeMemcached,
-
-	// Mongodb db types
-	semconv.DBSystemMongoDB.Value.AsString(): spanTypeMongoDB,
-
-	// Elasticsearch db types
-	semconv.DBSystemElasticsearch.Value.AsString(): spanTypeElasticsearch,
-
-	// Opensearch db types, not in semconv 1.6.1
-	semconv117.DBSystemOpensearch.Value.AsString(): spanTypeOpenSearch,
-
-	// Generic db types
-	semconv.DBSystemHive.Value.AsString():      spanTypeDB,
-	semconv.DBSystemHBase.Value.AsString():     spanTypeDB,
-	semconv.DBSystemNeo4j.Value.AsString():     spanTypeDB,
-	semconv.DBSystemCouchbase.Value.AsString(): spanTypeDB,
-	semconv.DBSystemCouchDB.Value.AsString():   spanTypeDB,
-	semconv.DBSystemCosmosDB.Value.AsString():  spanTypeDB,
-	semconv.DBSystemDynamoDB.Value.AsString():  spanTypeDB,
-	semconv.DBSystemGeode.Value.AsString():     spanTypeDB,
-}
-
 // DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
 const DefaultOTLPServiceName = "otlpresourcenoservicename"
 
 // checkDBType checks if the dbType is a known db type and returns the corresponding span.Type
 func checkDBType(dbType string) string {
-	spanType, ok := dbTypes[dbType]
+	spanType, ok := attributes.DBTypes[dbType]
 	if ok {
 		return spanType
 	}
 	// span type not found, return generic db type
-	return spanTypeDB
+	return attributes.SpanTypeDB
 }
 
 // IndexOTelSpans iterates over the input OTel spans and returns 3 maps:
