@@ -28,7 +28,6 @@ func TestEventMonitor(t *testing.T) {
 		enabled                      bool
 	}{
 		{cws: false, fim: false, networkEvents: false, enabled: false},
-		{cws: false, fim: false, networkEvents: false, enabled: true},
 		{cws: false, fim: true, networkEvents: false, enabled: true},
 		{cws: true, fim: false, networkEvents: false, enabled: true},
 		{cws: true, fim: true, networkEvents: false, enabled: true},
