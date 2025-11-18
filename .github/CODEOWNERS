@@ -67,11 +67,7 @@
 /.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
-
-/.github/chainguard/self.buildimages-update.*            @DataDog/agent-build @DataDog/agent-runtimes
-/.github/chainguard/self.collector-generate-and-update.* @DataDog/opentelemetry-agent
-/.github/chainguard/self.cws-btfhub-sync*               @DataDog/agent-security
-/.github/chainguard/*                             @DataDog/agent-devx @DataDog/agent-build
+/.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
 
 /.run                                                @DataDog/agent-devx
 /.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
