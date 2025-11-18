@@ -16,9 +16,19 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestCheckPIDKeyedMaps(t *testing.T) {
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+
+	// m.Info() requires kernel >= 4.10 for fdinfo support
+	if kv < kernel.VersionCode(4, 10, 0) {
+		t.Skipf("Test requires kernel >= 4.10 for eBPF map info support, got %s", kv)
+	}
+
 	require.NoError(t, rlimit.RemoveMemlock())
 
 	// Create test maps that simulate the TLS maps
