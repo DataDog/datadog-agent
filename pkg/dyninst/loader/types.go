@@ -27,6 +27,7 @@ import (
 type typeInfo C.type_info_t
 type probeParams C.probe_params_t
 type throttlerParams C.throttler_params_t
+type stats C.stats_t
 
 func opcodeByte(opcode compiler.Opcode) uint8 {
 	switch opcode {

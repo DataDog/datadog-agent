@@ -108,8 +108,3 @@ func IsHostSysAvailable() bool {
 	}
 	return true
 }
-
-// IsLambda returns whether the Agent is running in a Lambda function
-func IsLambda() bool {
-	return os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != ""
-}
