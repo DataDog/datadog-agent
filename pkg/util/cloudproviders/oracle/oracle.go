@@ -94,7 +94,7 @@ var instanceTypeFetcher = cachedfetch.Fetcher{
 	Name: "Oracle Instance Type",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return "", fmt.Errorf("Oracle cloud provider is disabled by configuration")
+			return "", nil
 		}
 
 		endpoint := metadataURL + "/opc/v2/instance/shape"
