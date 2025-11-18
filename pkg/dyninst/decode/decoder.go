@@ -72,7 +72,7 @@ type Decoder struct {
 	program              *ir.Program
 	decoderTypes         map[ir.TypeID]decoderType
 	probeEvents          map[ir.TypeID]probeEvent
-	stackFrames          map[uint64][]symbol.StackFrame
+	stackPCs             map[uint64][]uint64
 	typesByGoRuntimeType map[uint32]ir.TypeID
 	typeNameResolver     TypeNameResolver
 	approximateBootTime  time.Time
@@ -82,6 +82,14 @@ type Decoder struct {
 	entry           captureEvent
 	_return         captureEvent
 	line            lineCaptureData
+}
+
+// ReportStackPCs reports the program counters of the stack trace for a
+// given stack hash.
+func (d *Decoder) ReportStackPCs(stackHash uint64, stackPCs []uint64) {
+	if len(stackPCs) > 0 {
+		d.stackPCs[stackHash] = stackPCs
+	}
 }
 
 // NewDecoder creates a new Decoder for the given program.
@@ -94,7 +102,7 @@ func NewDecoder(
 		program:              program,
 		decoderTypes:         make(map[ir.TypeID]decoderType, len(program.Types)),
 		probeEvents:          make(map[ir.TypeID]probeEvent),
-		stackFrames:          make(map[uint64][]symbol.StackFrame),
+		stackPCs:             make(map[uint64][]uint64),
 		typesByGoRuntimeType: make(map[uint32]ir.TypeID),
 		typeNameResolver:     typeNameResolver,
 		approximateBootTime:  approximateBootTime,
@@ -272,6 +280,36 @@ func (s *snapshotMessage) init(
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.Captures.Return = &decoder._return
+	} else {
+		// Check if we expected a return event but didn't get one.
+		pairingExpectation := output.EventPairingExpectation(
+			header.Event_pairing_expectation,
+		)
+		var reason string
+		switch pairingExpectation {
+		case output.EventPairingExpectationReturnPairingExpected:
+			reason = "return event not received"
+		case output.EventPairingExpectationBufferFull:
+			reason = "userspace buffer capacity exceeded"
+		case output.EventPairingExpectationCallMapFull:
+			reason = "call map capacity exceeded"
+		case output.EventPairingExpectationCallCountExceeded:
+			reason = "maximum call count exceeded"
+		}
+		// The choice to use @duration here is somewhat arbitrary; we want to
+		// choose something that definitely can't collide with a real variable
+		// and is evocative of the thing that is missing. Indeed we know in this
+		// situation we will never @duration, so it seems like a good choice.
+		const missingReturnReasonExpression = "@duration"
+		if reason != "" {
+			s.Debugger.EvaluationErrors = append(
+				s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: missingReturnReasonExpression,
+					Message:    fmt.Sprintf("no return value available: %s", reason),
+				},
+			)
+		}
 	}
 
 	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
@@ -283,16 +321,40 @@ func (s *snapshotMessage) init(
 	if returnHeader != nil {
 		stackHeader, stackEvent = returnHeader, event.Return
 	}
-	stackFrames, ok := decoder.stackFrames[stackHeader.Stack_hash]
+	stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
 	if !ok {
-		stackFrames, err = symbolicate(
-			stackEvent, stackHeader.Stack_hash, symbolicator,
-		)
+		stackPCs, err = stackEvent.StackPCs()
 		if err != nil {
 			if symbolicateErrorLogLimiter.Allow() {
-				log.Errorf("error symbolicating stack: %v", err)
+				log.Errorf("error getting stack pcs: %v", err)
 			} else {
-				log.Tracef("error symbolicating stack: %v", err)
+				log.Tracef("error getting stack pcs: %v", err)
+			}
+			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: "Stacktrace",
+					Message:    fmt.Errorf("error getting stack pcs: %w", err).Error(),
+				},
+			)
+		} else if len(stackPCs) == 0 {
+			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: "Stacktrace",
+					Message:    "no stack pcs found",
+				},
+			)
+		} else {
+			decoder.stackPCs[stackHeader.Stack_hash] = stackPCs
+		}
+	}
+	var stackFrames []symbol.StackFrame
+	if len(stackPCs) > 0 {
+		stackFrames, err = symbolicator.Symbolicate(stackPCs, stackHeader.Stack_hash)
+		if err != nil {
+			if symbolicateErrorLogLimiter.Allow() {
+				log.Errorf("error symbolicating stack for probe %s: %v", probe.GetID(), err)
+			} else {
+				log.Tracef("error symbolicating stack for probe %s: %v", probe.GetID(), err)
 			}
 			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
 				evaluationError{
@@ -300,8 +362,6 @@ func (s *snapshotMessage) init(
 					Message:    err.Error(),
 				},
 			)
-		} else {
-			decoder.stackFrames[stackHeader.Stack_hash] = stackFrames
 		}
 	}
 	switch where := probe.GetWhere().(type) {
@@ -330,23 +390,4 @@ func (s *snapshotMessage) init(
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
 	return probe, nil
-}
-
-func symbolicate(
-	event output.Event,
-	stackHash uint64,
-	symbolicator symbol.Symbolicator,
-) ([]symbol.StackFrame, error) {
-	pcs, err := event.StackPCs()
-	if err != nil {
-		return nil, fmt.Errorf("error getting stack pcs: %w", err)
-	}
-	if len(pcs) == 0 {
-		return nil, errors.New("no stack pcs found")
-	}
-	stackFrames, err := symbolicator.Symbolicate(pcs, stackHash)
-	if err != nil {
-		return nil, fmt.Errorf("error symbolicating stack: %w", err)
-	}
-	return stackFrames, nil
 }

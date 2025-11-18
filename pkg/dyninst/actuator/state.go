@@ -16,6 +16,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -55,6 +56,9 @@ type state struct {
 	// If true, the state machine is shutting down.
 	shuttingDown bool
 
+	breakerCfg    CircuitBreakerConfig
+	lastHeartbeat time.Time
+
 	counters struct {
 		loaded       uint64
 		loadFailed   uint64
@@ -71,7 +75,7 @@ func (s *state) Metrics() Metrics {
 	var numWaiting uint64
 	var numAttached uint64
 	var numAttaching uint64
-	var numLoadingFailed uint64
+	var numFailed uint64
 	var numDetaching uint64
 	for _, p := range s.processes {
 		switch p.state {
@@ -81,8 +85,8 @@ func (s *state) Metrics() Metrics {
 			numAttaching++
 		case processStateWaitingForProgram:
 			numWaiting++
-		case processStateLoadingFailed:
-			numLoadingFailed++
+		case processStateFailed:
+			numFailed++
 		case processStateDetaching:
 			numDetaching++
 		case processStateInvalid:
@@ -105,7 +109,7 @@ func (s *state) Metrics() Metrics {
 		NumWaitingForProgram: uint64(numWaiting),
 		NumAttached:          numAttached,
 		NumAttaching:         numAttaching,
-		NumLoadingFailed:     numLoadingFailed,
+		NumFailed:            numFailed,
 		NumDetaching:         numDetaching,
 
 		NumProcesses: uint64(len(s.processes)),
@@ -143,8 +147,8 @@ type Metrics struct {
 	NumAttached uint64
 	// NumAttaching is the number of processes attaching to a program.
 	NumAttaching uint64
-	// NumLoadingFailed is the number of programs that have failed to load.
-	NumLoadingFailed uint64
+	// NumFailed is the number of processes with programs that have failed.
+	NumFailed uint64
 	// NumDetaching is the number of programs that are detaching.
 	NumDetaching uint64
 
@@ -167,7 +171,7 @@ func (m Metrics) AsStats() map[string]any {
 		"numWaitingForProgram": m.NumWaitingForProgram,
 		"numAttached":          m.NumAttached,
 		"numAttaching":         m.NumAttaching,
-		"numLoadingFailed":     m.NumLoadingFailed,
+		"numFailed":            m.NumFailed,
 		"numDetaching":         m.NumDetaching,
 
 		"numProcesses": m.NumProcesses,
@@ -189,7 +193,7 @@ func (s *state) nextProgramID() ir.ProgramID {
 	return s.programIDAlloc
 }
 
-func newState() *state {
+func newState(breakerCfg CircuitBreakerConfig) *state {
 	return &state{
 		programIDAlloc: 0,
 		processes:      make(map[ProcessID]*process),
@@ -197,6 +201,8 @@ func newState() *state {
 		queuedLoading: makeQueue(func(p *program) ir.ProgramID {
 			return p.id
 		}),
+		breakerCfg:    breakerCfg,
+		lastHeartbeat: time.Now(),
 	}
 }
 
@@ -208,6 +214,9 @@ type program struct {
 
 	// Populated after the program has been loaded.
 	loaded *loadedProgram
+
+	// Stats collected from the last heartbeat.
+	lastRuntimeStats loader.RuntimeStats
 
 	// The process with which this program is associated.
 	//
@@ -232,9 +241,6 @@ type process struct {
 	// same ID as the currentProgram. Will be nil if there is no program
 	// attached.
 	attachedProgram *attachedProgram
-
-	// Populated after the program has failed to compile or load.
-	err error
 }
 
 type probeKey struct {
@@ -260,8 +266,9 @@ type effectHandler interface {
 	// Attach program to process via uprobes.
 	attachToProcess(*loadedProgram, Executable, ProcessID) // -> ProgramAttached/Failed
 
-	// Detach program from process.
-	detachFromProcess(*attachedProgram) // -> ProgramDetached
+	// Detach program from process. An optional error indicates an extraordinary
+	// failure that should be reported to the diagnostics system.
+	detachFromProcess(*attachedProgram, error) // -> ProgramDetached
 
 	// Unload program resources asynchronously.
 	unloadProgram(*loadedProgram) // -> ProgramUnloaded
@@ -285,6 +292,9 @@ func handleEvent(
 		ev.metricsChan <- sm.Metrics()
 		return nil
 
+	case eventHeartbeatCheck:
+		handleHeartbeatCheck(sm, effects)
+
 	case eventProcessesUpdated:
 		err = handleProcessesUpdated(sm, effects, ev)
 
@@ -294,7 +304,7 @@ func handleEvent(
 
 	case eventProgramLoadingFailed:
 		sm.counters.loadFailed++
-		err = handleProgramLoadingFailure(sm, ev.programID, ev.err)
+		err = handleProgramLoadingFailure(sm, ev.programID)
 
 	case eventProgramAttached:
 		sm.counters.attached++
@@ -402,11 +412,10 @@ func handleProcessesUpdated(
 		// we have no probes, or enqueue the new program with the new probes.
 		if len(p.probes) == 0 {
 			switch p.state {
-			case processStateLoadingFailed:
+			case processStateFailed:
 				if p.currentProgram != 0 {
-					// We're waiting for a program we failed to attach to
-					// be unloaded. When it is, we'll then go and enqueue
-					// a new program.
+					// We're waiting for a program that failed to be unloaded.
+					// When it is, we'll then go and enqueue a new program.
 					p.state = processStateWaitingForProgram
 				} else {
 					delete(sm.processes, p.processID)
@@ -425,11 +434,10 @@ func handleProcessesUpdated(
 			}
 		} else {
 			switch p.state {
-			case processStateLoadingFailed:
+			case processStateFailed:
 				if p.currentProgram != 0 {
-					// We're waiting for a program we failed to attach to
-					// be unloaded. When it is, we'll then go and enqueue
-					// a new program.
+					// We're waiting for a program that failed to be unloaded.
+					// When it is, we'll then go and enqueue a new program.
 					p.state = processStateWaitingForProgram
 				} else {
 					if err := enqueueProgramForProcess(sm, p); err != nil {
@@ -549,7 +557,7 @@ func clearProcessProgram(
 		prog.state = programStateDraining
 		switch proc.state {
 		case processStateAttached:
-			effects.detachFromProcess(proc.attachedProgram)
+			effects.detachFromProcess(proc.attachedProgram, nil)
 			proc.state = processStateDetaching
 			proc.attachedProgram = nil
 		case processStateDetaching:
@@ -583,7 +591,7 @@ func clearProcessProgram(
 }
 
 func handleProgramLoadingFailure(
-	sm *state, progID ir.ProgramID, failureError error,
+	sm *state, progID ir.ProgramID,
 ) error {
 	prog, ok := sm.programs[progID]
 	if !ok {
@@ -605,9 +613,8 @@ func handleProgramLoadingFailure(
 		if len(proc.probes) == 0 {
 			delete(sm.processes, proc.processID)
 		} else {
-			proc.state = processStateLoadingFailed
+			proc.state = processStateFailed
 			proc.currentProgram = 0
-			proc.err = failureError
 		}
 	default:
 		return fmt.Errorf(
@@ -695,8 +702,7 @@ func handleProgramAttachingFailed(
 			// This too is suspect, if we failed to attach, then we're
 			// going to say we're in a failed state, but maybe that's
 			// not the right thing to do.
-			proc.state = processStateLoadingFailed
-			proc.err = ev.err
+			proc.state = processStateFailed
 		}
 		return nil
 
@@ -725,7 +731,7 @@ func handleProgramAttached(
 		proc.state = processStateAttached
 		proc.attachedProgram = ev.program
 	case processStateDetaching:
-		effects.detachFromProcess(ev.program)
+		effects.detachFromProcess(ev.program, nil)
 
 	default:
 		return fmt.Errorf(
@@ -750,6 +756,7 @@ func handleProgramDetached(
 	}
 
 	switch proc.state {
+	case processStateFailed:
 	case processStateDetaching:
 	case processStateWaitingForProgram:
 	default:
@@ -795,8 +802,7 @@ func handleProgramUnloaded(sm *state, ev eventProgramUnloaded) error {
 	proc.currentProgram = 0
 
 	switch proc.state {
-	case processStateLoadingFailed:
-		// Do nothing.
+	case processStateFailed:
 	case processStateWaitingForProgram,
 		processStateDetaching:
 		if len(proc.probes) == 0 {
@@ -854,13 +860,13 @@ func handleShutdown(sm *state, effects effectHandler) error {
 		clear(proc.probes) // clear probes for all processes
 		switch proc.state {
 		case processStateAttached:
-			effects.detachFromProcess(proc.attachedProgram)
+			effects.detachFromProcess(proc.attachedProgram, nil)
 			fallthrough
 		case processStateAttaching:
 			prog := sm.programs[proc.currentProgram]
 			prog.state = programStateDraining
 			proc.state = processStateDetaching
-		case processStateLoadingFailed:
+		case processStateFailed:
 			// Otherwise we're still waiting for the program to be unloaded.
 			if proc.currentProgram == 0 {
 				delete(sm.processes, proc.processID)
@@ -886,4 +892,89 @@ func handleShutdown(sm *state, effects effectHandler) error {
 		delete(sm.programs, prog.id)
 	}
 	return nil
+}
+
+func handleHeartbeatCheck(sm *state, effects effectHandler) {
+	now := time.Now()
+	interval := now.Sub(sm.lastHeartbeat)
+	sm.lastHeartbeat = now
+
+	// Validate budget on every core independently.
+	var totalCostSPS []float64
+	var maxCostSPS []float64
+	var maxProg []*program
+	detachedAny := false
+	for _, prog := range sm.programs {
+		if prog.state != programStateLoaded {
+			continue
+		}
+		proc, ok := sm.processes[prog.processID]
+		if !ok || proc.state != processStateAttached {
+			// Not attached.
+			continue
+		}
+		perCoreStats := prog.loaded.loaded.RuntimeStats()
+		for len(totalCostSPS) < len(perCoreStats) {
+			totalCostSPS = append(totalCostSPS, 0)
+			maxCostSPS = append(maxCostSPS, -1)
+			maxProg = append(maxProg, nil)
+		}
+		for core, stats := range perCoreStats {
+			hits := stats.HitCnt - prog.lastRuntimeStats.HitCnt
+			execCost := stats.CPU - prog.lastRuntimeStats.CPU
+			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
+			prog.lastRuntimeStats = stats
+
+			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
+			totalCostSPS[core] += costSPS
+			if costSPS > maxCostSPS[core] {
+				maxCostSPS[core] = costSPS
+				maxProg[core] = prog
+			}
+			if costSPS > sm.breakerCfg.PerProbeCPULimit && proc.state == processStateAttached {
+				// Circuit breaker triggered for this probe, detach it.
+				prog.state = programStateDraining
+				proc.state = processStateFailed
+				err := fmt.Errorf(
+					"probe exceeded CPU limit of %fcpus/s using %fcpus = %fcpus (exec) + %fcpus (%d interrupts) over %fs on core %d",
+					sm.breakerCfg.PerProbeCPULimit,
+					(execCost + interruptCost).Seconds(),
+					execCost.Seconds(),
+					interruptCost.Seconds(),
+					hits,
+					interval.Seconds(),
+					core,
+				)
+				effects.detachFromProcess(proc.attachedProgram, err)
+				detachedAny = true
+			}
+		}
+	}
+
+	// Check if any core exceeded the total budget across all probes.
+	// If so, pick the most expensive probe on a core with highest total cost.
+	if len(totalCostSPS) == 0 {
+		return
+	}
+	maxCore := 0
+	for core, cost := range totalCostSPS {
+		if cost > totalCostSPS[maxCore] {
+			maxCore = core
+		}
+	}
+	if !detachedAny && maxProg[maxCore] != nil && totalCostSPS[maxCore] > sm.breakerCfg.AllProbesCPULimit {
+		prog := maxProg[maxCore]
+		proc := sm.processes[prog.processID]
+		prog.state = programStateDraining
+		proc.state = processStateFailed
+		err := fmt.Errorf(
+			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
+			sm.breakerCfg.AllProbesCPULimit,
+			totalCostSPS[maxCore],
+			maxCore,
+			maxCostSPS[maxCore],
+			interval.Seconds(),
+		)
+		effects.detachFromProcess(proc.attachedProgram, err)
+	}
 }

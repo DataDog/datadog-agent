@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -61,8 +62,10 @@ var GPUMonitoring = &module.Factory{
 
 		c := gpuconfig.New()
 
+		ctx, cancel := context.WithCancel(context.Background())
+
 		if c.ConfigureCgroupPerms {
-			configureCgroupPermissions(c.CgroupReapplyDelay)
+			configureCgroupPermissions(ctx, c.CgroupReapplyInterval, c.CgroupReapplyInfinitely)
 		}
 
 		probeDeps := gpu.ProbeDependencies{
@@ -72,11 +75,14 @@ var GPUMonitoring = &module.Factory{
 		}
 		p, err := gpu.NewProbe(c, probeDeps)
 		if err != nil {
+			cancel()
 			return nil, fmt.Errorf("unable to start %s: %w", config.GPUMonitoringModule, err)
 		}
 
 		return &GPUMonitoringModule{
-			Probe: p,
+			Probe:         p,
+			contextCancel: cancel,
+			context:       ctx,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -87,6 +93,8 @@ var GPUMonitoring = &module.Factory{
 // GPUMonitoringModule is a module for GPU monitoring
 type GPUMonitoringModule struct {
 	*gpu.Probe
+	context       context.Context    // Context associated with the module
+	contextCancel context.CancelFunc // Cancel function associated with the context
 }
 
 // Register registers the GPU monitoring module
@@ -159,6 +167,7 @@ func (t *GPUMonitoringModule) collectEventsHandler(w http.ResponseWriter, r *htt
 
 // Close closes the GPU monitoring module
 func (t *GPUMonitoringModule) Close() {
+	t.contextCancel()
 	t.Probe.Close()
 }
 
@@ -213,12 +222,12 @@ func getAgentPID(procRoot string) (uint32, error) {
 // configureCgroupPermissions configures the cgroup permissions to access NVIDIA
 // devices for the system-probe and agent processes, as the NVIDIA device plugin
 // sets them in a way that can be overwritten by SystemD cgroups.
-func configureCgroupPermissions(reapplyDelay time.Duration) {
+func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Duration, reapplyInfinitely bool) {
 	root := hostRoot()
 
 	sysprobePID := uint32(os.Getpid())
 	log.Infof("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
-	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root, reapplyDelay); err != nil {
+	if err := gpu.ConfigureDeviceCgroups(ctx, sysprobePID, root, reapplyInterval, reapplyInfinitely); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
 	}
 
@@ -230,7 +239,7 @@ func configureCgroupPermissions(reapplyDelay time.Duration) {
 	}
 
 	log.Infof("Configuring cgroup permissions for agent process with PID %d", agentPID)
-	if err := gpu.ConfigureDeviceCgroups(agentPID, root, reapplyDelay); err != nil {
+	if err := gpu.ConfigureDeviceCgroups(ctx, agentPID, root, reapplyInterval, reapplyInfinitely); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
 	}
 }

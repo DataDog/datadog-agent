@@ -7,6 +7,7 @@ package file
 
 import (
 	"bufio"
+	"fmt"
 	"hash/crc64"
 	"io"
 
@@ -39,6 +40,8 @@ type Fingerprinter interface {
 	ShouldFileFingerprint(file *File) bool
 	// ComputeFingerprint computes the fingerprint for the given file path
 	ComputeFingerprint(file *File) (*types.Fingerprint, error)
+	// ComputeFingerprintFromHandle computes the fingerprint for the given os.File using the provided config
+	ComputeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
 	// ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
 	ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error)
 }
@@ -85,6 +88,7 @@ func (f *fingerprinterImpl) ShouldFileFingerprint(file *File) bool {
 }
 
 // ComputeFingerprintFromConfig computes the fingerprint for the given file path using a specific config
+// Note that the provided configuration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
 func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig != nil && fingerprintConfig.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return newInvalidFingerprint(nil), nil
@@ -93,6 +97,9 @@ func (f *fingerprinterImpl) ComputeFingerprintFromConfig(filepath string, finger
 }
 
 // ComputeFingerprint computes the fingerprint for the given file path
+// The fingerprint configuration is automatically derived from the file source configuration if present,
+// otherwise the global config is preferred.
+// Note that the provided configuration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
 func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, error) {
 	if file == nil {
 		log.Warnf("file is nil, skipping fingerprinting")
@@ -123,6 +130,34 @@ func (f *fingerprinterImpl) ComputeFingerprint(file *File) (*types.Fingerprint, 
 	return f.computeFingerprint(file.Path, &f.globalConfig)
 }
 
+// ComputeFingerprintFromHandle computes the fingerprint for the given os.File using the provided config.
+// Note that the providedconfiguration can fallback to different default configuration if specific errors occur attempting to compute the fingerprint.
+func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
+	if fingerprintConfig == nil {
+		return newInvalidFingerprint(nil), nil
+	}
+
+	if osFile == nil {
+		return newInvalidFingerprint(nil), fmt.Errorf("osFile cannot be nil")
+	}
+
+	// Get file path for logging purposes
+	filePath := osFile.Name()
+
+	// Determine fingerprinting strategy (line_checksum or byte_checksum)
+	strategy := fingerprintConfig.FingerprintStrategy
+	switch strategy {
+	case types.FingerprintStrategyLineChecksum:
+		return computeFingerPrintByLines(osFile, filePath, fingerprintConfig)
+	case types.FingerprintStrategyByteChecksum:
+		return computeFingerPrintByBytes(osFile, filePath, fingerprintConfig)
+	default:
+		log.Warnf("invalid fingerprint strategy %q for file %q, using default lines strategy", strategy, filePath)
+		// Default to line_checksum if no strategy is specified
+		return computeFingerPrintByLines(osFile, filePath, defaultLinesConfig)
+	}
+}
+
 // computeFingerprint computes the fingerprint for the given file path
 func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfig *types.FingerprintConfig) (*types.Fingerprint, error) {
 	if fingerprintConfig == nil {
@@ -136,18 +171,7 @@ func (f *fingerprinterImpl) computeFingerprint(filePath string, fingerprintConfi
 	}
 	defer fpFile.Close()
 
-	// Determine fingerprinting strategy (line_checksum or byte_checksum)
-	strategy := fingerprintConfig.FingerprintStrategy
-	switch strategy {
-	case types.FingerprintStrategyLineChecksum:
-		return computeFingerPrintByLines(fpFile, filePath, fingerprintConfig)
-	case types.FingerprintStrategyByteChecksum:
-		return computeFingerPrintByBytes(fpFile, filePath, fingerprintConfig)
-	default:
-		log.Warnf("invalid fingerprint strategy %q for file %q, using default lines strategy", strategy, filePath)
-		// Default to line_checksum if no strategy is specified
-		return computeFingerPrintByLines(fpFile, filePath, defaultLinesConfig)
-	}
+	return f.ComputeFingerprintFromHandle(fpFile, fingerprintConfig)
 }
 
 // computeFingerPrintByBytes computes fingerprint using byte-based approach for a given file path
@@ -209,7 +233,11 @@ func computeFingerPrintByLines(fpFile afero.File, filePath string, fingerprintCo
 		} else {
 			/// Check if we need to fall back due to byte limits
 			if limitedReader.(*io.LimitedReader).N == 0 {
-				log.Warnf("Scanner stopped with no bytes remaining, falling back to byte-based fingerprint for %q", filePath)
+				log.Warnf(
+					"Ran out of space reading requested line count for fingerprinting, falling back to byte-based fingerprint for %q. "+
+						"This is almost certainly indicative of a configuration error, please verify your fingerprint configuration.",
+					filePath,
+				)
 				pos, err := fpFile.Seek(0, io.SeekStart)
 				if pos != 0 || err != nil {
 					log.Warnf("Error %s occurred while trying to reset file offset", err)

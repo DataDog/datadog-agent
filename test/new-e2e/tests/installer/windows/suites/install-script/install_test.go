@@ -143,7 +143,7 @@ func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
 	// Act
 	opts := []installerwindows.Option{
 		installerwindows.WithExtraEnvVars(map[string]string{
-			// all of these make sure we install old versions from install.datadoghq.com
+			// all of these make sure we install old versions from dd-agent.s3.amazonaws.com
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
 			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "dd-agent.s3.amazonaws.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     agentVersion,

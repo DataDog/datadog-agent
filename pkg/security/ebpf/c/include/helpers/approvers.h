@@ -1,6 +1,7 @@
 #ifndef _APPROVERS_H
 #define _APPROVERS_H
 
+#include "constants/offsets/filesystem.h"
 #include "constants/enums.h"
 #include "maps.h"
 #include "rate_limiter.h"
@@ -41,8 +42,6 @@ void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
     }
     __sync_fetch_and_add(&stats->event_rejected, 1);
 }
-
-void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;

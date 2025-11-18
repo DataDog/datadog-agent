@@ -487,6 +487,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		CapacityMonitor: monitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
 		Rotated:         true,
 		FileOpener:      s.fileOpener,
 	}
@@ -614,6 +615,7 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		CapacityMonitor: capacityMonitor,
 		Registry:        s.registry,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
 		FileOpener:      s.fileOpener,
 	}
 
@@ -634,7 +636,7 @@ func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, patt
 	} else {
 		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
 	}
-	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.registry)
+	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
 }
 
 // CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage

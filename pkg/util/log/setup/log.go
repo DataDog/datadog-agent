@@ -8,21 +8,16 @@ package logs
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"net"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cihub/seelog"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
+	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -35,18 +30,13 @@ const (
 	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
 
-const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
-
 func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
-	if cfg.GetBool("log_format_rfc3339") {
-		return time.RFC3339
-	}
-	return logDateFormat
+	return formatters.GetLogDateFormat(cfg.GetBool("log_format_rfc3339"))
 }
 
 func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
 	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-		return strconv.Quote(message)
+		return formatters.Quote(message)
 	}
 }
 
@@ -230,165 +220,7 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 	return t.writer.Write(p)
 }
 
-var levelToSyslogSeverity = map[seelog.LogLevel]int{
-	// Mapping to RFC 5424 where possible
-	seelog.TraceLvl:    7,
-	seelog.DebugLvl:    7,
-	seelog.InfoLvl:     6,
-	seelog.WarnLvl:     4,
-	seelog.ErrorLvl:    3,
-	seelog.CriticalLvl: 2,
-	seelog.Off:         7,
-}
-
-func createSyslogHeaderFormatter(params string) seelog.FormatterFunc {
-	facility := 20
-	rfc := false
-
-	ps := strings.Split(params, ",")
-	if len(ps) == 2 {
-		i, err := strconv.Atoi(ps[0])
-		if err == nil && i >= 0 && i <= 23 {
-			facility = i
-		}
-
-		rfc = (ps[1] == "true")
-	} else {
-		fmt.Println("badly formatted syslog header parameters - using defaults")
-	}
-
-	pid := os.Getpid()
-	appName := filepath.Base(os.Args[0])
-
-	if rfc { // RFC 5424
-		return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-			return fmt.Sprintf("<%d>1 %s %d - -", facility*8+levelToSyslogSeverity[level], appName, pid)
-		}
-	}
-
-	// otherwise old-school logging
-	return func(_ string, level seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-		return fmt.Sprintf("<%d>%s[%d]:", facility*8+levelToSyslogSeverity[level], appName, pid)
-	}
-}
-
-// SyslogReceiver implements seelog.CustomReceiver
-type SyslogReceiver struct {
-	enabled bool
-	uri     *url.URL
-	conn    net.Conn
-}
-
-func getSyslogConnection(uri *url.URL) (net.Conn, error) {
-	var conn net.Conn
-	var err error
-
-	// local
-	localNetNames := []string{"unixgram", "unix"}
-	if uri == nil {
-		addrs := []string{"/dev/log", "/var/run/syslog", "/var/run/log"}
-		for _, netName := range localNetNames {
-			for _, addr := range addrs {
-				conn, err = net.Dial(netName, addr)
-				if err == nil { // on success
-					return conn, nil
-				}
-			}
-		}
-	} else {
-		switch uri.Scheme {
-		case "unix", "unixgram":
-			fmt.Printf("Trying to connect to: %s", uri.Path)
-			for _, netName := range localNetNames {
-				conn, err = net.Dial(netName, uri.Path)
-				if err == nil {
-					break
-				}
-			}
-		case "udp":
-			conn, err = net.Dial(uri.Scheme, uri.Host)
-		case "tcp":
-			conn, err = net.Dial("tcp", uri.Host)
-		}
-		if err == nil {
-			return conn, nil
-		}
-	}
-
-	return nil, errors.New("Unable to connect to syslog")
-}
-
-// ReceiveMessage process current log message
-func (s *SyslogReceiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
-	if !s.enabled {
-		return nil
-	}
-
-	if s.conn != nil {
-		_, err := s.conn.Write([]byte(message))
-		if err == nil {
-			return nil
-		}
-	}
-
-	// try to reconnect - close the connection first just in case
-	//                    we don't want fd leaks here.
-	if s.conn != nil {
-		s.conn.Close()
-	}
-	conn, err := getSyslogConnection(s.uri)
-	if err != nil {
-		return err
-	}
-
-	s.conn = conn
-	_, err = s.conn.Write([]byte(message))
-	fmt.Printf("Retried: %v\n", message)
-	return err
-}
-
-// AfterParse parses the receiver configuration
-func (s *SyslogReceiver) AfterParse(initArgs seelog.CustomReceiverInitArgs) error {
-	var conn net.Conn
-	var ok bool
-	var err error
-
-	s.enabled = true
-	uri, ok := initArgs.XmlCustomAttrs["uri"]
-	if ok && uri != "" {
-		url, err := url.ParseRequestURI(uri)
-		if err != nil {
-			s.enabled = false
-		}
-
-		s.uri = url
-	}
-
-	if !s.enabled {
-		return errors.New("bad syslog receiver configuration - disabling")
-	}
-
-	conn, err = getSyslogConnection(s.uri)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return nil
-	}
-	s.conn = conn
-
-	return nil
-}
-
-// Flush is a NOP in current implementation
-func (s *SyslogReceiver) Flush() {
-	// Nothing to do here...
-}
-
-// Close is a NOP in current implementation
-func (s *SyslogReceiver) Close() error {
-	return nil
-}
-
 func init() {
-	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", createSyslogHeaderFormatter)
-	seelog.RegisterReceiver("syslog", &SyslogReceiver{})
+	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", syslog.CreateSyslogHeaderFormatter)
+	seelog.RegisterReceiver("syslog", &syslog.Receiver{})
 }

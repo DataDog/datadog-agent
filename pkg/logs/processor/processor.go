@@ -301,10 +301,6 @@ func (p *Processor) GetHostname(msg *message.Message) string {
 		return msg.Hostname
 	}
 
-	if msg.Lambda != nil {
-		return msg.Lambda.ARN
-	}
-
 	if p.hostname == nil {
 		return "unknown"
 	}

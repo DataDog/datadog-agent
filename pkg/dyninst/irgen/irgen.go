@@ -2490,9 +2490,7 @@ func newProbe(
 		}
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
-		var issue ir.Issue
-		var err error
-		injectionPoints, _, issue, err = pickInjectionPoint(
+		ips, _, issue, err := pickInjectionPoint(
 			inlined.Ranges,
 			inlined.RootRanges,
 			true, /* inlined */
@@ -2503,9 +2501,10 @@ func newProbe(
 			injectionPoints,
 			skipReturnEvents,
 		)
-		if issue != (ir.Issue{}) || err != nil {
+		if !issue.IsNone() || err != nil {
 			return nil, issue, err
 		}
+		injectionPoints = ips
 	}
 	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
 		return cmp.Compare(a.PC, b.PC)

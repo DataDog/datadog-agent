@@ -11,10 +11,9 @@ import (
 	"testing"
 	"time"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-
-	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -31,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestRunnerLifecycle(t *testing.T) {
@@ -38,6 +38,9 @@ func TestRunnerLifecycle(t *testing.T) {
 }
 
 func TestRunnerRealtime(t *testing.T) {
+	// https://datadoghq.atlassian.net/browse/CXP-2284
+	flake.Mark(t)
+
 	enableProcessAgent(t)
 
 	t.Run("rt allowed", func(t *testing.T) {

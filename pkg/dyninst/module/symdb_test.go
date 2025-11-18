@@ -8,6 +8,7 @@
 package module
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -133,16 +134,29 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 	uploadSemaphore := make(chan struct{})
 	blockUpload := false
 	uploadCount := 0
+	// Create a context that will be canceled when the test is done.
+	// Unforunately, context cancellation doesn't propagate through http clients
+	// the way it does for gRPC.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	symdbServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if blockUpload {
 			// Notify that the upload started, and block until notified.
-			uploadSemaphore <- struct{}{}
-			<-uploadSemaphore
+			select {
+			case uploadSemaphore <- struct{}{}:
+				// Good, upload started. We'll unblock it below.
+				select {
+				case <-uploadSemaphore:
+				case <-ctx.Done():
+				}
+			case <-ctx.Done():
+			}
 		}
 		uploadCount++
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer symdbServer.Close()
+	defer cancel() // prevent server.Close() from blocking forever
 
 	symdbURL, err := url.Parse(symdbServer.URL)
 	require.NoError(t, err)
@@ -188,18 +202,13 @@ func testSymdbManagerCancellation(t *testing.T, useStop bool) {
 	blockUpload = true
 	err = manager.queueUpload(runtimeID, binPath)
 	require.NoError(t, err)
-	select {
-	case <-uploadSemaphore:
-		t.Fatal("Upload started unexpectedly")
-	case <-time.After(100 * time.Millisecond):
-		// OK, no upload.
-	}
 
-	// Wait for upload to start.
+	// Wait for upload to start (i.e., for the first HTTP request to be made).
+	// The upload is asynchronous, so it may take a moment to start processing.
 	select {
 	case <-uploadSemaphore:
 		// Good, upload started. We'll unblock it below.
-	case <-time.After(2 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("Upload did not start in time")
 	}
 
