@@ -65,7 +65,7 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if _, ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
+	if ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
 		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()

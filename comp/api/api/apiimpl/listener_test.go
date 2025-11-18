@@ -16,7 +16,7 @@ import (
 func TestGetIPCServerAddressPort(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		configmock.New(t)
-		_, _, enabled := getIPCServerAddressPort()
+		_, enabled := getIPCServerAddressPort()
 		require.False(t, enabled)
 	})
 
@@ -24,8 +24,7 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.port", 1234)
 
-		host, hostPort, enabled := getIPCServerAddressPort()
-		require.Equal(t, "localhost", host)
+		hostPort, enabled := getIPCServerAddressPort()
 		require.Equal(t, "localhost:1234", hostPort)
 		require.True(t, enabled)
 	})
@@ -34,7 +33,7 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		cfg := configmock.New(t)
 		cfg.SetWithoutSource("agent_ipc.port", 0)
 
-		_, _, enabled := getIPCServerAddressPort()
+		_, enabled := getIPCServerAddressPort()
 		require.False(t, enabled)
 	})
 }

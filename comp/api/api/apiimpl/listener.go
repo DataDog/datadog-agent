@@ -23,18 +23,27 @@ func getIPCAddressPort() (string, error) {
 
 // getListener returns a listening connection
 func getListener(address string) (net.Listener, error) {
-	return net.Listen("tcp", address)
+	// if the address is an IP address, return a TCP listener otherwise try it as a unix socket
+	if ipAddr := net.ParseIP(address); ipAddr != nil {
+		return net.Listen("tcp", ipAddr)
+	}
+	return net.Listen("unix", address)
 }
 
 // returns whether the IPC server is enabled, and if so its host and host:port
-func getIPCServerAddressPort() (string, string, bool) {
+func getIPCServerAddressPort() (string, bool) {
+	if pkgconfigsetup.Datadog().GetBool("agent_ipc.use_uds") {
+		socketPath := pkgconfigsetup.Datadog().GetString("agent_ipc.socket_path")
+		return socketPath + "/agent_ipc.socket", true
+	}
+
 	ipcServerPort := pkgconfigsetup.Datadog().GetInt("agent_ipc.port")
 	if ipcServerPort == 0 {
-		return "", "", false
+		return "", false
 	}
 
 	ipcServerHost := pkgconfigsetup.Datadog().GetString("agent_ipc.host")
 	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
 
-	return ipcServerHost, ipcServerHostPort, true
+	return ipcServerHostPort, true
 }

@@ -1267,6 +1267,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc.socket_path", "/var/run/datadog")
+	config.BindEnvAndSetDefault("agent_ipc.use_uds", false)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
