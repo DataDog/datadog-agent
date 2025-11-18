@@ -236,7 +236,7 @@ func (a *logAgent) setupAgent() error {
 
 	fingerprintConfig, err := config.GlobalFingerprintConfig(a.config)
 	if err != nil {
-		message := fmt.Sprintf("Invalid fingerprinting config: %v", err)
+		message := fmt.Sprintf("Invalid fingerprint_config setting: %v", err)
 		status.AddGlobalError(invalidFingerprintConfig, message)
 		return errors.New(message)
 	}
