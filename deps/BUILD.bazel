@@ -1,4 +1,4 @@
-load("//bazel/rules/compliance:license_csv.bzl", "license_csv")
+load("//compliance:license_csv.bzl", "license_csv")
 
 # Do not depend on this.
 # This is a temporary target to make it easy to force build dependencies
@@ -22,6 +22,8 @@ filegroup(
             "@gcrypt",
             "@gpg-error",
             "@libsepol//:sepol",
+            "@libxml2",
+            "@libxslt",
             "@nghttp2",
             "@pcre2",
             "@popt",
@@ -29,6 +31,9 @@ filegroup(
         ],
         "//:macos_arm64": [
             "@openssl3//:libcrypto",
+        ],
+        "@platforms//os:windows": [
+            "@cpython//:python_win",
         ],
         "//conditions:default": [],
     }),

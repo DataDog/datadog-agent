@@ -27,6 +27,7 @@ include:
   - .gitlab/internal_kubernetes_deploy/include.yml
   - .gitlab/lint/include.yml
   - .gitlab/maintenance_jobs/include.yml
+  - .gitlab/network_device_build/network_device_build.yml
   - .gitlab/notify/notify.yml
   - .gitlab/package_build/include.yml
   - .gitlab/packaging/include.yml
@@ -164,21 +165,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v81809683-27a1a12f
+  CI_IMAGE_BTF_GEN: v82436147-ae37cb6d
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v81809683-27a1a12f
+  CI_IMAGE_DOCKER_X64: v82436147-ae37cb6d
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v81809683-27a1a12f
+  CI_IMAGE_DOCKER_ARM64: v82436147-ae37cb6d
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v81809683-27a1a12f
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v82436147-ae37cb6d
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v81809683-27a1a12f
+  CI_IMAGE_LINUX: v82436147-ae37cb6d
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v81809683-27a1a12f
+  CI_IMAGE_RPM_X64: v82436147-ae37cb6d
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v81809683-27a1a12f
+  CI_IMAGE_RPM_ARM64: v82436147-ae37cb6d
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v81809683-27a1a12f
+  CI_IMAGE_RPM_ARMHF: v82436147-ae37cb6d
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v81809683-27a1a12f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""

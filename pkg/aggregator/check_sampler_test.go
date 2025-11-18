@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
@@ -64,8 +65,8 @@ func testCheckGaugeSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample1)
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
-
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 	series, _ := checkSampler.flush()
 
 	expectedSerie1 := &metrics.Serie{
@@ -129,7 +130,8 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 	series, _ := checkSampler.flush()
 
 	expectedSerie := &metrics.Serie{
@@ -183,7 +185,8 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addSample(&mSample2)
 	checkSampler.addSample(&mSample3)
 
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 	require.Equal(t, 1, checkSampler.contextResolver.length())
 	series, _ := checkSampler.flush()
 
@@ -208,7 +211,8 @@ func testHistogramCountSampling(t *testing.T, store *tags.Store) {
 	}
 
 	assert.True(t, foundCount)
-	checkSampler.commit(12349.0)
+
+	checkSampler.commit(12349.0, &matcher)
 	require.Equal(t, 0, checkSampler.contextResolver.length())
 }
 
@@ -233,7 +237,8 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 1, len(flushed))
 
@@ -263,9 +268,9 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12401.0)
+	checkSampler.commit(12401.0, &matcher)
 	assert.Len(t, checkSampler.lastBucketValue, 1)
-	checkSampler.commit(12401.0)
+	checkSampler.commit(12401.0, &matcher)
 	assert.Len(t, checkSampler.lastBucketValue, 0)
 	_, flushed = checkSampler.flush()
 
@@ -311,7 +316,8 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.addBucket(bucket1)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 0, len(flushed))
 
@@ -327,7 +333,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.addBucket(bucket2)
 	assert.Equal(t, len(checkSampler.lastBucketValue), 1)
 
-	checkSampler.commit(12401.0)
+	checkSampler.commit(12401.0, &matcher)
 	_, flushed = checkSampler.flush()
 
 	expSketch := &quantile.Sketch{}
@@ -364,7 +370,8 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	}
 	checkSampler.addBucket(bucket1)
 
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 1, len(flushed))
 
@@ -400,7 +407,8 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 	}
 
 	checkSampler.addSample(&mSample1)
-	checkSampler.commit(12349.0)
+	matcher := strings.NewMatcher([]string{}, false)
+	checkSampler.commit(12349.0, &matcher)
 
 	_, sketches := checkSampler.flush()
 
@@ -419,4 +427,155 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 
 func TestCheckDistribution(t *testing.T) {
 	testWithTagsStore(t, testCheckDistribution)
+}
+
+func testFilteredMetrics(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	mSample1 := metrics.MetricSample{
+		Name:       "custom.metric.one",
+		Value:      50.0,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample2 := metrics.MetricSample{
+		Name:       "custom.metric.two",
+		Value:      75.0,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample3 := metrics.MetricSample{
+		Name:       "custom.metric.three",
+		Value:      100.0,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample4 := metrics.MetricSample{
+		Name:       "custom.metric.four",
+		Value:      5.0,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample5 := metrics.MetricSample{
+		Name:       "custom.metric.five",
+		Value:      25.0,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+
+	checkSampler.addSample(&mSample1)
+	checkSampler.addSample(&mSample2)
+	checkSampler.addSample(&mSample3)
+	checkSampler.addSample(&mSample4)
+	checkSampler.addSample(&mSample5)
+
+	// Filter out two and four
+	matcher := strings.NewMatcher([]string{"custom.metric.two", "custom.metric.four"}, false)
+	checkSampler.commit(12346.0, &matcher)
+	series, _ := checkSampler.flush()
+
+	require.Equal(t, 3, len(series))
+
+	// Check that only non-filtered metrics are present
+	metricNames := make(map[string]bool)
+	for _, serie := range series {
+		metricNames[serie.Name] = true
+	}
+
+	assert.True(t, metricNames["custom.metric.one"])
+	assert.True(t, metricNames["custom.metric.three"])
+	assert.True(t, metricNames["custom.metric.five"])
+
+	assert.False(t, metricNames["custom.metric.two"])
+	assert.False(t, metricNames["custom.metric.four"])
+}
+
+func TestFilteredMetrics(t *testing.T) {
+	testWithTagsStore(t, testFilteredMetrics)
+}
+
+func testFilteredSketches(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	mSample1 := metrics.MetricSample{
+		Name:       "custom.distribution.one",
+		Value:      10.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample2 := metrics.MetricSample{
+		Name:       "custom.distribution.two",
+		Value:      20.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample3 := metrics.MetricSample{
+		Name:       "custom.distribution.three",
+		Value:      30.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample4 := metrics.MetricSample{
+		Name:       "custom.distribution.four",
+		Value:      40.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+	mSample5 := metrics.MetricSample{
+		Name:       "custom.distribution.five",
+		Value:      50.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       []string{"host:server1"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}
+
+	checkSampler.addSample(&mSample1)
+	checkSampler.addSample(&mSample2)
+	checkSampler.addSample(&mSample3)
+	checkSampler.addSample(&mSample4)
+	checkSampler.addSample(&mSample5)
+
+	// Filter out two and four
+	matcher := strings.NewMatcher([]string{"custom.distribution.two", "custom.distribution.four"}, false)
+	checkSampler.commit(12346.0, &matcher)
+	_, sketches := checkSampler.flush()
+
+	// Check that only non-filtered sketches are present
+	require.Equal(t, 3, len(sketches))
+	sketchNames := make(map[string]bool)
+	for _, sketch := range sketches {
+		sketchNames[sketch.Name] = true
+	}
+
+	assert.True(t, sketchNames["custom.distribution.one"])
+	assert.True(t, sketchNames["custom.distribution.three"])
+	assert.True(t, sketchNames["custom.distribution.five"])
+
+	assert.False(t, sketchNames["custom.distribution.two"])
+	assert.False(t, sketchNames["custom.distribution.four"])
+}
+
+func TestFilteredSketches(t *testing.T) {
+	testWithTagsStore(t, testFilteredSketches)
 }
