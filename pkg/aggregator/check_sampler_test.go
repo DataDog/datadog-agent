@@ -369,7 +369,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		Monotonic:       true,
 		FlushFirstValue: false,
 	})
-	checkSampler.commit(12401)
+	checkSampler.commit(12401, nil)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -381,7 +381,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		FlushFirstValue: true,
 	})
 
-	checkSampler.commit(12411)
+	checkSampler.commit(12411, nil)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -393,7 +393,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		FlushFirstValue: true,
 	})
 
-	checkSampler.commit(12421)
+	checkSampler.commit(12421, nil)
 
 	checkSampler.addBucket(&metrics.HistogramBucket{
 		Name:            "my.histogram",
@@ -405,7 +405,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 		FlushFirstValue: false,
 	})
 
-	checkSampler.commit(12441)
+	checkSampler.commit(12441, nil)
 
 	_, flushed := checkSampler.flush()
 
@@ -512,7 +512,7 @@ func TestCheckDistribution(t *testing.T) {
 
 func testFilteredMetrics(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "custom.metric.one",
@@ -588,7 +588,7 @@ func TestFilteredMetrics(t *testing.T) {
 
 func testFilteredSketches(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
-	checkSampler := newCheckSampler(1, true, true, 1*time.Second, store, checkid.ID("hello:world:1234"), taggerComponent)
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
 
 	mSample1 := metrics.MetricSample{
 		Name:       "custom.distribution.one",
