@@ -47,9 +47,6 @@ var (
 	//go:embed templates/discovery.tmpl
 	discoveryTemplate string
 
-	//go:embed templates/events.tmpl
-	eventsTemplate string
-
 	fnMap = template.FuncMap{
 		"humanize":  humanize.Commaf,
 		"bytes":     humanize.Bytes,

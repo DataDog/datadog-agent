@@ -58,8 +58,7 @@ type CheckSubmitter struct {
 	realtimeUpdate map[string]bool
 
 	// Endpoints for logging purposes
-	processAPIEndpoints       []apicfg.Endpoint
-	processEventsAPIEndpoints []apicfg.Endpoint
+	processAPIEndpoints []apicfg.Endpoint
 
 	hostname string
 

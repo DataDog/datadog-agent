@@ -300,10 +300,6 @@ func (c *Config) sanitizeConfigNetwork() {
 	}
 }
 
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
-}
-
 func getAllKeys(key string) (string, string) {
 	deprecatedKey := strings.Join([]string{rsNS, key}, ".")
 	newKey := strings.Join([]string{evNS, key}, ".")
