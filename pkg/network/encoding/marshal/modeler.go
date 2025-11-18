@@ -6,10 +6,11 @@
 package marshal
 
 import (
-	"os"
+	"fmt"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -18,15 +19,11 @@ import (
 var (
 	cfgOnce  = sync.Once{}
 	agentCfg *model.AgentConfiguration
-
-	getSysProbePid = sync.OnceValue(func() uint32 {
-		return uint32(os.Getpid())
-	})
 )
 
 // ConnectionsModeler contains all the necessary structs for modeling a connection.
 type ConnectionsModeler struct {
-	usmEncoders  []usmEncoder
+	usmEncoders  []USMEncoder
 	dnsFormatter *dnsFormatter
 	ipc          ipCache
 	routeIndex   map[network.Via]RouteIdx
@@ -39,16 +36,20 @@ type ConnectionsModeler struct {
 // It also includes formatted connection telemetry related to all batches, not specific batches.
 // Furthermore, it stores the current agent configuration which applies to all instances related to the entire set of connections,
 // rather than just individual batches.
-func NewConnectionsModeler(conns *network.Connections) *ConnectionsModeler {
+func NewConnectionsModeler(conns *network.Connections) (*ConnectionsModeler, error) {
 	ipc := make(ipCache, len(conns.Conns)/2)
+	nspid, err := kernel.RootNSPID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get root namespace PID: %w", err)
+	}
 	return &ConnectionsModeler{
-		usmEncoders:  initializeUSMEncoders(conns),
+		usmEncoders:  InitializeUSMEncoders(conns),
 		ipc:          ipc,
 		dnsFormatter: newDNSFormatter(conns, ipc),
 		routeIndex:   make(map[network.Via]RouteIdx),
 		tagsSet:      network.NewTagsSet(),
-		sysProbePid:  getSysProbePid(),
-	}
+		sysProbePid:  uint32(nspid),
+	}, nil
 }
 
 // Close cleans all encoders resources.

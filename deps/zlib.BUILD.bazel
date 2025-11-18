@@ -35,6 +35,8 @@
 
 """Agent specific BUILD file for zlib."""
 
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
@@ -52,10 +54,6 @@ license(
     license_text = "LICENSE",
     visibility = ["//visibility:public"],
 )
-
-exports_files([
-    "LICENSE",
-])
 
 _ZLIB_PUBLIC_HEADERS = [
     "zconf.h",
@@ -140,17 +138,17 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "libz_so",
-    shared_lib_name = "libz.so",
+    name = "z",
     win_def_file = "win32/zlib.def",
     deps = [":zlib"],
     visibility = ["//visibility:public"],
 )
 
-pkg_files(
+so_symlink(
     name = "lib_files",
-    srcs = [":libz_so"],
-    prefix = "lib",
+    src = ":z",
+    libname = "libz",
+    version = "1.3.1",
 )
 
 pkg_files(
@@ -167,9 +165,28 @@ pkg_install(
     ],
 )
 
+copy_file(
+    name = "renamed_license",
+    src = ":LICENSE",
+    out = "zlib-zlib.license",
+)
+
+pkg_files(
+    name = "license_files",
+    srcs = [
+        ":renamed_license",
+    ],
+)
+
+pkg_install(
+    name = "install_license",
+    srcs = [
+        ":license_files",
+    ],
+)
+
 # buildifier: disable=no-effect
 """
-TODO: Syntheizes license file up to licenses.csv
 TODO: patch source: "zlib-windows-relocate.patch", env: env
 
 build do

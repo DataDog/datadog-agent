@@ -22,11 +22,11 @@ func (s *languageDetectionSuite) installPHP() {
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
 	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
-	s.runPHP()
-	s.checkDetectedLanguage("php", "php", "process_collector")
+	pid := s.startPHP()
+	s.checkDetectedLanguage(pid, "php", "process_collector")
 }
 
-func (s *languageDetectionSuite) runPHP() {
+func (s *languageDetectionSuite) startPHP() string {
 	s.Env().RemoteHost.MustExecute("echo -e '<?php sleep(60);' > prog.php")
-	s.Env().RemoteHost.MustExecute("nohup php prog.php >myscript.log 2>&1 </dev/null &")
+	return s.Env().RemoteHost.MustExecute("nohup php prog.php >myscript.log 2>&1 </dev/null & echo -n $!")
 }

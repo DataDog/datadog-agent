@@ -9,7 +9,9 @@ from os import getenv, makedirs, path
 
 from invoke import task
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+)
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -49,15 +51,9 @@ def build(
             out="cmd/installer/rsrc.syso",
         )
 
-    build_include = (
-        get_default_build_tags(
-            build="installer",
-        )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    build_tags = compute_build_tags_for_flavor(
+        build="installer", build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
 
     installer_bin = INSTALLER_BIN
     if output_bin:

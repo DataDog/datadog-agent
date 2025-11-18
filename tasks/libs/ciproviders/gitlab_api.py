@@ -8,9 +8,7 @@ from __future__ import annotations
 import glob
 import json
 import os
-import platform
 import re
-import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -76,24 +74,6 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     token = token_info['token']
 
     return token
-
-
-def get_gitlab_bot_token():
-    if "GITLAB_BOT_TOKEN" not in os.environ:
-        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
-        if platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
-                )
-                if output:
-                    return output.strip()
-            except subprocess.CalledProcessError:
-                print("GITLAB_BOT_TOKEN not found in keychain...")
-                pass
-        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
-        raise Exit(code=1)
-    return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
@@ -1296,36 +1276,15 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
     return all_stages
 
 
-def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
-    """
-    Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
-    """
-    test_infra_def = {}
-    with open(file_path) as test_infra_version_file:
-        try:
-            test_infra_def = yaml.safe_load(test_infra_version_file)
-            test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"] = image_tag
-            if is_dev_image:
-                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = "-dev"
-            else:
-                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = ""
-        except yaml.YAMLError as e:
-            raise Exit(f"Error while loading {file_path}: {e}") from e
-    with open(file_path, "w") as test_infra_version_file:
-        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
-        # Add explicit_start=True to keep the document start marker ---
-        # See "Document Start" in https://www.yaml.info/learn/document.html for more details
-        yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
-
-
 def get_test_infra_def_version():
     """
-    Get TEST_INFRA_DEFINITIONS_BUILDIMAGES from `.gitlab/common/test_infra_version.yml` file
+    Get test-infra-definitions version from `test/new-e2e/go.mod` file's require directive
     """
     try:
-        version_file = Path.cwd() / ".gitlab" / "common" / "test_infra_version.yml"
-        test_infra_def = yaml.safe_load(version_file.read_text(encoding="utf-8"))
-        return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
+        with open(Path.cwd() / "test" / "new-e2e" / "go.mod") as go_mod_file:
+            for line in go_mod_file:
+                if "github.com/DataDog/test-infra-definitions" in line and not line.strip().startswith("//"):
+                    return line.split("-")[-1].strip()
     except Exception:
         return "main"
 
