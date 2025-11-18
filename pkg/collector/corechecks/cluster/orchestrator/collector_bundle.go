@@ -305,7 +305,6 @@ func (cb *CollectorBundle) initialize() {
 	// informerSynced is a helper map which makes sure that we don't initialize the same informer twice.
 	// i.e. the cluster and nodes resources share the same informer and using both can lead to a race condition activating both concurrently.
 	informerSynced := map[cache.SharedInformer]struct{}{}
-	terminatedResourceCollectionEnabled := pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_resources.enabled")
 
 	for _, collector := range cb.collectors {
 		collectorFullName := collector.Metadata().FullName()
@@ -322,7 +321,7 @@ func (cb *CollectorBundle) initialize() {
 			informerSynced[informer] = struct{}{}
 
 			// add event handlers for terminated resources
-			if terminatedResourceCollectionEnabled && collector.Metadata().SupportsTerminatedResourceCollection {
+			if collector.Metadata().SupportsTerminatedResourceCollection {
 				if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 					DeleteFunc: cb.terminatedResourceHandler(collector),
 				}); err != nil {
@@ -423,6 +422,13 @@ func (cb *CollectorBundle) terminatedResourceHandler(collector collectors.K8sCol
 // GetTerminatedResourceBundle returns the terminated resource bundle.
 func (cb *CollectorBundle) GetTerminatedResourceBundle() *TerminatedResourceBundle {
 	return cb.terminatedResourceBundle
+}
+
+// EnableTerminatedResourceBundle enables the terminated resource bundle if the feature is enabled.
+func (cb *CollectorBundle) EnableTerminatedResourceBundle() {
+	if pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_resources.enabled") {
+		cb.terminatedResourceBundle.Enable()
+	}
 }
 
 // importBuiltinCollectors imports the builtin collectors into the bundle.
