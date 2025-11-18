@@ -49,7 +49,11 @@ require (
 	golang.org/x/net v0.46.0
 )
 
-require go.yaml.in/yaml/v2 v2.4.3 // indirect
+require (
+	github.com/mdlayher/socket v0.5.1 // indirect
+	github.com/mdlayher/vsock v1.2.1 // indirect
+	go.yaml.in/yaml/v2 v2.4.3 // indirect
+)
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.175 // indirect

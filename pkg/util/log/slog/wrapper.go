@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
@@ -39,6 +40,12 @@ type Wrapper struct {
 // NewWrapper returns a new Wrapper implementing the LoggerInterface interface.
 func NewWrapper(handler slog.Handler) types.LoggerInterface {
 	return newWrapperWithCloseAndFlush(handler, nil, nil)
+}
+
+// NewAsyncWrapper returns a LoggerInterface, wrapping the given slog.Handler in an async handler.
+func NewAsyncWrapper(handler slog.Handler) types.LoggerInterface {
+	asyncHandler := handlers.NewAsync(handler)
+	return newWrapperWithCloseAndFlush(asyncHandler, asyncHandler.Flush, asyncHandler.Close)
 }
 
 func newWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func()) types.LoggerInterface {
