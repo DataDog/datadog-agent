@@ -88,15 +88,11 @@ configure_make(
     out_shared_libs = select({
         "@platforms//os:linux": [
             LINUX_LIBSSL,
-            #LINUX_LIBSSL + "3",
             LINUX_LIBCRYPTO,
-            #LINUX_LIBCRYPTO + "3",
         ],
         "@platforms//os:macos": [
             MACOS_LIBSSL,
-            #MACOS_LIBSSL.replace("dylib", "3.dylib"),
             MACOS_LIBCRYPTO,
-            #MACOS_LIBCRYPTO.replace("dylib", "3.dylib"),
         ],
         "//conditions:default": [],
     }),
@@ -120,6 +116,7 @@ configure_make(
         ],
         "@platforms//os:windows": [],
     }),
+    copts = ["-O2"],
     targets = ["depend", "", "install_sw", "install_ssldirs"],
 )
 
