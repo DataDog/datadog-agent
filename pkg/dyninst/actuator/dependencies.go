@@ -28,8 +28,8 @@ type LoadedProgram interface {
 	// Attach attaches the program to a process.
 	Attach(ProcessID, Executable) (AttachedProgram, error)
 
-	// RuntimeStats returns the runtime stats of the program.
-	RuntimeStats() loader.RuntimeStats
+	// RuntimeStats returns the per-core runtime stats of the program.
+	RuntimeStats() []loader.RuntimeStats
 
 	// Close closes the loaded program. It will only be called after any
 	// Attach() call have returned and any AttachedProgram.Detach() call have

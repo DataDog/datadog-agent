@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -104,7 +105,13 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "expected deadline exceeded, got %#+v, %#+v", err, v)
 
 	// Check that throttling happened.
-	stats := program.RuntimeStats()
+	perCoreStats := program.RuntimeStats()
+	var stats loader.RuntimeStats
+	for _, coreStats := range perCoreStats {
+		stats.HitCnt += coreStats.HitCnt
+		stats.ThrottledCnt += coreStats.ThrottledCnt
+		stats.CPU += coreStats.CPU
+	}
 	require.Greater(t, int(stats.HitCnt), expectedEvents)
 	require.Greater(t, int(stats.ThrottledCnt), 0)
 }
