@@ -37,6 +37,7 @@ for f in "$@"; do
             ;;
         *.pc)
             sed -ibak "s|##PREFIX##|$PREFIX|" "$f" && rm -f "${f}bak"
+            sed -ibak "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
             ;;
         *)
             echo "Ignoring $f"
