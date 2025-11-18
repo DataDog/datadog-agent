@@ -5,6 +5,7 @@ go 1.24.0
 require github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
 
 require (
+	github.com/DataDog/datadog-agent/pkg/template v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.70.0 // indirect

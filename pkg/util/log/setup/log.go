@@ -9,15 +9,14 @@ package logs
 import (
 	"errors"
 	"io"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cihub/seelog"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
 )
 
@@ -31,18 +30,13 @@ const (
 	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
 
-const logDateFormat = "2006-01-02 15:04:05 MST" // see time.Format for format syntax
-
 func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
-	if cfg.GetBool("log_format_rfc3339") {
-		return time.RFC3339
-	}
-	return logDateFormat
+	return formatters.GetLogDateFormat(cfg.GetBool("log_format_rfc3339"))
 }
 
 func createQuoteMsgFormatter(_ string) seelog.FormatterFunc {
 	return func(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) interface{} {
-		return strconv.Quote(message)
+		return formatters.Quote(message)
 	}
 }
 
