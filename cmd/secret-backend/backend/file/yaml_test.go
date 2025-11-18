@@ -7,6 +7,7 @@
 package file
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -43,11 +44,12 @@ key2: value2
 
 	assert.Equal(t, secretsFilepath, yamlSecretsBackend.Config.FilePath)
 
-	secretOutput := yamlSecretsBackend.GetSecretOutput("key1")
+	ctx := context.Background()
+	secretOutput := yamlSecretsBackend.GetSecretOutput(ctx, "key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 
-	secretOutput = yamlSecretsBackend.GetSecretOutput("key_noexist")
+	secretOutput = yamlSecretsBackend.GetSecretOutput(ctx, "key_noexist")
 	assert.Nil(t, secretOutput.Value)
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }

@@ -6,7 +6,11 @@
 
 package backend
 
-import "github.com/DataDog/datadog-secret-backend/secret"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-secret-backend/secret"
+)
 
 // errorBackend links an error to its backend
 type errorBackend struct {
@@ -19,7 +23,7 @@ func NewErrorBackend(e error) Backend {
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *errorBackend) GetSecretOutput(_ string) secret.Output {
+func (b *errorBackend) GetSecretOutput(_ context.Context, _ string) secret.Output {
 	return secret.Output{
 		Value: nil,
 		Error: &b.err,

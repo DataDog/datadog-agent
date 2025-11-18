@@ -9,6 +9,7 @@ package akeyless
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -108,7 +109,7 @@ func NewAkeylessBackend(bc map[string]interface{}) (*Backend, error) {
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
+func (b *Backend) GetSecretOutput(ctx context.Context, secretKey string) secret.Output {
 
 	payload := secretRequest{
 		AccessType:    "access_key",
@@ -127,7 +128,7 @@ func (b *Backend) GetSecretOutput(secretKey string) secret.Output {
 	}
 
 	// Prepare the request
-	req, err := http.NewRequest("POST", b.Config.AkeylessURL+"/get-secret-value", bytes.NewBuffer(requestPayload))
+	req, err := http.NewRequestWithContext(ctx, "POST", b.Config.AkeylessURL+"/get-secret-value", bytes.NewBuffer(requestPayload))
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}

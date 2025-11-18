@@ -100,20 +100,21 @@ func TestSSMParameterStoreBackend_ParametersByPath(t *testing.T) {
 	ssmParameterStoreSecretsBackend, err := NewSSMParameterStoreBackend(ssmParameterStoreBackendParams)
 	assert.NoError(t, err)
 
-	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key1")
+	ctx := context.Background()
+	secretOutput := ssmParameterStoreSecretsBackend.GetSecretOutput(ctx, "/group1/key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 
-	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/nest/key2")
+	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput(ctx, "/group1/nest/key2")
 	assert.Equal(t, "value2", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 
-	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput("/group1/key_noexist")
+	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput(ctx, "/group1/key_noexist")
 	assert.Nil(t, secretOutput.Value)
 	assert.NotNil(t, secretOutput.Error)
 	assert.Contains(t, *secretOutput.Error, "not found")
 
-	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput("/group2/key3")
+	secretOutput = ssmParameterStoreSecretsBackend.GetSecretOutput(ctx, "/group2/key3")
 	assert.Equal(t, "value3", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 }

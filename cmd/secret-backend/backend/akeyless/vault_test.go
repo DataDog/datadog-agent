@@ -7,6 +7,7 @@
 package akeyless
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -77,15 +78,16 @@ func TestAkeylessBackend(t *testing.T) {
 		t.Fatalf("failed to create akeyless backend: %v", err)
 	}
 
-	secretOutput := akeylessBackend.GetSecretOutput("key1")
+	ctx := context.Background()
+	secretOutput := akeylessBackend.GetSecretOutput(ctx, "key1")
 	assert.Equal(t, "value1", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 
-	secretOutput = akeylessBackend.GetSecretOutput("key2")
+	secretOutput = akeylessBackend.GetSecretOutput(ctx, "key2")
 	assert.Equal(t, "value2", *secretOutput.Value)
 	assert.Nil(t, secretOutput.Error)
 
-	secretOutput = akeylessBackend.GetSecretOutput("key3")
+	secretOutput = akeylessBackend.GetSecretOutput(ctx, "key3")
 	assert.Nil(t, secretOutput.Value)
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }

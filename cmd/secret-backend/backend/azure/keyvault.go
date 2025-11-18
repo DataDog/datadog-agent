@@ -86,7 +86,7 @@ func NewKeyVaultBackend(bc map[string]interface{}) (*KeyVaultBackend, error) {
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *KeyVaultBackend) GetSecretOutput(secretName string) secret.Output {
+func (b *KeyVaultBackend) GetSecretOutput(ctx context.Context, secretName string) secret.Output {
 	var secretID, secretKey string
 
 	sections := strings.SplitN(secretName, ";", 2)
@@ -98,7 +98,7 @@ func (b *KeyVaultBackend) GetSecretOutput(secretName string) secret.Output {
 	}
 
 	version := ""
-	out, err := b.Client.GetSecret(context.Background(), secretID, version, nil)
+	out, err := b.Client.GetSecret(ctx, secretID, version, nil)
 	if err != nil {
 		return b.makeErrorResponse(err)
 	}

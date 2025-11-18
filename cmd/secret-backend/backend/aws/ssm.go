@@ -65,13 +65,13 @@ func NewSSMParameterStoreBackend(bc map[string]interface{}) (*SSMParameterStoreB
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *SSMParameterStoreBackend) GetSecretOutput(secretKey string) secret.Output {
+func (b *SSMParameterStoreBackend) GetSecretOutput(ctx context.Context, secretKey string) secret.Output {
 	input := &ssm.GetParameterInput{
 		Name:           &secretKey,
 		WithDecryption: aws.Bool(true),
 	}
 
-	out, err := b.Client.GetParameter(context.TODO(), input)
+	out, err := b.Client.GetParameter(ctx, input)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}

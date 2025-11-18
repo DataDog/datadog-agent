@@ -7,6 +7,7 @@
 package file
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -56,7 +57,7 @@ func NewYAMLBackend(bc map[string]interface{}) (
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *YamlBackend) GetSecretOutput(secretKey string) secret.Output {
+func (b *YamlBackend) GetSecretOutput(_ context.Context, secretKey string) secret.Output {
 	if val, ok := b.Secret[secretKey]; ok {
 		return secret.Output{Value: &val, Error: nil}
 	}

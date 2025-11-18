@@ -8,19 +8,21 @@
 package backend
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/DataDog/datadog-secret-backend/backend/akeyless"
 	"github.com/DataDog/datadog-secret-backend/backend/aws"
 	"github.com/DataDog/datadog-secret-backend/backend/azure"
 	"github.com/DataDog/datadog-secret-backend/backend/file"
+	"github.com/DataDog/datadog-secret-backend/backend/gcp"
 	"github.com/DataDog/datadog-secret-backend/backend/hashicorp"
 	"github.com/DataDog/datadog-secret-backend/secret"
 )
 
 // Backend represents the common interface for the secret backends
 type Backend interface {
-	GetSecretOutput(string) secret.Output
+	GetSecretOutput(ctx context.Context, secretString string) secret.Output
 }
 
 // Get initialize and return the requested backend
@@ -35,6 +37,8 @@ func Get(backendType string, backendConfig map[string]interface{}) Backend {
 		backend, err = aws.NewSSMParameterStoreBackend(backendConfig)
 	case "azure.keyvault":
 		backend, err = azure.NewKeyVaultBackend(backendConfig)
+	case "gcp.secretmanager":
+		backend, err = gcp.NewSecretManagerBackend(backendConfig)
 	case "hashicorp.vault":
 		backend, err = hashicorp.NewVaultBackend(backendConfig)
 	case "file.yaml":

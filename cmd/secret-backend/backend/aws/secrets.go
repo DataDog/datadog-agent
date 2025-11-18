@@ -69,7 +69,7 @@ func NewSecretsManagerBackend(bc map[string]interface{}) (
 }
 
 // GetSecretOutput returns a the value for a specific secret
-func (b *SecretsManagerBackend) GetSecretOutput(secretString string) secret.Output {
+func (b *SecretsManagerBackend) GetSecretOutput(ctx context.Context, secretString string) secret.Output {
 	segments := strings.SplitN(secretString, ";", 2)
 	if len(segments) != 2 {
 		es := "invalid secret format, expected 'secret_id;key'"
@@ -82,7 +82,7 @@ func (b *SecretsManagerBackend) GetSecretOutput(secretString string) secret.Outp
 		SecretId: &secretID,
 	}
 
-	out, err := b.Client.GetSecretValue(context.TODO(), input)
+	out, err := b.Client.GetSecretValue(ctx, input)
 	if err != nil {
 		es := err.Error()
 		return secret.Output{Value: nil, Error: &es}
