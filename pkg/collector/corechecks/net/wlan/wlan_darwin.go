@@ -23,6 +23,7 @@ import (
 	"time"
 
 	checkpkg "github.com/DataDog/datadog-agent/pkg/collector/check"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +62,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 	}
 
 	// Try to fetch from console user's GUI
-	socketPath := fmt.Sprintf("/var/run/datadog-agent/gui-%s.sock", uid)
+	socketPath := filepath.Join(pkgconfigsetup.InstallPath, "run", fmt.Sprintf("gui-%s.sock", uid))
 	info, err := fetchWiFiFromGUI(socketPath, 2*time.Second)
 	if err != nil {
 		// GUI might not be running - try to launch it
@@ -100,13 +101,15 @@ func GetWiFiInfo() (wifiInfo, error) {
 // WiFi data is system-wide, so any user's GUI will return identical data
 func tryAnyAvailableGUISocket() (wifiInfo, error) {
 	// Find all GUI sockets
-	sockets, err := filepath.Glob("/var/run/datadog-agent/gui-*.sock")
+	runPath := filepath.Join(pkgconfigsetup.InstallPath, "run")
+	socketsPattern := filepath.Join(runPath, "gui-*.sock")
+	sockets, err := filepath.Glob(socketsPattern)
 	if err != nil {
 		return wifiInfo{}, fmt.Errorf("failed to search for GUI sockets: %w", err)
 	}
 
 	if len(sockets) == 0 {
-		return wifiInfo{}, fmt.Errorf("no GUI sockets found in /var/run/datadog-agent/")
+		return wifiInfo{}, fmt.Errorf("no GUI sockets found in %s", runPath)
 	}
 
 	log.Debugf("Found %d GUI socket(s), trying each in order", len(sockets))

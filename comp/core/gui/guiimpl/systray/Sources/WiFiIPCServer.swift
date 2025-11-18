@@ -23,9 +23,12 @@ class WiFiIPCServer {
     init(wifiDataProvider: WiFiDataProvider) {
         self.wifiDataProvider = wifiDataProvider
 
+        // Get installation path from environment (set by LaunchAgent) or use default
+        let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
+
         // Create socket path based on current user's UID
         let uid = getuid()
-        self.socketPath = "/var/run/datadog-agent/gui-\(uid).sock"
+        self.socketPath = "\(installPath)/run/gui-\(uid).sock"
         // Use .background QoS for agent telemetry collection (not user-facing work)
         self.acceptQueue = DispatchQueue(label: "com.datadoghq.wifi.ipc", qos: .background)
 
@@ -134,7 +137,9 @@ class WiFiIPCServer {
 
     // Private Methods
     private func createSocketDirectory() throws {
-        let socketDir = "/var/run/datadog-agent"
+        // Get installation path from environment (set by LaunchAgent) or use default
+        let installPath = ProcessInfo.processInfo.environment["DD_INSTALL_PATH"] ?? "/opt/datadog-agent"
+        let socketDir = "\(installPath)/run"
         let fileManager = FileManager.default
 
         // Check if directory exists
@@ -149,18 +154,11 @@ class WiFiIPCServer {
                          userInfo: [NSLocalizedDescriptionKey: "\(socketDir) exists but is not a directory"])
         }
 
-        // Try to create directory (may fail if we don't have permissions)
-        do {
-            try fileManager.createDirectory(atPath: socketDir, withIntermediateDirectories: true, attributes: nil)
-            Logger.info("Created socket directory: \(socketDir)", context: "WiFiIPCServer")
-        } catch {
-            // Directory creation failed - log detailed error
-            Logger.error("Cannot create socket directory \(socketDir)", context: "WiFiIPCServer")
-            Logger.error("\(error.localizedDescription)", context: "WiFiIPCServer")
-            Logger.error("The agent installer must create this directory during installation", context: "WiFiIPCServer")
-            throw NSError(domain: "WiFiIPCServer", code: 6,
-                         userInfo: [NSLocalizedDescriptionKey: "Cannot create socket directory \(socketDir). Ensure /var/run/datadog-agent exists with proper permissions. Error: \(error.localizedDescription)"])
-        }
+        // Directory should have been created by the installer
+        Logger.error("Socket directory does not exist: \(socketDir)", context: "WiFiIPCServer")
+        Logger.error("The agent installer should create this directory during installation", context: "WiFiIPCServer")
+        throw NSError(domain: "WiFiIPCServer", code: 6,
+                     userInfo: [NSLocalizedDescriptionKey: "Socket directory \(socketDir) does not exist. The directory should be created during agent installation."])
     }
 
     private func acceptLoop() {
