@@ -35,6 +35,8 @@ import json
 
 _DEBUG = 0
 
+from tasks.licenses import find_copyright_in_text
+
 
 class AttrUsage:
     def __init__(self):
@@ -132,8 +134,8 @@ def main():
         origin = license_target
         license_type = data[0]
         license_text = data[1]
-        short = license_text[:50]  # just print a little to show we have it working
-        licenses.append(["core", origin, license_type, short])
+        copyright = find_copyright_in_text(license_text.split("\n")) or ""
+        licenses.append(["core", origin, license_type, copyright])
 
     with open(options.output, "w", newline="") as out:
         csv_writer = csv.writer(out, quotechar="\"", quoting=csv.QUOTE_MINIMAL)

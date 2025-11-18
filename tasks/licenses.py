@@ -256,27 +256,9 @@ def find_copyright_for(package, overrides, ctx):
         if os.path.isfile(filename):
             with open(filename, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
-
-            for line in lines:
-                mo = COPYRIGHT_RE.search(line)
-                if not mo:
-                    continue
-                cpy = mo.group(0)
-
-                # ignore a few spurious matches from license boilerplate
-                if any(ign.match(cpy) for ign in COPYRIGHT_IGNORE_RES):
-                    continue
-
-                # strip some suffixes
-                for suff_re in STRIP_SUFFIXES_RE:
-                    cpy = suff_re.sub('', cpy)
-
-                cpy = cpy.strip().rstrip('.')
-                if cpy:
-                    # If copyright contains double quote ("), escape it
-                    if '"' in cpy:
-                        cpy = '"' + cpy.replace('"', '""') + '"'
-                    copyright.append(cpy)
+            cpy = find_copyright_in_text(lines)
+            if cpy:
+                copyright.append(cpy)
 
     # skip through the first blank line of a file
     def skipheader(lines):
@@ -299,6 +281,30 @@ def find_copyright_for(package, overrides, ctx):
                 copyright.append(line)
 
     return list(set(parent + copyright))
+
+
+def find_copyright_in_text(lines):
+    for line in lines:
+        mo = COPYRIGHT_RE.search(line)
+        if not mo:
+            continue
+        cpy = mo.group(0)
+
+        # ignore a few spurious matches from license boilerplate
+        if any(ign.match(cpy) for ign in COPYRIGHT_IGNORE_RES):
+            continue
+
+        # strip some suffixes
+        for suff_re in STRIP_SUFFIXES_RE:
+            cpy = suff_re.sub('', cpy)
+
+        cpy = cpy.strip().rstrip('.')
+        if cpy:
+            # If copyright contains double quote ("), escape it
+            if '"' in cpy:
+                cpy = '"' + cpy.replace('"', '""') + '"'
+            return cpy
+    return None
 
 
 def read_overrides():
