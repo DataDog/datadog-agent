@@ -11,10 +11,6 @@ import (
 	"testing"
 	"time"
 
-<<<<<<< HEAD
-=======
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
->>>>>>> e227d8bc54e (Replace)
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

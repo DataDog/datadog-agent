@@ -337,7 +337,7 @@ func (s *linuxTestSuite) TestManualProcessCheckCoreAgent() {
 }
 
 func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr)))))
 
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks rtprocess --json")
