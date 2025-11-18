@@ -8,7 +8,6 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	cmdcompliance "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/config"
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/coverage"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/flare"
@@ -19,20 +18,13 @@ import (
 )
 
 // SecurityAgentSubcommands returns SubcommandFactories for the subcommands supported
-// with the current build flags. The build tags in use right now are
-// !windows && kubeapiserver (check, and any parent command that uses check),
-// kubeapiserver (config),
-// and linux (runtime).
-func SecurityAgentSubcommands() []command.SubcommandFactory {
-	return []command.SubcommandFactory{
-		command.SubcommandFactoryFromOne(cmdcompliance.CheckCommand), // maintained as legacy "security-agent check", mapped to "security-agent compliance check"
-		cmdcompliance.Commands,
-		cmdconfig.Commands,
-		cmdflare.Commands,
-		cmdstart.Commands,
-		cmdstatus.Commands,
-		cmdversion.Commands,
-		cmdworkloadlist.Commands,
-		cmdcoverage.Commands,
-	}
+// with the current build flags
+var SecurityAgentSubcommands = []command.SubcommandFactory{
+	cmdconfig.Commands,
+	cmdflare.Commands,
+	cmdstart.Commands,
+	cmdstatus.Commands,
+	cmdversion.Commands,
+	cmdworkloadlist.Commands,
+	cmdcoverage.Commands,
 }
