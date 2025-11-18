@@ -103,6 +103,18 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 	return returnValues, nil
 }
 
+// checkSNMPError produces a go error if result.Error is anything other than gosnmp.NoError.
+func checkSNMPError(result *gosnmp.SnmpPacket, err error) (*gosnmp.SnmpPacket, error) {
+	if err != nil {
+		return result, err
+	}
+	if result.Error != gosnmp.NoError {
+		// Convert SNMP errors to go errors
+		return result, fmt.Errorf("snmp failed: %s", result.Error.String())
+	}
+	return result, nil
+}
+
 func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
 	if sess.GetVersion() == gosnmp.Version1 && fetchStrategy == useGetBulk {
 		// snmp v1 doesn't support GetBulk
@@ -111,7 +123,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 
 	var results *gosnmp.SnmpPacket
 	if fetchStrategy == useGetNext {
-		getNextResults, err := sess.GetNext(requestOids)
+		getNextResults, err := checkSNMPError(sess.GetNext(requestOids))
 		if err != nil {
 			fetchErr := newFetchError(columnOid, requestOids, snmpGetNext, err)
 			log.Debugf(fetchErr.Error())
@@ -122,7 +134,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 			log.Debugf("fetch column: GetNext results: %v", gosnmplib.PacketAsString(results))
 		}
 	} else {
-		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
+		getBulkResults, err := checkSNMPError(sess.GetBulk(requestOids, bulkMaxRepetitions))
 		if err != nil {
 			fetchErr := newFetchError(columnOid, requestOids, snmpGetBulk, err)
 			log.Debugf(fetchErr.Error())

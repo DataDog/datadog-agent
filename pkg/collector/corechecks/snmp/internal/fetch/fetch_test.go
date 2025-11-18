@@ -1563,3 +1563,50 @@ func Test_batchSizeOptimizers_areRefreshed(t *testing.T) {
 	assert.Empty(t, batchSizeOptimizers.snmpGetNextOptimizer.failuresByBatchSize)
 	assert.True(t, batchSizeOptimizers.lastRefreshTs.After(oldLastRefreshTs))
 }
+
+func TestCheckSNMPError(t *testing.T) {
+	goodPacket := &gosnmp.SnmpPacket{}
+	badPacket := &gosnmp.SnmpPacket{
+		Error: gosnmp.AuthorizationError,
+	}
+
+	for _, tc := range []struct {
+		name      string
+		packet    *gosnmp.SnmpPacket
+		snmpError error
+		expected  string
+	}{{
+		name:      "no error",
+		packet:    goodPacket,
+		snmpError: nil,
+		expected:  "",
+	}, {
+		name:      "gosnmp error",
+		packet:    goodPacket,
+		snmpError: errors.New("something failed!"),
+		expected:  "something failed!",
+	}, {
+		name:      "snmp error",
+		packet:    badPacket,
+		snmpError: nil,
+		expected:  "snmp failed: AuthorizationError",
+	}, {
+		name:      "both errors",
+		packet:    badPacket,
+		snmpError: errors.New("something failed!"),
+		expected:  "something failed!",
+	},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := checkSNMPError(tc.packet, tc.snmpError)
+			assert.Equal(t, tc.packet, result)
+			if tc.expected == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.expected)
+			}
+
+		})
+
+	}
+}
