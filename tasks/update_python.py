@@ -1,0 +1,363 @@
+"""
+Update the embedded Python version across the repository.
+
+This task automates the process of upgrading Python patch versions, similar to
+the update_go task. It fetches the latest patch version, retrieves official
+SHA256 hashes from Python.org SBOM files, and updates all relevant files.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import re
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from invoke import task
+from invoke.context import Context
+from invoke.exceptions import Exit
+
+from tasks.libs.common.color import color_message
+
+if TYPE_CHECKING:
+    import httpx
+    import orjson
+    from packaging.version import Version
+
+# Python.org URLs
+PYTHON_FTP_URL = "https://www.python.org/ftp/python/"
+PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Python-{version}.tgz.spdx.json"
+
+# File paths that need updating
+PYTHON_VERSION_FILES = [
+    "omnibus/config/software/python3.rb",
+    "deps/cpython/cpython.MODULE.bazel",
+    "test/new-e2e/tests/agent-platform/common/agent_behaviour.go",
+]
+
+
+@task
+def python_version(_):
+    """Print the current embedded Python version."""
+    current_version = _get_current_python_version()
+    print(current_version)
+
+
+@task(
+    help={
+        "warn": "Don't exit on errors, just warn.",
+        "release_note": "Whether to create a release note (default: True).",
+    }
+)
+def update_python(
+    ctx: Context,
+    warn: bool = False,
+    release_note: bool = True,
+):
+    """
+    Update the embedded Python to the latest patch version.
+
+    This task automatically finds and upgrades to the latest patch version
+    of the current major.minor Python version (e.g., 3.13.7 -> 3.13.9).
+
+    Minor version updates (e.g., 3.13.x -> 3.14.x) must be done manually.
+
+    Example:
+        dda inv update-python
+    """
+    current_version = _get_current_python_version()
+    current_major_minor = _get_major_minor_version(current_version)
+
+    # Find latest patch version for current major.minor
+    print(f"Finding latest Python {current_major_minor} patch version...")
+    target_version = _get_latest_python_version(current_major_minor)
+    if not target_version:
+        raise Exit(f"Could not find latest Python version for {current_major_minor}")
+
+    # Check if update is needed
+    from packaging.version import Version
+    
+    if Version(target_version) <= Version(current_version):
+        print(color_message(f"Already at Python {current_version} (target: {target_version})", "yellow"))
+        return
+
+    print(color_message(f"Updating Python from {current_version} to {target_version}", "blue"))
+
+    # Fetch SHA256 hashes from official Python SBOM
+    print("Fetching SHA256 hashes from Python.org SBOM files...")
+    try:
+        sha256_hash = _get_python_sha256_hash(target_version)
+    except Exception as e:
+        msg = f"Failed to fetch SHA256 hash: {e}"
+        if warn:
+            print(color_message(f"WARNING: {msg}", "orange"))
+            sha256_hash = None
+        else:
+            raise Exit(msg)
+
+    # Update all files
+    print("Updating version references...")
+    _update_omnibus_python(target_version, sha256_hash, warn)
+    _update_bazel_python(target_version, sha256_hash, warn)
+    _update_test_python(target_version, warn)
+
+    if release_note:
+        releasenote_path = _create_releasenote(ctx, current_version, target_version)
+        print(color_message(f"Release note created at {releasenote_path}", "green"))
+
+    print(color_message(f"\n✓ Python version upgraded from {current_version} to {target_version}", "green"))
+    print(color_message("\nRemember to:", "blue"))
+    print(color_message("  1. Review and test the changes", "blue"))
+    print(color_message("  2. Run 'dda inv omnibus.build' to verify the build works", "blue"))
+    print(color_message("  3. Update the release note if needed", "blue"))
+
+
+def _get_current_python_version() -> str:
+    """Get the current Python version from omnibus config."""
+    omnibus_file = Path("omnibus/config/software/python3.rb")
+    content = omnibus_file.read_text()
+
+    match = re.search(r'^default_version\s+"([0-9.]+)"', content, re.MULTILINE)
+    if not match:
+        raise Exit("Could not find default_version in omnibus/config/software/python3.rb")
+
+    return match.group(1)
+
+
+def _get_major_minor_version(version: str) -> str:
+    """Extract major.minor version from full version string."""
+    from packaging.version import Version
+    
+    ver = Version(version)
+    return f"{ver.major}.{ver.minor}"
+
+
+def _validate_version_string(version: str) -> bool:
+    """Validate that version string matches expected format."""
+    return bool(re.match(r'^\d+\.\d+\.\d+$', version))
+
+
+def _validate_sha256(hash_str: str) -> bool:
+    """Validate SHA256 hash format (64 hex characters)."""
+    return bool(re.match(r'^[0-9A-Fa-f]{64}$', hash_str))
+
+
+def _get_latest_python_version(major_minor: str) -> str | None:
+    """
+    Get the latest Python patch version from python.org FTP directory.
+
+    Args:
+        major_minor: Python version in format "3.13"
+
+    Returns:
+        Latest version string (e.g., "3.13.8") or None if not found
+    """
+    try:
+        import httpx
+        from packaging.version import Version
+    except ImportError as e:
+        raise Exit(
+            f"Missing required dependency: {e}\n\n"
+            "To use this task, install the required dependencies:\n"
+            "  pip install packaging httpx orjson\n\n"
+            "Or with the Agent's embedded Python:\n"
+            "  /opt/datadog-agent/embedded/bin/python3 -m pip install packaging httpx orjson"
+        )
+    
+    try:
+        response = httpx.get(PYTHON_FTP_URL, timeout=30, verify=True)
+        response.raise_for_status()
+    except httpx.RequestException as e:
+        print(color_message(f"Error fetching Python versions: {e}", "red"))
+        return None
+
+    # Parse directory listing for version folders
+    pattern = rf'<a href="({re.escape(major_minor)}\.\d+)/">'
+    versions = []
+
+    for line in response.text.split("\n"):
+        match = re.search(pattern, line)
+        if match:
+            version_str = match.group(1)
+            try:
+                versions.append(Version(version_str))
+            except Exception:
+                continue
+
+    if not versions:
+        return None
+
+    versions.sort()
+    return str(versions[-1])
+
+
+def _get_python_sha256_hash(version: str) -> str:
+    """
+    Fetch SHA256 hash for Python source tarball using SBOM file.
+
+    Args:
+        version: Python version string (e.g., "3.13.8")
+
+    Returns:
+        SHA256 hash string
+
+    Raises:
+        ValueError: If version format is invalid
+        RuntimeError: If SBOM file cannot be fetched or parsed
+    """
+    try:
+        import httpx
+        import orjson
+    except ImportError as e:
+        raise Exit(
+            f"Missing required dependency: {e}\n\n"
+            "To use this task, install the required dependencies:\n"
+            "  pip install packaging httpx orjson\n\n"
+            "Or with the Agent's embedded Python:\n"
+            "  /opt/datadog-agent/embedded/bin/python3 -m pip install packaging httpx orjson"
+        )
+    
+    if not _validate_version_string(version):
+        raise ValueError(f"Invalid version format: {version}")
+
+    sbom_url = PYTHON_SBOM_LINUX_URL_TEMPLATE.format(version=version)
+
+    async def fetch_sbom():
+        async with httpx.AsyncClient(verify=True) as client:
+            try:
+                response = await client.get(sbom_url, timeout=30.0)
+                response.raise_for_status()
+                data = orjson.loads(response.text)
+
+                if not isinstance(data, dict) or 'packages' not in data:
+                    raise ValueError("Invalid SBOM format")
+
+                return data.get('packages', [])
+            except Exception as e:
+                raise RuntimeError(f'Error fetching SBOM from {sbom_url}: {e}') from e
+
+    packages = asyncio.run(fetch_sbom())
+
+    # Find CPython package and extract SHA256
+    cpython_package = next((pkg for pkg in packages if pkg.get('name') == "CPython"), None)
+    if not cpython_package:
+        raise ValueError("Could not find CPython package in SBOM")
+
+    checksums = cpython_package.get('checksums', [])
+    checksum = next((cs for cs in checksums if cs.get('algorithm') == "SHA256"), None)
+    if not checksum:
+        raise ValueError("Could not find SHA256 checksum in SBOM")
+
+    hash_value = checksum.get('checksumValue', '')
+    if not _validate_sha256(hash_value):
+        raise ValueError(f"Invalid SHA256 hash format from SBOM: {hash_value}")
+
+    return hash_value.lower()
+
+
+def _update_omnibus_python(version: str, sha256: str | None, warn: bool):
+    """Update Python version and SHA256 in omnibus config."""
+    file_path = Path("omnibus/config/software/python3.rb")
+    content = file_path.read_text()
+
+    # Update version
+    version_pattern = r'^(default_version\s+")([0-9.]+)(")$'
+    new_content, count = re.subn(version_pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
+
+    if count != 1:
+        msg = f"Expected 1 version match in {file_path}, found {count}"
+        if warn:
+            print(color_message(f"WARNING: {msg}", "orange"))
+            return
+        raise Exit(msg)
+
+    # Update SHA256 if provided
+    if sha256:
+        sha_pattern = r'(:sha256\s+=>\s+")([0-9a-fA-F]{64})(")'
+        new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
+
+        if count != 1:
+            msg = f"Expected 1 SHA256 match in {file_path}, found {count}"
+            if warn:
+                print(color_message(f"WARNING: {msg}", "orange"))
+            else:
+                raise Exit(msg)
+
+    file_path.write_text(new_content)
+    print(f"  ✓ Updated {file_path}")
+
+
+def _update_bazel_python(version: str, sha256: str | None, warn: bool):
+    """Update Python version and SHA256 in Bazel module file."""
+    file_path = Path("deps/cpython/cpython.MODULE.bazel")
+    content = file_path.read_text()
+
+    # Update PYTHON_VERSION constant
+    version_pattern = r'^(PYTHON_VERSION\s+=\s+")([0-9.]+)(")$'
+    new_content, count = re.subn(version_pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
+
+    if count != 1:
+        msg = f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}"
+        if warn:
+            print(color_message(f"WARNING: {msg}", "orange"))
+            return
+        raise Exit(msg)
+
+    # Update sha256 if provided
+    if sha256:
+        sha_pattern = r'(sha256\s+=\s+")([0-9a-fA-F]{64})(")'
+        new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
+
+        if count != 1:
+            msg = f"Expected 1 sha256 match in {file_path}, found {count}"
+            if warn:
+                print(color_message(f"WARNING: {msg}", "orange"))
+            else:
+                raise Exit(msg)
+
+    file_path.write_text(new_content)
+    print(f"  ✓ Updated {file_path}")
+
+
+def _update_test_python(version: str, warn: bool):
+    """Update expected Python version in E2E tests."""
+    file_path = Path("test/new-e2e/tests/agent-platform/common/agent_behaviour.go")
+    content = file_path.read_text()
+
+    pattern = r'(ExpectedPythonVersion3\s+=\s+")([0-9.]+)(")'
+    new_content, count = re.subn(pattern, rf'\g<1>{version}\g<3>', content)
+
+    if count != 1:
+        msg = f"Expected 1 version match in {file_path}, found {count}"
+        if warn:
+            print(color_message(f"WARNING: {msg}", "orange"))
+            return
+        raise Exit(msg)
+
+    file_path.write_text(new_content)
+    print(f"  ✓ Updated {file_path}")
+
+
+def _create_releasenote(ctx: Context, old_version: str, new_version: str) -> str:
+    """Create a release note for the Python patch version update."""
+    template = f"""---
+enhancements:
+- |
+    The Agent's embedded Python has been upgraded from {old_version} to {new_version}
+"""
+
+    # Create release note using reno
+    res = ctx.run(f'reno new "Bump embedded Python to {new_version}"', hide='both')
+    if not res:
+        raise Exit("Could not create release note")
+
+    match = re.match(r"^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
+    if not match:
+        raise Exit("Could not get created release note path")
+
+    path = match.group(1)
+    with open(path, "w") as writer:
+        writer.write(template)
+
+    return path
+

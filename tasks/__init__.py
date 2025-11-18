@@ -123,6 +123,7 @@ from tasks.install_tasks import (
 from tasks.junit_tasks import junit_upload
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.update_go import go_version, update_go
+from tasks.update_python import python_version, update_python
 from tasks.windows_resources import build_messagetable
 
 Task.__call__ = custom__call__
@@ -143,6 +144,8 @@ ns.add_task(reset)
 ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
+ns.add_task(python_version)
+ns.add_task(update_python)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
