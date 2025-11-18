@@ -25,7 +25,7 @@ class WiFiIPCServer {
 
         // Create socket path based on current user's UID
         let uid = getuid()
-        self.socketPath = "/var/run/datadog-agent/wifi-\(uid).sock"
+        self.socketPath = "/var/run/datadog-agent/gui-\(uid).sock"
         // Use .background QoS for agent telemetry collection (not user-facing work)
         self.acceptQueue = DispatchQueue(label: "com.datadoghq.wifi.ipc", qos: .background)
 

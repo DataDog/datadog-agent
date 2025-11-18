@@ -61,7 +61,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 	}
 
 	// Try to fetch from console user's GUI
-	socketPath := fmt.Sprintf("/var/run/datadog-agent/wifi-%s.sock", uid)
+	socketPath := fmt.Sprintf("/var/run/datadog-agent/gui-%s.sock", uid)
 	info, err := fetchWiFiFromGUI(socketPath, 2*time.Second)
 	if err != nil {
 		// GUI might not be running - try to launch it
@@ -99,17 +99,17 @@ func GetWiFiInfo() (wifiInfo, error) {
 // This is used as a fallback when the console user's GUI is unavailable
 // WiFi data is system-wide, so any user's GUI will return identical data
 func tryAnyAvailableGUISocket() (wifiInfo, error) {
-	// Find all wifi sockets
-	sockets, err := filepath.Glob("/var/run/datadog-agent/wifi-*.sock")
+	// Find all GUI sockets
+	sockets, err := filepath.Glob("/var/run/datadog-agent/gui-*.sock")
 	if err != nil {
-		return wifiInfo{}, fmt.Errorf("failed to search for WiFi sockets: %w", err)
+		return wifiInfo{}, fmt.Errorf("failed to search for GUI sockets: %w", err)
 	}
 
 	if len(sockets) == 0 {
-		return wifiInfo{}, fmt.Errorf("no WiFi sockets found in /var/run/datadog-agent/")
+		return wifiInfo{}, fmt.Errorf("no GUI sockets found in /var/run/datadog-agent/")
 	}
 
-	log.Debugf("Found %d WiFi socket(s), trying each in order", len(sockets))
+	log.Debugf("Found %d GUI socket(s), trying each in order", len(sockets))
 
 	// Try each socket (validateSocketOwnership ensures legitimacy)
 	var lastErr error
@@ -164,9 +164,9 @@ func getConsoleUserUID() (string, error) {
 
 // validateSocketOwnership verifies the socket file is owned by the expected user
 func validateSocketOwnership(socketPath string) error {
-	// Extract expected UID from socket path (wifi-{UID}.sock)
+	// Extract expected UID from socket path (gui-{UID}.sock)
 	base := filepath.Base(socketPath)
-	expectedUID := strings.TrimPrefix(base, "wifi-")
+	expectedUID := strings.TrimPrefix(base, "gui-")
 	expectedUID = strings.TrimSuffix(expectedUID, ".sock")
 
 	// Get socket file info
