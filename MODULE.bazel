@@ -1,7 +1,8 @@
 # Foundational packages
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
-visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
+new_local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
+
 
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
@@ -105,11 +106,19 @@ register_toolchains(
     "//bazel/toolchains/mingw:mingw_cc_toolchain",
 )
 
-# Visual Studio / MSBuild tooling
-visual_studio(
-    name="visual_studio",
-    url="https://download.visualstudio.microsoft.com/download/pr/e98d75fa-91b1-47a1-9cb7-b6556de592c5/6319a322aec87401661ec138427946ca6ab0373c917364a4abf17556ff7aef91/vs_Community.exe",
-    sha256="6319A322AEC87401661EC138427946CA6AB0373C917364A4ABF17556FF7AEF91",
+# Visual Studio / MSBuild tooling, taken from the local installation
+new_local_repository(
+    name = "visual_studio",
+    build_file_content = """
+exports_files(["MSBuild/Current/Bin/msbuild.exe"])
+
+alias(
+    name="msbuild",
+    actual="MSBuild/Current/Bin/msbuild.exe",
+    visibility = ["//visibility:public"],
+)
+""",
+    path = r"C:\devtools\vstudio",
 )
 
 # =========================================
