@@ -370,6 +370,7 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 		KeepTrailingSemicolon:         sqlOpts.KeepTrailingSemicolon,
 		KeepIdentifierQuotation:       sqlOpts.KeepIdentifierQuotation,
 		KeepJSONPath:                  sqlOpts.KeepJSONPath,
+		ReplaceBindParameter:          sqlOpts.ReplaceBindParameter,
 	}, optStr)
 	if err != nil {
 		// memory will be freed by caller
