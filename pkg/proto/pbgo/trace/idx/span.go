@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -844,8 +845,14 @@ func (s *SerializedStrings) AppendStreamingString(str string, strTableIndex uint
 
 // SpanConvertedFields is used to collect fields from v4 spans that have been promoted to the chunk level
 type SpanConvertedFields struct {
-	TraceIDLower uint64 // the lower 64 bits of the trace ID
-	// traceIDUpper uint64 // the upper 64 bits of the trace ID
+	TraceIDLower      uint64 // the lower 64 bits of the trace ID
+	TraceIDUpper      uint64 // the upper 64 bits of the trace ID
+	EnvRef            uint32 // the env reference
+	AppVersionRef     uint32 // the app version reference
+	GitCommitShaRef   uint32 // the git commit sha reference
+	SamplingMechanism uint32 // the sampling mechanism
+	HostnameRef       uint32 // the hostname reference
+	SamplingPriority  uint32 // the sampling priority
 }
 
 // UnmarshalMsgConverted unmarshals a v4 span directly into an InternalSpan for efficiency
@@ -1003,6 +1010,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 					err = msgp.WrapError(err, "Meta", metaKey)
 					return
 				}
+				s.handlePromotedMetaFields(metaKey, metaVal, convertedFields)
 				s.span.Attributes[metaKey] = &AnyValue{
 					Value: &AnyValue_StringValueRef{
 						StringValueRef: metaVal,
@@ -1036,6 +1044,9 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				if err != nil {
 					err = msgp.WrapError(err, "Metrics", key)
 					return
+				}
+				if s.Strings.Get(key) == "_sampling_priority_v1" {
+					convertedFields.SamplingPriority = uint32(value)
 				}
 				s.span.Attributes[key] = &AnyValue{
 					Value: &AnyValue_DoubleValue{
@@ -1154,6 +1165,57 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 	}
 	o = bts
 	return
+}
+
+// handlePromotedMetaFields processes promoted meta fields that have dedicated span fields
+func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convertedFields *SpanConvertedFields) {
+	switch s.Strings.Get(metaKey) {
+	case "_dd.p.tid":
+		tidUpper, err := strconv.ParseUint(s.Strings.Get(metaVal), 16, 64)
+		if err != nil {
+			// Some invalid trace ID upper bits, save them anyways for debugging
+			return
+		}
+		convertedFields.TraceIDUpper = tidUpper
+	case "env":
+		s.span.EnvRef = metaVal
+		convertedFields.EnvRef = metaVal
+	case "version":
+		s.span.VersionRef = metaVal
+		convertedFields.AppVersionRef = metaVal
+	case "component":
+		s.span.ComponentRef = metaVal
+	case "span.kind":
+		kindStr := s.Strings.Get(metaVal)
+		switch kindStr {
+		case "server":
+			s.span.Kind = SpanKind_SPAN_KIND_SERVER
+		case "client":
+			s.span.Kind = SpanKind_SPAN_KIND_CLIENT
+		case "producer":
+			s.span.Kind = SpanKind_SPAN_KIND_PRODUCER
+		case "consumer":
+			s.span.Kind = SpanKind_SPAN_KIND_CONSUMER
+		case "internal":
+			s.span.Kind = SpanKind_SPAN_KIND_INTERNAL
+		default:
+			s.span.Kind = SpanKind_SPAN_KIND_INTERNAL
+		}
+	case "_dd.git.commit.sha":
+		convertedFields.GitCommitShaRef = metaVal
+	case "_dd.p.dm":
+		payloadDecisionMaker := s.Strings.Get(metaVal)
+		payloadDecisionMaker, _ = strings.CutPrefix(payloadDecisionMaker, "-")
+		var err error
+		var samplingMechanism uint64
+		samplingMechanism, err = strconv.ParseUint(payloadDecisionMaker, 10, 32)
+		if err != nil {
+			return
+		}
+		convertedFields.SamplingMechanism = uint32(samplingMechanism)
+	case "_dd.hostname":
+		convertedFields.HostnameRef = metaVal
+	}
 }
 
 // parseStringBytes reads the next type in the msgpack payload and
