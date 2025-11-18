@@ -38,7 +38,7 @@ var rolloutBucketMapping = map[string]int{
 }
 
 var numRolloutBuckets = 6
-var ttlDuration = 1 * time.Hour
+var ttlDuration = 24 * time.Hour
 
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
