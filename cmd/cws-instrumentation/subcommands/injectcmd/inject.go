@@ -85,8 +85,11 @@ func injectUserSession(params *InjectCliParams) error {
 	if len(params.Data) > UserSessionDataMaxSize {
 		return fmt.Errorf("user session context too long: %d", len(params.Data))
 	}
-	usersession.InitUserSessionTypes()
-	sessionType := usersession.UserSessionTypes[params.SessionType]
+	var sessionType usersession.Type
+	sessionTypeString := params.SessionType
+	if sessionTypeString == "k8s" {
+		sessionType = usersession.UserSessionTypeK8S
+	}
 	if sessionType == 0 {
 		return fmt.Errorf("unknown user session type: %v", params.SessionType)
 	}
