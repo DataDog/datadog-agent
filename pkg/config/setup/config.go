@@ -1563,7 +1563,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
-	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
