@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -77,17 +77,17 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 			return
 		}
 		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), trace.IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := idx.FromProto(trace.IdxTracerPayloads[0])
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service())
 		if iaParams.InfraAttributes {
 			ctags, ok := getContainerTags(s.T(), tp)
 			assert.True(s.T(), ok)
@@ -98,33 +98,51 @@ func TestTraces(s OTelTestSuite, iaParams IAParams) {
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
-	assert.Equal(s.T(), env, tp.Env)
-	assert.Equal(s.T(), version, tp.AppVersion)
+	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
+	assert.Equal(s.T(), env, tp.Env())
+	assert.Equal(s.T(), version, tp.AppVersion())
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	for _, sp := range spans {
-		assert.Equal(s.T(), CalendarService, sp.Service)
-		assert.Equal(s.T(), env, sp.Meta["env"])
-		assert.Equal(s.T(), version, sp.Meta["version"])
-		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
-		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
+		assert.Equal(s.T(), CalendarService, sp.Service())
+		assert.Equal(s.T(), env, sp.Env())
+		assert.Equal(s.T(), version, sp.Version())
+		actualAttributeValue, ok := sp.GetAttributeAsString(customAttribute)
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), customAttributeValue, actualAttributeValue)
+		actualNodeName, ok := sp.GetAttributeAsString("k8s.node.name")
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), tp.Hostname(), actualNodeName)
+		if sp.Kind() == idx.SpanKind_SPAN_KIND_CLIENT {
+			libraryName, ok := sp.GetAttributeAsString("otel.library.name")
+			assert.True(s.T(), ok)
+			assert.Equal(s.T(), "calendar-rest-go", libraryName)
 		} else {
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
+			libraryName, ok := sp.GetAttributeAsString("otel.library.name")
+			assert.True(s.T(), ok)
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", libraryName)
 		}
 		ctags, ok := getContainerTags(s.T(), tp)
 		assert.True(s.T(), ok)
-		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
-		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
-		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
+		actualContainerName, ok := sp.GetAttributeAsString("k8s.container.name")
+		assert.True(s.T(), ok)
+		actualNamespaceName, ok := sp.GetAttributeAsString("k8s.namespace.name")
+		assert.True(s.T(), ok)
+		actualPodName, ok := sp.GetAttributeAsString("k8s.pod.name")
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), actualContainerName, ctags["kube_container_name"])
+		assert.Equal(s.T(), actualNamespaceName, ctags["kube_namespace"])
+		assert.Equal(s.T(), actualPodName, ctags["pod_name"])
 
 		// Verify container tags from infraattributes processor
 		if iaParams.InfraAttributes {
-			maps.Copy(ctags, sp.Meta)
-			testInfraTags(s.T(), ctags, iaParams)
+			stringAttrs := make(map[string]string)
+			sp.MapStringAttributes(func(key, value string) (string, string, bool) {
+				stringAttrs[key] = value
+				return key, value, false
+			})
+			testInfraTags(s.T(), stringAttrs, iaParams)
 		}
 	}
 }
@@ -145,59 +163,71 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 			return
 		}
 		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), trace.IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := idx.FromProto(trace.IdxTracerPayloads[0])
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service())
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 	ctags, ok := getContainerTags(s.T(), tp)
-
+	assert.True(s.T(), ok)
+	assert.NotEmpty(s.T(), tp.Chunks[0].TraceID)
+	assert.NotZero(s.T(), tp.Chunks[0].LegacyTraceID())
 	for _, sp := range spans {
 		assert.Equal(s.T(), CalendarService, sp.Service)
-		assert.Equal(s.T(), env, sp.Meta["env"])
-		assert.Equal(s.T(), version, sp.Meta["version"])
-		assert.Equal(s.T(), customAttributeValue, sp.Meta[customAttribute])
-		if sp.Meta["span.kind"] == "client" {
-			assert.Equal(s.T(), "client.request", sp.Name)
-			assert.Equal(s.T(), "getDate", sp.Resource)
-			assert.Equal(s.T(), "http", sp.Type)
-			assert.IsType(s.T(), uint64(0), sp.ParentID)
-			assert.NotZero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "calendar-rest-go", sp.Meta["otel.library.name"])
-		} else {
-			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
-			assert.Equal(s.T(), "http.server.request", sp.Name)
-			assert.Equal(s.T(), "GET", sp.Resource)
-			assert.Equal(s.T(), "web", sp.Type)
-			assert.Zero(s.T(), sp.ParentID)
-			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", sp.Meta["otel.library.name"])
-		}
-		assert.IsType(s.T(), uint64(0), sp.TraceID)
-		assert.NotZero(s.T(), sp.TraceID)
-		assert.IsType(s.T(), uint64(0), sp.SpanID)
-		assert.NotZero(s.T(), sp.SpanID)
-		assert.Equal(s.T(), sp.Meta["k8s.node.name"], tp.Hostname)
+		assert.Equal(s.T(), env, sp.Env())
+		assert.Equal(s.T(), version, sp.Version())
+		actualAttributeValue, ok := sp.GetAttributeAsString(customAttribute)
 		assert.True(s.T(), ok)
-		assert.Equal(s.T(), sp.Meta["k8s.container.name"], ctags["kube_container_name"])
-		assert.Equal(s.T(), sp.Meta["k8s.namespace.name"], ctags["kube_namespace"])
-		assert.Equal(s.T(), sp.Meta["k8s.pod.name"], ctags["pod_name"])
+		assert.Equal(s.T(), customAttributeValue, actualAttributeValue)
+		if sp.Kind() == idx.SpanKind_SPAN_KIND_CLIENT {
+			assert.Equal(s.T(), "client.request", sp.Name())
+			assert.Equal(s.T(), "getDate", sp.Resource())
+			assert.Equal(s.T(), "http", sp.Type())
+			assert.IsType(s.T(), uint64(0), sp.ParentID())
+			assert.NotZero(s.T(), sp.ParentID())
+			libraryName, ok := sp.GetAttributeAsString("otel.library.name")
+			assert.True(s.T(), ok)
+			assert.Equal(s.T(), "calendar-rest-go", libraryName)
+		} else {
+			assert.Equal(s.T(), idx.SpanKind_SPAN_KIND_SERVER, sp.Kind())
+			assert.Equal(s.T(), "http.server.request", sp.Name())
+			assert.Equal(s.T(), "GET", sp.Resource())
+			assert.Equal(s.T(), "web", sp.Type())
+			assert.Zero(s.T(), sp.ParentID())
+			libraryName, ok := sp.GetAttributeAsString("otel.library.name")
+			assert.True(s.T(), ok)
+			assert.Equal(s.T(), "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp", libraryName)
+		}
+		assert.NotZero(s.T(), sp.SpanID())
+		nodeName, ok := sp.GetAttributeAsString("k8s.node.name")
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), tp.Hostname(), nodeName)
+		containerName, ok := sp.GetAttributeAsString("k8s.container.name")
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), ctags["kube_container_name"], containerName)
+		namespaceName, ok := sp.GetAttributeAsString("k8s.namespace.name")
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), ctags["kube_namespace"], namespaceName)
+		podName, ok := sp.GetAttributeAsString("k8s.pod.name")
+		assert.True(s.T(), ok)
+		assert.Equal(s.T(), ctags["pod_name"], podName)
 	}
 }
 
@@ -797,8 +827,8 @@ func testInfraTags(t *testing.T, tags map[string]string, iaParams IAParams) {
 	}
 }
 
-func getContainerTags(t *testing.T, tp *trace.TracerPayload) (map[string]string, bool) {
-	ctags, ok := tp.Tags["_dd.tags.container"]
+func getContainerTags(t *testing.T, tp *idx.InternalTracerPayload) (map[string]string, bool) {
+	ctags, ok := tp.GetAttributeAsString("_dd.tags.container")
 	if !ok {
 		return nil, false
 	}
