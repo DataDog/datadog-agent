@@ -70,7 +70,7 @@ The payload is a JSON dict with the following fields
       or ZYPPER as package manager.
   - `rpm_global_repo_gpg_check_enabled` - **boolean**: reflects the value of `repo_gpgcheck` in the `[main]` repo file
     of hosts relying on YUM, DNF or ZYPPER as package manager
-  - `instance-type` - **string**: represents the type of the host instance, consisting of varying combinations of CPU, memory, storage, and networking capacity.
+  - `instance-type` - **string**: represents the type of instance for the host based on the cloud provider (instance type for AWS, machine type for GCP, VM size for Azure and instance shape for Oracle).
 
 ## Example Payload
 
@@ -110,7 +110,7 @@ Here an example of an inventory payload:
         "dmi_board_vendor": "Amazon EC2",
         "linux_package_signing_enabled": true,
         "rpm_global_repo_gpg_check_enabled": false,
-        "instance-type": "m5.large",
+        "instance-type": "m5.large"
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895

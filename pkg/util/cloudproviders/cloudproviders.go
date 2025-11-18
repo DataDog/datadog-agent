@@ -242,13 +242,13 @@ func GetInstanceType(ctx context.Context, detectedCloud string) string {
 	if callback, found := hostInstanceTypeDetectors[detectedCloud]; found {
 		instanceType, err := callback(ctx)
 		if err != nil {
-			log.Debugf("Could not fetch instance type for %s: %s", detectedCloud, err)
+			log.Infof("Could not fetch instance type for %s: %s", detectedCloud, err)
 			return ""
 		}
 		return instanceType
 	}
 
-	log.Infof("No instance type found for cloud provider: %q", detectedCloud)
+	log.Debugf("getting instance type from cloud provider %q is not supported", detectedCloud)
 	return ""
 }
 
