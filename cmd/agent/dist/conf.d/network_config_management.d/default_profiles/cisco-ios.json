@@ -9,7 +9,7 @@
         "metadata": [
           {
             "type": "timestamp",
-            "regex": "! Last configuration change at ([^\r\n]+)",
+            "regex": "(?m)^! Last configuration change at (.*?) (?:by \\S+)?$",
             "format": "15:04:05 MST Mon Jan 2 2006"
           },
           {
@@ -123,6 +123,11 @@
           {
             "regex": "(?m)^(.*server-key(?: \\d)?) \\S+",
             "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?s)banner (exec|incoming|login) \\^C.*?\\^C\\s*",
+            "replacement" : "",
+            "multiline": true
           }
         ]
       }
@@ -136,7 +141,7 @@
         "metadata": [
           {
             "type": "timestamp",
-            "regex": "! Last configuration change at ([^\r\n]+)",
+            "regex": "(?m)^! Last configuration change at (.*?) (?:by \\S+)?$",
             "format": "15:04:05 MST Mon Jan 2 2006"
           },
           {
@@ -250,6 +255,11 @@
           {
             "regex": "(?m)^(.*server-key(?: \\d)?) \\S+",
             "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "(?s)banner (exec|incoming|login) \\^C.*?\\^C\\s*",
+            "replacement" : "",
+            "multiline": true
           }
         ]
       }
