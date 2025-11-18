@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -181,7 +182,7 @@ func TestBuildHostKeyCallback(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprint(tt.name), func(t *testing.T) {
-			// initialize capturing logging if part of testing
+			// initialize capturing logging
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.DebugLvl)
@@ -273,6 +274,110 @@ func TestValidateClientConfig(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestBuildAuthMethods(t *testing.T) {
+	// Create a temporary known_hosts file for testing
+	tmpDir := t.TempDir()
+	privateKeyPath := filepath.Join(tmpDir, "private_key.pem")
+	privateKeyWithPassphrase := filepath.Join(tmpDir, "private_key_passphrase.pem")
+	invalidKeyPath := filepath.Join(tmpDir, "invalid_key.pem")
+
+	// private key case w/o passphrase
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	block, err := ssh.MarshalPrivateKey(privateKey, "")
+	require.NoError(t, err)
+	privateKeyPEM := pem.EncodeToMemory(block)
+	err = os.WriteFile(privateKeyPath, privateKeyPEM, 0600)
+	require.NoError(t, err)
+
+	// private key w/ passphrase
+	encrypted, err := ssh.MarshalPrivateKeyWithPassphrase(privateKey, "", []byte("passphrase"))
+	require.NoError(t, err)
+	pemBlock := pem.EncodeToMemory(encrypted)
+	require.NoError(t, err)
+	err = os.WriteFile(privateKeyWithPassphrase, pemBlock, 0600)
+	require.NoError(t, err)
+
+	// invalid key (invalid content)
+	err = os.WriteFile(invalidKeyPath, []byte("not a real key"), 0600)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                string
+		auth                ncmconfig.AuthCredentials
+		expectedAuthMethods int
+		errMsg              string
+	}{
+		{
+			name: "success: only passphrase",
+			auth: ncmconfig.AuthCredentials{
+				Username: "test",
+				Password: "hunter2",
+			},
+			expectedAuthMethods: 1,
+		},
+		{
+			name: "success: private key only",
+			auth: ncmconfig.AuthCredentials{
+				Username:       "test",
+				PrivateKeyFile: privateKeyPath,
+			},
+			expectedAuthMethods: 1,
+		},
+		{
+			name: "success: private key with passphrase",
+			auth: ncmconfig.AuthCredentials{
+				Username:             "test",
+				PrivateKeyFile:       privateKeyWithPassphrase,
+				PrivateKeyPassphrase: "passphrase",
+			},
+			expectedAuthMethods: 1,
+		},
+		{
+			name: "success: 2 auth methods, user/pass + private key",
+			auth: ncmconfig.AuthCredentials{
+				Username:       "test",
+				Password:       "hunter2",
+				PrivateKeyFile: privateKeyPath,
+			},
+			expectedAuthMethods: 2,
+		},
+		{
+			name: "error: cannot read private key",
+			auth: ncmconfig.AuthCredentials{
+				PrivateKeyFile: "/not_real_path",
+			},
+			errMsg: "error reading private key:",
+		},
+		{
+			name: "error: cannot parse private key",
+			auth: ncmconfig.AuthCredentials{
+				PrivateKeyFile: invalidKeyPath,
+			},
+			errMsg: "error parsing private key:",
+		},
+		{
+			name:   "error: no auth methods configured",
+			errMsg: "no SSH authentication methods configured",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			authMethods, err := buildAuthMethods(tt.auth)
+			if tt.errMsg != "" {
+				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.Nil(t, authMethods)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, authMethods, tt.expectedAuthMethods)
+				for _, method := range authMethods {
+					assert.NotNil(t, method)
+				}
 			}
 		})
 	}

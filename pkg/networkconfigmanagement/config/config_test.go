@@ -166,7 +166,7 @@ func TestSSHConfig_Validation(t *testing.T) {
 			name:           "missing both known_hosts path and insecure_skip_verify",
 			config:         &SSHConfig{},
 			expectedConfig: &SSHConfig{},
-			errMsg:         "no SSH host key configured: set known_hosts_path or enable insecure_skip_verify",
+			errMsg:         "no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify",
 		},
 	}
 	for _, tt := range tests {

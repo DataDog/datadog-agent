@@ -10,6 +10,7 @@ package remote
 import (
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 
@@ -61,6 +62,38 @@ func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, err
 	return nil, fmt.Errorf("No SSH host key configured: set known_hosts file path or enable insecure_skip_verify")
 }
 
+func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) {
+	var methods []ssh.AuthMethod
+
+	if auth.PrivateKeyFile != "" {
+		key, err := os.ReadFile(auth.PrivateKeyFile)
+		if err != nil {
+			return nil, fmt.Errorf("error reading private key: %s", err)
+		}
+
+		var signer ssh.Signer
+		if auth.PrivateKeyPassphrase != "" {
+			signer, err = ssh.ParsePrivateKeyWithPassphrase(key, []byte(auth.PrivateKeyPassphrase))
+		} else {
+			signer, err = ssh.ParsePrivateKey(key)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error parsing private key: %s", err)
+		}
+		methods = append(methods, ssh.PublicKeys(signer))
+	}
+
+	if auth.Password != "" {
+		methods = append(methods, ssh.Password(auth.Password))
+	}
+
+	if len(methods) == 0 {
+		return nil, fmt.Errorf("no SSH authentication methods configured")
+	}
+
+	return methods, nil
+}
+
 func validateClientConfig(config *ncmconfig.SSHConfig) error {
 	supportedAlgos := ssh.SupportedAlgorithms()
 	if err := validateSupportedAlgorithms("cipher", config.Ciphers, supportedAlgos.Ciphers); err != nil {
@@ -104,7 +137,7 @@ func (c *SSHClient) redial() error {
 
 // Connect establishes a new SSH connection to the specified IP address using the provided authentication credentials
 func (c *SSHClient) Connect() error {
-	client, err := connectToHost(c.device.IPAddress, c.device.Auth, nil)
+	client, err := connectToHost(c.device.IPAddress, c.device.Auth, c.device.Auth.SSH)
 	if err != nil {
 		return err
 	}
@@ -223,9 +256,13 @@ func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *ncm
 	if err != nil {
 		return nil, err
 	}
+	methods, err := buildAuthMethods(auth)
+	if err != nil {
+		return nil, err
+	}
 	sshConfig := &ssh.ClientConfig{
 		User:            auth.Username,
-		Auth:            []ssh.AuthMethod{ssh.Password(auth.Password)},
+		Auth:            methods,
 		HostKeyCallback: callback,
 		Timeout:         config.Timeout,
 		Config: ssh.Config{

@@ -31,11 +31,18 @@ var defaultSSHTimeout = 30 * time.Second
 
 // AuthCredentials holds the authentication credentials to connect to a network device.
 type AuthCredentials struct { // auth_credentials
-	Username string     `yaml:"username"`
-	Password string     `yaml:"password"`
-	Port     string     `yaml:"port"`
-	Protocol string     `yaml:"remote"`
-	SSH      *SSHConfig `yaml:"ssh"`
+	// Authenticate via password (fallback after private key if provided)
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+
+	// Authenticate via private key and/or passphrase
+	PrivateKeyFile       string `yaml:"private_key_file"`
+	PrivateKeyPassphrase string `yaml:"private_key_passphrase"`
+
+	Port     string `yaml:"port"`
+	Protocol string `yaml:"remote"`
+
+	SSH *SSHConfig `yaml:"ssh"`
 }
 
 // DeviceInstance holds the initial config to connect to a network device, including its IP address and authentication credentials.
@@ -54,10 +61,14 @@ type InitConfig struct {
 
 // SSHConfig holds the configuration (either globally if in init config or for the specific device instance) to use when connecting to the configured device via SSH
 type SSHConfig struct {
-	KnownHostsPath     string        `yaml:"known_hosts_path"`     // KnownHostsPath is the location that contains public keys to servers and verify identity of servers we connect to
-	InsecureSkipVerify bool          `yaml:"insecure_skip_verify"` // InsecureSkipVerify is a boolean for development/testing purposes to skip host key validation (insecure)
-	Timeout            time.Duration `yaml:"timeout"`              // Timeout specifies max amount of time for the SSH client to allow the TCP connection to establish
-	// SSH-specific algorithms
+	// General configurations for SSH connections
+	Timeout time.Duration `yaml:"timeout"` // Timeout specifies max amount of time for the SSH client to allow the TCP connection to establish
+
+	// For host key verification (verify identity of remote server/host)
+	KnownHostsPath     string `yaml:"known_hosts_path"`     // KnownHostsPath is the location that contains public keys to servers and verify identity of servers we connect to
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify"` // InsecureSkipVerify is a boolean for development/testing purposes to skip host key validation (insecure)
+
+	// SSH-specific encryption algorithms to use with a device for establishing/securing a connection
 	Ciphers           []string `yaml:"ciphers"`
 	KeyExchanges      []string `yaml:"key_exchanges"`
 	HostKeyAlgorithms []string `yaml:"host_key_algorithms"`
@@ -311,14 +322,14 @@ func (dc *DeviceInstance) hasRequiredFields() error {
 func (sc *SSHConfig) hasRequiredFields() error {
 	// must have at least a known paths specified or skip verification (insecure, only for development/testing purposes)
 	if sc.KnownHostsPath == "" && !sc.InsecureSkipVerify {
-		return fmt.Errorf("no SSH host key configured: set known_hosts_path or enable insecure_skip_verify")
+		return fmt.Errorf("no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify")
 	}
 	return nil
 }
 
 func (dc *DeviceInstance) applyDefaultSSHConfigFallback(sc *SSHConfig) {
 	if dc.Auth.SSH == nil && sc != nil {
-		log.Warnf("No SSH host key configured, applying init_config's SSH settings: %v", sc)
+		log.Warnf("No SSH configurations for device %s, applying init_config's SSH settings: %v", dc.IPAddress, sc)
 		dc.Auth.SSH = sc
 	}
 }
