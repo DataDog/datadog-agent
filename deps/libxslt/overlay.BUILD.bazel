@@ -204,7 +204,7 @@ cc_library(
 cc_shared_library(
     name = "exslt",
     deps = [":libexslt"],
-    dynamic_deps = ["@libxml2//:xml2"],
+    dynamic_deps = ["@libxml2//:xml2", ":xslt"],
     visibility = ["//visibility:public"],
 )
 
