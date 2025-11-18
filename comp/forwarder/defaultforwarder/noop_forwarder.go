@@ -8,6 +8,7 @@ package defaultforwarder
 import (
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
@@ -102,5 +103,15 @@ func (f NoopForwarder) SubmitOrchestratorChecks(_ transaction.BytesPayloads, _ h
 
 // SubmitOrchestratorManifests does nothing.
 func (f NoopForwarder) SubmitOrchestratorManifests(_ transaction.BytesPayloads, _ http.Header) error {
+	return nil
+}
+
+// GetDomainResolvers returns nothing.
+func (f NoopForwarder) GetDomainResolvers() []resolver.DomainResolver {
+	return nil
+}
+
+// SubmitTransaction does nothing.
+func (f NoopForwarder) SubmitTransaction(_ *transaction.HTTPTransaction) error {
 	return nil
 }
