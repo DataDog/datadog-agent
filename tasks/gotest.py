@@ -288,8 +288,8 @@ def test(
 
     If use_orchestrion is set to True, orchestrion will be used to run gotestsum for native instrumentation.
     """
-    # TODO
-    sanitize_env_vars()
+    # # TODO A
+    # sanitize_env_vars()
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
@@ -331,7 +331,7 @@ def test(
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     # TODO: Orchestrion only on option
-    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd = 'orchestrion go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
@@ -347,9 +347,10 @@ def test(
     )
 
     # Use orchestrion to run gotestsum for native instrumentation
+    # TODO A
     cmd_prefix = '' # 'orchestrion toolexec' if use_orchestrion else ''
 
-    cmd = f'{cmd_prefix} gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
+    cmd = f"{cmd_prefix} gotestsum {gotestsum_flags} -- '-toolexec=orchestrion toolexec' {gobuild_flags} {govet_flags} {gotest_flags}"
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
