@@ -66,7 +66,7 @@ class AttrUsage:
         if kind == "bazel-contrib.supply-chain.attribute.license":
             self.process_license(attr)
             return
-        raise ValueError(f"Unknown attribute type: {kind}")
+        print(f"Unknown attribute type: {kind}")
 
     def process_package_metadata(self, package_metadata_file):
         """Process a package_metadata bundle file."""

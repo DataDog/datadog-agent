@@ -106,6 +106,9 @@ def _handle_attribute_provider(
             inputs.extend(metadata_provider.files.to_list())
             for f in metadata_provider.files.to_list():
                 report.append("    file: %s" % f.path)
+    elif DEBUG_LEVEL >= 0:  # NOTE: intentionally >= 0 for a few weeks, until this gels more.
+        # buildifier: disable=print
+        print("    No attributes")
 
     # Check for extras.
     # This is for debugging during early development. There should be no
@@ -131,7 +134,7 @@ def _handle_transitive_collector(t_m_i, args, inputs, report, attribute_to_consu
         attribute_kinds: Map of attribute files to their type.
     """
     if hasattr(t_m_i, "metadata"):
-        report.append("Target %s" % t_m_i.target)
+        report.append("Target %s. %d attributes" % (t_m_i.target, len(t_m_i.metadata.to_list())))
 
         for metadata in t_m_i.metadata.to_list():
             _handle_attribute_provider(
