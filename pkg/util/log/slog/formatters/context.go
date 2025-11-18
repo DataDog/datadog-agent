@@ -36,6 +36,37 @@ type AttrHolder interface {
 	NumAttrs() int
 }
 
+// ToSlogAttrs converts an opaque context to a list of slog.Attr
+//
+// The context is expected to be a slice of interface{}, containing an even number of elements,
+// with keys being strings.
+//
+// We can lift the restrictions and/or change the API later, but for now we want
+// the exact same behavior as previously.
+//
+// This is exported to allow using it with seelog and slog, once we stop using seelog
+// this can be moved to the slog package.
+func ToSlogAttrs(context interface{}) []slog.Attr {
+	if context == nil {
+		return nil
+	}
+
+	contextList, ok := context.([]interface{})
+	if !ok || len(contextList) == 0 || len(contextList)%2 != 0 {
+		return nil
+	}
+
+	attrs := make([]slog.Attr, 0, len(contextList)/2)
+	for i := 0; i < len(contextList); i += 2 {
+		key, val := contextList[i], contextList[i+1]
+		// Only add if key is string
+		if keyStr, ok := key.(string); ok {
+			attrs = append(attrs, slog.Attr{Key: keyStr, Value: slog.AnyValue(val)})
+		}
+	}
+	return attrs
+}
+
 func extractContextString(format contextFormat, record AttrHolder) string {
 	if record.NumAttrs() == 0 {
 		return ""
