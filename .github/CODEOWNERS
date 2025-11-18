@@ -526,6 +526,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
+/pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
 /pkg/proto/datadog/process              @DataDog/container-experiences
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
@@ -610,6 +611,7 @@
 /pkg/proto/pbgo/core/workloadfilter.pb.go     @DataDog/container-platform
 /pkg/proto/pbgo/core/workloadmeta.pb.go       @DataDog/container-platform
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-runtimes
+/pkg/proto/pbgo/privateactionrunner     @DataDog/action-platform
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/cloud-network-monitoring
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
