@@ -1217,6 +1217,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	config.BindEnvAndSetDefault("vsock_addr", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {
