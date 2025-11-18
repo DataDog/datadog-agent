@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 
 	redisv9 "github.com/redis/go-redis/v9"
 )
@@ -55,8 +56,16 @@ type redisProtocolParsingSuite struct {
 	suite.Suite
 }
 
+func skipIfKernelNotSupported(t *testing.T) {
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < redis.MinimumKernelVersion {
+		t.Skipf("Redis monitoring can not run on kernel before %v", redis.MinimumKernelVersion)
+	}
+}
+
 func TestRedisMonitoring(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+	skipIfKernelNotSupported(t)
 
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(redisProtocolParsingSuite))

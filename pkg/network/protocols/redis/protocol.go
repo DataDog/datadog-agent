@@ -8,6 +8,7 @@
 package redis
 
 import (
+	"fmt"
 	"io"
 	"unsafe"
 
@@ -105,6 +106,10 @@ var Spec = &protocols.ProtocolSpec{
 func newRedisProtocol(mgr *manager.Manager, cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableRedisMonitoring {
 		return nil, nil
+	}
+
+	if !Supported() {
+		return nil, fmt.Errorf("redis feature not available on pre %s kernels", MinimumKernelVersion.String())
 	}
 
 	return &protocol{
