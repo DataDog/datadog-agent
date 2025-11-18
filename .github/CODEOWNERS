@@ -687,7 +687,7 @@
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
-/tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx
+/tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx @DataDog/unknown-team-here
 /tasks/process_agent.py                 @DataDog/container-experiences
 /tasks/system_probe.py                  @DataDog/ebpf-platform
 /tasks/ebpf.py                          @DataDog/ebpf-platform
