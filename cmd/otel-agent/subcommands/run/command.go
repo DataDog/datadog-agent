@@ -97,7 +97,9 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
-func disableIfCmdPortIsNegative(cfg coreconfig.Component) bool {
+// A negative CMD_PORT is used to tell the otel-agent not to contact the core agent.
+// e.g. in gateway mode
+func isCmdPortNegative(cfg coreconfig.Component) bool {
 	return cfg.GetInt("cmd_port") <= 0
 }
 
@@ -131,7 +133,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 			fx.Provide(func(cp converter.Component, _ configsync.Component) confmap.Converter {
 				return cp
 			}),
-			remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: disableIfCmdPortIsNegative}, tagger.NewRemoteParams()),
+			remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 			fx.Provide(func(h hostnameinterface.Component) (serializerexporter.SourceProviderFunc, error) {
 				return h.Get, nil
 			}),
@@ -216,7 +218,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 		}),
 
 		configsyncimpl.Module(configsyncimpl.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
-		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: disableIfCmdPortIsNegative}, tagger.NewRemoteParams()),
+		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 		telemetryimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
