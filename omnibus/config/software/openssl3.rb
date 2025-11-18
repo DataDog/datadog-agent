@@ -104,7 +104,7 @@ build do
   end
 
   # Preserving old build for time being for FIPS.
-  if ENV["AGENT_FLAVOR"] == "fips"
+  if windows? && ENV["AGENT_FLAVOR"] == "fips"
     # Out of abundance of caution, we put the feature flags first and then
     # the crazy platform specific compiler flags at the end.
     configure_args << [
