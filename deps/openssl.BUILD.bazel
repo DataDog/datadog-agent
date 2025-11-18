@@ -183,8 +183,8 @@ pkg_files(
     name = "openssl_pkgconfig",
     srcs = [":pkgconfig_dir"],
     prefix = selects.with_or({
-        "@//:linux_x86_64": "lib64/pkgconfig",
-        ("@platforms//os:macos", "@//:linux_arm64"): "lib/pkgconfig",
+        "@//:linux_x86_64": "lib64",
+        ("@platforms//os:macos", "@//:linux_arm64"): "lib",
         "//conditions:default": "",
     }),
 )
