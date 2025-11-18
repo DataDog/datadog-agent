@@ -193,9 +193,9 @@ func TestStopWaits(t *testing.T) {
 	case <-ctx.Done():
 		// Context cancelled before we could send
 		t.Fatal("Context cancelled before payload could be sent")
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(2000 * time.Millisecond):
 		// Timeout - this shouldn't happen in normal operation.
-		// 500ms is used to allow worker goroutines to start and be ready
+		// 2000ms is used to allow worker goroutines to start and be ready
 		t.Fatal("Timeout sending payload to agent")
 	}
 

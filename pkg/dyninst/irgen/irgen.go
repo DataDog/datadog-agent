@@ -46,6 +46,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
@@ -361,13 +362,22 @@ func generateIR(
 		}
 	}
 
+	// Compute the set of expressions for the probes. This will populate
+	// the probe's Template field and resolve relevant variables etc.
+	probeExpressions := make([][]probeExpression, len(probes))
+	for i, p := range probes {
+		p.Template, probeExpressions[i] = processProbeExpressions(p)
+	}
+
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
 	}
 
 	// Populate event root expressions for every probe.
-	probes, eventIssues := populateProbeEventsExpressions(probes, typeCatalog)
+	probes, eventIssues := populateProbeEventsExpressions(
+		probes, probeExpressions, typeCatalog,
+	)
 	issues = append(issues, eventIssues...)
 
 	// Detect probe definitions that did not match any symbol in the binary.
@@ -393,6 +403,192 @@ func generateIR(
 		GoModuledataInfo: processed.goModuledataInfo,
 		CommonTypes:      commonTypes,
 	}, nil
+}
+
+// probeExpression is an expression that applies to a probe.
+type probeExpression struct {
+	def exprlang.Expr
+	// As of writing, the only supported expressions reference a single
+	// variable. As this evolves, more variables may need to be supported.
+	relevantVariable *ir.Variable
+	// The kind of event at which this expression is evaluated.
+	eventKind ir.EventKind
+	// The kind of expression -- this is used to inform the deserialization
+	// code about how this expression should be displayed.
+	exprKind ir.RootExpressionKind
+	// If the exprKind is ir.RootExpressionTemplateSegment, this is the
+	// corresponding segment.
+	segment *ir.JSONSegment
+}
+
+// processProbeExpressions processes template segments and the snapshot
+// expressions for variables available at probe events. It computes the
+// ir.Template and the probeExpressions for the probe.
+func processProbeExpressions(
+	probe *ir.Probe,
+) (template *ir.Template, exprs []probeExpression) {
+	if td := probe.ProbeDefinition.GetTemplate(); td != nil {
+		template = newTemplate(td)
+	}
+	type jsonSegment struct {
+		*ir.JSONSegment
+		index int
+	}
+	var segmentRefs map[string][]jsonSegment
+	if template != nil {
+		segmentRefs = make(map[string][]jsonSegment)
+		for i, s := range template.Segments {
+			switch s := s.(type) {
+			case *ir.JSONSegment:
+				switch expr := s.JSON.(type) {
+				case *exprlang.RefExpr:
+					segmentRefs[expr.Ref] = append(segmentRefs[expr.Ref],
+						jsonSegment{JSONSegment: s, index: i})
+				}
+			}
+		}
+	}
+	isKind := func(kind ir.EventKind) func(*ir.Event) bool {
+		return func(ev *ir.Event) bool { return ev.Kind == kind }
+	}
+	haveEntry := slices.ContainsFunc(probe.Events, isKind(ir.EventKindEntry))
+	haveReturn := slices.ContainsFunc(probe.Events, isKind(ir.EventKindReturn))
+	variableIsAvailble := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
+		locIdx := 0
+		var available bool
+		for _, ip := range ips {
+			for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
+				locIdx++
+			}
+			available = locIdx < len(v.Locations) &&
+				ip.PC >= v.Locations[locIdx].Range[0]
+			if available {
+				return true
+			}
+		}
+		return false
+	}
+	for _, v := range probe.Subprogram.Variables {
+		var (
+			evKind   ir.EventKind
+			exprKind ir.RootExpressionKind
+		)
+		switch {
+
+		// The entry event for a method probe.
+		case haveEntry && v.Role == ir.VariableRoleParameter:
+			evKind, exprKind = ir.EventKindEntry, ir.RootExpressionKindArgument
+
+		// The return event for a method probe.
+		//
+		// TODO: We should return available locals from return probes, which
+		// would just require extending the next case to also be triggered for
+		// return variables.
+		case haveReturn && v.Role == ir.VariableRoleReturn:
+			evKind, exprKind = ir.EventKindReturn, ir.RootExpressionKindLocal
+
+		// The line-probe case:
+		case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
+			ips := probe.Events[0].InjectionPoints
+			if !variableIsAvailble(ips, v) {
+				continue
+			}
+			// TODO: the exprKind should be argument for available arguments.
+			evKind, exprKind = ir.EventKindLine, ir.RootExpressionKindLocal
+
+		default:
+			continue
+		}
+		exprs = append(exprs, probeExpression{
+			def:              &exprlang.RefExpr{Ref: v.Name},
+			relevantVariable: v,
+			eventKind:        evKind,
+			exprKind:         exprKind,
+		})
+
+		// Note: there's no risk of picking the wrong variable due to shadowing,
+		// but there should be! In materializePending we ensure that we only
+		// track a single variable with a given name. This is incorrect in cases
+		// of shadowing.  Instead we could record all shadowed variables and
+		// handle ambiguity of template resolution based on the specific return
+		// point (as that's all that matters for scoping in the case of
+		// shadowing) and come up with a naming scheme to describe the shadowed
+		// variables in snapshots.
+
+		segs, ok := segmentRefs[v.Name]
+		if !ok {
+			continue
+		}
+		for _, seg := range segs {
+			exprs = append(exprs, probeExpression{
+				def:              seg.JSON,
+				relevantVariable: v,
+				eventKind:        evKind,
+				exprKind:         ir.RootExpressionKindTemplateSegment,
+				segment:          seg.JSONSegment,
+			})
+		}
+		delete(segmentRefs, v.Name)
+	}
+	for name, segs := range segmentRefs {
+		for _, seg := range segs {
+			template.Segments[seg.index] = ir.InvalidSegment{
+				Error: fmt.Sprintf("failed to resolve reference %q", name),
+				DSL:   seg.DSL,
+			}
+		}
+	}
+	return template, exprs
+}
+
+// newTemplate creates a new template from a template definition.
+//
+// Note that the JSONSegment EventKind and EventExpressionIndex will be left
+// with zero values to be filled in later.
+func newTemplate(td ir.TemplateDefinition) *ir.Template {
+	var segments []ir.TemplateSegment
+	addSegment := func(s ir.TemplateSegment) {
+		segments = append(segments, s)
+	}
+	addInvalid := func(s ir.TemplateSegmentExpression, msg string) {
+		addSegment(ir.InvalidSegment{DSL: s.GetDSL(), Error: msg})
+	}
+	var i int
+	for segment := range td.GetSegments() {
+		switch segment := segment.(type) {
+		case ir.TemplateSegmentString:
+			addSegment(ir.StringSegment(segment.GetString()))
+		case ir.TemplateSegmentExpression:
+			expr, err := exprlang.Parse(segment.GetJSON())
+			if err != nil {
+				addInvalid(segment, err.Error())
+			} else {
+				switch expr := expr.(type) {
+				case *exprlang.RefExpr:
+					addSegment(&ir.JSONSegment{
+						DSL:  segment.GetDSL(),
+						JSON: expr,
+
+						// These will be filled in by populateProbeExpressions.
+						EventKind:            0,
+						EventExpressionIndex: 0,
+					})
+				case *exprlang.UnsupportedExpr:
+					msg := fmt.Sprintf("unsupported operation: %s", expr.Operation)
+					addInvalid(segment, msg)
+				default:
+					msg := fmt.Sprintf("unsupported expression: %T", expr)
+					addInvalid(segment, msg)
+				}
+			}
+		}
+		i++
+	}
+	t := &ir.Template{
+		TemplateString: td.GetTemplateString(),
+		Segments:       segments,
+	}
+	return t
 }
 
 // computeDepthBudgets returns the maximum reference depth per subprogram ID
@@ -715,6 +911,8 @@ func materializePending(
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
+		// TODO: In the future we should track variables by lexical block scope
+		// to be able to differentiate shadowing from malformed DWARF.
 		variableByName := make(map[string]*ir.Variable, len(p.variables))
 		for _, die := range p.variables {
 			parseLocs := !p.abstract
@@ -1722,10 +1920,11 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 
 func populateProbeEventsExpressions(
 	probes []*ir.Probe,
+	exprs [][]probeExpression,
 	typeCatalog *typeCatalog,
 ) (successful []*ir.Probe, failed []ir.ProbeIssue) {
-	for _, probe := range probes {
-		if issue := populateProbeExpressions(probe, typeCatalog); !issue.IsNone() {
+	for i, probe := range probes {
+		if issue := populateProbeExpressions(probe, exprs[i], typeCatalog); !issue.IsNone() {
 			failed = append(failed, ir.ProbeIssue{
 				ProbeDefinition: probe.ProbeDefinition,
 				Issue:           issue,
@@ -1739,10 +1938,11 @@ func populateProbeEventsExpressions(
 
 func populateProbeExpressions(
 	probe *ir.Probe,
+	exprs []probeExpression,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	for _, event := range probe.Events {
-		issue := populateEventExpressions(probe, event, typeCatalog)
+		issue := populateEventExpressions(probe, event, exprs, typeCatalog)
 		if !issue.IsNone() {
 			return issue
 		}
@@ -1753,63 +1953,36 @@ func populateProbeExpressions(
 func populateEventExpressions(
 	probe *ir.Probe,
 	event *ir.Event,
+	exprs []probeExpression,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
 	var expressions []*ir.RootExpression
-	for _, variable := range probe.Subprogram.Variables {
-		var variableKind ir.RootExpressionKind
-		switch event.Kind {
-		case ir.EventKindEntry:
-			if variable.Role != ir.VariableRoleParameter {
-				continue
-			}
-			variableKind = ir.RootExpressionKindArgument
-		case ir.EventKindReturn:
-			if variable.Role != ir.VariableRoleReturn {
-				continue
-			}
-			variableKind = ir.RootExpressionKindLocal
-		case ir.EventKindLine:
-			// We capture any variable that is available at any of the injection points.
-			// We rely on both locations and injection points being sorted by PC to make
-			// this check linear. The location ranges might overlap, but this sweep is
-			// still correct.
-			available := false
-			locIdx := 0
-			for _, injectionPoint := range event.InjectionPoints {
-				for locIdx < len(variable.Locations) && variable.Locations[locIdx].Range[1] <= injectionPoint.PC {
-					locIdx++
-				}
-				if locIdx < len(variable.Locations) && injectionPoint.PC >= variable.Locations[locIdx].Range[0] {
-					available = true
-					break
-				}
-			}
-			if !available {
-				continue
-			}
-			variableKind = ir.RootExpressionKindLocal
-		default:
-			panic(fmt.Sprintf("unexpected event kind: %v", event.Kind))
+	for _, expr := range exprs {
+		if expr.eventKind != event.Kind {
+			continue
 		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
+		v := expr.relevantVariable
+		variableSize := v.Type.GetByteSize()
+		if seg := expr.segment; seg != nil {
+			seg.EventKind = expr.eventKind
+			seg.EventExpressionIndex = len(expressions)
+		}
+		expressions = append(expressions, &ir.RootExpression{
+			Name:   v.Name,
 			Offset: uint32(0),
-			Kind:   variableKind,
+			Kind:   expr.exprKind,
 			Expression: ir.Expression{
-				Type: variable.Type,
+				Type: v.Type,
 				Operations: []ir.ExpressionOp{
 					&ir.LocationOp{
-						Variable: variable,
+						Variable: v,
 						Offset:   0,
 						ByteSize: uint32(variableSize),
 					},
 				},
 			},
-		}
-		expressions = append(expressions, expr)
+		})
 	}
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
 	byteSize := uint64(presenceBitsetSize)
@@ -2317,9 +2490,7 @@ func newProbe(
 		}
 	}
 	for _, inlined := range subprogram.InlinePCRanges {
-		var issue ir.Issue
-		var err error
-		injectionPoints, _, issue, err = pickInjectionPoint(
+		ips, _, issue, err := pickInjectionPoint(
 			inlined.Ranges,
 			inlined.RootRanges,
 			true, /* inlined */
@@ -2330,9 +2501,10 @@ func newProbe(
 			injectionPoints,
 			skipReturnEvents,
 		)
-		if issue != (ir.Issue{}) || err != nil {
+		if !issue.IsNone() || err != nil {
 			return nil, issue, err
 		}
+		injectionPoints = ips
 	}
 	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
 		return cmp.Compare(a.PC, b.PC)

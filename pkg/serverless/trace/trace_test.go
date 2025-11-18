@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -43,11 +42,7 @@ func createTestSpan(attrs map[string]string) *idx.InternalSpan {
 func TestStartEnabledFalse(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *LambdaSpan)
-	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
-	})
+	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
 	assert.IsType(t, noopTraceAgent{}, agent)
@@ -64,12 +59,9 @@ func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *LambdaSpan)
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		Enabled:         true,
-		LoadConfig:      &LoadConfigMocked{},
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
+		Enabled:    true,
+		LoadConfig: &LoadConfigMocked{},
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
@@ -79,15 +71,11 @@ func TestStartEnabledTrueInvalidConfig(t *testing.T) {
 func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *LambdaSpan)
-
 	configmock.SetDefaultConfigType(t, "yaml")
 	t.Setenv("DD_API_KEY", "x")
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		Enabled:         true,
-		LoadConfig:      &LoadConfig{Path: "invalid.yml"},
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
+		Enabled:    true,
+		LoadConfig: &LoadConfig{Path: "invalid.yml"},
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
@@ -97,59 +85,31 @@ func TestStartEnabledTrueValidConfigInvalidPath(t *testing.T) {
 func TestStartEnabledTrueValidConfigValidPath(t *testing.T) {
 	setupTraceAgentTest(t)
 
-	lambdaSpanChan := make(chan *LambdaSpan)
-
 	agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-		Enabled:         true,
-		LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
-		LambdaSpanChan:  lambdaSpanChan,
-		ColdStartSpanID: random.Random.Uint64(),
+		Enabled:    true,
+		LoadConfig: &LoadConfig{Path: "./testdata/valid.yml"},
 	})
 	defer agent.Stop()
 	assert.NotNil(t, agent)
 	assert.IsType(t, &serverlessTraceAgent{}, agent)
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeHttpSpan(t *testing.T) {
-	httpSpanFromLambdaLibrary := createTestSpan(map[string]string{
-		"http.url": "http://127.0.0.1:8124/lambda/flush",
-	})
-
-	httpSpanFromLambdaRuntime := createTestSpan(map[string]string{
-		"http.url": "http://127.0.0.1:9001/2018-06-01/runtime/invocation/fee394a9-b9a4-4602-853e-a48bb663caa3/response",
-	})
-
+func TestFilterSpanFromRuntimeHttpSpan(t *testing.T) {
 	httpSpanFromStatsD := createTestSpan(map[string]string{
 		"http.url": "http://127.0.0.1:8125/",
 	})
-
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(httpSpanFromLambdaLibrary))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(httpSpanFromLambdaRuntime))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(httpSpanFromStatsD))
+	assert.True(t, filterSpan(httpSpanFromStatsD))
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeTcpSpan(t *testing.T) {
-	tcpSpanFromLambdaLibrary := createTestSpan(map[string]string{
-		"tcp.remote.host": "127.0.0.1",
-		"tcp.remote.port": "8124",
-	})
-
-	tcpSpanFromLambdaRuntime := createTestSpan(map[string]string{
-		"tcp.remote.host": "127.0.0.1",
-		"tcp.remote.port": "9001",
-	})
-
+func TestFilterSpanFromRuntimeTcpSpan(t *testing.T) {
 	tcpSpanFromStatsD := createTestSpan(map[string]string{
 		"tcp.remote.host": "127.0.0.1",
 		"tcp.remote.port": "8125",
 	})
-
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(tcpSpanFromLambdaLibrary))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(tcpSpanFromLambdaRuntime))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(tcpSpanFromStatsD))
+	assert.True(t, filterSpan(tcpSpanFromStatsD))
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeDnsSpan(t *testing.T) {
+func TestFilterSpanFromRuntimeDnsSpan(t *testing.T) {
 	dnsSpanFromLocalhostAddress := createTestSpan(map[string]string{
 		"dns.address": "127.0.0.1",
 	})
@@ -157,30 +117,16 @@ func TestFilterSpanFromLambdaLibraryOrRuntimeDnsSpan(t *testing.T) {
 	dnsSpanFromNonRoutableAddress := createTestSpan(map[string]string{
 		"dns.address": "0.0.0.0",
 	})
-
-	dnsSpanFromXrayDaemonAddress := createTestSpan(map[string]string{
-		"dns.address": "169.254.79.129",
-	})
-
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(dnsSpanFromLocalhostAddress))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(dnsSpanFromNonRoutableAddress))
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(dnsSpanFromXrayDaemonAddress))
+	assert.True(t, filterSpan(dnsSpanFromLocalhostAddress))
+	assert.True(t, filterSpan(dnsSpanFromNonRoutableAddress))
 }
 
-func TestFilterSpanFromLambdaLibraryOrRuntimeLegitimateSpan(t *testing.T) {
+func TestFilterSpanFromRuntimeLegitimateSpan(t *testing.T) {
 	legitimateSpan := createTestSpan(map[string]string{
 		"http.url": "http://www.datadoghq.com",
 	})
 
-	assert.False(t, filterSpanFromLambdaLibraryOrRuntime(legitimateSpan))
-}
-
-func TestFilterServerlessSpanFromTracer(t *testing.T) {
-	st := idx.NewStringTable()
-	span := idx.NewInternalSpan(st, &idx.Span{
-		ResourceRef: st.Add(invocationSpanResource),
-	})
-	assert.True(t, filterSpanFromLambdaLibraryOrRuntime(span))
+	assert.False(t, filterSpan(legitimateSpan))
 }
 
 func TestGetDDOriginCloudServices(t *testing.T) {
@@ -188,7 +134,6 @@ func TestGetDDOriginCloudServices(t *testing.T) {
 		"cloudrun":     cloudservice.ServiceNameEnvVar,
 		"appservice":   cloudservice.WebsiteStack,
 		"containerapp": cloudservice.ContainerAppNameEnvVar,
-		"lambda":       functionNameEnvVar,
 	}
 	for service, envVar := range serviceToEnvVar {
 		t.Setenv(envVar, "myService")
@@ -215,15 +160,10 @@ func TestStartServerlessTraceAgentFunctionTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			setupTraceAgentTest(t)
-
-			lambdaSpanChan := make(chan *LambdaSpan)
-
 			agent := StartServerlessTraceAgent(StartServerlessTraceAgentArgs{
-				Enabled:         true,
-				LoadConfig:      &LoadConfig{Path: "./testdata/valid.yml"},
-				LambdaSpanChan:  lambdaSpanChan,
-				ColdStartSpanID: random.Random.Uint64(),
-				FunctionTags:    tt.functionTags,
+				Enabled:      true,
+				LoadConfig:   &LoadConfig{Path: "./testdata/valid.yml"},
+				FunctionTags: tt.functionTags,
 			})
 			defer agent.Stop()
 
