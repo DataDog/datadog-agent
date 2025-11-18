@@ -212,8 +212,6 @@ class WiFiIPCServer {
             return
         }
 
-        Logger.debug("Received command: \(request.command)", context: "WiFiIPCServer")
-
         // Handle command
         switch request.command {
         case "get_wifi_info":
