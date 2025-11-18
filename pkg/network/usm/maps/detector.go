@@ -66,6 +66,32 @@ func findMapByName(name string) (*ebpf.Map, error) {
 	}
 }
 
+// checkMap finds and validates a single map, ensuring proper cleanup via defer
+// Returns nil error if map is not found (allowing iteration to continue)
+func (r *LeakDetectionReport) checkMap(mapName string) error {
+	m, err := findMapByName(mapName)
+	if err != nil {
+		// Map not found - might not be loaded (e.g., TLS not enabled or system-probe not running)
+		return nil
+	}
+	defer m.Close() // Ensure map is always closed when this function returns
+
+	info, err := ValidatePIDKeyedMap(mapName, m)
+	if err != nil {
+		return fmt.Errorf("failed to validate map %s: %w", mapName, err)
+	}
+
+	r.Maps = append(r.Maps, *info)
+	r.TotalMapsChecked++
+	r.TotalLeakedEntries += info.LeakedEntries
+
+	if info.HasLeaks() {
+		r.MapsWithLeaks++
+	}
+
+	return nil
+}
+
 // CheckPIDKeyedMaps checks all PID-keyed TLS maps for leaked entries
 // This function enumerates system-wide eBPF maps and checks each target map
 func CheckPIDKeyedMaps() (*LeakDetectionReport, error) {
@@ -75,25 +101,8 @@ func CheckPIDKeyedMaps() (*LeakDetectionReport, error) {
 	}
 
 	for _, mapName := range pidKeyedMaps {
-		m, err := findMapByName(mapName)
-		if err != nil {
-			// Map not found - might not be loaded (e.g., TLS not enabled or system-probe not running)
-			continue
-		}
-
-		info, err := ValidatePIDKeyedMap(mapName, m)
-		m.Close() // Close immediately after validation
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to validate map %s: %w", mapName, err)
-		}
-
-		report.Maps = append(report.Maps, *info)
-		report.TotalMapsChecked++
-		report.TotalLeakedEntries += info.LeakedEntries
-
-		if info.HasLeaks() {
-			report.MapsWithLeaks++
+		if err := report.checkMap(mapName); err != nil {
+			return nil, err
 		}
 	}
 
