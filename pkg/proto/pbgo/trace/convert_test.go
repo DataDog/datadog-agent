@@ -81,3 +81,110 @@ func TestConvertedSpan(t *testing.T) {
 	assert.Equal(t, "my-hostname", idxSpan.Strings.Get(convertedFields.HostnameRef))
 	assert.Equal(t, uint32(2), convertedFields.SamplingPriority)
 }
+
+func TestConvertedSpanLinks(t *testing.T) {
+	v4Span := &Span{
+		SpanLinks: []*SpanLink{
+			{
+				TraceID:     0xAA_BB,
+				TraceIDHigh: 0x12_34,
+				SpanID:      1111,
+				Tracestate:  "test=state",
+				Flags:       1,
+				Attributes: map[string]string{
+					"link.attr": "link.value",
+				},
+			},
+		},
+	}
+	v4SpanBytes, err := v4Span.MarshalMsg(nil)
+	assert.NoError(t, err)
+	idxSpan := idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{})
+	convertedFields := idx.SpanConvertedFields{}
+	o, err := idxSpan.UnmarshalMsgConverted(v4SpanBytes, &convertedFields)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Len(t, idxSpan.Links(), 1)
+	actualLink := idxSpan.Links()[0]
+	assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x12, 0x34, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xaa, 0xbb}, actualLink.TraceID())
+	assert.Equal(t, uint64(1111), actualLink.SpanID())
+	assert.Equal(t, "test=state", actualLink.Tracestate())
+	assert.Equal(t, uint32(1), actualLink.Flags())
+	assert.Len(t, actualLink.Attributes(), 1)
+	linkAttr, found := actualLink.GetAttributeAsString("link.attr")
+	assert.True(t, found)
+	assert.Equal(t, "link.value", linkAttr)
+}
+
+func TestConvertedSpanEvents(t *testing.T) {
+	v4Span := &Span{
+		SpanEvents: []*SpanEvent{
+			{
+				TimeUnixNano: 171615,
+				Name:         "span-name",
+				Attributes: map[string]*AttributeAnyValue{
+					"event.attr": {
+						Type:        AttributeAnyValue_STRING_VALUE,
+						StringValue: "event.value",
+					},
+					"event.bool": {
+						Type:      AttributeAnyValue_BOOL_VALUE,
+						BoolValue: true,
+					},
+					"event.int": {
+						Type:     AttributeAnyValue_INT_VALUE,
+						IntValue: 42,
+					},
+					"event.double": {
+						Type:        AttributeAnyValue_DOUBLE_VALUE,
+						DoubleValue: 3.14,
+					},
+					"event.array": {
+						Type: AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &AttributeArray{
+							Values: []*AttributeArrayValue{
+								{Type: AttributeArrayValue_STRING_VALUE, StringValue: "array.value"},
+								{Type: AttributeArrayValue_INT_VALUE, IntValue: 100},
+								{Type: AttributeArrayValue_BOOL_VALUE, BoolValue: true},
+								{Type: AttributeArrayValue_DOUBLE_VALUE, DoubleValue: 3.14},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	v4SpanBytes, err := v4Span.MarshalMsg(nil)
+	assert.NoError(t, err)
+	idxSpan := idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{})
+	convertedFields := idx.SpanConvertedFields{}
+	o, err := idxSpan.UnmarshalMsgConverted(v4SpanBytes, &convertedFields)
+	assert.NoError(t, err)
+	assert.Empty(t, o)
+	assert.Len(t, idxSpan.Events(), 1)
+	actualEvent := idxSpan.Events()[0]
+	assert.Equal(t, uint64(171615), actualEvent.Time())
+	assert.Equal(t, "span-name", actualEvent.Name())
+	assert.Len(t, actualEvent.Attributes(), len(v4Span.SpanEvents[0].Attributes))
+	eventAttr, found := actualEvent.GetAttributeAsString("event.attr")
+	assert.True(t, found)
+	assert.Equal(t, "event.value", eventAttr)
+	eventBool, found := actualEvent.GetAttribute("event.bool")
+	assert.True(t, found)
+	assert.Equal(t, true, eventBool.Value.(*idx.AnyValue_BoolValue).BoolValue)
+	eventInt, found := actualEvent.GetAttribute("event.int")
+	assert.True(t, found)
+	assert.Equal(t, int64(42), eventInt.Value.(*idx.AnyValue_IntValue).IntValue)
+	eventDouble, found := actualEvent.GetAttribute("event.double")
+	assert.True(t, found)
+	assert.Equal(t, float64(3.14), eventDouble.Value.(*idx.AnyValue_DoubleValue).DoubleValue)
+
+	eventArrayAttr, found := actualEvent.GetAttribute("event.array")
+	assert.True(t, found)
+	attrArray := eventArrayAttr.Value.(*idx.AnyValue_ArrayValue).ArrayValue.Values
+	assert.Len(t, attrArray, 4)
+	assert.Equal(t, "array.value", idxSpan.Strings.Get(attrArray[0].Value.(*idx.AnyValue_StringValueRef).StringValueRef))
+	assert.Equal(t, int64(100), attrArray[1].Value.(*idx.AnyValue_IntValue).IntValue)
+	assert.Equal(t, true, attrArray[2].Value.(*idx.AnyValue_BoolValue).BoolValue)
+	assert.Equal(t, float64(3.14), attrArray[3].Value.(*idx.AnyValue_DoubleValue).DoubleValue)
+}

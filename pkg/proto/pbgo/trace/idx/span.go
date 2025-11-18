@@ -8,6 +8,7 @@ package idx
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
@@ -214,7 +215,7 @@ func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*Spa
 }
 
 // UnmarshalMsg unmarshals a SpanEvent from a byte stream, updating the strings slice with new strings
-func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
+func (x *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numSpanEventFields uint32
 	numSpanEventFields, o, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
@@ -237,7 +238,7 @@ func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []
 				err = msgp.WrapError(err, "Failed to read span event time")
 				return
 			}
-			spanEvent.Time = time
+			x.Time = time
 		case 2:
 			var name uint32
 			name, o, err = UnmarshalStreamingString(o, strings)
@@ -245,7 +246,7 @@ func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []
 				err = msgp.WrapError(err, "Failed to read span event name")
 				return
 			}
-			spanEvent.NameRef = name
+			x.NameRef = name
 		case 3:
 			var kvl map[uint32]*AnyValue
 			kvl, o, err = UnmarshalKeyValueMap(o, strings)
@@ -253,7 +254,7 @@ func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []
 				err = msgp.WrapError(err, "Failed to read span event attributes")
 				return
 			}
-			spanEvent.Attributes = kvl
+			x.Attributes = kvl
 		default:
 		}
 	}
@@ -558,9 +559,9 @@ func MarshalAttributesMap(bts []byte, attributes map[uint32]*AnyValue, strings *
 }
 
 // Msgsize returns the size of the message when serialized.
-func (val *AnyValue) Msgsize() int {
+func (x *AnyValue) Msgsize() int {
 	size := msgp.Uint32Size // For the type
-	switch v := val.Value.(type) {
+	switch v := x.Value.(type) {
 	case *AnyValue_StringValueRef:
 		size += msgp.Uint32Size
 	case *AnyValue_BoolValue:
@@ -586,9 +587,9 @@ func (val *AnyValue) Msgsize() int {
 }
 
 // MarshalMsg marshals an AnyValue into a byte stream
-func (val *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
+func (x *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
 	var err error
-	switch v := val.Value.(type) {
+	switch v := x.Value.(type) {
 	case *AnyValue_StringValueRef:
 		bts = msgp.AppendUint32(bts, 1) // write the type
 		bts = serStrings.AppendStreamingString(strings.Get(v.StringValueRef), v.StringValueRef, bts)
@@ -660,14 +661,14 @@ func (sl *SpanLink) MarshalMsg(bts []byte, strings *StringTable, serStrings *Ser
 }
 
 // MarshalMsg marshals a SpanEvent into a byte stream
-func (spanEvent *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
+func (x *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
 	o = msgp.AppendMapHeader(bts, 3)
 	o = msgp.AppendUint32(o, 1) // time
-	o = msgp.AppendUint64(o, spanEvent.Time)
+	o = msgp.AppendUint64(o, x.Time)
 	o = msgp.AppendUint32(o, 2) // name
-	o = serStrings.AppendStreamingString(strings.Get(spanEvent.NameRef), spanEvent.NameRef, o)
+	o = serStrings.AppendStreamingString(strings.Get(x.NameRef), x.NameRef, o)
 	o = msgp.AppendUint32(o, 3) // attributes
-	o, err = MarshalAttributesMap(o, spanEvent.Attributes, strings, serStrings)
+	o, err = MarshalAttributesMap(o, x.Attributes, strings, serStrings)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to marshal attributes")
 		return
@@ -1095,66 +1096,66 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 					},
 				}
 			}
-		// case "span_links":
-		// 	var numSpanLinks uint32
-		// 	numSpanLinks, bts, err = msgp.ReadArrayHeaderBytes(bts)
-		// 	if err != nil {
-		// 		err = msgp.WrapError(err, "SpanLinks")
-		// 		return
-		// 	}
-		// 	if cap(s.span.Links) >= int(numSpanLinks) {
-		// 		s.span.Links = (s.span.Links)[:numSpanLinks]
-		// 	} else {
-		// 		s.span.Links = make([]*SpanLink, numSpanLinks)
-		// 	}
-		// 	for i := range s.span.Links {
-		// 		if msgp.IsNil(bts) {
-		// 			bts, err = msgp.ReadNilBytes(bts)
-		// 			if err != nil {
-		// 				return
-		// 			}
-		// 			s.span.Links[i] = nil
-		// 		} else {
-		// 			if s.span.Links[i] == nil {
-		// 				s.span.Links[i] = new(SpanLink)
-		// 			}
-		// 			bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
-		// 			if err != nil {
-		// 				err = msgp.WrapError(err, "SpanLinks", i)
-		// 				return
-		// 			}
-		// 		}
-		// 	}
-		// case "span_events":
-		// 	var zb0006 uint32
-		// 	zb0006, bts, err = msgp.ReadArrayHeaderBytes(bts)
-		// 	if err != nil {
-		// 		err = msgp.WrapError(err, "SpanEvents")
-		// 		return
-		// 	}
-		// 	if cap(s.SpanEvents) >= int(zb0006) {
-		// 		s.SpanEvents = (s.SpanEvents)[:zb0006]
-		// 	} else {
-		// 		s.SpanEvents = make([]*SpanEvent, zb0006)
-		// 	}
-		// 	for za0008 := range s.SpanEvents {
-		// 		if msgp.IsNil(bts) {
-		// 			bts, err = msgp.ReadNilBytes(bts)
-		// 			if err != nil {
-		// 				return
-		// 			}
-		// 			s.SpanEvents[za0008] = nil
-		// 		} else {
-		// 			if s.SpanEvents[za0008] == nil {
-		// 				s.SpanEvents[za0008] = new(SpanEvent)
-		// 			}
-		// 			bts, err = s.SpanEvents[za0008].UnmarshalMsg(bts)
-		// 			if err != nil {
-		// 				err = msgp.WrapError(err, "SpanEvents", za0008)
-		// 				return
-		// 			}
-		// 		}
-		// 	}
+		case "span_links":
+			var numSpanLinks uint32
+			numSpanLinks, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanLinks")
+				return
+			}
+			if cap(s.span.Links) >= int(numSpanLinks) {
+				s.span.Links = (s.span.Links)[:numSpanLinks]
+			} else {
+				s.span.Links = make([]*SpanLink, numSpanLinks)
+			}
+			for i := range s.span.Links {
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
+					if err != nil {
+						return
+					}
+					s.span.Links[i] = nil
+				} else {
+					if s.span.Links[i] == nil {
+						s.span.Links[i] = new(SpanLink)
+					}
+					bts, err = s.span.Links[i].UnmarshalMsgConverted(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "SpanLinks", i)
+						return
+					}
+				}
+			}
+		case "span_events":
+			var numEvents uint32
+			numEvents, bts, err = msgp.ReadArrayHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanEvents")
+				return
+			}
+			if cap(s.span.Events) >= int(numEvents) {
+				s.span.Events = (s.span.Events)[:numEvents]
+			} else {
+				s.span.Events = make([]*SpanEvent, numEvents)
+			}
+			for i := range s.span.Events {
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
+					if err != nil {
+						return
+					}
+					s.span.Events[i] = nil
+				} else {
+					if s.span.Events[i] == nil {
+						s.span.Events[i] = new(SpanEvent)
+					}
+					bts, err = s.span.Events[i].UnmarshalMsgConverted(s.Strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "SpanEvents", i)
+						return
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1167,13 +1168,360 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 	return
 }
 
+// UnmarshalMsgConverted unmarshals a v4 span event directly into an idx.SpanEvent for efficiency
+func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) { //nolint:receiver-naming
+	var field []byte
+	_ = field
+	var numFields uint32
+	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	for numFields > 0 {
+		numFields--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "time_unix_nano":
+			x.Time, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TimeUnixNano")
+				return
+			}
+		case "name":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				break
+			}
+			x.NameRef, bts, err = parseStringBytes(strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Name")
+				return
+			}
+		case "attributes":
+			var numAttributes uint32
+			numAttributes, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Attributes")
+				return
+			}
+			if x.Attributes == nil {
+				x.Attributes = make(map[uint32]*AnyValue, numAttributes)
+			}
+			for numAttributes > 0 {
+				var value *AnyValue
+				numAttributes--
+				var keyRef uint32
+				keyRef, bts, err = parseStringBytes(strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Attributes")
+					return
+				}
+				if msgp.IsNil(bts) {
+					bts, err = msgp.ReadNilBytes(bts)
+					if err != nil {
+						return
+					}
+					value = nil
+				} else {
+					if value == nil {
+						value = new(AnyValue)
+					}
+					bts, err = value.UnmarshalMsgConverted(strings, bts)
+					if err != nil {
+						err = msgp.WrapError(err, "Attributes", keyRef)
+						return
+					}
+				}
+				x.Attributes[keyRef] = value
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	o = bts
+	return
+}
+
+// UnmarshalMsgConverted unmarshals a v4 any value directly into an idx.AnyValue for efficiency
+func (x *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var numFields uint32
+	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	var valueType int32
+	var strValueRef uint32
+	var boolValue bool
+	var intValue int64
+	var doubleValue float64
+	var arrayValue []*AnyValue
+	for numFields > 0 {
+		numFields--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "type":
+			{
+				valueType, bts, err = parseInt32Bytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Type")
+					return
+				}
+			}
+		case "string_value":
+			strValueRef, bts, err = parseStringBytes(strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "StringValue")
+				return
+			}
+		case "bool_value":
+			boolValue, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "BoolValue")
+				return
+			}
+		case "int_value":
+			intValue, bts, err = msgp.ReadInt64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "IntValue")
+				return
+			}
+		case "double_value":
+			doubleValue, bts, err = msgp.ReadFloat64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "DoubleValue")
+				return
+			}
+		case "array_value":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				if err != nil {
+					return
+				}
+				arrayValue = nil
+			} else {
+				var numArrayFields uint32
+				numArrayFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+				if err != nil {
+					err = msgp.WrapError(err, "ArrayValue")
+					return
+				}
+				for numArrayFields > 0 {
+					numArrayFields--
+					field, bts, err = msgp.ReadMapKeyZC(bts)
+					if err != nil {
+						err = msgp.WrapError(err, "ArrayValue")
+						return
+					}
+					switch msgp.UnsafeString(field) {
+					case "values":
+						var numArrayElems uint32
+						numArrayElems, bts, err = msgp.ReadArrayHeaderBytes(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ArrayValue", "Values")
+							return
+						}
+						if cap(arrayValue) >= int(numArrayElems) {
+							arrayValue = (arrayValue)[:numArrayElems]
+						} else {
+							arrayValue = make([]*AnyValue, numArrayElems)
+						}
+						for i := range arrayValue {
+							if msgp.IsNil(bts) {
+								bts, err = msgp.ReadNilBytes(bts)
+								if err != nil {
+									return
+								}
+								arrayValue[i] = nil
+							} else {
+								if arrayValue[i] == nil {
+									arrayValue[i] = new(AnyValue)
+								}
+								bts, err = arrayValue[i].UnmarshalMsgConverted(strings, bts)
+								if err != nil {
+									err = msgp.WrapError(err, "ArrayValue", "Values", i)
+									return
+								}
+							}
+						}
+					default:
+						bts, err = msgp.Skip(bts)
+						if err != nil {
+							err = msgp.WrapError(err, "ArrayValue")
+							return
+						}
+					}
+				}
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	switch valueType {
+	case stringValueType:
+		x.Value = &AnyValue_StringValueRef{
+			StringValueRef: strValueRef,
+		}
+	case boolValueType:
+		x.Value = &AnyValue_BoolValue{
+			BoolValue: boolValue,
+		}
+	case intValueType:
+		x.Value = &AnyValue_IntValue{
+			IntValue: intValue,
+		}
+	case doubleValueType:
+		x.Value = &AnyValue_DoubleValue{
+			DoubleValue: doubleValue,
+		}
+	case arrayValueType:
+		x.Value = &AnyValue_ArrayValue{
+			ArrayValue: &ArrayValue{
+				Values: arrayValue,
+			},
+		}
+	}
+	o = bts
+	return
+}
+
+const (
+	stringValueType int32 = 0
+	boolValueType   int32 = 1
+	intValueType    int32 = 2
+	doubleValueType int32 = 3
+	arrayValueType  int32 = 4
+)
+
+// UnmarshalMsgConverted unmarshals a v4 span link directly into an idx.SpanLink for efficiency
+func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) {
+	var field []byte
+	_ = field
+	var numFields uint32
+	numFields, bts, err = msgp.ReadMapHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	var traceIDLower, traceIDUpper uint64
+	for numFields > 0 {
+		numFields--
+		field, bts, err = msgp.ReadMapKeyZC(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		switch msgp.UnsafeString(field) {
+		case "trace_id":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				break
+			}
+			traceIDLower, bts, err = parseUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TraceID")
+				return
+			}
+		case "trace_id_high":
+			traceIDUpper, bts, err = msgp.ReadUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "TraceIDHigh")
+				return
+			}
+		case "span_id":
+			if msgp.IsNil(bts) {
+				bts, err = msgp.ReadNilBytes(bts)
+				break
+			}
+			sl.SpanID, bts, err = parseUint64Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SpanID")
+				return
+			}
+		case "attributes":
+			var numAttributes uint32
+			numAttributes, bts, err = msgp.ReadMapHeaderBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Attributes")
+				return
+			}
+			if sl.Attributes == nil {
+				sl.Attributes = make(map[uint32]*AnyValue, numAttributes)
+			}
+			for numAttributes > 0 {
+				var valueRef uint32
+				numAttributes--
+				var keyRef uint32
+				keyRef, bts, err = parseStringBytes(strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Attributes")
+					return
+				}
+				valueRef, bts, err = parseStringBytes(strings, bts)
+				if err != nil {
+					err = msgp.WrapError(err, "Attributes", keyRef)
+					return
+				}
+				sl.Attributes[keyRef] = &AnyValue{
+					Value: &AnyValue_StringValueRef{
+						StringValueRef: valueRef,
+					},
+				}
+			}
+		case "tracestate":
+			sl.TracestateRef, bts, err = parseStringBytes(strings, bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Tracestate")
+				return
+			}
+		case "flags":
+			sl.Flags, bts, err = msgp.ReadUint32Bytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "Flags")
+				return
+			}
+		default:
+			bts, err = msgp.Skip(bts)
+			if err != nil {
+				err = msgp.WrapError(err)
+				return
+			}
+		}
+	}
+	tid := make([]byte, 16)
+	binary.BigEndian.PutUint64(tid[8:], traceIDLower)
+	binary.BigEndian.PutUint64(tid[:8], traceIDUpper)
+	sl.TraceID = tid
+	o = bts
+	return
+}
+
 // handlePromotedMetaFields processes promoted meta fields that have dedicated span fields
+// If we fail to parse a value we don't use the promoted value, but the original string will still be in the span attributes
 func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convertedFields *SpanConvertedFields) {
 	switch s.Strings.Get(metaKey) {
 	case "_dd.p.tid":
 		tidUpper, err := strconv.ParseUint(s.Strings.Get(metaVal), 16, 64)
 		if err != nil {
-			// Some invalid trace ID upper bits, save them anyways for debugging
 			return
 		}
 		convertedFields.TraceIDUpper = tidUpper
