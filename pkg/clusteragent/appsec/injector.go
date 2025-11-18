@@ -62,9 +62,13 @@ func Start(ctx context.Context, logger log.Component, datadogConfig config.Compo
 		}
 
 		logger.Infof("Starting appsec proxy injector with config: %#v", injector.config)
-		patterns := injector.CompilePatterns()
+		patterns := injector.InstantiatePatterns()
 		for typ, pattern := range patterns {
-			go injector.run(ctx, typ, pattern)
+			if _, enabled := config.Proxies[typ]; enabled {
+				go injector.run(ctx, typ, pattern)
+			} else {
+				go cleanupPattern(ctx, logger, injector.k8sClient, pattern)
+			}
 		}
 	})
 
@@ -321,9 +325,9 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 	return false
 }
 
-func (si *securityInjector) CompilePatterns() map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
+func (si *securityInjector) InstantiatePatterns() map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
 	patterns := make(map[appsecconfig.ProxyType]appsecconfig.InjectionPattern, len(si.config.Proxies))
-	for proxy := range si.config.Proxies {
+	for _, proxy := range appsecconfig.AllProxyTypes {
 		constructor, ok := proxyConstructorMap[proxy]
 		if !ok {
 			si.logger.Warnf("unknown proxy type for appsec injector: %s", proxy)
@@ -335,7 +339,8 @@ func (si *securityInjector) CompilePatterns() map[appsecconfig.ProxyType]appsecc
 		config.Injection.CommonAnnotations = maps.Clone(config.Injection.CommonAnnotations)
 		config.Injection.CommonAnnotations[appsecconfig.AppsecProcessorProxyTypeAnnotation] = string(proxy)
 
-		patterns[proxy] = constructor(si.k8sClient, si.logger, config, si.recorder)
+		pattern := constructor(si.k8sClient, si.logger, config, si.recorder)
+		patterns[proxy] = pattern
 	}
 
 	return patterns
