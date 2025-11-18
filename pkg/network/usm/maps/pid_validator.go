@@ -40,7 +40,6 @@ func ValidatePIDKeyedMap(mapName string, m *ebpf.Map) (*MapLeakInfo, error) {
 
 	// Iterate through all map entries
 	iter := m.Iterate()
-	var key uint64
 
 	// We don't need the value, just the key to check PIDs
 	// Use a dummy value buffer that matches the map's value size
@@ -54,6 +53,7 @@ func ValidatePIDKeyedMap(mapName string, m *ebpf.Map) (*MapLeakInfo, error) {
 
 	seenPIDs := make(map[uint32]bool)
 
+	var key uint64
 	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value[0])) {
 		info.TotalEntries++
 
