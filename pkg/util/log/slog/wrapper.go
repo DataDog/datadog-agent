@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
@@ -36,6 +38,12 @@ type Wrapper struct {
 // NewWrapper returns a new Wrapper implementing the LoggerInterface interface.
 func NewWrapper(handler slog.Handler) types.LoggerInterface {
 	return newWrapperWithCloseAndFlush(handler, nil, nil)
+}
+
+// NewAsyncWrapper returns a LoggerInterface, wrapping the given slog.Handler in an async handler.
+func NewAsyncWrapper(handler slog.Handler) types.LoggerInterface {
+	asyncHandler := handlers.NewAsync(handler)
+	return newWrapperWithCloseAndFlush(asyncHandler, asyncHandler.Flush, asyncHandler.Close)
 }
 
 func newWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func()) types.LoggerInterface {
@@ -191,25 +199,5 @@ func (w *Wrapper) SetAdditionalStackDepth(depth int) error {
 
 // SetContext sets context which will be added to every log records
 func (w *Wrapper) SetContext(context interface{}) {
-	if context == nil {
-		w.attrs = nil
-		return
-	}
-
-	// See `extractContextString` in pkg/util/log/setup/log.go:
-	// the context is a slice of interface{}, it contains an even number of elements,
-	// and keys are strings.
-	//
-	// We can lift the restrictions and/or change the API later, but for now we want
-	// the exact same behavior as we have with seelog
-
-	ctx := context.([]interface{})
-	var attrs []slog.Attr
-	for i := 0; i < len(ctx); i += 2 {
-		key, val := ctx[i], ctx[i+1]
-		if keyStr, ok := key.(string); ok {
-			attrs = append(attrs, slog.Attr{Key: keyStr, Value: slog.AnyValue(val)})
-		}
-	}
-	w.attrs = attrs
+	w.attrs = formatters.ToSlogAttrs(context)
 }

@@ -1217,6 +1217,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	config.BindEnvAndSetDefault("vsock_addr", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1561,7 +1563,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
-	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1586,8 +1588,6 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
-	config.BindEnvAndSetDefault("capture_lambda_payload", false)
-	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
@@ -2232,7 +2232,6 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_INTEGRATIONS":                          {},
 		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
 		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
-		"DD_LAMBDA_HANDLER":                        {},
 		"DD_LOGS_INJECTION":                        {},
 		"DD_MERGE_XRAY_TRACES":                     {},
 		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
@@ -2375,11 +2374,6 @@ func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []stri
 func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsLambda() {
-			log.Debug("No config file detected, using environment variable based configuration only")
-			// The remaining code in loadCustom is not run to keep a low cold start time
-			return nil
-		}
 		return err
 	}
 
