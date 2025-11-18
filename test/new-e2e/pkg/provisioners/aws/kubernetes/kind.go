@@ -138,6 +138,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
 	} else {
 		env.FakeIntake = nil
+	}
 
 	// Parse the Kubernetes version to handle SHA suffixes (e.g., "v1.32.0@sha256:...")
 	// The full version (with SHA) is used for Kind cluster creation
