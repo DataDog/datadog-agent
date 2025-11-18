@@ -8,19 +8,24 @@
 package autoinstrumentation
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/opencontainers/go-digest"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -314,10 +319,16 @@ func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag 
 		log.Debugf("Not a Datadoghq registry, not resolving")
 		return nil, false
 	}
-	normalizedTag := strings.TrimPrefix(tag, "v")
 
+	normalizedTag := strings.TrimPrefix(tag, "v")
 	rolloutBucketTag := normalizedTag + "-rollout" + r.rolloutBucket
-	return newTagBasedImage(registry, repository, rolloutBucketTag), true
+	digest, err := crane.Digest(registry + "/" + repository + ":" + rolloutBucketTag)
+	if err != nil {
+		log.Errorf("Failed to get digest of image %s/%s:%s: %v", registry, repository, rolloutBucketTag, err)
+		return nil, false
+	}
+
+	return newResolvedImage(registry, repository, ImageInfo{Digest: digest}), true
 }
 
 func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter string) ImageResolver {
@@ -336,17 +347,15 @@ func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter str
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
 func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
-	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
-		log.Debugf("No remote config client available")
-		return newNoOpImageResolver()
-	}
-
 	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 
+	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+		log.Debugf("No remote config client available")
+		datacenter := cfg.GetString("site")
+		return newTagBasedImageResolver(datadogRegistriesSet, datacenter)
+	}
+
 	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
-	// TODO: Switch to the tag-based image resolverin the clean up PR
-	// datacenter := cfg.GetString("site")
-	// return newTagBasedImageResolver(datadogRegistriesSet, datacenter)
 }
 
 func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
