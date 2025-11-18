@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/ht
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -835,7 +836,7 @@ var (
 func skipIfHTTP2KernelNotSupported() func(*testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
-		skipIfKernelNotSupported(t, kernel.VersionCode(5, 2, 0), "HTTP2")
+		skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	}
 }
 
