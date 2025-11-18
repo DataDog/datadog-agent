@@ -137,7 +137,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
 		// * separator: (= or :) with optional opening quote we don't want to match as part of the password
 		// * password string: alphanum + special chars except quotes and semicolon
-		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)((?:=| = |: )\"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		Regex: regexp.MustCompile(`(?i)([\"\']?(?:pass(?:word)?|pswd|pwd)[\"\']?)((?:=| = |: )[\"\']?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
 		// replace the 3rd capture group (password string) with ********
 		Repl: []byte(`$1$2********`),
 
