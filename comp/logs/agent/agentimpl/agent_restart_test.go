@@ -9,9 +9,13 @@ package agentimpl
 
 import (
 	"context"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
+	auditorimpl "github.com/DataDog/datadog-agent/comp/logs/auditor/impl"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
@@ -294,6 +299,37 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 	suite.T().Logf("Auditor registry flushed to: %s", registryPath)
 }
 
+func (suite *RestartTestSuite) TestRestart_InvalidEndpointsLeavesStateIntact() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+
+	originalEndpoints := agent.endpoints
+	originalDestinations := agent.destinationsCtx
+	originalPipeline := agent.pipelineProvider
+	originalLaunchers := agent.launchers
+
+	if cfg, ok := agent.config.(pkgconfigmodel.Config); ok {
+		cfg.SetWithoutSource("logs_config.logs_dd_url", "not-a-valid-address")
+	} else {
+		suite.FailNow("agent config does not support overrides")
+	}
+
+	err := agent.restart(context.TODO())
+	suite.Error(err)
+	suite.Contains(err.Error(), "Invalid endpoints")
+
+	// Nothing should have been changed when endpoint validation fails
+	suite.Same(originalEndpoints, agent.endpoints)
+	suite.Same(originalDestinations, agent.destinationsCtx)
+	suite.Same(originalPipeline, agent.pipelineProvider)
+	suite.Same(originalLaunchers, agent.launchers)
+}
+
 func (suite *RestartTestSuite) TestRestart_AbortsWhenShuttingDown() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
@@ -327,7 +363,7 @@ func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
 	originalAuditor := agent.auditor
 
 	// Execute partial stop
-	err := agent.partialStop(context.TODO())
+	err := agent.partialStop()
 
 	// Assertions
 	suite.NoError(err)
@@ -351,12 +387,63 @@ func (suite *RestartTestSuite) TestPartialStop_WithTimeout() {
 
 	// Execute partial stop with timeout
 	start := time.Now()
-	err := agent.partialStop(context.TODO())
+	err := agent.partialStop()
 	elapsed := time.Since(start)
 
 	// Should complete within reasonable time
 	suite.NoError(err)
 	suite.Less(elapsed, 3*time.Second, "Should complete or timeout within grace period")
+}
+
+func (suite *RestartTestSuite) TestPartialStop_FlushesRegistryToDisk() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, sources, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
+
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
+
+	runPath := agent.config.GetString("logs_config.run_path")
+	registryPath := filepath.Join(runPath, "registry.json")
+	_ = os.Remove(registryPath)
+
+	f, err := os.OpenFile(suite.testLogFile, os.O_APPEND|os.O_WRONLY, 0)
+	suite.NoError(err)
+	_, err = f.WriteString("flushable log line\n")
+	suite.NoError(err)
+	f.Close()
+
+	expected := metrics.LogsSent.Value() + 1
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return metrics.LogsSent.Value() >= expected
+	})
+
+	err = agent.partialStop()
+	suite.NoError(err)
+
+	data, err := os.ReadFile(registryPath)
+	suite.NoError(err)
+	suite.NotEmpty(data, "registry should be written after partial stop flush")
+
+	var registry auditorimpl.JSONRegistry
+	suite.NoError(json.Unmarshal(data, &registry))
+	suite.NotEmpty(registry.Registry)
+
+	found := false
+	for key, entry := range registry.Registry {
+		if strings.Contains(key, suite.source.Config.Identifier) || strings.Contains(key, suite.source.Config.Path) {
+			suite.NotEmpty(entry.Offset, "registry entry should contain the last committed offset")
+			found = true
+			break
+		}
+	}
+	suite.True(found, "registry should contain the test source entry")
 }
 
 func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersistentState() {
@@ -365,10 +452,15 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	endpoint := tcp.AddrToEndPoint(l.Addr())
 	endpoints := config.NewEndpoints(endpoint, nil, true, false)
 
-	agent, _, _ := createTestAgent(suite, endpoints)
+	agent, sources, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
 
-	// Add a source to persistent sources
-	agent.sources.AddSource(suite.source)
+	// Prime the pipeline so we have baseline metrics/state prior to restart
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
+	initialSent := metrics.LogsSent.Value()
 
 	// Store references to persistent components
 	originalSources := agent.sources
@@ -380,6 +472,10 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	originalPipelineProvider := agent.pipelineProvider
 	originalLaunchers := agent.launchers
 	originalDestinationsCtx := agent.destinationsCtx
+
+	// Simulate the stop -> rebuild flow that restart() performs
+	err := agent.partialStop()
+	suite.NoError(err)
 
 	// Get processing rules and fingerprint config
 	processingRules, err := config.GlobalProcessingRules(agent.config)
@@ -405,6 +501,64 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	suite.NotSame(originalPipelineProvider, agent.pipelineProvider)
 	suite.NotNil(agent.launchers)
 	suite.NotSame(originalLaunchers, agent.launchers)
+
+	// Start the rebuilt components and ensure they are wired to the preserved sources
+	agent.restartPipelineWithHTTP()
+
+	f, err := os.OpenFile(suite.testLogFile, os.O_APPEND|os.O_WRONLY, 0)
+	suite.NoError(err)
+	_, err = f.WriteString("post-restart log line\n")
+	suite.NoError(err)
+	f.Close()
+
+	expected := initialSent + 1
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
+		return metrics.LogsSent.Value() >= expected
+	})
+	suite.GreaterOrEqual(metrics.LogsSent.Value(), expected, "restarted pipeline should process new logs")
+}
+
+func (suite *RestartTestSuite) TestRestart_SerializesConcurrentCalls() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, sources, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
+
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 5*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		errCh <- agent.restart(context.TODO())
+	}()
+
+	// Start the second restart shortly after the first to exercise the mutex
+	go func() {
+		defer wg.Done()
+		time.Sleep(20 * time.Millisecond)
+		errCh <- agent.restart(context.TODO())
+	}()
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		suite.NoError(err)
+	}
+
+	// Restart should leave the pipeline healthy and endpoints intact
+	suite.NotNil(agent.destinationsCtx)
+	suite.NotNil(agent.pipelineProvider)
+	suite.NotNil(agent.launchers)
 }
 
 func TestRestartTestSuite(t *testing.T) {
