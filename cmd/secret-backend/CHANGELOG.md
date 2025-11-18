@@ -1,5 +1,15 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.4.0 / 2025-11-18
+
+* Add support for GCP as a backend type
+* Add secret-backend timeout based on datadog-agents `secret_backend_timeout` config
+* Bump github.com/Azure/azure-sdk-for-go/sdk/azidentity from 1.13.0 to 1.13.1
+* Bump github.com/aws/aws-sdk-go-v2/config from 1.31.19 to 1.31.20
+* Bump github.com/aws/aws-sdk-go-v2/service/secretsmanager from 1.39.11 to 1.39.13
+* Bump github.com/aws/aws-sdk-go-v2/service/sts from 1.40.1 to 1.40.2
+* Bump github.com/aws/aws-sdk-go-v2/service/ssm from 1.67.0 to 1.67.2
+
 ## 1.3.4 / 2025-11-13
 
 * Allow AWS Secrets Manager secret values to be non-strings (which will be stringified during retrieval)
