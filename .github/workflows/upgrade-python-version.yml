@@ -63,8 +63,11 @@ jobs:
               echo "No Python patch update needed"
             else
               NEW_VERSION=$(dda inv python-version 2>/dev/null || echo "$CURRENT_VERSION")
+              # Create version without dots for Python.org URLs (e.g., 3.13.9 -> 3139)
+              NEW_VERSION_NO_DOTS=$(echo "$NEW_VERSION" | tr -d '.')
               echo "needs_update=true" >> $GITHUB_OUTPUT
               echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+              echo "new_version_no_dots=$NEW_VERSION_NO_DOTS" >> $GITHUB_OUTPUT
               echo "Python patch update from $CURRENT_VERSION to $NEW_VERSION is available"
             fi
           else
@@ -97,7 +100,7 @@ jobs:
             ### Verification
             The SHA256 hash has been automatically fetched and verified against the official Python.org SBOM (Software Bill of Materials) file.
             
-            See the [official Python release page](https://www.python.org/downloads/release/python-${{ steps.check_update.outputs.new_version | replace('.', '') }}/) for details on what's new in this patch version.
+            See the [official Python release page](https://www.python.org/downloads/release/python-${{ steps.check_update.outputs.new_version_no_dots }}/) for details on what's new in this patch version.
             
             ### Testing checklist
             - [ ] Verify the SHA256 hash matches the official Python release
@@ -107,6 +110,6 @@ jobs:
             
             ### Describe how you validated your changes
             CI is considered enough to validate changes.
-          team-reviewers: agent-shared-components
-          labels: team/agent-shared-components,changelog/no-changelog,ask-review
+          team-reviewers: agent-integrations
+          labels: team/agent-integrations,changelog/no-changelog,ask-review
 
