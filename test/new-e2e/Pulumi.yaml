@@ -1,0 +1,5 @@
+name: dd
+runtime: go
+description: Generic Pulumi.yaml 
+config:
+  pulumi:disable-default-providers: ["*"]

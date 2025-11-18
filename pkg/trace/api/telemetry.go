@@ -26,14 +26,12 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-const functionARNKeyTag = "function_arn"
 const originTag = "origin"
 
 type cloudResourceType string
 type cloudProvider string
 
 const (
-	awsLambda                     cloudResourceType = "AWSLambda"
 	awsFargate                    cloudResourceType = "AWSFargate"
 	cloudRun                      cloudResourceType = "GCPCloudRun"
 	cloudFunctions                cloudResourceType = "GCPCloudFunctions"
@@ -266,11 +264,7 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		req.Header.Set("DD-Agent-Install-Type", f.conf.InstallSignature.InstallType)
 		req.Header.Set("DD-Agent-Install-Time", strconv.FormatInt(f.conf.InstallSignature.InstallTime, 10))
 	}
-	if arn, ok := f.conf.GlobalTags[functionARNKeyTag]; ok {
-		req.Header.Set(cloudProviderHeader, string(aws))
-		req.Header.Set(cloudResourceTypeHeader, string(awsLambda))
-		req.Header.Set(cloudResourceIdentifierHeader, arn)
-	} else if taskArn, ok := extractFargateTask(containerTags); ok {
+	if taskArn, ok := extractFargateTask(containerTags); ok {
 		req.Header.Set(cloudProviderHeader, string(aws))
 		req.Header.Set(cloudResourceTypeHeader, string(awsFargate))
 		req.Header.Set(cloudResourceIdentifierHeader, taskArn)
