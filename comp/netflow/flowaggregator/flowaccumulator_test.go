@@ -15,6 +15,7 @@ import (
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	rdnsquerierfxmock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -116,6 +117,54 @@ func Test_flowAccumulator_add(t *testing.T) {
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 30}, wrappedFlowB.flow.DstAddr)
+}
+
+func Test_flowAccumulator_addWithJitter(t *testing.T) {
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	synFlag := uint32(2)
+
+	// Given
+	flowA1 := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234568,
+		EndTimestamp:   1234569,
+		Bytes:          20,
+		Packets:        4,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        2000,
+		DstPort:        80,
+		TCPFlags:       synFlag,
+		AdditionalFields: map[string]any{
+			"custom_field": "test",
+		},
+	}
+
+	// When
+	flushConfig := common.FlushConfig{
+		FlowCollectionDuration: common.DefaultAggregatorFlushInterval * time.Second,
+	}
+	acc := newFlowAccumulator(flushConfig, JitterFlowScheduler{flushConfig: flushConfig}, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, rdnsQuerier)
+	setMockTimeNow(MockTimeNow())
+	acc.add(flowA1)
+
+	// Then
+	require.Len(t, acc.flows, 1)
+
+	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
+	assert.WithinRange(t, wrappedFlowA.nextFlush, MockTimeNow(), MockTimeNow().Add(common.DefaultAggregatorFlushInterval*time.Second))
+	assert.NotEqual(t, MockTimeNow(), wrappedFlowA.nextFlush)
+
+	setMockTimeNow(MockTimeNow().Add(10 * time.Minute))
+	acc.flush(common.FlushContext{
+		FlushTime: timeNow(),
+	})
+
+	wrappedFlowAPt2 := acc.flows[flowA1.AggregationHash()]
+	assert.Equal(t, wrappedFlowA.nextFlush.Add(common.DefaultAggregatorFlushInterval*time.Second), wrappedFlowAPt2.nextFlush, "the next flush should not be jittered")
 }
 
 func Test_flowAccumulator_portRollUp(t *testing.T) {

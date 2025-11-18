@@ -141,7 +141,7 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		nextFlush := f.scheduler.NextFlushTime(timeNow())
+		nextFlush := f.scheduler.ScheduleNewFlowFlush(timeNow())
 		f.flows[aggHash] = flowContext{
 			flow:      flowToAdd,
 			nextFlush: nextFlush,
