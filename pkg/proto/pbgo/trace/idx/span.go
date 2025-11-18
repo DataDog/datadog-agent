@@ -842,7 +842,7 @@ func (s *SerializedStrings) AppendStreamingString(str string, strTableIndex uint
 	return b
 }
 
-// spanConvertedFields is used to collect fields from v4 spans that have been promoted to the chunk level
+// SpanConvertedFields is used to collect fields from v4 spans that have been promoted to the chunk level
 type SpanConvertedFields struct {
 	TraceIDLower uint64 // the lower 64 bits of the trace ID
 	// traceIDUpper uint64 // the upper 64 bits of the trace ID
