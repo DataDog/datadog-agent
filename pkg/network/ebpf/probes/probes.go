@@ -181,10 +181,7 @@ const (
 	// SocketDNSFilter is the socket probe for dns
 	SocketDNSFilter ProbeFuncName = "socket__dns_filter"
 
-	// ConntrackHashInsert is the probe for new conntrack entries
-	ConntrackHashInsert ProbeFuncName = "kprobe__nf_conntrack_hash_insert"
-	// ConntrackHashCheckInsertReturn is the kretprobe for nf_conntrack_hash_check_insert (no kprobe needed since ct is a parameter)
-	ConntrackHashCheckInsertReturn ProbeFuncName = "kretprobe_nf_conntrack_hash_check_insert"
+	// JMWConntrackHashInsert is the probe for new conntrack entries
 	// ConntrackConfirmEntry is the kprobe for __nf_conntrack_confirm entry
 	ConntrackConfirmEntry ProbeFuncName = "kprobe__nf_conntrack_confirm"
 	// ConntrackConfirmReturn is the kretprobe for __nf_conntrack_confirm return
@@ -225,7 +222,7 @@ const (
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
 	// NFConntrackConfirmArgsMap is the map for storing the arguments of the __nf_conntrack_confirm() kernel function
-	NFConntrackConfirmArgsMap = "nf_conntrack_confirm_args" // JMWNAME (was PendingConfirmsMap) --> ConntrackArgsMap?
+	NFConntrackConfirmArgsMap = "nf_conntrack_confirm_args"
 	// ConntrackTelemetryMap is the map storing conntrack telemetry
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call

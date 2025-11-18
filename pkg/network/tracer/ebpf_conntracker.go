@@ -55,7 +55,6 @@ var conntrackerTelemetry = struct {
 	unregistersDuration telemetry.Histogram
 	getsTotal           telemetry.Counter
 	unregistersTotal    telemetry.Counter
-	unregistersTotal2   telemetry.Counter
 	registersTotal      *prometheus.Desc
 	lastRegisters       uint64
 }{
@@ -70,7 +69,7 @@ var conntrackerTelemetry = struct {
 type ebpfConntracker struct {
 	m                         *manager.Manager
 	ctMap                     *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64] // JMWNAME
+	nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64]
 	telemetryMap              *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
 	rootNS                    uint32
 	// only kept around for stats purposes from initial dump
@@ -91,7 +90,6 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	var m *manager.Manager
 	var err error
 	if cfg.EnableCORE {
-		log.Infof("JMW trying ebpfConntrackerCORECreator()")
 		m, err = ebpfConntrackerCORECreator(cfg)
 		if err != nil {
 			if cfg.EnableRuntimeCompiler && cfg.AllowRuntimeCompiledFallback {
@@ -103,13 +101,9 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 				return nil, fmt.Errorf("error loading CO-RE conntracker: %w", err)
 			}
 		}
-		if m != nil {
-			log.Infof("JMW ebpfConntrackerCORECreator() was successful")
-		}
 	}
 
 	if m == nil && allowRC {
-		log.Infof("JMW trying ebpfConntrackerRCCreator()")
 		m, err = ebpfConntrackerRCCreator(cfg)
 		if err != nil {
 			if !cfg.AllowPrebuiltFallback {
@@ -118,23 +112,16 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 
 			log.Warnf("unable to compile ebpf conntracker, falling back to prebuilt ebpf conntracker: %s", err)
 		}
-		if m != nil {
-			log.Infof("JMW ebpfConntrackerRCCreator() was successful")
-		}
 	}
 
 	var isPrebuilt bool
 	if m == nil {
-		log.Infof("JMW trying ebpfConntrackerPrebuiltCreator()")
 		m, err = ebpfConntrackerPrebuiltCreator(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not load prebuilt ebpf conntracker: %w", err)
 		}
 
 		isPrebuilt = true
-		if m != nil {
-			log.Infof("JMW ebpfConntrackerPrebuiltCreator() was successful")
-		}
 	}
 
 	if isPrebuilt && prebuilt.IsDeprecated() {
@@ -146,7 +133,6 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		_ = m.Stop(manager.CleanAll)
 		return nil, fmt.Errorf("failed to start ebpf conntracker: %w", err)
 	}
-	log.Infof("JMW successfully started ebpf conntracker")
 
 	ddebpf.AddProbeFDMappings(m)
 
@@ -159,7 +145,7 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	nfConntrackConfirmArgsMap, err := maps.GetMap[uint64, uint64](m, probes.NFConntrackConfirmArgsMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get nf_conntrack_confirm_args map: %w", err) // JMWNAME
+		return nil, fmt.Errorf("unable to get nfConntrackConfirmArgsMap: %w", err)
 	}
 
 	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
@@ -326,8 +312,6 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 			if log.ShouldLog(log.TraceLvl) {
 				log.Tracef("connection does not exist in ebpf conntrack map: %s", key)
 			}
-		} else {
-			log.Warnf("JMW unable to delete conntrack entry from eBPF map: %s", err)
 		}
 	} else {
 		conntrackerTelemetry.unregistersTotal.Inc()
@@ -438,27 +422,16 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		},
 		PerfMaps: []*manager.PerfMap{},
 		Probes: []*manager.Probe{
+			// JMW do return probe before entry probe to avoid missing events JMW
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackHashInsert, // JMWCONNTRACK
+					EBPFFuncName: probes.ConntrackConfirmReturn,
 					UID:          "conntracker",
 				},
 			},
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackHashCheckInsertReturn,
-					UID:          "conntracker",
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirmReturn, // JMWCONNTRACK
-					UID:          "conntracker",
-				},
-			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: probes.ConntrackConfirmEntry, // JMWCONNTRACK
+					EBPFFuncName: probes.ConntrackConfirmEntry,
 					UID:          "conntracker",
 				},
 			},
@@ -491,7 +464,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW
+	opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW number
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
