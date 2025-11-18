@@ -43,13 +43,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Compliance Agent utility commands",
 	}
 
-	complianceCmd.AddCommand(complianceCheckCommand(globalParams))
+	complianceCmd.AddCommand(CheckCommand(globalParams))
 	complianceCmd.AddCommand(complianceLoadCommand(globalParams))
 
 	return []*cobra.Command{complianceCmd}
 }
 
-func complianceCheckCommand(globalParams *command.GlobalParams) *cobra.Command {
+// CheckCommand returns the 'compliance check' command
+func CheckCommand(globalParams *command.GlobalParams) *cobra.Command {
 	checkArgs := &cli.CheckParams{}
 
 	cmd := &cobra.Command{

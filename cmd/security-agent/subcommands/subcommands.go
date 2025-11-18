@@ -8,7 +8,6 @@ package subcommands
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	cmdcheck "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/check"
 	cmdcompliance "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	cmdconfig "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/config"
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/coverage"
@@ -26,7 +25,7 @@ import (
 // and linux (runtime).
 func SecurityAgentSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
-		cmdcheck.SecurityAgentCommands,
+		command.SubcommandFactoryFromOne(cmdcompliance.CheckCommand), // maintained as legacy "security-agent check", mapped to "security-agent compliance check"
 		cmdcompliance.Commands,
 		cmdconfig.Commands,
 		cmdflare.Commands,
