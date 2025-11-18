@@ -328,11 +328,12 @@ func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag 
 	normalizedTag := strings.TrimPrefix(tag, "v")
 	rolloutBucketTag := normalizedTag + "-rollout" + r.rolloutBucket
 	// Check cache first
-	if cachedDigest, found := r.getCachedDigest(rolloutBucketTag); found {
-		if entryAge, _ := r.getCacheEntryAge(rolloutBucketTag); entryAge > ttlDuration {
-			log.Debugf("Cached digest for %s is too old, fetching from registry", rolloutBucketTag)
+	cacheKey := repository + ":" + rolloutBucketTag
+	if cachedDigest, found := r.getCachedDigest(cacheKey); found {
+		if entryAge, _ := r.getCacheEntryAge(cacheKey); entryAge > ttlDuration {
+			log.Debugf("Cached digest for %s is too old, fetching from registry", cacheKey)
 		} else {
-			log.Debugf("Using cached digest for %s", rolloutBucketTag)
+			log.Debugf("Using cached digest for %s", cacheKey)
 			return newResolvedImage(registry, repository, ImageInfo{Digest: cachedDigest}), true
 		}
 	}
@@ -343,7 +344,7 @@ func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag 
 		log.Errorf("Failed to get digest of image %s/%s:%s: %v", registry, repository, rolloutBucketTag, err)
 		return nil, false
 	}
-	r.setCachedDigest(rolloutBucketTag, digest)
+	r.setCachedDigest(cacheKey, digest)
 
 	return newResolvedImage(registry, repository, ImageInfo{Digest: digest}), true
 }
