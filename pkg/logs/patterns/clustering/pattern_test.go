@@ -33,7 +33,6 @@ func TestNewPattern(t *testing.T) {
 	assert.Equal(t, 0, len(pattern.Positions), "No wildcards initially")
 	assert.False(t, pattern.CreatedAt.IsZero(), "CreatedAt should be set")
 	assert.False(t, pattern.UpdatedAt.IsZero(), "UpdatedAt should be set")
-	assert.True(t, pattern.LastSentAt.IsZero(), "LastSentAt should be zero initially")
 }
 
 func TestAddTokenList(t *testing.T) {
@@ -329,62 +328,9 @@ func TestExtractWildcardValues_PositionOutOfBounds(t *testing.T) {
 	incoming.Add(token.NewToken(token.TokenWord, "Value", token.PotentialWildcard))
 
 	values := pattern.GetWildcardValues(incoming)
-	assert.Equal(t, []string{"Value"}, values, "Should only extract valid positions")
-}
-
-func TestMarkAsSent(t *testing.T) {
-	tl := token.NewTokenList()
-	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
-
-	pattern := newPattern(tl, 12345)
-	assert.True(t, pattern.LastSentAt.IsZero(), "LastSentAt should be zero initially")
-
-	pattern.MarkAsSent()
-	assert.False(t, pattern.LastSentAt.IsZero(), "LastSentAt should be set after marking")
-	assert.Equal(t, "Test", pattern.SentTemplate, "SentTemplate should be set")
-}
-
-func TestNeedsSending_NeverSent(t *testing.T) {
-	tl := token.NewTokenList()
-	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
-
-	pattern := newPattern(tl, 12345)
-	needsSend, templateState := pattern.NeedsResend()
-	assert.True(t, needsSend, "Should need sending if never sent")
-	assert.Equal(t, TemplateIsNew, templateState, "Should be TemplateIsNew for first send")
-}
-
-func TestNeedsSending_AlreadySent_NotUpdated(t *testing.T) {
-	tl := token.NewTokenList()
-	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
-
-	pattern := newPattern(tl, 12345)
-	time.Sleep(1 * time.Millisecond)
-	pattern.MarkAsSent()
-
-	needsSend, templateState := pattern.NeedsResend()
-	assert.False(t, needsSend, "Should not need sending if sent and not updated")
-	assert.Equal(t, TemplateNotNeeded, templateState, "Should be TemplateNotNeeded")
-}
-
-func TestNeedsSending_UpdatedAfterSent(t *testing.T) {
-	tl := token.NewTokenList()
-	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
-
-	pattern := newPattern(tl, 12345)
-	pattern.MarkAsSent()
-
-	// Update pattern template (not just timestamp)
-	time.Sleep(1 * time.Millisecond)
-	template := token.NewTokenList()
-	template.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
-	pattern.Template = template
-	pattern.Positions = []int{0}
-	pattern.UpdatedAt = time.Now()
-
-	needsSend, templateState := pattern.NeedsResend()
-	assert.True(t, needsSend, "Should need sending if template changed after last sent")
-	assert.Equal(t, TemplateChanged, templateState, "Should be TemplateChanged for template change")
+	// CRITICAL: Must return same length as Positions to match ParamCount
+	// Out-of-bounds positions are filled with empty strings
+	assert.Equal(t, []string{"Value", ""}, values, "Should maintain Positions length with empty strings for out-of-bounds")
 }
 
 func TestSanitizeForTemplate_PrintableChars(t *testing.T) {
@@ -480,30 +426,4 @@ func TestPattern_IntegrationScenario(t *testing.T) {
 
 	values := pattern.GetWildcardValues(log2)
 	assert.Equal(t, []string{"Network", "timeout", "reached"}, values)
-
-	// 4. Check sending status
-	needsSend, templateState := pattern.NeedsResend()
-	assert.True(t, needsSend)
-	assert.Equal(t, TemplateIsNew, templateState)
-	pattern.MarkAsSent()
-	needsSend, templateState = pattern.NeedsResend()
-	assert.False(t, needsSend)
-	assert.Equal(t, TemplateNotNeeded, templateState)
-
-	// 5. Update pattern (change template, not just log count)
-	time.Sleep(1 * time.Millisecond)
-	// Evolve template to add more wildcards
-	template2 := token.NewTokenList()
-	template2.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
-	template2.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
-	template2.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
-	template2.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
-	template2.Add(token.NewToken(token.TokenWord, "value", token.IsWildcard))
-	pattern.Template = template2
-	pattern.Positions = []int{0, 2, 4}
-	pattern.LogCount++
-	pattern.UpdatedAt = time.Now()
-	needsSend, templateState = pattern.NeedsResend()
-	assert.True(t, needsSend)
-	assert.Equal(t, TemplateChanged, templateState)
 }

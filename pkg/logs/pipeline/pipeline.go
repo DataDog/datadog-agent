@@ -118,14 +118,11 @@ func getStrategy(
 			encoder = compressor.NewCompressor(endpoints.Main.CompressionKind, endpoints.Main.CompressionLevel)
 		}
 		if endpoints.UseGRPC {
-			// Throwaway code to test with existing pipelines
-			// TODO: Remove this once we have a real State component
-
-			// The interface of stateful transport layer is input channel to the GRPCBatchStrategy
-			// The input type is StatefulMessage, which should be emitted by the State component
-			// Here is the temporary translation from Message to StatefulMessage
-			statefulInputChan := make(chan *message.StatefulMessage, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
-			grpcsender.StartMessageTranslator(inputChan, statefulInputChan)
+			translator := grpcsender.NewMessageTranslator(nil) // nil creates a new cluster manager per pipeline
+			// TODO: Consider sharing cluster manager across pipelines for better pattern clustering:
+			// sharedClusterManager := getSharedClusterManager() // would need to be passed in or singleton
+			// translator := grpcsender.NewMessageTranslator(sharedClusterManager)
+			statefulInputChan := translator.Start(inputChan, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 
 			return grpcsender.NewBatchStrategy(statefulInputChan, outputChan, flushChan, endpoints.BatchWait, endpoints.BatchMaxSize, endpoints.BatchMaxContentSize, "logs", encoder, pipelineMonitor, instanceID)
 		}

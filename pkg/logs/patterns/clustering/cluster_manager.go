@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // PatternChangeType indicates what changed when adding a TokenList to the cluster manager
@@ -67,10 +69,18 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 
 			// Track if patterns had wildcards before
 			hadWildcards := false
+			var matchedPattern *Pattern
+			oldWildcardCount := 0
+
 			if hadPatterns {
+				// Find which pattern this tokenList will match (before adding it)
 				for _, p := range cluster.Patterns {
-					if p.hasWildcards() {
-						hadWildcards = true
+					if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+						matchedPattern = p
+						oldWildcardCount = p.GetWildcardCount()
+						if p.hasWildcards() {
+							hadWildcards = true
+						}
 						break
 					}
 				}
@@ -84,19 +94,31 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 				newPatternCount := len(cluster.Patterns)
 				if newPatternCount > oldPatternCount {
 					// New pattern was created within the cluster (multi-pattern scenario)
+					log.Debugf("[PATTERN_CHANGE] PatternNew: pattern_id=%d (new pattern in existing cluster)", pattern.PatternID)
 					return pattern, PatternNew
 				}
 
-				// Check if wildcards were added to an existing pattern
+				// Check if wildcards were added to an existing pattern (0 → N)
 				if hadPatterns && pattern.hasWildcards() && !hadWildcards {
-					// Pattern gained wildcards
+					// Pattern gained its first wildcards
+					newWildcardCount := pattern.GetWildcardCount()
+					log.Infof("[PATTERN_CHANGE] PatternUpdated: pattern_id=%d gained first wildcards (0 → %d)", pattern.PatternID, newWildcardCount)
 					return pattern, PatternUpdated
 				}
 
-				// If pattern already had wildcards and got more, it's also an update
-				if hadPatterns && hadWildcards && pattern.size() > 2 {
-					// Pattern structure may have changed (more wildcards)
-					return pattern, PatternUpdated
+				// Check if wildcard count changed for existing pattern (N → M where N != M)
+				if matchedPattern != nil && matchedPattern.PatternID == pattern.PatternID {
+					newWildcardCount := pattern.GetWildcardCount()
+					if newWildcardCount != oldWildcardCount {
+						// Pattern wildcard count changed
+						log.Infof("[PATTERN_CHANGE] PatternUpdated: pattern_id=%d wildcard count changed (%d → %d)", pattern.PatternID, oldWildcardCount, newWildcardCount)
+						return pattern, PatternUpdated
+					}
+					// Wildcard count unchanged - this is the normal case for stable patterns
+					log.Debugf("[PATTERN_CHANGE] PatternNoChange: pattern_id=%d wildcard count unchanged (%d)", pattern.PatternID, oldWildcardCount)
+				} else {
+					// No matched pattern or different pattern ID (shouldn't happen, but log it)
+					log.Debugf("[PATTERN_CHANGE] PatternNoChange: pattern_id=%d (no matched pattern or ID mismatch)", pattern.PatternID)
 				}
 			}
 			return pattern, PatternNoChange

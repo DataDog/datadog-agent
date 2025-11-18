@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,10 +79,6 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-
-		// Initialize pattern extraction components,
-		/// Will lock behind feature flag later
-		clusterManager: clustering.NewClusterManager(),
 	}
 
 	// Initialize cached failover config
@@ -212,31 +207,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
-
-		// Extract pattern from the rendered message content
-		if p.clusterManager != nil {
-			// Tokenize the rendered content
-			tokenizer := automaton.NewTokenizer(string(rendered))
-			tokenList := tokenizer.Tokenize()
-
-			// Add to cluster manager and get the pattern
-			pattern, _ := p.clusterManager.Add(tokenList)
-
-			if pattern != nil {
-				// Store pattern reference and per-log wildcard values
-				msg.Pattern = pattern
-				msg.WildcardValues = pattern.GetWildcardValues(tokenList)
-
-				// Determine if pattern template needs sending
-				needsSend, templateState := pattern.NeedsResend()
-				msg.PatternTemplateState = templateState
-
-				// Mark as sent if template was sent
-				if needsSend {
-					pattern.MarkAsSent()
-				}
-			}
-		}
 
 		if p.failoverConfig.isFailoverActive {
 			p.filterMRFMessages(msg)

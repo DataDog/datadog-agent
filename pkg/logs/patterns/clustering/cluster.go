@@ -65,14 +65,36 @@ func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList) *Pattern {
 	for _, p := range c.Patterns {
 		// Check if this TokenList can merge with this pattern's sample
 		if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+			// CRITICAL: Also verify it can merge with the template
+			// If template has evolved differently, regeneratePattern will fail
+			// and we should create a new pattern instead
+			// Note: CanMergeTokenLists is not symmetric, so check both directions
+			if p.Template != nil {
+				templateCompatible1 := merging.CanMergeTokenLists(p.Template, tokenList)
+				templateCompatible2 := merging.CanMergeTokenLists(tokenList, p.Template)
+				templateCompatible := templateCompatible1 || templateCompatible2
+				if !templateCompatible {
+					// Log matches sample but not template - template has evolved incompatibly
+					// Skip this pattern and continue searching or create new one
+					// This will create a new pattern instead
+					continue
+				}
+			}
+
 			// Merge into existing pattern (same PatternID is preserved)
 			p.LogCount++
 			p.UpdatedAt = time.Now()
 			c.UpdatedAt = time.Now()
 
 			// Incrementally merge the new token list into the pattern template
-			c.regeneratePattern(p, tokenList)
-			return p // Return existing pattern with updated template
+			// regeneratePattern will update template if merge succeeds
+			if c.regeneratePattern(p, tokenList) {
+				return p // Return existing pattern with updated template
+			}
+			// regeneratePattern failed - template couldn't merge with tokenList
+			// This shouldn't happen if we checked above, but handle it gracefully
+			// Create a new pattern instead
+			break
 		}
 	}
 
@@ -85,15 +107,17 @@ func (c *Cluster) AddTokenListToPatterns(tokenList *token.TokenList) *Pattern {
 }
 
 // regeneratePattern incrementally merges a new token list into the pattern.
-func (c *Cluster) regeneratePattern(p *Pattern, newTokenList *token.TokenList) {
+// Returns true if merge succeeded, false if merge failed.
+func (c *Cluster) regeneratePattern(p *Pattern, newTokenList *token.TokenList) bool {
 	if p.Template == nil {
-		return
+		return false
 	}
 
 	// Incremental merge: merge new log with existing template
 	merged := merging.MergeTokenLists(p.Template, newTokenList)
 	if merged == nil {
-		return
+		// Merge failed - template and newTokenList are incompatible
+		return false
 	}
 
 	p.Template = merged
@@ -114,6 +138,7 @@ func (c *Cluster) regeneratePattern(p *Pattern, newTokenList *token.TokenList) {
 	}
 
 	p.UpdatedAt = time.Now()
+	return true
 }
 
 // getPathPattern converts a path to hierarchical wildcard pattern

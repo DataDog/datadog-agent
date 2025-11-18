@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -72,11 +71,6 @@ func (m *Payload) Size() int64 {
 type Message struct {
 	MessageContent
 	MessageMetadata
-
-	// Pattern extraction
-	Pattern              *clustering.Pattern              // The pattern this log matched
-	WildcardValues       []string                         // This log's specific wildcard values
-	PatternTemplateState clustering.PatternTemplateStatus // Whether a new/updated pattern template needs sending or if the pattern template stay unchanged (New/Update/None)
 }
 
 // StatefulMessage represents a log message for gRPC stateful streaming
@@ -141,8 +135,6 @@ type MessageContent struct { //nolint:revive
 	content []byte
 	// structured content
 	structuredContent StructuredContent
-	// rendered content preserved for pattern extraction (before encoding overwrites content)
-	renderedContent []byte
 	State           MessageContentState
 }
 
@@ -205,7 +197,6 @@ func (m *MessageContent) SetContent(content []byte) {
 // SetRendered sets the content for the MessageContent and sets MessageContent state to rendered.
 func (m *MessageContent) SetRendered(content []byte) {
 	m.content = content
-	m.renderedContent = content // Preserve for pattern extraction
 	m.State = StateRendered
 }
 
@@ -213,12 +204,6 @@ func (m *MessageContent) SetRendered(content []byte) {
 func (m *MessageContent) SetEncoded(content []byte) {
 	m.content = content
 	m.State = StateEncoded
-}
-
-// GetRenderedContent returns the preserved rendered content (before encoding).
-// This is used for pattern extraction which needs plain text, not encoded binary.
-func (m *MessageContent) GetRenderedContent() []byte {
-	return m.renderedContent
 }
 
 // ParsingExtra ships extra information parsers want to make available
