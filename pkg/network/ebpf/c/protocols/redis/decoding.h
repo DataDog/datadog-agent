@@ -170,11 +170,8 @@ static __always_inline void process_redis_request(pktbuf_t pkt, conn_tuple_t *co
     } else if (bpf_memcmp(method, REDIS_CMD_GET, sizeof(REDIS_CMD_GET)-1) == 0) {
         transaction.command = REDIS_GET;
         should_extract_key = true;
-// LINUX_VERSION_CODE doesn't work with co-re and is relevant to runtime compilation only
-#if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
     } else if (bpf_memcmp(method, REDIS_CMD_PING, sizeof(REDIS_CMD_PING)-1) == 0) {
         transaction.command = REDIS_PING;
-#endif
     } else {
         return;
     }
@@ -279,17 +276,13 @@ static __always_inline bool is_resp_error(char first_byte) {
 // Handles all RESP2 and RESP3 response types for comprehensive monitoring coverage.
 static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *tup, redis_transaction_t *transaction) {
     redis_key_data_t *key = NULL;
-// LINUX_VERSION_CODE doesn't work with co-re and is relevant to runtime compilation only
-#if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
-    redis_key_data_t empty_key = {};  // For PING commands when resource tracking is enabled (kernel 5.4+)
-#endif
+    redis_key_data_t empty_key = {};  // For PING commands when resource tracking is enabled
     if (is_redis_with_key_monitoring_enabled()) {
         key = bpf_map_lookup_elem(&redis_key_in_flight, tup);
         // When resource tracking is enabled:
-        // - PING doesn't have a key, so key can be NULL for PING commands (kernel 5.4+)
+        // - PING doesn't have a key, so key can be NULL for PING commands
         // - GET/SET must have a key, so if key is NULL, it's an error
         if (key == NULL) {
-#if defined(COMPILE_PREBUILT) || defined(COMPILE_CORE) || (defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
             if (transaction->command == REDIS_PING) {
                 // For PING commands, use an empty key when sending to keyed stream
                 key = &empty_key;
@@ -297,10 +290,6 @@ static void __always_inline process_redis_response(pktbuf_t pkt, conn_tuple_t *t
                 // For GET/SET commands, key is required when resource tracking is enabled
                 goto cleanup;
             }
-#else
-            // On older kernels, PING is not supported, so NULL key means error
-            goto cleanup;
-#endif
         }
     }
 
