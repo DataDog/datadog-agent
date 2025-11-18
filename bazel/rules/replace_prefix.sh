@@ -39,10 +39,10 @@ for f in "$@"; do
             sed -ibak "s|##PREFIX##|$PREFIX|" "$f" && rm -f "${f}bak"
             ;;
         *)
-            if file "$f" | grep ELF; then
+            if file "$f" | grep -q ELF; then
                 ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
             else
-                echo "Ignoring $f"
+                >&2 echo "Ignoring $f"
             fi
     esac
 done
