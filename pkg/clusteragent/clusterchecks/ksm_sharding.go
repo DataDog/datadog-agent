@@ -139,8 +139,8 @@ func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]reso
 	return groups, nil
 }
 
-// ShouldShardKSMCheck determines if a KSM check should be sharded
-func (m *ksmShardingManager) ShouldShardKSMCheck(config integration.Config) bool {
+// shouldShardKSMCheck determines if a KSM check should be sharded
+func (m *ksmShardingManager) shouldShardKSMCheck(config integration.Config) bool {
 	if !m.enabled || !m.isKSMCheck(config) {
 		return false
 	}
@@ -174,13 +174,13 @@ func (m *ksmShardingManager) ShouldShardKSMCheck(config integration.Config) bool
 	return true
 }
 
-// CreateShardedKSMConfigs creates sharded KSM configurations based on resource groups
+// createShardedKSMConfigs creates sharded KSM configurations based on resource groups
 // Creates one shard per resource group present in the config:
 // - If config has pods collectors: creates pods shard
 // - If config has nodes collectors: creates nodes shard
 // - If config has other collectors: creates others shard
 // Number of shards is independent of runner count - rebalancing handles distribution
-func (m *ksmShardingManager) CreateShardedKSMConfigs(
+func (m *ksmShardingManager) createShardedKSMConfigs(
 	baseConfig integration.Config,
 ) ([]integration.Config, error) {
 

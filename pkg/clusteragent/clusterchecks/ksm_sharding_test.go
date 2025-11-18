@@ -132,14 +132,17 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			expectError:    true,
 		},
 		{
-			name: "cluster_check is false",
+			name: "cluster_check is false - analyzeKSMConfig doesn't validate ClusterCheck",
 			config: integration.Config{
 				Name:         "kubernetes_state_core",
 				ClusterCheck: false,
 				Instances:    []integration.Data{integration.Data("collectors: [pods, nodes]")},
 			},
-			expectedGroups: nil,
-			expectError:    true,
+			expectedGroups: []resourceGroup{
+				{Name: "pods", Collectors: []string{"pods"}},
+				{Name: "nodes", Collectors: []string{"nodes"}},
+			},
+			expectError: false,
 		},
 		{
 			name:           "multiple instances - returns error",
@@ -261,7 +264,7 @@ func TestShouldShardKSMCheck(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			manager := newKSMShardingManager(tt.enabled)
-			result := manager.ShouldShardKSMCheck(tt.config)
+			result := manager.shouldShardKSMCheck(tt.config)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -310,7 +313,7 @@ func TestCreateShardedKSMConfigs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configs, err := manager.CreateShardedKSMConfigs(tt.config)
+			configs, err := manager.createShardedKSMConfigs(tt.config)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -350,7 +353,7 @@ func TestCreateShardedKSMConfigs_PreservesTags(t *testing.T) {
 	// Create config with existing tags
 	config := createKSMConfigWithTags([]string{"pods", "nodes"}, []string{"env:prod", "team:platform"})
 
-	configs, err := manager.CreateShardedKSMConfigs(config)
+	configs, err := manager.createShardedKSMConfigs(config)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(configs))
 
@@ -381,7 +384,7 @@ func TestShouldShardKSMCheck_MultipleInstances(t *testing.T) {
 	config := createKSMConfigWithMultipleInstances()
 
 	// Should return false and log warning about multiple instances
-	result := manager.ShouldShardKSMCheck(config)
+	result := manager.shouldShardKSMCheck(config)
 	assert.False(t, result, "Should not shard when multiple instances configured")
 }
 

@@ -74,8 +74,9 @@ func TestScheduleKSMCheck(t *testing.T) {
 
 func TestScheduleKSMCheck_NoRunners(t *testing.T) {
 	d := &dispatcher{
-		ksmSharding: newKSMShardingManager(true),
-		store:       newClusterStore(),
+		ksmSharding:       newKSMShardingManager(true),
+		store:             newClusterStore(),
+		ksmShardedConfigs: make(map[string][]string),
 	}
 	d.advancedDispatching.Store(true)
 
@@ -86,13 +87,14 @@ func TestScheduleKSMCheck_NoRunners(t *testing.T) {
 	assert.True(t, result, "Should still create shards even with no runners (they become dangling)")
 
 	// Verify shards were created and tracked
-	assert.NotEmpty(t, d.ksmShardedDigests, "Should track sharded config digests")
+	assert.NotEmpty(t, d.ksmShardedConfigs, "Should track sharded config digests")
 }
 
 func TestScheduleKSMCheck_AlreadySharded(t *testing.T) {
 	d := &dispatcher{
-		ksmSharding: newKSMShardingManager(true),
-		store:       newClusterStore(),
+		ksmSharding:       newKSMShardingManager(true),
+		store:             newClusterStore(),
+		ksmShardedConfigs: make(map[string][]string),
 	}
 	d.advancedDispatching.Store(true)
 
@@ -107,8 +109,9 @@ func TestScheduleKSMCheck_AlreadySharded(t *testing.T) {
 
 func TestIsAlreadySharded(t *testing.T) {
 	d := &dispatcher{
-		ksmSharding: newKSMShardingManager(true),
-		store:       newClusterStore(),
+		ksmSharding:       newKSMShardingManager(true),
+		store:             newClusterStore(),
+		ksmShardedConfigs: make(map[string][]string),
 	}
 
 	config := createTestKSMConfig([]string{"pods", "nodes"})
@@ -128,27 +131,30 @@ func TestIsAlreadySharded(t *testing.T) {
 }
 
 func TestMarkAsSharded(t *testing.T) {
-	d := &dispatcher{}
+	d := &dispatcher{
+		ksmShardedConfigs: make(map[string][]string),
+	}
 
 	config := createTestKSMConfig([]string{"pods", "nodes"})
 
-	// Initially no sharded config
-	assert.Empty(t, d.ksmShardedConfig.Name)
+	// Initially no sharded configs
+	assert.Empty(t, d.ksmShardedConfigs)
 
 	d.markAsSharded(config, []string{"digest1", "digest2"})
 
-	// Now should have the sharded config stored
-	assert.Equal(t, config.Name, d.ksmShardedConfig.Name)
-	assert.Equal(t, config.Digest(), d.ksmShardedConfig.Digest())
-	assert.Equal(t, []string{"digest1", "digest2"}, d.ksmShardedDigests)
+	// Now should have the sharded config stored in the map
+	shardDigests, exists := d.ksmShardedConfigs[config.Digest()]
+	assert.True(t, exists, "Config digest should exist in map")
+	assert.Equal(t, []string{"digest1", "digest2"}, shardDigests)
 }
 
 func TestScheduleKSMCheck_Integration(t *testing.T) {
 	// This test simulates a successful sharding scenario
 	// Create a dispatcher with all requirements met
 	d := &dispatcher{
-		ksmSharding: newKSMShardingManager(true),
-		store:       newClusterStore(),
+		ksmSharding:       newKSMShardingManager(true),
+		store:             newClusterStore(),
+		ksmShardedConfigs: make(map[string][]string),
 	}
 	d.advancedDispatching.Store(true)
 
@@ -162,7 +168,7 @@ func TestScheduleKSMCheck_Integration(t *testing.T) {
 	config := createTestKSMConfig([]string{"pods", "nodes", "deployments"})
 
 	// Verify it should be shardable
-	assert.True(t, d.ksmSharding.ShouldShardKSMCheck(config))
+	assert.True(t, d.ksmSharding.shouldShardKSMCheck(config))
 
 	// Note: Full scheduling test would require mocking patchConfiguration and add methods
 	// which are complex. The unit tests above cover the individual components.

@@ -41,14 +41,14 @@ type dispatcher struct {
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
 	ksmSharding                      *ksmShardingManager
-	ksmShardingMutex                 sync.Mutex         // Protects ksmShardedConfig and ksmShardedDigests
-	ksmShardedConfig                 integration.Config // Protected by ksmShardingMutex
-	ksmShardedDigests                []string           // Track digests of sharded configs for cleanup, protected by ksmShardingMutex
+	ksmShardingMutex                 sync.Mutex          // Protects ksmShardedConfigs
+	ksmShardedConfigs                map[string][]string // Maps original config digest -> shard digests, protected by ksmShardingMutex
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
 	d := &dispatcher{
-		store: newClusterStore(),
+		store:             newClusterStore(),
+		ksmShardedConfigs: make(map[string][]string),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
