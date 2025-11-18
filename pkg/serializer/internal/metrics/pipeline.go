@@ -15,7 +15,7 @@ import (
 )
 
 // Filterable defines the minimal interface needed for pipeline
-// filtering. Both Serie and SketchSeries implement this interface.
+// filtering. Both Series and SketchSeries implement this interface.
 type Filterable interface {
 	GetName() string
 }
