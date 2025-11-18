@@ -831,6 +831,14 @@ var (
 	amqpBuffer   = []byte("AMQP")
 )
 
+// skipIfHTTP2KernelNotSupported returns a skip function for HTTP2 kernel checks that matches func(*testing.T) signature
+func skipIfHTTP2KernelNotSupported() func(*testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+		skipIfKernelNotSupported(t, kernel.VersionCode(5, 2, 0), "HTTP2")
+	}
+}
+
 func TestConnectionStatesMap(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
@@ -851,7 +859,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:                 http2EnabledConfig, // Enabling any protocol other than HTTP to allow USM to run
 		expectedResult:      shouldNotExists,
 		sendRequestCallback: sendAndReadBuffer(httpBuffer),
-		skipCondition:       skipIfKernelNotSupported,
+		skipCondition:       skipIfHTTP2KernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:           "HTTP protocol already classified",
 		cfg:            httpEnabledConfig,
@@ -867,7 +875,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:                 http2EnabledConfig,
 		expectedResult:      shouldExists,
 		sendRequestCallback: sendAndReadBuffer([]byte(http2.ClientPreface)),
-		skipCondition:       skipIfKernelNotSupported,
+		skipCondition:       skipIfHTTP2KernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:                "HTTP2 protocol disabled",
 		cfg:                 httpEnabledConfig, // Enabling any protocol other than HTTP2 to allow USM to run
@@ -878,7 +886,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:            http2EnabledConfig,
 		expectedResult: shouldExists,
 		preTestSetup:   markConnectionProtocol(protocols.HTTP2),
-		skipCondition:  skipIfKernelNotSupported,
+		skipCondition:  skipIfHTTP2KernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:           "HTTP2 protocol already classified but not enabled",
 		cfg:            httpEnabledConfig, // Enabling any protocol other than HTTP2 to allow USM to run
