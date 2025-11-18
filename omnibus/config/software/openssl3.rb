@@ -130,7 +130,7 @@ build do
       # shutil generates temporary files during run install that are not removed afterwards.
       command_on_repo_root "Remove-Item -Path #{install_dir}/embedded/include/openssl -Include tmp* -Force"
     end
-    if linux_target?
+    if !windows?
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libssl.so" \
       " #{install_dir}/embedded/lib/libcrypto.so" \
