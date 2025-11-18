@@ -69,6 +69,10 @@ configure_make(
             "no-zlib",
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
+        # OpenSSL uses lib64 by default for x86_64 builds
+        "@platforms//os:linux": [
+            "--libdir=lib",
+        ],
         "//conditions:default": [],
     }),
     env = select({
@@ -96,14 +100,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_pc_dir = select({
-        "@//:linux_x86_64": "lib64/pkgconfig",
-        "//conditions:default": "lib/pkgconfig",
-    }),
-    out_lib_dir = select({
-        "@//:linux_x86_64": "lib64",
-        "//conditions:default": "lib",
-    }),
+    out_pc_dir = "lib/pkgconfig",
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,

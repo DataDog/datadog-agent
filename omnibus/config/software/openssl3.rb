@@ -134,6 +134,7 @@ build do
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/libssl.so" \
       " #{install_dir}/embedded/lib/libcrypto.so" \
+      " #{install_dir}/embedded/lib/pkgconfig/*.pc"
     end
   end
 end
