@@ -10,10 +10,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	helpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -60,7 +62,7 @@ func TestFlareProvider(t *testing.T) {
 }
 
 func TestGetTelemetry(t *testing.T) {
-	provides, lc, _, telemetry, ipcComp := buildComponent(t)
+	provides, lc, _, telemetryComp, ipcComp := buildComponent(t)
 	lc.Start(context.Background())
 	component := provides.Comp
 
@@ -77,35 +79,64 @@ func TestGetTelemetry(t *testing.T) {
 		withTelemetryProvider(promText),
 	)
 
-	metrics, err := telemetry.Gather(false)
+	metrics, err := telemetryComp.Gather(false)
 	require.NoError(t, err)
-	assert.Contains(t, metrics, &io_prometheus_client.MetricFamily{
+
+	// convert the metrics to a map for easier comparison
+	metricsMap := make(map[string]*io_prometheus_client.MetricFamily)
+	for _, m := range metrics {
+		metricsMap[m.GetName()] = m
+	}
+
+	// compare the foobar metrics
+	require.Contains(t, metricsMap, "foobar")
+	assert.Empty(t, cmp.Diff(metricsMap["foobar"], &io_prometheus_client.MetricFamily{
 		Name: proto.String("foobar"),
 		Type: io_prometheus_client.MetricType_COUNTER.Enum(),
 		Help: proto.String("foobarhelp"),
 		Metric: []*io_prometheus_client.Metric{
 			{
+				Label: []*io_prometheus_client.LabelPair{
+					{
+						Name:  proto.String(remoteAgentMetricTagName),
+						Value: proto.String("test-agent"),
+					},
+				},
 				Counter: &io_prometheus_client.Counter{
 					Value: proto.Float64(1),
 				},
 			},
 		},
-	})
+	}, protocmp.Transform()))
 
-	// assert.Contains does not work here because of the labels
-	bazMetric := func() *io_prometheus_client.MetricFamily {
-		for _, m := range metrics {
-			if m.GetName() == "baz" {
-				return m
-			}
-		}
-		return nil
-	}()
-	require.NotNil(t, bazMetric)
-	assert.Equal(t, bazMetric.GetType(), io_prometheus_client.MetricType_GAUGE)
-	assert.Equal(t, bazMetric.GetMetric()[0].GetGauge().GetValue(), 3.0)
-	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[0].GetValue(), "1")
-	assert.Equal(t, bazMetric.GetMetric()[0].GetLabel()[1].GetValue(), "two")
+	// compare the baz metric
+	require.Contains(t, metricsMap, "baz")
+	assert.Empty(t, cmp.Diff(metricsMap["baz"], &io_prometheus_client.MetricFamily{
+		Name: proto.String("baz"),
+		Type: io_prometheus_client.MetricType_GAUGE.Enum(),
+		Help: proto.String("bazhelp"),
+		Metric: []*io_prometheus_client.Metric{
+			{
+				Label: []*io_prometheus_client.LabelPair{
+					{
+						Name:  proto.String(remoteAgentMetricTagName),
+						Value: proto.String("test-agent"),
+					},
+					{
+						Name:  proto.String("tag_one"),
+						Value: proto.String("1"),
+					},
+					{
+						Name:  proto.String("tag_two"),
+						Value: proto.String("two"),
+					},
+				},
+				Gauge: &io_prometheus_client.Gauge{
+					Value: proto.Float64(3),
+				},
+			},
+		},
+	}, protocmp.Transform()))
 }
 
 func TestStatusProvider(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
 // enableOtelCollectorConfigCommon adds otelcollector.enabled and agent_ipc defaults to the given datadog.yaml path

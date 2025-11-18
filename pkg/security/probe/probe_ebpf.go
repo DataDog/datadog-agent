@@ -372,9 +372,9 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
+	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
-		p.config.RuntimeSecurity.SysCtlEnabled = false
+		p.config.RuntimeSecurity.SysCtlEBPFEnabled = false
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
@@ -543,7 +543,9 @@ func (p *EBPFProbe) Init() error {
 		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
 		p.useFentry = false
 
-		_ = p.Manager.Stop(manager.CleanAll)
+		if err := p.Manager.Stop(manager.CleanAll); err != nil {
+			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+		}
 
 		if err = p.initEBPFManager(); err != nil {
 			return err
@@ -779,7 +781,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -830,7 +832,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
 		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
-			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+			return eventA.ProcessContext.Pid < eventB.ProcessContext.Pid
 		}
 
 		return tsA.Before(tsB)
@@ -1576,6 +1578,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
 			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
+		// Second handle for exec event because the context is required to detect a ssh session
+	case model.ExecEventType:
+		p.HandleSSHUserSession(event)
+
+	case model.ForkEventType:
+		p.HandleSSHUserSession(event)
 	}
 	return true
 }
@@ -1905,7 +1913,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
-		return p.probe.IsSysctlEventEnabled()
+		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
 	}
 	return true
 }
@@ -2148,7 +2156,6 @@ func (p *EBPFProbe) Close() error {
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	close(p.tcRequests)
-
 	return p.Resolvers.Close()
 }
 
@@ -2367,6 +2374,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
 		return nil, err
+	}
+
+	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
 	}
 
 	for eventType, report := range filterReport.ApproverReports {
@@ -2760,12 +2771,19 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
 
-	if !p.config.RuntimeSecurity.SysCtlEnabled {
+	if !(p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlEBPFEnabled) {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 
 	if !p.config.Probe.CapabilitiesMonitoringEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
+	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
+	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
+	// and use the get_task_pid kretprobe fallback instead
+	if p.kernelVersion.Code < kernel.Kernel4_15 {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SchedProcessForkTracepointName)
 	}
 
 	return nil

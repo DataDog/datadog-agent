@@ -564,7 +564,10 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 func makeNodeArray(vals interface{}) ([]nodetreemodel.Node, error) {
 	s := reflect.ValueOf(vals)
 	if s.Kind() != reflect.Slice {
-		return nil, fmt.Errorf("value is not a slice")
+		// Work like mapstructure's WeaklyTypedInput setting, implicitly convert
+		// a scalar into a slice when necessary
+		node, _ := nodetreemodel.NewNodeTree(vals, model.SourceUnknown)
+		return []nodetreemodel.Node{node}, nil
 	}
 
 	res := make([]nodetreemodel.Node, 0, s.Len())

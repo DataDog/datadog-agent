@@ -185,15 +185,8 @@ func (c *collector) processCollectionIntervalConfig() time.Duration {
 // is done. It also gets a reference to the store that started it so it
 // can use Notify, or get access to other entities in the store.
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
-	// TODO: process_config.process_collection.use_wlm is temporary and will eventually be removed
-	// we want to gate everything for this new collector by the use_wlm config, but eventually
-	// this collector will be gated separately for process_collector OR service discovery
-	if !c.config.GetBool("process_config.process_collection.use_wlm") {
-		return errors.NewDisabled(componentName, "wlm process collection disabled")
-	}
-
 	if !c.isProcessCollectionEnabled() && !c.isServiceDiscoveryEnabled() && !c.isLanguageCollectionEnabled() {
-		return errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled")
+		return errors.NewDisabled(componentName, "process collection and service discovery are disabled")
 	}
 
 	if c.containerProvider == nil {
@@ -500,6 +493,11 @@ func (c *collector) updateServices(alivePids core.PidSet, procs map[int32]*procu
 
 func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32]*procutil.Process) []*workloadmeta.Process {
 	entities, _ := c.updateServices(alivePids, procs)
+	if len(entities) == 0 {
+		return nil
+	}
+
+	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
 
 	for _, entity := range entities {
 		if proc, exists := procs[entity.Pid]; exists {
@@ -514,6 +512,14 @@ func (c *collector) updateServicesNoCache(alivePids core.PidSet, procs map[int32
 			entity.CreationTime = time.UnixMilli(proc.Stats.CreateTime).UTC()
 			entity.Uids = proc.Uids
 			entity.Gids = proc.Gids
+		}
+
+		if cid, exists := pidToCid[int(entity.Pid)]; exists {
+			entity.ContainerID = cid
+			entity.Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   cid,
+			}
 		}
 	}
 

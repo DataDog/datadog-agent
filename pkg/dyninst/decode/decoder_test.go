@@ -49,14 +49,23 @@ func FuzzDecoder(f *testing.F) {
 	})
 }
 
+type (
+	captures struct{ Entry struct{ Arguments any } }
+	debugger struct {
+		Snapshot         struct{ Captures captures }
+		EvaluationErrors []struct {
+			Expression string `json:"expr"`
+			Message    string `json:"message"`
+		} `json:"evaluationErrors,omitempty"`
+	}
+	eventCaptures struct{ Debugger debugger }
+)
+
 // TestDecoderManually is a test that manually constructs an event and decodes
 // it.
 //
 // This makes it easy to assert properties of the decoder's internal state.
 func TestDecoderManually(t *testing.T) {
-	type captures struct{ Entry struct{ Arguments any } }
-	type debugger struct{ Snapshot struct{ Captures captures } }
-	type eventCaptures struct{ Debugger debugger }
 	for _, c := range cases {
 		t.Run(c.probeName, func(t *testing.T) {
 			irProg := generateIrForProbes(t, "simple", c.probeName)
@@ -723,6 +732,29 @@ func fieldOffsetByName(t testing.TB, fields []ir.Field, name string) uint32 {
 	return 0
 }
 
+// addStackToEvent adds a stack trace to an event and returns a new event with
+// the stack embedded.
+func addStackToEvent(event []byte, stack []uint64) []byte {
+	stackByteLen := len(stack) * 8
+	headerSize := int(unsafe.Sizeof(output.EventHeader{}))
+	newEvent := make([]byte, len(event)+stackByteLen)
+	copy(newEvent, event)
+	copy(newEvent[headerSize+stackByteLen:], event[headerSize:])
+	header, err := output.Event(newEvent[:len(event)]).Header()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get header: %v", err))
+	}
+	header.Data_byte_len += uint32(stackByteLen)
+	header.Stack_byte_len = uint16(stackByteLen)
+	*(*output.EventHeader)(unsafe.Pointer(&newEvent[0])) = *header
+	for i, addr := range stack {
+		binary.NativeEndian.PutUint64(
+			newEvent[headerSize+i*8:], addr,
+		)
+	}
+	return newEvent
+}
+
 type noopSymbolicator struct{}
 
 func (s *noopSymbolicator) Symbolicate(
@@ -809,6 +841,46 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	require.Contains(t, string(out), "no decoder type found")
 }
 
+func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.probeName)
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	eventData := simpleStringArgEvent(t, irProg)
+	event := output.Event(eventData)
+	eventHeader, err := output.Event(eventData).Header()
+	require.NoError(t, err)
+	newItemOffset := eventHeader.Data_byte_len
+	eventHeader.Data_byte_len += uint32(unsafe.Sizeof(output.DataItemHeader{}) + 8)
+	for range unsafe.Sizeof(output.DataItemHeader{}) + 8 {
+		event = append(event, 0)
+	}
+	dataItemHeader := (*output.DataItemHeader)(unsafe.Pointer(&event[newItemOffset]))
+	dataItemHeader.Type = uint32(ir.TypeID(1))
+	dataItemHeader.Length = 424242 // too long
+	dataItemHeader.Address = 0xdeadbeef
+	var items []output.DataItem
+	var itemErr error
+	for item, err := range event.DataItems() {
+		if err != nil {
+			itemErr = err
+			break
+		}
+		items = append(items, item)
+	}
+	require.Regexp(t, "not enough bytes to read data item", itemErr)
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: event,
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, c.probeName, probe.GetID())
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+	require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
+}
+
 // TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer tests that the decoder
 // fails on evaluation error while preserving the contents of the passed buffer.
 // It is expected that consumers of the decoder API will call Decode with a reused
@@ -849,4 +921,95 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	require.Contains(t, string(out), "no decoder type found")
 	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
 
+}
+
+func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
+	tests := []struct {
+		name                    string
+		pairingExpectation      output.EventPairingExpectation
+		expectedErrorExpression string
+		expectedErrorMessage    string
+		shouldHaveError         bool
+	}{
+		{
+			name:                    "return pairing expected",
+			pairingExpectation:      output.EventPairingExpectationReturnPairingExpected,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: return event not received",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "buffer full",
+			pairingExpectation:      output.EventPairingExpectationBufferFull,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: userspace buffer capacity exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "call map full",
+			pairingExpectation:      output.EventPairingExpectationCallMapFull,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: call map capacity exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "call count exceeded",
+			pairingExpectation:      output.EventPairingExpectationCallCountExceeded,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: maximum call count exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:               "no pairing expected",
+			pairingExpectation: output.EventPairingExpectationNone,
+			shouldHaveError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			irProg := generateIrForProbes(t, "simple", "stringArg")
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+			require.NoError(t, err)
+
+			// Construct an entry event with the specified pairing expectation
+			eventData := simpleStringArgEvent(t, irProg)
+			stack := []uint64{0x1000, 0x2000, 0x3000}
+			newEvent := addStackToEvent(eventData, stack)
+			header, err := output.Event(newEvent).Header()
+			require.NoError(t, err)
+			header.Event_pairing_expectation = uint8(tt.pairingExpectation)
+
+			buf, probe, err := decoder.Decode(Event{
+				EntryOrLine: newEvent,
+				Return:      nil, // Explicitly no return event
+				ServiceName: "foo",
+			}, &noopSymbolicator{}, []byte{})
+			require.NoError(t, err)
+			require.Equal(t, "stringArg", probe.GetID())
+
+			var e eventCaptures
+			require.NoError(t, json.Unmarshal(buf, &e))
+
+			if tt.shouldHaveError {
+				require.NotEmpty(t, e.Debugger.EvaluationErrors,
+					"expected evaluation error but none found")
+				found := false
+				for _, evalErr := range e.Debugger.EvaluationErrors {
+					if evalErr.Expression == tt.expectedErrorExpression &&
+						evalErr.Message == tt.expectedErrorMessage {
+						found = true
+						break
+					}
+				}
+				require.True(t, found,
+					"expected evaluation error with expression %q and message %q, got errors: %+v",
+					tt.expectedErrorExpression, tt.expectedErrorMessage,
+					e.Debugger.EvaluationErrors)
+			} else {
+				// Check that there's no return-related error
+				require.Empty(t, e.Debugger.EvaluationErrors)
+			}
+		})
+	}
 }

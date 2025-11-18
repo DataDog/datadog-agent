@@ -11,14 +11,17 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
 	"expvar"
 	"fmt"
+	"io"
 	"maps"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -27,6 +30,7 @@ import (
 	tufutil "github.com/DataDog/go-tuf/util"
 	"github.com/benbjohnson/clock"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -34,7 +38,6 @@ import (
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -66,12 +69,6 @@ const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
 	initialFetchErrorLog uint64 = 5
-)
-
-const (
-	// the minimum amount of time that must pass before a new cache
-	// bypass request is allowed for the CDN client
-	maxCDNUpdateFrequency = 50 * time.Second
 )
 
 var (
@@ -159,8 +156,20 @@ type CoreAgentService struct {
 	stopConfigPoller chan struct{}
 	stopOnce         sync.Once
 
+	// The set of products to which calls to CreateConfigSubscription can
+	// subscribe. At the time of writing, this is a single-entry map in
+	// production code, but is extended in some testing scenarios to exercise
+	// subscriptions to differing product sets.
+	subscriptionProductMappings productsMappings
+	// The maximum number of subscriptions than can be open at the same time.
+	maxConcurrentSubscriptions int
+	// The maximum number of runtime IDs that may be tracked per subscription.
+	maxTrackedRuntimeIDsPerSubscription int
+
 	mu struct {
 		sync.Mutex
+
+		subscriptions *subscriptions
 
 		uptane coreAgentUptaneClient
 
@@ -211,18 +220,26 @@ type coreAgentUptaneClient interface {
 	Update(response *pbgo.LatestConfigsResponse) error
 }
 
-// cdnUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the CDN.
-type cdnUptaneClient interface {
-	uptaneClient
-	Update(ctx context.Context) error
-}
-
-// RcTelemetryReporter should be implemented by the agent to publish metrics on exceptional cache bypass request events
+// RcTelemetryReporter should be implemented by the agent to publish metrics
+// on RC-specific events.
 type RcTelemetryReporter interface {
 	// IncRateLimit is invoked when a cache bypass request is prevented due to rate limiting
 	IncRateLimit()
 	// IncTimeout is invoked when a cache bypass request is cancelled due to timeout or a previous cache bypass request is still pending
 	IncTimeout()
+
+	// IncConfigSubscriptionsConnectedCounter increments the
+	// DdRcTelemetryReporter ConfigSubscriptionsConnectedCounter counter.
+	IncConfigSubscriptionsConnectedCounter()
+	// IncConfigSubscriptionsDisconnectedCounter increments the
+	// DdRcTelemetryReporter ConfigSubscriptionsDisconnectedCounter counter.
+	IncConfigSubscriptionsDisconnectedCounter()
+	// SetConfigSubscriptionsActive sets the DdRcTelemetryReporter
+	// ConfigSubscriptionsActive gauge to the given value.
+	SetConfigSubscriptionsActive(value int)
+	// SetConfigSubscriptionClientsTracked sets the DdRcTelemetryReporter
+	// ConfigSubscriptionClientsTracked gauge to the given value.
+	SetConfigSubscriptionClientsTracked(value int)
 }
 
 // orgStatusPoller handles periodic polling of the organization status from the remote config backend
@@ -357,24 +374,44 @@ type options struct {
 	orgStatusRefreshInterval       time.Duration
 	// for mocking creating db instance in test
 	uptaneFactory func(md *uptane.Metadata) (coreAgentUptaneClient, error)
+	// The allowed products for each subscription products value. Overridable
+	// to exercise subscriptions to differing product sets in tests.
+	subscriptionProductMappings productsMappings
+	// The maximum number of subscriptions than can be open at the same time.
+	maxConcurrentSubscriptions int
+	// The maximum number of runtime IDs that may be tracked per subscription.
+	maxTrackedRuntimeIDsPerSubscription int
+	// The maximum number of responses that can be queued per subscription.
+	maxSubscriptionQueueSize int
+}
+
+var defaultSubscriptionProductMappings = productsMappings{
+	pbgo.ConfigSubscriptionProducts_LIVE_DEBUGGING: {
+		rdata.ProductLiveDebugging:         {},
+		rdata.ProductLiveDebuggingSymbolDB: {},
+	},
 }
 
 var defaultOptions = options{
-	rcKey:                          "",
-	apiKey:                         "",
-	parJWT:                         "",
-	traceAgentEnv:                  "",
-	databaseFileName:               "remote-config.db",
-	databaseFilePath:               "",
-	configRootOverride:             "",
-	directorRootOverride:           "",
-	clientCacheBypassLimit:         defaultCacheBypassLimit,
-	refresh:                        defaultRefreshInterval,
-	refreshIntervalOverrideAllowed: true,
-	maxBackoff:                     minimalMaxBackoffTime,
-	clientTTL:                      defaultClientsTTL,
-	disableConfigPollLoop:          false,
-	orgStatusRefreshInterval:       defaultRefreshInterval,
+	rcKey:                               "",
+	apiKey:                              "",
+	parJWT:                              "",
+	traceAgentEnv:                       "",
+	databaseFileName:                    "remote-config.db",
+	databaseFilePath:                    "",
+	configRootOverride:                  "",
+	directorRootOverride:                "",
+	clientCacheBypassLimit:              defaultCacheBypassLimit,
+	refresh:                             defaultRefreshInterval,
+	refreshIntervalOverrideAllowed:      true,
+	maxBackoff:                          minimalMaxBackoffTime,
+	clientTTL:                           defaultClientsTTL,
+	disableConfigPollLoop:               false,
+	orgStatusRefreshInterval:            defaultRefreshInterval,
+	subscriptionProductMappings:         defaultSubscriptionProductMappings,
+	maxConcurrentSubscriptions:          defaultMaxConcurrentSubscriptions,
+	maxTrackedRuntimeIDsPerSubscription: defaultMaxTrackedRuntimeIDsPerSubscription,
+	maxSubscriptionQueueSize:            defaultMaxSubscriptionQueueSize,
 }
 
 // Option is a service option
@@ -630,8 +667,15 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 			capacity:       options.clientCacheBypassLimit,
 			allowance:      options.clientCacheBypassLimit,
 		},
-		orgStatusPoller: newOrgStatusPoller(options.orgStatusRefreshInterval),
+		subscriptionProductMappings:         options.subscriptionProductMappings,
+		maxConcurrentSubscriptions:          options.maxConcurrentSubscriptions,
+		maxTrackedRuntimeIDsPerSubscription: options.maxTrackedRuntimeIDsPerSubscription,
+		orgStatusPoller:                     newOrgStatusPoller(options.orgStatusRefreshInterval),
 	}
+	cas.mu.subscriptions = newSubscriptions(
+		options.subscriptionProductMappings,
+		options.maxSubscriptionQueueSize,
+	)
 	cas.mu.firstUpdate = true
 	cas.mu.defaultRefreshInterval = options.refresh
 	cas.mu.refreshIntervalOverrideAllowed = options.refreshIntervalOverrideAllowed
@@ -997,9 +1041,40 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 		}
 	}
 
-	if tufVersions.DirectorTargets == request.Client.State.TargetsVersion {
+	// The rest of the method works to serve the client's request while keeping
+	// subscriptions consistent if they need any additional files. The protocol
+	// is as follows:
+	//
+	//	 1) Check if the client needs a TUF targets update, or if there are any
+	//	 subscriptions that need a complete view of any products for this
+	//   client.
+	//	   a) No update is needed and no subscriptions need a complete view,
+	//	      return an empty response.
+	//	   b) Update is needed or subscriptions need a complete view, continue.
+	//	 2) Compute two sets of configs:
+	//	   * responseConfigs — files the client is missing vs its cache.
+	//	   * subscriptionOnlyConfigs — extra files required to give some
+	//	     products a complete first view of this client, but not needed
+	//	     for the client's response.
+	//	 3) Fetch all the files needed for both sets from the uptane client.
+	//	 4) Split the response files from allFiles.
+	//	 5) Notify subscriptions with the relevant files.
+	//	 6) Return the client's response.
+	//	   a) If there is no TUF update to ship, return an empty response.
+	//	   b) Otherwise, include new TUF metadata and the client's needed files.
+
+	// (1) Check if either the client or any subscriptions need anything.
+	hasUpdate := tufVersions.DirectorTargets != request.Client.State.TargetsVersion
+	interestedSubs, productsNeededForSubs := s.mu.subscriptions.interestedSubscriptions(
+		request.Client,
+	)
+
+	if !hasUpdate && len(productsNeededForSubs) == 0 {
+		// (1.a) Neither the client nor any subscriptions need anything.
 		return &pbgo.ClientGetConfigsResponse{}, nil
 	}
+
+	// (2) Build responseConfigs and subscriptionOnlyConfigs.
 	roots, err := getNewDirectorRoots(s.mu.uptane, request.Client.State.RootVersion, tufVersions.DirectorRoot)
 	if err != nil {
 		return nil, err
@@ -1013,62 +1088,100 @@ func (s *CoreAgentService) ClientGetConfigs(_ context.Context, request *pbgo.Cli
 	if err != nil {
 		return nil, err
 	}
+	cachedTargetsMap, err := makeFileMetaMap(request.CachedTargetFiles)
+	if err != nil {
+		return nil, err
+	}
+	var subscriptionOnlyConfigs map[string]struct{}
+	for _, config := range matchedClientConfigs {
+		if _, ok := productsNeededForSubs[productFromPath(config)]; ok {
+			if subscriptionOnlyConfigs == nil {
+				subscriptionOnlyConfigs = make(map[string]struct{})
+			}
+			subscriptionOnlyConfigs[config] = struct{}{}
+		}
+	}
+	responseConfigs := filtered(matchedClientConfigs, func(config string) bool {
+		return tufutil.FileMetaEqual(
+			cachedTargetsMap[config],
+			directorTargets[config].FileMeta,
+		) != nil
+	})
+	for _, config := range responseConfigs {
+		delete(subscriptionOnlyConfigs, config)
+	}
 
-	neededFiles, err := filterNeededTargetFiles(matchedClientConfigs, request.CachedTargetFiles, directorTargets)
+	// (3) Fetch all the files needed for both sets from the uptane client.
+	allConfigs := slices.AppendSeq(responseConfigs, maps.Keys(subscriptionOnlyConfigs))
+	slices.Sort(allConfigs)
+	allFiles, err := getTargetFiles(s.mu.uptane, allConfigs)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Do not hold the mutex while calling getTargetFiles -- it may go to
-	// disk or network.
-	targetFiles, err := getTargetFiles(s.mu.uptane, neededFiles)
-	if err != nil {
-		return nil, err
+	// (4) Move the extra files needed just for subscriptions to the end.
+	slices.SortStableFunc(allFiles, func(a, b *pbgo.File) int {
+		return cmp.Compare(
+			boolToInt(contains(subscriptionOnlyConfigs, a.Path)),
+			boolToInt(contains(subscriptionOnlyConfigs, b.Path)),
+		)
+	})
+
+	// (5) Notify subscriptions with the relevant files.
+	responseFiles := allFiles[:len(responseConfigs)]
+	if len(interestedSubs) > 0 {
+		s.mu.subscriptions.notify(
+			interestedSubs,
+			request.Client,
+			matchedClientConfigs,
+			responseFiles,
+			allFiles,
+		)
 	}
 
+	// (6.a) If there is no TUF update to ship, return an empty response.
+	if !hasUpdate {
+		return &pbgo.ClientGetConfigsResponse{}, nil
+	}
+
+	// (6.b) Fill out and return the client's response.
 	targetsRaw, err := s.mu.uptane.TargetsMeta()
 	if err != nil {
 		return nil, err
 	}
-
 	return &pbgo.ClientGetConfigsResponse{
 		Roots:         roots,
 		Targets:       targetsRaw,
-		TargetFiles:   targetFiles,
+		TargetFiles:   responseFiles,
 		ClientConfigs: matchedClientConfigs,
 		ConfigStatus:  pbgo.ConfigStatus_CONFIG_STATUS_OK,
 	}, nil
 }
 
-func filterNeededTargetFiles(neededConfigs []string, cachedTargetFiles []*pbgo.TargetFileMeta, tufTargets data.TargetFiles) ([]string, error) {
-	// Build an O(1) lookup of cached target files
-	cachedTargetsMap := make(map[string]data.FileMeta)
-	for _, cachedTarget := range cachedTargetFiles {
-		hashes := make(data.Hashes)
-		for _, hash := range cachedTarget.Hashes {
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func makeFileMetaMap(targetFileMetas []*pbgo.TargetFileMeta) (map[string]data.FileMeta, error) {
+	cachedTargetsMap := make(map[string]data.FileMeta, len(targetFileMetas))
+	for _, fileMeta := range targetFileMetas {
+		hashes := make(data.Hashes, len(fileMeta.Hashes))
+		for _, hash := range fileMeta.Hashes {
 			h, err := hex.DecodeString(hash.Hash)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to decode hash: %w", err)
 			}
 			hashes[hash.Algorithm] = h
 		}
-		cachedTargetsMap[cachedTarget.Path] = data.FileMeta{
+		cachedTargetsMap[fileMeta.Path] = data.FileMeta{
 			Hashes: hashes,
-			Length: cachedTarget.Length,
+			Length: fileMeta.Length,
 		}
 	}
-
-	// We don't need to pull the raw contents if the client already has the exact version of the file cached
-	filteredList := make([]string, 0, len(neededConfigs))
-	for _, path := range neededConfigs {
-		if notEqualErr := tufutil.FileMetaEqual(cachedTargetsMap[path], tufTargets[path].FileMeta); notEqualErr == nil {
-			continue
-		}
-
-		filteredList = append(filteredList, path)
-	}
-
-	return filteredList, nil
+	return cachedTargetsMap, nil
 }
 
 func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any, any, uint64) {
@@ -1111,8 +1224,8 @@ func (s *CoreAgentService) apiKeyUpdateCallback() func(string, model.Source, any
 // ConfigGetState returns the state of the configuration and the director repos in the local store
 func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	uptane := s.mu.uptane
-	s.mu.Unlock()
 
 	state, err := uptane.State()
 	if err != nil {
@@ -1135,6 +1248,23 @@ func (s *CoreAgentService) ConfigGetState() (*pbgo.GetStateConfigResponse, error
 	}
 
 	maps.Copy(response.TargetFilenames, state.TargetFilenames)
+
+	for _, subscription := range s.mu.subscriptions.subs {
+		trackedClients := make([]*pbgo.ConfigSubscriptionState_TrackedClient, 0, len(subscription.trackedClients))
+		for runtimeID, trackedClient := range subscription.trackedClients {
+			trackedClients = append(trackedClients, &pbgo.ConfigSubscriptionState_TrackedClient{
+				RuntimeId: runtimeID,
+				SeenAny:   trackedClient.seenAny,
+				Products:  trackedClient.products,
+			})
+		}
+		slices.SortFunc(trackedClients, func(a, b *pbgo.ConfigSubscriptionState_TrackedClient) int {
+			return cmp.Compare(a.RuntimeId, b.RuntimeId)
+		})
+		response.ConfigSubscriptionStates = append(response.ConfigSubscriptionStates, &pbgo.ConfigSubscriptionState{
+			TrackedClients: trackedClients,
+		})
+	}
 
 	return response, nil
 }
@@ -1165,6 +1295,162 @@ func (s *CoreAgentService) ConfigResetState() (*pbgo.ResetStateConfigResponse, e
 	s.mu.uptane = uptaneClient
 
 	return &pbgo.ResetStateConfigResponse{}, err
+}
+
+// CreateConfigSubscription creates a new config subscription for a client.
+//
+// The client can send requests to track or untrack products for clients with a
+// given ID. If a client is tracked, all files for products that the
+// subscription tracks should be streamed to this subscription when that client
+// would receive those files via the regular ClientGetConfigs RPC.
+func (s *CoreAgentService) CreateConfigSubscription(
+	stream pbgo.AgentSecure_CreateConfigSubscriptionServer,
+) error {
+	// Register this subscription, checking for limits on total subscriptions.
+	subID, updateSignal, err := func() (subscriptionID, <-chan struct{}, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if len(s.mu.subscriptions.subs) >= s.maxConcurrentSubscriptions {
+			return 0, nil, status.Errorf(
+				codes.ResourceExhausted,
+				"maximum number of subscriptions reached (%d)",
+				s.maxConcurrentSubscriptions,
+			)
+		}
+		subID, updateSignal := s.mu.subscriptions.newSubscription()
+		s.telemetryReporter.SetConfigSubscriptionsActive(len(s.mu.subscriptions.subs))
+		return subID, updateSignal, nil
+	}()
+	if err != nil {
+		log.Warnf("failed to create subscription: %v", err)
+		return err
+	}
+	defer func() {
+		s.telemetryReporter.IncConfigSubscriptionsDisconnectedCounter()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.mu.subscriptions.remove(subID)
+		s.telemetryReporter.SetConfigSubscriptionsActive(len(s.mu.subscriptions.subs))
+	}()
+	s.telemetryReporter.IncConfigSubscriptionsConnectedCounter()
+	// Send a header to synchronize with the client and prevent client-side
+	// retries.
+	if err := stream.SendHeader(metadata.MD{}); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(stream.Context())
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	defer cancel()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		popUpdate := func() *pbgo.ConfigSubscriptionResponse {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			return s.mu.subscriptions.popUpdate(subID)
+		}
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			if update := popUpdate(); update != nil {
+				if err := stream.Send(update); err != nil {
+					log.Debugf("subscription %d: failed to send update: %v", subID, err)
+					return
+				}
+				// Go back around to see if there are any more updates to send.
+				continue
+			}
+			select {
+			case <-updateSignal:
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	// Process incoming TRACK/UNTRACK requests from the client (receiver
+	// goroutine). This is the current goroutine (gRPC handler).
+	setTrackedClientsLocked := func() {
+		n := 0
+		for _, s := range s.mu.subscriptions.subs {
+			n += len(s.trackedClients)
+		}
+		s.telemetryReporter.SetConfigSubscriptionClientsTracked(n)
+	}
+	track := func(runtimeID string, products pbgo.ConfigSubscriptionProducts) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		sub := s.mu.subscriptions.subs[subID]
+		if len(sub.trackedClients) >= s.maxTrackedRuntimeIDsPerSubscription {
+			return status.Errorf(
+				codes.ResourceExhausted,
+				"maximum number of runtime IDs per subscription reached (%d)",
+				s.maxTrackedRuntimeIDsPerSubscription,
+			)
+		}
+		sub.track(runtimeID, products)
+		setTrackedClientsLocked()
+		return nil
+	}
+	untrack := func(runtimeID string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.mu.subscriptions.subs[subID].untrack(runtimeID)
+		setTrackedClientsLocked()
+	}
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			log.Debugf("subscription %d: stream closed or errored: %v", subID, err)
+			return err
+		}
+
+		// Validate the request.
+		if err := validateSubscriptionRequest(req, s.subscriptionProductMappings); err != nil {
+			log.Warnf("subscription %d: received invalid request: %v", subID, err)
+			return err
+		}
+
+		switch req.Action {
+		case pbgo.ConfigSubscriptionRequest_TRACK:
+			if err := track(req.RuntimeId, req.Products); err != nil {
+				log.Warnf("subscription %d: failed to track runtime ID %v: %v", subID, req.RuntimeId, err)
+				return err
+			}
+		case pbgo.ConfigSubscriptionRequest_UNTRACK:
+			untrack(req.RuntimeId)
+		}
+	}
+}
+
+func validateSubscriptionRequest(
+	req *pbgo.ConfigSubscriptionRequest, pms productsMappings,
+) error {
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request cannot be nil")
+	}
+	if req.RuntimeId == "" {
+		return status.Error(codes.InvalidArgument, "runtime_id is required")
+	}
+	switch req.Action {
+	case pbgo.ConfigSubscriptionRequest_TRACK:
+		_, ok := pms[req.Products]
+		if !ok {
+			return status.Errorf(codes.InvalidArgument, "invalid products %v", req.Products)
+		}
+	case pbgo.ConfigSubscriptionRequest_UNTRACK:
+		// All good.
+	default:
+		return status.Error(codes.InvalidArgument, "action must be TRACK or UNTRACK")
+	}
+
+	return nil
 }
 
 func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
@@ -1261,158 +1547,4 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	}
 
 	return nil
-}
-
-// HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
-type HTTPClient struct {
-	rcType string
-	uptane cdnUptaneClient
-
-	mu struct {
-		sync.Mutex
-
-		lastUpdate time.Time
-	}
-}
-
-// NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
-// It uses a local db to cache the fetched configurations. Only one HTTPClient should be created per agent.
-// An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
-func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
-	dbMetadata := &uptane.Metadata{
-		Path:         path.Join(runPath, "remote-config-cdn.db"),
-		AgentVersion: agentVersion,
-		APIKey:       apiKey,
-		URL:          site,
-	}
-
-	uptaneCDNClient, err := uptane.NewCDNClient(dbMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	return &HTTPClient{
-		rcType: "CDN",
-		uptane: uptaneCDNClient,
-	}, nil
-}
-
-// Close closes the HTTPClient and cleans up any resources. Close must be called
-// before any other HTTPClients are instantiated via NewHTTPClient
-func (c *HTTPClient) Close() error {
-	return c.uptane.Close()
-}
-
-// GetCDNConfigUpdate returns any updated configs. If multiple requests have been made
-// in a short amount of time, a cached response is returned. If RC has been disabled,
-// an error is returned. If there is no update (the targets version is up-to-date) nil
-// is returned for both the update and error.
-func (c *HTTPClient) GetCDNConfigUpdate(
-	ctx context.Context,
-	products []string,
-	currentTargetsVersion, currentRootVersion uint64,
-) (*state.Update, error) {
-	var err error
-	if !c.shouldUpdate() {
-		return c.getUpdate(products, currentTargetsVersion, currentRootVersion)
-	}
-
-	err = c.update(ctx)
-	if err != nil {
-		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
-	}
-
-	u, err := c.getUpdate(products, currentTargetsVersion, currentRootVersion)
-	return u, err
-}
-
-func (c *HTTPClient) update(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.uptane.Update(ctx)
-}
-
-func (c *HTTPClient) shouldUpdate() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if time.Since(c.mu.lastUpdate) > maxCDNUpdateFrequency {
-		c.mu.lastUpdate = time.Now()
-		return true
-	}
-	return false
-}
-
-func (c *HTTPClient) getUpdate(
-	products []string,
-	currentTargetsVersion, currentRootVersion uint64,
-) (*state.Update, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	tufVersions, err := c.uptane.TUFVersionState()
-	if err != nil {
-		return nil, err
-	}
-	if tufVersions.DirectorTargets == currentTargetsVersion {
-		return nil, nil
-	}
-
-	// Filter out files that either:
-	//	- don't correspond to the product list the client is requesting
-	//	- have expired
-	directorTargets, err := c.uptane.Targets()
-	if err != nil {
-		return nil, err
-	}
-	productsMap := make(map[string]struct{})
-	for _, product := range products {
-		productsMap[product] = struct{}{}
-	}
-	configs := make([]string, 0)
-	for path, meta := range directorTargets {
-		pathMeta, err := rdata.ParseConfigPath(path)
-		if err != nil {
-			return nil, err
-		}
-		if _, productRequested := productsMap[pathMeta.Product]; !productRequested {
-			continue
-		}
-		configMetadata, err := parseFileMetaCustom(meta.Custom)
-		if err != nil {
-			return nil, err
-		}
-		if configExpired(configMetadata.Expires) {
-			continue
-		}
-
-		configs = append(configs, path)
-	}
-
-	// Gather the files and map-ify them for the state data structure
-	targetFiles, err := getTargetFiles(c.uptane, configs)
-	if err != nil {
-		return nil, err
-	}
-	fileMap := make(map[string][]byte, len(targetFiles))
-	for _, f := range targetFiles {
-		fileMap[f.Path] = f.Raw
-	}
-
-	// Gather some TUF metadata files we need to send down
-	roots, err := getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
-	if err != nil {
-		return nil, err
-	}
-	targetsRaw, err := c.uptane.TargetsMeta()
-	if err != nil {
-		return nil, err
-	}
-
-	return &state.Update{
-		TUFRoots:      roots,
-		TUFTargets:    targetsRaw,
-		TargetFiles:   fileMap,
-		ClientConfigs: configs,
-	}, nil
 }

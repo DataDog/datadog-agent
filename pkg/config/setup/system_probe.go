@@ -45,9 +45,9 @@ const (
 	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
 
 	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
-	// info for dynamic instrumentation this is the directory where the debug
-	// info is decompressed into during processing.
-	defaultDynamicInstrumentationDebugInfoDir = "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+	// info for Dynamic Instrumentation. This is the directory where the DWARF
+	// data from analyzed binaries is decompressed into during processing.
+	defaultDynamicInstrumentationDebugInfoDir = "/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
 
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
@@ -129,6 +129,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_enabled"), false, "DD_TELEMETRY_ENABLED")
+	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_perf_buffer_emit_per_cpu"), false)
 	cfg.BindEnvAndSetDefault(join(spNS, "health_port"), int64(0), "DD_SYSTEM_PROBE_HEALTH_PORT")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
@@ -188,6 +189,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_bytes"), int64(512<<20 /* 512MiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_percent"), float64(0.0))
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interval"), 1*time.Second)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "per_probe_cpu_limit"), 0.1)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "all_probes_cpu_limit"), 0.5)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interrupt_overhead"), 5*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -268,6 +273,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_cert_collection"), false)
+	cfg.BindEnvAndSetDefault(join(netNS, "cert_collection_map_cleaner_interval"), 30*time.Second)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)
@@ -366,8 +372,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnv(join(discoveryNS, "enabled")) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "cpu_usage_update_delay"), "60s")
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.enabled"), true)
-	cfg.BindEnvAndSetDefault(join(discoveryNS, "network_stats.period"), "60s")
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "ignored_command_names"), []string{"chronyd", "cilium-agent", "containerd", "dhclient", "dockerd", "kubelet", "livenessprobe", "local-volume-pr", "sshd", "systemd"})
 	cfg.BindEnvAndSetDefault(join(discoveryNS, "service_collection_interval"), "60s")
 
@@ -390,6 +394,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "device_cache_refresh_interval"), 5*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_delay"), 30*time.Second)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)

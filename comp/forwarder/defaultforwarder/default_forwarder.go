@@ -148,10 +148,17 @@ func getObsPipelineURLForPrefix(log log.Component, datatype string, prefix strin
 	return "", nil
 }
 
-// NewOptions creates new Options with default values
+// NewOptions creates a configuration for the forwarder with OPW enabled.
+//
+// Deprecated, use NewOptionsWithOPW instead.
 func NewOptions(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys) (*Options, error) {
 
-	resolvers, err := pkgresolver.NewSingleDomainResolvers(keysPerDomain)
+	return NewOptionsWithOPW(config, log, utils.EndpointDescriptorSetFromKeysPerDomain(keysPerDomain))
+}
+
+// NewOptionsWithOPW creates a configuration for the forwarder with OPW enabled.
+func NewOptionsWithOPW(config config.Component, log log.Component, eds utils.EndpointDescriptorSet) (*Options, error) {
+	resolvers, err := pkgresolver.NewSingleDomainResolvers2(eds)
 	if err != nil {
 		return nil, err
 	}
@@ -337,24 +344,10 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
-		isMRF := false
-		if config.GetBool("multi_region_failover.enabled") {
-			log.Infof("MRF is enabled, checking site: %v ", domain)
-			siteURL, err := utils.GetMRFInfraEndpoint(config)
-			if err != nil {
-				log.Error("Error building MRF infra endpoint: ", err)
-			}
-			if domain == siteURL {
-				log.Infof("MRF domain '%s', configured ", domain)
-				isMRF = true
-			}
-
-		}
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 
-		_, isLocal := resolver.(*pkgresolver.LocalDomainResolver)
-		if !isLocal && (resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0) {
+		if !resolver.IsUsable() {
 			log.Errorf("No API keys for domain '%s', dropping domain ", domain)
 		} else {
 			var domainFolderPath string
@@ -378,15 +371,15 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
 			numberOfWorkers := options.NumberOfWorkers
-			if isLocal {
+			if resolver.IsLocal() {
 				numberOfWorkers = 1 // Local domain resolver should only have one worker
 			}
 			fwd := newDomainForwarder(
 				config,
 				log,
 				domain,
-				isMRF,
-				isLocal,
+				resolver.IsMRF(),
+				resolver.IsLocal(),
 				transactionContainer,
 				numberOfWorkers,
 				options.ConnectionResetInterval,
@@ -526,56 +519,42 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 	for _, payload := range payloads {
 		for domain, dr := range f.domainResolvers {
-			drDomain, destinationType := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
+			drDomain := dr.Resolve(endpoint) // drDomain is the domain with agent version if not local
 
-			if payload.Destination == transaction.LocalOnly {
-				// if it is local payload, we should not send it to the remote endpoint
-				if destinationType == pkgresolver.Local && endpoint == endpoints.SeriesEndpoint {
-					t := transaction.NewHTTPTransaction()
-					t.Domain = drDomain
-					t.Endpoint = endpoint
-					t.Payload = payload
-					t.Priority = priority
-					t.Kind = kind
-					t.StorableOnDisk = storableOnDisk
-					t.Destination = payload.Destination
-					t.Headers.Set("Authorization", fmt.Sprintf("Bearer %s", dr.GetBearerAuthToken()))
-					for key := range extra {
-						t.Headers.Set(key, extra.Get(key))
-					}
-					tlmTxInputCount.Inc(drDomain, endpoint.Name)
-					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
-					transactions = append(transactions, t)
+			// Autoscaling failover payloads, and only them, should go to the local resolver.
+			if (payload.Destination == transaction.LocalOnly) != dr.IsLocal() {
+				continue
+			}
+			// Autoscaling failover endpoint can only receive series payloads.
+			if dr.IsLocal() && endpoint != endpoints.SeriesEndpoint {
+				continue
+			}
+
+			for _, auth := range dr.GetAuthorizers() {
+				t := transaction.NewHTTPTransaction()
+				t.Domain = drDomain
+				t.Endpoint = endpoint
+				t.Payload = payload
+				t.Priority = priority
+				t.Kind = kind
+				t.StorableOnDisk = storableOnDisk
+				t.Destination = payload.Destination
+				auth.Authorize(t)
+				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
+				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+				if allowArbitraryTags {
+					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 				}
-			} else {
-				for _, apiKey := range dr.GetAPIKeys() {
-					t := transaction.NewHTTPTransaction()
-					t.Domain = drDomain
-					t.Endpoint = endpoint
-					t.Payload = payload
-					t.Priority = priority
-					t.Kind = kind
-					t.StorableOnDisk = storableOnDisk
-					t.Destination = payload.Destination
-					t.Headers.Set(apiHTTPHeaderKey, apiKey)
-					t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-					t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
-					if allowArbitraryTags {
-						t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
-					}
 
-					tlmTxInputCount.Inc(domain, endpoint.Name)
-					tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
-					transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
-					transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
+				tlmTxInputCount.Inc(domain, endpoint.Name)
+				tlmTxInputBytes.Add(float64(t.GetPayloadSize()), domain, endpoint.Name)
+				transactionsInputCountByEndpoint.Add(endpoint.Name, 1)
+				transactionsInputBytesByEndpoint.Add(endpoint.Name, int64(t.GetPayloadSize()))
 
-					for key := range extra {
-						t.Headers.Set(key, extra.Get(key))
-					}
-					transactions = append(transactions, t)
+				for key := range extra {
+					t.Headers.Set(key, extra.Get(key))
 				}
+				transactions = append(transactions, t)
 			}
 		}
 	}

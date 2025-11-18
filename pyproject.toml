@@ -16,6 +16,7 @@ exclude = [
     "vendor",
     "venv",
     "dev",
+    "third_party",
 ]
 line-length = 120
 

@@ -223,6 +223,8 @@ const (
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
 	ExpectedPythonVersion3 = "3.13.7"
+	// ExpectedUnloadedPython is the status value for uninitialized lazy loaded python runtime
+	ExpectedUnloadedPython = "unused"
 )
 
 // SetAgentPythonMajorVersion set the python major version in the agent config and restarts the agent
@@ -231,6 +233,8 @@ func SetAgentPythonMajorVersion(t *testing.T, client *TestClient, majorVersion s
 		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 		err := client.SetConfig(configFilePath, "python_version", majorVersion)
 		require.NoError(tt, err, "failed to set python version: ", err)
+		err = client.SetConfig(configFilePath, "python_lazy_loading", "false")
+		require.NoError(tt, err, "failed to disable python lazy loading", err)
 
 		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
 		require.NoError(tt, err, "agent should be able to restart after editing python version")

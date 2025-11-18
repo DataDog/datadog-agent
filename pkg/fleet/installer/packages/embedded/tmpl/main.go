@@ -146,7 +146,7 @@ var (
 	expDataOCI = systemdTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent/experiment",
 		EtcDir:           "/etc/datadog-agent-exp",
-		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
 	}
@@ -161,7 +161,7 @@ var (
 	expDataDebRpm = systemdTemplateData{
 		InstallDir:       "/opt/datadog-agent",
 		EtcDir:           "/etc/datadog-agent-exp",
-		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-agent",
 		Stable:           false,
 	}
@@ -176,7 +176,7 @@ var (
 	ddotExpDataOCI = systemdTemplateData{
 		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/experiment",
 		EtcDir:           "/etc/datadog-agent-exp",
-		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/experiment",
+		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
 		PIDDir:           "/opt/datadog-packages/datadog-agent/experiment",
 		Stable:           false,
 	}
