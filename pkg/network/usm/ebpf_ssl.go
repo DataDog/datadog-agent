@@ -83,10 +83,16 @@ const (
 )
 
 // pidKeyedTLSMaps is the single source of truth for all TLS eBPF maps that use pid_tgid as keys.
+//
+// IMPORTANT: Map names must be unique within their first 15 characters due to kernel truncation
+// (BPF_OBJ_NAME_LEN - 1). The leak detection system searches maps by truncated names, so names
+// like "hash_map_name_10" and "hash_map_name_11" would collide as both truncate to "hash_map_name_1".
+//
 // When adding a new PID-keyed map:
 // 1. Add a new field to this struct with the map name as the value
-// 2. Add the corresponding map cleaner field to sslProgram struct
-// 3. Initialize it in initAllMapCleaners() with uint64 key type
+// 2. Ensure the name is unique within the first 15 characters
+// 3. Add the corresponding map cleaner field to sslProgram struct
+// 4. Initialize it in initAllMapCleaners() with uint64 key type
 // The GetPIDKeyedTLSMapNames() function will automatically include it via reflection.
 var pidKeyedTLSMaps = struct {
 	SSLReadArgs      string

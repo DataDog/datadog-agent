@@ -18,8 +18,15 @@ import (
 )
 
 // findMapByName searches for an eBPF map by name in the system
-// Note: eBPF map names are truncated to 15 characters in the kernel,
-// so we match on the truncated name for longer map names
+//
+// Note: eBPF map names are truncated to 15 characters by the kernel (BPF_OBJ_NAME_LEN - 1).
+// This function matches on the truncated name, which means map names MUST be unique within
+// their first 15 characters to avoid collisions. For example, "hash_map_name_10" and
+// "hash_map_name_11" would both truncate to "hash_map_name_1" and be indistinguishable.
+//
+// Currently, all USM map names satisfy this uniqueness constraint. Future work will add
+// an HTTP endpoint to system-probe that can look up maps by their full names via the
+// ebpf-manager, eliminating this limitation.
 func findMapByName(name string) (*ebpf.Map, error) {
 	var id ebpf.MapID
 
