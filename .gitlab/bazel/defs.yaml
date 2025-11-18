@@ -62,6 +62,7 @@
       --env=BAZEL_REPO_CONTENTS_CACHE
       --env=CI_PROJECT_DIR
       --env=RUNNER_TEMP_PROJECT_DIR
+      --env=CI_IDENTITIES_GITLAB_ID_TOKEN
       --rm
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
       --volume="${RUNNER_TEMP_PROJECT_DIR}:$RUNNER_TEMP_PROJECT_DIR"
