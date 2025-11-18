@@ -12,29 +12,15 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// SecurityAgentCommands returns the security agent commands
-func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	return commandsWrapped(func() core.BundleParams {
-		return core.BundleParams{
-			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
-		}
-	})
-}
 
 // ClusterAgentCommands returns the cluster agent commands
 func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
