@@ -42,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -840,6 +841,14 @@ func skipIfHTTP2KernelNotSupported() func(*testing.T) {
 	}
 }
 
+// skipIfRedisKernelNotSupported returns a skip function for Redis kernel checks that matches func(*testing.T) signature
+func skipIfRedisKernelNotSupported() func(*testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+		skipIfKernelNotSupported(t, redis.MinimumKernelVersion, "Redis")
+	}
+}
+
 func TestConnectionStatesMap(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
@@ -871,6 +880,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:            redisEnabledConfig, // Enabling any protocol other than HTTP to allow USM to run
 		expectedResult: shouldNotExists,
 		preTestSetup:   markConnectionProtocol(protocols.HTTP),
+		skipCondition:  skipIfRedisKernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:                "HTTP2 protocol enabled",
 		cfg:                 http2EnabledConfig,
@@ -938,6 +948,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:                 redisEnabledConfig,
 		expectedResult:      shouldExists,
 		sendRequestCallback: sendAndReadBuffer(redisBuffer),
+		skipCondition:       skipIfRedisKernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:                "redis protocol disabled",
 		cfg:                 httpEnabledConfig, // Enabling any protocol other than Redis to allow USM to run
@@ -948,6 +959,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:            redisEnabledConfig,
 		expectedResult: shouldExists,
 		preTestSetup:   markConnectionProtocol(protocols.Redis),
+		skipCondition:  skipIfRedisKernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:           "Redis protocol already classified but not enabled",
 		cfg:            httpEnabledConfig, // Enabling any protocol other than Redis to allow USM to run
