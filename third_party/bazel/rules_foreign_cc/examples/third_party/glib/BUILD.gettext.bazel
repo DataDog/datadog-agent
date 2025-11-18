@@ -1,0 +1,48 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "gettext",
+    env = select({
+        "@platforms//os:macos": {
+            "AR": "",
+        },
+        "//conditions:default": {},
+    }),
+    lib_source = ":all_srcs",
+    out_shared_libs = select({
+        "@platforms//os:macos": [
+            "libgettextlib.dylib",
+            "libgettextpo.0.dylib",
+            "libasprintf.dylib",
+            "libgettextlib-0.21.1.dylib",
+            "libintl.dylib",
+            "libtextstyle.0.dylib",
+            "libintl.8.dylib",
+            "libasprintf.0.dylib",
+            "libgettextsrc.dylib",
+            "libtextstyle.dylib",
+            "libgettextsrc-0.21.1.dylib",
+            "libgettextpo.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    out_static_libs = select({
+        "@platforms//os:macos": [
+            "libasprintf.a",
+            "libgettextpo.a",
+            "libintl.a",
+            "libtextstyle.a",
+        ],
+        "//conditions:default": [],
+    }),
+)

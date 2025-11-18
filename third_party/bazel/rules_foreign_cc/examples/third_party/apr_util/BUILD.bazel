@@ -1,0 +1,16 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+exports_files(
+    [
+        "BUILD.apr_util.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+build_test(
+    name = "apr_util_build_test",
+    targets = [
+        "@apr_util//:apr_util",
+    ],
+    visibility = ["//:__pkg__"],
+)

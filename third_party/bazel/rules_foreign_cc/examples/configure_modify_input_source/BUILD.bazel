@@ -1,0 +1,18 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+configure_make(
+    name = "simple",
+    configure_in_place = True,
+    lib_source = "//configure_modify_input_source/simple_lib:simple_srcs",
+    targets = [
+        "simple",
+        "install",
+    ],
+)
+
+cc_test(
+    name = "test",
+    srcs = ["testSimple.c"],
+    deps = [":simple"],
+)

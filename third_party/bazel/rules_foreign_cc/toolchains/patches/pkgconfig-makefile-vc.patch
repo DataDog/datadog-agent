@@ -1,0 +1,11 @@
+--- Makefile.vc	2016-04-11 22:39:26.000000000 +0100
++++ Makefile.vc.new	2022-08-19 17:46:52.031979100 +0100
+@@ -73,7 +73,7 @@
+ 	@-if exist $@.manifest mt /manifest $@.manifest /outputresource:$@;1
+ 
+ $(CFG)\$(PLAT)\pkg-config:
+-	@-mkdir $@
++	@-mkdir -p $@
+ 
+ config.h: config.h.win32
+ 	@-copy $@.win32 $@

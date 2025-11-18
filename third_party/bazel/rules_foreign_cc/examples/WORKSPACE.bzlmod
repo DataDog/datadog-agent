@@ -1,0 +1,45 @@
+workspace(name = "rules_foreign_cc_examples")
+
+load("//deps:repositories.bzl", "repositories")
+
+repositories()
+
+load("//deps:deps_android.bzl", "deps_android")
+
+deps_android()
+
+load("//deps:deps_jvm_external.bzl", "deps_jvm_external")
+
+deps_jvm_external()
+
+local_repository(
+    name = "rules_foreign_cc_examples_third_party",
+    path = "third_party",
+)
+
+load("@rules_foreign_cc_examples_third_party//:repositories.bzl", examples_third_party_repositories = "repositories")
+
+examples_third_party_repositories()
+
+load("@rules_foreign_cc_examples_third_party//:setup.bzl", examples_third_party_setup = "setup")
+
+examples_third_party_setup()
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "bazelci_rules",
+    sha256 = "eca21884e6f66a88c358e580fd67a6b148d30ab57b1680f62a96c00f9bc6a07e",
+    strip_prefix = "bazelci_rules-1.0.0",
+    url = "https://github.com/bazelbuild/continuous-integration/releases/download/rules-1.0.0/bazelci_rules-1.0.0.tar.gz",
+)
+
+load("@bazelci_rules//:rbe_repo.bzl", "rbe_preconfig")
+
+# Creates a default toolchain config for RBE.
+# Use this as is if you are using the rbe_ubuntu16_04 container,
+# otherwise refer to RBE docs.
+rbe_preconfig(
+    name = "buildkite_config",
+    toolchain = "ubuntu1804-bazel-java11",
+)

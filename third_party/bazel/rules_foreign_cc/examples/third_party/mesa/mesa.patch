@@ -1,0 +1,158 @@
+diff -uNr mesa-22.1.4/meson.build mesa-22.1.4.new/meson.build
+--- mesa-22.1.4/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/meson.build	2022-12-05 12:33:38.870379170 +0000
+@@ -1002,7 +1002,7 @@
+   ]
+ endif
+ 
+-prog_python = import('python').find_installation('python3')
++prog_python = import('python').find_installation()
+ has_mako = run_command(
+   prog_python, '-c',
+   '''
+@@ -2033,6 +2033,7 @@
+ endif
+ 
+ if with_platform_x11
++    dep_x11 = dependency('x11')
+   if with_glx == 'xlib' or with_glx == 'gallium-xlib'
+     dep_x11 = dependency('x11')
+     dep_xext = dependency('xext')
+diff -uNr mesa-22.1.4/src/egl/meson.build mesa-22.1.4.new/src/egl/meson.build
+--- mesa-22.1.4/src/egl/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/egl/meson.build	2022-12-05 14:21:05.700235372 +0000
+@@ -106,7 +106,7 @@
+       files_egl += files('drivers/dri2/platform_x11_dri3.c')
+       link_for_egl += libloader_dri3_helper
+     endif
+-    deps_for_egl += [dep_x11_xcb, dep_xcb_dri2, dep_xcb_xfixes]
++    deps_for_egl += [dep_x11_xcb, dep_xcb_dri2, dep_xcb_xfixes, dep_xlib_xrandr]
+   endif
+   if with_gbm and not with_platform_android
+     files_egl += files('drivers/dri2/platform_drm.c')
+diff -uNr mesa-22.1.4/src/gallium/frontends/dri/dri_util.c mesa-22.1.4.new/src/gallium/frontends/dri/dri_util.c
+--- mesa-22.1.4/src/gallium/frontends/dri/dri_util.c	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/gallium/frontends/dri/dri_util.c	2022-12-12 13:13:13.401778933 +0000
+@@ -171,6 +171,8 @@
+     return psp;
+ }
+ 
++#if defined(HAVE_LIBDRM)
++
+ static __DRIscreen *
+ dri2CreateNewScreen(int scrn, int fd,
+ 		    const __DRIextension **extensions,
+@@ -191,6 +193,8 @@
+                               driver_configs, data);
+ }
+ 
++#endif
++
+ /** swrast driver createNewScreen entrypoint. */
+ static __DRIscreen *
+ driSWRastCreateNewScreen(int scrn, const __DRIextension **extensions,
+@@ -808,6 +812,8 @@
+     .unbindContext              = driUnbindContext
+ };
+ 
++#if defined(HAVE_LIBDRM)
++
+ /** DRI2 interface */
+ const __DRIdri2Extension driDRI2Extension = {
+     .base = { __DRI_DRI2, 4 },
+@@ -837,6 +843,8 @@
+     .createNewScreen2           = driCreateNewScreen2,
+ };
+ 
++#endif
++
+ const __DRIswrastExtension driSWRastExtension = {
+     .base = { __DRI_SWRAST, 4 },
+ 
+diff -uNr mesa-22.1.4/src/gallium/frontends/dri/meson.build mesa-22.1.4.new/src/gallium/frontends/dri/meson.build
+--- mesa-22.1.4/src/gallium/frontends/dri/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/gallium/frontends/dri/meson.build	2022-12-12 10:20:49.540287708 +0000
+@@ -71,6 +71,9 @@
+   dependencies : [
+     dep_libdrm,
+     idep_mesautil,
++    dep_xcb,
++    dep_x11,
++    dep_xlib_xrandr
+   ],
+ )
+ 
+diff -uNr mesa-22.1.4/src/gallium/targets/dri/meson.build mesa-22.1.4.new/src/gallium/targets/dri/meson.build
+--- mesa-22.1.4/src/gallium/targets/dri/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/gallium/targets/dri/meson.build	2022-12-05 14:02:15.710260576 +0000
+@@ -58,7 +58,7 @@
+     driver_kmsro, driver_v3d, driver_vc4, driver_freedreno, driver_etnaviv,
+     driver_tegra, driver_i915, driver_svga, driver_virgl,
+     driver_panfrost, driver_iris, driver_lima, driver_zink, driver_d3d12,
+-    driver_asahi, driver_crocus
++    driver_asahi, driver_crocus, dep_xcb
+   ],
+   # Will be deleted during installation, see install_megadrivers.py
+   install : true,
+diff -uNr mesa-22.1.4/src/gbm/meson.build mesa-22.1.4.new/src/gbm/meson.build
+--- mesa-22.1.4/src/gbm/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/gbm/meson.build	2022-12-05 13:11:53.570327986 +0000
+@@ -44,6 +44,9 @@
+   deps_gbm += dep_wayland_server
+   incs_gbm += inc_wayland_drm
+ endif
++if with_platform_x11
++  deps_gbm += dep_xcb dep_x11
++endif
+ 
+ libgbm = shared_library(
+   'gbm',
+diff -uNr mesa-22.1.4/src/glx/meson.build mesa-22.1.4.new/src/glx/meson.build
+--- mesa-22.1.4/src/glx/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/glx/meson.build	2022-12-12 09:36:07.300346991 +0000
+@@ -136,7 +136,7 @@
+   ],
+   dependencies : [
+     idep_mesautil, idep_xmlconfig,
+-    dep_libdrm, dep_dri2proto, dep_glproto, dep_x11, dep_glvnd,
++    dep_libdrm, dep_dri2proto, dep_glproto, dep_x11, dep_glvnd, dep_xext,
+   ],
+ )
+ 
+diff -uNr mesa-22.1.4/src/intel/vulkan/meson.build mesa-22.1.4.new/src/intel/vulkan/meson.build
+--- mesa-22.1.4/src/intel/vulkan/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/intel/vulkan/meson.build	2022-11-30 18:21:07.247725902 +0000
+@@ -95,7 +95,7 @@
+     dependencies : [
+       dep_libdrm, dep_valgrind, idep_nir_headers, idep_genxml,
+       idep_vulkan_util_headers, idep_vulkan_wsi_headers,
+-      idep_vulkan_runtime_headers, idep_intel_driver_ds_headers,
++      idep_vulkan_runtime_headers, idep_intel_driver_ds_headers, dep_x11,
+     ],
+   )
+ endforeach
+diff -uNr mesa-22.1.4/src/loader/meson.build mesa-22.1.4.new/src/loader/meson.build
+--- mesa-22.1.4/src/loader/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/loader/meson.build	2022-11-30 17:26:20.047790496 +0000
+@@ -28,7 +28,7 @@
+     include_directories : [inc_include, inc_src],
+     dependencies : [
+       dep_libdrm, dep_xcb_dri3, dep_xcb_present, dep_xcb_sync, dep_xshmfence,
+-      dep_xcb_xfixes,
++      dep_xcb_xfixes, dep_x11_xcb
+     ],
+     build_by_default : false,
+   )
+diff -uNr mesa-22.1.4/src/vulkan/util/meson.build mesa-22.1.4.new/src/vulkan/util/meson.build
+--- mesa-22.1.4/src/vulkan/util/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ mesa-22.1.4.new/src/vulkan/util/meson.build	2022-12-05 12:46:26.270362053 +0000
+@@ -105,7 +105,8 @@
+ 
+ idep_vulkan_util_headers = declare_dependency(
+   sources : [vk_dispatch_table[1], vk_enum_to_str[1], vk_extensions[1]],
+-  include_directories : include_directories('.')
++  include_directories : include_directories('.'),
++  dependencies : [dep_xcb, dep_x11, dep_xcb_xrandr]
+ )
+ 
+ idep_vulkan_util = declare_dependency(

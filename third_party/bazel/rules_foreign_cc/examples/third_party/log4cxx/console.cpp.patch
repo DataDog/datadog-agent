@@ -1,0 +1,10 @@
+--- src/examples/cpp/console.cpp	2008-03-31 23:34:09.000000000 +0100
++++ src/examples/cpp/console.cpp	2008-03-31 23:34:09.000000000 +0100
+@@ -22,6 +22,7 @@
+ #include <log4cxx/logmanager.h>
+ #include <iostream>
+ #include <locale.h>
++#include <cstring>
+ 
+ using namespace log4cxx;
+ using namespace log4cxx::helpers;

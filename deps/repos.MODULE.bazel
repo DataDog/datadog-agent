@@ -43,6 +43,10 @@ http_archive(
 
 # Defines a "rules_foreign_cc" target to build openssl
 bazel_dep(name = "rules_foreign_cc", version = "0.15.0")
+local_path_override(
+    module_name = "rules_foreign_cc",
+    path = "third_party/bazel/rules_foreign_cc",
+)
 
 register_toolchains(
     "@rules_foreign_cc//toolchains:preinstalled_cmake_toolchain",

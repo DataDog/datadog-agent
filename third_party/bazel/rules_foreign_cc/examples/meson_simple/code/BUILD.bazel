@@ -1,0 +1,11 @@
+exports_files(["clang_wrapper.sh"])
+
+filegroup(
+    name = "srcs",
+    srcs = [
+        "liba.cpp",
+        "liba.h",
+        "meson.build",
+    ],
+    visibility = ["//meson_simple:__subpackages__"],
+)

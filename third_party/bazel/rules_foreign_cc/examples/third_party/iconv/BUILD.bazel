@@ -1,0 +1,31 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+exports_files(
+    [
+        "BUILD.iconv.bazel",
+        "BUILD.iconv.macos.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+build_test(
+    name = "iconv_linux_build_test",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+    targets = [
+        "@iconv//:iconv",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+build_test(
+    name = "iconv_macos_build_test",
+    target_compatible_with = [
+        "@platforms//os:macos",
+    ],
+    targets = [
+        "@iconv_macos//:iconv",
+    ],
+    visibility = ["//:__pkg__"],
+)

@@ -1,0 +1,112 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@io_bazel_stardoc//stardoc:stardoc.bzl", "stardoc")
+load("@rules_rust_mdbook//:defs.bzl", "mdbook", "mdbook_server")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+# `rules_foreign_cc` does not use `protobuf` yet due to a
+# deficiency in `rules_cc` the symbols in general being
+# incorrectly included and `rules_cc` does not include
+# the necessary symbols, leading to errors for consumers.
+# This target aims to avoid this issue
+# See https://github.com/bazelbuild/rules_cc/issues/274
+bzl_library(
+    name = "rules_cc_deps",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_google_protobuf//bazel:cc_proto_library_bzl",
+    ],
+)
+
+stardoc(
+    name = "cmake_docs",
+    out = "src/cmake.md",
+    input = "@rules_foreign_cc//foreign_cc:cmake.bzl",
+    deps = [
+        ":rules_cc_deps",
+        "@rules_foreign_cc//foreign_cc:cmake",
+    ],
+)
+
+stardoc(
+    name = "make_docs",
+    out = "src/make.md",
+    input = "@rules_foreign_cc//foreign_cc:make.bzl",
+    deps = [
+        ":rules_cc_deps",
+        "@rules_foreign_cc//foreign_cc:make",
+    ],
+)
+
+stardoc(
+    name = "ninja_docs",
+    out = "src/ninja.md",
+    input = "@rules_foreign_cc//foreign_cc:ninja.bzl",
+    deps = [
+        ":rules_cc_deps",
+        "@rules_foreign_cc//foreign_cc:ninja",
+    ],
+)
+
+stardoc(
+    name = "configure_make_docs",
+    out = "src/configure_make.md",
+    input = "@rules_foreign_cc//foreign_cc:configure.bzl",
+    deps = [
+        ":rules_cc_deps",
+        "@rules_foreign_cc//foreign_cc:configure",
+    ],
+)
+
+stardoc(
+    name = "meson_docs",
+    out = "src/meson.md",
+    input = "@rules_foreign_cc//foreign_cc:meson.bzl",
+    deps = [
+        ":rules_cc_deps",
+        "@rules_foreign_cc//foreign_cc:meson",
+    ],
+)
+
+stardoc(
+    name = "providers_docs",
+    out = "src/providers.md",
+    input = "@rules_foreign_cc//foreign_cc:providers.bzl",
+    deps = [
+        ":rules_cc_deps",
+        "@rules_foreign_cc//foreign_cc:providers",
+    ],
+)
+
+DOCS_TARGETS = [
+    ":cmake_docs",
+    ":ninja_docs",
+    ":make_docs",
+    ":configure_make_docs",
+    ":meson_docs",
+    ":providers_docs",
+]
+
+build_test(
+    name = "docs_build_test",
+    targets = DOCS_TARGETS,
+    visibility = ["//visibility:public"],
+)
+
+mdbook(
+    name = "book",
+    srcs = glob(["src/**/*.md"]) + DOCS_TARGETS,
+    book = "book.toml",
+)
+
+mdbook_server(
+    name = "server",
+    book = ":book",
+)
+
+sh_binary(
+    name = "publish_book",
+    srcs = ["publish_book.sh"],
+    data = [":book"],
+    env = {"BOOK_DIR": "$(rootpath :book)"},
+)

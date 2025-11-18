@@ -1,0 +1,32 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@build_bazel_rules_apple//apple:apple_binary.bzl", "apple_binary")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+
+cc_test(
+    name = "test_c_ares",
+    srcs = ["c-ares-test.cpp"],
+    visibility = ["//:__pkg__"],
+    deps = ["@cares"],
+)
+
+cc_library(
+    name = "ios_lib",
+    srcs = ["c-ares-test.cpp"],
+    tags = ["manual"],
+    deps = ["@cares"],
+)
+
+apple_binary(
+    name = "ios_binary",
+    minimum_os_version = "12.0",
+    platform_type = "ios",
+    deps = [":ios_lib"],
+)
+
+build_test(
+    name = "test_c_ares_ios",
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:macos"],
+    targets = ["ios_binary"],
+    visibility = ["//:__pkg__"],
+)

@@ -1,0 +1,13 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+genrule(
+    name = "current_make_toolchain_test",
+    outs = ["out.txt"],
+    cmd = "$(MAKE) --version > $@",
+    toolchains = ["@rules_foreign_cc//toolchains:current_make_toolchain"],
+)
+
+build_test(
+    name = "current_toolchain_tests",
+    targets = [":current_make_toolchain_test"],
+)

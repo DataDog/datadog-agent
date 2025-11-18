@@ -1,0 +1,31 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+DEPS = [
+    "@libxau",
+    "@xcb-proto",
+]
+
+configure_make(
+    name = "libxcb",
+    env = select({
+        "@platforms//os:macos": {
+            "AR": "",
+        },
+        "//conditions:default": {},
+    }),
+    lib_source = ":all_srcs",
+    deps = select({
+        "@platforms//os:macos": DEPS + ["@libpthread-stubs"],
+        "//conditions:default": DEPS,
+    }),
+)

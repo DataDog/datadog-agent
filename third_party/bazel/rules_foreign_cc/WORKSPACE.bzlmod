@@ -1,0 +1,11 @@
+workspace(name = "rules_foreign_cc")
+
+load("@bazel_ci_rules//:rbe_repo.bzl", "rbe_preconfig")
+
+# Creates a default toolchain config for RBE.
+# Use this as is if you are using the rbe_ubuntu16_04 container,
+# otherwise refer to RBE docs.
+rbe_preconfig(
+    name = "buildkite_config",
+    toolchain = "ubuntu1804-bazel-java11",
+)

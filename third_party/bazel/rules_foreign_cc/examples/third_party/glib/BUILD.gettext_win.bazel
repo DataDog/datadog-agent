@@ -1,0 +1,17 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_cc//cc:defs.bzl", "cc_import")
+
+package(default_visibility = ["//visibility:public"])
+
+copy_file(
+    name = "libint_dll",
+    src = "lib/libintl.dll.a",
+    out = "libintl.dll",
+)
+
+cc_import(
+    name = "gettext",
+    hdrs = glob(["include/**"]),
+    interface_library = "lib/intl.lib",
+    shared_library = ":libint_dll",
+)

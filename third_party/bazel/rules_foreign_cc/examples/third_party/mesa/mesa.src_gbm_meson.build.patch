@@ -1,0 +1,13 @@
+
+--- src/gbm/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/gbm/meson.build	2022-12-05 13:01:49.660341456 +0000
+@@ -44,6 +44,9 @@
+   deps_gbm += dep_wayland_server
+   incs_gbm += inc_wayland_drm
+ endif
++if with_platform_x11
++  deps_gbm += [dep_xcb, dep_x11, dep_xlib_xrandr]
++endif
+ 
+ libgbm = shared_library(
+   'gbm',

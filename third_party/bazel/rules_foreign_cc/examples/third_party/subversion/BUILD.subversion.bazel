@@ -1,0 +1,53 @@
+load("@bazel_skylib//lib:dicts.bzl", "dicts")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+CONFIGURE_ENV_VARS = {
+    "CFLAGS": "-Dredacted='\\\"redacted\\\"'",
+    "CXXFLAGS": "-Dredacted='\\\"redacted\\\"'",
+}
+
+configure_make(
+    name = "subversion",
+    configure_options = [
+        "--enable-all-static",
+        "--without-boost",
+        "--with-apr=$$EXT_BUILD_DEPS/apr",
+        "--with-apr-util=$$EXT_BUILD_DEPS/apr_util",
+        "--with-zlib=$$EXT_BUILD_DEPS/zlib",
+        "--with-lz4=internal",
+        "--with-utf8proc=internal",
+        "--enable-optimize",
+        "--disable-nls",
+    ],
+    env = select({
+        "@platforms//os:macos": dicts.add(
+            {"AR": ""},
+            CONFIGURE_ENV_VARS,
+        ),
+        "//conditions:default": CONFIGURE_ENV_VARS,
+    }),
+    lib_source = ":all_srcs",
+    out_binaries = [
+        "svn",
+        "svnversion",
+    ],
+    targets = [
+        "bin",
+        "install",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@apr",
+        "@apr_util",
+        "@sqlite",
+        "@zlib",
+    ],
+)

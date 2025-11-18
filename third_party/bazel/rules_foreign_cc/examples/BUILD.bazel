@@ -1,0 +1,49 @@
+load("@rules_python//python/pip_install:requirements.bzl", "compile_pip_requirements")
+
+# TODO: This should not be necessary but there appears to be some inconsistent
+# behavior with the use of `constraint_value`s in `select` statements. A support
+# thread was started at the end of https://github.com/bazelbuild/bazel/pull/12071
+# Once it is possible to replace `:windows` with `@platforms//os:windows` that
+# should be done for this file. Note actioning on this will set the minimum
+# supported version of Bazel to 4.0.0 for these examples.
+config_setting(
+    name = "windows",
+    constraint_values = ["@platforms//os:windows"],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
+    name = "macos",
+    constraint_values = ["@platforms//os:macos"],
+    visibility = ["//visibility:public"],
+)
+
+test_suite(
+    name = "third_party_examples_linux_tests",
+    tags = ["manual"],
+    tests = ["@rules_foreign_cc_examples_third_party//:linux_tests"],
+)
+
+test_suite(
+    name = "third_party_examples_linux_rbe_tests",
+    tags = ["manual"],
+    tests = ["@rules_foreign_cc_examples_third_party//:linux_rbe_tests"],
+)
+
+test_suite(
+    name = "third_party_examples_macos_tests",
+    tags = ["manual"],
+    tests = ["@rules_foreign_cc_examples_third_party//:macos_tests"],
+)
+
+test_suite(
+    name = "third_party_examples_windows_tests",
+    tags = ["manual"],
+    tests = ["@rules_foreign_cc_examples_third_party//:windows_tests"],
+)
+
+compile_pip_requirements(
+    name = "requirements",
+    requirements_in = "requirements.txt",
+    requirements_txt = "requirements_lock.txt",
+)

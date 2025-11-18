@@ -1,4 +1,5 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -95,6 +96,10 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
+    out_pc_dir = select({
+        "@//:linux_x86_64": "lib64/pkgconfig",
+        "//conditions:default": "lib/pkgconfig",
+    }),
     out_lib_dir = select({
         "@//:linux_x86_64": "lib64",
         "//conditions:default": "lib",
@@ -168,10 +173,27 @@ pkg_files(
     ],
 )
 
+filegroup(
+    name = "pkgconfig_dir",
+    srcs = [":openssl"],
+    output_group = "pkgconfig",
+)
+
+pkg_files(
+    name = "openssl_pkgconfig",
+    srcs = [":pkgconfig_dir"],
+    prefix = selects.with_or({
+        "@//:linux_x86_64": "lib64/pkgconfig",
+        ("@platforms//os:macos", "@//:linux_arm64"): "lib/pkgconfig",
+        "//conditions:default": "",
+    }),
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":openssl_hdr_files",
+        ":openssl_pkgconfig",
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
     ],

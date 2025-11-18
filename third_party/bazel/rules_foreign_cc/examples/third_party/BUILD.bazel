@@ -1,0 +1,119 @@
+package(default_visibility = ["//visibility:public"])
+
+test_suite(
+    name = "linux_tests",
+    tags = ["manual"],
+    tests = [
+        "//apr:apr_build_test",
+        "//apr_util:apr_util_build_test",
+        # Builds but not useful as it hardcodes paths so isn't relocateable
+        # "//autotools:autoconf_build_test",
+        # Fails due to hardcoded paths in autoconf
+        # "//autotools:automake_build_test",
+        "//autotools:libtool_build_test",
+        "//autotools:m4_build_test",
+        "//bison:bison_build_test",
+        "//cares:test_c_ares",
+        "//curl:curl_test_suite",
+        "//glib:glib_build_test",
+        "//gn:gn_launch_test",
+        "//gperftools:test",
+        "//iconv:iconv_linux_build_test",
+        "//libgit2:libgit2_build_test",
+        "//libjpeg_turbo:libjpeg_turbo_build_test",
+        "//libpng:test_libpng",
+        "//libssh2:libssh2_build_test",
+        "//log4cxx:log4cxx_build_test",
+        "//mesa:mesa_build_test",
+        "//openssl:openssl_test_suite",
+        "//pcre:pcre_build_test",
+        "//python:python_tests",
+        "//sqlite:sqlite_build_test",
+        "//subversion:subversion_build_test",
+        "//zlib:test_zlib",
+    ],
+)
+
+test_suite(
+    name = "linux_rbe_tests",
+    tags = ["manual"],
+    tests = [
+        "//apr:apr_build_test",
+        # Copying files to RBE does not preserve timestamps, invoking autotools which is not new enough to build apr_util and its dependants
+        # "//apr_util:apr_util_build_test",
+        # M4 errors due to timestamps of source
+        # not being preserved
+        #"//autotools:autoconf_build_test",
+        #"//autotools:automake_build_test",
+        #"//autotools:libtool_build_test",
+        #"//autotools:m4_build_test",
+        # Missing a new enough m4 to build
+        # "//bison:bison_build_test",
+        "//cares:test_c_ares",
+        "//curl:curl_test_suite",
+        "//glib:glib_build_test",
+        # Attempts to access git sha during configure of build so fails
+        # "//gn:gn_launch_test",
+        "//gperftools:test",
+        "//libgit2:libgit2_build_test",
+        "//libjpeg_turbo:libjpeg_turbo_build_test",
+        "//libpng:test_libpng",
+        "//libssh2:libssh2_build_test",
+        # Missing new enough automake to build mesa
+        #"//mesa:mesa_build_test",
+        "//openssl:openssl_test_suite",
+        "//pcre:pcre_build_test",
+        "//python:python_tests",
+        # Missing a new enough automake to build
+        #"//sqlite:sqlite_build_test",
+        #"//subversion:subversion_build_test",
+    ],
+)
+
+test_suite(
+    name = "macos_tests",
+    tags = ["manual"],
+    tests = [
+        "//apr:apr_build_test",
+        "//apr_util:apr_util_build_test",
+        # Builds but not useful as it hardcodes paths so isn't relocateable
+        # "//autotools:autoconf_build_test",
+        # Fails due to hardcoded paths in autoconf
+        # "//autotools:automake_build_test",
+        "//autotools:libtool_build_test",
+        "//autotools:m4_build_test",
+        # "//bison:bison_build_test",
+        "//cares:test_c_ares",
+        "//cares:test_c_ares_ios",
+        "//curl:curl_test_suite",
+        "//glib:glib_build_test",
+        "//gn:gn_launch_test",
+        "//gperftools:test",
+        "//iconv:iconv_macos_build_test",
+        "//libgit2:libgit2_build_test",
+        "//libjpeg_turbo:libjpeg_turbo_build_test",
+        "//libpng:test_libpng",
+        "//libssh2:libssh2_build_test",
+        "//log4cxx:log4cxx_build_test",
+        "//mesa:mesa_build_test",
+        "//openssl:openssl_test_suite",
+        "//pcre:pcre_build_test",
+        "//python:python_tests",
+        "//sqlite:sqlite_build_test",
+        "//subversion:subversion_build_test",
+        "//zlib:test_zlib",
+    ],
+)
+
+test_suite(
+    name = "windows_tests",
+    tags = ["manual"],
+    tests = [
+        "//apr:apr_build_test",
+        "//curl:curl_test_suite",
+        "//glib:glib_build_test",
+        "//mesa:mesa_build_test",
+        "//openssl:openssl_test_suite",
+        # TODO: Add more windows tests
+    ],
+)

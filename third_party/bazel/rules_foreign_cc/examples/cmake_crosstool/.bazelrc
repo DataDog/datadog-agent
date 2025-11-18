@@ -1,0 +1,2 @@
+build --crosstool_top=//tools/arm_compiler:toolchain --cpu=armeabi-v7a --spawn_strategy=standalone --experimental_cc_skylark_api_enabled_packages=@rules_foreign_cc//tools/build_defs,tools/build_defs,@foreign_cc_impl
+test --crosstool_top=//tools/arm_compiler:toolchain --cpu=armeabi-v7a --spawn_strategy=standalone --experimental_cc_skylark_api_enabled_packages=@rules_foreign_cc//tools/build_defs,tools/build_defs,@foreign_cc_impl

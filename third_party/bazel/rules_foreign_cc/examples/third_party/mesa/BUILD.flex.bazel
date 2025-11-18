@@ -1,0 +1,42 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "flex",
+    build_data = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@m4//:m4_exe"],
+    }),
+    configure_options = select({
+        # See https://github.com/westes/flex/issues/428#issuecomment-539277966
+        "@platforms//os:linux": ["CFLAGS='-D_GNU_SOURCE'"],
+        "//conditions:default": [],
+    }),
+    env = select({
+        "@platforms//os:linux": {
+            "PATH": "$$(dirname $$EXT_BUILD_ROOT$$/$(location @m4//:m4_exe)):$$PATH",
+        },
+        "@platforms//os:macos": {
+            "AR": "",
+            "PATH": "$$(dirname $$EXT_BUILD_ROOT$$/$(location @m4//:m4_exe)):$$PATH",
+        },
+        "//conditions:default": {},
+    }),
+    lib_source = ":all_srcs",
+    out_binaries = ["flex"],
+)
+
+filegroup(
+    name = "flex_exe",
+    srcs = [":flex"],
+    output_group = "flex",
+)

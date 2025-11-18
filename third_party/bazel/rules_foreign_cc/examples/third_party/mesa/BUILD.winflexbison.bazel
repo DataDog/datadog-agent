@@ -1,0 +1,34 @@
+#load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "all_srcs",
+    # The winflexbison build outputs to the source tree, ignore the generated folder otherwise winflexbison will be rebuilt on every bazel invocation
+    srcs = glob(
+        include = ["**"],
+        exclude = ["bin/**"],
+    ),
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "winflexbison",
+    generate_args = select({
+        "@platforms//os:windows": ["-GNinja"],
+        "//conditions:default": [],
+    }),
+    lib_source = ":all_srcs",
+    out_bin_dir = "",
+    out_binaries = [
+        "win_flex.exe",
+        "win_bison.exe",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "gen_dir",
+    srcs = [":winflexbison"],
+    output_group = "gen_dir",
+    visibility = ["//visibility:public"],
+)

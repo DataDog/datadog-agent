@@ -1,0 +1,14 @@
+--- src/main/include/log4cxx/helpers/simpledateformat.h	2008-03-31 23:34:26.000000000 +0100
++++ src/main/include/log4cxx/helpers/simpledateformat.h	2008-03-31 23:34:26.000000000 +0100
+@@ -27,10 +27,9 @@
+ 
+ #include <log4cxx/helpers/dateformat.h>
+ #include <vector>
++#include <locale>
+ #include <time.h>
+ 
+-namespace std { class locale; }
+-
+ namespace log4cxx
+ {
+         namespace helpers

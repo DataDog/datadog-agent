@@ -1,0 +1,35 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load(":platform.bzl", "framework_platform_info")
+
+toolchain_type(
+    name = "shell_toolchain",
+    visibility = ["//visibility:public"],
+)
+
+framework_platform_info()
+
+bzl_library(
+    name = "helpers",
+    srcs = ["helpers.bzl"],
+    visibility = [
+        "//foreign_cc:__subpackages__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        "//foreign_cc/private/framework/toolchains:access",
+        "//foreign_cc/private/framework/toolchains:commands",
+    ],
+)
+
+bzl_library(
+    name = "toolchain",
+    srcs = ["toolchain.bzl"],
+    visibility = ["//foreign_cc:__subpackages__"],
+    deps = ["//foreign_cc/private/framework/toolchains:mappings"],
+)
+
+bzl_library(
+    name = "platform",
+    srcs = ["platform.bzl"],
+    visibility = ["//foreign_cc:__subpackages__"],
+)

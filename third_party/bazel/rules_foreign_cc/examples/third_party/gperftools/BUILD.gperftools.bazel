@@ -1,0 +1,25 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "gperftools_build",
+    configure_options = [
+        "--enable-shared=no",
+        "--enable-frame-pointers",
+        "--disable-libunwind",
+    ],
+    env = select({
+        "@platforms//os:macos": {"AR": ""},
+        "//conditions:default": {},
+    }),
+    lib_source = ":all_srcs",
+    out_static_libs = ["libtcmalloc_and_profiler.a"],
+    visibility = ["//visibility:public"],
+)

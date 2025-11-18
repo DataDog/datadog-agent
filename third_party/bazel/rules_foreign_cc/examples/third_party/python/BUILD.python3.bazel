@@ -1,0 +1,40 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "python3",
+    configure_options = [
+        "CFLAGS='-Dredacted=\"redacted\"'",
+        "--with-openssl=$$EXT_BUILD_DEPS/openssl",
+        "--with-zlib=$$EXT_BUILD_DEPS/zlib",
+        "--enable-optimizations",
+    ],
+    env = select({
+        "@platforms//os:macos": {"AR": ""},
+        "//conditions:default": {},
+    }),
+    features = select({
+        "@platforms//os:macos": ["-headerpad"],
+        "//conditions:default": {},
+    }),
+    # rules_foreign_cc defaults the install_prefix to "python". This conflicts with the "python" executable that is generated.
+    install_prefix = "py_install",
+    lib_source = ":all_srcs",
+    out_binaries = [
+        "python3.10",
+    ],
+    out_data_dirs = ["lib"],
+    deps = [
+        "@openssl",
+        "@zlib",
+    ],
+)

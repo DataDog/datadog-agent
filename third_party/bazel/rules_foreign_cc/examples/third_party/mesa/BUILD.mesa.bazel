@@ -1,0 +1,127 @@
+load("@pip//:requirements.bzl", "requirement")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "meson_with_requirements")
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(["**"]),
+)
+
+config_setting(
+    name = "msvc_compiler",
+    flag_values = {
+        "@bazel_tools//tools/cpp:compiler": "msvc-cl",
+    },
+)
+
+meson_with_requirements(
+    name = "mesa",
+    build_args = select({
+        # Prevent parallel builds on when using winflexbison, due to issue https://github.com/lexxmark/winflexbison/issues/86
+        "@bazel_tools//src/conditions:host_windows": ["-j 1"],
+        "//conditions:default": [],
+    }),
+    build_data = select({
+        "@bazel_tools//src/conditions:host_windows": ["@winflexbison//:gen_dir"],
+        "//conditions:default": [
+            "@bison//:gen_dir",
+            "@flex//:flex_exe",
+            "@m4//:m4_exe",
+        ],
+    }),
+    env = select({
+        "@bazel_tools//src/conditions:host_windows": {
+            "PATH": "$$(dirname $$EXT_BUILD_ROOT$$/$(location @winflexbison//:gen_dir))/winflexbison:$$(dirname $$EXT_BUILD_ROOT$$/$(PYTHON3)):$$PATH",
+        },
+        "//conditions:default": {
+            "BISON_PKGDATADIR": "$$(dirname $$EXT_BUILD_ROOT$$/$(location @bison//:gen_dir))/bison/share/bison",
+            "M4": "$$EXT_BUILD_ROOT$$/$(location @m4//:m4_exe)",
+            "PATH": "$$(dirname $$EXT_BUILD_ROOT$$/$(location @bison//:gen_dir))/bison/bin:$$(dirname $$EXT_BUILD_ROOT$$/$(location @flex//:flex_exe)):$$EXT_BUILD_DEPS$$/bin/m4/bin/:$$(dirname $$EXT_BUILD_ROOT$$/$(PYTHON3)):$$PATH",
+        },
+    }),
+    lib_source = ":all_srcs",
+    linkopts = select({
+        "@openssl//:msvc_compiler": [
+            "ws2_32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    options = select({
+        "@platforms//os:linux": {
+            # Disable LLVM support, as building LLVM in rules_foreign_cc CI would drastically increase the build time
+            "gallium-drivers": "nouveau",
+            "glx": "disabled",
+            "llvm": "disabled",
+            "platforms": "x11",
+            "vulkan-drivers": "intel",
+        },
+        "//conditions:default": {},
+    }),
+    out_interface_libs = select({
+        ":msvc_compiler": [
+            "libgallium_wgl.lib",
+            "opengl32.lib",
+        ],
+        "//conditions:default": [],
+    }),
+    out_lib_dir = select({
+        "@platforms//os:linux": "lib/x86_64-linux-gnu",
+        "//conditions:default": "lib",
+    }),
+    out_shared_libs = select({
+        ":msvc_compiler": [
+            "libgallium_wgl.dll",
+            "opengl32.dll",
+        ],
+        "@platforms//os:linux": [
+            "libEGL.so",
+            "libgbm.so",
+            "libglapi.so",
+            "libGLESv1_CM.so",
+            "libGLESv2.so",
+            "libvulkan_intel.so",
+            "libxatracker.so",
+        ],
+        "@platforms//os:macos": [
+            "libGLESv1_CM.1.dylib",
+            "libGL.dylib",
+            "libGLESv1_CM.dylib",
+            "libglapi.0.dylib",
+            "libglapi.dylib",
+            "libGLESv2.2.dylib",
+            "libGL.1.dylib",
+            "libGLESv2.dylib",
+        ],
+    }),
+    requirements = [
+        requirement("mako"),
+    ],
+    toolchains = ["@rules_python//python:current_py_toolchain"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@platforms//os:linux": [
+            "@bison",
+            "@expat",
+            "@libdrm",
+            "@libpciaccess",
+            "@libx11",
+            "@libxau",
+            "@libxcb",
+            "@libxdmcp",
+            "@libxext",
+            "@libxrandr",
+            "@libxrender",
+            "@libxshmfence",
+            "@xorgproto",
+            "@zlib",
+        ],
+        "@platforms//os:macos": [
+            "@libx11",
+            "@libxext",
+            "@libxfixes",
+            "@zlib",
+        ],
+        "@platforms//os:windows": [
+            "@zlib",
+        ],
+    }),
+)

@@ -1,0 +1,3 @@
+# This file must exist so Bazel will detect that `source_root` is the highest level
+# directory for `cmake_working_dir`, thus enabling the `working_directory` to take
+# effect and use `cmake_dir` as the working directory.

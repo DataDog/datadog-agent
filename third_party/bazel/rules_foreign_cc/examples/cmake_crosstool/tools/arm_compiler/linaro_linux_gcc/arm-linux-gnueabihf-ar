@@ -1,0 +1,11 @@
+#!/bin/bash --norc
+
+if [[ -z "${EXT_BUILD_ROOT}" ]]; then
+  MY_PREFIX=""
+else
+  MY_PREFIX="${EXT_BUILD_ROOT}/"
+fi
+
+exec -a arm-linux-gnueabihf-ar \
+    ${MY_PREFIX}external/org_linaro_components_toolchain_gcc_5_3_1/bin/arm-linux-gnueabihf-ar \
+    "$@"

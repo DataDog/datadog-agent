@@ -1,0 +1,29 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+build_test(
+    name = "m4_build_test",
+    tags = ["manual"],
+    targets = ["@m4//:m4"],
+    visibility = ["//:__pkg__"],
+)
+
+build_test(
+    name = "autoconf_build_test",
+    tags = ["manual"],
+    targets = ["@autoconf//:autoconf"],
+    visibility = ["//:__pkg__"],
+)
+
+build_test(
+    name = "automake_build_test",
+    tags = ["manual"],
+    targets = ["@automake//:automake"],
+    visibility = ["//:__pkg__"],
+)
+
+build_test(
+    name = "libtool_build_test",
+    tags = ["manual"],
+    targets = ["@libtool//:libtool"],
+    visibility = ["//:__pkg__"],
+)

@@ -1,0 +1,65 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make", "make_variant")
+
+LIB_NAME = "apr"
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+config_setting(
+    name = "msvc_compiler",
+    flag_values = {
+        "@bazel_tools//tools/cpp:compiler": "msvc-cl",
+    },
+    visibility = ["//visibility:public"],
+)
+
+alias(
+    name = "apr",
+    actual = select({
+        ":msvc_compiler": "apr_msvc",
+        "//conditions:default": "apr_default",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+make_variant(
+    name = "apr_msvc",
+    args = [
+        "-F Makefile.win",
+        "ARCH=\"x64 Release\"",
+    ],
+    lib_name = LIB_NAME,
+    lib_source = ":all_srcs",
+    out_static_libs = ["apr-1.lib"],
+    targets = [
+        "buildall",
+        "install",
+    ],
+    toolchain = "@rules_foreign_cc//toolchains:preinstalled_nmake_toolchain",
+    visibility = ["//visibility:public"],
+)
+
+configure_make(
+    name = "apr_default",
+    configure_in_place = True,
+    configure_options = [
+        "--disable-shared",
+    ],
+    configure_prefix = select({
+        "@platforms//os:macos": "CPPFLAGS=-DAPR_IOVEC_DEFINED ",
+        "//conditions:default": "",
+    }),
+    env = select({
+        "@platforms//os:macos": {"AR": ""},
+        "//conditions:default": {},
+    }),
+    lib_name = LIB_NAME,
+    lib_source = ":all_srcs",
+    out_static_libs = ["libapr-1.a"],
+    visibility = ["//visibility:public"],
+)

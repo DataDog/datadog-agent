@@ -1,0 +1,12 @@
+diff -ruN configure configure
+--- configure	2019-04-01 19:56:23.000000000 +0200
++++ configure	2019-04-01 19:56:23.000000000 +0200
+@@ -24517,7 +24518,7 @@
+ elif test "$ac_cv_sizeof_pid_t" = "$ac_cv_sizeof_long_long"; then
+     pid_t_fmt='#define APR_PID_T_FMT APR_INT64_T_FMT'
+ else
+-    pid_t_fmt='#error Can not determine the proper size for pid_t'
++    pid_t_fmt='#define APR_PID_T_FMT "d"'
+ fi
+ 
+ # Basically, we have tried to figure out the correct format strings

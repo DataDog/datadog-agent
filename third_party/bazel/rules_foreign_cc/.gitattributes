@@ -1,0 +1,8 @@
+*.bazel linguist-language=Starlark
+
+# TODO: remove once https://github.com/github-linguist/linguist/pull/7121 lands
+WORKSPACE.bzlmod linguist-language=Starlark
+
+# .bazelrc are mostly a collection of the CLI arguments, so highlighting them
+# as shell scripts looks quite alright and makes them quite readable
+.bazelrc linguist-language=Shell

@@ -1,0 +1,19 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "xcb-proto",
+    lib_source = ":all_srcs",
+    # Dependents of xcb-proto require this lib dir to be present in the bazel sandbox
+    out_data_dirs = ["lib"],
+    out_headers_only = True,
+)

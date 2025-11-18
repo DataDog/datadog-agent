@@ -1,0 +1,11 @@
+exports_files(["clang_wrapper.sh"])
+
+filegroup(
+    name = "srcs",
+    srcs = [
+        "build.ninja",
+        "liba.cpp",
+        "liba.h",
+    ],
+    visibility = ["//ninja_simple:__subpackages__"],
+)

@@ -1,0 +1,26 @@
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+cc_library(
+    name = "built_with_bazel",
+    srcs = ["builtWithBazel.c"],
+    hdrs = ["builtWithBazel.h"],
+    includes = ["."],
+)
+
+configure_make(
+    name = "simple",
+    configure_in_place = True,
+    lib_source = "//configure_with_bazel_transitive/simple_lib:simple_srcs",
+    targets = [
+        "simple",
+        "install",
+    ],
+    deps = [":built_with_bazel"],
+)
+
+cc_test(
+    name = "test",
+    srcs = ["testSimple.c"],
+    deps = [":simple"],
+)

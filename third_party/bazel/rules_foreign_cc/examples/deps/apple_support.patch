@@ -1,0 +1,8 @@
+--- crosstool/setup.bzl
++++ crosstool/setup.bzl
+@@ -66,5 +66,3 @@ def apple_cc_configure():
+ def _apple_cc_configure_extension_impl(_):
+     _apple_cc_autoconf_toolchains(name = "local_config_apple_cc_toolchains")
+     _apple_cc_autoconf(name = "local_config_apple_cc")
+-
+-apple_cc_configure_extension = module_extension(implementation = _apple_cc_configure_extension_impl)

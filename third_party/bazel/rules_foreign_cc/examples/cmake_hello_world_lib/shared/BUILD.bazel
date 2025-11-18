@@ -1,0 +1,36 @@
+# example code is taken from https://github.com/Akagi201/learning-cmake/tree/master/hello-world-lib
+# for test only
+
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "libhello",
+    # Probably this variable should be set by default.
+    # Apparently, it needs to be set for shared libraries on Mac OS
+    cache_entries = {
+        "CMAKE_MACOSX_RPATH": "True",
+    },
+    lib_source = ":srcs",
+    out_interface_libs = select({
+        "//:windows": ["libhello.lib"],
+        "//conditions:default": [],
+    }),
+    out_shared_libs = select({
+        "//:macos": ["libhello.dylib"],
+        "//:windows": ["libhello.dll"],
+        "//conditions:default": ["libhello.so"],
+    }),
+)
+
+cc_test(
+    name = "test_libhello",
+    srcs = ["hello_client.c"],
+    deps = [":libhello"],
+)

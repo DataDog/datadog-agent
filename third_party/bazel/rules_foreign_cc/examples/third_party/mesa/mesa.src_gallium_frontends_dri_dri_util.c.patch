@@ -1,0 +1,38 @@
+--- src/gallium/frontends/dri/dri_util.c	2022-07-15 18:42:47.000000000 +0100
++++ src/gallium/frontends/dri/dri_util.c	2022-12-12 12:58:00.161799118 +0000
+@@ -171,6 +171,8 @@
+     return psp;
+ }
+ 
++#if defined(HAVE_LIBDRM)
++
+ static __DRIscreen *
+ dri2CreateNewScreen(int scrn, int fd,
+ 		    const __DRIextension **extensions,
+@@ -191,6 +193,8 @@
+                               driver_configs, data);
+ }
+ 
++#endif
++
+ /** swrast driver createNewScreen entrypoint. */
+ static __DRIscreen *
+ driSWRastCreateNewScreen(int scrn, const __DRIextension **extensions,
+@@ -808,6 +812,8 @@
+     .unbindContext              = driUnbindContext
+ };
+ 
++#if defined(HAVE_LIBDRM)
++
+ /** DRI2 interface */
+ const __DRIdri2Extension driDRI2Extension = {
+     .base = { __DRI_DRI2, 4 },
+@@ -837,6 +843,8 @@
+     .createNewScreen2           = driCreateNewScreen2,
+ };
+ 
++#endif
++
+ const __DRIswrastExtension driSWRastExtension = {
+     .base = { __DRI_SWRAST, 4 },
+ 

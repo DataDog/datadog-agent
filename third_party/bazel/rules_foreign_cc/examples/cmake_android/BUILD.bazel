@@ -1,0 +1,37 @@
+load("@rules_android//android:rules.bzl", "android_binary", "android_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+cmake(
+    name = "libhello",
+    lib_source = "//cmake_hello_world_lib/static:srcs",
+    out_include_dir = "include/version123",
+)
+
+cc_library(
+    name = "hello_lib_usage_example",
+    srcs = ["hello_lib-example.cpp"],
+    linkstatic = True,
+    deps = [":libhello"],
+    alwayslink = True,
+)
+
+android_library(
+    name = "lib",
+    srcs = ["java/com/example/android/bazel/MainActivity.java"],
+    custom_package = "com.example.android.bazel",
+    manifest = "LibraryManifest.xml",
+    resource_files = glob(["res/**/*"]),
+    deps = [
+        ":hello_lib_usage_example",
+        "@maven//:com_android_support_appcompat_v7",
+        "@maven//:com_android_support_constraint_constraint_layout",
+    ],
+)
+
+android_binary(
+    name = "app",
+    custom_package = "com.example.android.bazel",
+    manifest = "AndroidManifest.xml",
+    deps = [":lib"],
+)

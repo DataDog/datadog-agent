@@ -1,0 +1,12 @@
+--- src/gallium/frontends/dri/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/gallium/frontends/dri/meson.build	2022-12-05 13:22:50.210313339 +0000
+@@ -71,6 +71,9 @@
+   dependencies : [
+     dep_libdrm,
+     idep_mesautil,
++    dep_xcb,
++    dep_x11,
++    dep_xlib_xrandr
+   ],
+ )
+ 

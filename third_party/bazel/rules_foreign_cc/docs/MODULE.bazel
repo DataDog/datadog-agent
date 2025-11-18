@@ -1,0 +1,39 @@
+"""rules_foreign_cc docs"""
+
+module(
+    name = "rules_foreign_cc_docs",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "rules_foreign_cc", version = "0.0.0")
+local_path_override(
+    module_name = "rules_foreign_cc",
+    path = "..",
+)
+
+bazel_dep(
+    name = "rules_rust_mdbook",
+    version = "0.56.0",
+)
+bazel_dep(
+    name = "bazel_skylib",
+    version = "1.7.1",
+)
+bazel_dep(
+    name = "stardoc",
+    version = "0.7.2",
+    repo_name = "io_bazel_stardoc",
+)
+bazel_dep(
+    name = "rules_shell",
+    version = "0.3.0",
+)
+bazel_dep(
+    name = "rules_python",
+    version = "1.2.0",
+)
+bazel_dep(
+    name = "protobuf",
+    version = "29.3",
+    repo_name = "com_google_protobuf",
+)

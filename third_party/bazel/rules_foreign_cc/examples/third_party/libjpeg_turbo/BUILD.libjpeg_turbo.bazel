@@ -1,0 +1,30 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "all_files",
+    srcs = glob(["**"]),
+)
+
+cmake(
+    name = "libjpeg_turbo",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITH_JAVA": "0",
+    },
+    lib_source = ":all_files",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "libjpeg.so",
+            "libturbojpeg.so",
+        ],
+        "@platforms//os:macos": [
+            "libjpeg.dylib",
+            "libturbojpeg.dylib",
+        ],
+        "@platforms//os:windows": [
+            "libjpeg.dll",
+            "libturbojpeg.dll",
+        ],
+    }),
+    visibility = ["//visibility:public"],
+)

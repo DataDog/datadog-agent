@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+echo "# simple" > Makefile
+
+echo "CC = ${CC}" > Makefile
+
+
+if [[ "$(uname)" == *"NT"* ]]; then
+    echo "AR = ${AR}" >>  Makefile
+    echo "OBJECT = simple.obj" >> Makefile
+    echo "OUTPUT = simple.lib" >> Makefile
+    echo "BUILT_WITH_BAZEL = $EXT_BUILD_DEPS/lib/built_with_bazel.lib" >> Makefile
+
+    ESCAPED_CPPFLAGS="$(echo ${CPPFLAGS} | sed 's@\\@/@g')"
+    ESCAPED_LDFLAGS="$(echo ${LDFLAGS} | sed 's@\\@/@g')"
+    echo "CPPFLAGS = /c ${ESCAPED_CPPFLAGS}" >> Makefile
+    echo "LDFLAGS = \$(OBJECT) ${ESCAPED_LDFLAGS} /OUT:\$(OUTPUT)" >> Makefile
+else
+    echo "AR = \"ar\"" >>  Makefile
+    echo "OBJECT = simple.o" >> Makefile
+    echo "OUTPUT = simple.a" >> Makefile
+    echo "BUILT_WITH_BAZEL = $EXT_BUILD_DEPS/lib/libbuilt_with_bazel.a" >> Makefile
+    echo "CPPFLAGS = ${CPPFLAGS}" >> Makefile
+    echo "LDFLAGS = rcs \$(OUTPUT) \$(OBJECT)" >> Makefile
+fi
+
+echo "" >> Makefile
+cat Makefile.in >> Makefile

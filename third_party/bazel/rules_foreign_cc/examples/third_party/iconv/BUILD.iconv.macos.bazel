@@ -1,0 +1,25 @@
+"""libiconv is only expected to be used on MacOS systems"""
+
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+filegroup(
+    name = "all",
+    srcs = glob(["**"]),
+)
+
+configure_make(
+    name = "iconv",
+    configure_in_place = True,
+    configure_options = [
+        "--enable-relocatable",
+        "--enable-shared=no",
+        "--enable-static=yes",
+    ],
+    env = {"AR": ""},
+    lib_source = "@iconv_macos//:all",
+    out_static_libs = [
+        "libiconv.a",
+    ],
+    targets = ["install-lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,10 @@
+--- src/main/cpp/socketoutputstream.cpp	2008-03-31 23:34:09.000000000 +0100
++++ src/main/cpp/socketoutputstream.cpp	2008-03-31 23:34:09.000000000 +0100
+@@ -19,6 +19,7 @@
+ #include <log4cxx/helpers/socketoutputstream.h>
+ #include <log4cxx/helpers/socket.h>
+ #include <log4cxx/helpers/bytebuffer.h>
++#include <cstring>
+ 
+ using namespace log4cxx;
+ using namespace log4cxx::helpers;

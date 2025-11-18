@@ -1,0 +1,200 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//toolchains:toolchains.bzl", "current_autoconf_toolchain", "current_automake_toolchain", "current_cmake_toolchain", "current_m4_toolchain", "current_make_toolchain", "current_meson_toolchain", "current_ninja_toolchain", "current_pkgconfig_toolchain")
+
+package(default_visibility = ["//visibility:public"])
+
+toolchain_type(
+    name = "cmake_toolchain",
+)
+
+toolchain_type(
+    name = "ninja_toolchain",
+)
+
+toolchain_type(
+    name = "make_toolchain",
+)
+
+toolchain_type(
+    name = "meson_toolchain",
+)
+
+toolchain_type(
+    name = "pkgconfig_toolchain",
+)
+
+toolchain_type(
+    name = "m4_toolchain",
+)
+
+toolchain_type(
+    name = "autoconf_toolchain",
+)
+
+toolchain_type(
+    name = "automake_toolchain",
+)
+
+current_cmake_toolchain(
+    name = "current_cmake_toolchain",
+)
+
+current_ninja_toolchain(
+    name = "current_ninja_toolchain",
+)
+
+current_meson_toolchain(
+    name = "current_meson_toolchain",
+)
+
+current_m4_toolchain(
+    name = "current_m4_toolchain",
+)
+
+current_pkgconfig_toolchain(
+    name = "current_pkgconfig_toolchain",
+)
+
+current_make_toolchain(
+    name = "current_make_toolchain",
+)
+
+current_automake_toolchain(
+    name = "current_automake_toolchain",
+)
+
+current_autoconf_toolchain(
+    name = "current_autoconf_toolchain",
+)
+
+toolchain(
+    name = "built_cmake_toolchain",
+    toolchain = "//toolchains/private:built_cmake",
+    toolchain_type = ":cmake_toolchain",
+)
+
+toolchain(
+    name = "built_ninja_toolchain",
+    toolchain = "//toolchains/private:built_ninja",
+    toolchain_type = ":ninja_toolchain",
+)
+
+toolchain(
+    name = "built_make_toolchain",
+    toolchain = "//toolchains/private:built_make",
+    toolchain_type = ":make_toolchain",
+)
+
+toolchain(
+    name = "built_meson_toolchain",
+    toolchain = "//toolchains/private:built_meson",
+    toolchain_type = ":meson_toolchain",
+)
+
+toolchain(
+    name = "built_pkgconfig_toolchain",
+    toolchain = "//toolchains/private:built_pkgconfig",
+    toolchain_type = ":pkgconfig_toolchain",
+)
+
+# Preinstalled cmake will always be the default, if toolchain with more exact constraints
+# is not defined before; registered from workspace_definitions.bzl#rules_foreign_cc_dependencies
+toolchain(
+    name = "preinstalled_cmake_toolchain",
+    toolchain = "//toolchains/private:preinstalled_cmake",
+    toolchain_type = ":cmake_toolchain",
+)
+
+# Preinstalled ninja will always be the default, if toolchain with more exact constraints
+# is not defined before; registered from workspace_definitions.bzl#rules_foreign_cc_dependencies
+toolchain(
+    name = "preinstalled_ninja_toolchain",
+    toolchain = "//toolchains/private:preinstalled_ninja",
+    toolchain_type = ":ninja_toolchain",
+)
+
+# Preinstalled make will always be the default, if toolchain with more exact constraints
+# is not defined before; registered from workspace_definitions.bzl#rules_foreign_cc_dependencies
+toolchain(
+    name = "preinstalled_make_toolchain",
+    toolchain = "//toolchains/private:preinstalled_make",
+    toolchain_type = ":make_toolchain",
+)
+
+toolchain(
+    name = "preinstalled_nmake_toolchain",
+    exec_compatible_with = [
+        "@platforms//os:windows",
+    ],
+    toolchain = "//toolchains/private:preinstalled_nmake",
+    toolchain_type = ":make_toolchain",
+)
+
+toolchain(
+    name = "preinstalled_meson_toolchain",
+    toolchain = "//toolchains/private:preinstalled_meson",
+    toolchain_type = ":meson_toolchain",
+)
+
+toolchain(
+    name = "preinstalled_autoconf_toolchain",
+    toolchain = "//toolchains/private:preinstalled_autoconf",
+    toolchain_type = ":autoconf_toolchain",
+)
+
+toolchain(
+    name = "preinstalled_automake_toolchain",
+    toolchain = "//toolchains/private:preinstalled_automake",
+    toolchain_type = ":automake_toolchain",
+)
+
+toolchain(
+    name = "preinstalled_m4_toolchain",
+    toolchain = "//toolchains/private:preinstalled_m4",
+    toolchain_type = ":m4_toolchain",
+)
+
+toolchain(
+    name = "preinstalled_pkgconfig_toolchain",
+    toolchain = "//toolchains/private:preinstalled_pkgconfig",
+    toolchain_type = ":pkgconfig_toolchain",
+)
+
+bzl_library(
+    name = "built_toolchains",
+    srcs = ["built_toolchains.bzl"],
+    deps = [
+        "@bazel_tools//tools/build_defs/repo:http.bzl",
+        "@bazel_tools//tools/build_defs/repo:utils.bzl",
+        "@rules_foreign_cc//toolchains:cmake_versions",
+    ],
+)
+
+bzl_library(
+    name = "prebuilt_toolchains",
+    srcs = ["prebuilt_toolchains.bzl"],
+    deps = [
+        "@bazel_tools//tools/build_defs/repo:http.bzl",
+        "@bazel_tools//tools/build_defs/repo:utils.bzl",
+        "@rules_foreign_cc//toolchains:prebuilt_toolchains_repository",
+    ],
+)
+
+bzl_library(
+    name = "toolchains",
+    srcs = ["toolchains.bzl"],
+    deps = [
+        ":built_toolchains",
+        ":prebuilt_toolchains",
+    ],
+)
+
+bzl_library(
+    name = "cmake_versions",
+    srcs = ["cmake_versions.bzl"],
+)
+
+bzl_library(
+    name = "prebuilt_toolchains_repository",
+    srcs = ["prebuilt_toolchains_repository.bzl"],
+)

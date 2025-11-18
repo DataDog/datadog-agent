@@ -1,0 +1,11 @@
+--- src/glx/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/glx/meson.build	2022-12-12 09:36:07.300346991 +0000
+@@ -136,7 +136,7 @@
+   ],
+   dependencies : [
+     idep_mesautil, idep_xmlconfig,
+-    dep_libdrm, dep_dri2proto, dep_glproto, dep_x11, dep_glvnd,
++    dep_libdrm, dep_dri2proto, dep_glproto, dep_x11, dep_glvnd, dep_xext,
+   ],
+ )
+ 

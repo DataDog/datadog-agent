@@ -1,0 +1,11 @@
+--- include/apr.hw	2019-03-21 00:41:37.000000000 +0100
++++ include/apr.hw	2019-03-21 00:41:37.000000000 +0100
+@@ -86,7 +86,7 @@
+
+ /* Restrict the server to a subset of Windows XP header files by default
+  */
+-#define _WIN32_WINNT 0x0501
++#define _WIN32_WINNT 0x0600
+ #endif
+ #ifndef NOUSER
+ #define NOUSER

@@ -1,0 +1,24 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+exports_files(
+    [
+        "BUILD.python3.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+build_test(
+    name = "build_test",
+    targets = [
+        "@python3//:python3",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
+test_suite(
+    name = "python_tests",
+    tests = [
+        ":build_test",
+    ],
+    visibility = ["//:__pkg__"],
+)

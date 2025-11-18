@@ -1,0 +1,14 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+bzl_library(
+    name = "built_tools_framework",
+    srcs = ["built_tools_framework.bzl"],
+    visibility = ["//foreign_cc/built_tools:__subpackages__"],
+    deps = [
+        "//foreign_cc/private:cc_toolchain_util",
+        "//foreign_cc/private:detect_root",
+        "//foreign_cc/private:framework",
+        "//foreign_cc/private/framework:helpers",
+        "@bazel_tools//tools/cpp:toolchain_utils.bzl",
+    ],
+)

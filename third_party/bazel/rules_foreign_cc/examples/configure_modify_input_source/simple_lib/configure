@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# (Using perl here for replacement to avoid difference in in-place
+# arguments on macOS sed)
+
+perl -i -pe 's/42/0/' src/simple.c
+
+echo "CC = $CC" > Makefile
+echo "LDFLAGS = $LDFLAGS" >> Makefile
+if [[ "$(uname)" == *"NT"* ]]; then
+    echo "AR = ${AR}" >>  Makefile
+    echo "OBJECT = simple.obj" >> Makefile
+    echo "OUTPUT = simple.lib" >> Makefile
+
+    ESCAPED_CPPFLAGS="$(echo ${CFLAGS} | sed 's@\\@/@g')"
+    ESCAPED_LDFLAGS="$(echo ${LDFLAGS} | sed 's@\\@/@g')"
+    echo "CPPFLAGS = /c ${ESCAPED_CPPFLAGS}" >> Makefile
+    echo "LDFLAGS = \$(OBJECT) ${ESCAPED_LDFLAGS} /OUT:\$(OUTPUT)" >> Makefile
+else
+    echo "AR = \"ar\"" >>  Makefile
+    echo "OBJECT = simple.o" >> Makefile
+    echo "OUTPUT = simple.a" >> Makefile
+    echo "CPPFLAGS = ${CFLAGS}" >> Makefile
+    echo "LDFLAGS = rcs \$(OUTPUT) \$(OBJECT)" >> Makefile
+fi
+cat Makefile.in >> Makefile

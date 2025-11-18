@@ -1,0 +1,12 @@
+--- src/vulkan/util/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/vulkan/util/meson.build	2022-11-30 17:35:23.627779815 +0000
+@@ -105,7 +105,8 @@
+ 
+ idep_vulkan_util_headers = declare_dependency(
+   sources : [vk_dispatch_table[1], vk_enum_to_str[1], vk_extensions[1]],
+-  include_directories : include_directories('.')
++  include_directories : include_directories('.'),
++  dependencies : [dep_xcb, dep_x11, dep_xlib_xrandr]
+ )
+ 
+ idep_vulkan_util = declare_dependency(

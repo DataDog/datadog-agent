@@ -1,0 +1,16 @@
+--- detectenv-msvc.mak	2016-04-11 22:39:26.000000000 +0100
++++ detectenv-msvc.mak	2016-04-11 22:39:26.000000000 +0100
+@@ -1,12 +1,6 @@
+ # Check to see we are configured to build with MSVC (MSDEVDIR, MSVCDIR or
+ # VCINSTALLDIR) or with the MS Platform SDK (MSSDK or WindowsSDKDir)
+-!if !defined(VCINSTALLDIR) && !defined(WINDOWSSDKDIR)
+-MSG = ^
+-This Makefile is only for Visual Studio 2008 and later.^
+-You need to ensure that the Visual Studio Environment is properly set up^
+-before running this Makefile.
+-!error $(MSG)
+-!endif
++
+ 
+ ERRNUL  = 2>NUL
+ _HASH=^#

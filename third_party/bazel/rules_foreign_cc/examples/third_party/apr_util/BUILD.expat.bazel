@@ -1,0 +1,51 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake", "configure_make")
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+LIB_NAME = "expat"
+
+alias(
+    name = "expat",
+    actual = select({
+        "@apr//:msvc_compiler": "expat_msvc",
+        "//conditions:default": "expat_default",
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "expat_msvc",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "EXPAT_MSVC_STATIC_CRT": "ON",
+        "EXPAT_SHARED_LIBS": "OFF",
+    },
+    generate_args = ["-G\"NMake Makefiles\""],
+    lib_name = LIB_NAME,
+    lib_source = ":all_srcs",
+    out_static_libs = ["libexpatMT.lib"],
+)
+
+configure_make(
+    name = "expat_default",
+    configure_options = [
+        "--disable-shared",
+        "--without-docbook",
+        "--without-examples",
+        "--without-tests",
+        "CFLAGS='-fPIC'",
+    ],
+    env = select({
+        "@platforms//os:macos": {"AR": ""},
+        "//conditions:default": {},
+    }),
+    lib_name = LIB_NAME,
+    lib_source = ":all_srcs",
+    out_static_libs = ["libexpat.a"],
+)

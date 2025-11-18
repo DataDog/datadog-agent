@@ -1,0 +1,8 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+build_test(
+    name = "bison_build_test",
+    tags = ["manual"],  # Linux Only
+    targets = ["@bison//:bison"],
+    visibility = ["//:__pkg__"],
+)

@@ -1,0 +1,34 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "log4cxx",
+    configure_options = [
+        "--disable-shared",
+        "--with-apr=$$EXT_BUILD_DEPS/apr",
+        "--with-apr-util=$$EXT_BUILD_DEPS/apr_util",
+    ],
+    env = select({
+        "@platforms//os:macos": {
+            "AR": "",
+            "CXXFLAGS": "-Wno-c++11-narrowing",
+        },
+        "//conditions:default": {
+            "CXXFLAGS": "-Wno-narrowing",
+        },
+    }),
+    lib_source = ":all_srcs",
+    out_static_libs = ["liblog4cxx.a"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@apr",
+        "@apr_util",
+    ],
+)

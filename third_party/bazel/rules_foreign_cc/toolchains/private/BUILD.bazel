@@ -1,0 +1,175 @@
+load("//foreign_cc/built_tools:cmake_build.bzl", "cmake_tool")
+load("//foreign_cc/built_tools:make_build.bzl", "make_tool")
+load("//foreign_cc/built_tools:meson_build.bzl", "meson_tool")
+load("//foreign_cc/built_tools:ninja_build.bzl", "ninja_tool")
+load("//foreign_cc/built_tools:pkgconfig_build.bzl", "pkgconfig_tool")
+load("//toolchains/native_tools:native_tools_toolchain.bzl", "native_tool_toolchain")
+
+package(default_visibility = ["//visibility:public"])
+
+native_tool_toolchain(
+    name = "preinstalled_make",
+    path = select({
+        "@platforms//os:windows": "make.exe",
+        "//conditions:default": "make",
+    }),
+)
+
+native_tool_toolchain(
+    name = "preinstalled_nmake",
+    path = "nmake.exe",
+)
+
+make_tool(
+    name = "make_tool",
+    srcs = "@gnumake_src//:all_srcs",
+    tags = ["manual"],
+)
+
+native_tool_toolchain(
+    name = "built_make",
+    env = select({
+        "@platforms//os:windows": {"MAKE": "$(execpath :make_tool)/bin/make.exe"},
+        "//conditions:default": {"MAKE": "$(execpath :make_tool)/bin/make"},
+    }),
+    path = select({
+        "@platforms//os:windows": "$(execpath :make_tool)/bin/make.exe",
+        "//conditions:default": "$(execpath :make_tool)/bin/make",
+    }),
+    target = ":make_tool",
+)
+
+native_tool_toolchain(
+    name = "preinstalled_cmake",
+    env = select({
+        "@platforms//os:windows": {"CMAKE": "cmake.exe"},
+        "//conditions:default": {"CMAKE": "cmake"},
+    }),
+    path = select({
+        "@platforms//os:windows": "cmake.exe",
+        "//conditions:default": "cmake",
+    }),
+)
+
+cmake_tool(
+    name = "cmake_tool",
+    srcs = "@cmake_src//:all_srcs",
+    tags = ["manual"],
+)
+
+native_tool_toolchain(
+    name = "built_cmake",
+    env = select({
+        "@platforms//os:windows": {"CMAKE": "$(execpath :cmake_tool)/bin/cmake.exe"},
+        "//conditions:default": {"CMAKE": "$(execpath :cmake_tool)/bin/cmake"},
+    }),
+    path = select({
+        "@platforms//os:windows": "$(execpath :cmake_tool)/bin/cmake.exe",
+        "//conditions:default": "$(execpath :cmake_tool)/bin/cmake",
+    }),
+    target = ":cmake_tool",
+)
+
+native_tool_toolchain(
+    name = "preinstalled_ninja",
+    env = select({
+        "@platforms//os:windows": {"NINJA": "ninja.exe"},
+        "//conditions:default": {"NINJA": "ninja"},
+    }),
+    path = select({
+        "@platforms//os:windows": "ninja.exe",
+        "//conditions:default": "ninja",
+    }),
+)
+
+ninja_tool(
+    name = "ninja_tool",
+    srcs = "@ninja_build_src//:all_srcs",
+    tags = ["manual"],
+)
+
+native_tool_toolchain(
+    name = "built_ninja",
+    env = select({
+        "@platforms//os:windows": {"NINJA": "$(execpath :ninja_tool)/bin/ninja.exe"},
+        "//conditions:default": {"NINJA": "$(execpath :ninja_tool)/bin/ninja"},
+    }),
+    path = select({
+        "@platforms//os:windows": "$(execpath :ninja_tool)/bin/ninja.exe",
+        "//conditions:default": "$(execpath :ninja_tool)/bin/ninja",
+    }),
+    target = ":ninja_tool",
+)
+
+native_tool_toolchain(
+    name = "preinstalled_meson",
+    path = select({
+        "@platforms//os:windows": "meson.exe",
+        "//conditions:default": "meson",
+    }),
+)
+
+meson_tool(
+    name = "meson_tool",
+    data = ["@meson_src//:runtime"],
+    main = "@meson_src//:meson.py",
+    tags = ["manual"],
+)
+
+native_tool_toolchain(
+    name = "built_meson",
+    env = {"MESON": "$(execpath :meson_tool)"},
+    path = "$(execpath :meson_tool)",
+    target = ":meson_tool",
+)
+
+native_tool_toolchain(
+    name = "preinstalled_autoconf",
+    path = select({
+        "@platforms//os:windows": "autoconf.exe",
+        "//conditions:default": "autoconf",
+    }),
+)
+
+native_tool_toolchain(
+    name = "preinstalled_automake",
+    path = select({
+        "@platforms//os:windows": "automake.exe",
+        "//conditions:default": "automake",
+    }),
+)
+
+native_tool_toolchain(
+    name = "preinstalled_m4",
+    path = select({
+        "@platforms//os:windows": "m4.exe",
+        "//conditions:default": "m4",
+    }),
+)
+
+native_tool_toolchain(
+    name = "preinstalled_pkgconfig",
+    path = select({
+        "@platforms//os:windows": "pkg-config.exe",
+        "//conditions:default": "pkg-config",
+    }),
+)
+
+pkgconfig_tool(
+    name = "pkgconfig_tool",
+    srcs = "@pkgconfig_src//:all_srcs",
+    tags = ["manual"],
+)
+
+native_tool_toolchain(
+    name = "built_pkgconfig",
+    env = select({
+        "@platforms//os:windows": {"PKG_CONFIG": "$(execpath :pkgconfig_tool)"},
+        "//conditions:default": {"PKG_CONFIG": "$(execpath :pkgconfig_tool)/bin/pkg-config"},
+    }),
+    path = select({
+        "@platforms//os:windows": "$(execpath :pkgconfig_tool)",
+        "//conditions:default": "$(execpath :pkgconfig_tool)/bin/pkg-config",
+    }),
+    target = ":pkgconfig_tool",
+)

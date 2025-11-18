@@ -1,0 +1,24 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+cmake(
+    name = "libpng",
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "RELEASE",
+        "CMAKE_POLICY_DEFAULT_CMP0074": "NEW",
+        "ZLIB_ROOT": "$$EXT_BUILD_DEPS/zlib",
+    },
+    lib_source = "//:all_srcs",
+    out_include_dir = "include/libpng16",
+    out_static_libs = ["libpng16.a"],
+    deps = ["@zlib"],
+)

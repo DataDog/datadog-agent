@@ -1,0 +1,19 @@
+--- meson.build	2022-07-15 18:42:47.000000000 +0100
++++ meson.build	2022-11-30 17:26:50.607789896 +0000
+@@ -1002,7 +1002,7 @@
+   ]
+ endif
+ 
+-prog_python = import('python').find_installation('python3')
++prog_python = import('python').find_installation()
+ has_mako = run_command(
+   prog_python, '-c',
+   '''
+@@ -2033,6 +2033,7 @@
+ endif
+ 
+ if with_platform_x11
++    dep_x11 = dependency('x11')
+   if with_glx == 'xlib' or with_glx == 'gallium-xlib'
+     dep_x11 = dependency('x11')
+     dep_xext = dependency('xext')

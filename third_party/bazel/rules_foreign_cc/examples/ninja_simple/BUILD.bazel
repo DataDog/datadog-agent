@@ -1,0 +1,33 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "ninja")
+
+ninja(
+    name = "ninja_lib",
+    build_data = ["//ninja_simple/code:clang_wrapper.sh"],
+    env = select({
+        "//:windows": {
+            "CLANG_WRAPPER": "$(execpath //ninja_simple/code:clang_wrapper.sh)",
+            "CXX_FLAGS": "/MD",
+        },
+        "//conditions:default": {
+            "CLANG_WRAPPER": "$(execpath //ninja_simple/code:clang_wrapper.sh)",
+            "CXX_FLAGS": "-fPIC",
+        },
+    }),
+    lib_source = "//ninja_simple/code:srcs",
+    out_static_libs = ["liba.a"],
+    targets = [
+        "",
+        "install",
+    ],
+)
+
+cc_test(
+    name = "test_lib",
+    srcs = [
+        "test_libb.cpp",
+    ],
+    deps = [
+        ":ninja_lib",
+    ],
+)

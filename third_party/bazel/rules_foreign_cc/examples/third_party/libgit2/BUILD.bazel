@@ -1,0 +1,16 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+exports_files(
+    [
+        "BUILD.curl.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+build_test(
+    name = "libgit2_build_test",
+    targets = [
+        "@libgit2//:libgit2",
+    ],
+    visibility = ["//:__pkg__"],
+)

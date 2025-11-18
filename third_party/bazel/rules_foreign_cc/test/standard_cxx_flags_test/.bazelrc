@@ -1,0 +1,1 @@
+build --copt="-fblah0" --cxxopt="-fblah1" --conlyopt="-fblah2" --linkopt="-fblah3"

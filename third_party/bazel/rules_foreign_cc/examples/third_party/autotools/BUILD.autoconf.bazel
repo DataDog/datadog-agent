@@ -1,0 +1,38 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "all_srcs",
+    srcs = glob(
+        include = ["**"],
+        exclude = ["*.bazel"],
+    ),
+)
+
+configure_make(
+    name = "autoconf",
+    build_data = [
+        "@m4",
+    ],
+    env = select({
+        "@platforms//os:macos": {
+            "AR": "",
+            "M4": "$$EXT_BUILD_DEPS$$/bin/m4/bin/m4",
+        },
+        "//conditions:default": {
+            "M4": "$$EXT_BUILD_DEPS$$/bin/m4/bin/m4",
+        },
+    }),
+    lib_source = ":all_srcs",
+    out_binaries = [
+        "autoconf",
+        "autoheader",
+        "autom4te",
+        "autoreconf",
+        "autoscan",
+        "autoupdate",
+        "ifnames",
+    ],
+    out_data_dirs = ["share"],
+)

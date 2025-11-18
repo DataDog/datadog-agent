@@ -1,0 +1,34 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**"]),
+    visibility = ["//visibility:public"],
+)
+
+# Building all targets with the `srcs` CMake project will fail.
+# this example demonstrates how users can avoid unnecessary targets
+cmake(
+    name = "cmake_with_target",
+    build_args = [
+        "--verbose",
+        "--",  # <- Pass remaining options to the native tool.
+        "-j 1",
+    ],
+    install_args = ["--component working"],
+    lib_source = ":srcs",
+    out_static_libs = select({
+        "@platforms//os:windows": [
+            "working_a.lib",
+            "working_b.lib",
+        ],
+        "//conditions:default": [
+            "libworking_a.a",
+            "libworking_b.a",
+        ],
+    }),
+    targets = [
+        "working_a",
+        "working_b",
+    ],
+)

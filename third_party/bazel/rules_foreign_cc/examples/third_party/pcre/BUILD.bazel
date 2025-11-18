@@ -1,0 +1,17 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+exports_files(
+    [
+        "BUILD.pcre.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+build_test(
+    name = "pcre_build_test",
+    tags = ["manual"],  # Linux Only
+    targets = [
+        "@pcre//:pcre",
+    ],
+    visibility = ["//:__pkg__"],
+)

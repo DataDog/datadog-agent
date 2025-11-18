@@ -1,0 +1,23 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+cmake(
+    name = "lib_a",
+    generate_crosstool_file = False,
+    lib_source = "//cmake_defines:lib_a_sources",
+    out_static_libs = select({
+        "//:windows": ["lib_a.lib"],
+        "//conditions:default": ["liblib_a.a"],
+    }),
+    deps = [":lib_b"],
+)
+
+cmake(
+    name = "lib_b",
+    defines = ["FOO"],
+    generate_crosstool_file = False,
+    lib_source = "//cmake_defines:lib_b_sources",
+    out_static_libs = select({
+        "//:windows": ["lib_b.lib"],
+        "//conditions:default": ["liblib_b.a"],
+    }),
+)

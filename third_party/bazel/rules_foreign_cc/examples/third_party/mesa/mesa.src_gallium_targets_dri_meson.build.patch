@@ -1,0 +1,11 @@
+--- src/gallium/targets/dri/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/gallium/targets/dri/meson.build	2022-12-05 14:02:15.710260576 +0000
+@@ -58,7 +58,7 @@
+     driver_kmsro, driver_v3d, driver_vc4, driver_freedreno, driver_etnaviv,
+     driver_tegra, driver_i915, driver_svga, driver_virgl,
+     driver_panfrost, driver_iris, driver_lima, driver_zink, driver_d3d12,
+-    driver_asahi, driver_crocus
++    driver_asahi, driver_crocus, dep_xcb, dep_x11, dep_xlib_xrandr
+   ],
+   # Will be deleted during installation, see install_megadrivers.py
+   install : true,

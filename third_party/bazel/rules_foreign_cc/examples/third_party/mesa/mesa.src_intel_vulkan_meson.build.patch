@@ -1,0 +1,11 @@
+--- src/intel/vulkan/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/intel/vulkan/meson.build	2022-11-30 18:21:07.247725902 +0000
+@@ -95,7 +95,7 @@
+     dependencies : [
+       dep_libdrm, dep_valgrind, idep_nir_headers, idep_genxml,
+       idep_vulkan_util_headers, idep_vulkan_wsi_headers,
+-      idep_vulkan_runtime_headers, idep_intel_driver_ds_headers,
++      idep_vulkan_runtime_headers, idep_intel_driver_ds_headers, dep_x11,
+     ],
+   )
+ endforeach

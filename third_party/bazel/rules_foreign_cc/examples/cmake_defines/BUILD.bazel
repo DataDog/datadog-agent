@@ -1,0 +1,39 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+cmake(
+    name = "lib_a",
+    lib_source = ":lib_a_sources",
+    out_static_libs = select({
+        "//:windows": ["lib_a.lib"],
+        "//conditions:default": ["liblib_a.a"],
+    }),
+    deps = [":lib_b"],
+)
+
+cmake(
+    name = "lib_b",
+    defines = ["FOO"],
+    lib_source = ":lib_b_sources",
+    out_static_libs = select({
+        "//:windows": ["lib_b.lib"],
+        "//conditions:default": ["liblib_b.a"],
+    }),
+)
+
+filegroup(
+    name = "lib_a_sources",
+    srcs = ["lib_a/{}".format(s) for s in [
+        "CMakeLists.txt",
+        "lib_a.cpp",
+    ]],
+    visibility = ["//cmake_defines:__subpackages__"],
+)
+
+filegroup(
+    name = "lib_b_sources",
+    srcs = ["lib_b/{}".format(s) for s in [
+        "CMakeLists.txt",
+        "lib_b.cpp",
+    ]],
+    visibility = ["//cmake_defines:__subpackages__"],
+)

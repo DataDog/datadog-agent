@@ -1,0 +1,11 @@
+--- src/egl/meson.build	2022-07-15 18:42:47.000000000 +0100
++++ src/egl/meson.build	2022-12-05 14:21:05.700235372 +0000
+@@ -106,7 +106,7 @@
+       files_egl += files('drivers/dri2/platform_x11_dri3.c')
+       link_for_egl += libloader_dri3_helper
+     endif
+-    deps_for_egl += [dep_x11_xcb, dep_xcb_dri2, dep_xcb_xfixes]
++    deps_for_egl += [dep_x11_xcb, dep_xcb_dri2, dep_xcb_xfixes, dep_xlib_xrandr]
+   endif
+   if with_gbm and not with_platform_android
+     files_egl += files('drivers/dri2/platform_drm.c')

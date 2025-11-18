@@ -1,0 +1,14 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+
+build_test(
+    name = "boostrap_tools",
+    tags = [
+        "large",
+        "manual",
+    ],
+    targets = [
+        "//toolchains:make_tool",
+        "//toolchains:cmake_tool",
+        "//toolchains:ninja_tool",
+    ],
+)

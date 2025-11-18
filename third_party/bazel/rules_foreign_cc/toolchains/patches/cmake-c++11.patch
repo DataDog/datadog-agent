@@ -1,0 +1,13 @@
+--- CMakeLists.txt	2023-01-24 13:46:17.000000000 -0800
++++ CMakeLists.txt	2023-01-24 13:46:43.000000000 -0800
+@@ -96,10 +96,6 @@
+
+   # check for available C++ features
+   include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx_features.cmake)
+-
+-  if(NOT CMake_HAVE_CXX_UNIQUE_PTR)
+-    message(FATAL_ERROR "The C++ compiler does not support C++11 (e.g. std::unique_ptr).")
+-  endif()
+ endif()
+
+ # Inform STL library header wrappers whether to use system versions.
