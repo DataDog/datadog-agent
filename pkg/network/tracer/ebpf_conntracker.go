@@ -63,18 +63,16 @@ var conntrackerTelemetry = struct {
 	telemetry.NewHistogram(ebpfConntrackerModuleName, "unregisters_duration_nanoseconds", []string{}, "Histogram measuring the time spent deleting connection tuples from the EBPF map", defaultBuckets),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "gets_total", []string{}, "Counter measuring the total number of attempts to get connection tuples from the EBPF map"),
 	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total", []string{}, "Counter measuring the total number of successful deletions from the conntrack EBPF map"),
-	telemetry.NewCounter(ebpfConntrackerModuleName, "unregisters_total2", []string{}, "Counter measuring the total number of successful deletions from the conntrack2 EBPF map"),
 	prometheus.NewDesc(ebpfConntrackerModuleName+"__registers_total", "Counter measuring the total number of attempts to update/create connection tuples in the EBPF map", nil, nil),
 	0,
 }
 
 type ebpfConntracker struct {
-	m                  *manager.Manager
-	ctMap              *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	ctMap2             *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
-	pendingConfirmsMap *maps.GenericMap[uint64, uint64]
-	telemetryMap       *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
-	rootNS             uint32
+	m                         *manager.Manager
+	ctMap                     *maps.GenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple]
+	nfConntrackConfirmArgsMap *maps.GenericMap[uint64, uint64] // JMWNAME
+	telemetryMap              *maps.GenericMap[uint32, netebpf.ConntrackTelemetry]
+	rootNS                    uint32
 	// only kept around for stats purposes from initial dump
 	consumer *netlink.Consumer
 
@@ -158,16 +156,10 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 		return nil, fmt.Errorf("unable to get conntrack map: %w", err)
 	}
 
-	ctMap2, err := maps.GetMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](m, probes.Conntrack2Map)
+	nfConntrackConfirmArgsMap, err := maps.GetMap[uint64, uint64](m, probes.NFConntrackConfirmArgsMap)
 	if err != nil {
 		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get conntrack2 map: %w", err)
-	}
-
-	pendingConfirmsMap, err := maps.GetMap[uint64, uint64](m, probes.PendingConfirmsMap)
-	if err != nil {
-		_ = m.Stop(manager.CleanAll)
-		return nil, fmt.Errorf("unable to get pending_confirms map: %w", err)
+		return nil, fmt.Errorf("unable to get nf_conntrack_confirm_args map: %w", err) // JMWNAME
 	}
 
 	telemetryMap, err := maps.GetMap[uint32, netebpf.ConntrackTelemetry](m, probes.ConntrackTelemetryMap)
@@ -182,14 +174,13 @@ func NewEBPFConntracker(cfg *config.Config, telemetrycomp telemetryComp.Componen
 	}
 
 	e := &ebpfConntracker{
-		m:                  m,
-		ctMap:              ctMap,
-		ctMap2:             ctMap2,
-		pendingConfirmsMap: pendingConfirmsMap,
-		telemetryMap:       telemetryMap,
-		rootNS:             rootNS,
-		stop:               make(chan struct{}),
-		isPrebuilt:         isPrebuilt,
+		m:                         m,
+		ctMap:                     ctMap,
+		nfConntrackConfirmArgsMap: nfConntrackConfirmArgsMap,
+		telemetryMap:              telemetryMap,
+		rootNS:                    rootNS,
+		stop:                      make(chan struct{}),
+		isPrebuilt:                isPrebuilt,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ConntrackInitTimeout)
@@ -293,33 +284,6 @@ func (e *ebpfConntracker) GetTranslationForConn(stats *network.ConnectionTuple) 
 		dst = e.get(src)
 	}
 
-	// Always check conntrack2 for comparison purposes
-	src.Netns = e.rootNS
-	if log.ShouldLog(log.TraceLvl) {
-		log.Tracef("looking up in conntrack2 (tuple): %s", src)
-	}
-	dst2 := e.get2(src)
-	if dst2 == nil && stats.NetNS != e.rootNS {
-		// Also check connection namespace in conntrack2
-		src.Netns = stats.NetNS
-		if log.ShouldLog(log.TraceLvl) {
-			log.Tracef("looking up in conntrack2 (tuple,netns): %s", src)
-		}
-		dst2 = e.get2(src)
-	}
-
-	// Log discrepancies between the two maps
-	if dst != nil && dst2 == nil {
-		log.Warnf("JMW Entry found in conntrack but missing in conntrack2 for connection: %s", stats)
-	} else if dst == nil && dst2 != nil {
-		log.Infof("JMW Entry not found in conntrack but found in conntrack2 for connection: %s", stats)
-		// Don't use dst2, just log the discrepancy
-		tuplePool.Put(dst2)
-	} else if dst2 != nil {
-		// Both found, clean up dst2 since we only use dst
-		tuplePool.Put(dst2)
-	}
-
 	if dst == nil {
 		return nil
 	}
@@ -368,53 +332,6 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	} else {
 		conntrackerTelemetry.unregistersTotal.Inc()
 	}
-
-	if err := e.ctMap2.Delete(key); err != nil {
-		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("connection does not exist in ebpf conntrack2 map: %s", key)
-			}
-		} else {
-			log.Warnf("JMW unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
-		}
-	} else {
-		conntrackerTelemetry.unregistersTotal2.Inc()
-	}
-}
-
-// Duplicated methods for conntrack2 map
-func (e *ebpfConntracker) get2(src *netebpf.ConntrackTuple) *netebpf.ConntrackTuple {
-	dst := tuplePool.Get()
-	if err := e.ctMap2.Lookup(src, dst); err != nil {
-		if !errors.Is(err, ebpf.ErrKeyNotExist) {
-			log.Warnf("error looking up connection in ebpf conntrack2 map: %s", err)
-		}
-		tuplePool.Put(dst)
-		return nil
-	}
-	return dst
-}
-
-func (e *ebpfConntracker) delete2(key *netebpf.ConntrackTuple) {
-	start := time.Now()
-	defer func() {
-		conntrackerTelemetry.unregistersDuration.Observe(float64(time.Since(start).Nanoseconds()))
-	}()
-
-	if err := e.ctMap2.Delete(key); err != nil {
-		if errors.Is(err, ebpf.ErrKeyNotExist) {
-			if log.ShouldLog(log.TraceLvl) {
-				log.Tracef("connection does not exist in ebpf conntrack2 map: %s", key)
-			}
-
-			return
-		}
-
-		log.Warnf("unable to delete conntrack entry from eBPF conntrack2 map: %s", err)
-		return
-	}
-
-	conntrackerTelemetry.unregistersTotal2.Inc()
 }
 
 func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
@@ -423,17 +340,6 @@ func (e *ebpfConntracker) deleteTranslationNs(key *netebpf.ConntrackTuple, ns ui
 	e.delete(key)
 	if dst != nil {
 		e.delete(dst)
-	}
-
-	return dst
-}
-
-func (e *ebpfConntracker) deleteTranslationNs2(key *netebpf.ConntrackTuple, ns uint32) *netebpf.ConntrackTuple {
-	key.Netns = ns
-	dst := e.get2(key)
-	e.delete2(key)
-	if dst != nil {
-		e.delete2(dst)
 	}
 
 	return dst
@@ -451,15 +357,6 @@ func (e *ebpfConntracker) DeleteTranslation(stats *network.ConnectionTuple) {
 	}
 
 	if dst := e.deleteTranslationNs(key, stats.NetNS); dst != nil {
-		tuplePool.Put(dst)
-	}
-
-	// Also delete from conntrack2 map
-	if dst := e.deleteTranslationNs2(key, e.rootNS); dst != nil {
-		tuplePool.Put(dst)
-	}
-
-	if dst := e.deleteTranslationNs2(key, stats.NetNS); dst != nil {
 		tuplePool.Put(dst)
 	}
 }
@@ -536,8 +433,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 	mgr := ddebpf.NewManagerWithDefault(&manager.Manager{
 		Maps: []*manager.Map{
 			{Name: probes.ConntrackMap},
-			{Name: probes.Conntrack2Map},
-			{Name: probes.PendingConfirmsMap},
+			{Name: probes.NFConntrackConfirmArgsMap},
 			{Name: probes.ConntrackTelemetryMap},
 		},
 		PerfMaps: []*manager.PerfMap{},
@@ -595,8 +491,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 		opts.MapSpecEditors = make(map[string]manager.MapSpecEditor)
 	}
 	opts.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	opts.MapSpecEditors[probes.Conntrack2Map] = manager.MapSpecEditor{MaxEntries: uint32(cfg.ConntrackMaxStateSize), EditorFlag: manager.EditMaxEntries}
-	opts.MapSpecEditors[probes.PendingConfirmsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries}
+	opts.MapSpecEditors[probes.NFConntrackConfirmArgsMap] = manager.MapSpecEditor{MaxEntries: 10240, EditorFlag: manager.EditMaxEntries} // JMW
 	if opts.MapEditors == nil {
 		opts.MapEditors = make(map[string]*ebpf.Map)
 	}
@@ -604,7 +499,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options) (*man
 
 	if err := features.HaveMapType(ebpf.LRUHash); err == nil {
 		// Apply LRU hash to all conntrack maps
-		for _, mapName := range []string{probes.ConntrackMap, probes.Conntrack2Map} {
+		for _, mapName := range []string{probes.ConntrackMap} {
 			me := opts.MapSpecEditors[mapName]
 			me.Type = ebpf.LRUHash
 			me.EditorFlag |= manager.EditType
@@ -720,126 +615,6 @@ func boolConst(name string, value bool) manager.ConstantEditor {
 	}
 
 	return c
-}
-
-// ConntrackMapComparison represents a comparison between the conntrack maps
-type ConntrackMapComparison struct {
-	ConntrackEntries       int                   `json:"conntrack_entries"`
-	Conntrack2Entries      int                   `json:"conntrack2_entries"`
-	PendingConfirmsEntries int                   `json:"pending_confirms_entries"`
-	CommonEntries12        int                   `json:"common_entries_1_2"`
-	OnlyInConntrack        int                   `json:"only_in_conntrack"`
-	OnlyInConntrack2       int                   `json:"only_in_conntrack2"`
-	SampleDifferences      []ConntrackDifference `json:"sample_differences,omitempty"`
-}
-
-// ConntrackDifference represents a specific difference between maps
-type ConntrackDifference struct {
-	Tuple        string `json:"tuple"`
-	InConntrack  bool   `json:"in_conntrack"`
-	InConntrack2 bool   `json:"in_conntrack2"`
-	Description  string `json:"description"`
-}
-
-// CompareConntrackMaps compares the conntrack maps and returns statistics
-func (e *ebpfConntracker) CompareConntrackMaps() (*ConntrackMapComparison, error) {
-	// Collect all entries from each map
-	map1Entries := make(map[string]*netebpf.ConntrackTuple)
-	map2Entries := make(map[string]*netebpf.ConntrackTuple)
-	pendingCount := 0
-
-	// Read conntrack map (map1)
-	iter := e.ctMap.Iterate()
-	key := &netebpf.ConntrackTuple{}
-	value := &netebpf.ConntrackTuple{}
-	for iter.Next(key, value) {
-		keyStr := conntrackTupleToString(key)
-		valueCopy := *value // Make a copy
-		map1Entries[keyStr] = &valueCopy
-	}
-	if err := iter.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating conntrack map: %w", err)
-	}
-
-	// Read conntrack2 map (confirmed connections)
-	iter2 := e.ctMap2.Iterate()
-	key2 := &netebpf.ConntrackTuple{}
-	value2 := &netebpf.ConntrackTuple{}
-	for iter2.Next(key2, value2) {
-		keyStr := conntrackTupleToString(key2)
-		valueCopy := *value2 // Make a copy
-		map2Entries[keyStr] = &valueCopy
-	}
-	if err := iter2.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating conntrack2 map: %w", err)
-	}
-
-	// Count pending confirmations
-	pendingIter := e.pendingConfirmsMap.Iterate()
-	pendingKey := uint64(0)
-	pendingValue := uint64(0)
-	for pendingIter.Next(&pendingKey, &pendingValue) {
-		pendingCount++
-	}
-	if err := pendingIter.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating pending_confirms map: %w", err)
-	}
-
-	// Perform comparison analysis
-	comparison := &ConntrackMapComparison{
-		ConntrackEntries:       len(map1Entries),
-		Conntrack2Entries:      len(map2Entries),
-		PendingConfirmsEntries: pendingCount,
-	}
-
-	// Find intersections and differences
-	allKeys := make(map[string]bool)
-	for key := range map1Entries {
-		allKeys[key] = true
-	}
-	for key := range map2Entries {
-		allKeys[key] = true
-	}
-
-	sampleDifferences := []ConntrackDifference{}
-	for key := range allKeys {
-		in1 := map1Entries[key] != nil
-		in2 := map2Entries[key] != nil
-
-		// Count intersections
-		if in1 && in2 {
-			comparison.CommonEntries12++
-		}
-
-		// Count unique entries
-		if in1 && !in2 {
-			comparison.OnlyInConntrack++
-		}
-		if !in1 && in2 {
-			comparison.OnlyInConntrack2++
-		}
-
-		// Collect sample differences (limit to 10 for readability)
-		if len(sampleDifferences) < 10 && !(in1 && in2) {
-			description := "Present in: "
-			if in1 {
-				description += "conntrack "
-			}
-			if in2 {
-				description += "conntrack2 "
-			}
-
-			sampleDifferences = append(sampleDifferences, ConntrackDifference{
-				Tuple:        key,
-				InConntrack:  in1,
-				InConntrack2: in2,
-				Description:  description,
-			})
-		}
-	}
-
-	comparison.SampleDifferences = sampleDifferences
-	return comparison, nil
 }
 
 // conntrackTupleToString converts a ConntrackTuple to a string for comparison

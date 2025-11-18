@@ -113,7 +113,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__nf_conntrack_confirm) {
 
     // Store ct pointer temporarily for correlation with return probe
     ct_ptr = (u64)ct;
-    bpf_map_update_with_telemetry(pending_confirms, &ct_ptr, &val, BPF_ANY);
+    bpf_map_update_with_telemetry(nf_conntrack_confirm_args, &ct_ptr, &val, BPF_ANY);
 
     return 0;
 }
@@ -135,7 +135,7 @@ int BPF_BYPASSABLE_KPROBE(kretprobe__nf_conntrack_confirm) {
 
     increment_kretprobe__nf_conntrack_confirm_success_count();
 
-    // JMWJMW???  can't we check pending_confirms here to see if we tracked this ct like in CO-RE?
+    // JMWJMW???  can't we check nf_conntrack_confirm_args here to see if we tracked this ct like in CO-RE?
     // For prebuilt version, we can't easily correlate entry/exit
     // So we'll just count successful returns
     // The actual conntrack entry population would need the ct pointer

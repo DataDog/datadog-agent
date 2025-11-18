@@ -224,10 +224,8 @@ const (
 	ConnCloseBatchMap BPFMapName = "conn_close_batch"
 	// ConntrackMap is the map storing conntrack entries
 	ConntrackMap BPFMapName = "conntrack"
-	// Conntrack2Map is the map storing confirmed NAT connections JMW
-	Conntrack2Map BPFMapName = "conntrack2"
-	// PendingConfirmsMap is the map for tracking pending confirmations
-	PendingConfirmsMap BPFMapName = "pending_confirms"
+	// NFConntrackConfirmArgsMap is the map for storing the arguments of the __nf_conntrack_confirm() kernel function
+	NFConntrackConfirmArgsMap = "nf_conntrack_confirm_args" // JMWNAME (was PendingConfirmsMap) --> ConntrackArgsMap?
 	// ConntrackTelemetryMap is the map storing conntrack telemetry
 	ConntrackTelemetryMap BPFMapName = "conntrack_telemetry"
 	// TCPSendMsgArgsMap is the map storing the arguments of the tcp_sendmsg() system call

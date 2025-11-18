@@ -61,8 +61,6 @@ func dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap
 			spew.Fdump(w, key, value)
 		}
 
-	// JMWJMW add conntrack2 map dump
-
 	case probes.ConntrackTelemetryMap: // maps/conntrack_telemetry (BPF_MAP_TYPE_ARRAY), key C.u32, value conntrackTelemetry
 		io.WriteString(w, "Map: '"+mapName+"', key: 'C.u32', value: 'conntrackTelemetry'\n")
 		var zero uint64
