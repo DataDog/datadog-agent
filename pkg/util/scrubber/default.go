@@ -141,8 +141,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		// replace the 3rd capture group (password string) with ********
 		Repl: []byte(`$1$2********`),
 
-		// https://github.com/DataDog/datadog-agent/pull/28144
-		LastUpdated: parseVersion("7.57.0"),
+		// https://github.com/DataDog/datadog-agent/pull/43188
+		LastUpdated: parseVersion("7.73.1"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
