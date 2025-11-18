@@ -442,6 +442,6 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, expectedAPMM
 		return
 	}
 	for _, p := range traces {
-		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm.mode"])
+		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm_mode"])
 	}
 }

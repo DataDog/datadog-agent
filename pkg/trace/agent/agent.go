@@ -62,7 +62,7 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 
 	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
-	tagAPMMode = "_dd.apm.mode"
+	tagAPMMode = "_dd.apm_mode"
 )
 
 // Writer is an interface that provides the base functionality of a writing component
@@ -711,9 +711,9 @@ func warnIfInvalidAPMModeSpanTag(apmMode string) {
 		return // Valid
 	}
 	if apmMode == "" {
-		log.Warnf("empty value for '_dd.apm.mode' span tag")
+		log.Warnf("empty value for '_dd.apm_mode' span tag")
 	} else {
-		log.Warnf("invalid value for '_dd.apm.mode' span tag: '%s'", apmMode)
+		log.Warnf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
 	}
 }
 

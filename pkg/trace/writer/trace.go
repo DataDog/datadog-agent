@@ -28,7 +28,7 @@ const pathTraces = "/api/v0.2/traces"
 const defaultConnectionLimit = 5
 
 // tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
-const tagAPMMode = "_dd.apm.mode"
+const tagAPMMode = "_dd.apm_mode"
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
