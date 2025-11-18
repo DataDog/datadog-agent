@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         # Use oldest and latest available ubuntu, macos and windows
-        # https://docs.github.com/en/actions/reference/runners/github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+        # https://github.com/actions/runner-images#available-images
         os:
           [
             ubuntu-22.04,
