@@ -38,6 +38,7 @@ var rolloutBucketMapping = map[string]int{
 }
 
 var numRolloutBuckets = 6
+var ttlDuration = 1 * time.Hour
 
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
@@ -304,10 +305,18 @@ func newTagBasedImage(registry string, repository string, rolloutTag string) *Re
 	}
 }
 
+// digestCacheEntry represents a cached digest with its last update time
+type digestCacheEntry struct {
+	digest      string
+	lastUpdated time.Time
+}
+
 type tagBasedImageResolver struct {
 	datadoghqRegistries map[string]any
 	datacenter          string
 	rolloutBucket       string
+	digestCache         map[string]digestCacheEntry
+	mu                  sync.RWMutex
 }
 
 func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
@@ -318,13 +327,58 @@ func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag 
 
 	normalizedTag := strings.TrimPrefix(tag, "v")
 	rolloutBucketTag := normalizedTag + "-rollout" + r.rolloutBucket
+	// Check cache first
+	if cachedDigest, found := r.getCachedDigest(rolloutBucketTag); found {
+		if entryAge, _ := r.getCacheEntryAge(rolloutBucketTag); entryAge > ttlDuration {
+			log.Debugf("Cached digest for %s is too old, fetching from registry", rolloutBucketTag)
+		} else {
+			log.Debugf("Using cached digest for %s", rolloutBucketTag)
+			return newResolvedImage(registry, repository, ImageInfo{Digest: cachedDigest}), true
+		}
+	}
+
+	// Fetch from registry
 	digest, err := crane.Digest(registry + "/" + repository + ":" + rolloutBucketTag)
 	if err != nil {
 		log.Errorf("Failed to get digest of image %s/%s:%s: %v", registry, repository, rolloutBucketTag, err)
 		return nil, false
 	}
+	r.setCachedDigest(rolloutBucketTag, digest)
 
 	return newResolvedImage(registry, repository, ImageInfo{Digest: digest}), true
+}
+
+// getCachedDigest retrieves a digest from the cache if it exists
+func (r *tagBasedImageResolver) getCachedDigest(cacheKey string) (string, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if entry, exists := r.digestCache[cacheKey]; exists {
+		return entry.digest, true
+	}
+	return "", false
+}
+
+// setCachedDigest stores a digest in the cache with the current timestamp
+func (r *tagBasedImageResolver) setCachedDigest(cacheKey string, digest string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.digestCache[cacheKey] = digestCacheEntry{
+		digest:      digest,
+		lastUpdated: time.Now(),
+	}
+}
+
+// getCacheEntryAge returns how long ago a cache entry was last updated
+func (r *tagBasedImageResolver) getCacheEntryAge(cacheKey string) (time.Duration, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if entry, exists := r.digestCache[cacheKey]; exists {
+		return time.Since(entry.lastUpdated), true
+	}
+	return 0, false
 }
 
 func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter string) ImageResolver {
@@ -337,6 +391,7 @@ func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter str
 		datadoghqRegistries: datadoghqRegistries,
 		datacenter:          datacenter,
 		rolloutBucket:       strconv.Itoa(rolloutBucket),
+		digestCache:         make(map[string]digestCacheEntry),
 	}
 }
 
