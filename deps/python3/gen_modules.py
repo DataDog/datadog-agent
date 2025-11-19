@@ -11,10 +11,12 @@ def postprocess(modules):
     for m in ["_md5", "_sha1", "_sha2", "_sha3"]:
         modules[m]["includes"] = ["Modules/_hacl/include"]
     modules["_bz2"]["deps"] = ["@bzip2//:bz2"]
+    modules["_bz2"]["dynamic_deps"] = ["@bzip2//:libbz2_so"]
     modules["_lzma"]["deps"] = ["@xz//:liblzma"]
+    modules["_lzma"]["dynamic_deps"] = ["@xz//:lzma"]
     modules["_decimal"]["deps"] = [":mpdec"]
-    modules["_decimal"]["force_cc_binary"] = "yes"  # boolean causes issues with the json/starlark conversion
     modules["zlib"]["deps"] = ["@zlib//:zlib"]
+    modules["zlib"]["dynamic_deps"] = ["@zlib//:z"]
     del modules["readline"]
     modules["_blake2"]["textual_hdrs"] = [":blake2_hdrs"]
     del modules["_uuid"]
@@ -26,7 +28,9 @@ def postprocess(modules):
     del modules["_tkinter"]
     modules["_ctypes"]["deps"] = ["@libffi//:ffi"]
     modules["_hashlib"]["deps"] = ["@openssl//:openssl"]
+    # modules["_hashlib"]["dynamic_deps"] = ["@openssl//:openssl"]
     modules["_ssl"]["deps"] = ["@openssl//:openssl"]
+    # modules["_ssl"]["dynamic_deps"] = ["@openssl//:openssl"]
     modules["_ssl"]["textual_hdrs"] = ["Modules/_ssl/debughelpers.c", "Modules/_ssl/misc.c", "Modules/_ssl/cert.c"]
     del modules["_curses"]
     del modules["_curses_panel"]

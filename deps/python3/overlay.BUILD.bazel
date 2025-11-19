@@ -537,8 +537,9 @@ cc_binary(
         name = "module_" + name,
         shared_lib_name = name + ".cpython-313-x86_64-linux-gnu.so",
         deps = ["build_module_" + name],
+        dynamic_deps = info.get('dynamic_deps', []),
     )
-    for name in PYTHON_MODULES.keys()
+    for name, info in PYTHON_MODULES.items()
 ]
 
 [

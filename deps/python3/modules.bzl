@@ -144,8 +144,7 @@ PYTHON_MODULES = {
         ],
         "deps": [
             ":mpdec"
-        ],
-        "force_cc_binary": "yes"
+        ]
     },
     "binascii": {
         "srcs": [
@@ -158,6 +157,9 @@ PYTHON_MODULES = {
         ],
         "deps": [
             "@bzip2//:bz2"
+        ],
+        "dynamic_deps": [
+            "@bzip2//:libbz2_so"
         ]
     },
     "_lzma": {
@@ -166,6 +168,9 @@ PYTHON_MODULES = {
         ],
         "deps": [
             "@xz//:liblzma"
+        ],
+        "dynamic_deps": [
+            "@xz//:lzma"
         ]
     },
     "zlib": {
@@ -174,6 +179,9 @@ PYTHON_MODULES = {
         ],
         "deps": [
             "@zlib//:zlib"
+        ],
+        "dynamic_deps": [
+            "@zlib//:z"
         ]
     },
     "_md5": {
