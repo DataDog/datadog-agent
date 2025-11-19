@@ -84,7 +84,7 @@ visual_studio = repository_rule(
             doc = "Path to Visual Studio's installation root",
         ),
         "path_variable": attr.string(
-            doc = "Environment variable pointint to Visual Studio's installation root path",
+            doc = "Environment variable pointing to Visual Studio's installation root path",
         ),
         "version": attr.string(
             doc = "Installation Version. If set, it must match the version for the installation pointed at by path",
