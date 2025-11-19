@@ -36,8 +36,8 @@ type worker struct {
 
 	packetsTelemetry *packets.TelemetryStore
 
-	FilterListUpdate chan utilstrings.Matcher
-	filterList       utilstrings.Matcher
+	FilterListUpdate chan *utilstrings.Matcher
+	filterList       *utilstrings.Matcher
 }
 
 func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
@@ -54,7 +54,7 @@ func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Compon
 		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
-		FilterListUpdate: make(chan utilstrings.Matcher),
+		FilterListUpdate: make(chan *utilstrings.Matcher),
 	}
 }
 
@@ -73,7 +73,7 @@ func (w *worker) run() {
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, w.filterList)
 		}
 
 	}
