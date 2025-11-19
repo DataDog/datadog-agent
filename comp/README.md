@@ -138,6 +138,10 @@ Package diagnose provides the diagnose suite for the agent.
 
 Package flare implements a component to generate flares from the agent.
 
+### [comp/core/fxinstrumentation](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/fxinstrumentation)
+
+Package fxinstrumentation enables the Fx initialization spans to be sent to Datadog.
+
 ### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
 
 *Datadog Team*: agent-configuration
@@ -271,6 +275,12 @@ Package status implements the core status component information provider interfa
 *Datadog Team*: agent-metric-pipelines
 
 Package forwarder implements the "forwarder" bundle
+
+### [comp/forwarder/connectionsforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder)
+
+*Datadog Team*: container-experiences
+
+Package connectionsforwarder defines a component to send connections data to the backend
 
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
