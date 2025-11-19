@@ -8,27 +8,27 @@
 bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:linux-amd64 ]
   script:
-    - bazel build --config=dd-internal //deps/...
+    - bazel build //deps/...
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:linux-arm64 ]
   script:
-    - bazel build --config=dd-internal //deps/...
+    - bazel build //deps/...
 
 bazel:build-deps:macos-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
   script:
-    - bazel build --config=dd-internal //deps/...
+    - bazel build //deps/...
 
 bazel:build-deps:macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
   script:
-    - bazel build --config=dd-internal //deps/...
+    - bazel build //deps/...
 
 bazel:build-deps:windows-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: |-
       [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
-      bazel build --config=dd-internal '@zlib//...' '@libffi//:ffi' '@xz//...'
-      # bazel build --config=dd-internal @bzip2//...
+      bazel build '@zlib//...' '@libffi//:ffi' '@xz//...'
+      # bazel build @bzip2//...
