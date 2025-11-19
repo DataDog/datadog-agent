@@ -72,6 +72,8 @@ type SSHConfig struct {
 	Ciphers           []string `yaml:"ciphers"`
 	KeyExchanges      []string `yaml:"key_exchanges"`
 	HostKeyAlgorithms []string `yaml:"host_key_algorithms"`
+	// Allow weak/legacy algorithms (from above) be used for older devices that do not support recommended algorithms (insecure)
+	AllowLegacyAlgorithms bool `yaml:"allow_legacy_algorithms"`
 }
 
 // NcmCheckContext holds the processed config needed for an integration instance to run

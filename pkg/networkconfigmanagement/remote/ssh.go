@@ -22,6 +22,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+var (
+	knownCiphers      []string
+	knownKeyExchanges []string
+	knownHostKeys     []string
+)
+
+func init() {
+	supported := ssh.SupportedAlgorithms()
+	insecure := ssh.InsecureAlgorithms()
+
+	knownCiphers = slices.Concat(supported.Ciphers, insecure.Ciphers)
+	knownKeyExchanges = slices.Concat(supported.KeyExchanges, insecure.KeyExchanges)
+	knownHostKeys = slices.Concat(supported.HostKeys, insecure.HostKeys)
+}
+
 // SSHClient implements Client using SSH
 type SSHClient struct {
 	client *ssh.Client
@@ -95,14 +110,22 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 }
 
 func validateClientConfig(config *ncmconfig.SSHConfig) error {
-	supportedAlgos := ssh.SupportedAlgorithms()
-	if err := validateSupportedAlgorithms("cipher", config.Ciphers, supportedAlgos.Ciphers); err != nil {
+	var validCiphers, validKeyExchanges, validHostKeys []string
+	if config.AllowLegacyAlgorithms {
+		// Log a warning about the insecure nature of algorithms, still check that it's a "valid" algorithm vs. only a safe/supported algo
+		log.Warnf("checking supported SSH algorithms is disabled - this is insecure and should only be used with legacy devices in controlled environments ")
+		validCiphers, validKeyExchanges, validHostKeys = knownCiphers, knownKeyExchanges, knownHostKeys
+	} else {
+		supported := ssh.SupportedAlgorithms()
+		validCiphers, validKeyExchanges, validHostKeys = supported.Ciphers, supported.KeyExchanges, supported.HostKeys
+	}
+	if err := validateSupportedAlgorithms("cipher", config.Ciphers, validCiphers); err != nil {
 		return err
 	}
-	if err := validateSupportedAlgorithms("key exchange", config.KeyExchanges, supportedAlgos.KeyExchanges); err != nil {
+	if err := validateSupportedAlgorithms("key exchange", config.KeyExchanges, validKeyExchanges); err != nil {
 		return err
 	}
-	if err := validateSupportedAlgorithms("host key algorithm", config.HostKeyAlgorithms, supportedAlgos.HostKeys); err != nil {
+	if err := validateSupportedAlgorithms("host key algorithm", config.HostKeyAlgorithms, validHostKeys); err != nil {
 		return err
 	}
 	return nil
