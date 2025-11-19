@@ -61,7 +61,7 @@ func SetAggregatorTicker(agg *FlowAggregator) (chan time.Time, chan time.Time) {
 	callCount := 0
 	flushChannel := make(chan time.Time)
 	rollupChannel := make(chan time.Time)
-	agg.NewTicker = func(duration time.Duration) <-chan time.Time {
+	agg.NewTicker = func(_ time.Duration) <-chan time.Time {
 		callCount++
 		// this isn't great logic, but it's the best we can do for now. This is highly coupled to the order that we create
 		// tickers in FlowAggregator.flushLoop.
