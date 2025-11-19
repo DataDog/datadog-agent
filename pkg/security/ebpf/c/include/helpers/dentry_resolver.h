@@ -6,7 +6,7 @@
 
 #include "buffer_selector.h"
 
-int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, int key) {
+static int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type, int key) {
     switch (prog_type) {
     case KPROBE_OR_FENTRY_TYPE:
         bpf_tail_call_compat(ctx, &dentry_resolver_kprobe_or_fentry_progs, key);
@@ -18,15 +18,15 @@ int __attribute__((always_inline)) tail_call_dr_progs(void *ctx, enum TAIL_CALL_
     return 0;
 }
 
-int __attribute__((always_inline)) resolve_dentry(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) resolve_dentry(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     return tail_call_dr_progs(ctx, prog_type, DR_AD_FILTER_KEY);
 }
 
-int __attribute__((always_inline)) resolve_dentry_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
+static int __attribute__((always_inline)) resolve_dentry_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {
     return tail_call_dr_progs(ctx, prog_type, DR_DENTRY_RESOLVER_KERN_INPUTS);
 }
 
-int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
+static int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
     if (resolution_err > 0) {
         struct bpf_map_def *erpc_stats = select_buffer(&dr_erpc_stats_fb, &dr_erpc_stats_bb, ERPC_MONITOR_KEY);
         if (erpc_stats == NULL) {
@@ -42,7 +42,7 @@ int __attribute__((always_inline)) monitor_resolution_err(u32 resolution_err) {
     return 0;
 }
 
-u32 __attribute__((always_inline)) parse_erpc_request(struct dr_erpc_state_t *state, void *data) {
+static u32 __attribute__((always_inline)) parse_erpc_request(struct dr_erpc_state_t *state, void *data) {
     u32 err = 0;
     int ret = bpf_probe_read(&state->key, sizeof(state->key), data);
     if (ret < 0) {
@@ -73,7 +73,7 @@ exit:
     return err;
 }
 
-int __attribute__((always_inline)) handle_dr_request(ctx_t *ctx, void *data, u32 dr_erpc_key) {
+static int __attribute__((always_inline)) handle_dr_request(ctx_t *ctx, void *data, u32 dr_erpc_key) {
     u32 key = 0;
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
     if (state == NULL) {
@@ -92,7 +92,7 @@ exit:
     return 0;
 }
 
-int __attribute__((always_inline)) select_dr_key(enum TAIL_CALL_PROG_TYPE prog_type, int kprobe_key, int tracepoint_key) {
+static int __attribute__((always_inline)) select_dr_key(enum TAIL_CALL_PROG_TYPE prog_type, int kprobe_key, int tracepoint_key) {
     switch (prog_type) {
     case KPROBE_OR_FENTRY_TYPE:
         return kprobe_key;
@@ -102,7 +102,7 @@ int __attribute__((always_inline)) select_dr_key(enum TAIL_CALL_PROG_TYPE prog_t
 }
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
-void __attribute__((always_inline)) cache_dentry_resolver_input(struct dentry_resolver_input_t *input) {
+static void __attribute__((always_inline)) cache_dentry_resolver_input(struct dentry_resolver_input_t *input) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     bpf_map_update_elem(&dentry_resolver_inputs, &pid_tgid, input, BPF_ANY);
 }
