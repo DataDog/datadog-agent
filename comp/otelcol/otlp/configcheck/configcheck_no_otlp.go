@@ -13,9 +13,7 @@ import (
 )
 
 // IsEnabled checks if OTLP pipeline is enabled in a given config.
-func IsEnabled(cfg model.Reader) bool {
-	// Call to make the linter happy: unexported functions in configcheck_common can't be unused
-	_ = readConfigSection(cfg, "")
+func IsEnabled(_ model.Reader) bool {
 	return false
 }
 

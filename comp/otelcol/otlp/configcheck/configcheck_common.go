@@ -17,9 +17,16 @@ import (
 
 // confmapKeyDelimiter is the delimiter used for keys in go.opentelemetry.io/collector/confmap
 // We hardcode it to avoid the import to the dependency
+//
+//nolint:unused // used only if otlp tag is defined
 const confmapKeyDelimiter = "::"
+
+// viperKeyKeyDelimiter is the delimiter for viper keys
+//
+//nolint:unused // used only if otlp tag is defined
 const viperKeyDelimiter = "."
 
+//nolint:unused // used only if otlp tag is defined
 func convertToStringConfMap(cfg configmodel.Reader, inmap map[string]interface{}, prefix string, path []string, outmap map[string]interface{}) {
 	for k, v := range inmap {
 		nextPath := append(slices.Clone(path), k)
@@ -39,6 +46,7 @@ func convertToStringConfMap(cfg configmodel.Reader, inmap map[string]interface{}
 	}
 }
 
+//nolint:unused // used only if otlp tag is defined
 func readConfigSection(cfg configmodel.Reader, section string) map[string]interface{} {
 	stringMap := map[string]interface{}{}
 
