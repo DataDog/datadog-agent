@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -37,7 +38,7 @@ type ControllerContext struct {
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
-	ImageResolver                autoinstrumentation.ImageResolver
+	ImageResolver                imageresolver.ImageResolver
 }
 
 // StartControllers starts the secret and webhook controllers

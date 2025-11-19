@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -150,7 +151,7 @@ func (i *injector) requirements() libRequirement {
 
 type injectorOption func(*injector)
 
-var injectorVersionAnnotationExtractorFunc = func(imageResolver ImageResolver) annotationExtractor[injectorOption] {
+var injectorVersionAnnotationExtractorFunc = func(imageResolver imageresolver.ImageResolver) annotationExtractor[injectorOption] {
 	injectorVersionAnnotationExtractor := annotationExtractor[injectorOption]{
 		key: "admission.datadoghq.com/apm-inject.version",
 		do: infallibleFn(func(tag string) injectorOption {
@@ -184,7 +185,7 @@ func injectorWithImageName(name string) injectorOption {
 	}
 }
 
-func injectorWithImageTag(tag string, imageResolver ImageResolver) injectorOption {
+func injectorWithImageTag(tag string, imageResolver imageresolver.ImageResolver) injectorOption {
 	return func(i *injector) {
 		if imageResolver == nil {
 			log.Error("injectorWithImageTag called without imageResolver")

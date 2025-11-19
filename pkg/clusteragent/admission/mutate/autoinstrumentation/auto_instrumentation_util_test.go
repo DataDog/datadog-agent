@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -47,7 +48,7 @@ var (
 		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 
-	imageResolver = newNoOpImageResolver()
+	imageResolver = imageresolver.NewNoOpImageResolver()
 )
 
 func defaultLibInfo(l language) libInfo {

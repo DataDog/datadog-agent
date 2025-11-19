@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -175,7 +176,7 @@ type libInfo struct {
 	tag        string
 }
 
-func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResolver) podMutator {
+func (i libInfo) podMutator(opts libRequirementOptions, imageResolver imageresolver.ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		reqs, ok := i.libRequirement(imageResolver)
 		if !ok {
@@ -197,7 +198,7 @@ func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResol
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
+func (i libInfo) initContainers(resolver imageresolver.ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
@@ -248,7 +249,7 @@ func (i libInfo) volumeMount() volumeMount {
 	return v2VolumeMountLibrary
 }
 
-func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
+func (i libInfo) libRequirement(resolver imageresolver.ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}

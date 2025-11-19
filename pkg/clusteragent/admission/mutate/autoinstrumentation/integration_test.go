@@ -23,6 +23,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
@@ -3095,6 +3096,6 @@ func NewFakeImageResolver() *MockImageResolver {
 }
 
 // Resolve returns the original image reference.
-func (r *MockImageResolver) Resolve(_ string, _ string, _ string) (*autoinstrumentation.ResolvedImage, bool) {
+func (r *MockImageResolver) Resolve(_ string, _ string, _ string) (*imageresolver.ResolvedImage, bool) {
 	return nil, false
 }
