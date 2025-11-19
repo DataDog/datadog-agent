@@ -128,7 +128,6 @@ type secretResolver struct {
 	// Secret refresh throttling
 	apiKeyFailureRefreshInterval time.Duration
 	lastThrottledRefresh         time.Time
-	throttledRefreshMutex        sync.Mutex
 
 	refreshTrigger chan struct{}
 }
@@ -317,34 +316,40 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.apiKeyFailureRefreshInterval = time.Duration(params.APIKeyFailureRefreshInterval) * time.Minute
 }
 
+func (r *secretResolver) setupRefreshInterval(rd *rand.Rand) <-chan time.Time {
+	if r.refreshInterval <= 0 {
+		return nil
+	}
+
+	if r.refreshIntervalScatter {
+		var int63 int64
+		if rd == nil {
+			int63 = rand.Int63n(int64(r.refreshInterval))
+		} else {
+			int63 = rd.Int63n(int64(r.refreshInterval))
+		}
+		// Scatter when the refresh happens within the interval, with a minimum of 1 second
+		r.scatterDuration = time.Duration(int63) + time.Second
+		log.Infof("first secret refresh will happen in %s", r.scatterDuration)
+	} else {
+		r.scatterDuration = r.refreshInterval
+	}
+	r.ticker = r.clk.Ticker(r.scatterDuration)
+	return r.ticker.C
+}
+
 func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 	if r.ticker != nil {
 		return
 	}
 
-	var timer <-chan time.Time
-	if r.refreshInterval > 0 {
-		if r.refreshIntervalScatter {
-			var int63 int64
-			if rd == nil {
-				int63 = rand.Int63n(int64(r.refreshInterval))
-			} else {
-				int63 = rd.Int63n(int64(r.refreshInterval))
-			}
-			// Scatter when the refresh happens within the interval, with a minimum of 1 second
-			r.scatterDuration = time.Duration(int63) + time.Second
-			log.Infof("first secret refresh will happen in %s", r.scatterDuration)
-		} else {
-			r.scatterDuration = r.refreshInterval
-		}
-		r.ticker = r.clk.Ticker(r.scatterDuration)
-		timer = r.ticker.C
-	}
+	timer := r.setupRefreshInterval(rd)
 
 	go func() {
 		if timer != nil {
+			// initial refresh
 			<-timer
-			if _, err := r.Refresh(true); err != nil {
+			if _, err := r.performRefresh(); err != nil {
 				log.Infof("Error with refreshing secrets: %s", err)
 			}
 			// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
@@ -355,13 +360,25 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 			select {
 			case <-timer:
 				// scheduled refresh
-				if _, err := r.Refresh(true); err != nil {
+				if _, err := r.performRefresh(); err != nil {
 					log.Infof("Error with refreshing secrets: %s", err)
 				}
+			// triggered refresh
 			case <-r.refreshTrigger:
-				// triggered refresh
-				if _, err := r.Refresh(false); err != nil {
-					log.Infof("Error with refreshing secrets: %s", err)
+				// disabled
+				if r.apiKeyFailureRefreshInterval == 0 {
+					continue
+				}
+				// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
+				if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
+					continue
+				}
+				r.lastThrottledRefresh = time.Now()
+				// throttled refresh
+				if result, err := r.performRefresh(); err != nil {
+					log.Debugf("Secret refresh after invalid API key failed: %v", err)
+				} else if result != "" {
+					log.Infof("Secret refresh after invalid API key completed")
 				}
 			}
 		}
@@ -637,27 +654,22 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh the secrets after they have been Resolved by fetching them from the backend again.
-// bypassRateLimit is used for API Key refresh on 403 errors.
-func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
-	if !bypassRateLimit {
-		// check if api key refresh on 403 is enabled
-		if r.apiKeyFailureRefreshInterval == 0 {
-			log.Debugf("Secret refresh skipped")
-			return "", nil
-		}
-
-		// this extra lock is needed to prevent the `secret refresh` command from hanging in edge cases
-		r.throttledRefreshMutex.Lock()
-		defer r.throttledRefreshMutex.Unlock()
-		// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
-		if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
-			log.Debugf("Secret refresh skipped")
-			return "", nil
-		}
-		r.lastThrottledRefresh = time.Now()
+// Refresh will resolve secret handles again, notifying any subscribers of changed values.
+// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
+// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
+func (r *secretResolver) Refresh(updateNow bool) (string, error) {
+	if updateNow {
+		// blocking refresh
+		return r.performRefresh()
 	}
 
+	// max 1 refresh at a time via channel signal
+	r.refreshTrigger <- struct{}{}
+	return "", nil
+}
+
+// performRefresh executes the actual secret refresh operation
+func (r *secretResolver) performRefresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -687,9 +699,6 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 		secretResponse, err = r.fetchSecret(newHandles)
 	}
 	if err != nil {
-		if !bypassRateLimit {
-			log.Debugf("Secret refresh after invalid API key failed: %v", err)
-		}
 		return "", err
 	}
 
@@ -716,19 +725,7 @@ func (r *secretResolver) Refresh(bypassRateLimit bool) (string, error) {
 	}
 	result := b.String()
 
-	if !bypassRateLimit && result != "" {
-		log.Infof("Secret refresh after invalid API key completed")
-	}
-
 	return result, auditRecordErr
-}
-
-// TriggerRefresh sends a non-blocking signal to refresh secrets on API key failures
-func (r *secretResolver) TriggerRefresh() {
-	select {
-	case r.refreshTrigger <- struct{}{}:
-	default:
-	}
 }
 
 type auditRecord struct {
