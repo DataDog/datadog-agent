@@ -59,8 +59,8 @@ type FlowAggregator struct {
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
 
-	TopNRestrictor FlowFlushFilter
-	logger         log.Component
+	flowFilter FlowFlushFilter
+	logger     log.Component
 }
 
 type sequenceDeltaKey struct {
@@ -97,8 +97,8 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 
 	var topNFilter FlowFlushFilter = topn.NoopFilter{}
 	var flowScheduler FlowScheduler = ImmediateFlowScheduler{}
-	if config.MaxFlowsPerPeriod > 0 {
-		topNFilter = topn.NewPerFlushFilter(int64(config.MaxFlowsPerPeriod), flushConfig)
+	if config.AggregatorMaxFlowsPerPeriod > 0 {
+		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig)
 		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
 	}
 
@@ -122,7 +122,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		NewTicker:                    time.Tick,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
-		TopNRestrictor:               topNFilter,
+		flowFilter:                   topNFilter,
 	}
 }
 
@@ -294,7 +294,7 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 
 	// apply filtering
 	flowsBeforeFilter := len(flowsToFlush)
-	flowsToFlush = agg.TopNRestrictor.Filter(ctx, flowsToFlush)
+	flowsToFlush = agg.flowFilter.Filter(ctx, flowsToFlush)
 	numRowsFiltered := flowsBeforeFilter - len(flowsToFlush)
 
 	agg.logger.Debugf("Flushing %d flows to the forwarder, %d have been dropped by TopN filtering (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), numRowsFiltered, time.Since(flushTime).Milliseconds(), flowsContexts)
@@ -310,8 +310,6 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	}
 
 	// TODO: Add flush stats to agent telemetry e.g. aggregator newFlushCountStats()
-	// TODO: agg.TimeNowFunction() is a different clock than what we're using for ticking. Code is updated to use the ticker time for everything below, should we do the same here?
-	// should we just remove the # from the test consideration?
 	if len(flowsToFlush) > 0 {
 		agg.sendFlows(flowsToFlush, ctx.FlushTime)
 	}
