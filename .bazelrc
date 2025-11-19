@@ -37,6 +37,7 @@ common:cache --remote_timeout=60
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=cache
 common:ci --test_output=errors # Print test setup errors to the job output instead of only capturing them in test.log
+common:ci --experimental_ui_max_stdouterr_bytes=1683422900
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
