@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # To use orchestrion with go tests, we need Datadog environment variables which conflicts with the ones used by the tests.
 # Process:
@@ -18,7 +18,7 @@
 
 # Each ORCHESTRION_DD_* variables are forwarded to orchestrion to avoid conflicts in the tests
 # We need these variables like the api key etc.
-for var in $(env | grep ^ORCHESTRION_DD_); do
+for var in $(compgen -v | grep ^ORCHESTRION_DD_); do
     export "${var#ORCHESTRION_DD_}=${!var}"
 done
 orchestrion toolexec "$@"

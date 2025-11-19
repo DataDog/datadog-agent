@@ -318,6 +318,7 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
+    orchestrion_flags = '-toolexec=./tools/ci/sanitize_env_go_toolexec.sh' if use_orchestrion else ''
 
     nocache = '-count=1' if not cache else ''
 
@@ -333,8 +334,7 @@ def test(
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
-    # TODO: Orchestrion only on option
-    stdlib_build_cmd = 'go build {verbose} -toolexec=./tools/ci/sanitize_env_go_toolexec.sh -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd = 'go build {verbose} {orchestrion_flags} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
@@ -350,7 +350,7 @@ def test(
     )
 
     # Use orchestrion to run gotestsum for native instrumentation
-    cmd = f"gotestsum {gotestsum_flags} -- -toolexec=./tools/ci/sanitize_env_go_toolexec.sh {gobuild_flags} {govet_flags} {gotest_flags}"
+    cmd = f"gotestsum {gotestsum_flags} -- {orchestrion_flags} {gobuild_flags} {govet_flags} {gotest_flags}"
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
@@ -368,9 +368,9 @@ def test(
         "skip_flakes": "--skip-flake" if skip_flakes else "",
         "gotestsum_format": "standard-verbose" if verbose else "pkgname",
         "extra_args": extra_args or "",
+        "orchestrion_flags": orchestrion_flags,
     }
 
-    # TODO A
     # Test
     if build_stdlib:
         build_standard_lib(
