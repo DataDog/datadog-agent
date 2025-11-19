@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package autoinstrumentation
+package imageresolver
 
 import (
 	"encoding/json"
