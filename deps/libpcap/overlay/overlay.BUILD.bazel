@@ -1,8 +1,8 @@
-# load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+
 # load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
-
-# load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
@@ -51,7 +51,7 @@ PUBLIC_HEADERS = [
 ]
 
 cc_library(
-    name = "pcap",
+    name = "libpcap",
     # This may over include .h files
     srcs = [
         "arcnet.h",
@@ -134,7 +134,7 @@ cc_library(
     ],
     copts = [
         "-Wno-implicit-function-declaration",
-        # "-fpic",
+        "-fpic",
         "-O2",
     ],
     local_defines = [
@@ -146,18 +146,24 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
-#cc_shared_library(
-#    name = "pcap",
-#    deps = [":libpcap"],
-#    visibility = ["//visibility:public"],
-#)
+cc_shared_library(
+    name = "pcap",
+    deps = [":libpcap"],
+    visibility = ["//visibility:public"],
+)
 
-#so_symlink(
-#    name = "lib_files",
-#    src = ":pcap",
-#    libname = "libpcap",
-#    version = "1.10.5",
-#)
+so_symlink(
+    name = "shared_lib_files",
+    src = ":pcap",
+    libname = "libpcap",
+    version = "1.10.5",
+)
+
+pkg_files(
+    name = "static_lib_files",
+    srcs = [":libpcap"],
+    prefix = "lib",
+)
 
 pkg_files(
     name = "hdr_files",
@@ -166,16 +172,11 @@ pkg_files(
     strip_prefix = strip_prefix.from_pkg(),
 )
 
-pkg_files(
-    name = "lib_files",
-    srcs = [":pcap"],
-    prefix = "lib",
-)
-
 pkg_install(
     name = "install",
     srcs = [
         ":hdr_files",
-        ":lib_files",
+        ":shared_lib_files",
+        ":static_lib_files",
     ],
 )
