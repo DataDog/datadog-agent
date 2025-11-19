@@ -43,10 +43,14 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-00010101000000-000000000000 // indirect
+	github.com/briandowns/spinner v1.23.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
+	github.com/stormcat24/protodep v0.1.8 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	golang.org/x/term v0.36.0 // indirect
 )
 
 require (

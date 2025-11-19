@@ -974,7 +974,9 @@ require go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
 
 require (
 	cyphar.com/go-pathrs v0.2.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-00010101000000-000000000000 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.139.0 // indirect
+	github.com/stormcat24/protodep v0.1.8 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
