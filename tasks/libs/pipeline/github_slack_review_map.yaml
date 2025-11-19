@@ -46,7 +46,7 @@
 '@datadog/cloud-network-monitoring': '#cloud-network-monitoring'
 '@datadog/opentelemetry': '#opentelemetry-ops'
 '@datadog/opentelemetry-agent': '#opentelemetry-agent-ops'
-'@datadog/remote-config': '#remote-config-monitoring'
+'@datadog/remote-config': '#remote-config-platform'
 '@datadog/sdlc-security': '#sdlc-security'
 '@datadog/serverless': '#serverless-agent'
 '@datadog/serverless-azure-gcp': '#serverless-azure-gcp-team'

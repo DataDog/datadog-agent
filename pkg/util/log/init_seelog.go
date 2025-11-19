@@ -21,35 +21,18 @@ func parseShortFilePath(_ string) seelog.FormatterFunc {
 
 func createExtraJSONContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		contextList, ok := context.CustomContext().([]interface{})
-		if len(contextList) == 0 || !ok || len(contextList)%2 != 0 {
-			return ""
-		}
-
-		return formatters.ExtraJSONContext(toSlogAttrs(contextList))
+		return formatters.ExtraJSONContext(toAttrHolder(context.CustomContext()))
 	}
 }
 
 func createExtraTextContext(_ string) seelog.FormatterFunc {
 	return func(_ string, _ seelog.LogLevel, context seelog.LogContextInterface) interface{} {
-		contextList, ok := context.CustomContext().([]interface{})
-		if len(contextList) == 0 || !ok || len(contextList)%2 != 0 {
-			return ""
-		}
-		return formatters.ExtraTextContext(toSlogAttrs(contextList))
+		return formatters.ExtraTextContext(toAttrHolder(context.CustomContext()))
 	}
 }
 
-func toSlogAttrs(contextList []interface{}) attrHolderImpl {
-	attrs := make([]slog.Attr, 0, len(contextList)/2)
-	for i := 0; i < len(contextList); i += 2 {
-		key, val := contextList[i], contextList[i+1]
-		// Only add if key is string
-		if keyStr, ok := key.(string); ok {
-			attrs = append(attrs, slog.Attr{Key: keyStr, Value: slog.AnyValue(val)})
-		}
-	}
-	return attrHolderImpl(attrs)
+func toAttrHolder(context interface{}) formatters.AttrHolder {
+	return attrHolderImpl(formatters.ToSlogAttrs(context))
 }
 
 type attrHolderImpl []slog.Attr

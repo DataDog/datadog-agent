@@ -85,5 +85,5 @@ type DualParams struct {
 // OptionalRemoteParams provides the optional remote tagger parameters
 type OptionalRemoteParams struct {
 	// Disable opts out of the remote tagger in favor of the noop tagger
-	Disable func() bool
+	Disable func(config.Component) bool
 }

@@ -25,7 +25,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/cmd/security-agent/subcommands/compliance"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -36,6 +35,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -54,7 +54,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	pkgCompliance "github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -131,14 +131,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					// TODO - components: Do not remove runtimeAgent ref until "github.com/DataDog/datadog-agent/pkg/security/agent" is a component so they're not GCed
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
-				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *pkgCompliance.Agent, error) {
+				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, compression logscompression.Component, ipc ipc.Component) (status.InformationProvider, *compliance.Agent, error) {
 					hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.TODO(), ipc)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
+					var sysProbeClient compliance.SysProbeClient
+					if cfg := sysprobeconfig.SysProbeObject(); cfg != nil && cfg.SocketAddress != "" {
+						sysProbeClient = compliance.NewRemoteSysProbeClient(cfg.SocketAddress)
+					}
+
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc)
+					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc, sysProbeClient)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -170,6 +175,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
+				remoteagentfx.Module(),
 			)
 		},
 	}
