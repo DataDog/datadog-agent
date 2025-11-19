@@ -25,7 +25,7 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-	processutil "github.com/DataDog/datadog-agent/pkg/process/util"
+	processutil "github.com/DataDog/datadog-agent/pkg/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
