@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -24,7 +25,7 @@ type dependencies struct {
 	fx.In
 	Config config.Component
 	Log    log.Component
-	Lc     fx.Lifecycle
+	Lc     compdef.Lifecycle
 	Params Params
 }
 
@@ -86,10 +87,10 @@ func createOptions(params Params, config config.Component, log log.Component) (*
 // NewForwarder returns a new forwarder component.
 //
 //nolint:revive
-func NewForwarder(config config.Component, log log.Component, lc fx.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
+func NewForwarder(config config.Component, log log.Component, lc compdef.Lifecycle, ignoreLifeCycleError bool, options *Options) provides {
 	forwarder := NewDefaultForwarder(config, log, options)
 
-	lc.Append(fx.Hook{
+	lc.Append(compdef.Hook{
 		OnStart: func(context.Context) error {
 			err := forwarder.Start()
 			if ignoreLifeCycleError {
