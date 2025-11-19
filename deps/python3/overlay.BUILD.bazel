@@ -197,8 +197,10 @@ cc_library(
     srcs = ["Python/sysmodule.c", ":python_headers", ":mimalloc_headers"],
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
-    local_defines = [
-        'MULTIARCH=\\"x86_64-linux-gnu\\"',
+    local_defines = select({
+        "@@//:linux_x86_64": ['MULTIARCH=\\"x86_64-linux-gnu\\"'],
+        "@@//:linux_arm64": ['MULTIARCH=\\"aarch64-linux-gnu\\"'],
+    }) + [
         'ABIFLAGS=\\"\\"',
     ] + COMMON_DEFINES + PY_CORE_DEFINES,
     linkstatic = True,
