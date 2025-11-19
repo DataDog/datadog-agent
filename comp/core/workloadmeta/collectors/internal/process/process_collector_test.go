@@ -533,7 +533,7 @@ func TestStartConfiguration(t *testing.T) {
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": false,
 			},
-			expectedError: errors.NewDisabled(componentName, "process collection and service discovery are disabled"),
+			expectedError: errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled"),
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
