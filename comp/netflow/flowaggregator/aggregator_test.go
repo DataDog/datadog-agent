@@ -176,6 +176,11 @@ func TestAggregator(t *testing.T) {
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
+	// get hooks into the tickers so we can manually trigger flushes
+	flushChannel, _ := SetAggregatorTicker(aggregator)
+	// set the timestamp that will be associated with incoming flows
+	setMockTimeNow(flushTime.Add(-1 * time.Second))
+
 	inChan := aggregator.GetFlowInChan()
 
 	expectStartExisted := false
@@ -187,7 +192,15 @@ func TestAggregator(t *testing.T) {
 	}()
 	inChan <- flow
 
-	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 10*time.Second, 1)
+	// wait for flows to be processed by the channel
+	err = WaitForFlowsToAccumulate(aggregator, 5*time.Second, 1)
+	require.NoError(t, err, "we need the flow to be accumulated")
+
+	// trigger a flush by publishing a timestamp to the channel
+	flushChannel <- flushTime
+
+	// wait for the flush to complete and assert
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 5*time.Second, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), netflowEvents)
 
@@ -279,6 +292,8 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	aggregator.TimeNowFunction = func() time.Time {
 		return flushTime
 	}
+	flushChannel, _ := SetAggregatorTicker(aggregator)
+	setMockTimeNow(flushTime)
 
 	stoppedFlushLoop := make(chan struct{})
 	stoppedRun := make(chan struct{})
@@ -305,7 +320,12 @@ func TestAggregator_withMockPayload(t *testing.T) {
 	err = testutil.SendUDPPacket(port, packetData)
 	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 3*time.Second, 2)
+	err = WaitForFlowsToAccumulate(aggregator, 1500*time.Millisecond, 2)
+	require.NoError(t, err, "flows must be accumulated before flushing")
+
+	flushChannel <- flushTime
+
+	netflowEvents, err := WaitForFlowsToBeFlushed(aggregator, 1500*time.Millisecond, 2)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), netflowEvents)
 
@@ -1191,7 +1211,3 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 		})
 	}
 }
-
-//func TestFlowAggregator_topNFlows(t *testing.T) {
-//
-//}

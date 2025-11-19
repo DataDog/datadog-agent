@@ -54,6 +54,7 @@ type FlowAggregator struct {
 	hostname                     string
 	goflowPrometheusGatherer     prometheus.Gatherer
 	TimeNowFunction              func() time.Time // Allows to mock time in tests
+	NewTicker                    func(duration time.Duration) <-chan time.Time
 
 	lastSequencePerExporter   map[sequenceDeltaKey]uint32
 	lastSequencePerExporterMu sync.Mutex
@@ -118,6 +119,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		hostname:                     hostname,
 		goflowPrometheusGatherer:     prometheus.DefaultGatherer,
 		TimeNowFunction:              time.Now,
+		NewTicker:                    time.Tick,
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 		TopNRestrictor:               topNFilter,
@@ -221,7 +223,6 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 				continue
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
-			fmt.Println("netflow exporter metadata payload: ", string(payloadBytes))
 			m := message.NewMessage(payloadBytes, nil, "", 0)
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkDevicesMetadata)
 			if err != nil {
@@ -232,12 +233,12 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 }
 
 func (agg *FlowAggregator) flushLoop() {
-	flushFlowsToSendTicker := time.Tick(agg.FlushConfig.FlushTickFrequency)
+	flushFlowsToSendTicker := agg.NewTicker(agg.FlushConfig.FlushTickFrequency)
 	if flushFlowsToSendTicker == nil {
 		agg.logger.Debug("flushFlowsToSendInterval set to 0: will never flush automatically")
 	}
 
-	rollupTrackersRefresh := time.Tick(agg.rollupTrackerRefreshInterval)
+	rollupTrackersRefresh := agg.NewTicker(agg.rollupTrackerRefreshInterval)
 	// TODO: move rollup tracker refresh to a separate loop (separate PR) to avoid rollup tracker and flush flows impacting each other
 
 	var lastFlushTime time.Time
@@ -249,6 +250,7 @@ func (agg *FlowAggregator) flushLoop() {
 			return
 		// automatic flush sequence
 		case flushStartTime := <-flushFlowsToSendTicker:
+			fmt.Println("WHYYYY")
 			if !lastFlushTime.IsZero() {
 				flushInterval := flushStartTime.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
@@ -311,9 +313,9 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 	// TODO: agg.TimeNowFunction() is a different clock than what we're using for ticking. Code is updated to use the ticker time for everything below, should we do the same here?
 	// should we just remove the # from the test consideration?
 	if len(flowsToFlush) > 0 {
-		agg.sendFlows(flowsToFlush, agg.TimeNowFunction())
+		agg.sendFlows(flowsToFlush, ctx.FlushTime)
 	}
-	agg.sendExporterMetadata(flowsToFlush, agg.TimeNowFunction())
+	agg.sendExporterMetadata(flowsToFlush, ctx.FlushTime)
 
 	flushCount := len(flowsToFlush)
 

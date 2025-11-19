@@ -31,3 +31,45 @@ func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 		}
 	}
 }
+
+// WaitForFlowsToAccumulate waits up to timeoutDuration for at least minEvents
+// flows to be flushed by the aggregator. It is intended for testing.
+func WaitForFlowsToAccumulate(aggregator *FlowAggregator, timeoutDuration time.Duration, minFlows int) error {
+	timeout := time.After(timeoutDuration)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	// Keep trying until we're timed out or got a result or got an error
+	for {
+		select {
+		// Got a timeout! fail with a timeout error
+		case <-timeout:
+			return fmt.Errorf("timeout error waiting for events")
+		// Got a tick, we should check on doSomething()
+		case <-ticker.C:
+			if len(aggregator.flowAcc.flows) >= minFlows {
+				return nil
+			}
+		}
+	}
+}
+
+func SetAggregatorTicker(agg *FlowAggregator) (chan time.Time, chan time.Time) {
+	callCount := 0
+	flushChannel := make(chan time.Time)
+	rollupChannel := make(chan time.Time)
+	agg.NewTicker = func(duration time.Duration) <-chan time.Time {
+		callCount++
+		// this isn't great logic, but it's the best we can do for now. This is highly coupled to the order that we create
+		// tickers in FlowAggregator.flushLoop.
+		switch callCount {
+		case 1:
+			return flushChannel
+		case 2:
+			return rollupChannel
+		default:
+			panic("unexpected call to NewTicker")
+		}
+	}
+
+	return flushChannel, rollupChannel
+}
