@@ -34,6 +34,7 @@ func TestElementsMatchFn(t *testing.T) {
 		{"empty not", fail, nil, matchers(1)},
 		{"match 1", pass, []int{1}, matchers(1)},
 		{"match 2", pass, []int{1, 2}, matchers(1, 2)},
+		{"match ↊", pass, []int{2, 1}, matchers(1, 2)},
 		{"miss 1", fail, []int{1, 2}, matchers(2)},
 		{"miss 2", fail, []int{1, 2}, matchers(1)},
 		{"miss 3", fail, []int{1, 2}, matchers(1, 3)},
