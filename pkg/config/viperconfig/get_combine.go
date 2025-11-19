@@ -19,9 +19,13 @@ import (
 func GetViperCombine(cfg model.Reader, key string) interface{} {
 	rawval := cfg.Get(key)
 
-	// If the setting has a scalar non-nil value, return it
 	fields := cfg.GetSubfields(key)
+	if rawval != nil && IsNilValue(rawval) {
+		// Edge case: if the setting is boxed interface with a nil-val
+		return rawval
+	}
 	if !IsNilValue(rawval) && len(fields) == 0 {
+		// If the setting has a scalar non-nil value, return it
 		return rawval
 	}
 
