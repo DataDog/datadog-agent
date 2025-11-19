@@ -28,25 +28,27 @@ unless do_repackage?
   dependency 'datadog-agent-prepare'
 end
 
+if !linux_target?
+  raise "Agent Data Plane is only built for Linux platforms currently and should not be included in non-Linux builds."
+end
+
 # Dynamically build the source URL/SHA256 hash based on the platform/architecture we're building for.
 source_url_base = "https://binaries.ddbuild.io/saluki/"
 base_package_name = "agent-data-plane-#{adp_version}"
 
-if linux_target?
-  target_arch = "amd64"
-  if arm_target?
-    target_arch = "arm64"
-  end
-
-  package_target = "linux-#{target_arch}"
-
-  if fips_mode?
-    package_target = "fips-#{package_target}"
-  end
-
-  source sha256: adp_hashes[package_target]
-  source url: "#{source_url_base}/#{base_package_name}-#{package_target}.tar.gz"
+target_arch = "amd64"
+if arm_target?
+  target_arch = "arm64"
 end
+
+package_target = "linux-#{target_arch}"
+
+if fips_mode?
+  package_target = "fips-#{package_target}"
+end
+
+source sha256: adp_hashes[package_target]
+source url: "#{source_url_base}/#{base_package_name}-#{package_target}.tar.gz"
 
 build do
   license :project_license
