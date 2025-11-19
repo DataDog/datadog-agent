@@ -53,9 +53,9 @@ func TestContainerTagCache(t *testing.T) {
 
 			containerID := "test-container-id"
 			cardinalityToTags := map[taggertypes.TagCardinality][]string{
-				taggertypes.HighCardinality:         []string{"type:high"},
-				taggertypes.OrchestratorCardinality: []string{"type:orchestrator"},
-				taggertypes.LowCardinality:          []string{"type:low"},
+				taggertypes.HighCardinality:         {"type:high"},
+				taggertypes.OrchestratorCardinality: {"type:orchestrator"},
+				taggertypes.LowCardinality:          {"type:low"},
 			}
 
 			// Set up the mock tagger with expected tags
