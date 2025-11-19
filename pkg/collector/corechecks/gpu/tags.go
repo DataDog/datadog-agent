@@ -13,6 +13,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
+// containerTagCache encapsulates the logic for retrieving and caching container tags, to
+// add as workload tags for GPU monitoring metrics.
 type containerTagCache struct {
 	cache  map[string][]string
 	tagger tagger.Component
@@ -25,6 +27,8 @@ func newContainerTagCache(tagger tagger.Component) *containerTagCache {
 	}
 }
 
+// getContainerTags retrieves the tags for a container from the cache or the tagger, and caches the result.
+// It can return "nil, nil" if there was a previous error retrieving the tags for the container.
 func (c *containerTagCache) getContainerTags(container *workloadmeta.Container) ([]string, error) {
 	containerID := container.EntityID.ID
 	if tags, exists := c.cache[containerID]; exists {
@@ -40,7 +44,7 @@ func (c *containerTagCache) getContainerTags(container *workloadmeta.Container) 
 
 	tags, err := c.tagger.Tag(entityID, cardinality)
 	if err != nil {
-		// Cache the error state to avoid repeated calls
+		// Cache the error state to avoid repeated calls in case of errors
 		c.cache[containerID] = nil
 		return nil, err
 	}

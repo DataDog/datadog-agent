@@ -52,15 +52,19 @@ func TestContainerTagCache(t *testing.T) {
 			cache := newContainerTagCache(fakeTagger)
 
 			containerID := "test-container-id"
-			expectedTags := []string{"service:my-service", "env:prod", "version:1.0"}
+			cardinalityToTags := map[taggertypes.TagCardinality][]string{
+				taggertypes.HighCardinality:         []string{"type:high"},
+				taggertypes.OrchestratorCardinality: []string{"type:orchestrator"},
+				taggertypes.LowCardinality:          []string{"type:low"},
+			}
 
 			// Set up the mock tagger with expected tags
 			fakeTagger.SetTags(
 				taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
 				"foo",
-				expectedTags,
-				nil,
-				nil,
+				cardinalityToTags[taggertypes.LowCardinality],
+				cardinalityToTags[taggertypes.OrchestratorCardinality],
+				cardinalityToTags[taggertypes.HighCardinality],
 				nil,
 			)
 
@@ -72,19 +76,16 @@ func TestContainerTagCache(t *testing.T) {
 				Runtime: tt.runtime,
 			}
 
-			// First call should retrieve from tagger
+			var expectedTags []string
+			for cardinality, tags := range cardinalityToTags {
+				if tt.expectedCardnlty <= cardinality {
+					expectedTags = append(expectedTags, tags...)
+				}
+			}
+
 			tags, err := cache.getContainerTags(container)
 			require.NoError(t, err)
 			assert.Equal(t, expectedTags, tags)
-
-			// Verify the correct cardinality was used by checking the mock
-			// The fakeTagger should have been called with the correct entity and cardinality
-			retrievedTags, err := fakeTagger.Tag(
-				taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-				tt.expectedCardnlty,
-			)
-			require.NoError(t, err)
-			assert.Equal(t, expectedTags, retrievedTags)
 		})
 	}
 }
@@ -123,7 +124,16 @@ func TestContainerTagCacheCaching(t *testing.T) {
 	require.True(t, exists)
 	assert.Equal(t, expectedTags, cachedTags)
 
-	// Second call - should return from cache
+	// Modify the tags in the mock tagger and verify that we still get the cached tags
+	fakeTagger.SetTags(
+		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
+		"foo",
+		[]string{"service:my-service-modified", "env:prod-modified"},
+		nil,
+		nil,
+		nil,
+	)
+
 	tags2, err2 := cache.getContainerTags(container)
 	require.NoError(t, err2)
 	assert.Equal(t, expectedTags, tags2)
