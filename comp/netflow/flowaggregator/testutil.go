@@ -57,6 +57,9 @@ func WaitForFlowsToAccumulate(aggregator *FlowAggregator, timeoutDuration time.D
 	}
 }
 
+// SetAggregatorTicker sets up a mock ticker for the aggregator. It returns the channels that the aggregator will use
+// in its flushLoop. This implementation is tied to the order that the aggregator requests channels, if that changes
+// this is likely broken.
 func SetAggregatorTicker(agg *FlowAggregator) (chan time.Time, chan time.Time) {
 	callCount := 0
 	flushChannel := make(chan time.Time)
