@@ -1264,11 +1264,7 @@ func TestEnableRedisMonitoring(t *testing.T) {
 
 		// Redis may be disabled by adjust_usm.go on kernels < 5.4
 		// We test that the config respects the kernel limitation
-		if sysconfig.RedisMonitoringSupported() {
-			assert.True(t, cfg.EnableRedisMonitoring)
-		} else {
-			assert.False(t, cfg.EnableRedisMonitoring)
-		}
+		assert.Equal(t, sysconfig.RedisMonitoringSupported(), cfg.EnableRedisMonitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -1281,11 +1277,7 @@ func TestEnableRedisMonitoring(t *testing.T) {
 
 		// Redis may be disabled by adjust_usm.go on kernels < 5.4
 		// We test that the config respects the kernel limitation
-		if sysconfig.RedisMonitoringSupported() {
-			assert.True(t, cfg.EnableRedisMonitoring)
-		} else {
-			assert.False(t, cfg.EnableRedisMonitoring)
-		}
+		assert.Equal(t, sysconfig.RedisMonitoringSupported(), cfg.EnableRedisMonitoring)
 	})
 
 	t.Run("default", func(t *testing.T) {
