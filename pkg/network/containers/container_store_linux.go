@@ -54,7 +54,7 @@ var containerStoreTelemetry = struct {
 	eventsDropped     telemetry.Counter
 	readFailures      telemetry.Counter
 }{
-	telemetry.NewCounter(moduleName, "non_stale_evicts", []string{}, "Counter measuring the number of evictions of non-stale containers in the container store)"),
+	telemetry.NewCounter(moduleName, "non_stale_evicts", []string{}, "Counter measuring the number of evictions of non-stale containers in the container store"),
 	telemetry.NewCounter(moduleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(moduleName, "read_failures", []string{}, "Counter measuring the number of failures to read container data such as resolv.conf"),
 }
@@ -92,7 +92,14 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 	warnLimit := log.NewLogLimit(5, 10*time.Second)
 	errorLimit := log.NewLogLimit(5, 10*time.Second)
 
-	cache, err := lru.NewWithEvict(maxContainers, func(_key *intern.Value, item containerStoreItem) {
+	cache, err := lru.NewWithEvict(maxContainers, func(key *intern.Value, item containerStoreItem) {
+		log.TraceFunc(func() string {
+			containerID := "host"
+			if key != nil {
+				containerID = key.Get().(string)
+			}
+			return fmt.Sprintf("CNM ContainerStore evicting ID %s", containerID)
+		})
 		if !item.isStale() {
 			containerStoreTelemetry.nonStaleEvictions.Add(1)
 		}
