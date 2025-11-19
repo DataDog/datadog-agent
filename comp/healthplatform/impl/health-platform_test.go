@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -57,13 +58,26 @@ func (m *mockLifecycle) Stop(ctx context.Context) error {
 	return nil
 }
 
-// TestNewComponent tests component initialization
-func TestNewComponent(t *testing.T) {
-	reqs := Requires{
-		Lifecycle: newMockLifecycle(),
+// testRequires creates a Requires struct for testing with health platform enabled
+func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("health_platform.enabled", true)
+
+	if lifecycle == nil {
+		lifecycle = newMockLifecycle()
+	}
+
+	return Requires{
+		Lifecycle: lifecycle,
+		Config:    cfg,
 		Log:       logmock.New(t),
 		Telemetry: nooptelemetry.GetCompatComponent(),
 	}
+}
+
+// TestNewComponent tests component initialization
+func TestNewComponent(t *testing.T) {
+	reqs := testRequires(t, nil)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -76,11 +90,7 @@ func TestNewComponent(t *testing.T) {
 // TestReportIssue tests direct issue reporting functionality
 func TestReportIssue(t *testing.T) {
 	lifecycle := newMockLifecycle()
-	reqs := Requires{
-		Lifecycle: lifecycle,
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, lifecycle)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -127,11 +137,7 @@ func TestReportIssue(t *testing.T) {
 // TestIssueResolution tests issue resolution (reporting nil)
 func TestIssueResolution(t *testing.T) {
 	lifecycle := newMockLifecycle()
-	reqs := Requires{
-		Lifecycle: lifecycle,
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, lifecycle)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -178,11 +184,7 @@ func TestIssueResolution(t *testing.T) {
 // TestClearMethods tests clearing functionality
 func TestClearMethods(t *testing.T) {
 	lifecycle := newMockLifecycle()
-	reqs := Requires{
-		Lifecycle: lifecycle,
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, lifecycle)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -233,11 +235,7 @@ func TestClearMethods(t *testing.T) {
 
 // TestReportIssueErrors tests error handling
 func TestReportIssueErrors(t *testing.T) {
-	reqs := Requires{
-		Lifecycle: newMockLifecycle(),
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, nil)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -267,11 +265,7 @@ func TestReportIssueErrors(t *testing.T) {
 
 // TestConcurrentReporting tests concurrent issue reporting
 func TestConcurrentReporting(t *testing.T) {
-	reqs := Requires{
-		Lifecycle: newMockLifecycle(),
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, nil)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -316,11 +310,7 @@ func TestConcurrentReporting(t *testing.T) {
 // TestLifecycle tests component lifecycle
 func TestLifecycle(t *testing.T) {
 	lifecycle := newMockLifecycle()
-	reqs := Requires{
-		Lifecycle: lifecycle,
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, lifecycle)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -352,11 +342,7 @@ func TestLifecycle(t *testing.T) {
 // TestIssueTimestamp tests that issues get timestamps
 func TestIssueTimestamp(t *testing.T) {
 	lifecycle := newMockLifecycle()
-	reqs := Requires{
-		Lifecycle: lifecycle,
-		Log:       logmock.New(t),
-		Telemetry: nooptelemetry.GetCompatComponent(),
-	}
+	reqs := testRequires(t, lifecycle)
 
 	provides, err := NewComponent(reqs)
 	require.NoError(t, err)
@@ -392,4 +378,45 @@ func TestIssueTimestamp(t *testing.T) {
 	// Stop the component
 	err = lifecycle.Stop(context.Background())
 	require.NoError(t, err)
+}
+
+// TestComponentDisabled tests that component is disabled when config flag is false
+func TestComponentDisabled(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("health_platform.enabled", false)
+
+	reqs := Requires{
+		Lifecycle: newMockLifecycle(),
+		Config:    cfg,
+		Log:       logmock.New(t),
+		Telemetry: nooptelemetry.GetCompatComponent(),
+	}
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+	require.NotNil(t, provides.Comp)
+
+	// Verify it's the noop implementation
+	_, ok := provides.Comp.(*noopHealthPlatform)
+	assert.True(t, ok, "Expected noopHealthPlatform when disabled")
+
+	// Verify all methods work but do nothing
+	err = provides.Comp.ReportIssue("test-check", "Test Check", &healthplatform.IssueReport{
+		IssueID: "docker-file-tailing-disabled",
+		Context: map[string]string{"dockerDir": "/var/lib/docker"},
+	})
+	assert.NoError(t, err)
+
+	// Verify no issues are tracked
+	count, issues := provides.Comp.GetAllIssues()
+	assert.Equal(t, 0, count)
+	assert.Empty(t, issues)
+
+	// Verify GetIssueForCheck returns nil
+	issue := provides.Comp.GetIssueForCheck("test-check")
+	assert.Nil(t, issue)
+
+	// Verify clear methods work without error
+	provides.Comp.ClearIssuesForCheck("test-check")
+	provides.Comp.ClearAllIssues()
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -22,6 +23,7 @@ import (
 // Requires defines the dependencies for the health-platform component
 type Requires struct {
 	Lifecycle compdef.Lifecycle
+	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
 }
@@ -61,6 +63,12 @@ type telemetryMetrics struct {
 // NewComponent creates a new health-platform component
 // It initializes the component with its dependencies and configures telemetry metrics.
 func NewComponent(reqs Requires) (Provides, error) {
+	// Check if health platform is enabled
+	if !reqs.Config.GetBool("health_platform.enabled") {
+		reqs.Log.Info("Health platform component is disabled")
+		return Provides{Comp: &noopHealthPlatform{}}, nil
+	}
+
 	reqs.Log.Info("Creating health platform component")
 
 	// Initialize the health platform implementation
