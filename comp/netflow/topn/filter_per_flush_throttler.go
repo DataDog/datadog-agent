@@ -7,24 +7,27 @@
 package topn
 
 import (
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
 type throttler struct {
 	flushConfig common.FlushConfig
+	logger      log.Component
 
 	k                       int64
 	flushesPerPeriod        int64
 	numFlushesWithExtraRows int64
 }
 
-func newThrottler(n int64, flushConfig common.FlushConfig) *throttler {
+func newThrottler(n int64, flushConfig common.FlushConfig, logger log.Component) *throttler {
 	flushesPerPeriod := int64(flushConfig.FlowCollectionDuration / flushConfig.FlushTickFrequency)
 	k := n / flushesPerPeriod
 	extraRows := n % flushesPerPeriod
 
 	return &throttler{
 		flushConfig: flushConfig,
+		logger:      logger,
 
 		k:                       k,
 		flushesPerPeriod:        flushesPerPeriod,
@@ -92,6 +95,7 @@ func (s *throttler) calculateNumFlowsOverInterval(flushInterval struct {
 }) int {
 	if flushInterval.startInclusive > flushInterval.endInclusive {
 		// illegal state!
+		_ = s.logger.Warn("top-n throttling is in an illegal state, startInclusive is greater than endInclusive %+v", flushInterval)
 		return 0
 	}
 

@@ -46,9 +46,13 @@ func WaitForFlowsToAccumulate(aggregator *FlowAggregator, timeoutDuration time.D
 			return fmt.Errorf("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
+			// more hacky mutex locking, need to verify that flows accumulated by reading shared memory
+			aggregator.flowAcc.flowsMutex.Lock()
 			if len(aggregator.flowAcc.flows) >= minFlows {
+				aggregator.flowAcc.flowsMutex.Unlock()
 				return nil
 			}
+			aggregator.flowAcc.flowsMutex.Unlock()
 		}
 	}
 }

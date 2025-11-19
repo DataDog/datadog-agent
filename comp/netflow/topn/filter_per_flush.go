@@ -10,16 +10,17 @@ import (
 	"slices"
 	"time"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 // NewPerFlushFilter will create a per flush filter for the given config. This filter will reduce "n" into "k" rows per flush period.
-func NewPerFlushFilter(n int64, flushConfig common.FlushConfig, sender sender.Sender) *PerFlushFilter {
+func NewPerFlushFilter(n int64, flushConfig common.FlushConfig, sender sender.Sender, logger log.Component) *PerFlushFilter {
 	return &PerFlushFilter{
 		n:           n,
 		flushConfig: flushConfig,
-		throttler:   newThrottler(n, flushConfig),
+		throttler:   newThrottler(n, flushConfig, logger),
 		metrics:     sender,
 	}
 }
@@ -44,10 +45,19 @@ func (p *PerFlushFilter) Filter(ctx common.FlushContext, flows []*common.Flow) [
 
 	flowsToFlush, flowsToDrop := p.applyFilters(ctx, flows)
 
+	var bytesInDroppedFlows uint64
+	var packetsInDroppedFlows uint64
+	for _, flow := range flowsToDrop {
+		bytesInDroppedFlows += flow.Bytes
+		packetsInDroppedFlows += flow.Packets
+	}
+
 	p.metrics.Histogram("datadog.netflow.flow_truncation.runtime_ms", float64(time.Since(start).Milliseconds()), "", nil)
 	p.metrics.Count("datadog.netflow.flow_truncation.flows_total", float64(len(flows)), "", nil)
 	p.metrics.Count("datadog.netflow.flow_truncation.flows_kept", float64(len(flowsToFlush)), "", nil)
-	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped", float64(len(flowsToDrop)), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.count", float64(len(flowsToDrop)), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.bytes", float64(bytesInDroppedFlows), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.packets", float64(packetsInDroppedFlows), "", nil)
 	p.metrics.Gauge("datadog.netflow.flow_truncation.threshold_value", float64(p.n), "", nil)
 
 	return flowsToFlush

@@ -8,7 +8,6 @@ package flowaggregator
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -98,7 +97,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	var topNFilter FlowFlushFilter = topn.NoopFilter{}
 	var flowScheduler FlowScheduler = ImmediateFlowScheduler{}
 	if config.AggregatorMaxFlowsPerPeriod > 0 {
-		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig, sender)
+		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig, sender, logger)
 		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
 	}
 
@@ -250,7 +249,6 @@ func (agg *FlowAggregator) flushLoop() {
 			return
 		// automatic flush sequence
 		case flushStartTime := <-flushFlowsToSendTicker:
-			fmt.Println("WHYYYY")
 			if !lastFlushTime.IsZero() {
 				flushInterval := flushStartTime.Sub(lastFlushTime)
 				agg.sender.Gauge("datadog.netflow.aggregator.flush_interval", flushInterval.Seconds(), "", nil)
