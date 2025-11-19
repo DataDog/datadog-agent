@@ -2,6 +2,8 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
+visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
+
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
 bazel_dep(name = "package_metadata", version = "0.0.6")
@@ -102,6 +104,13 @@ register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "//bazel/toolchains/mingw:mingw_cc_toolchain",
+)
+
+# Visual Studio / MSBuild tooling, taken from the local installation
+visual_studio(
+    name = "visual_studio",
+    path_variable = "VSTUDIO_ROOT",
+    version = "17.14.36623.8",
 )
 
 # =========================================

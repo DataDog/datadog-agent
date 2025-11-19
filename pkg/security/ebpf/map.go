@@ -12,6 +12,7 @@ package ebpf
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/binary"
 )
 
@@ -172,4 +173,22 @@ type Map interface {
 	LookupBytes(interface{}) ([]byte, error)
 	Put(interface{}, interface{}) error
 	Delete(interface{}) error
+}
+
+// SliceBinaryMarshaller implements encoding.BinaryMarshaler for a slice of encoding.BinaryMarshaler items
+type SliceBinaryMarshaller[T encoding.BinaryMarshaler] []T
+
+// MarshalBinary returns the binary representation of a SliceBinaryMarshaller
+func (s SliceBinaryMarshaller[T]) MarshalBinary() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	for _, item := range s {
+		b, err := item.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(b); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
 }
