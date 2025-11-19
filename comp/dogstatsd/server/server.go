@@ -554,13 +554,13 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		worker.FilterListUpdate <- &matcher
+		worker.FilterListUpdate <- matcher
 	}
 
 	// send the histogram filterlist used right before flushing to the serializer
 	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 
-	s.demultiplexer.SetSamplersFilterList(&matcher, &histoMatcher)
+	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
 }
 
 // create a list based on all `metricNames` but only containing metric names
