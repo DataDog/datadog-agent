@@ -149,7 +149,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 					logURL = endpointInfo.Endpoint.Route
 					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
 				} else {
-					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+					domain := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
 					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
 

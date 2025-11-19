@@ -7,6 +7,7 @@
 package forwarders
 
 import (
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 )
 
@@ -17,5 +18,5 @@ type Component interface {
 	GetEventForwarder() defaultforwarder.Component
 	GetProcessForwarder() defaultforwarder.Component
 	GetRTProcessForwarder() defaultforwarder.Component
-	GetConnectionsForwarder() defaultforwarder.Component
+	GetConnectionsForwarder() connectionsforwarder.Component
 }

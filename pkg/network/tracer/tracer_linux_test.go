@@ -396,7 +396,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTCPSentMiscounts.Load())
+	assert.NotZero(t, connection.EbpfTracerTelemetry.GetLastTCPSentMiscounts())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -3223,7 +3223,7 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 	require.NoError(t, err)
 	require.Equal(t, 200, code)
 
-	var cert ssluprobes.CertInfo
+	var cert network.CertInfo
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
