@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
@@ -253,10 +252,10 @@ func TestTracesWithOperationAndResourceName(
 			return
 		}
 		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		if !assert.NotEmpty(s.T(), trace.IdxTracerPayloads) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := idx.FromProto(trace.IdxTracerPayloads[0])
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
@@ -268,17 +267,17 @@ func TestTracesWithOperationAndResourceName(
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
-	tp := traces[0].TracerPayloads[0]
+	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
 
 	for _, sp := range spans {
-		if sp.Meta["span.kind"] == "client" {
+		if sp.Kind() == idx.SpanKind_SPAN_KIND_CLIENT {
 			assert.Equal(s.T(), clientOperationName, sp.Name)
 			assert.Equal(s.T(), clientResourceName, sp.Resource)
 		} else {
-			assert.Equal(s.T(), "server", sp.Meta["span.kind"])
+			assert.Equal(s.T(), idx.SpanKind_SPAN_KIND_SERVER, sp.Kind())
 			assert.Equal(s.T(), serverOperationName, sp.Name)
 			assert.Equal(s.T(), serverResourceName, sp.Resource)
 		}
@@ -392,9 +391,9 @@ func TestHosts(s OTelTestSuite) {
 	}, 2*time.Minute, 10*time.Second)
 	s.T().Log("Got telemetry")
 	trace := traces[0]
-	require.NotEmpty(s.T(), trace.TracerPayloads)
-	tp := trace.TracerPayloads[0]
-	traceHostname := tp.Hostname
+	require.NotEmpty(s.T(), trace.IdxTracerPayloads)
+	tp := idx.FromProto(trace.IdxTracerPayloads[0])
+	traceHostname := tp.Hostname()
 
 	var metricHostname string
 	metric := metrics[0]
@@ -507,15 +506,16 @@ func TestHostMetrics(s OTelTestSuite) {
 	}, 1*time.Minute, 10*time.Second)
 }
 
-func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload) map[string][]*trace.Span {
-	spanMap := make(map[string][]*trace.Span)
+func getLoadBalancingSpans(t require.TestingT, traces []*aggregator.TracePayload) map[string][]*idx.InternalSpan {
+	spanMap := make(map[string][]*idx.InternalSpan)
 	spans := 0
 	for _, tracePayload := range traces {
-		for _, tracerPayload := range tracePayload.TracerPayloads {
-			for _, chunk := range tracerPayload.Chunks {
+		for _, idxTracerPayload := range tracePayload.IdxTracerPayloads {
+			internalPayload := idx.FromProto(idxTracerPayload)
+			for _, chunk := range internalPayload.Chunks {
 				for _, span := range chunk.Spans {
-					if len(spanMap[span.Service]) < 3 {
-						spanMap[span.Service] = append(spanMap[span.Service], span)
+					if len(spanMap[span.Service()]) < 3 {
+						spanMap[span.Service()] = append(spanMap[span.Service()], span)
 						spans++
 					}
 					if spans == 12 {
@@ -576,7 +576,7 @@ func getLoadBalancingMetrics(t require.TestingT, metrics []*aggregator.MetricSer
 func TestLoadBalancing(s OTelTestSuite) {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
-	var spanMap map[string][]*trace.Span
+	var spanMap map[string][]*idx.InternalSpan
 	var metricTagsMap map[string][]map[string]string
 
 	s.T().Log("Waiting for telemetry")
@@ -599,12 +599,13 @@ func TestLoadBalancing(s OTelTestSuite) {
 	for service, spans := range spanMap {
 		backend := ""
 		for _, span := range spans {
-			s.T().Log("Span service:", service+",", "Backend:", span.Meta["backend"])
-			if backend == "" {
-				backend = span.Meta["backend"]
+			spanBackend, ok := span.GetAttributeAsString("backend")
+			s.T().Log("Span service:", service+",", "Backend:", spanBackend)
+			if ok && backend == "" {
+				backend = spanBackend
 				continue
 			}
-			assert.Equal(s.T(), backend, span.Meta["backend"])
+			assert.Equal(s.T(), backend, spanBackend)
 		}
 	}
 	for service, metricTags := range metricTagsMap {

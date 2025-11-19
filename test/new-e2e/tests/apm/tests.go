@@ -105,9 +105,10 @@ func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, proces
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	for _, p := range traces {
-		assert.NotEmpty(c, p.TracerPayloads)
-		for _, tp := range p.TracerPayloads {
-			tags, ok := tp.Tags["_dd.tags.process"]
+		assert.NotEmpty(c, p.IdxTracerPayloads)
+		for _, tp := range p.IdxTracerPayloads {
+			internalTp := idx.FromProto(tp)
+			tags, ok := internalTp.GetAttributeAsString("_dd.tags.process")
 			assert.True(c, ok)
 			assert.Equal(c, processTags, tags)
 		}
