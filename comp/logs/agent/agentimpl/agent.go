@@ -210,18 +210,8 @@ func (a *logAgent) start(context.Context) error {
 }
 
 // restart conducts a partial restart of the logs-agent pipeline.
-// This is used to switch between transport protocols (TCP to HTTP or vice versa)
+// This is used to switch between transport protocols (TCP to HTTP)
 // without disrupting the entire agent.
-//
-// The restart process:
-// 1. Acquires a restart mutex to prevent concurrent restarts
-// 2. Performs a partial stop of transient components (launchers, pipeline, destinations)
-// 3. Rebuilds endpoints based on current configuration
-// 4. Rebuilds transient components while preserving persistent state (sources, auditor, tracker, schedulers)
-// 5. Restarts the pipeline with the new configuration
-//
-// Returns an error if the agent is shutting down, if endpoints are invalid,
-// or if the restart setup fails.
 func (a *logAgent) restart(context.Context) error {
 	a.log.Info("Attempting to restart logs-agent pipeline with HTTP")
 
@@ -277,10 +267,8 @@ func (a *logAgent) setupAgent() error {
 }
 
 // setupAgentForRestart configures and rebuilds only the transient components during a restart.
-// Unlike setupAgent, this preserves persistent components (sources, auditor, tracker, schedulers)
+// This preserves persistent components (sources, auditor, tracker, schedulers)
 // and only recreates components that need to be updated for the new configuration.
-//
-// Returns an error if configuration validation fails.
 func (a *logAgent) setupAgentForRestart() error {
 	processingRules, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
@@ -292,13 +280,6 @@ func (a *logAgent) setupAgentForRestart() error {
 }
 
 // configureAgent validates and retrieves configuration settings needed for agent operation.
-// This includes:
-//   - Setting the current transport (HTTP or TCP) in the status
-//   - Updating inventory metadata with transport information
-//   - Validating and retrieving global log processing rules
-//   - Validating and retrieving fingerprint configuration for file tailing
-//
-// Returns the processing rules and fingerprint config, or an error if validation fails.
 func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
@@ -408,16 +389,8 @@ func (a *logAgent) stop(context.Context) error {
 //   - pipelineProvider
 //   - destinationsCtx
 //
-// Components preserved (persistent):
-//   - auditor
-//   - sources
-//   - tracker
-//   - schedulers
-//   - diagnosticMessageReceiver
-//
 // The partial stop ensures that log sources remain configured and file positions
-// are maintained across the restart, allowing seamless continuation of log collection
-// with the new transport.
+// are maintained across the restart
 func (a *logAgent) partialStop() error {
 	a.log.Info("Completing graceful partial stop of logs-agent for restart")
 	status.Clear()
