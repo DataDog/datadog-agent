@@ -93,7 +93,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				// that we do not need the container tagging provided by the
 				// remote tagger in this environment, so we can use the noop
 				// tagger instead.
-				Disable: serverlessenv.IsAzureAppServicesExtension,
+				Disable: func(_ coreconfig.Component) bool { return serverlessenv.IsAzureAppServicesExtension() },
 			},
 			tagger.NewRemoteParams()),
 		fx.Invoke(func(_ config.Component) {}),

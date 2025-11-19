@@ -191,10 +191,10 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 	}
 
 	installerTarget, err := os.Readlink(installerSymlink)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read installer symlink: %w", err)
 	}
-	if strings.HasPrefix(installerTarget, ctx.PackagePath) {
+	if err == nil && strings.HasPrefix(installerTarget, ctx.PackagePath) {
 		err = file.EnsureSymlinkAbsent(ctx, installerSymlink)
 		if err != nil {
 			return fmt.Errorf("failed to remove installer symlink: %w", err)
