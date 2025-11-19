@@ -185,7 +185,7 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
-	github.com/DataDog/go-sqllexer v0.1.9
+	github.com/DataDog/go-sqllexer v0.1.10
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7
