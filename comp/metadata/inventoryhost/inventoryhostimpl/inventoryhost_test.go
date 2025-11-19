@@ -182,6 +182,7 @@ func TestGetPayload(t *testing.T) {
 		DmiBoardVendor:               "boardVendor",
 		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,
+		InstanceType:                 "m5.medium",
 	}
 
 	ih := getTestInventoryHost(t)
@@ -206,6 +207,7 @@ func TestGetPayloadError(t *testing.T) {
 		OsVersion:                    "testOS",
 		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,
+		InstanceType:                 "m5.medium",
 	}
 	assert.Equal(t, expected, p.Metadata)
 }
