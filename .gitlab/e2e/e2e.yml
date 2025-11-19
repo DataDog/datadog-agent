@@ -133,6 +133,7 @@ new-e2e-base-coverage:
   needs:
     - go_e2e_deps
     - go_e2e_test_binaries
+    - go_tools_deps
     - agent_deb-x64-a7
   rules:
     - !reference [.except_mergequeue]
