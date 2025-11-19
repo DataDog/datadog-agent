@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+	"unique"
 
 	"github.com/dustin/go-humanize"
 	"go4.org/intern"
@@ -257,6 +258,7 @@ type ConnectionStats struct {
 	ContainerID   struct {
 		Source, Dest *intern.Value
 	}
+	CertInfo unique.Handle[CertInfo]
 	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint16]uint32
@@ -317,6 +319,11 @@ func (c ConnectionStats) IsEmpty() bool {
 		c.Monotonic.SentPackets == 0 &&
 		c.Monotonic.Retransmits == 0 &&
 		len(c.TCPFailures) == 0
+}
+
+// HasCertInfo returns whether the connection has a TLS cert associated
+func (c ConnectionStats) HasCertInfo() bool {
+	return c.CertInfo != unique.Handle[CertInfo]{}
 }
 
 // ByteKey returns a unique key for this connection represented as a byte slice

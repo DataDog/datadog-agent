@@ -179,7 +179,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		if !ok {
 			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
-		return evaluatorFromVariable(varName, array.Pos, opts)
+		return evaluatorFromVariable(varName, array.Pos, opts, state)
 	} else if array.CIDR != nil {
 		var values CIDRValues
 		if err := values.AppendCIDR(*array.CIDR); err != nil {
@@ -224,17 +224,15 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
-	var variableEvaluator interface{}
-	variable := opts.VariableStore.Get(varname)
-	if variable != nil {
-		return variable.GetEvaluator(), pos, nil
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+	variableEvaluator, err := opts.VariableStore.GetEvaluator(VariableName(varname))
+	if err == nil {
+		return variableEvaluator, pos, nil
 	}
 
 	if strings.HasSuffix(varname, ".length") {
 		trimmedVariable := strings.TrimSuffix(varname, ".length")
-		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
-			variableEvaluator = variable.GetEvaluator()
+		if variableEvaluator, _ := opts.VariableStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
 			switch evaluator := variableEvaluator.(type) {
 			case *StringArrayEvaluator:
 				return &IntEvaluator{
@@ -268,18 +266,22 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (inte
 				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
 			}
 		}
+	}
 
+	evaluator, err := state.model.GetEvaluator(varname, "", 0)
+	if err == nil {
+		return evaluator, pos, nil
 	}
 
 	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts)
+			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts, state)
 			if err != nil {
 				return err
 			}
@@ -1399,7 +1401,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
-			return evaluatorFromVariable(varname, obj.Pos, opts)
+			return evaluatorFromVariable(varname, obj.Pos, opts, state)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
@@ -1411,7 +1413,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			// contains variables
 			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
-				return stringEvaluatorFromVariable(str, obj.Pos, opts)
+				return stringEvaluatorFromVariable(str, obj.Pos, opts, state)
 			}
 
 			return &StringEvaluator{

@@ -61,7 +61,6 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/sbomgen",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
     "cws-instrumentation": {
         "entrypoint": "cmd/cws-instrumentation",
@@ -79,6 +78,10 @@ BINARIES: dict[str, dict] = {
     },
     "otel-agent": {
         "entrypoint": "cmd/otel-agent",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "full-host-profiler": {
+        "entrypoint": "cmd/host-profiler",
         "platforms": ["linux/x64", "linux/arm64"],
     },
     "loader": {
@@ -289,7 +292,7 @@ def compute_count_metric(
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
-            f"{cmd} -tags {','.join(build_tags)}",
+            f"{cmd} -tags \"{','.join(build_tags)}\"",
             env=env,
             hide='out',  # don't hide errors
         )
@@ -354,7 +357,7 @@ def compute_binary_dependencies_list(
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
 
     res = ctx.run(
-        f"{cmd} -tags {','.join(build_tags)}",
+        f"{cmd} -tags \"{','.join(build_tags)}\"",
         env=env,
         hide='out',  # don't hide errors
     )

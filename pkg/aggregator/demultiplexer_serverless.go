@@ -50,10 +50,10 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]utils.APIKeys, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
+func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, keysPerDomain, forwarderTimeout)
+	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, endpoints, forwarderTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -183,9 +183,10 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 	panic("not implemented.")
 }
 
-// SetTimeSamplersFilterList is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
-	d.statsdWorker.filterListChan <- filterList
+// SetSamplersFilterList is not supported in the Serverless Agent implementation.
+// Serverless does not run checks, so we don't need to set any filter list on checks here.
+func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
+	d.statsdWorker.filterListChan <- histoFilterList
 }
 
 // Serializer returns the shared serializer

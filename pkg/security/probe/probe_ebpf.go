@@ -101,6 +101,7 @@ var (
 		model.ForkEventType.String(),
 		model.ExecEventType.String(),
 		model.ExitEventType.String(),
+		model.TracerMemfdSealEventType.String(),
 	}
 )
 
@@ -371,9 +372,9 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
+	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
-		p.config.RuntimeSecurity.SysCtlEnabled = false
+		p.config.RuntimeSecurity.SysCtlEBPFEnabled = false
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
@@ -542,7 +543,9 @@ func (p *EBPFProbe) Init() error {
 		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
 		p.useFentry = false
 
-		_ = p.Manager.Stop(manager.CleanAll)
+		if err := p.Manager.Stop(manager.CleanAll); err != nil {
+			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+		}
 
 		if err = p.initEBPFManager(); err != nil {
 			return err
@@ -778,7 +781,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -829,7 +832,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
 		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
-			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+			return eventA.ProcessContext.Pid < eventB.ProcessContext.Pid
 		}
 
 		return tsA.Before(tsB)
@@ -843,7 +846,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
-	tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
+	tags := p.probe.GetEventTags(event.ProcessContext.Process.ContainerContext.ContainerID)
 	if service := p.probe.GetService(event); service != "" {
 		tags = append(tags, "service:"+service)
 	}
@@ -884,10 +887,10 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	if event.IsAnomalyDetectionEvent() {
 		var workloadID containerutils.WorkloadID
 		var imageTag string
-		if containerID := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); containerID != "" {
+		if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
 			workloadID = containerID
-			imageTag = utils.GetTagValue("image_tag", event.ContainerContext.Tags)
-		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, event.CGroupContext); cgroupID != "" {
+			imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
 			workloadID = containerutils.CGroupID(cgroupID)
 			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
 			if err != nil {
@@ -947,7 +950,7 @@ func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventM
 }
 
 func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, error) {
-	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, event.CGroupContext)
+	read, err := model.UnmarshalBinary(data, &event.PIDContext, &event.SpanContext, &event.ProcessContext.Process.CGroup)
 	if err != nil {
 		return 0, err
 	}
@@ -990,11 +993,9 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	entry.Process.ContainerID = ev.ContainerContext.ContainerID
-	entry.ContainerID = ev.ContainerContext.ContainerID
+	entry.Process.ContainerContext.ContainerID = ev.ProcessContext.Process.ContainerContext.ContainerID
 
-	entry.Process.CGroup.Merge(ev.CGroupContext)
-	entry.CGroup.Merge(ev.CGroupContext)
+	entry.Process.CGroup.Merge(&ev.ProcessContext.Process.CGroup)
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
@@ -1004,7 +1005,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		p.profileManager.SnapshotTracedCgroups()
+		p.profileManager.SyncTracedCgroups()
 	}
 }
 
@@ -1021,9 +1022,6 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if event.ProcessContext == nil {
 		panic("should always return a process context")
 	}
-
-	// do the same with cgroup context
-	event.CGroupContext = &event.ProcessCacheEntry.CGroup
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
@@ -1048,6 +1046,7 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
+	p.event.ProcessContext = &model.ProcessContext{}
 	return p.event
 }
 
@@ -1156,7 +1155,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 
 	// resolve the container context
-	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
+	_, _ = p.fieldHandlers.ResolveContainerContext(event)
 
 	// handle regular events
 	if !p.handleRegularEvent(event, offset, dataLen, data, newEntryCb) {
@@ -1202,7 +1201,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ContainerID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -1217,7 +1216,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ContainerID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -1484,7 +1483,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		event.NetworkContext = event.RawPacket.NetworkContext
 
-		tags := p.probe.GetEventTags(event.ContainerContext.ContainerID)
+		tags := p.probe.GetEventTags(event.ProcessContext.Process.ContainerContext.ContainerID)
 		if service := p.probe.GetService(event); service != "" {
 			tags = append(tags, "service:"+service)
 		}
@@ -1572,6 +1571,19 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if event.PrCtl.IsNameTruncated {
 			p.MetricNameTruncated.Add(1)
 		}
+	case model.TracerMemfdSealEventType:
+		if !p.regularUnmarshalEvent(&event.TracerMemfdSeal, eventType, offset, dataLen, data) {
+			return false
+		}
+		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
+			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
+		}
+		// Second handle for exec event because the context is required to detect a ssh session
+	case model.ExecEventType:
+		p.HandleSSHUserSession(event)
+
+	case model.ForkEventType:
+		p.HandleSSHUserSession(event)
 	}
 	return true
 }
@@ -1645,7 +1657,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		} else {
 			event.CgroupTracing.CGroupContext = *cgroupContext
-			event.CGroupContext = cgroupContext
+			event.ProcessContext.Process.CGroup = *cgroupContext
 			containerID := containerutils.FindContainerID(cgroupContext.CGroupID)
 			if containerID != "" {
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
@@ -1702,7 +1714,7 @@ func resolveTraceProcessContext(event *model.Event, p *EBPFProbe, newEntryCb fun
 		pidToResolve := event.PTrace.PID
 
 		if pidToResolve == 0 { // resolve the PID given as argument instead
-			containerID := p.fieldHandlers.ResolveContainerID(event, event.ContainerContext)
+			containerID := p.fieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext)
 			if containerID == "" && event.PTrace.Request != unix.PTRACE_ATTACH {
 				pidToResolve = event.PTrace.NSPID
 			} else {
@@ -1785,22 +1797,59 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 	}
 }
 
-// ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
-	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table, err := managerhelper.Map(p.Manager, "filter_policy")
-	if err != nil {
-		return fmt.Errorf("unable to find policy table: %w", err)
-	}
+type filterPolicyBlock struct {
+	eventTypes []ebpf.Uint32MapItem
+	policies   ebpf.SliceBinaryMarshaller[*kfilters.FilterPolicy]
+}
 
+func newFilterPolicyBlock() *filterPolicyBlock {
+	return &filterPolicyBlock{}
+}
+
+func (b *filterPolicyBlock) add(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	et, err := model.ParseEvalEventType(eventType)
 	if err != nil {
 		return err
 	}
 
-	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.addRaw(et, mode)
+	return nil
+}
 
-	return table.Put(ebpf.Uint32MapItem(et), policy)
+func (b *filterPolicyBlock) addRaw(eventType model.EventType, mode kfilters.PolicyMode) {
+	b.eventTypes = append(b.eventTypes, ebpf.Uint32MapItem(eventType))
+	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.policies = append(b.policies, policy)
+}
+
+func (b *filterPolicyBlock) apply(m *manager.Manager) error {
+	// log part
+	var sb strings.Builder
+	for i := range b.eventTypes {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("`%s`: `%s`", model.EventType(b.eventTypes[i]), b.policies[i].Mode))
+	}
+	seclog.Infof("Setting in-kernel filter policy to [%s]", sb.String())
+
+	table, err := managerhelper.Map(m, "filter_policy")
+	if err != nil {
+		return fmt.Errorf("unable to find policy table: %w", err)
+	}
+
+	if ebpf.BatchAPISupported() {
+		_, err := table.BatchUpdate(b.eventTypes, b.policies, &lib.BatchOptions{ElemFlags: uint64(lib.UpdateAny)})
+		return err
+	}
+
+	for i := range b.eventTypes {
+		if err := table.Put(b.eventTypes[i], b.policies[i]); err != nil {
+			return fmt.Errorf("unable to set policy for event type `%s`: %w", model.EventType(b.eventTypes[i]), err)
+		}
+	}
+
+	return nil
 }
 
 // setApprovers applies approvers and removes the unused ones
@@ -1901,7 +1950,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
-		return p.probe.IsSysctlEventEnabled()
+		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
 	}
 	return true
 }
@@ -2144,7 +2193,6 @@ func (p *EBPFProbe) Close() error {
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	close(p.tcRequests)
-
 	return p.Resolvers.Close()
 }
 
@@ -2313,6 +2361,8 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
+	fpb := newFilterPolicyBlock()
+
 	for eventType := model.FirstEventType; eventType <= model.LastEventType; eventType++ {
 		var mode kfilters.PolicyMode
 
@@ -2324,10 +2374,13 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 			mode = kfilters.PolicyModeDeny
 		}
 
-		if err := p.ApplyFilterPolicy(eventType.String(), mode); err != nil {
-			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
-		}
+		fpb.addRaw(eventType, mode)
 	}
+
+	if err := fpb.apply(p.Manager); err != nil {
+		seclog.Debugf("unable to apply to filter policy: %v", err)
+	}
+
 }
 
 func isKillActionPresent(rs *rules.RuleSet) bool {
@@ -2365,18 +2418,26 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		return nil, err
 	}
 
+	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	}
+
+	fpb := newFilterPolicyBlock()
+
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
-
-			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+			if err := fpb.add(eventType, kfilters.PolicyModeAccept); err != nil {
 				return nil, err
 			}
 		} else {
-			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+			if err := fpb.add(eventType, report.Mode); err != nil {
 				return nil, err
 			}
 		}
+	}
+	if err := fpb.apply(p.Manager); err != nil {
+		return nil, fmt.Errorf("unable to apply to filter policy: %w", err)
 	}
 
 	eventTypes := rs.GetEventTypes()
@@ -2698,6 +2759,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
+		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {
@@ -2755,12 +2817,19 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
 
-	if !p.config.RuntimeSecurity.SysCtlEnabled {
+	if !(p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlEBPFEnabled) {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 
 	if !p.config.Probe.CapabilitiesMonitoringEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
+	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
+	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
+	// and use the get_task_pid kretprobe fallback instead
+	if p.kernelVersion.Code < kernel.Kernel4_15 {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SchedProcessForkTracepointName)
 	}
 
 	return nil
@@ -3288,6 +3357,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntFlags, "struct vfsmount", "mnt_flags")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntRoot, "struct vfsmount", "mnt_root")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameVfsmountMntSb, "struct vfsmount", "mnt_sb")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameRtnlLinkOpsKind, "struct rtnl_link_ops", "kind")
 }
 
 // HandleActions handles the rule actions
@@ -3301,11 +3371,11 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		switch {
 		case action.InternalCallback != nil && rule.ID == bundled.RefreshUserCacheRuleID:
-			_ = p.RefreshUserCache(ev.ContainerContext.ContainerID)
+			_ = p.RefreshUserCache(ev.ProcessContext.Process.ContainerContext.ContainerID)
 
-		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ContainerID) > 0:
-			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ContainerID); err != nil {
-				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
+		case action.InternalCallback != nil && rule.ID == bundled.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ProcessContext.Process.ContainerContext.ContainerID) > 0:
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ProcessContext.Process.ContainerContext.ContainerID); err != nil {
+				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ProcessContext.Process.ContainerContext.ContainerID, ev.ProcessContext.Comm, err)
 			}
 
 		case action.Def.Kill != nil:
@@ -3347,7 +3417,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 
 				if action.Def.NetworkFilter.Scope == "cgroup" {
-					dropActionFilter.CGroupPathKey = ev.CGroupContext.CGroupFile
+					dropActionFilter.CGroupPathKey = ev.ProcessContext.Process.CGroup.CGroupFile
 				} else {
 					dropActionFilter.Pid = ev.ProcessContext.Pid
 				}
@@ -3395,9 +3465,8 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
 	event.ProcessContext.Process.CGroup = entry.CGroup
-	event.CGroupContext = &entry.CGroup
 
 	return event
 }
@@ -3409,7 +3478,7 @@ func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, sna
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
-	event.ProcessContext.Process.ContainerID = entry.ContainerID
+	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
 	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	event.Bind.SyscallEvent.Retval = 0

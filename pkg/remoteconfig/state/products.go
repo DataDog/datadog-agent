@@ -42,6 +42,7 @@ var validProducts = map[string]struct{}{
 	ProductApmPolicies:                  {},
 	ProductSyntheticsTest:               {},
 	ProductBTFDD:                        {},
+	ProductFFEFlags:                     {},
 }
 
 const (
@@ -118,4 +119,6 @@ const (
 	ProductBTFDD = "BTF_DD"
 	// ProductApmPolicies is the workload selection product
 	ProductApmPolicies = "APM_POLICIES"
+	// ProductFFEFlags is used for feature flagging experiments remote updates
+	ProductFFEFlags = "FFE_FLAGS"
 )

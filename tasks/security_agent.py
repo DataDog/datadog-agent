@@ -18,7 +18,8 @@ from invoke.tasks import task
 import tasks.libs.cws.backend_doc_gen as backend_doc_gen
 import tasks.libs.cws.secl_doc_gen as secl_doc_gen
 from tasks.agent import generate_config
-from tasks.build_tags import add_fips_tags, get_default_build_tags
+from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
@@ -92,8 +93,9 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(build="security-agent")
-    build_tags = add_fips_tags(build_tags, fips_mode)
+    build_tags += get_default_build_tags(
+        build="security-agent", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
+    )
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -109,6 +111,7 @@ def build(
         build_tags=build_tags,
         bin_path=BIN_PATH,
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
     )
 
@@ -358,7 +361,7 @@ def build_functional_tests(
             build_tags.append("ebpf_bindata")
 
         build_tags.append("pcap")
-        build_libpcap(ctx)
+        build_libpcap(ctx, env=env, arch=arch)
         cgo_flags = get_libpcap_cgo_flags(ctx)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
@@ -790,7 +793,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
 
     env = {"CGO_ENABLED": "1"}
 
-    build_libpcap(ctx)
+    build_libpcap(ctx, env=env)
     cgo_flags = get_libpcap_cgo_flags(ctx)
     # append libpcap cgo-related environment variables to any existing ones
     for k, v in cgo_flags.items():

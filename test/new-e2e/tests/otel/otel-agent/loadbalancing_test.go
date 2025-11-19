@@ -26,6 +26,8 @@ type loadBalancingTestSuite struct {
 var loadBalancingConfig string
 
 func TestOTelAgentLoadBalancing(t *testing.T) {
+	// TODD(OTAGENT-665): re-enable this test
+	t.Skip("failed in CIs since k8s 0.34.1")
 	values := `
 datadog:
   otelCollector:

@@ -186,8 +186,32 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 	} else {
 		awsEnv = *runParams.Environment
 	}
-
 	params := runParams.ProvisionerParams
+
+	// Create FakeIntake if required
+	if params.fakeintakeOptions != nil {
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		if params.agentOptions != nil {
+			// Prepend in case it's overridden by the user
+			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+			params.instanceOptions = append(params.instanceOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+		}
+
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.FakeIntake = nil
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
@@ -221,27 +245,6 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 		}
 	}
 
-	// Create FakeIntake if required
-	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-		if params.agentOptions != nil {
-			// Prepend in case it's overridden by the user
-			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.FakeIntake = nil
-	}
 	if !params.installUpdater {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Updater = nil

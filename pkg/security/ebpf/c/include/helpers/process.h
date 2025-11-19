@@ -91,7 +91,15 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
         data->is_kworker = 1;
     }
 
-    struct proc_cache_t *pc = get_proc_cache(tgid);
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
+    if (!pid_entry) {
+        return NULL;
+    }
+
+    // copy user session id
+    data->user_session_id = pid_entry->user_session_id;
+
+    struct proc_cache_t *pc = get_proc_from_cookie(pid_entry->cookie);
     if (pc) {
         data->inode = pc->entry.executable.path_key.ino;
     }

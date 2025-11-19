@@ -11,6 +11,7 @@ package probe
 import (
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -178,14 +179,14 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.C
 
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
+	return &ev.ProcessContext.ContainerContext, true
 }
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
+			e.ContainerID = containerutils.ContainerID(entry.ProcessContext.Process.ContainerContext.ContainerID)
 		}
 	}
 	return string(e.ContainerID)
@@ -211,7 +212,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.C
 
 // ResolveProcessContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *model.Process) string {
-	return fh.ResolveContainerID(ev, ev.ContainerContext)
+	return fh.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 }
 
 // ResolveProcessCreatedAt resolves process creation time
@@ -438,7 +439,8 @@ func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *mode
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
-func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.UserSessionContext) {}
+func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.Event, _ *model.UserSessionContext) {
+}
 
 // ResolveProcessCmdArgv resolves the command line
 func (fh *EBPFLessFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
@@ -619,4 +621,14 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ 
 // ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveSSHClientIP resolves the ssh username of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
+	return net.IPNet{} // EBPFLess mode does not support SSH
+}
+
+// ResolveSSHPort resolves the public key of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0 //EBPFLess mode does not support SSH port
 }

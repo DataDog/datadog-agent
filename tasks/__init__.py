@@ -32,6 +32,7 @@ from tasks import (
     epforwarder,
     fakeintake,
     fips,
+    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
@@ -40,6 +41,7 @@ from tasks import (
     installer,
     invoke_unit_tests,
     issue,
+    k8s_versions,
     kmt,
     linter,
     loader,
@@ -209,6 +211,7 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
+ns.add_collection(full_host_profiler)
 ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(setup)
@@ -224,6 +227,7 @@ ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
+ns.add_collection(k8s_versions)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)

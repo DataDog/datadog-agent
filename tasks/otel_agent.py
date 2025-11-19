@@ -7,6 +7,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
+from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -43,7 +44,7 @@ def byoc_release(ctx, image=DDOT_DEV_AGENT_TAG, branch=DDOT_DEV_AGENT_BRANCH, re
 
 
 @task
-def build(ctx, byoc=False):
+def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
     """
     Build the otel agent
     """
@@ -51,8 +52,9 @@ def build(ctx, byoc=False):
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
 
+    flavor = AgentFlavor[flavor]
     env = {"GO111MODULE": "on"}
-    build_tags = get_default_build_tags(build="otel-agent")
+    build_tags = get_default_build_tags(build="otel-agent", flavor=flavor)
     ldflags = get_version_ldflags(ctx)
     ldflags += f' -X github.com/DataDog/datadog-agent/cmd/otel-agent/command.BYOC={byoc}'
     if os.environ.get("DELVE"):
@@ -79,6 +81,7 @@ def build(ctx, byoc=False):
         ldflags=ldflags,
         gcflags=gcflags,
         bin_path=BIN_PATH,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         env=env,
     )
 

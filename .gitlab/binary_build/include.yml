@@ -11,4 +11,3 @@ include:
   - .gitlab/binary_build/otel_agent.yml
   - .gitlab/binary_build/system_probe.yml
   - .gitlab/binary_build/windows.yml
-  - .gitlab/binary_build/serverless.yml

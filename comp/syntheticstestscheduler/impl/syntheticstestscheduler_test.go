@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -43,7 +44,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	mockConfig.SetWithoutSource("run_path", testDir)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	configs := &schedulerConfigs{
@@ -51,7 +52,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{})
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{}, nil)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
@@ -90,7 +91,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	configs := &schedulerConfigs{
@@ -312,6 +313,98 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				"main_dc": "us1.staging.dog",
 				"public_id": "puf-1"
 			}`},
+	}, {
+		name: "previous config with one test- update with test with different version",
+		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 2,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SYN",
+							"probe_count": 3,
+							"traceroute_count": 1,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
+		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 1,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SACK",
+							"probe_count": 3,
+							"traceroute_count": 3,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
+	}, {
+		name: "previous config with one test- update with same version (nextRun should be preserved)",
+		updateJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 1,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SYN",
+							"probe_count": 3,
+							"traceroute_count": 1,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
+		previousJSON: map[string]string{"datadog/2/SYNTHETICS_TEST/config-1/aaa111": `{
+					"version": 1,
+					"type": "network",
+					"subtype": "TCP",
+					"config": {
+						"assertions": [],
+						"request": {
+							"host": "example.com",
+							"port": 443,
+							"tcp_method": "SACK",
+							"probe_count": 3,
+							"traceroute_count": 3,
+							"max_ttl": 30,
+							"timeout": 5,
+							"source_service": "frontend",
+							"destination_service": "backend"
+						}
+					},
+					"org_id": 12345,
+					"main_dc": "us1.staging.dog",
+					"public_id": "puf-1"
+				}`},
 	},
 	}
 
@@ -320,12 +413,17 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("run_path", testDir)
-			now := time.Now()
+			firstUpdateTime := time.Now()
+			secondUpdateTime := firstUpdateTime.Add(5 * time.Minute)
+			isFirstUpdate := true
 			timeNowFn := func() time.Time {
-				return now
+				if isFirstUpdate {
+					return firstUpdateTime
+				}
+				return secondUpdateTime
 			}
 
-			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{})
+			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{}, nil)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -334,10 +432,24 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 			// Execute previous config
 			previousConfigs := map[string]state.RawConfig{}
+			previousParsedConfigs := map[string]common.SyntheticsTestConfig{}
 			for pathID, pConfig := range tt.previousJSON {
 				previousConfigs[pathID] = state.RawConfig{Config: []byte(pConfig)}
+				var prevCfg common.SyntheticsTestConfig
+				err = json.Unmarshal([]byte(pConfig), &prevCfg)
+				assert.Nil(t, err)
+				previousParsedConfigs[prevCfg.PublicID] = prevCfg
 			}
 			scheduler.onConfigUpdate(previousConfigs, func(_ string, _ state.ApplyStatus) {})
+
+			// Store the nextRun values after previous config to check if they're preserved
+			previousNextRuns := map[string]time.Time{}
+			for pubID, state := range scheduler.state.tests {
+				previousNextRuns[pubID] = state.nextRun
+			}
+
+			// Switch to second update time
+			isFirstUpdate = false
 
 			// Execute update
 			configs := map[string]state.RawConfig{}
@@ -352,15 +464,29 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 			assert.Equal(t, expectedApplied, applied)
 
+			// Build expected state based on the logic
 			cfg := map[string]*runningTestState{}
 			for _, v := range tt.updateJSON {
 				var newUpdate common.SyntheticsTestConfig
 				err = json.Unmarshal([]byte(v), &newUpdate)
 				assert.Nil(t, err)
+
+				expectedNextRun := secondUpdateTime
+
+				// If the test existed before
+				if prevCfg, existed := previousParsedConfigs[newUpdate.PublicID]; existed {
+					// If version didn't change, nextRun should be preserved
+					if newUpdate.Version <= prevCfg.Version {
+						expectedNextRun = previousNextRuns[newUpdate.PublicID]
+					}
+					// If version changed (increased), nextRun should be updated to secondUpdateTime
+					// (which is already set above)
+				}
+				// If it's a new test, nextRun should be secondUpdateTime (already set above)
+
 				cfg[newUpdate.PublicID] = &runningTestState{
 					cfg:     newUpdate,
-					lastRun: time.Time{},
-					nextRun: now,
+					nextRun: expectedNextRun,
 				}
 			}
 
@@ -388,7 +514,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 					"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN","probe_count":3,"traceroute_count":1,"max_ttl":30,"timeout":5,"source_service":"frontend","destination_service":"backend"}},
 					"org_id":12345,"main_dc":"us1.staging.dog","public_id":"puf-9fm-c89","run_type":"scheduled"
 				}`},
-			expectedEventJSON: `{"location":{ "id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"request":{"host":"example.com","port":443,"maxTtl":30,"timeout":150},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"TCP","type":"network","version":1},"v":1}`,
+			expectedEventJSON: `{"location":{"id":"agent:test-hostname"},"_dd":{},"result":{"id":"4907739274636687553","initialId":"4907739274636687553","testFinishedAt":1756901488592,"testStartedAt":1756901488591,"testTriggeredAt":1756901488590,"assertions":[],"failure":null,"duration":1,"config":{"assertions":[],"request":{"destinationService":"backend","port":443,"maxTtl":30,"host":"example.com","tracerouteQueries":1,"e2eQueries":3,"sourceService":"frontend","timeout":5,"tcpMethod":"SYN"}},"netstats":{"packetsSent":0,"packetsReceived":0,"packetLossPercentage":0,"jitter":0,"latency":{"avg":0,"min":0,"max":0},"hops":{"avg":0,"min":0,"max":0}},"netpath":{"timestamp":1756901488592,"agent_version":"","namespace":"","test_config_id":"puf-9fm-c89","test_result_id":"4907739274636687553","pathtrace_id":"pathtrace-id-111-example.com","origin":"synthetics","protocol":"TCP","source":{"name":"test-hostname","display_name":"test-hostname","hostname":"test-hostname"},"destination":{"hostname":"example.com","port":443},"traceroute":{"runs":[{"run_id":"1","source":{"ip_address":"","port":0},"destination":{"ip_address":"","port":0},"hops":[{"ttl":0,"ip_address":"1.1.1.1","reachable":false},{"ttl":0,"ip_address":"1.1.1.2","reachable":false}]}],"hop_count":{"avg":0,"min":0,"max":0}},"e2e_probe":{"rtts":null,"packets_sent":0,"packets_received":0,"packet_loss_percentage":0,"jitter":0,"rtt":{"avg":0,"min":0,"max":0}}},"status":"passed","runType":"scheduled"},"test":{"id":"puf-9fm-c89","subType":"tcp","type":"network","version":1},"v":1}`,
 			expectedRunTraceroute: func(_ context.Context, cfg config.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 				return payload.NetworkPath{
 					PathtraceID: "pathtrace-id-111-" + cfg.DestHostname,
@@ -421,7 +547,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
@@ -438,7 +564,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx := context.TODO()
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{})
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, nil)
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}
@@ -501,7 +627,7 @@ func (m *mockHostname) Get(_ context.Context) (string, error) {
 func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -577,13 +703,14 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	now := time.Now()
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
 	scheduler := &syntheticsTestScheduler{
 		timeNowFn:                    func() time.Time { return now },
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
+		running:                      true,
 		state: runningState{
 			tests: map[string]*runningTestState{
 				"test1": {
@@ -591,35 +718,99 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 						PublicID: "test1",
 						Interval: 10, // seconds
 					},
-					lastRun: now.Add(-20 * time.Second),
 					nextRun: now.Add(-10 * time.Second),
 				},
 			},
 		},
-		log: l,
+		flushInterval: 10 * time.Second,
+		log:           l,
 	}
 
 	// Flush at 'now'
-	scheduler.flush(now)
+	scheduler.flush(context.Background(), now)
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if ctx.cfg.PublicID != "test1" {
 			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
 		}
 	case <-time.After(1 * time.Second):
-		t.Errorf("expected test1 to be enqueuedffff")
+		t.Errorf("expected test1 to be enqueued")
 	}
 
-	// The lastRun should be updated to the old nextRun
 	rt := scheduler.state.tests["test1"]
-	expectedLastRun := now.Add(-10 * time.Second)
-	assert.Equal(t, expectedLastRun, rt.lastRun)
 
 	// The nextRun should be updated based on the old nextRun, not flushTime
 	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
 	assert.Equal(t, expectedNextRun, rt.nextRun)
 }
 
+func TestFlushEnqueueExhaustion(t *testing.T) {
+	now := time.Now()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
+	assert.Nil(t, err)
+	tl := &testLogger{
+		LoggerInterface: l,
+	}
+	utillog.SetupLogger(tl, "debug")
+
+	scheduler := &syntheticsTestScheduler{
+		timeNowFn:                    func() time.Time { return now },
+		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 1),
+		running:                      true,
+		state: runningState{
+			tests: map[string]*runningTestState{
+				"test1": {
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "test1",
+						Interval: 10, // seconds
+					},
+					nextRun: now.Add(-10 * time.Second),
+				},
+				"test2": {
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "test1",
+						Interval: 10, // seconds
+					},
+					nextRun: now.Add(-10 * time.Second),
+				},
+			},
+		},
+		flushInterval: 100 * time.Millisecond,
+		log:           tl,
+	}
+
+	// Flush at 'now'
+	scheduler.flush(context.Background(), now)
+
+	select {
+	case ctx := <-scheduler.syntheticsTestProcessingChan:
+		time.Sleep(200 * time.Millisecond)
+		if ctx.cfg.PublicID != "test1" {
+			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Errorf("expected test2 not to be enqueued")
+	}
+
+	assert.Equal(t, []string{"test queue high usage (≥70%), increase the number of workers", "enqueuing test test1 timed out, increase the number of workers"}, tl.errorCalls)
+	rt := scheduler.state.tests["test1"]
+
+	// The nextRun should be updated based on the old nextRun, not flushTime
+	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	assert.Equal(t, expectedNextRun, rt.nextRun)
+}
+
+type testLogger struct {
+	utillog.LoggerInterface
+	errorCalls []string
+}
+
+func (l *testLogger) Warnf(format string, params ...interface{}) error {
+	l.errorCalls = append(l.errorCalls, fmt.Sprintf(format, params...))
+	return nil
+}
 func ptr[T any](v T) *T { return &v }
