@@ -2,4 +2,4 @@
 
 # Ensure that Bazel uses the ADMS Bazel mirror for downloading dependencies.
 build:dd-internal --experimental_downloader_config=.adms/bazel/adms.mirror.cfg
-build:dd-internal --experimental_repository_downloader_retries=2
+build:dd-internal --experimental_repository_downloader_retries=5

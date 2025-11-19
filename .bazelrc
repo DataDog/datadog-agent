@@ -56,5 +56,7 @@ build:ci --output_groups=+clippy_checks
 build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
 build:ci --output_groups=+rustfmt_checks
 
+common:ci --test_output=errors # Print test setup errors to the job output instead of only capturing them in test.log# CI config ------------------------------------------------------------------------------------------------------------
+common:ci --config=dd-internal
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
