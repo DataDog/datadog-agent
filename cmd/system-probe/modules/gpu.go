@@ -225,9 +225,41 @@ func getAgentPID(procRoot string) (uint32, error) {
 func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Duration, reapplyInfinitely bool) {
 	root := hostRoot()
 
+	// First run at info level
+	doConfigureCgroupPermissions(root, log.Infof)
+
+	// Now, if reapplyInterval is greater than 0, schedule a background task to run after that delay.
+	// If reapplyInfinitely is true, the task will run indefinitely, otherwise it will run only once.
+	if reapplyInterval > 0 {
+		go func() {
+			log.Infof("Scheduling background re-application of cgroup permissions for system-probe and agent processes in %v, infinite repeats: %t", reapplyInterval, reapplyInfinitely)
+			ticker := time.NewTicker(reapplyInterval)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					// do not spam the logs with informational messages, switch to debug level
+					doConfigureCgroupPermissions(root, log.Debugf)
+					if !reapplyInfinitely {
+						return
+					}
+				}
+			}
+		}()
+	}
+}
+
+// doConfigureCgroupPermissions configures the cgroup permissions to access NVIDIA
+// devices for the system-probe and agent processes. The logfunc is used to allow logging
+// with info level at first and then switch to debug level for subsequent calls.
+func doConfigureCgroupPermissions(root string, loginfofunc func(format string, args ...interface{})) {
 	sysprobePID := uint32(os.Getpid())
-	log.Infof("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
-	if err := gpu.ConfigureDeviceCgroups(ctx, sysprobePID, root, reapplyInterval, reapplyInfinitely); err != nil {
+
+	loginfofunc("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
+	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
 	}
 
@@ -238,8 +270,8 @@ func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Durati
 		return
 	}
 
-	log.Infof("Configuring cgroup permissions for agent process with PID %d", agentPID)
-	if err := gpu.ConfigureDeviceCgroups(ctx, agentPID, root, reapplyInterval, reapplyInfinitely); err != nil {
+	loginfofunc("Configuring cgroup permissions for agent process with PID %d", agentPID)
+	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
 	}
 }
