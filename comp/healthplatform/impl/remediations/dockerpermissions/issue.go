@@ -3,13 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package remediations
+// Package dockerpermissions provides remediation for Docker log file permission issues.
+package dockerpermissions
 
 import (
+	_ "embed"
 	"fmt"
+	"strings"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 )
+
+//go:embed fix-docker-log-permissions.sh
+var linuxScriptTemplate string
+
+//go:embed Fix-DockerLogPermissions.ps1
+var windowsScriptTemplate string
 
 // DockerPermissionIssue provides complete issue template (metadata + OS-specific remediation)
 type DockerPermissionIssue struct{}
@@ -59,6 +69,8 @@ func (t *DockerPermissionIssue) buildRemediation(dockerDir, osName string) *heal
 
 // buildLinux creates Linux-specific remediation steps
 func (t *DockerPermissionIssue) buildLinux(dockerDir string) *healthplatform.Remediation {
+	scriptContent := renderTemplate(linuxScriptTemplate, dockerDir)
+
 	return &healthplatform.Remediation{
 		Summary: "Grant minimal access to Docker log files using ACLs (recommended) or add dd-agent to root group as last resort",
 		Steps: []healthplatform.RemediationStep{
@@ -76,30 +88,15 @@ func (t *DockerPermissionIssue) buildLinux(dockerDir string) *healthplatform.Rem
 			LanguageVersion: "4.0+",
 			Filename:        "fix-docker-log-permissions.sh",
 			RequiresRoot:    true,
-			Content: fmt.Sprintf(`#!/bin/bash
-# Fix Docker log file permissions for Datadog Agent
-# This grants the dd-agent user read access to Docker log files using ACLs
-
-set -e
-
-DOCKER_DIR="%s"
-
-echo "Granting dd-agent read access to Docker logs..."
-setfacl -Rm g:dd-agent:rx "$DOCKER_DIR/containers"
-setfacl -Rm g:dd-agent:r "$DOCKER_DIR/containers"/*/*.log
-setfacl -Rdm g:dd-agent:rx "$DOCKER_DIR/containers"
-
-echo "Restarting Datadog Agent..."
-systemctl restart datadog-agent
-
-echo "Done! Check agent status with: datadog-agent status"
-`, dockerDir),
+			Content:         scriptContent,
 		},
 	}
 }
 
 // buildWindows creates Windows-specific remediation steps
 func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.Remediation {
+	scriptContent := renderTemplate(windowsScriptTemplate, dockerDir)
+
 	return &healthplatform.Remediation{
 		Summary: "Grant read access to Docker log files for the ddagentuser account",
 		Steps: []healthplatform.RemediationStep{
@@ -114,20 +111,25 @@ func (t *DockerPermissionIssue) buildWindows(dockerDir string) *healthplatform.R
 			LanguageVersion: "5.1+",
 			Filename:        "Fix-DockerLogPermissions.ps1",
 			RequiresRoot:    true,
-			Content: fmt.Sprintf(`# Fix Docker log file permissions for Datadog Agent
-# This grants the ddagentuser read access to Docker log files
-
-$dockerDir = "%s"
-$containerPath = Join-Path $dockerDir "containers"
-
-Write-Host "Granting ddagentuser read access to Docker logs..."
-icacls "$containerPath" /grant ddagentuser:(OI)(CI)RX /T
-
-Write-Host "Restarting Datadog Agent..."
-Restart-Service -Name datadogagent -Force
-
-Write-Host "Done! Check agent status with: & 'C:\Program Files\Datadog\Datadog Agent\bin\agent.exe' status"
-`, dockerDir),
+			Content:         scriptContent,
 		},
 	}
+}
+
+// renderTemplate renders a script template with the given dockerDir
+func renderTemplate(templateStr, dockerDir string) string {
+	tmpl, err := template.New("script").Parse(templateStr)
+	if err != nil {
+		// Fallback to basic string replacement if template parsing fails
+		return strings.ReplaceAll(templateStr, "{{.DockerDir}}", dockerDir)
+	}
+
+	var result strings.Builder
+	err = tmpl.Execute(&result, struct{ DockerDir string }{DockerDir: dockerDir})
+	if err != nil {
+		// Fallback to basic string replacement if template execution fails
+		return strings.ReplaceAll(templateStr, "{{.DockerDir}}", dockerDir)
+	}
+
+	return result.String()
 }
