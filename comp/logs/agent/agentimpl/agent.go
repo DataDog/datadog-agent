@@ -11,11 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"time"
-
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
@@ -190,13 +187,6 @@ func newLogsAgent(deps dependencies) provides {
 func (a *logAgent) start(context.Context) error {
 	a.log.Info("Starting logs-agent...")
 
-	if os.Getenv("DD_TEST_FORCE_TCP_AND_RESTART") == "1" {
-		if cfg, ok := a.config.(pkgconfigmodel.Config); ok {
-			// on start , force tcp ONCE
-			cfg.Set("logs_config.test_restart_force_tcp", "1", pkgconfigmodel.SourceAgentRuntime)
-		}
-	}
-
 	// setup the server config
 	endpoints, err := buildEndpoints(a.config)
 
@@ -216,19 +206,6 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
-
-	// force restart for local testing
-	if os.Getenv("DD_TEST_FORCE_TCP_AND_RESTART") == "1" {
-		// now to test restart , allow http endpoints to be built (no longer tcp)
-		if cfg, ok := a.config.(pkgconfigmodel.Config); ok {
-			cfg.Set("logs_config.test_restart_force_tcp", "0", pkgconfigmodel.SourceAgentRuntime)
-		}
-		go func() {
-			time.Sleep(5 * time.Second) // give the TCP pipeline time to send
-			_ = a.restart(context.Background())
-		}()
-	}
-
 	return nil
 }
 
@@ -296,7 +273,6 @@ func (a *logAgent) setupAgent() error {
 	}
 
 	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
-
 	return nil
 }
 
@@ -398,8 +374,8 @@ func (a *logAgent) startSchedulers() {
 			a.AddScheduler(scheduler)
 		}
 
-		a.started.Store(status.StatusRunning)
 		a.log.Info("logs-agent started")
+		a.started.Store(status.StatusRunning)
 	})
 }
 

@@ -287,8 +287,6 @@ func initCommonWithServerless(config pkgconfigmodel.Setup) {
 func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonWithServerless(config)
 
-	config.BindEnvAndSetDefault("logs_config.test_restart_force_tcp", "")
-
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)

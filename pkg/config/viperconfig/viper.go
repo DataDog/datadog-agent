@@ -129,7 +129,7 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		// log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
+		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
 		receiver(key, source, oldValue, latestValue, c.sequenceID)
 	}
 }
