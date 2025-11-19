@@ -456,8 +456,11 @@ func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 	triggered := false
 
 	secrets := secretsmock.New(t)
-	secrets.SetTriggerRefreshHook(func() {
-		triggered = true
+	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
+		if !updateNow {
+			triggered = true
+		}
+		return "", nil
 	})
 
 	// test server that returns 403 for all keys
@@ -478,5 +481,5 @@ func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
 	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {"any_key"}}
 	fh.checkValidAPIKey()
 
-	assert.True(t, triggered, "secrets.TriggerRefresh should be called when API key is invalid")
+	assert.True(t, triggered, "secrets.Refresh(false) should be called when API key is invalid")
 }

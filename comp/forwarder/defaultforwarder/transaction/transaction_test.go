@@ -193,8 +193,11 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	triggered := false
 
 	secrets := secretsmock.New(t)
-	secrets.SetTriggerRefreshHook(func() {
-		triggered = true
+	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
+		if !updateNow {
+			triggered = true
+		}
+		return "", nil
 	})
 
 	// test server that returns 403 for all reequests
@@ -215,5 +218,5 @@ func TestTransaction403TriggersSecretRefresh(t *testing.T) {
 	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 
-	assert.True(t, triggered, "secrets.TriggerRefresh should be called when transaction receives 403")
+	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
 }
