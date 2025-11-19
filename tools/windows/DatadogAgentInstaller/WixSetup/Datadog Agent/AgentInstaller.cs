@@ -114,7 +114,7 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_INSTALL_ONLY", "0")
+                new Property("DD_INSTALL_ONLY")
                 {
                     AttributesDefinition = "Secure=yes"
                 },

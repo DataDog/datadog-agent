@@ -535,7 +535,7 @@ func (s *testInstallWithInstallOnlyFlagSuite) TestInstallWithInstallOnlyFlag() {
 
 	// install the agent with DD_INSTALL_ONLY=1
 	_ = s.installAgentPackage(vm, s.AgentPackage,
-		windowsAgent.WithInstallOnly("1"),
+		windowsAgent.WithInstallOnly("true"),
 	)
 
 	// Verify the agent was installed
