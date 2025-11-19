@@ -17,7 +17,7 @@ import (
 type noOpImageResolver struct{}
 
 // newNoOpImageResolver creates a new noOpImageResolver.
-func newNoOpImageResolver() ImageResolver {
+func NewNoOpImageResolver() ImageResolver {
 	return &noOpImageResolver{}
 }
 

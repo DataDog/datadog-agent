@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -28,10 +29,10 @@ type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
 	filter        mutatecommon.MutationFilter
-	imageResolver ImageResolver
+	imageResolver imageresolver.ImageResolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.ImageResolver) *mutatorCore {
 	return &mutatorCore{
 		config:        config,
 		wmeta:         wmeta,

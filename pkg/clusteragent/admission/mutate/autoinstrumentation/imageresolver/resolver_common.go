@@ -27,7 +27,7 @@ func NewImageResolver(cfg ImageResolverConfig) ImageResolver {
 		log.Debugf("Remote config client available")
 		return newRcResolver(cfg)
 	}
-	return newNoOpImageResolver()
+	return NewNoOpImageResolver()
 }
 
 func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]any) bool {
