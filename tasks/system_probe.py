@@ -88,6 +88,9 @@ arch_mapping = {
     "arm64": "arm64",  # darwin
 }
 CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
+# system-probe doesn't depend on any particular version of libpcap so use the latest one (as of 2024-10-28)
+# this version should be kept in sync with the one in the agent omnibus build
+LIBPCAP_VERSION = "1.10.5"
 
 TEST_HELPER_CBINS = ["cudasample"]
 
@@ -694,7 +697,7 @@ def ninja_generate(
 
 
 @task
-def build_libpcap(ctx):
+def build_libpcap(ctx, env: dict, arch: Arch | None = None):
     """Download and build libpcap as a static library in the agent dev directory.
     The library is not rebuilt if it already exists.
     """
@@ -702,8 +705,11 @@ def build_libpcap(ctx):
     assert embedded_path, "Failed to find embedded path"
     target_file = os.path.join(embedded_path, "lib", "libpcap.a")
     if os.path.exists(target_file):
-        ctx.run(f"echo 'libpcap already exists at {target_file}'")
-        return
+        version = ctx.run(f"strings {target_file} | grep -E '^libpcap version' | cut -d ' ' -f 3").stdout.strip()
+        if version == LIBPCAP_VERSION:
+            ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
+            return
+
     cmd = ["bazelisk", "run", "--", "@libpcap//:install", f"--destdir='{embedded_path}'"]
     ctx.run(" ".join(cmd))
     # TODO: cc_library produces a .so, but the ebpf tests fail if if they
@@ -826,7 +832,7 @@ def build_sysprobe_binary(
         build_tags = list(set(build_tags).difference({"nvml"}))
 
     if not is_windows and "pcap" in build_tags:
-        build_libpcap(ctx)
+        build_libpcap(ctx, arch=arch_obj, env=env)
         cgo_flags = get_libpcap_cgo_flags(ctx, install_path)
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
