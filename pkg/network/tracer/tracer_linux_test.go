@@ -3312,6 +3312,8 @@ func (s *TracerSuite) TestDNSWorkload() {
 	cfg.DNSTimeout = 1 * time.Second
 	cfg.CollectLocalDNS = true
 
+	skipOnEbpflessNotSupported(t, cfg)
+
 	tr := setupTracer(t, cfg)
 
 	curDir, err := usmtestutil.CurDir()

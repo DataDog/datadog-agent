@@ -539,20 +539,20 @@ func TestMaxContainersTracked(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.Equal(t, 512, cfg.MaxContainersTracked)
+		assert.Equal(t, 1024, cfg.MaxContainersTracked)
 	})
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.max_containers_tracked", 1024)
+		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.max_containers_tracked", 42)
 		cfg := New()
 
-		assert.Equal(t, 1024, cfg.MaxContainersTracked)
+		assert.Equal(t, 42, cfg.MaxContainersTracked)
 	})
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_CONTAINER_STORE_MAX_CONTAINERS_TRACKED", "1024")
+		t.Setenv("DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_CONTAINER_STORE_MAX_CONTAINERS_TRACKED", "42")
 		cfg := New()
 
-		assert.Equal(t, 1024, cfg.MaxContainersTracked)
+		assert.Equal(t, 42, cfg.MaxContainersTracked)
 	})
 }

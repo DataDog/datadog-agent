@@ -42,19 +42,19 @@ const (
 	moduleName             = "network_tracer__containerStore"
 
 	// containerStaleTime: when to re-fetch a container's resolv.conf
-	containerStaleTime = 2 * time.Minute
+	containerStaleTime = 10 * time.Minute
 	// containerTTL: when to evict a container
-	containerTTL = 5 * time.Minute
+	containerTTL = 25 * time.Minute
 	// cleanerInterval: how often to evict old containers
-	cleanerInterval = 2 * time.Minute
+	cleanerInterval = 15 * time.Minute
 )
 
 var containerStoreTelemetry = struct {
-	liveEvictions telemetry.Counter
-	eventsDropped telemetry.Counter
-	readFailures  telemetry.Counter
+	nonStaleEvictions telemetry.Counter
+	eventsDropped     telemetry.Counter
+	readFailures      telemetry.Counter
 }{
-	telemetry.NewCounter(moduleName, "live_evicts", []string{}, "Counter measuring the number of evictions of live containers in the container store (this is bad)"),
+	telemetry.NewCounter(moduleName, "non_stale_evicts", []string{}, "Counter measuring the number of evictions of non-stale containers in the container store)"),
 	telemetry.NewCounter(moduleName, "events_dropped", []string{}, "Counter measuring the number of dropped process events"),
 	telemetry.NewCounter(moduleName, "read_failures", []string{}, "Counter measuring the number of failures to read container data such as resolv.conf"),
 }
@@ -94,8 +94,7 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 
 	cache, err := lru.NewWithEvict(maxContainers, func(_key *intern.Value, item containerStoreItem) {
 		if !item.isStale() {
-			log.Errorf("CNM ContainerStore has more than %d live containers, was forced to evict a live container", maxContainers)
-			containerStoreTelemetry.liveEvictions.Add(1)
+			containerStoreTelemetry.nonStaleEvictions.Add(1)
 		}
 	})
 	if err != nil {
@@ -120,10 +119,10 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 	cleanTicker := time.NewTicker(cleanerInterval)
 
 	go func() {
+		defer cleanTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				cleanTicker.Stop()
 				return
 			case <-cleanTicker.C:
 				cs.cleanMap()
@@ -139,11 +138,8 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 // HandleProcessEvent passes a process event from CWS into a channel for
 // later processing (to avoid blocking CWS)
 func (cs *ContainerStore) HandleProcessEvent(entry *events.Process) {
-	if cs.ctx.Err() != nil {
-		return
-	}
-
 	select {
+	case <-cs.ctx.Done():
 	case cs.in <- entry:
 	default:
 		if cs.warnLimit.ShouldLog() {

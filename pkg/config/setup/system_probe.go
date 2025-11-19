@@ -353,7 +353,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
 
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "enabled"), true)
-	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "max_containers_tracked"), 512)
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "max_containers_tracked"), 1024)
 
 	cfg.BindEnvAndSetDefault(join(compNS, "enabled"), false)
 
