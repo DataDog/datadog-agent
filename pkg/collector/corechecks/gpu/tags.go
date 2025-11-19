@@ -37,8 +37,13 @@ func (c *containerTagCache) getContainerTags(container *workloadmeta.Container) 
 
 	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
 
+	// we use orchestrator cardinality here to ensure we get the pod_name tag
+	// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
 	cardinality := taggertypes.OrchestratorCardinality
 	if container.Runtime == workloadmeta.ContainerRuntimeDocker {
+		// For Docker, we use high cardinality to get the container_name and container_id tags
+		// that uniquely identify the container.
+		// ref: https://docs.datadoghq.com/containers/docker/tag/#out-of-the-box-tagging
 		cardinality = taggertypes.HighCardinality
 	}
 
