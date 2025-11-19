@@ -14,7 +14,7 @@ require (
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
-	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b
+	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	gopkg.in/yaml.v2 v2.4.0
 )
 

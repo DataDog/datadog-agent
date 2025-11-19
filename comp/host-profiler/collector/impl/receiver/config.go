@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
+	ebpfconfig "go.opentelemetry.io/ebpf-profiler/collector/config"
 	"go.opentelemetry.io/ebpf-profiler/tracer/types"
 )
 
@@ -25,7 +26,7 @@ type ReporterConfig struct {
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	Ebpfcollector        *ebpfcollector.Config         `mapstructure:"ebpfcollector"`
+	Ebpfcollector        *ebpfconfig.Config            `mapstructure:"ebpfcollector"`
 	SymbolUploader       reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
 	ReporterConfig       ReporterConfig                `mapstructure:"reporter"`
 	EnableSplitByService bool                          `mapstructure:"enable_split_by_service"`
@@ -36,6 +37,9 @@ var _ xconfmap.Validator = (*Config)(nil)
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
 func (c *Config) Validate() error {
+	if err := c.Ebpfcollector.Validate(); err != nil {
+		return err
+	}
 	if c.ReporterConfig.CollectContext {
 		includeTracers, err := types.Parse(c.Ebpfcollector.Tracers)
 		if err != nil {
@@ -57,7 +61,7 @@ func (c *Config) Validate() error {
 
 // This is the default config for the profiles receiver
 func defaultConfig() component.Config {
-	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfcollector.Config)
+	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Tracers = getDefaultTracersString()
 
 	return Config{
