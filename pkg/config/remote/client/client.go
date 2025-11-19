@@ -351,6 +351,11 @@ func (c *Client) Close() {
 	c.closeFn()
 }
 
+// GetClientID gets the client ID
+func (c *Client) GetClientID() string {
+	return c.ID
+}
+
 // UpdateApplyStatus updates the config's metadata to reflect its applied status
 func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
