@@ -54,8 +54,8 @@ class AttrUsage:
             if kind == "build.bazel.rules_license.license":
                 self.process_license(json.load(attr_inp))
             else:
-                # TODO: When we start wrtigin other types than JSON, we have to be more careful about this
-                self.process_attribute_json(file, json.load(attr_inp), users)
+                # TODO: When we start writing other types than JSON, we have to be more careful about this
+                self.process_attribute_json(file, json.load(attr_inp))
 
     def process_attribute_json(self, file, attr):
         """Process a standalone attributes file."""
@@ -68,7 +68,8 @@ class AttrUsage:
         if kind == "bazel-contrib.supply-chain.attribute.license":
             self.process_license(attr)
             return
-        raise ValueError(f"Unknown attribute type: {kind}")
+        # For now, log unknown things. In the future we can just gracefully ignore them.
+        print(f"Warning: Unhandled attribute type: {kind}")
 
     def process_package_metadata(self, package_metadata_file):
         """Process a package_metadata bundle file."""
