@@ -663,8 +663,11 @@ func (r *secretResolver) Refresh(updateNow bool) (string, error) {
 		return r.performRefresh()
 	}
 
-	// max 1 refresh at a time via channel signal
-	r.refreshTrigger <- struct{}{}
+	// non-blocking refresh, max 1 at a time, others dropped
+	select {
+	case r.refreshTrigger <- struct{}{}:
+	default:
+	}
 	return "", nil
 }
 
