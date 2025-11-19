@@ -1,0 +1,50 @@
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=180.725792ms  RESTART=273.988334ms  DIFF=93.262542ms  (RESTART is 151.6% of START)
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=125.023292ms  RESTART=1.125150126s  DIFF=1.000126834s  (RESTART is 900.0% of START)
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=131.11225ms  RESTART=804.220042ms  DIFF=673.107792ms  (RESTART is 613.4% of START)
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=109.0695ms  RESTART=598.667334ms  DIFF=489.597834ms  (RESTART is 548.9% of START)
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=124.143625ms  RESTART=712.434959ms  DIFF=588.291334ms  (RESTART is 573.9% of START)
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=81.069875ms  RESTART=274.077209ms  DIFF=193.007334ms  (RESTART is 338.1% of START)
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=171.89975ms  RESTART=1.002366125s  DIFF=830.466375ms  (RESTART is 583.1% of START)
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=135.596ms  RESTART=661.251084ms  DIFF=525.655084ms  (RESTART is 487.7% of START)
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=223.888875ms  RESTART=1.093959042s  DIFF=870.070167ms  (RESTART is 488.6% of START)
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=208.464917ms  RESTART=359.010209ms  DIFF=150.545292ms  (RESTART is 172.2% of START)
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=105.846625ms  RESTART=741.655792ms  DIFF=635.809167ms  (RESTART is 700.7% of START)
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=93.105958ms  RESTART=655.473833ms  DIFF=562.367875ms  (RESTART is 704.0% of START)
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=138.329916ms  RESTART=619.166083ms  DIFF=480.836167ms  (RESTART is 447.6% of START)
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=129.465333ms  RESTART=703.75375ms  DIFF=574.288417ms  (RESTART is 543.6% of START)
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=116.108833ms  RESTART=592.95175ms  DIFF=476.842917ms  (RESTART is 510.7% of START)
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=145.690375ms  RESTART=588.20625ms  DIFF=442.515875ms  (RESTART is 403.7% of START)
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=120.385667ms  RESTART=722.872251ms  DIFF=602.486584ms  (RESTART is 600.5% of START)
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=107.305834ms  RESTART=703.708834ms  DIFF=596.403ms  (RESTART is 655.8% of START)
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=276.464084ms  RESTART=349.291459ms  DIFF=72.827375ms  (RESTART is 126.3% of START)
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=100.034834ms  RESTART=713.030708ms  DIFF=612.995874ms  (RESTART is 712.8% of START)
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=80.786833ms  RESTART=697.921292ms  DIFF=617.134459ms  (RESTART is 863.9% of START)
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=119.22875ms  RESTART=445.877125ms  DIFF=326.648375ms  (RESTART is 374.0% of START)
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=190.949292ms  RESTART=680.358917ms  DIFF=489.409625ms  (RESTART is 356.3% of START)
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=105.785084ms  RESTART=704.718126ms  DIFF=598.933042ms  (RESTART is 666.2% of START)
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=152.502417ms  RESTART=1.101231543s  DIFF=948.729126ms  (RESTART is 722.1% of START)
+
+========================================
+SUMMARY STATISTICS
+========================================
+Total runs: 25
+
+START Times (on TCP):
+  Average:  138.919ms
+  Median:   125.023ms
+  Std Dev:  46.989ms
+  Min:      80.787ms
+  Max:      276.464ms
+  Range:    195.677ms
+
+RESTART Times (including parital stop, partial rebuild, and restart with HTTP):
+  Average:  677.014ms
+  Median:   697.921ms
+  Std Dev:  232.740ms
+  Min:      273.988ms
+  Max:      1125.150ms
+  Range:    851.162ms
+
+Comparison:
+  Average DIFF: 538.094ms (RESTART is 487.3% of START)
+========================================

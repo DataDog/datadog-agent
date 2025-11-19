@@ -1,0 +1,275 @@
+
+=== Run #1 (started at 2025-11-19 16:24:07) ===
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=122.424792ms  (restart overhead)
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=176.783625ms  RESTART(rebuild)=151.463292ms  DIFF=-25.320333ms
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.666958ms  RESTART(rebuild)=151.463292ms  DIFF=147.796334ms
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=172.541µs  RESTART(pipeline)=240.625µs  DIFF=68.084µs
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=180.725792ms  RESTART=273.988334ms  DIFF=93.262542ms  (RESTART is 151.6% of START)
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(122.424792ms) + rebuild(151.463292ms) + pipeline(240.625µs)
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 51.6% SLOWER than start (includes 122.424792ms stop overhead)
+2025-11-19 16:24:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #2 (started at 2025-11-19 16:24:28) ===
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=1.000865125s  (restart overhead)
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=120.977542ms  RESTART(rebuild)=124.131208ms  DIFF=3.153666ms
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.695667ms  RESTART(rebuild)=124.131208ms  DIFF=120.435541ms
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=245.166µs  RESTART(pipeline)=271.5µs  DIFF=26.334µs
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=125.023292ms  RESTART=1.125150126s  DIFF=1.000126834s  (RESTART is 900.0% of START)
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(1.000865125s) + rebuild(124.131208ms) + pipeline(271.5µs)
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 800.0% SLOWER than start (includes 1.000865125s stop overhead)
+2025-11-19 16:24:45 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #3 (started at 2025-11-19 16:24:51) ===
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=572.2505ms  (restart overhead)
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=126.555833ms  RESTART(rebuild)=231.873167ms  DIFF=105.317334ms
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.062625ms  RESTART(rebuild)=231.873167ms  DIFF=227.810542ms
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=249.042µs  RESTART(pipeline)=182.417µs  DIFF=-66.625µs
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=131.11225ms  RESTART=804.220042ms  DIFF=673.107792ms  (RESTART is 613.4% of START)
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(572.2505ms) + rebuild(231.873167ms) + pipeline(182.417µs)
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 513.4% SLOWER than start (includes 572.2505ms stop overhead)
+2025-11-19 16:25:07 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #4 (started at 2025-11-19 16:25:13) ===
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=466.112792ms  (restart overhead)
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=104.80225ms  RESTART(rebuild)=132.458833ms  DIFF=27.656583ms
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.918166ms  RESTART(rebuild)=132.458833ms  DIFF=128.540667ms
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=216.083µs  RESTART(pipeline)=269.834µs  DIFF=53.751µs
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=109.0695ms  RESTART=598.667334ms  DIFF=489.597834ms  (RESTART is 548.9% of START)
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(466.112792ms) + rebuild(132.458833ms) + pipeline(269.834µs)
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 448.9% SLOWER than start (includes 466.112792ms stop overhead)
+2025-11-19 16:25:29 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #5 (started at 2025-11-19 16:25:35) ===
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=570.218375ms  (restart overhead)
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=119.817292ms  RESTART(rebuild)=142.132458ms  DIFF=22.315166ms
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.966458ms  RESTART(rebuild)=142.132458ms  DIFF=138.166ms
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=248.833µs  RESTART(pipeline)=113.958µs  DIFF=-134.875µs
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=124.143625ms  RESTART=712.434959ms  DIFF=588.291334ms  (RESTART is 573.9% of START)
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(570.218375ms) + rebuild(142.132458ms) + pipeline(113.958µs)
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 473.9% SLOWER than start (includes 570.218375ms stop overhead)
+2025-11-19 16:25:51 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #6 (started at 2025-11-19 16:25:57) ===
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=51.744791ms  (restart overhead)
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=75.333917ms  RESTART(rebuild)=222.232ms  DIFF=146.898083ms
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=5.428417ms  RESTART(rebuild)=222.232ms  DIFF=216.803583ms
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=207.167µs  RESTART(pipeline)=237.541µs  DIFF=30.374µs
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=81.069875ms  RESTART=274.077209ms  DIFF=193.007334ms  (RESTART is 338.1% of START)
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(51.744791ms) + rebuild(222.232ms) + pipeline(237.541µs)
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 238.1% SLOWER than start (includes 51.744791ms stop overhead)
+2025-11-19 16:26:13 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #7 (started at 2025-11-19 16:26:19) ===
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=857.407ms  (restart overhead)
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=165.647417ms  RESTART(rebuild)=144.884875ms  DIFF=-20.762542ms
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=5.938834ms  RESTART(rebuild)=144.884875ms  DIFF=138.946041ms
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=220.875µs  RESTART(pipeline)=368.583µs  DIFF=147.708µs
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=171.89975ms  RESTART=1.002366125s  DIFF=830.466375ms  (RESTART is 583.1% of START)
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(857.407ms) + rebuild(144.884875ms) + pipeline(368.583µs)
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 483.1% SLOWER than start (includes 857.407ms stop overhead)
+2025-11-19 16:26:35 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #8 (started at 2025-11-19 16:26:41) ===
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=563.665875ms  (restart overhead)
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=130.962709ms  RESTART(rebuild)=97.496958ms  DIFF=-33.465751ms
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.312667ms  RESTART(rebuild)=97.496958ms  DIFF=93.184291ms
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=215.958µs  RESTART(pipeline)=104.25µs  DIFF=-111.708µs
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=135.596ms  RESTART=661.251084ms  DIFF=525.655084ms  (RESTART is 487.7% of START)
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(563.665875ms) + rebuild(97.496958ms) + pipeline(104.25µs)
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 387.7% SLOWER than start (includes 563.665875ms stop overhead)
+2025-11-19 16:26:57 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #9 (started at 2025-11-19 16:27:03) ===
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=952.368084ms  (restart overhead)
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=218.948291ms  RESTART(rebuild)=141.458708ms  DIFF=-77.489583ms
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.569083ms  RESTART(rebuild)=141.458708ms  DIFF=136.889625ms
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=249.666µs  RESTART(pipeline)=292.083µs  DIFF=42.417µs
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=223.888875ms  RESTART=1.093959042s  DIFF=870.070167ms  (RESTART is 488.6% of START)
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(952.368084ms) + rebuild(141.458708ms) + pipeline(292.083µs)
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 388.6% SLOWER than start (includes 952.368084ms stop overhead)
+2025-11-19 16:27:20 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #10 (started at 2025-11-19 16:27:26) ===
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=172.135625ms  (restart overhead)
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=202.227625ms  RESTART(rebuild)=186.78025ms  DIFF=-15.447375ms
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=5.982334ms  RESTART(rebuild)=186.78025ms  DIFF=180.797916ms
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=155.875µs  RESTART(pipeline)=255µs  DIFF=99.125µs
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=208.464917ms  RESTART=359.010209ms  DIFF=150.545292ms  (RESTART is 172.2% of START)
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(172.135625ms) + rebuild(186.78025ms) + pipeline(255µs)
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 72.2% SLOWER than start (includes 172.135625ms stop overhead)
+2025-11-19 16:27:41 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #11 (started at 2025-11-19 16:27:48) ===
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=576.767417ms  (restart overhead)
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=101.961667ms  RESTART(rebuild)=164.826042ms  DIFF=62.864375ms
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.551666ms  RESTART(rebuild)=164.826042ms  DIFF=161.274376ms
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=228.041µs  RESTART(pipeline)=152.833µs  DIFF=-75.208µs
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=105.846625ms  RESTART=741.655792ms  DIFF=635.809167ms  (RESTART is 700.7% of START)
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(576.767417ms) + rebuild(164.826042ms) + pipeline(152.833µs)
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 600.7% SLOWER than start (includes 576.767417ms stop overhead)
+2025-11-19 16:28:04 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #12 (started at 2025-11-19 16:28:10) ===
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=556.87625ms  (restart overhead)
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=88.370208ms  RESTART(rebuild)=98.5185ms  DIFF=10.148292ms
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.324791ms  RESTART(rebuild)=98.5185ms  DIFF=94.193709ms
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=293.125µs  RESTART(pipeline)=114.125µs  DIFF=-179µs
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=93.105958ms  RESTART=655.473833ms  DIFF=562.367875ms  (RESTART is 704.0% of START)
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(556.87625ms) + rebuild(98.5185ms) + pipeline(114.125µs)
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 604.0% SLOWER than start (includes 556.87625ms stop overhead)
+2025-11-19 16:28:26 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #13 (started at 2025-11-19 16:28:32) ===
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=460.442334ms  (restart overhead)
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=133.813958ms  RESTART(rebuild)=158.651834ms  DIFF=24.837876ms
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.031458ms  RESTART(rebuild)=158.651834ms  DIFF=154.620376ms
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=377.209µs  RESTART(pipeline)=290.167µs  DIFF=-87.042µs
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=138.329916ms  RESTART=619.166083ms  DIFF=480.836167ms  (RESTART is 447.6% of START)
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(460.442334ms) + rebuild(158.651834ms) + pipeline(290.167µs)
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 347.6% SLOWER than start (includes 460.442334ms stop overhead)
+2025-11-19 16:28:48 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #14 (started at 2025-11-19 16:28:54) ===
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=572.726501ms  (restart overhead)
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=125.088792ms  RESTART(rebuild)=130.949958ms  DIFF=5.861166ms
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.01325ms  RESTART(rebuild)=130.949958ms  DIFF=126.936708ms
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=245.958µs  RESTART(pipeline)=138.583µs  DIFF=-107.375µs
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=129.465333ms  RESTART=703.75375ms  DIFF=574.288417ms  (RESTART is 543.6% of START)
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(572.726501ms) + rebuild(130.949958ms) + pipeline(138.583µs)
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 443.6% SLOWER than start (includes 572.726501ms stop overhead)
+2025-11-19 16:29:10 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #15 (started at 2025-11-19 16:29:16) ===
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=505.228166ms  (restart overhead)
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=111.669791ms  RESTART(rebuild)=87.485542ms  DIFF=-24.184249ms
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.076333ms  RESTART(rebuild)=87.485542ms  DIFF=83.409209ms
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=255.083µs  RESTART(pipeline)=183.667µs  DIFF=-71.416µs
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=116.108833ms  RESTART=592.95175ms  DIFF=476.842917ms  (RESTART is 510.7% of START)
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(505.228166ms) + rebuild(87.485542ms) + pipeline(183.667µs)
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 410.7% SLOWER than start (includes 505.228166ms stop overhead)
+2025-11-19 16:29:32 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #16 (started at 2025-11-19 16:29:38) ===
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=467.615042ms  (restart overhead)
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=140.977542ms  RESTART(rebuild)=120.516375ms  DIFF=-20.461167ms
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.360875ms  RESTART(rebuild)=120.516375ms  DIFF=116.1555ms
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=232.708µs  RESTART(pipeline)=235.416µs  DIFF=2.708µs
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=145.690375ms  RESTART=588.20625ms  DIFF=442.515875ms  (RESTART is 403.7% of START)
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(467.615042ms) + rebuild(120.516375ms) + pipeline(235.416µs)
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 303.7% SLOWER than start (includes 467.615042ms stop overhead)
+2025-11-19 16:29:54 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #17 (started at 2025-11-19 16:30:00) ===
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=567.416875ms  (restart overhead)
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=115.926167ms  RESTART(rebuild)=155.273667ms  DIFF=39.3475ms
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.076625ms  RESTART(rebuild)=155.273667ms  DIFF=151.197042ms
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=223.75µs  RESTART(pipeline)=138.542µs  DIFF=-85.208µs
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=120.385667ms  RESTART=722.872251ms  DIFF=602.486584ms  (RESTART is 600.5% of START)
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(567.416875ms) + rebuild(155.273667ms) + pipeline(138.542µs)
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 500.5% SLOWER than start (includes 567.416875ms stop overhead)
+2025-11-19 16:30:16 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #18 (started at 2025-11-19 16:30:22) ===
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=574.426875ms  (restart overhead)
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=102.624542ms  RESTART(rebuild)=129.179416ms  DIFF=26.554874ms
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.338417ms  RESTART(rebuild)=129.179416ms  DIFF=124.840999ms
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=221.916µs  RESTART(pipeline)=144.25µs  DIFF=-77.666µs
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=107.305834ms  RESTART=703.708834ms  DIFF=596.403ms  (RESTART is 655.8% of START)
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(574.426875ms) + rebuild(129.179416ms) + pipeline(144.25µs)
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 555.8% SLOWER than start (includes 574.426875ms stop overhead)
+2025-11-19 16:30:38 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #19 (started at 2025-11-19 16:30:44) ===
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=181.698292ms  (restart overhead)
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=270.292042ms  RESTART(rebuild)=167.413667ms  DIFF=-102.878375ms
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=5.784416ms  RESTART(rebuild)=167.413667ms  DIFF=161.629251ms
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=270.084µs  RESTART(pipeline)=262.791µs  DIFF=-7.293µs
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=276.464084ms  RESTART=349.291459ms  DIFF=72.827375ms  (RESTART is 126.3% of START)
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(181.698292ms) + rebuild(167.413667ms) + pipeline(262.791µs)
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 26.3% SLOWER than start (includes 181.698292ms stop overhead)
+2025-11-19 16:31:00 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #20 (started at 2025-11-19 16:31:06) ===
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=580.775959ms  (restart overhead)
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=95.64325ms  RESTART(rebuild)=132.136292ms  DIFF=36.493042ms
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.144ms  RESTART(rebuild)=132.136292ms  DIFF=127.992292ms
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=138.167µs  RESTART(pipeline)=127.834µs  DIFF=-10.333µs
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=100.034834ms  RESTART=713.030708ms  DIFF=612.995874ms  (RESTART is 712.8% of START)
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(580.775959ms) + rebuild(132.136292ms) + pipeline(127.834µs)
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 612.8% SLOWER than start (includes 580.775959ms stop overhead)
+2025-11-19 16:31:22 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #21 (started at 2025-11-19 16:31:28) ===
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=572.709834ms  (restart overhead)
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=76.502ms  RESTART(rebuild)=125.045125ms  DIFF=48.543125ms
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.961875ms  RESTART(rebuild)=125.045125ms  DIFF=121.08325ms
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=212.75µs  RESTART(pipeline)=125.375µs  DIFF=-87.375µs
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=80.786833ms  RESTART=697.921292ms  DIFF=617.134459ms  (RESTART is 863.9% of START)
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(572.709834ms) + rebuild(125.045125ms) + pipeline(125.375µs)
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 763.9% SLOWER than start (includes 572.709834ms stop overhead)
+2025-11-19 16:31:44 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #22 (started at 2025-11-19 16:31:50) ===
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=170.443334ms  (restart overhead)
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=114.502459ms  RESTART(rebuild)=275.26675ms  DIFF=160.764291ms
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.35875ms  RESTART(rebuild)=275.26675ms  DIFF=270.908ms
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=209.375µs  RESTART(pipeline)=236.958µs  DIFF=27.583µs
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=119.22875ms  RESTART=445.877125ms  DIFF=326.648375ms  (RESTART is 374.0% of START)
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(170.443334ms) + rebuild(275.26675ms) + pipeline(236.958µs)
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 274.0% SLOWER than start (includes 170.443334ms stop overhead)
+2025-11-19 16:32:06 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #23 (started at 2025-11-19 16:32:12) ===
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=551.138167ms  (restart overhead)
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=186.784ms  RESTART(rebuild)=129.167167ms  DIFF=-57.616833ms
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=3.932417ms  RESTART(rebuild)=129.167167ms  DIFF=125.23475ms
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=129.5µs  RESTART(pipeline)=122.5µs  DIFF=-7µs
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=190.949292ms  RESTART=680.358917ms  DIFF=489.409625ms  (RESTART is 356.3% of START)
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(551.138167ms) + rebuild(129.167167ms) + pipeline(122.5µs)
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 256.3% SLOWER than start (includes 551.138167ms stop overhead)
+2025-11-19 16:32:28 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #24 (started at 2025-11-19 16:32:34) ===
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=565.103375ms  (restart overhead)
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=101.21275ms  RESTART(rebuild)=139.450542ms  DIFF=38.237792ms
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.247833ms  RESTART(rebuild)=139.450542ms  DIFF=135.202709ms
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=220.792µs  RESTART(pipeline)=213.875µs  DIFF=-6.917µs
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=105.785084ms  RESTART=704.718126ms  DIFF=598.933042ms  (RESTART is 666.2% of START)
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(565.103375ms) + rebuild(139.450542ms) + pipeline(213.875µs)
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 566.2% SLOWER than start (includes 565.103375ms stop overhead)
+2025-11-19 16:32:50 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================
+
+=== Run #25 (started at 2025-11-19 16:32:56) ===
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:342 in restart) | [COMPARISON] ========== Start vs Restart Timing Comparison ==========
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:343 in restart) | [COMPARISON] Stop:       N/A        RESTART(stop)=860.139584ms  (restart overhead)
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:344 in restart) | [COMPARISON] Endpoints:  START=147.768083ms  RESTART(rebuild)=240.455292ms  DIFF=92.687209ms
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:346 in restart) | [COMPARISON] Setup:      START=4.2725ms  RESTART(rebuild)=240.455292ms  DIFF=236.182792ms
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:348 in restart) | [COMPARISON] Pipeline:   START=198.958µs  RESTART(pipeline)=290.75µs  DIFF=91.792µs
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:350 in restart) | [COMPARISON] Total:      START=152.502417ms  RESTART=1.101231543s  DIFF=948.729126ms  (RESTART is 722.1% of START)
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:353 in restart) | [COMPARISON] Breakdown: RESTART = stop(860.139584ms) + rebuild(240.455292ms) + pipeline(290.75µs)
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:359 in restart) | [COMPARISON] ⚠ Restart is 622.1% SLOWER than start (includes 860.139584ms stop overhead)
+2025-11-19 16:33:12 UTC | CORE | INFO | (comp/logs/agent/agentimpl/agent.go:362 in restart) | [COMPARISON] =========================================================

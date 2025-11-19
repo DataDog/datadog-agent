@@ -37,7 +37,6 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -105,7 +104,7 @@ type provides struct {
 // a description of its operation.
 type logAgent struct {
 	log            log.Component
-	config         model.Reader
+	config         pkgconfigmodel.Reader
 	inventoryAgent inventoryagent.Component
 	hostname       hostname.Component
 	tagger         tagger.Component
@@ -135,6 +134,18 @@ type logAgent struct {
 	// make restart thread safe
 	restartMutex   sync.Mutex
 	isShuttingDown atomic.Bool
+
+	// ensure restart test only happens once per agent instance
+	restartTestTriggered sync.Once
+
+	// store start timings for comparison with restart
+	startTimings struct {
+		endpointsDuration time.Duration
+		setupDuration     time.Duration
+		pipelineDuration  time.Duration
+		totalDuration     time.Duration
+		recorded          bool
+	}
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -188,6 +199,7 @@ func newLogsAgent(deps dependencies) provides {
 }
 
 func (a *logAgent) start(context.Context) error {
+	startTotal := time.Now()
 	a.log.Info("Starting logs-agent...")
 
 	if os.Getenv("DD_TEST_FORCE_TCP_AND_RESTART") == "1" {
@@ -198,6 +210,7 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	// setup the server config
+	endpointsStart := time.Now()
 	endpoints, err := buildEndpoints(a.config)
 
 	if err != nil {
@@ -207,26 +220,52 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.endpoints = endpoints
+	endpointsDuration := time.Since(endpointsStart)
+	a.log.Debugf("[START-DUR] Endpoints built in %v", endpointsDuration)
 
+	setupStart := time.Now()
 	err = a.setupAgent()
 
 	if err != nil {
 		a.log.Error("Could not start logs-agent: ", err)
 		return err
 	}
+	setupDuration := time.Since(setupStart)
+	a.log.Debugf("[START-DUR] Agent setup completed in %v", setupDuration)
 
+	pipelineStart := time.Now()
 	a.startPipeline()
+	pipelineDuration := time.Since(pipelineStart)
+	totalStartDuration := time.Since(startTotal)
 
-	// force restart for local testing
+	// Store timings for comparison with restart
+	a.startTimings.endpointsDuration = endpointsDuration
+	a.startTimings.setupDuration = setupDuration
+	a.startTimings.pipelineDuration = pipelineDuration
+	a.startTimings.totalDuration = totalStartDuration
+	a.startTimings.recorded = true
+
+	a.log.Infof("[START-DUR] Start completed - endpoints: %v, setup: %v, pipeline: %v, total: %v", endpointsDuration, setupDuration, pipelineDuration, totalStartDuration)
+
+	// force restart for local testing - only trigger once per agent instance
 	if os.Getenv("DD_TEST_FORCE_TCP_AND_RESTART") == "1" {
-		// now to test restart , allow http endpoints to be built (no longer tcp)
-		if cfg, ok := a.config.(pkgconfigmodel.Config); ok {
-			cfg.Set("logs_config.test_restart_force_tcp", "0", pkgconfigmodel.SourceAgentRuntime)
-		}
-		go func() {
-			time.Sleep(5 * time.Second) // give the TCP pipeline time to send
-			_ = a.restart(context.Background())
-		}()
+		a.restartTestTriggered.Do(func() {
+			// now to test restart , allow http endpoints to be built (no longer tcp)
+			if cfg, ok := a.config.(pkgconfigmodel.Config); ok {
+				cfg.Set("logs_config.test_restart_force_tcp", "0", pkgconfigmodel.SourceAgentRuntime)
+			}
+			go func() {
+				// Wait longer to ensure sources are discovered and added by schedulers
+				// Schedulers typically discover sources within 10-15 seconds
+				time.Sleep(15 * time.Second)
+
+				// Check if we have sources before restarting
+				sourceCount := len(a.sources.GetSources())
+				a.log.Infof("About to restart - found %d sources", sourceCount)
+
+				_ = a.restart(context.Background())
+			}()
+		})
 	}
 
 	return nil
@@ -246,6 +285,7 @@ func (a *logAgent) start(context.Context) error {
 // Returns an error if the agent is shutting down, if endpoints are invalid,
 // or if the restart setup fails.
 func (a *logAgent) restart(context.Context) error {
+	restartStart := time.Now()
 	a.log.Info("Attempting to restart logs-agent pipeline with HTTP")
 
 	a.restartMutex.Lock()
@@ -255,6 +295,7 @@ func (a *logAgent) restart(context.Context) error {
 		return errors.New("agent shutting down")
 	}
 
+	stopStart := time.Now()
 	a.log.Info("Gracefully stopping logs-agent")
 
 	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
@@ -264,7 +305,10 @@ func (a *logAgent) restart(context.Context) error {
 	if err := a.partialStop(); err != nil {
 		a.log.Warn("Graceful partial stop timed out, force closing")
 	}
+	stopDuration := time.Since(stopStart)
+	a.log.Infof("[RESTART-DUR] Stop phase completed in %v", stopDuration)
 
+	rebuildStart := time.Now()
 	a.log.Info("Re-starting logs-agent...")
 
 	// REBUILD endpoints
@@ -280,12 +324,43 @@ func (a *logAgent) restart(context.Context) error {
 	// REBUILD pipeline
 	err = a.setupAgentForRestart()
 	if err != nil {
-		message := fmt.Sprintf("Could not re-start logs-agent: %v", err)
+		message := fmt.Sprintf("Could not restart logs-agent: %v", err)
 		a.log.Error(message)
 		return errors.New(message)
 	}
 
+	restartPipelineStart := time.Now()
 	a.restartPipelineWithHTTP()
+	restartPipelineDuration := time.Since(restartPipelineStart)
+
+	rebuildDuration := time.Since(rebuildStart)
+	totalDuration := time.Since(restartStart)
+	a.log.Infof("[RESTART-DUR] Restart completed - stop: %v, rebuild: %v, pipeline: %v, total: %v", stopDuration, rebuildDuration, restartPipelineDuration, totalDuration)
+
+	// Log comparison with start timings if available
+	if a.startTimings.recorded {
+		a.log.Infof("[COMPARISON] ========== Start vs Restart Timing Comparison ==========")
+		a.log.Infof("[COMPARISON] Stop:       N/A        RESTART(stop)=%v  (restart overhead)", stopDuration)
+		a.log.Infof("[COMPARISON] Endpoints:  START=%v  RESTART(rebuild)=%v  DIFF=%v",
+			a.startTimings.endpointsDuration, rebuildDuration, rebuildDuration-a.startTimings.endpointsDuration)
+		a.log.Infof("[COMPARISON] Setup:      START=%v  RESTART(rebuild)=%v  DIFF=%v",
+			a.startTimings.setupDuration, rebuildDuration, rebuildDuration-a.startTimings.setupDuration)
+		a.log.Infof("[COMPARISON] Pipeline:   START=%v  RESTART(pipeline)=%v  DIFF=%v",
+			a.startTimings.pipelineDuration, restartPipelineDuration, restartPipelineDuration-a.startTimings.pipelineDuration)
+		a.log.Infof("[COMPARISON] Total:      START=%v  RESTART=%v  DIFF=%v  (RESTART is %.1f%% of START)",
+			a.startTimings.totalDuration, totalDuration, totalDuration-a.startTimings.totalDuration,
+			float64(totalDuration)/float64(a.startTimings.totalDuration)*100)
+		a.log.Infof("[COMPARISON] Breakdown: RESTART = stop(%v) + rebuild(%v) + pipeline(%v)",
+			stopDuration, rebuildDuration, restartPipelineDuration)
+		if totalDuration < a.startTimings.totalDuration {
+			a.log.Infof("[COMPARISON] ✓ Restart is %.1f%% FASTER than start",
+				(1.0-float64(totalDuration)/float64(a.startTimings.totalDuration))*100)
+		} else {
+			a.log.Infof("[COMPARISON] ⚠ Restart is %.1f%% SLOWER than start (includes %v stop overhead)",
+				(float64(totalDuration)/float64(a.startTimings.totalDuration)-1.0)*100, stopDuration)
+		}
+		a.log.Infof("[COMPARISON] =========================================================")
+	}
 	return nil
 }
 
@@ -325,9 +400,11 @@ func (a *logAgent) setupAgentForRestart() error {
 // Returns the processing rules and fingerprint config, or an error if validation fails.
 func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
 	if a.endpoints.UseHTTP {
+		a.log.Debugf("configureAgent: transport=HTTP")
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
 		status.SetCurrentTransport(status.TransportTCP)
+		a.log.Debugf("configureAgent: transport=TCP")
 	}
 
 	// The severless agent doesn't use FX for now. This means that the logs agent will not have 'inventoryAgent'
@@ -363,10 +440,15 @@ func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.Fingerprin
 // Start starts all the elements of the data pipeline
 // in the right order to prevent data loss
 func (a *logAgent) startPipeline() {
+	pipelineStartTotal := time.Now()
 
 	// setup the status
+	statusInitStart := time.Now()
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
+	statusInitDuration := time.Since(statusInitStart)
+	a.log.Debugf("[START_PIPELINE-DUR] Status initialized in %v", statusInitDuration)
 
+	starterStart := time.Now()
 	starter := startstop.NewStarter(
 		a.destinationsCtx,
 		a.auditor,
@@ -375,19 +457,44 @@ func (a *logAgent) startPipeline() {
 		a.launchers,
 	)
 	starter.Start()
+	starterDuration := time.Since(starterStart)
+	a.log.Debugf("[START_PIPELINE-DUR] Pipeline components started in %v", starterDuration)
+
+	schedulersStart := time.Now()
 	a.startSchedulers()
+	schedulersDuration := time.Since(schedulersStart)
+	pipelineTotalDuration := time.Since(pipelineStartTotal)
+	a.log.Debugf("[START_PIPELINE-DUR] Pipeline start completed - status: %v, components: %v, schedulers: %v, total: %v", statusInitDuration, starterDuration, schedulersDuration, pipelineTotalDuration)
 }
 
 // restartPipelineWithHTTP restarts the logs pipeline after a transport switch.
 // Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipelineWithHTTP() {
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
+	restartPipelineStart := time.Now()
 
+	statusInitStart := time.Now()
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
+	statusInitDuration := time.Since(statusInitStart)
+	a.log.Debugf("[RESTART-DUR] Status re-initialized in %v", statusInitDuration)
+
+	// Log source count before restart for debugging
+	sourceCount := len(a.sources.GetSources())
+	a.log.Infof("Restarting pipeline with %d existing sources", sourceCount)
+
+	starterStart := time.Now()
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()
+	starterDuration := time.Since(starterStart)
+	a.log.Debugf("[RESTART-DUR] Restart pipeline components started in %v", starterDuration)
 
+	totalRestartPipelineDuration := time.Since(restartPipelineStart)
 	a.log.Info("Successfully restarted pipeline with HTTP")
+	a.log.Debugf("[RESTART-DUR] Restart pipeline total duration: %v (status: %v, components: %v)", totalRestartPipelineDuration, statusInitDuration, starterDuration)
+
+	// Log source count after restart for debugging
+	sourceCountAfter := len(a.sources.GetSources())
+	a.log.Infof("After restart, %d sources available", sourceCountAfter)
 }
 
 func (a *logAgent) startSchedulers() {
@@ -443,6 +550,7 @@ func (a *logAgent) stop(context.Context) error {
 // are maintained across the restart, allowing seamless continuation of log collection
 // with the new transport.
 func (a *logAgent) partialStop() error {
+	partialStopStart := time.Now()
 	a.log.Info("Completing graceful partial stop of logs-agent for restart")
 	status.Clear()
 
@@ -452,15 +560,23 @@ func (a *logAgent) partialStop() error {
 		a.destinationsCtx,
 	}
 
+	stopComponentsStart := time.Now()
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
+	stopComponentsDuration := time.Since(stopComponentsStart)
+	a.log.Debugf("Components stopped in %v", stopComponentsDuration)
 
 	// Immediately flush auditor to write current positions to disk
 	// TODO: this enables at-least-once delivery during restart (1-2 logs may be re-read)
+	flushStart := time.Now()
 	a.log.Debug("Flushing auditor registry after pipeline stop")
 	a.auditor.Flush()
+	flushDuration := time.Since(flushStart)
+	a.log.Debugf("[RESTART-DUR] Auditor flush completed in %v", flushDuration)
 
+	totalPartialStopDuration := time.Since(partialStopStart)
+	a.log.Debugf("[RESTART-DUR] Partial stop total duration: %v (components: %v, flush: %v)", totalPartialStopDuration, stopComponentsDuration, flushDuration)
 	return nil
 }
 
