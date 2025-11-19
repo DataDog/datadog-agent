@@ -41,7 +41,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-devel.0.20251030121902-cd89eab046d6
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.64.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl v0.72.0-devel.0.20250915111542-570ca4a195dc
@@ -974,9 +974,8 @@ require go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
 
 require (
 	cyphar.com/go-pathrs v0.2.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.73.0-devel.0.20251119154241-4f9b6bc // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.139.0 // indirect
-	github.com/stormcat24/protodep v0.1.8 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )

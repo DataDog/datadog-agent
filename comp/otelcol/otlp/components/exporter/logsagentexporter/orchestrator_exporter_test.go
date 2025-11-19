@@ -11,14 +11,15 @@ import (
 	"testing"
 	"time"
 
-	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
+
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 )
 
 func TestGetManifestCache(t *testing.T) {
@@ -578,7 +579,7 @@ func TestToManifestPayload(t *testing.T) {
 		},
 	}
 
-	payload := toManifestPayload(manifests, hostName, clusterName, clusterID)
+	payload := toManifestPayload(manifests, hostName, clusterName, clusterID, nil)
 
 	require.NotNil(t, payload)
 	assert.Equal(t, clusterName, payload.ClusterName)

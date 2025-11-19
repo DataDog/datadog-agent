@@ -17,7 +17,6 @@ import (
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
-	"github.com/stormcat24/protodep/pkg/logger"
 	"github.com/twmb/murmur3"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
@@ -25,7 +24,7 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-	processutil "github.com/DataDog/datadog-agent/pkg/orchestrator/util"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -115,13 +114,13 @@ func chunkManifestsBySizeAndWeight(manifests []*agentmodel.Manifest, maxChunkSiz
 		interfaceManifests = append(interfaceManifests, m)
 	}
 
-	chunker := &processutil.ChunkAllocator[[]interface{}, interface{}]{
+	chunker := &util.ChunkAllocator[[]interface{}, interface{}]{
 		AppendToChunk: func(chunk *[]interface{}, payloads []interface{}) {
 			*chunk = append(*chunk, payloads...)
 		},
 	}
 
-	list := &processutil.PayloadList[interface{}]{
+	list := &util.PayloadList[interface{}]{
 		Items: interfaceManifests,
 		WeightAt: func(i int) int {
 			// Use the serialized manifest content size as the weight
@@ -129,7 +128,7 @@ func chunkManifestsBySizeAndWeight(manifests []*agentmodel.Manifest, maxChunkSiz
 		},
 	}
 
-	processutil.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxChunkSize, maxChunkWeight)
+	util.ChunkPayloadsBySizeAndWeight[[]interface{}, interface{}](list, chunker, maxChunkSize, maxChunkWeight)
 
 	// Convert back to typed chunks
 	chunks := *chunker.GetChunks()
@@ -247,7 +246,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 			zap.Int("chunk_index", i),
 			zap.Int("chunk_size", len(chunk)))
 
-		payload := toManifestPayload(chunk, hostname, clusterName, clusterID)
+		payload := toManifestPayload(chunk, hostname, clusterName, clusterID, e.set.Logger)
 
 		if err := sendManifestPayload(ctx, e.orchestratorConfig.Endpoint, e.orchestratorConfig.Key, payload, hostname, clusterID, e.set.Logger); err != nil {
 			e.set.Logger.Error("Failed to send collector manifest chunk",
@@ -384,7 +383,7 @@ func buildManifestFromK8sResource(k8sResource map[string]interface{}, resource p
 	return manifest, nil
 }
 
-func toManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string) *agentmodel.CollectorManifest {
+func toManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string, logger *zap.Logger) *agentmodel.CollectorManifest {
 	version, err := version.Agent()
 	if err != nil {
 		logger.Error("Failed to get agent version", zap.Error(err))
@@ -630,7 +629,6 @@ func buildCommonTags() []string {
 	}
 }
 
-// ToDo: add more meaningful tags
 func buildTags(resource pcommon.Resource, logRecord plog.LogRecord) []string {
 	tags := buildCommonTags()
 
