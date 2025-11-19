@@ -24,7 +24,6 @@ common:windows --strategy=standalone # Valid values are: [dynamic_worker, standa
 # For instance, if we need to have some special behavior in bash we can add it, however, in some cases
 # it may lead to cache poisoning.
 common:windows --noexperimental_convenience_symlinks --shell_executable=C:/tools/msys64/usr/bin/bash.exe
-common:windows --experimental_ui_max_stdouterr_bytes=324536700
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
@@ -37,7 +36,7 @@ common:cache --remote_timeout=60
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=cache
 common:ci --test_output=errors # Print test setup errors to the job output instead of only capturing them in test.log
-common:ci --experimental_ui_max_stdouterr_bytes=1683422900
+common --experimental_ui_max_stdouterr_bytes=1073741819
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
