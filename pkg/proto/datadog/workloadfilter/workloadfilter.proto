@@ -4,6 +4,28 @@ package datadog.workloadfilter;
 
 option go_package = "pkg/proto/pbgo/core"; // golang
 
+message WorkloadFilterEvaluateRequest {
+  string program_name = 1;
+  oneof workload {
+    datadog.workloadfilter.FilterContainer container = 3;
+    datadog.workloadfilter.FilterPod pod = 4;
+    datadog.workloadfilter.FilterProcess process = 5;
+    datadog.workloadfilter.FilterKubeService kube_service = 6;
+    datadog.workloadfilter.FilterKubeEndpoint kube_endpoint = 7;
+  }
+}
+
+enum WorkloadFilterResult {
+  UNKNOWN = 0;
+  INCLUDE = 1;
+  EXCLUDE = 2;
+}
+
+message WorkloadFilterEvaluateResponse {
+  WorkloadFilterResult result = 1;
+  string error = 2;
+}
+
 message FilterContainer {
   string id = 1;
   string name = 2;

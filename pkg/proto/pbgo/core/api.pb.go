@@ -29,9 +29,9 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1bgoogle/protobuf/empty.proto2Z\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a\x1bgoogle/protobuf/empty.proto2Z\n" +
 	"\x05Agent\x12Q\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xa6\x0e\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xb0\x0f\n" +
 	"\vAgentSecure\x12c\n" +
 	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
 	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
@@ -49,7 +49,8 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\x12RefreshRemoteAgent\x121.datadog.remoteagent.v1.RefreshRemoteAgentRequest\x1a2.datadog.remoteagent.v1.RefreshRemoteAgentResponse\x12i\n" +
 	"\x19AutodiscoveryStreamConfig\x12\x16.google.protobuf.Empty\x1a2.datadog.autodiscovery.AutodiscoveryStreamResponse0\x01\x12O\n" +
 	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\x12\\\n" +
-	"\x12StreamConfigEvents\x12%.datadog.model.v1.ConfigStreamRequest\x1a\x1d.datadog.model.v1.ConfigEvent0\x01B\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
+	"\x12StreamConfigEvents\x12%.datadog.model.v1.ConfigStreamRequest\x1a\x1d.datadog.model.v1.ConfigEvent0\x01\x12\x87\x01\n" +
+	"\x16WorkloadFilterEvaluate\x125.datadog.workloadfilter.WorkloadFilterEvaluateRequest\x1a6.datadog.workloadfilter.WorkloadFilterEvaluateResponseB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*HostnameRequest)(nil),                           // 0: datadog.model.v1.HostnameRequest
@@ -66,22 +67,24 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*RefreshRemoteAgentRequest)(nil),                 // 11: datadog.remoteagent.v1.RefreshRemoteAgentRequest
 	(*HostTagRequest)(nil),                            // 12: datadog.model.v1.HostTagRequest
 	(*ConfigStreamRequest)(nil),                       // 13: datadog.model.v1.ConfigStreamRequest
-	(*HostnameReply)(nil),                             // 14: datadog.model.v1.HostnameReply
-	(*StreamTagsResponse)(nil),                        // 15: datadog.model.v1.StreamTagsResponse
-	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 16: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	(*FetchEntityResponse)(nil),                       // 17: datadog.model.v1.FetchEntityResponse
-	(*CaptureTriggerResponse)(nil),                    // 18: datadog.model.v1.CaptureTriggerResponse
-	(*TaggerStateResponse)(nil),                       // 19: datadog.model.v1.TaggerStateResponse
-	(*ClientGetConfigsResponse)(nil),                  // 20: datadog.config.ClientGetConfigsResponse
-	(*GetStateConfigResponse)(nil),                    // 21: datadog.config.GetStateConfigResponse
-	(*ConfigSubscriptionResponse)(nil),                // 22: datadog.config.ConfigSubscriptionResponse
-	(*ResetStateConfigResponse)(nil),                  // 23: datadog.config.ResetStateConfigResponse
-	(*WorkloadmetaStreamResponse)(nil),                // 24: datadog.workloadmeta.WorkloadmetaStreamResponse
-	(*RegisterRemoteAgentResponse)(nil),               // 25: datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	(*RefreshRemoteAgentResponse)(nil),                // 26: datadog.remoteagent.v1.RefreshRemoteAgentResponse
-	(*AutodiscoveryStreamResponse)(nil),               // 27: datadog.autodiscovery.AutodiscoveryStreamResponse
-	(*HostTagReply)(nil),                              // 28: datadog.model.v1.HostTagReply
-	(*ConfigEvent)(nil),                               // 29: datadog.model.v1.ConfigEvent
+	(*WorkloadFilterEvaluateRequest)(nil),             // 14: datadog.workloadfilter.WorkloadFilterEvaluateRequest
+	(*HostnameReply)(nil),                             // 15: datadog.model.v1.HostnameReply
+	(*StreamTagsResponse)(nil),                        // 16: datadog.model.v1.StreamTagsResponse
+	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 17: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	(*FetchEntityResponse)(nil),                       // 18: datadog.model.v1.FetchEntityResponse
+	(*CaptureTriggerResponse)(nil),                    // 19: datadog.model.v1.CaptureTriggerResponse
+	(*TaggerStateResponse)(nil),                       // 20: datadog.model.v1.TaggerStateResponse
+	(*ClientGetConfigsResponse)(nil),                  // 21: datadog.config.ClientGetConfigsResponse
+	(*GetStateConfigResponse)(nil),                    // 22: datadog.config.GetStateConfigResponse
+	(*ConfigSubscriptionResponse)(nil),                // 23: datadog.config.ConfigSubscriptionResponse
+	(*ResetStateConfigResponse)(nil),                  // 24: datadog.config.ResetStateConfigResponse
+	(*WorkloadmetaStreamResponse)(nil),                // 25: datadog.workloadmeta.WorkloadmetaStreamResponse
+	(*RegisterRemoteAgentResponse)(nil),               // 26: datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	(*RefreshRemoteAgentResponse)(nil),                // 27: datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	(*AutodiscoveryStreamResponse)(nil),               // 28: datadog.autodiscovery.AutodiscoveryStreamResponse
+	(*HostTagReply)(nil),                              // 29: datadog.model.v1.HostTagReply
+	(*ConfigEvent)(nil),                               // 30: datadog.model.v1.ConfigEvent
+	(*WorkloadFilterEvaluateResponse)(nil),            // 31: datadog.workloadfilter.WorkloadFilterEvaluateResponse
 }
 var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	0,  // 0: datadog.api.v1.Agent.GetHostname:input_type -> datadog.model.v1.HostnameRequest
@@ -102,26 +105,28 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	7,  // 15: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:input_type -> google.protobuf.Empty
 	12, // 16: datadog.api.v1.AgentSecure.GetHostTags:input_type -> datadog.model.v1.HostTagRequest
 	13, // 17: datadog.api.v1.AgentSecure.StreamConfigEvents:input_type -> datadog.model.v1.ConfigStreamRequest
-	14, // 18: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
-	15, // 19: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
-	16, // 20: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
-	17, // 21: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
-	18, // 22: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
-	19, // 23: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
-	20, // 24: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
-	21, // 25: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
-	20, // 26: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
-	21, // 27: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
-	22, // 28: datadog.api.v1.AgentSecure.CreateConfigSubscription:output_type -> datadog.config.ConfigSubscriptionResponse
-	23, // 29: datadog.api.v1.AgentSecure.ResetConfigState:output_type -> datadog.config.ResetStateConfigResponse
-	24, // 30: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
-	25, // 31: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.v1.RegisterRemoteAgentResponse
-	26, // 32: datadog.api.v1.AgentSecure.RefreshRemoteAgent:output_type -> datadog.remoteagent.v1.RefreshRemoteAgentResponse
-	27, // 33: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
-	28, // 34: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
-	29, // 35: datadog.api.v1.AgentSecure.StreamConfigEvents:output_type -> datadog.model.v1.ConfigEvent
-	18, // [18:36] is the sub-list for method output_type
-	0,  // [0:18] is the sub-list for method input_type
+	14, // 18: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:input_type -> datadog.workloadfilter.WorkloadFilterEvaluateRequest
+	15, // 19: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
+	16, // 20: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse
+	17, // 21: datadog.api.v1.AgentSecure.TaggerGenerateContainerIDFromOriginInfo:output_type -> datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
+	18, // 22: datadog.api.v1.AgentSecure.TaggerFetchEntity:output_type -> datadog.model.v1.FetchEntityResponse
+	19, // 23: datadog.api.v1.AgentSecure.DogstatsdCaptureTrigger:output_type -> datadog.model.v1.CaptureTriggerResponse
+	20, // 24: datadog.api.v1.AgentSecure.DogstatsdSetTaggerState:output_type -> datadog.model.v1.TaggerStateResponse
+	21, // 25: datadog.api.v1.AgentSecure.ClientGetConfigs:output_type -> datadog.config.ClientGetConfigsResponse
+	22, // 26: datadog.api.v1.AgentSecure.GetConfigState:output_type -> datadog.config.GetStateConfigResponse
+	21, // 27: datadog.api.v1.AgentSecure.ClientGetConfigsHA:output_type -> datadog.config.ClientGetConfigsResponse
+	22, // 28: datadog.api.v1.AgentSecure.GetConfigStateHA:output_type -> datadog.config.GetStateConfigResponse
+	23, // 29: datadog.api.v1.AgentSecure.CreateConfigSubscription:output_type -> datadog.config.ConfigSubscriptionResponse
+	24, // 30: datadog.api.v1.AgentSecure.ResetConfigState:output_type -> datadog.config.ResetStateConfigResponse
+	25, // 31: datadog.api.v1.AgentSecure.WorkloadmetaStreamEntities:output_type -> datadog.workloadmeta.WorkloadmetaStreamResponse
+	26, // 32: datadog.api.v1.AgentSecure.RegisterRemoteAgent:output_type -> datadog.remoteagent.v1.RegisterRemoteAgentResponse
+	27, // 33: datadog.api.v1.AgentSecure.RefreshRemoteAgent:output_type -> datadog.remoteagent.v1.RefreshRemoteAgentResponse
+	28, // 34: datadog.api.v1.AgentSecure.AutodiscoveryStreamConfig:output_type -> datadog.autodiscovery.AutodiscoveryStreamResponse
+	29, // 35: datadog.api.v1.AgentSecure.GetHostTags:output_type -> datadog.model.v1.HostTagReply
+	30, // 36: datadog.api.v1.AgentSecure.StreamConfigEvents:output_type -> datadog.model.v1.ConfigEvent
+	31, // 37: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:output_type -> datadog.workloadfilter.WorkloadFilterEvaluateResponse
+	19, // [19:38] is the sub-list for method output_type
+	0,  // [0:19] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name
@@ -136,6 +141,7 @@ func file_datadog_api_v1_api_proto_init() {
 	file_datadog_remoteagent_remoteagent_proto_init()
 	file_datadog_remoteconfig_remoteconfig_proto_init()
 	file_datadog_workloadmeta_workloadmeta_proto_init()
+	file_datadog_workloadfilter_workloadfilter_proto_init()
 	file_datadog_autodiscovery_autodiscovery_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -271,6 +277,8 @@ type AgentSecureClient interface {
 	GetHostTags(ctx context.Context, in *HostTagRequest, opts ...grpc.CallOption) (*HostTagReply, error)
 	// Streams config events to the remote agent.
 	StreamConfigEvents(ctx context.Context, in *ConfigStreamRequest, opts ...grpc.CallOption) (AgentSecure_StreamConfigEventsClient, error)
+	// Evaluates a workloadfilter rule on behalf of remote agents.
+	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
 }
 
 type agentSecureClient struct {
@@ -548,6 +556,15 @@ func (x *agentSecureStreamConfigEventsClient) Recv() (*ConfigEvent, error) {
 	return m, nil
 }
 
+func (c *agentSecureClient) WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error) {
+	out := new(WorkloadFilterEvaluateResponse)
+	err := c.cc.Invoke(ctx, "/datadog.api.v1.AgentSecure/WorkloadFilterEvaluate", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentSecureServer is the server API for AgentSecure service.
 type AgentSecureServer interface {
 	// subscribes to added, removed, or changed entities in the Tagger
@@ -580,6 +597,8 @@ type AgentSecureServer interface {
 	GetHostTags(context.Context, *HostTagRequest) (*HostTagReply, error)
 	// Streams config events to the remote agent.
 	StreamConfigEvents(*ConfigStreamRequest, AgentSecure_StreamConfigEventsServer) error
+	// Evaluates a workloadfilter rule on behalf of remote agents.
+	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
 }
 
 // UnimplementedAgentSecureServer can be embedded to have forward compatible implementations.
@@ -636,6 +655,9 @@ func (*UnimplementedAgentSecureServer) GetHostTags(context.Context, *HostTagRequ
 }
 func (*UnimplementedAgentSecureServer) StreamConfigEvents(*ConfigStreamRequest, AgentSecure_StreamConfigEventsServer) error {
 	return status.Errorf(codes.Unimplemented, "method StreamConfigEvents not implemented")
+}
+func (*UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method WorkloadFilterEvaluate not implemented")
 }
 
 func RegisterAgentSecureServer(s *grpc.Server, srv AgentSecureServer) {
@@ -968,6 +990,24 @@ func (x *agentSecureStreamConfigEventsServer) Send(m *ConfigEvent) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _AgentSecure_WorkloadFilterEvaluate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(WorkloadFilterEvaluateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentSecureServer).WorkloadFilterEvaluate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/datadog.api.v1.AgentSecure/WorkloadFilterEvaluate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentSecureServer).WorkloadFilterEvaluate(ctx, req.(*WorkloadFilterEvaluateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _AgentSecure_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "datadog.api.v1.AgentSecure",
 	HandlerType: (*AgentSecureServer)(nil),
@@ -1019,6 +1059,10 @@ var _AgentSecure_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHostTags",
 			Handler:    _AgentSecure_GetHostTags_Handler,
+		},
+		{
+			MethodName: "WorkloadFilterEvaluate",
+			Handler:    _AgentSecure_WorkloadFilterEvaluate_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -35,6 +35,10 @@ func (m *mockFilterable) GetName() string {
 	return m.name
 }
 
+func (m *mockFilterable) ToBytes() ([]byte, error) {
+	return nil, nil
+}
+
 func TestAnnotationsProgram_Evaluate(t *testing.T) {
 	tests := []struct {
 		name           string
