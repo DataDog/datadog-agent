@@ -51,7 +51,7 @@ PUBLIC_HEADERS = [
 ]
 
 cc_library(
-    name = "libpcap",
+    name = "pcap",
     # This may over include .h files
     srcs = [
         "arcnet.h",
@@ -147,8 +147,9 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "pcap",
-    deps = [":libpcap"],
+    name = "pcap_shared",
+    deps = [":pcap"],
+    shared_lib_name = "libpcap",
     visibility = ["//visibility:public"],
 )
 
@@ -161,7 +162,7 @@ so_symlink(
 
 pkg_files(
     name = "static_lib_files",
-    srcs = [":libpcap"],
+    srcs = [":pcap"],
     prefix = "lib",
 )
 
@@ -176,7 +177,7 @@ pkg_install(
     name = "install",
     srcs = [
         ":hdr_files",
-        ":shared_lib_files",
+        # ":shared_lib_files",
         ":static_lib_files",
     ],
 )
