@@ -700,7 +700,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
