@@ -224,6 +224,9 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUser$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
