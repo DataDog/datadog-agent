@@ -386,10 +386,8 @@ cc_library(
     ],
     local_defines = [
         'PYTHONPATH=\\"\\"',
-        # 'PREFIX=\\"/opt/datadog-agent/embedded\\"',
-        # 'EXEC_PREFIX=\\"/opt/datadog-agent/embedded\\"',
-        'PREFIX=\\"/tmp/python-prefix\\"',
-        'EXEC_PREFIX=\\"/tmp/python-prefix\\"',
+        'PREFIX=\\"/opt/datadog-agent/embedded\\"',
+        'EXEC_PREFIX=\\"/opt/datadog-agent/embedded\\"',
         "VERSION=" + _VERSION,
         'VPATH=\\"..\\"',
         'PLATLIBDIR=\\"lib\\"',
