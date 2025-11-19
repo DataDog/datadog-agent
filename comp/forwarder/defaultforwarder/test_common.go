@@ -223,8 +223,8 @@ func (tf *MockedForwarder) SubmitTransaction(t *transaction.HTTPTransaction) err
 }
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
-func NewTestForwarder(params Params, config config.Component, log log.Component) (Forwarder, error) {
-	opts, err := createOptions(params, config, log)
+func NewTestForwarder(params Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
+	opts, err := createOptions(params, config, log, secrets)
 	if err != nil {
 		return nil, err
 	}
