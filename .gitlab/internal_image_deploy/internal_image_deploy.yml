@@ -5,7 +5,7 @@
 # Base template with common configuration
 .docker_trigger_base:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_internal_or_manual]
+  rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   script:
