@@ -72,8 +72,12 @@ configure_make(
         # OpenSSL uses lib64 by default for x86_64 builds
         "@platforms//os:linux": [
             "--libdir=lib",
-        ],
+        ] + DEFAULT_CONFIG,
         "//conditions:default": [],
+    }) + select({
+        # --prefix serves a different purpose on Windows, so we don't need it there.
+        "//conditions:default": ["--prefix=##PREFIX##"],
+        "@platforms//os:windows": [],
     }),
     env = select({
         "@platforms//os:macos": {
