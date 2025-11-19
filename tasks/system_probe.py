@@ -712,10 +712,6 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
 
     cmd = ["bazelisk", "run", "--", "@libpcap//:install", f"--destdir='{embedded_path}'"]
     ctx.run(" ".join(cmd))
-    # TODO: cc_library produces a .so, but the ebpf tests fail if if they
-    # find the .so. In the future, we should make sure the .so is never created,
-    # but that is not worth solving today.
-    ctx.run(f"/bin/rm {embedded_path}/lib/libpcap.so")
     ctx.run(f"strip -g {target_file}")
     return
 

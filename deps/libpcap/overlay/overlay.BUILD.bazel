@@ -134,6 +134,7 @@ cc_library(
         "-fpic",
         "-O2",
     ],
+    linkstatic = True,
     local_defines = [
         # Tricky stuff. pcap.h changes behavior if you are bulding or using it.
         "BUILDING_PCAP",
@@ -146,13 +147,6 @@ cc_library(
 pkg_files(
     name = "lib_files",
     srcs = [":pcap"],
-    # cc_library builds both, cgo tests only work right with static
-    # but if .so exists it tries to use that.
-    # TODO: This excludes does not seem to be working. So we have to
-    # manually remove it in tasks/system_probe.py after running the
-    # install. I think this is a rules_pkg bug, but I'll come back to
-    # that later.
-    excludes = ["libpcap.so"],
     prefix = "lib",
 )
 
