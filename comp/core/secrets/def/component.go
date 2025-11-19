@@ -37,8 +37,7 @@ type Component interface {
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
 	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
-	// If bypassRateLimit is true, the refresh bypasses throttling; otherwise, it's rate-limited by APIKeyFailureRefreshInterval.
-	Refresh(bypassRateLimit bool) (string, error)
-	// TriggerRefresh is a non-blocking signal to the running refresh routine to refresh secrets
-	TriggerRefresh()
+	// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
+	// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
+	Refresh(updateNow bool) (string, error)
 }
