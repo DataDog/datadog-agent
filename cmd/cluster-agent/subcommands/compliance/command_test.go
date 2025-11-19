@@ -5,15 +5,18 @@
 
 //go:build !windows && kubeapiserver
 
-package check
+// Package compliance implements 'cluster-agent compliance'.
+package compliance
 
 import (
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
+	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/pkg/compliance/cli"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,20 +24,20 @@ func TestCommands(t *testing.T) {
 	tests := []struct {
 		name     string
 		cliInput []string
-		check    func(cliParams *CliParams, params core.BundleParams)
+		check    func(cliParams *cli.CheckParams, params core.BundleParams)
 	}{
 		{
 			name:     "check",
 			cliInput: []string{"check"},
-			check: func(_ *CliParams, params core.BundleParams) {
+			check: func(_ *cli.CheckParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
+				require.Equal(t, "off", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 			},
 		},
 		{
 			name:     "verbose",
 			cliInput: []string{"check", "--verbose"},
-			check: func(_ *CliParams, params core.BundleParams) {
+			check: func(_ *cli.CheckParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "trace", params.LogLevelFn(nil), "params.LogLevelFn not matching")
 			},
@@ -43,18 +46,10 @@ func TestCommands(t *testing.T) {
 
 	for _, test := range tests {
 		fxutil.TestOneShotSubcommand(t,
-			SecurityAgentCommands(&command.GlobalParams{}),
+			[]*cobra.Command{complianceCheckCommand(&command.GlobalParams{})},
 			test.cliInput,
-			RunCheck,
+			cli.RunCheck,
 			test.check,
 		)
-
-		// TODO:
-		//fxutil.TestOneShotSubcommand(t,
-		//	ClusterAgentCommands(&core.BundleParams{}),
-		//	test.cliInput,
-		//	RunCheck,
-		//	test.check,
-		//)
 	}
 }
