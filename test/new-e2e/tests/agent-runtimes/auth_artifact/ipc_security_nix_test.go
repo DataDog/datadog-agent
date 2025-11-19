@@ -25,7 +25,7 @@ type authArtifactLinux struct {
 	authArtifactBase
 }
 
-func TestIPCSecurityLinuxSuite(t *testing.T) {
+func TestLinuxAuthArtifactSuite(t *testing.T) {
 	t.Parallel()
 
 	e2e.Run(t,

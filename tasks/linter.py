@@ -746,3 +746,32 @@ def filenames(ctx):
 
     if failure:
         raise Exit(code=1)
+
+
+@task
+def agent_runtimes_tests(ctx, check_yaml_only=False):
+    """Lints agent-runtimes e2e test naming and CI configuration.
+
+    Validates:
+    1. Test names follow the convention: Test(Linux|Windows)<Feature>Suite
+    2. All tests are registered in .gitlab/e2e/e2e.yml
+    3. No duplicate test names exist
+
+    Args:
+        check_yaml_only: Only check if tests are registered in YAML
+    """
+    from pathlib import Path
+
+    from tasks.libs.linter.agent_runtimes_tests import lint_agent_runtimes_tests
+
+    repo_root = Path(__file__).parent.parent
+    success = lint_agent_runtimes_tests(repo_root, check_yaml_only=check_yaml_only)
+
+    if not success:
+        raise Exit(
+            message=color_message(
+                "agent-runtimes test linting failed. Fix the errors above to proceed.",
+                Color.RED,
+            ),
+            code=1,
+        )

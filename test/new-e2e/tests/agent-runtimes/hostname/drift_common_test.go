@@ -20,10 +20,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
+//nolint:unused
 type baseHostnameDriftSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
+//nolint:unused
 func (v *baseHostnameDriftSuite) getSuiteOptions(osInstance osVM.Descriptor) []e2e.SuiteOption {
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
@@ -39,6 +41,7 @@ hostname_drift_recurring_interval: 15s`),
 	return suiteOptions
 }
 
+//nolint:unused
 func (v *baseHostnameDriftSuite) TestHostnameDriftMetricsEmission() {
 	// Wait for the agent to start and perform initial hostname detection
 	v.EventuallyWithT(func(c *assert.CollectT) {

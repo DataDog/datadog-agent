@@ -24,7 +24,7 @@ type ipcSecurityWindowsSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestIPCSecurityWindowsSuite(t *testing.T) {
+func TestWindowsIPCSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &ipcSecurityWindowsSuite{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
 }
