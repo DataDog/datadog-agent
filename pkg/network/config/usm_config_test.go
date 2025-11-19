@@ -1012,7 +1012,9 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -1023,7 +1025,9 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 	})
 }
 
