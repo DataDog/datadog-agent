@@ -235,6 +235,26 @@ func TestTextStripLogPassword(t *testing.T) {
 			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {"username": "userme",  "password": "********"}"`,
 		},
 		{
+			name: "logged as json with single quotes (eg. 'password':)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {'username': 'userme',  'password': '$AeVtn8*gbyaf!hnUHx^L.'}`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {'username': 'userme',  'password': '********'}`,
+		},
+		{
+			name: "single-quoted key with equals (eg. 'password'=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | Error: 'password'=MyS3cr3t!Pass user='admin'`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | Error: 'password'=******** user='admin'`,
+		},
+		{
+			name: "single-quoted pwd key (eg. 'pwd':)",
+			log:  `Connection config: {'host': 'localhost', 'pwd': 'Secr3t@123', 'port': 5432}`,
+			want: `Connection config: {'host': 'localhost', 'pwd': '********', 'port': 5432}`,
+		},
+		{
+			name: "single-quoted pswd key (eg. 'pswd'=)",
+			log:  `Auth failed: 'pswd'=P@ssw0rd123`,
+			want: `Auth failed: 'pswd'=********`,
+		},
+		{
 			name: "logged PSWD (eg. PSWD=)",
 			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=$AeVtn8*gbyaf!hnUHx^L."`,
 			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=********"`,

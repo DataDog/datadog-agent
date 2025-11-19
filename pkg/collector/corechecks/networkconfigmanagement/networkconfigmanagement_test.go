@@ -270,7 +270,7 @@ func TestCheck_Run_Success(t *testing.T) {
 				DeviceIP:     "10.0.0.1",
 				ConfigType:   "startup",
 				ConfigSource: "cli",
-				Timestamp:    0,
+				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
 				Tags:         expectedTags,
 				Content:      startupOutput,
 			},

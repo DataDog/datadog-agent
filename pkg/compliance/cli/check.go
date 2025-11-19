@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build unix
 
-// Package check holds check related files
-package check
+// Package cli implements the compliance check command line interface
+package cli
 
 import (
 	"context"
@@ -15,103 +15,47 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
-
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/spf13/pflag"
 )
 
-// CliParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
-type CliParams struct {
-	*command.GlobalParams
+// CheckParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
+type CheckParams struct {
+	Args []string
 
-	args []string
-
-	framework         string
-	file              string
-	verbose           bool
-	report            bool
-	overrideRegoInput string
-	dumpReports       string
+	Framework         string
+	File              string
+	Verbose           bool
+	Report            bool
+	OverrideRegoInput string
+	DumpReports       string
 }
 
-// SecurityAgentCommands returns the security agent commands
-func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
-	return commandsWrapped(func() core.BundleParams {
-		return core.BundleParams{
-			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
-		}
-	})
-}
-
-// ClusterAgentCommands returns the cluster agent commands
-func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
-	return commandsWrapped(func() core.BundleParams {
-		return bundleParams
-	})
-}
-
-func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Command {
-	checkArgs := &CliParams{}
-
-	cmd := &cobra.Command{
-		Use:   "check",
-		Short: "Run compliance check(s)",
-		Long:  ``,
-		RunE: func(_ *cobra.Command, args []string) error {
-			checkArgs.args = args
-
-			bundleParams := bundleParamsFactory()
-			if checkArgs.verbose {
-				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
-			}
-
-			return fxutil.OneShot(RunCheck,
-				fx.Supply(checkArgs),
-				fx.Supply(bundleParams),
-				core.Bundle(),
-				secretsfx.Module(),
-				logscompressionfx.Module(),
-				statsd.Module(),
-				ipcfx.ModuleReadOnly(),
-			)
-		},
-	}
-
-	cmd.Flags().StringVarP(&checkArgs.framework, "framework", "", "", "Framework to run the checks from")
-	cmd.Flags().StringVarP(&checkArgs.file, "file", "f", "", "Compliance suite file to read rules from")
-	cmd.Flags().BoolVarP(&checkArgs.verbose, "verbose", "v", false, "Include verbose details")
-	cmd.Flags().BoolVarP(&checkArgs.report, "report", "r", false, "Send report")
-	cmd.Flags().StringVarP(&checkArgs.overrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
-	cmd.Flags().StringVarP(&checkArgs.dumpReports, "dump-reports", "", "", "Path to file where to dump reports")
-
-	return []*cobra.Command{cmd}
+// FillCheckFlags fills the check command flags
+func FillCheckFlags(flagSet *pflag.FlagSet, checkArgs *CheckParams) {
+	flagSet.StringVarP(&checkArgs.Framework, "framework", "", "", "Framework to run the checks from")
+	flagSet.StringVarP(&checkArgs.File, "file", "f", "", "Compliance suite file to read rules from")
+	flagSet.BoolVarP(&checkArgs.Verbose, "verbose", "v", false, "Include verbose details")
+	flagSet.BoolVarP(&checkArgs.Report, "report", "r", false, "Send report")
+	flagSet.StringVarP(&checkArgs.OverrideRegoInput, "override-rego-input", "", "", "Rego input to use when running rego checks")
+	flagSet.StringVarP(&checkArgs.DumpReports, "dump-reports", "", "", "Path to file where to dump reports")
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CliParams, compression logscompression.Component, ipc ipc.Component) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, ipc ipc.Component) error {
 	var hname string
 	var err error
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -135,7 +79,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 
-	if len(checkArgs.args) == 1 && checkArgs.args[0] == "k8sconfig" {
+	if len(checkArgs.Args) == 1 && checkArgs.Args[0] == "k8sconfig" {
 		_, resourceData := k8sconfig.LoadConfiguration(context.Background(), os.Getenv("HOST_ROOT"))
 		b, _ := json.MarshalIndent(resourceData, "", "  ")
 		fmt.Println(string(b))
@@ -143,8 +87,8 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	}
 
 	var resolver compliance.Resolver
-	if checkArgs.overrideRegoInput != "" {
-		resolver = newFakeResolver(checkArgs.overrideRegoInput)
+	if checkArgs.OverrideRegoInput != "" {
+		resolver = newFakeResolver(checkArgs.OverrideRegoInput)
 	} else {
 		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
 			Hostname:           hname,
@@ -160,10 +104,10 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	configDir := config.GetString("compliance_config.dir")
 	var benchDir, benchGlob string
 	var ruleFilter compliance.RuleFilter
-	if checkArgs.file != "" {
-		benchDir, benchGlob = filepath.Dir(checkArgs.file), filepath.Base(checkArgs.file)
-	} else if checkArgs.framework != "" {
-		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.framework)
+	if checkArgs.File != "" {
+		benchDir, benchGlob = filepath.Dir(checkArgs.File), filepath.Base(checkArgs.File)
+	} else if checkArgs.Framework != "" {
+		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.Framework)
 	} else {
 		ruleFilter = compliance.MakeDefaultRuleFilter(ipc)
 		benchDir, benchGlob = configDir, "*.yaml"
@@ -174,8 +118,8 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		if ruleFilter != nil && !ruleFilter(r) {
 			return false
 		}
-		if len(checkArgs.args) > 0 {
-			return r.ID == checkArgs.args[0]
+		if len(checkArgs.Args) > 0 {
+			return r.ID == checkArgs.Args[0]
 		}
 		return true
 	})
@@ -212,13 +156,13 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 
-	if checkArgs.dumpReports != "" {
-		if err := dumpComplianceEvents(checkArgs.dumpReports, events); err != nil {
+	if checkArgs.DumpReports != "" {
+		if err := dumpComplianceEvents(checkArgs.DumpReports, events); err != nil {
 			log.Error(err)
 			return err
 		}
 	}
-	if checkArgs.report {
+	if checkArgs.Report {
 		if err := reportComplianceEvents(log, events, compression, ipc); err != nil {
 			log.Error(err)
 			return err

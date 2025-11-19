@@ -623,6 +623,10 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
 		if entry.PPid >= 1 && inode != 0 && (parent == nil || parent.FileEvent.Inode != inode) {
+			if parent != nil && parent.FileEvent.Inode != inode {
+				seclog.Debugf("parent is present but with different inodes (%d/%d), parent:%s and entry:%s",
+					parent.FileEvent.Inode, inode, parent.FileEvent.PathnameStr, entry.FileEvent.PathnameStr)
+			}
 			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true, newEntryCb); candidate != nil {
 				parent = candidate
 			} else {

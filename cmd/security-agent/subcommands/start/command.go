@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -176,6 +177,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
+				fxinstrumentation.Module(),
 			)
 		},
 	}

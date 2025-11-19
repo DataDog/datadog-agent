@@ -33,6 +33,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/datastreams"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
@@ -220,6 +221,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			secretsfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
+			fxinstrumentation.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)

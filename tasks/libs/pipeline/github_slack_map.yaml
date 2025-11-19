@@ -47,7 +47,7 @@
 '@datadog/opentelemetry': '#opentelemetry-ops'
 '@datadog/opentelemetry-agent': '#opentelemetry-agent-ops'
 '@datadog/remote-config': '#remote-config-platform'
-'@datadog/sdlc-security': '#sit'
+'@datadog/sdlc-security': '#sdlc-security'
 '@datadog/serverless': '#serverless-agent'
 '@datadog/single-machine-performance': '#single-machine-performance'
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'

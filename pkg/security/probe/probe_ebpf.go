@@ -1797,22 +1797,59 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 	}
 }
 
-// ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
-	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table, err := managerhelper.Map(p.Manager, "filter_policy")
-	if err != nil {
-		return fmt.Errorf("unable to find policy table: %w", err)
-	}
+type filterPolicyBlock struct {
+	eventTypes []ebpf.Uint32MapItem
+	policies   ebpf.SliceBinaryMarshaller[*kfilters.FilterPolicy]
+}
 
+func newFilterPolicyBlock() *filterPolicyBlock {
+	return &filterPolicyBlock{}
+}
+
+func (b *filterPolicyBlock) add(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	et, err := model.ParseEvalEventType(eventType)
 	if err != nil {
 		return err
 	}
 
-	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.addRaw(et, mode)
+	return nil
+}
 
-	return table.Put(ebpf.Uint32MapItem(et), policy)
+func (b *filterPolicyBlock) addRaw(eventType model.EventType, mode kfilters.PolicyMode) {
+	b.eventTypes = append(b.eventTypes, ebpf.Uint32MapItem(eventType))
+	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.policies = append(b.policies, policy)
+}
+
+func (b *filterPolicyBlock) apply(m *manager.Manager) error {
+	// log part
+	var sb strings.Builder
+	for i := range b.eventTypes {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("`%s`: `%s`", model.EventType(b.eventTypes[i]), b.policies[i].Mode))
+	}
+	seclog.Infof("Setting in-kernel filter policy to [%s]", sb.String())
+
+	table, err := managerhelper.Map(m, "filter_policy")
+	if err != nil {
+		return fmt.Errorf("unable to find policy table: %w", err)
+	}
+
+	if ebpf.BatchAPISupported() {
+		_, err := table.BatchUpdate(b.eventTypes, b.policies, &lib.BatchOptions{ElemFlags: uint64(lib.UpdateAny)})
+		return err
+	}
+
+	for i := range b.eventTypes {
+		if err := table.Put(b.eventTypes[i], b.policies[i]); err != nil {
+			return fmt.Errorf("unable to set policy for event type `%s`: %w", model.EventType(b.eventTypes[i]), err)
+		}
+	}
+
+	return nil
 }
 
 // setApprovers applies approvers and removes the unused ones
@@ -2324,6 +2361,8 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
+	fpb := newFilterPolicyBlock()
+
 	for eventType := model.FirstEventType; eventType <= model.LastEventType; eventType++ {
 		var mode kfilters.PolicyMode
 
@@ -2335,10 +2374,13 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 			mode = kfilters.PolicyModeDeny
 		}
 
-		if err := p.ApplyFilterPolicy(eventType.String(), mode); err != nil {
-			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
-		}
+		fpb.addRaw(eventType, mode)
 	}
+
+	if err := fpb.apply(p.Manager); err != nil {
+		seclog.Debugf("unable to apply to filter policy: %v", err)
+	}
+
 }
 
 func isKillActionPresent(rs *rules.RuleSet) bool {
@@ -2380,18 +2422,22 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
 	}
 
+	fpb := newFilterPolicyBlock()
+
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
-
-			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+			if err := fpb.add(eventType, kfilters.PolicyModeAccept); err != nil {
 				return nil, err
 			}
 		} else {
-			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+			if err := fpb.add(eventType, report.Mode); err != nil {
 				return nil, err
 			}
 		}
+	}
+	if err := fpb.apply(p.Manager); err != nil {
+		return nil, fmt.Errorf("unable to apply to filter policy: %w", err)
 	}
 
 	eventTypes := rs.GetEventTypes()
