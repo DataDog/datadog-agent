@@ -52,10 +52,10 @@ build do
       command_on_repo_root "Remove-Item -Path #{install_dir}/embedded/include/openssl -Include tmp* -Force"
     end
     if !windows?
-    lib_extensions = if linux_target? then [".so"] else [".dylib"] end
+    lib_extension = if linux_target? then ".so" else ".dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
-      " #{install_dir}/embedded/lib/libssl#{lib_extensions}" \
-      " #{install_dir}/embedded/lib/libcrypto#{lib_extensions}" \
+      " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+      " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
       " #{install_dir}/embedded/lib/pkgconfig/*.pc"
     end
   else
