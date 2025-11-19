@@ -37,7 +37,7 @@ type dependencies struct {
 	Logger                log.Component
 	ConnectionsForwarders connectionsforwarder.Component
 	Lc                    compdef.Lifecycle
-  Secrets               secrets.Component
+	Secrets               secrets.Component
 }
 
 type forwardersComp struct {
