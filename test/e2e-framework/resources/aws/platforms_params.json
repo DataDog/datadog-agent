@@ -1,0 +1,65 @@
+{
+    "debian": {
+        "x86_64": {
+            "10": "/aws/service/debian/release/10/latest/amd64",
+            "11": "/aws/service/debian/release/11/latest/amd64",
+            "12": "/aws/service/debian/release/12/latest/amd64"
+        },
+        "arm64": {
+            "10": "/aws/service/debian/release/10/latest/arm64",
+            "11": "/aws/service/debian/release/11/latest/arm64",
+            "12": "/aws/service/debian/release/12/latest/arm64"
+        }
+    },
+    "ubuntu": {
+        "x86_64": {
+            "16-04": "/aws/service/canonical/ubuntu/server/16.04/stable/current/amd64/hvm/ebs-gp2/ami-id",
+            "18-04": "/aws/service/canonical/ubuntu/server/18.04/stable/current/amd64/hvm/ebs-gp2/ami-id",
+            "20-04": "/aws/service/canonical/ubuntu/server/20.04/stable/current/amd64/hvm/ebs-gp2/ami-id",
+            "22-04": "/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id",
+            "23-04": "/aws/service/canonical/ubuntu/server/23.04/stable/current/amd64/hvm/ebs-gp2/ami-id",
+            "24-04": "/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id"
+        },
+        "arm64": {
+            "18-04": "/aws/service/canonical/ubuntu/server/18.04/stable/current/arm64/hvm/ebs-gp2/ami-id",
+            "20-04": "/aws/service/canonical/ubuntu/server/20.04/stable/current/arm64/hvm/ebs-gp2/ami-id",
+            "21-04": "/aws/service/canonical/ubuntu/server/21.04/stable/current/arm64/hvm/ebs-gp2/ami-id",
+            "22-04": "/aws/service/canonical/ubuntu/server/22.04/stable/current/arm64/hvm/ebs-gp2/ami-id",
+            "23-04": "/aws/service/canonical/ubuntu/server/23.04/stable/current/arm64/hvm/ebs-gp2/ami-id",
+            "24-04": "/aws/service/canonical/ubuntu/server/24.04/stable/current/arm64/hvm/ebs-gp3/ami-id"
+        }
+    },
+    "amazon-linux": {
+        "x86_64": {
+            "2023": "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64",
+            "2": "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+        },
+        "arm64": {
+            "2023": "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64",
+            "2": "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2"
+        }
+    },
+    "amazon-linux-ecs": {
+        "x86_64": {
+            "2023": "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id",
+            "2": "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+        },
+        "arm64": {
+            "2023": "/aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id",
+            "2": "/aws/service/ecs/optimized-ami/amazon-linux-2/arm64/recommended/image_id"
+        }
+    },
+    "windows-server": {
+        "x86_64": {
+            "2025": "/aws/service/ami-windows-latest/Windows_Server-2025-English-Full-Base",
+            "2022": "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base",
+            "2019": "/aws/service/ami-windows-latest/Windows_Server-2019-English-Full-Base",
+            "2016": "/aws/service/ami-windows-latest/Windows_Server-2016-English-Full-Base"
+        }
+    },
+    "macos": {
+        "arm64": {
+            "sonoma": "/aws/service/ec2-macos/sonoma/arm64_mac/latest/image_id"
+        }
+    }
+}

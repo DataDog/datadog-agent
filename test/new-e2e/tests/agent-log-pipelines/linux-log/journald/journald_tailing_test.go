@@ -18,11 +18,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 const eventuallyWithTickDuration = 5 * time.Second
@@ -51,9 +52,10 @@ var randomLogger []byte
 func TestVMJournaldTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithLogs(),
-				agentparams.WithIntegration("custom_logs.d", string(logBasicConfig))))),
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithLogs(),
+					agentparams.WithIntegration("custom_logs.d", string(logBasicConfig)))))),
 	}
 
 	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
@@ -103,9 +105,10 @@ func (s *LinuxJournaldFakeintakeSuite) journaldLogCollection() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig))))))
 
 	vm := s.Env().RemoteHost
 	t := s.T()
@@ -155,9 +158,10 @@ func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldExcludeServiceCollection() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logExcludeConfig)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		scenec2.WithAgentOptions(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", string(logExcludeConfig))))))
 
 	// Restart agent
 	s.Env().RemoteHost.Execute("sudo systemctl restart datadog-agent")

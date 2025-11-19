@@ -218,6 +218,7 @@ def build_binaries(
         "profile": "Override auto-detected runner profile (local or CI)",
         "tags": "Build tags to use",
         "targets": "Target packages (same as dda inv test)",
+        "module_name": "Module to run the tests from, default is test/new-e2e",
         "configparams": "Set overrides for ConfigMap parameters (same as -c option in test-infra-definitions)",
         "verbose": "Verbose output: log all tests as they are run (same as gotest -v) [default: True]",
         "run": "Only run tests matching the regular expression",
@@ -261,6 +262,7 @@ def run(
     use_prebuilt_binaries=False,
     max_retries=0,
     osdescriptors="",
+    module_name="test/new-e2e",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -268,11 +270,11 @@ def run(
 
     if shutil.which("pulumi") is None:
         raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/test-infra-definitions/blob/main/README.md)",
+            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/main/README.md)",
             1,
         )
 
-    e2e_module = get_default_modules()["test/new-e2e"]
+    e2e_module = get_default_modules()[module_name]
     e2e_module.should_test_condition = "always"
     if targets:
         e2e_module.test_targets = targets

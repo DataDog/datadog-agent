@@ -6,9 +6,10 @@
 package installscript
 
 import (
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type installScriptSSISuite struct {
@@ -18,7 +19,7 @@ type installScriptSSISuite struct {
 
 func testSSIScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptSSISuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer-ssi", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer-ssi", os, arch, awshost.WithRunOptions(scenec2.WithoutFakeIntake()), awshost.WithRunOptions(scenec2.WithoutAgent())),
 	}
 	s.url = s.scriptURLPrefix + "install-ssi.sh"
 

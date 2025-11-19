@@ -8,7 +8,7 @@ package filemanager
 import (
 	"io/fs"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // RemoteHost implement filemanager interface using components.RemoteHost

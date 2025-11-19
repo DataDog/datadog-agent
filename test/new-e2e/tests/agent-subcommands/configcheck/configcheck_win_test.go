@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 type windowsConfigCheckSuite struct {
@@ -25,7 +25,7 @@ type windowsConfigCheckSuite struct {
 
 func TestWindowsConfigCheckSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
+	e2e.Run(t, &windowsConfigCheckSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
 }
 
 // cpu, disk, file_handle, io, memory, network, ntp, uptime, winproc
@@ -97,7 +97,7 @@ func (v *windowsConfigCheckSuite) TestWithBadConfigCheck() {
 	- name: bad yaml formatting via tab
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), ec2.WithAgentOptions(integration))))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 
@@ -110,7 +110,7 @@ func (v *windowsConfigCheckSuite) TestWithAddedIntegrationsCheck() {
     url: http://some.url.example.com
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), awshost.WithAgentOptions(integration)))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)), ec2.WithAgentOptions(integration))))
 
 	output := v.Env().Agent.Client.ConfigCheck()
 

@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
+	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 

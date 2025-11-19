@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 type windowsStatusSuite struct {
@@ -24,7 +24,7 @@ type windowsStatusSuite struct {
 
 func TestWindowsStatusSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)))))
+	e2e.Run(t, &windowsStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))))))
 }
 
 func (v *windowsStatusSuite) TestStatusHostname() {
@@ -45,11 +45,14 @@ func (v *windowsStatusSuite) TestStatusHostname() {
 // This test asserts the presence of metadata sent by Python checks in the status subcommand output.
 func (v *windowsStatusSuite) TestChecksMetadataWindows() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
-		awshost.WithAgentOptions(
-			agentparams.WithIntegration("custom_check.d", string(customCheckYaml)),
-			agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
-		)))
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithAgentOptions(
+				agentparams.WithIntegration("custom_check.d", string(customCheckYaml)),
+				agentparams.WithFile("C:/ProgramData/Datadog/checks.d/custom_check.py", string(customCheckPython), true),
+			),
+		),
+	))
 
 	expectedSections := []expectedSection{
 		{

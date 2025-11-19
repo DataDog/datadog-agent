@@ -1,0 +1,3 @@
+[default]
+retry_mode = standard
+max_attempts = 10
