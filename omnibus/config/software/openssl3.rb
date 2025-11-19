@@ -45,7 +45,7 @@ version("3.5.4") { source sha256: "967311f84955316969bdb1d8d4b983718ef42338639c6
 relative_path "openssl-#{version}"
 
 build do
-  if !windows? && !ENV["AGENT_FLAVOR"] == "fips"
+  if (windows? && ENV["AGENT_FLAVOR"] != "fips") || (!windows? && ENV["AGENT_FLAVOR"] != "fips")
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
     if windows?
       # shutil generates temporary files during run install that are not removed afterwards.
@@ -58,7 +58,6 @@ build do
       " #{install_dir}/embedded/lib/libcrypto#{lib_extensions}" \
       " #{install_dir}/embedded/lib/pkgconfig/*.pc"
     end
-  
   else
     if version != default_version
       # Patch is no longer needed in 3.5.2, keeping it in for backwards compatibility
