@@ -33,10 +33,16 @@ for f in "$@"; do
             ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
             ;;
         *.dylib)
+            # Get the old install name/ID
+            old_id=$(otool -D "$f" | tail -n 1)
             dylib_name=$(basename "$f")
             new_id="$PREFIX/lib/$dylib_name"
-            # Change the dylib's ID
+            
+            # Change the dylib's own ID
             install_name_tool -id "$new_id" "$f"
+            
+            # Change references from old path to new path
+            install_name_tool -change "$old_id" "$new_id" "$f" 2>/dev/null || true
             ;;
         *.pc)
             sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
