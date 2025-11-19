@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
@@ -31,17 +33,18 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Config  config.Component
-	Logger  log.Component
-	Lc      fx.Lifecycle
-	Secrets secrets.Component
+	Config                config.Component
+	Logger                log.Component
+	ConnectionsForwarders connectionsforwarder.Component
+	Lc                    compdef.Lifecycle
+  Secrets               secrets.Component
 }
 
 type forwardersComp struct {
 	eventForwarder       defaultforwarder.Component
 	processForwarder     defaultforwarder.Component
 	rtProcessForwarder   defaultforwarder.Component
-	connectionsForwarder defaultforwarder.Component
+	connectionsForwarder connectionsforwarder.Component
 }
 
 func newForwarders(deps dependencies) (forwarders.Component, error) {
@@ -76,7 +79,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		eventForwarder:       createForwarder(deps, eventForwarderOpts),
 		processForwarder:     createForwarder(deps, processForwarderOpts),
 		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
-		connectionsForwarder: createForwarder(deps, processForwarderOpts),
+		connectionsForwarder: deps.ConnectionsForwarders,
 	}, nil
 }
 
@@ -108,6 +111,6 @@ func (f *forwardersComp) GetRTProcessForwarder() defaultforwarder.Component {
 	return f.rtProcessForwarder
 }
 
-func (f *forwardersComp) GetConnectionsForwarder() defaultforwarder.Component {
+func (f *forwardersComp) GetConnectionsForwarder() connectionsforwarder.Component {
 	return f.connectionsForwarder
 }

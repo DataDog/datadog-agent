@@ -32,6 +32,13 @@ type GlobalParams struct {
 // SubcommandFactory returns a sub-command factory
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 
+// SubcommandFactoryFromOne converts a single-command factory into a multi-command factory
+func SubcommandFactoryFromOne(f func(globalParams *GlobalParams) *cobra.Command) SubcommandFactory {
+	return func(globalParams *GlobalParams) []*cobra.Command {
+		return []*cobra.Command{f(globalParams)}
+	}
+}
+
 // LoggerName defines the logger name
 const LoggerName = "SECURITY"
 
