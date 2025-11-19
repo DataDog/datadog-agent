@@ -21,7 +21,7 @@ import (
 )
 
 // DefaultServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
-const DefaultServiceName = "otlpresourcenoservicename"
+const DefaultServiceName = "unknown_service"
 
 // DefaultEnvName is the default environment name for OTel spans when no environment name is found in the resource attributes.
 const DefaultEnvName = "default"

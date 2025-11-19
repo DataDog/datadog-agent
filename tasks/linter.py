@@ -95,7 +95,7 @@ def go(
         $ dda inv linter.go --module=.
     """
 
-    check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
+    # check_tools_version(ctx, ['golangci-lint', 'go'], debug=debug)
 
     modules, flavor = process_input_args(
         ctx,

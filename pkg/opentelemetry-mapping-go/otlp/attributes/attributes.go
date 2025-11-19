@@ -456,9 +456,14 @@ func GetResourceName(signalAttrs pcommon.Map, spanKind ptrace.SpanKind, fallback
 		}
 		// use the HTTP method + route (if available)
 		resName = m
-		if spanKind == ptrace.SpanKindServer {
+		switch spanKind {
+		case ptrace.SpanKindServer:
 			if route := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.HTTPRouteKey)); route != "" {
 				resName = resName + " " + route
+			}
+		case ptrace.SpanKindClient:
+			if template := GetOTelAttrVal(signalAttrs, false, string(semconv1_27.URLTemplateKey)); template != "" {
+				resName = resName + " " + template
 			}
 		}
 		return
