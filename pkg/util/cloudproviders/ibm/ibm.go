@@ -84,7 +84,8 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "IBM instance name",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return "", fmt.Errorf("IBM cloud provider is disabled by configuration")
+			log.Debugf("IBM cloud provider is disabled by configuration")
+			return nil, nil
 		}
 
 		t, err := token.Get(ctx)

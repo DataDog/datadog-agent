@@ -15,6 +15,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -38,7 +39,8 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Name: "Alibaba InstanceID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return nil, fmt.Errorf("cloud provider is disabled by configuration")
+			log.Debugf("Alibaba cloud provider is disabled by configuration")
+			return nil, nil
 		}
 
 		endpoint := metadataURL + "/latest/meta-data/instance-id"

@@ -14,6 +14,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -71,7 +72,8 @@ func GetNTPHosts(ctx context.Context) []string {
 
 func getResponse(ctx context.Context, url string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		log.Debugf("Oracle cloud provider is disabled by configuration")
+		return "", nil
 	}
 
 	res, err := httputils.Get(ctx, url, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())

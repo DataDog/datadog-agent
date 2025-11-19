@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -125,7 +126,8 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 
 func getResponse(ctx context.Context, url string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		log.Debugf("Azure cloud provider is disabled by configuration")
+		return "", nil
 	}
 
 	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("azure_metadata_timeout")) * time.Millisecond

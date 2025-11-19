@@ -14,6 +14,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -81,7 +82,8 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, maxLengt
 
 func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		log.Debugf("Tencent cloud provider is disabled by configuration")
+		return "", nil
 	}
 
 	res, err := httputils.Get(ctx, endpoint, nil, timeout, pkgconfigsetup.Datadog())
