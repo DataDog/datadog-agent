@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 // ErrNotFound is an error for when a key is not found
@@ -40,7 +40,7 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 
 // NewNodeTree will recursively create nodes from the input value to construct a tree
 func NewNodeTree(v interface{}, source model.Source) (Node, error) {
-	if viperconfig.IsNilValue(v) {
+	if helper.IsNilValue(v) {
 		// nil as a value acts as the zero value, and the cast library will correctly
 		// convert it to zero values for the types we handle
 		return newLeafNode(nil, source), nil

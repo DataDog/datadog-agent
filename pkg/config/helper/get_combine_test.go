@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package viperconfig provides a viper-based implementation of the config interface.
-package viperconfig
+package helper
 
 import (
 	"strings"
@@ -12,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 func TestGetViperCombine(t *testing.T) {
@@ -24,7 +25,7 @@ func TestGetViperCombine(t *testing.T) {
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
 
 	// Create the config's defaults
-	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
@@ -66,7 +67,7 @@ func TestGetViperCombineEmptySection(t *testing.T) {
   collector:
 `
 	// Create the config's defaults
-	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 
 	cfg.BuildSchema()
@@ -90,7 +91,7 @@ func TestGetViperCombineWithoutSection(t *testing.T) {
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_WORKERS", "8")
 
 	// Create the config's defaults
-	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
 	cfg.BindEnv("network_path.collector.workers") //nolint:forbidigo // used to test behavior
@@ -123,7 +124,7 @@ func TestGetViperCombineWithoutDefaults(t *testing.T) {
 	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_WORKERS", "8")
 
 	// Create the config's defaults
-	cfg := NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := viperconfig.NewViperConfig("test", "TEST", strings.NewReplacer(".", "_"))
 	cfg.SetConfigType("yaml")
 	cfg.BindEnv("network_path.collector.input_chan_size") //nolint:forbidigo // used to test behavior
 	cfg.BindEnv("network_path.collector.workers")         //nolint:forbidigo // used to test behavior

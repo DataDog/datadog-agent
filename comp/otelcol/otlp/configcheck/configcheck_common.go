@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	confighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 // confmapKeyDelimiter is the delimiter used for keys in go.opentelemetry.io/collector/confmap
@@ -44,7 +44,7 @@ func readConfigSection(cfg configmodel.Reader, section string) map[string]interf
 
 	// Get all layers combined when using viper, which doesn't correctly
 	// merge all layers when calling .Get(key)
-	val := viperconfig.GetViperCombine(cfg, section)
+	val := confighelper.GetViperCombine(cfg, section)
 	if sectionData, ok := val.(map[string]interface{}); ok {
 		// Convert from retrieved section into a scoped confmap separated by "::"
 		convertToStringConfMap(cfg, sectionData, section+".", nil, stringMap)

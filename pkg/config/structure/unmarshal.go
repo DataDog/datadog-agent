@@ -19,9 +19,9 @@ import (
 	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cast"
 
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
-	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 // features allowed for handling edge-cases
@@ -153,7 +153,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		}
 		inputNode = node
 	} else {
-		settingval := viperconfig.GetViperCombine(cfg, key)
+		settingval := helper.GetViperCombine(cfg, key)
 		node, err := nodetreemodel.NewNodeTree(settingval, cfg.GetSource(key))
 		if err != nil {
 			return err
@@ -306,7 +306,7 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 
 	if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 		leafValue := leaf.Get()
-		if viperconfig.IsNilValue(leafValue) {
+		if helper.IsNilValue(leafValue) {
 			return nil
 		}
 		if fs.convertArrayToMap {
@@ -503,7 +503,7 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 	} else if target.Kind() == reflect.Slice {
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			leafValue := leaf.Get()
-			if viperconfig.IsNilValue(leafValue) {
+			if helper.IsNilValue(leafValue) {
 				return nil
 			}
 

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package viperconfig provides a viper-based implementation of the config interface.
-package viperconfig
+// Package helper has helpers for using Viper config
+package helper
 
 import (
 	"reflect"
@@ -59,7 +59,7 @@ func GetViperCombine(cfg model.Reader, key string) interface{} {
 }
 
 // valid kinds to call IsNil on
-var nillableKinds = []reflect.Kind{reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
+var nillableKinds = []reflect.Kind{reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
 
 // IsNilValue returns true if a is nil, or a is an interface with nil data
 func IsNilValue(a interface{}) bool {
