@@ -627,6 +627,12 @@ pkg_files(
 )
 
 pkg_files(
+    name = "install_pyconfig_h",
+    srcs = [":copy_pyconfig"],
+    prefix = "include/python" + _VERSION_FOR_SO,
+)
+
+pkg_files(
     name = "bin_files",
     srcs = [":python3"],
     prefix = "bin",
@@ -673,5 +679,6 @@ pkg_install(
         ":bin_files",
         ":sysconfigdata_files",
         ":misc_module_files",
+        ":install_pyconfig_h",
     ],
 )
