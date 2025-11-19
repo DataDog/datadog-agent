@@ -42,6 +42,9 @@ echo "/p:libffiDir=%LIBFFI_DIR%" >> %response_file%
 echo "/p:opensslOutDir=%OPENSSL_DIR%" >> %response_file%
 echo "/p:tcltkdir=%TCLTK_DIR%" >> %response_file%
 echo "/p:TclVersion=%TCL_VERSION%" >> %response_file%
+:: We disable copying around of the OpenSSL libraries (as defined in openssl.props)
+:: This simplifies the requirements on the input files and their names and gives us more control
+echo "/p:SkipCopySSLDLL=1" >> %response_file%
 
 :: -e flag would normally also fetch external dependencies, but we have a patch inhibiting that;
 :: the flag is still needed because otherwise modules depending on some of those external dependencies
@@ -51,6 +54,12 @@ call %sourcedir%\PCbuild\build.bat -e --pgo
 if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 
 @echo on
+
+:: Needed to avoid xcopy from failing when copying files out of this dir
+for %%F in (%OPENSSL_DIR%) do set OPENSSL_DIR=%%~fF
+
+xcopy /f %OPENSSL_DIR%*.lib %build_outdir%\
+xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 
 :: Create final layout from the build
 :: --include-dev - include include/ and libs/ directories
