@@ -51,7 +51,12 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) *healthpla
 		Severity:    "medium",
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "logs",
-		Extra:       fmt.Sprintf("Integration: docker. Docker logs directory %s is not accessible due to permission restrictions on %s. The agent will fall back to socket tailing, which may hit limits with high volume logs.", dockerDir, osName),
+		Extra: map[any]any{
+			"integration": "docker",
+			"dir_path":    dockerDir,
+			"os":          osName,
+			"impact":      "The agent will fall back to socket tailing, which may hit limits with high volume logs",
+		},
 		Remediation: t.buildRemediation(dockerDir, osName),
 		Tags:        []string{"docker", "logs", "permissions", "file-tailing", "socket-tailing", "host-install", osName},
 	}

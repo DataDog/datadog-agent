@@ -32,8 +32,8 @@ type Issue struct {
 	// Source is the sub-agent or product that reported the issue
 	// (e.g., "logs", "apm", "error-tracking", "network-monitoring")
 	Source string `json:"Source"`
-	// Extra is optional complementary information
-	Extra string `json:"Extra"`
+	// Extra is optional complementary structured information
+	Extra map[any]any `json:"Extra,omitempty"`
 	// Remediation provides steps to fix the issue
 	Remediation *Remediation `json:"Remediation,omitempty"`
 	// Tags are additional labels for the issue
