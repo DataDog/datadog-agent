@@ -8,16 +8,19 @@ package topn
 
 import (
 	"slices"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 // NewPerFlushFilter will create a per flush filter for the given config. This filter will reduce "n" into "k" rows per flush period.
-func NewPerFlushFilter(n int64, flushConfig common.FlushConfig) *PerFlushFilter {
+func NewPerFlushFilter(n int64, flushConfig common.FlushConfig, sender sender.Sender) *PerFlushFilter {
 	return &PerFlushFilter{
 		n:           n,
 		flushConfig: flushConfig,
-		scheduler:   newThrottler(n, flushConfig),
+		throttler:   newThrottler(n, flushConfig),
+		metrics:     sender,
 	}
 }
 
@@ -27,25 +30,40 @@ func NewPerFlushFilter(n int64, flushConfig common.FlushConfig) *PerFlushFilter 
 type PerFlushFilter struct {
 	n           int64
 	flushConfig common.FlushConfig
-	scheduler   interface {
+	throttler   interface {
 		GetNumRowsToFlushFor(ctx common.FlushContext) int
 	}
+	metrics sender.Sender
 }
 
 // Filter implements the FlowFlushFilter interface to return the top "k" flows for a given flush. It will also adapt
 // to cases where the FlushContext indicates that multiple periods are being flushed (this will occasionally happen;
 // causes may be downtime, latencies, large CPU pauses, etc.)
 func (p *PerFlushFilter) Filter(ctx common.FlushContext, flows []*common.Flow) []*common.Flow {
-	numFlowsToPublish := p.scheduler.GetNumRowsToFlushFor(ctx)
+	start := time.Now()
+
+	flowsToFlush, flowsToDrop := p.applyFilters(ctx, flows)
+
+	p.metrics.Histogram("datadog.netflow.flow_truncation.runtime_ms", float64(time.Since(start).Milliseconds()), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_total", float64(len(flows)), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_kept", float64(len(flowsToFlush)), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped", float64(len(flowsToDrop)), "", nil)
+	p.metrics.Gauge("datadog.netflow.flow_truncation.threshold_value", float64(p.n), "", nil)
+
+	return flowsToFlush
+}
+
+func (p *PerFlushFilter) applyFilters(ctx common.FlushContext, flows []*common.Flow) ([]*common.Flow, []*common.Flow) {
+	numFlowsToPublish := p.throttler.GetNumRowsToFlushFor(ctx)
 	if numFlowsToPublish == 0 {
-		return flows
+		return flows, nil
 	}
 
 	if len(flows) <= numFlowsToPublish {
-		return flows
+		return flows, nil
 	}
 
 	slices.SortFunc(flows, reversed(compareByBytesAscending))
 
-	return flows[:numFlowsToPublish]
+	return flows[:numFlowsToPublish], flows[numFlowsToPublish:]
 }

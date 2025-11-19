@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestPerFlushFilter(t *testing.T) {
@@ -82,25 +84,22 @@ func TestPerFlushFilter(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			filter := PerFlushFilter{
-				n: 120,
-				flushConfig: common.FlushConfig{
-					// 60 buckets, make tests easy to set up + run. 2 per tick
-					FlowCollectionDuration: 1 * time.Hour,
-					FlushTickFrequency:     1 * time.Minute,
-				},
-				scheduler: newThrottler(120, common.FlushConfig{
-					FlowCollectionDuration: 1 * time.Hour,
-					FlushTickFrequency:     1 * time.Minute,
-				}),
-			}
+			metrics := mocksender.NewMockSender("")
+			metrics.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			metrics.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+			metrics.On("Histogram", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			filter := NewPerFlushFilter(120, common.FlushConfig{
+				// 60 buckets, make tests easy to set up + run. 2 per tick
+				FlowCollectionDuration: 1 * time.Hour,
+				FlushTickFrequency:     1 * time.Minute,
+			}, metrics)
 
 			outputs := filter.Filter(test.ctx, test.inputs)
 
 			assert.EqualValues(t, outputs, test.expect)
 		})
 	}
-
 }
 
 func sampleFlows(numBytes ...uint64) []*common.Flow {

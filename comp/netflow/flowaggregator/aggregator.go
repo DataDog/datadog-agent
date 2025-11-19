@@ -98,7 +98,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	var topNFilter FlowFlushFilter = topn.NoopFilter{}
 	var flowScheduler FlowScheduler = ImmediateFlowScheduler{}
 	if config.AggregatorMaxFlowsPerPeriod > 0 {
-		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig)
+		topNFilter = topn.NewPerFlushFilter(int64(config.AggregatorMaxFlowsPerPeriod), flushConfig, sender)
 		flowScheduler = JitterFlowScheduler{flushConfig: flushConfig}
 	}
 
