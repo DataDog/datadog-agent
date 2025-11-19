@@ -53,9 +53,24 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 		if err != nil {
 			return nil, fmt.Errorf("error running GetAuroraClusterEndpoints %v", err)
 		}
+		log.Debugf("%d database instances discovered for cluster '%s'", len(clusterInstances.DBInstances))
 		for _, db := range clusterInstances.DBInstances {
 			if db.Endpoint != nil && db.DBClusterIdentifier != nil {
 				if db.Endpoint.Address == nil || db.DBInstanceStatus == nil || strings.ToLower(*db.DBInstanceStatus) != "available" {
+					// Handling nil for logging and troubleshooting purposes
+					var addrStr string
+					var statusStr string
+					if db.Endpoint.Address != nil {
+						addrStr = *db.Endpoint.Address
+					} else {
+						addrStr = "<nil>"
+					}
+					if db.DBInstanceStatus != nil {
+						statusStr = *db.DBInstanceStatus
+					} else {
+						statusStr = "<nil>"
+					}
+					log.Debugf("skipping database instance - Address: '%s' | Status: %s", addrStr, statusStr)
 					continue
 				}
 				instance, err := makeInstance(db, dbmTag)
@@ -69,6 +84,22 @@ func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentif
 					}
 				}
 				clusters[*db.DBClusterIdentifier].Instances = append(clusters[*db.DBClusterIdentifier].Instances, instance)
+			} else {
+				var endpointStr string
+				var dbClusterIdentifierStr string
+
+				if db.Endpoint != nil {
+					endpointStr = *db.Endpoint
+				} else {
+					endpointStr = "<nil>"
+				}
+
+				if db.DBClusterIdentifier != nil {
+					dbClusterIdentifierStr = *db.DBClusterIdentifier
+				} else {
+					dbClusterIdentifierStr = "<nil>"
+				}
+				log.Debugf("skipping database instance - Endpoint: '%s' | DBInstanceIdentifier: '%s'", endpointStr, dbClusterIdentifierStr)
 			}
 		}
 	}
