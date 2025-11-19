@@ -256,9 +256,9 @@ def find_copyright_for(package, overrides, ctx):
         if os.path.isfile(filename):
             with open(filename, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
-            cpy = find_copyright_in_text(lines)
-            if cpy:
-                copyright.append(cpy)
+            copyrights_in_this_file = find_copyright_in_text(lines)
+            if copyrights_in_this_file:
+                copyright.extend(copyrights_in_this_file)
 
     # skip through the first blank line of a file
     def skipheader(lines):
@@ -284,6 +284,7 @@ def find_copyright_for(package, overrides, ctx):
 
 
 def find_copyright_in_text(lines):
+    ret = []
     for line in lines:
         mo = COPYRIGHT_RE.search(line)
         if not mo:
@@ -303,8 +304,8 @@ def find_copyright_in_text(lines):
             # If copyright contains double quote ("), escape it
             if '"' in cpy:
                 cpy = '"' + cpy.replace('"', '""') + '"'
-            return cpy
-    return None
+            ret.append(cpy)
+    return ret
 
 
 def read_overrides():
