@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The otel-agent can now be told not to contact the core-agent by setting ``DD_CMD_PORT`` to 0
