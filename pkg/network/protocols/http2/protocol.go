@@ -8,7 +8,6 @@
 package http2
 
 import (
-	"fmt"
 	"io"
 	"time"
 	"unsafe"
