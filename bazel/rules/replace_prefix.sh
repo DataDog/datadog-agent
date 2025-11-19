@@ -33,7 +33,10 @@ for f in "$@"; do
             ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
             ;;
         *.dylib)
-            install_name_tool -add_rpath "$PREFIX/lib" "$f"
+            dylib_name=$(basename "$f")
+            new_id="$PREFIX/lib/$dylib_name"
+            # Change the dylib's ID
+            install_name_tool -id "$new_id" "$f"
             ;;
         *.pc)
             sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
