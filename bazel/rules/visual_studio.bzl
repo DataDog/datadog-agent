@@ -11,21 +11,34 @@ def _visual_studio_impl(ctx):
         executable = True,
     )
 
+    if ctx.attr.path and ctx.attr.path_variable:
+        fail("Only one of `path` or `path_variable` can be set, not both")
+
+    if not (ctx.attr.path or ctx.attr.path_variable):
+        fail("One of `path` or `path_variable` need to be set")
+
+    if ctx.attr.path_variable:
+        vs_path = ctx.getenv(ctx.attr.path_variable)
+        if not vs_path:
+            fail("Environment variable '%s' is not defined" % ctx.attr.path_variable)
+    else:
+        vs_path = ctx.attr.path
+
     # Get identifying properties to use for reproducibility metatada
     # We stick to just the version for now
-    vs_version = _get_vs_property(ctx, ctx.attr.path, "installationVersion")
+    vs_version = _get_vs_property(ctx, vs_path, "installationVersion")
 
     if not vs_version:
         fail(
             "Version couldn't be detected for '%s'. This probably means there is no VS installation for the provided path." %
-            ctx.attr.path,
+            vs_path,
         )
 
     if ctx.attr.version and ctx.attr.version != vs_version:
         fail("Version '%s' doesn't match expected version '%s'" % (vs_version, ctx.attr.version))
 
     # Symlink to existing installation
-    ctx.symlink(ctx.attr.path, "VisualStudio")
+    ctx.symlink(vs_path, "VisualStudio")
 
     build_file_content = """
 exports_files(["VisualStudio/MSBuild/Current/Bin/msbuild.exe"])
@@ -38,10 +51,14 @@ alias(
 """
     ctx.file("BUILD.bazel", build_file_content)
 
+    # We make a pragmatic choice around how we report reproducibility by greatly relaxing assumptions
+    if ctx.attr.version and ctx.attr.path:
+        return ctx.repo_metadata(reproducible = True)
+
     return ctx.repo_metadata(attrs_for_reproducibility = {
         "name": ctx.attr.name,
-        "path": ctx.attr.path,
         "version": vs_version,
+        "path": vs_path,
     })
 
 def _get_vs_property(ctx, install_path, property):
@@ -64,8 +81,10 @@ visual_studio = repository_rule(
     implementation = _visual_studio_impl,
     attrs = {
         "path": attr.string(
-            mandatory = True,
             doc = "Path to Visual Studio's installation root",
+        ),
+        "path_variable": attr.string(
+            doc = "Environment variable pointint to Visual Studio's installation root path",
         ),
         "version": attr.string(
             doc = "Installation Version. If set, it must match the version for the installation pointed at by path",

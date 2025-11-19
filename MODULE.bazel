@@ -1,6 +1,7 @@
 # Foundational packages
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+
 visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
 # package_metadata and rules_license are dependencies of every module in the
@@ -108,7 +109,7 @@ register_toolchains(
 # Visual Studio / MSBuild tooling, taken from the local installation
 visual_studio(
     name = "visual_studio",
-    path = r"C:\devtools\vstudio",
+    path_variable = "VSTUDIO_ROOT",
     version = "17.14.36705.20",
 )
 
