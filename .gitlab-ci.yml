@@ -433,6 +433,8 @@ workflow:
       paths:
         - .gitlab/internal_image_deploy/internal_image_deploy.yml
       compare_to: $COMPARE_TO_BRANCH
+    variables:
+      RELEASE_PROD: "false"
   - when: manual
     allow_failure: true
     variables:
