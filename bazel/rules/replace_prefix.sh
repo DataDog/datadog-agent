@@ -36,7 +36,7 @@ for f in "$@"; do
             install_name_tool -add_rpath "$PREFIX/lib" "$f"
             ;;
         *.pc)
-            sed -ibak -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+            sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
             ;;
         *)
             if file "$f" | grep -q ELF; then

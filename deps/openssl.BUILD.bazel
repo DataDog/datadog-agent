@@ -74,10 +74,6 @@ configure_make(
             "--libdir=lib",
         ] + DEFAULT_CONFIG,
         "//conditions:default": [],
-    }) + select({
-        # --prefix serves a different purpose on Windows, so we don't need it there.
-        "//conditions:default": ["--prefix=##PREFIX##"],
-        "@platforms//os:windows": [],
     }),
     env = select({
         "@platforms//os:macos": {
