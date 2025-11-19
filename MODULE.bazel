@@ -109,6 +109,7 @@ register_toolchains(
 visual_studio(
     name = "visual_studio",
     path = r"C:\devtools\vstudio",
+    version = "17.14.36705.20",
 )
 
 # =========================================

@@ -12,8 +12,17 @@ def _visual_studio_impl(ctx):
     )
 
     # Get identifying properties to use for reproducibility metatada
-    # We stick to the version for now
+    # We stick to just the version for now
     vs_version = _get_vs_property(ctx, ctx.attr.path, "installationVersion")
+
+    if not vs_version:
+        fail(
+            "Version couldn't be detected for '%s'. This probably means there is no VS installation for the provided path." %
+            ctx.attr.path,
+        )
+
+    if ctx.attr.version and ctx.attr.version != vs_version:
+        fail("Version '%s' doesn't match expected version '%s'" % (vs_version, ctx.attr.version))
 
     # Symlink to existing installation
     ctx.symlink(ctx.attr.path, "VisualStudio")
@@ -29,7 +38,11 @@ alias(
 """
     ctx.file("BUILD.bazel", build_file_content)
 
-    return ctx.repo_metadata(attrs_for_reproducibility = {"version": vs_version})
+    return ctx.repo_metadata(attrs_for_reproducibility = {
+        "name": ctx.attr.name,
+        "path": ctx.attr.path,
+        "version": vs_version,
+    })
 
 def _get_vs_property(ctx, install_path, property):
     """Query a property of a VS installation using vswhere"""
@@ -53,6 +66,9 @@ visual_studio = repository_rule(
         "path": attr.string(
             mandatory = True,
             doc = "Path to Visual Studio's installation root",
+        ),
+        "version": attr.string(
+            doc = "Installation Version. If set, it must match the version for the installation pointed at by path",
         ),
     },
     local = True,
