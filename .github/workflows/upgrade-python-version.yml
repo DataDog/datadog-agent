@@ -2,6 +2,10 @@ name: Upgrade Python version
 
 on:
   workflow_dispatch:
+  # TODO: Remove this push trigger before merging - only for testing
+  push:
+    branches:
+      - kyle.neale/automate-python-patch-upgrades
   schedule:
     # At 4AM on Tuesday (UTC) - runs after dependency updates on Monday
     - cron: "0 4 * * 2"
