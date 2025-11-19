@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -300,8 +301,8 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
-	if r.commandAllowGroupExec {
-		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
+	if r.commandAllowGroupExec && !env.IsContainerized() {
+		log.Warn("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
