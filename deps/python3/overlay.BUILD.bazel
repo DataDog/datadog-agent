@@ -536,7 +536,7 @@ cc_binary(
     cc_shared_library(
         name = "module_" + name,
         shared_lib_name = name + select({
-            "@//:linux_arm64": ".cpython-313-x86_64-linux-gnu.so",
+            "@//:linux_arm64": ".cpython-313-aarch64-linux-gnu.so",
             "@//:linux_x86_64": ".cpython-313-x86_64-linux-gnu.so",
         }),
         deps = ["build_module_" + name],
