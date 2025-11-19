@@ -126,6 +126,7 @@ build do
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
+    copy 'bin/agent/MSStoreApps.dll', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/host-instrumentation.bat", "#{install_dir}/bin/scripts/"
