@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/stretchr/testify/assert"
@@ -93,7 +94,7 @@ func TestPerFlushFilter(t *testing.T) {
 				// 60 buckets, make tests easy to set up + run. 2 per tick
 				FlowCollectionDuration: 1 * time.Hour,
 				FlushTickFrequency:     1 * time.Minute,
-			}, metrics)
+			}, metrics, logmock.New(t))
 
 			outputs := filter.Filter(test.ctx, test.inputs)
 

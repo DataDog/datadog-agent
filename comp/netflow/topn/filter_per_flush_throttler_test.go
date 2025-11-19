@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +19,7 @@ func TestTopNScheduling(t *testing.T) {
 		// 60 buckets, make tests easier to set up + run
 		FlowCollectionDuration: 1 * time.Hour,
 		FlushTickFrequency:     1 * time.Minute,
-	})
+	}, logmock.New(t))
 	// this will be effectively 00:00 for tests
 	frameOfReference, _ := time.Parse(time.RFC3339, "2025-11-01T12:00:00Z")
 	frameOfReference = frameOfReference.Truncate(5 * time.Minute).UTC()
