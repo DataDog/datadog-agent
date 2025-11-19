@@ -318,7 +318,7 @@ def test(
     covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
     test_cpus_opt = f"-parallel {cpus}" if cpus else ""
-    orchestrion_flags = '-toolexec=./tools/ci/sanitize_env_go_toolexec.sh' if use_orchestrion else ''
+    orchestrion_flags = f"'-toolexec={os.environ.get("CI_PROJECT_DIR", ".")}/tools/ci/sanitize_env_go_toolexec.sh'" if use_orchestrion else ''
 
     nocache = '-count=1' if not cache else ''
 
