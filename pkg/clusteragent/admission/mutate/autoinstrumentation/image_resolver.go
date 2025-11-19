@@ -328,7 +328,7 @@ func (r *tagBasedImageResolver) Resolve(registry string, repository string, tag 
 	normalizedTag := strings.TrimPrefix(tag, "v")
 	rolloutBucketTag := normalizedTag + "-rollout" + r.rolloutBucket
 	// Check cache first
-	cacheKey := repository + ":" + rolloutBucketTag
+	cacheKey := registry + "/" + repository + ":" + rolloutBucketTag
 	if cachedDigest, found := r.getCachedDigest(cacheKey); found {
 		if entryAge, _ := r.getCacheEntryAge(cacheKey); entryAge > ttlDuration {
 			log.Debugf("Cached digest for %s is too old, fetching from registry", cacheKey)
@@ -398,6 +398,7 @@ func newTagBasedImageResolver(datadoghqRegistries map[string]any, datacenter str
 
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
+// TODO(erika): ImageResolveConfig should be passed in here
 func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
 	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
 
