@@ -145,7 +145,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -179,10 +178,6 @@ const (
 	createTimeout          = 60 * time.Minute
 	deleteTimeout          = 30 * time.Minute
 	provisionerGracePeriod = 2 * time.Second
-)
-
-var (
-	keepStacks = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stacks at the end of the tests")
 )
 
 // Suite is a generic inteface used internally, only implemented by BaseSuite
@@ -851,7 +846,7 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	devMode, err := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.DevMode, false)
 	if err != nil {
 		t.Logf("Unable to get DevMode value, DevMode will be disabled, error: %v", err)
-	} else if devMode || *keepStacks {
+	} else if devMode {
 		options = append(options, WithDevMode())
 	}
 
