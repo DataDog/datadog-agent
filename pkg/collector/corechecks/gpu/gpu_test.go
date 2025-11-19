@@ -107,21 +107,31 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	}
 
 	// Set up GPU and container tags
-	containerID := "container1"
-	containerTags := []string{"container_id:" + containerID}
-	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID), "foo", containerTags, nil, nil, nil)
+	containerID1 := "container1"
+	containerID2 := "container2"
+	containerTags1 := []string{"container_id:" + containerID1}
+	containerTags2 := []string{"container_id:" + containerID2}
+	containerTags := append(containerTags1, containerTags2...)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID1), "foo", containerTags1, nil, nil, nil)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID2), "foo", containerTags2, nil, nil, nil)
 
-	container := &workloadmeta.Container{
+	container1 := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
+			ID:   containerID1,
 			Kind: workloadmeta.KindContainer,
 		},
 	}
-	wmetaMock.Set(container)
-
-	gpuToContainersMap := map[string]*workloadmeta.Container{
-		device1UUID: container,
+	container2 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   containerID2,
+			Kind: workloadmeta.KindContainer,
+		},
 	}
+	gpuToContainersMap := map[string][]*workloadmeta.Container{
+		device1UUID: {container1, container2},
+	}
+	wmetaMock.Set(container1)
+	wmetaMock.Set(container2)
 
 	// Process the metrics
 	metricTime := time.Now()
@@ -349,7 +359,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	// First run: minimal GPU tags (just uuid fallback)
 	metricTime1 := time.Now()
 	metricTimestamp1 := float64(metricTime1.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string]*workloadmeta.Container{}, metricTime1))
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime1))
 
 	expectedTags1 := []string{"gpu_uuid:" + deviceUUID}
 	slices.Sort(expectedTags1)
@@ -368,7 +378,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	metricTime2 := time.Now()
 	metricTimestamp2 := float64(metricTime2.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string]*workloadmeta.Container{}, metricTime2))
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime2))
 
 	slices.Sort(gpuTags1)
 	matchTagsFunc2 := func(tags []string) bool {
@@ -386,7 +396,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 
 	metricTime3 := time.Now()
 	metricTimestamp3 := float64(metricTime3.UnixNano()) / float64(time.Second)
-	require.NoError(t, check.emitMetrics(mockSender, map[string]*workloadmeta.Container{}, metricTime3))
+	require.NoError(t, check.emitMetrics(mockSender, map[string][]*workloadmeta.Container{}, metricTime3))
 
 	slices.Sort(gpuTags2)
 	matchTagsFunc3 := func(tags []string) bool {
