@@ -195,7 +195,7 @@ def coverage_flavor(ctx):
     ctx.run(f"go tool cover -func {PROFILE_COV}", warn=True)
 
 
-def sanitize_env_vars():
+def sanitize_env_vars(forward_to_orchestrion: bool = False):
     """
     Sanitizes environment variables
     We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
@@ -205,6 +205,10 @@ def sanitize_env_vars():
         if env == "DD_CONF_NODETREEMODEL":
             continue
         if env.startswith("DD_"):
+            # Will be forwarded back to orchestrion in the toolexec wrapper script
+            if forward_to_orchestrion:
+                os.environ[f"ORCHESTRION_{env}"] = os.environ[env]
+
             del os.environ[env]
 
 
@@ -288,8 +292,7 @@ def test(
 
     If use_orchestrion is set to True, orchestrion will be used to run gotestsum for native instrumentation.
     """
-    # # TODO A
-    # sanitize_env_vars()
+    sanitize_env_vars(forward_to_orchestrion=use_orchestrion)
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 
@@ -331,7 +334,7 @@ def test(
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     # TODO: Orchestrion only on option
-    stdlib_build_cmd = 'orchestrion go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
+    stdlib_build_cmd = 'go build {verbose} -toolexec=./tools/ci/sanitize_env_go_toolexec.sh -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
@@ -347,10 +350,7 @@ def test(
     )
 
     # Use orchestrion to run gotestsum for native instrumentation
-    # TODO A
-    cmd_prefix = '' # 'orchestrion toolexec' if use_orchestrion else ''
-
-    cmd = f"{cmd_prefix} gotestsum {gotestsum_flags} -- '-toolexec=orchestrion toolexec' {gobuild_flags} {govet_flags} {gotest_flags}"
+    cmd = f"gotestsum {gotestsum_flags} -- -toolexec=./tools/ci/sanitize_env_go_toolexec.sh {gobuild_flags} {govet_flags} {gotest_flags}"
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
