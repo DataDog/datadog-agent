@@ -220,8 +220,12 @@ http_archive(
     files = {
         "config-linux-x86_64.h": "//deps:python3/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:python3/config-linux-arm64.h",
+        "config-macos-x86_64.h": "//deps:python3/config-macos-x86_64.h",
+        "config-macos-arm64.h": "//deps:python3/config-macos-arm64.h",
         "BUILD.bazel": "//deps:python3/overlay.BUILD.bazel",
         "_sysconfigdata__linux_x86_64-linux-gnu.py": "//deps:python3/_sysconfigdata__linux_x86_64-linux-gnu.py",
-        "_sysconfigdata__linux_aarch64-linux-gnu.py": "//deps:python3/_sysconfigdata__linux_aarch64-linux-gnu.py"
+        "_sysconfigdata__linux_aarch64-linux-gnu.py": "//deps:python3/_sysconfigdata__linux_aarch64-linux-gnu.py",
+        "_sysconfigdata__darwin_x86_64_darwin.py": "//deps:python3/_sysconfigdata__darwin_x86_64_darwin.py",
+        "_sysconfigdata__darwin_aarch64_darwin.py": "//deps:python3/_sysconfigdata__darwin_aarch64_darwin.py",
     },
 )

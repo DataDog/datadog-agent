@@ -25,8 +25,8 @@ copy_file(
     src = select({
         "@//:linux_arm64": "config-linux-arm64.h",
         "@//:linux_x86_64": "config-linux-x86_64.h",
-        "@//:macos_arm64": "config-osx-arm64.h",
-        "@//:macos_x86_64": "config-osx-x86_64.h",
+        "@//:macos_arm64": "config-macos-arm64.h",
+        "@//:macos_x86_64": "config-macos-x86_64.h",
     }),
     out = "pyconfig.h",  # minimize the number of exported include paths
 )
@@ -660,6 +660,13 @@ pkg_files(
     srcs = select({
         "@//:linux_arm64": ["_sysconfigdata__linux_aarch64-linux-gnu.py"],
         "@//:linux_x86_64": ["_sysconfigdata__linux_x86_64-linux-gnu.py"],
+        "@//:macos_arm64": ["_sysconfigdata__darwin_aarch64_darwin.py"],
+        "@//:macos_x86_64": ["_sysconfigdata__darwin_x86_64_darwin.py"],
+    }),
+    renames = select({
+        "@//:macos_arm64": {"_sysconfigdata__darwin_aarch64_darwin.py": "_sysconfigdata__darwin_darwin.py"},
+        "@//:macos_x86_64": {"_sysconfigdata__darwin_x86_64_darwin.py": "_sysconfigdata__darwin_darwin.py"},
+        "//conditions:default": {},
     }),
     prefix = "lib/python" + _VERSION_FOR_SO,
 )
