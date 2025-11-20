@@ -78,14 +78,14 @@ func TestContainerTagCache(t *testing.T) {
 
 			var expectedTags []string
 			for cardinality, tags := range cardinalityToTags {
-				if tt.expectedCardnlty <= cardinality {
+				if tt.expectedCardnlty >= cardinality {
 					expectedTags = append(expectedTags, tags...)
 				}
 			}
 
 			tags, err := cache.getContainerTags(container)
 			require.NoError(t, err)
-			assert.Equal(t, expectedTags, tags)
+			assert.ElementsMatch(t, expectedTags, tags)
 		})
 	}
 }
