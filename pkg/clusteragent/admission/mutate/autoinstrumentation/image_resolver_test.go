@@ -438,7 +438,7 @@ func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				for j := 0; j < 10; j++ {
-					resolver.processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
+					resolver.(*remoteConfigImageResolver).processUpdate(map[string]state.RawConfig{}, func(string, state.ApplyStatus) {})
 					time.Sleep(10 * time.Millisecond)
 				}
 			}()

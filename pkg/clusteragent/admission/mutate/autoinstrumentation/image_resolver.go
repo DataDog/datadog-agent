@@ -67,7 +67,7 @@ type remoteConfigImageResolver struct {
 	retryDelay time.Duration
 }
 
-func newRcImageResolver(cfg imageresolver.ImageResolverConfig) remoteConfigImageResolver {
+func newRcImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:            cfg.RCClient,
 		imageMappings:       make(map[string]map[string]ImageInfo),
