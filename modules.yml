@@ -255,6 +255,8 @@ modules:
     used_by_otel: true
   pkg/orchestrator/model:
     used_by_otel: true
+  pkg/orchestrator/util:
+    used_by_otel: true
   pkg/process/procutil/resources: ignored
   pkg/process/util/api:
     used_by_otel: true
