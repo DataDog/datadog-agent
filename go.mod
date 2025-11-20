@@ -182,7 +182,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.30
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251119122734-e570d9d81f07
-	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.2.3 // indirect
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
 	github.com/DataDog/go-sqllexer v0.1.10
