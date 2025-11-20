@@ -101,7 +101,7 @@ static uint8_t is64(ProcessorArchitecture a) {
 
 static MSStoreEntry make_entry(const Package &pkg, winrt::hstring displayName) {
     auto id = pkg.Id();
-    char *installDate;
+    char *installDate = nullptr;
     // Not all packages have InstalledDate
     try {
         installDate = dt_to_iso(pkg.InstalledDate());
@@ -131,7 +131,7 @@ static MSStoreEntry make_entry(const Package &pkg, winrt::hstring displayName) {
     } catch (...) {
         CoTaskMemFree(e.display_name);
         CoTaskMemFree(e.version);
-        CoTaskMemFree(e.install_date);
+        CoTaskMemFree(installDate);
         CoTaskMemFree(e.publisher);
         CoTaskMemFree(e.product_code);
         throw;
