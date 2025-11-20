@@ -1867,7 +1867,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerre
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/targetallocator,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/targetallocator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
