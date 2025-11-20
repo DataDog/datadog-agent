@@ -28,7 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -60,6 +62,8 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
@@ -68,7 +72,8 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger,
-		fingerprintConfig,
+		fileOpener,
+		fingerprinter,
 	))
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))

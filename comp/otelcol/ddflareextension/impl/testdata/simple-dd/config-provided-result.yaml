@@ -6,7 +6,6 @@ exporters:
       key: "[REDACTED]"
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -78,7 +77,6 @@ receivers:
         cors: null
         idle_timeout: 0s
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         write_timeout: 0s
     config:

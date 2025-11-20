@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -865,4 +866,12 @@ func newTestNamespace(name string, labels map[string]string) workloadmeta.Kubern
 			Labels: labels,
 		},
 	}
+}
+
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
+	for _, l := range languages {
+		_ = set.Add(languagemodels.LanguageName(l))
+	}
+	return set
 }

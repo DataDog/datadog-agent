@@ -29,7 +29,7 @@ func (server *apiServer) startCMDServer(
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
-		return fmt.Errorf("unable to listen to the given address: %v", err)
+		return fmt.Errorf("unable to listen to address %s: %v", cmdAddr, err)
 	}
 
 	// gRPC server

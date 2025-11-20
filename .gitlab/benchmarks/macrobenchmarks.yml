@@ -24,8 +24,6 @@ variables:
       - platform/artifacts/
     expire_in: 3 months
   variables:
-    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true" # Important tweak for stability of benchmarks
-
     TRACE_AGENT_CPUS: 40-41
     DD_APM_MAX_CPU_PERCENT: 0
     DD_APM_MAX_MEMORY: 0

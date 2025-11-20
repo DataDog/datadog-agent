@@ -15,14 +15,14 @@ import (
 )
 
 func FuzzConvertBOM(f *testing.F) {
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(t *testing.T, data []byte, simplifyBomRefMapping bool) {
 		f := fuzz.NewFromGoFuzz(data).NilChance(0.8).NumElements(0, 2)
 
 		var bom cyclonedx.BOM
 		f.Fuzz(&bom)
 		bom.SpecVersion = cyclonedx.SpecVersion1_6
 
-		pb := ConvertBOM(&bom)
+		pb := ConvertBOM(&bom, simplifyBomRefMapping)
 		_, err := proto.Marshal(pb)
 
 		assert.Nil(t, err)

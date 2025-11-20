@@ -407,16 +407,25 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 
 	seclVariableStates := make(map[string]*api.SECLVariableState)
 
+	addVariableState := func(name string, instance eval.VariableInstance) {
+		defer func() {
+			if err := recover(); err != nil {
+				seclog.Errorf("recovered panic while getting value of variable '%s': %v", name, err)
+			}
+		}()
+		seclVariableStates[name] = &api.SECLVariableState{
+			Name:  name,
+			Value: fmt.Sprintf("%+v", instance.GetValue()),
+		}
+	}
+
 	rs.IterVariables(func(definition eval.VariableDefinition, instances map[string]eval.VariableInstance) {
 		name := definition.VariableName(true)
 		switch definition.Scoper().Type() {
 		case eval.GlobalScoperType:
 			globalInstance, ok := instances[rules.GlobalScopeKey]
 			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
-				seclVariableStates[name] = &api.SECLVariableState{
-					Name:  name,
-					Value: fmt.Sprintf("%+v", globalInstance.GetValue()),
-				}
+				addVariableState(name, globalInstance)
 			}
 		case eval.ProcessScoperType, eval.CGroupScoperType, eval.ContainerScoperType:
 			for scopeKey, instance := range instances {
@@ -424,10 +433,7 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 					continue
 				}
 				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
-				seclVariableStates[scopedName] = &api.SECLVariableState{
-					Name:  scopedName,
-					Value: fmt.Sprintf("%+v", instance.GetValue()),
-				}
+				addVariableState(scopedName, instance)
 			}
 		}
 	})

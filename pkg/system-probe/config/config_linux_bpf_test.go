@@ -115,6 +115,18 @@ func TestNPMEnabled(t *testing.T) {
 	}
 }
 
+func TestRedisMonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	if RedisMonitoringSupported() {
+		require.True(t, cfg.GetBool("service_monitoring_config.redis.enabled"))
+	} else {
+		require.False(t, cfg.GetBool("service_monitoring_config.redis.enabled"))
+	}
+}
+
 func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	family, err := kernel.Family()
 	require.NoError(t, err, "could not determine kernel family")

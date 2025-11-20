@@ -6,6 +6,7 @@
 package gosnmplib
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -68,6 +69,8 @@ RequestLoop:
 			break RequestLoop
 		}
 
+		lastOid := oid
+
 		for i, pdu := range response.Variables {
 			if pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchObject || pdu.Type == gosnmp.NoSuchInstance {
 				session.Logger.Printf("ConditionalWalk terminated with type 0x%x", pdu.Type)
@@ -98,6 +101,19 @@ RequestLoop:
 			if oid == "" {
 				oid = pdu.Name
 			}
+		}
+
+		next, err := OIDToInts(oid)
+		if err != nil {
+			return err
+		}
+		last, err := OIDToInts(lastOid)
+		if err != nil {
+			return err
+		}
+		if !CmpOIDs(next, last).IsAfter() {
+			session.Logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
+			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
 	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)

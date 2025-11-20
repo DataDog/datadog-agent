@@ -57,9 +57,6 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
 		tags = tags + "," + tag
 	}
-	if r.conf.LambdaFunctionName != "" {
-		tags = tags + "," + "_dd.origin:lambda"
-	}
 	return newPipelineStatsProxy(r.conf, urls, apiKeys, tags, r.statsd)
 }
 

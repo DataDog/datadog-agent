@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.privateactions;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "datadog/privateactionrunner/actionsclient.proto";
+
+/**
+This proto contains a dedicated version of tasks for usage with the private actions runner.
+By isolating it in a dedicated proto we isolate the changes to private actions from the one done to datacenter actions.
+Because we need to support multiple versions of the PAR we also need to take extra precautions about keeping backwards compatibility.
+*/
+
+enum KeyType {
+  KEY_TYPE_UNKNOWN = 0;
+  X509_RSA = 1;
+  ED25519 = 2;
+}
+
+enum HashType {
+  HASH_TYPE_UNKNOWN = 0;
+  SHA256 = 1;
+}
+
+message RemoteConfigSignatureEnvelope {
+  reserved 1, 2, 3;
+  bytes data = 4;
+  HashType hash_type = 5;
+  google.protobuf.Timestamp expiration_time = 6;
+  // Tasks will be signed by multiple keys in order to support key rotation.
+  repeated Signature signatures = 7;
+}
+
+message Signature {
+  KeyType key_type = 1;
+  string key_id = 2;
+  bytes signature = 3;
+}
+
+message PrivateActionTask {
+  reserved 7, 8, 9;
+  string action_name = 1;
+  string bundle_id = 2;
+  int64 org_id = 3;
+  string task_id = 4;
+  string sec_datadog_header_value = 5;
+  google.protobuf.Struct inputs = 6;
+  ConnectionInfo connection_info = 10;
+  google.protobuf.Timestamp expiration_time = 11;
+  actionsclient.Client client = 12;
+}
+
+message ConnectionInfo {
+  string connection_id = 1;
+  repeated ConnectionToken tokens = 2;
+  CredentialsType credentials_type = 3;
+  string runner_id = 4;
+}
+
+// The ConnectionToken is similar to connectionpb.ConnectionToken, but is specifically limited to data pertinent to private actions.
+// As mentioned in the comment at the top of this file, this is designed to constrain the dependencies of private actions
+// and prevent changes to the connections API from directly affecting the PAR task.
+message ConnectionToken {
+  // The segments of the token name.
+  // Example: ["group", "name"] for a token named "group.name"
+  // Example: ["name"] for a token named "name"
+  repeated string name_segments = 1 ;
+
+  oneof token_value {
+    PlainText plain_text = 2;
+    FileSecret file_secret = 3;
+    YamlFile yaml_file = 4;
+  }
+
+  message PlainText {
+    string value = 1;
+  }
+
+  message FileSecret {
+    string path = 1;
+  }
+
+  message YamlFile {
+    string path = 1;
+  }
+}
+
+enum CredentialsType {
+  UNSPECIFIED = 0;
+  TOKEN_AUTH = 1;
+  BASIC_AUTH = 2;
+  OAUTH2 = 3;
+}

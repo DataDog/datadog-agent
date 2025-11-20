@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
+#include "helpers/approvers.h"
 #include <linux/prctl.h>
 
 long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
@@ -39,6 +40,11 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
     if (!syscall) {
         return 0;
     }
+
+    if (approve_syscall(syscall, prctl_approvers) == DISCARDED) {
+        return 0;
+    }
+
     struct prctl_event_t event = {
         .syscall.retval = retval,
         .event.flags = syscall->async,

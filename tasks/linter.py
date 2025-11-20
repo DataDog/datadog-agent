@@ -731,7 +731,7 @@ def filenames(ctx):
 
     print("Checking filename length")
     # Approximated length of the prefix of the repo during the windows release build
-    prefix_length = 160
+    prefix_length = 159
     # Maximum length supported by the win32 API
     max_length = 255
     for filename in files:

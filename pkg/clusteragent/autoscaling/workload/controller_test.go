@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -776,6 +778,9 @@ func TestPodAutoscalerRemoteOwnerObjectsLimit(t *testing.T) {
 	dpa, dpaTyped := newFakePodAutoscaler("default", "dpa-0", 1, dpaTime, dpaSpec, expectedStatus)
 	dpa1, dpaTyped1 := newFakePodAutoscaler("default", "dpa-1", 1, dpa1Time, dpa1Spec, expectedStatus)
 	dpa2, dpaTyped2 := newFakePodAutoscaler("default", "dpa-2", 1, dpa2Time, dpa2Spec, expectedStatus)
+
+	// Setup scaler mock to handle any get calls during concurrent processing
+	f.scaler.On("get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&autoscalingv1.Scale{}, schema.GroupResource{}, nil).Maybe()
 
 	f.Actions = nil
 	f.InformerObjects = append(f.InformerObjects, dpa, dpa1, dpa2)

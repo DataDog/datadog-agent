@@ -38,7 +38,6 @@ import (
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -70,12 +69,6 @@ const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
 	initialFetchErrorLog uint64 = 5
-)
-
-const (
-	// the minimum amount of time that must pass before a new cache
-	// bypass request is allowed for the CDN client
-	maxCDNUpdateFrequency = 50 * time.Second
 )
 
 var (
@@ -225,12 +218,6 @@ type uptaneClient interface {
 type coreAgentUptaneClient interface {
 	uptaneClient
 	Update(response *pbgo.LatestConfigsResponse) error
-}
-
-// cdnUptaneClient provides functions to get TUF/uptane repo data and update the agent's state via the CDN.
-type cdnUptaneClient interface {
-	uptaneClient
-	Update(ctx context.Context) error
 }
 
 // RcTelemetryReporter should be implemented by the agent to publish metrics
@@ -1560,158 +1547,4 @@ func validateRequest(request *pbgo.ClientGetConfigsRequest) error {
 	}
 
 	return nil
-}
-
-// HTTPClient fetches Remote Configurations from an HTTP(s)-based backend
-type HTTPClient struct {
-	rcType string
-	uptane cdnUptaneClient
-
-	mu struct {
-		sync.Mutex
-
-		lastUpdate time.Time
-	}
-}
-
-// NewHTTPClient creates a new HTTPClient that can be used to fetch Remote Configurations from an HTTP(s)-based backend
-// It uses a local db to cache the fetched configurations. Only one HTTPClient should be created per agent.
-// An HTTPClient must be closed via HTTPClient.Close() before creating a new one.
-func NewHTTPClient(runPath, site, apiKey, agentVersion string) (*HTTPClient, error) {
-	dbMetadata := &uptane.Metadata{
-		Path:         path.Join(runPath, "remote-config-cdn.db"),
-		AgentVersion: agentVersion,
-		APIKey:       apiKey,
-		URL:          site,
-	}
-
-	uptaneCDNClient, err := uptane.NewCDNClient(dbMetadata)
-	if err != nil {
-		return nil, err
-	}
-
-	return &HTTPClient{
-		rcType: "CDN",
-		uptane: uptaneCDNClient,
-	}, nil
-}
-
-// Close closes the HTTPClient and cleans up any resources. Close must be called
-// before any other HTTPClients are instantiated via NewHTTPClient
-func (c *HTTPClient) Close() error {
-	return c.uptane.Close()
-}
-
-// GetCDNConfigUpdate returns any updated configs. If multiple requests have been made
-// in a short amount of time, a cached response is returned. If RC has been disabled,
-// an error is returned. If there is no update (the targets version is up-to-date) nil
-// is returned for both the update and error.
-func (c *HTTPClient) GetCDNConfigUpdate(
-	ctx context.Context,
-	products []string,
-	currentTargetsVersion, currentRootVersion uint64,
-) (*state.Update, error) {
-	var err error
-	if !c.shouldUpdate() {
-		return c.getUpdate(products, currentTargetsVersion, currentRootVersion)
-	}
-
-	err = c.update(ctx)
-	if err != nil {
-		_ = log.Warn(fmt.Sprintf("Error updating CDN config repo: %v", err))
-	}
-
-	u, err := c.getUpdate(products, currentTargetsVersion, currentRootVersion)
-	return u, err
-}
-
-func (c *HTTPClient) update(ctx context.Context) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.uptane.Update(ctx)
-}
-
-func (c *HTTPClient) shouldUpdate() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if time.Since(c.mu.lastUpdate) > maxCDNUpdateFrequency {
-		c.mu.lastUpdate = time.Now()
-		return true
-	}
-	return false
-}
-
-func (c *HTTPClient) getUpdate(
-	products []string,
-	currentTargetsVersion, currentRootVersion uint64,
-) (*state.Update, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	tufVersions, err := c.uptane.TUFVersionState()
-	if err != nil {
-		return nil, err
-	}
-	if tufVersions.DirectorTargets == currentTargetsVersion {
-		return nil, nil
-	}
-
-	// Filter out files that either:
-	//	- don't correspond to the product list the client is requesting
-	//	- have expired
-	directorTargets, err := c.uptane.Targets()
-	if err != nil {
-		return nil, err
-	}
-	productsMap := make(map[string]struct{})
-	for _, product := range products {
-		productsMap[product] = struct{}{}
-	}
-	configs := make([]string, 0)
-	for path, meta := range directorTargets {
-		pathMeta, err := rdata.ParseConfigPath(path)
-		if err != nil {
-			return nil, err
-		}
-		if _, productRequested := productsMap[pathMeta.Product]; !productRequested {
-			continue
-		}
-		configMetadata, err := parseFileMetaCustom(meta.Custom)
-		if err != nil {
-			return nil, err
-		}
-		if configExpired(configMetadata.Expires) {
-			continue
-		}
-
-		configs = append(configs, path)
-	}
-
-	// Gather the files and map-ify them for the state data structure
-	targetFiles, err := getTargetFiles(c.uptane, configs)
-	if err != nil {
-		return nil, err
-	}
-	fileMap := make(map[string][]byte, len(targetFiles))
-	for _, f := range targetFiles {
-		fileMap[f.Path] = f.Raw
-	}
-
-	// Gather some TUF metadata files we need to send down
-	roots, err := getNewDirectorRoots(c.uptane, currentRootVersion, tufVersions.DirectorRoot)
-	if err != nil {
-		return nil, err
-	}
-	targetsRaw, err := c.uptane.TargetsMeta()
-	if err != nil {
-		return nil, err
-	}
-
-	return &state.Update{
-		TUFRoots:      roots,
-		TUFTargets:    targetsRaw,
-		TargetFiles:   fileMap,
-		ClientConfigs: configs,
-	}, nil
 }

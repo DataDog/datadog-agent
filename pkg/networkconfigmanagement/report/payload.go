@@ -10,7 +10,6 @@ package report
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 )
 
 // ConfigType defines the type of network device configuration
@@ -23,29 +22,42 @@ const (
 	STARTUP ConfigType = "startup"
 )
 
+// ConfigSource represents where the config was retrieved from (in the case of the integration, it's always via CLI commands"
+type ConfigSource string
+
+const (
+	// CLI represents the source the config was retrieved
+	CLI ConfigSource = "cli"
+)
+
 // NCMPayload contains network devices configuration payload sent to EvP / backend
 type NCMPayload struct {
-	Namespace        string                   `json:"namespace"`
-	Integration      integrations.Integration `json:"integration"`
-	Configs          []NetworkDeviceConfig    `json:"configs"`
-	CollectTimestamp int64                    `json:"collect_timestamp"`
+	Namespace        string                `json:"namespace"`
+	Configs          []NetworkDeviceConfig `json:"configs"`
+	CollectTimestamp int64                 `json:"collect_timestamp"`
 }
 
 // NetworkDeviceConfig contains network device configuration for a single device
 type NetworkDeviceConfig struct {
-	DeviceID   string   `json:"device_id"`
-	DeviceIP   string   `json:"device_ip"`
-	ConfigType string   `json:"config_type"`
-	Timestamp  int64    `json:"timestamp"`
-	Tags       []string `json:"tags"`
-	Content    []byte   `json:"content"`
+	DeviceID     string   `json:"device_id"`
+	DeviceIP     string   `json:"device_ip"`
+	ConfigType   string   `json:"config_type"`
+	ConfigSource string   `json:"config_source"`
+	Timestamp    int64    `json:"timestamp"`
+	Tags         []string `json:"tags"`
+	Content      string   `json:"content"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
-func ToNCMPayload(namespace string, integration integrations.Integration, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
+func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
+	for i := range configs {
+		// if timestamp could not be extracted from the configurations / commands, use the agent timestamp
+		if configs[i].Timestamp == 0 {
+			configs[i].Timestamp = timestamp
+		}
+	}
 	return NCMPayload{
 		Namespace:        namespace,
-		Integration:      integration,
 		Configs:          configs,
 		CollectTimestamp: timestamp,
 	}
@@ -60,11 +72,12 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType ConfigType, ext
 		ts = 0
 	}
 	return NetworkDeviceConfig{
-		DeviceID:   deviceID,
-		DeviceIP:   deviceIP,
-		ConfigType: string(configType),
-		Timestamp:  ts,
-		Tags:       tags,
-		Content:    content,
+		DeviceID:     deviceID,
+		DeviceIP:     deviceIP,
+		ConfigType:   string(configType),
+		ConfigSource: string(CLI),
+		Timestamp:    ts,
+		Tags:         tags,
+		Content:      string(content),
 	}
 }

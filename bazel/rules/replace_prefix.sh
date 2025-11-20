@@ -30,15 +30,19 @@ for f in "$@"; do
     fi
     case $f in
         *.so)
-            ${PATCHELF} --set-rpath "$PREFIX" "$f"
+            ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
             ;;
         *.dylib)
-            install_name_tool -add_rpath "$PREFIX/embedded/lib" "$f"
+            install_name_tool -add_rpath "$PREFIX/lib" "$f"
             ;;
         *.pc)
             sed -ibak "s|##PREFIX##|$PREFIX|" "$f" && rm -f "${f}bak"
             ;;
         *)
-            echo "Ignoring $f"
+            if file "$f" | grep -q ELF; then
+                ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
+            else
+                >&2 echo "Ignoring $f"
+            fi
     esac
 done

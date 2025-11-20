@@ -68,7 +68,7 @@ func TestImplementorIterator(t *testing.T) {
 	cfgs := testprogs.MustGetCommonConfigs(t)
 	t.Run("in-memory", func(t *testing.T) {
 		factory := &inMemoryGoTypeIndexFactory{}
-		newFunction(t, cfgs[0], factory)
+		testImplementorIterator(t, cfgs[0], factory)
 	})
 	t.Run("on-disk", func(t *testing.T) {
 		diskCache, err := object.NewDiskCache(object.DiskCacheConfig{
@@ -77,12 +77,12 @@ func TestImplementorIterator(t *testing.T) {
 		})
 		require.NoError(t, err)
 		factory := &onDiskGoTypeIndexFactory{diskCache: diskCache}
-		newFunction(t, cfgs[0], factory)
+		testImplementorIterator(t, cfgs[0], factory)
 	})
 
 }
 
-func newFunction(t *testing.T, cfg testprogs.Config, factory goTypeIndexFactory) {
+func testImplementorIterator(t *testing.T, cfg testprogs.Config, factory goTypeIndexFactory) {
 	typeTab, interestingInterfaces, methodIndex := buildMethodIndex(
 		t, cfg, "sample", factory, interestingInterfaceNames,
 	)

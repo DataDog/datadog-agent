@@ -2744,6 +2744,44 @@
           "architecture": "all"
         }
       ]
+    },
+    {
+      "name": "SSHAuthMethod",
+      "link": "sshauthmethod",
+      "description": "SSH authentication methods.",
+      "all": [
+        {
+          "name": "password",
+          "architecture": "all"
+        },
+        {
+          "name": "public_key",
+          "architecture": "all"
+        },
+        {
+          "name": "unknown",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "UserSessionTypes",
+      "link": "usersessiontypes",
+      "description": "UserSessionTypes are the supported user session types.",
+      "all": [
+        {
+          "name": "unknown",
+          "architecture": "all"
+        },
+        {
+          "name": "k8s",
+          "architecture": "all"
+        },
+        {
+          "name": "ssh",
+          "architecture": "all"
+        }
+      ]
     }
   ]
 }

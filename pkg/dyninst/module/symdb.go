@@ -165,6 +165,7 @@ type symdbManagerConfig struct {
 		onUploadQueued                    func()
 		cacheOptions                      []cacheOption
 		backoffPolicy                     backoff.Policy
+		dontAccountForElapsedTime         bool
 	}
 }
 
@@ -203,6 +204,12 @@ func withBackoffPolicy(policy backoff.Policy) option {
 func withTestingKnobOnUploadQueued(onUploadQueued func()) option {
 	return func(c *symdbManagerConfig) {
 		c.testingKnobs.onUploadQueued = onUploadQueued
+	}
+}
+
+func withDontAccountForElapsedTime() option {
+	return func(c *symdbManagerConfig) {
+		c.testingKnobs.dontAccountForElapsedTime = true
 	}
 }
 
@@ -293,6 +300,9 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 				backoffDuration := policy.GetBackoffDuration(entry.ErrorNumber)
 				elapsed := time.Since(entry.Timestamp)
 				remainingWait := backoffDuration - elapsed
+				if m.cfg.testingKnobs.dontAccountForElapsedTime {
+					remainingWait = backoffDuration
+				}
 				if remainingWait < 0 {
 					// The backoff duration has expired. Allow the upload to proceed.
 					break

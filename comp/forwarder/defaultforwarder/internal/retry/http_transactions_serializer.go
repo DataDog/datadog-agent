@@ -74,7 +74,7 @@ func NewHTTPTransactionsSerializer(log log.Component, resolver resolver.DomainRe
 // This function uses references on HTTPTransaction.Payload and HTTPTransaction.Headers
 // and so the transaction must not be updated until a call to `GetBytesAndReset`.
 func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransaction) error {
-	if d, _ := s.resolver.Resolve(transaction.Endpoint); transaction.Domain != d {
+	if d := s.resolver.Resolve(transaction.Endpoint); transaction.Domain != d {
 		// This error is not supposed to happen (Sanity check).
 		return fmt.Errorf("the domain of the transaction %v does not match the domain %v", transaction.Domain, d)
 	}
@@ -178,7 +178,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 		}
 
 		endpoint := transaction.Endpoint{Route: route, Name: e.Name}
-		domain, _ := s.resolver.Resolve(endpoint)
+		domain := s.resolver.Resolve(endpoint)
 		tr := transaction.HTTPTransaction{
 			Domain:         domain,
 			Endpoint:       endpoint,
