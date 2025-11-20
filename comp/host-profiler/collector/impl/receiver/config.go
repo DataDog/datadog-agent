@@ -26,7 +26,7 @@ type ReporterConfig struct {
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	Ebpfcollector        *ebpfconfig.Config            `mapstructure:"ebpfcollector"`
+	EbpfCollectorConfig  *ebpfconfig.Config            `mapstructure:"ebpf_collector"`
 	SymbolUploader       reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
 	ReporterConfig       ReporterConfig                `mapstructure:"reporter"`
 	EnableSplitByService bool                          `mapstructure:"enable_split_by_service"`
@@ -37,23 +37,23 @@ var _ xconfmap.Validator = (*Config)(nil)
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
 func (c *Config) Validate() error {
-	if err := c.Ebpfcollector.Validate(); err != nil {
+	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
 	}
 	if c.ReporterConfig.CollectContext {
-		includeTracers, err := types.Parse(c.Ebpfcollector.Tracers)
+		includeTracers, err := types.Parse(c.EbpfCollectorConfig.Tracers)
 		if err != nil {
 			return err
 		}
 		includeTracers.Enable(types.Labels)
-		c.Ebpfcollector.Tracers = includeTracers.String()
+		c.EbpfCollectorConfig.Tracers = includeTracers.String()
 	}
 	if c.EnableSplitByService {
 		includeEnvVars := reporter.ServiceNameEnvVars
-		if c.Ebpfcollector.IncludeEnvVars != "" {
-			includeEnvVars = append(includeEnvVars, c.Ebpfcollector.IncludeEnvVars)
+		if c.EbpfCollectorConfig.IncludeEnvVars != "" {
+			includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
 		}
-		c.Ebpfcollector.IncludeEnvVars = strings.Join(includeEnvVars, ",")
+		c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
 	}
 
 	return nil
@@ -65,7 +65,7 @@ func defaultConfig() component.Config {
 	cfg.Tracers = getDefaultTracersString()
 
 	return Config{
-		Ebpfcollector: cfg,
+		EbpfCollectorConfig: cfg,
 		SymbolUploader: reporter.SymbolUploaderConfig{
 			SymbolUploaderOptions: reporter.SymbolUploaderOptions{
 				Enabled:              config.DefaultUploadSymbols,
