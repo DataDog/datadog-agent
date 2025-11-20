@@ -434,7 +434,7 @@ func (s *testAgentConfigSuite) TestConfigCustomUser() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("all").
 		WithValueEqual("log_to_console", false).
-		HasDDAgentUserFileAccess().
+		HasDDAgentUserFileAccess(agentUser).
 		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("installedUser", agentUser).
 		HasAService("datadogagent").
@@ -485,7 +485,7 @@ func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("all").
 		WithValueEqual("log_to_console", false).
-		HasDDAgentUserFileAccess().
+		HasDDAgentUserFileAccess(agentUser).
 		HasRegistryKey(consts.RegistryKeyPath).
 		WithValueEqual("installedUser", agentUser).
 		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
