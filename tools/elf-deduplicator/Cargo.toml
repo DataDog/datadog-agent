@@ -1,0 +1,12 @@
+[package]
+name = "elf-deduplicator"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+object = "0.36"
+goblin = "0.8"
+clap = { version = "4.0", features = ["derive"] }
+anyhow = "1.0"
+sha2 = "0.10"
+indexmap = "2.0"

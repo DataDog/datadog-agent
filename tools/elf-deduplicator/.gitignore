@@ -1,0 +1,5 @@
+# Rust build artifacts
+/target/
+
+# Object files
+*.o
