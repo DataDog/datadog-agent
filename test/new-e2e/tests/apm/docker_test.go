@@ -258,7 +258,7 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
 
-func (s *DockerFakeintakeSuite) TestAPMMode() {
+func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
 	s.Run("default", func() {
 		s.EventuallyWithT(func(c *assert.CollectT) {
 			testAPMMode(c, s.Env().FakeIntake, "")
@@ -266,4 +266,27 @@ func (s *DockerFakeintakeSuite) TestAPMMode() {
 	})
 }
 
-// TODO: TestAPMMode with DD_APM_MODE env var configured
+func (s *DockerFakeintakeSuite) TestAPMModeEdge() {
+	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(
+		append(dockerAgentOptions(s.transport),
+			dockeragentparams.WithAgentServiceEnvVariable(
+				"DD_APM_MODE",
+				pulumi.String("edge")),
+		)...)))
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-apm-mode-edge-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testAPMMode(c, s.Env().FakeIntake, "edge")
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=edge")
+}
