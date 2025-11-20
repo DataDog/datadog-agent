@@ -30,7 +30,9 @@ build do
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
     if windows?
       # shutil generates temporary files during run install that are not removed afterwards.
-      command_on_repo_root "Remove-Item -Path #{install_dir}/embedded/include/openssl -Include tmp* -Force"
+      Dir.glob("#{install_dir}/embedded/include/openssl/tmp*").each do |tmp_file|
+        delete tmp_file
+      end
     end
     if !windows?
     lib_extension = if linux_target? then ".so.#{version}" else "#{version}.dylib" end
