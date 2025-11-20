@@ -212,50 +212,6 @@ func (a *logAgent) start(context.Context) error {
 // restart conducts a partial restart of the logs-agent pipeline.
 // This is used to switch between transport protocols (TCP to HTTP)
 // without disrupting the entire agent.
-func (a *logAgent) restart(context.Context) error {
-	a.log.Info("Attempting to restart logs-agent pipeline with HTTP")
-
-	a.restartMutex.Lock()
-	defer a.restartMutex.Unlock()
-
-	if a.isShuttingDown.Load() {
-		return errors.New("agent shutting down")
-	}
-
-	a.log.Info("Gracefully stopping logs-agent")
-
-	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
-	_, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	if err := a.partialStop(); err != nil {
-		a.log.Warn("Graceful partial stop timed out, force closing")
-	}
-
-	a.log.Info("Re-starting logs-agent...")
-
-	// REBUILD endpoints
-	endpoints, err := buildEndpoints(a.config)
-	if err != nil {
-		message := fmt.Sprintf("Invalid endpoints: %v", err)
-		status.AddGlobalError(invalidEndpoints, message)
-		return errors.New(message)
-	}
-
-	a.endpoints = endpoints
-
-	// REBUILD pipeline
-	err = a.setupAgentForRestart()
-	if err != nil {
-		message := fmt.Sprintf("Could not re-start logs-agent: %v", err)
-		a.log.Error(message)
-		return errors.New(message)
-	}
-
-	a.restartPipelineWithHTTP()
-	return nil
-}
-
 func (a *logAgent) setupAgent() error {
 	processingRules, fingerprintConfig, err := a.configureAgent()
 	if err != nil {
@@ -263,19 +219,6 @@ func (a *logAgent) setupAgent() error {
 	}
 
 	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
-	return nil
-}
-
-// setupAgentForRestart configures and rebuilds only the transient components during a restart.
-// This preserves persistent components (sources, auditor, tracker, schedulers)
-// and only recreates components that need to be updated for the new configuration.
-func (a *logAgent) setupAgentForRestart() error {
-	processingRules, fingerprintConfig, err := a.configureAgent()
-	if err != nil {
-		return err
-	}
-
-	a.rebuildTransientComponents(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
 	return nil
 }
 
@@ -335,18 +278,6 @@ func (a *logAgent) startPipeline() {
 	a.startSchedulers()
 }
 
-// restartPipelineWithHTTP restarts the logs pipeline after a transport switch.
-// Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
-// since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
-func (a *logAgent) restartPipelineWithHTTP() {
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
-
-	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
-	starter.Start()
-
-	a.log.Info("Successfully restarted pipeline with HTTP")
-}
-
 func (a *logAgent) startSchedulers() {
 	a.prepareSchedulers.Do(func() {
 		a.schedulers.Start()
@@ -377,38 +308,6 @@ func (a *logAgent) stop(context.Context) error {
 	a.stopComponents(toStop, func() {
 		a.destinationsCtx.Stop()
 	})
-
-	return nil
-}
-
-// partialStop stops only the transient components that will be recreated during restart.
-// This allows switching transports without losing persistent state.
-//
-// Components stopped (transient):
-//   - launchers
-//   - pipelineProvider
-//   - destinationsCtx
-//
-// The partial stop ensures that log sources remain configured and file positions
-// are maintained across the restart
-func (a *logAgent) partialStop() error {
-	a.log.Info("Completing graceful partial stop of logs-agent for restart")
-	status.Clear()
-
-	toStop := []startstop.Stoppable{
-		a.launchers,
-		a.pipelineProvider,
-		a.destinationsCtx,
-	}
-
-	a.stopComponents(toStop, func() {
-		a.destinationsCtx.Stop()
-	})
-
-	// Immediately flush auditor to write current positions to disk
-	// TODO: this enables at-least-once delivery during restart (1-2 logs may be re-read)
-	a.log.Debug("Flushing auditor registry after pipeline stop")
-	a.auditor.Flush()
 
 	return nil
 }
