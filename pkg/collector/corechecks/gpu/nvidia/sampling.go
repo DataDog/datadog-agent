@@ -10,11 +10,13 @@ package nvidia
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 )
@@ -99,7 +101,7 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
 	var allMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 	var maxSmUtil, sumSmUtil uint32
 
 	// Handle ERROR_NOT_FOUND as a valid scenario when no process utilization data is available
@@ -111,17 +113,17 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 	} else {
 		for _, sample := range processSamples {
 			// Create PID tag for this process
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", sample.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(sample.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
+			workloads := []workloadmeta.EntityID{{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(sample.Pid)),
+			}}
+			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			allMetrics = append(allMetrics,
-				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
-				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, Tags: pidTags},
+				Metric{Name: "process.sm_active", Value: float64(sample.SmUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.dram_active", Value: float64(sample.MemUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.encoder_utilization", Value: float64(sample.EncUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
+				Metric{Name: "process.decoder_utilization", Value: float64(sample.DecUtil), Type: ddmetrics.GaugeType, AssociatedWorkloads: workloads},
 			)
 
 			if sample.SmUtil > maxSmUtil {
@@ -139,7 +141,7 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 
 	allMetrics = append(allMetrics,
 		Metric{Name: "sm_active", Value: deviceSmActive, Type: ddmetrics.GaugeType},
-		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, Tags: allPidTags},
+		Metric{Name: "core.limit", Value: float64(device.GetDeviceInfo().CoreCount), Type: ddmetrics.GaugeType, AssociatedWorkloads: allWorkloadIDs},
 	)
 
 	return allMetrics, currentTime, err

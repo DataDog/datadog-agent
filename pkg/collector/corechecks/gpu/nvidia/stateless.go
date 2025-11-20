@@ -9,11 +9,14 @@ package nvidia
 
 import (
 	"fmt"
+	"strconv"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -82,23 +85,22 @@ func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric
 	procs, err := device.GetComputeRunningProcesses()
 
 	var processMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 
 	if err == nil {
-		// Create PID tag for this process
 		for _, proc := range procs {
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", proc.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(proc.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
+			workloads := []workloadmeta.EntityID{{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(proc.Pid)),
+			}}
+			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			processMetrics = append(processMetrics, Metric{
-				Name:     "process.memory.usage",
-				Value:    float64(proc.UsedGpuMemory),
-				Type:     metrics.GaugeType,
-				Priority: High,
-				Tags:     pidTags,
+				Name:                "process.memory.usage",
+				Value:               float64(proc.UsedGpuMemory),
+				Type:                metrics.GaugeType,
+				Priority:            High,
+				AssociatedWorkloads: workloads,
 			})
 		}
 	}
@@ -106,11 +108,11 @@ func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
 	processMetrics = append(processMetrics, Metric{
-		Name:     "memory.limit",
-		Value:    float64(devInfo.Memory),
-		Type:     metrics.GaugeType,
-		Priority: High,
-		Tags:     allPidTags,
+		Name:                "memory.limit",
+		Value:               float64(devInfo.Memory),
+		Type:                metrics.GaugeType,
+		Priority:            High,
+		AssociatedWorkloads: allWorkloadIDs,
 	})
 
 	return processMetrics, 0, err
