@@ -188,3 +188,179 @@ func TestConvertedSpanEvents(t *testing.T) {
 	assert.Equal(t, true, attrArray[2].Value.(*idx.AnyValue_BoolValue).BoolValue)
 	assert.Equal(t, float64(3.14), attrArray[3].Value.(*idx.AnyValue_DoubleValue).DoubleValue)
 }
+
+func TestConvertedTraceChunk(t *testing.T) {
+	trace := Trace([]*Span{
+		{
+			Service:  "my-service",
+			Name:     "span-name",
+			Resource: "GET /res",
+			SpanID:   12345678,
+			ParentID: 1111,
+			Duration: 234,
+			Start:    171615,
+			Metrics: map[string]float64{
+				"someNum":               1.0,
+				"_sampling_priority_v1": 2.0,
+			},
+			Meta: map[string]string{
+				"someStr":            "bar",
+				"_dd.p.tid":          "BABA",
+				"env":                "production",
+				"version":            "1.2.3",
+				"component":          "http-client",
+				"span.kind":          "client",
+				"_dd.git.commit.sha": "abc123def456",
+				"_dd.p.dm":           "-1",
+				"_dd.hostname":       "my-hostname",
+			},
+			MetaStruct: map[string][]byte{
+				"bts": []byte("bar"),
+			},
+			TraceID: 556677,
+		},
+		{
+			Service:  "my-service2",
+			Name:     "span-name2",
+			Resource: "GET /res2",
+			SpanID:   12345678,
+			ParentID: 1111,
+			Duration: 234,
+			Start:    171615,
+			Metrics: map[string]float64{
+				"someNum":               1.0,
+				"_sampling_priority_v1": 2.0,
+			},
+			Meta: map[string]string{
+				"someStr":            "bar",
+				"_dd.p.tid":          "BABA",
+				"env":                "production",
+				"version":            "1.2.3",
+				"component":          "http-client",
+				"span.kind":          "client",
+				"_dd.git.commit.sha": "abc123def456",
+				"_dd.p.dm":           "-1",
+				"_dd.hostname":       "my-hostname",
+				"_dd.origin":         "lambda",
+			},
+			MetaStruct: map[string][]byte{
+				"bts": []byte("bar"),
+			},
+			TraceID: 556677,
+		},
+	})
+	traceBytes, err := trace.MarshalMsg(nil)
+	assert.NoError(t, err)
+	st := idx.NewStringTable()
+	chunk := idx.InternalTraceChunk{Strings: st}
+	chunkConvertedFields := idx.ChunkConvertedFields{}
+	chunk.UnmarshalMsgConverted(traceBytes, &chunkConvertedFields)
+	assert.NoError(t, err)
+	assert.Len(t, chunk.Spans, 2)
+	assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x8, 0x7e, 0x85, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xba, 0xba}, chunk.TraceID)
+	assert.Equal(t, uint32(1), chunk.SamplingMechanism())
+	assert.Equal(t, int32(2), chunk.Priority)
+	assert.Equal(t, "lambda", chunk.Origin())
+}
+
+func TestConvertedTracePayload(t *testing.T) {
+	traces := Traces([]Trace{
+		Trace([]*Span{
+			{
+				Service:  "my-service",
+				Name:     "span-name",
+				Resource: "GET /res",
+				SpanID:   12345678,
+				ParentID: 1111,
+				Duration: 234,
+				Start:    171615,
+				Metrics: map[string]float64{
+					"someNum":               1.0,
+					"_sampling_priority_v1": 2.0,
+				},
+				Meta: map[string]string{
+					"someStr":            "bar",
+					"_dd.p.tid":          "BABA",
+					"env":                "production",
+					"version":            "1.2.3",
+					"component":          "http-client",
+					"span.kind":          "client",
+					"_dd.git.commit.sha": "abc123def456",
+					"_dd.p.dm":           "-1",
+				},
+				MetaStruct: map[string][]byte{
+					"bts": []byte("bar"),
+				},
+				TraceID: 556677,
+			},
+			{
+				Service:  "my-service2",
+				Name:     "span-name2",
+				Resource: "GET /res2",
+				SpanID:   12345678,
+				ParentID: 1111,
+				Duration: 234,
+				Start:    171615,
+				Metrics: map[string]float64{
+					"someNum":               1.0,
+					"_sampling_priority_v1": 2.0,
+				},
+				Meta: map[string]string{
+					"someStr":            "bar",
+					"_dd.p.tid":          "BABA",
+					"env":                "production",
+					"component":          "http-client",
+					"span.kind":          "client",
+					"_dd.git.commit.sha": "abc123def456",
+					"_dd.p.dm":           "-1",
+					"_dd.origin":         "lambda",
+				},
+				MetaStruct: map[string][]byte{
+					"bts": []byte("bar"),
+				},
+				TraceID: 556677,
+			},
+		}),
+		Trace([]*Span{
+			{
+				Service:  "my-service",
+				Name:     "span-name",
+				Resource: "GET /res",
+				SpanID:   12345678,
+				ParentID: 1111,
+				Duration: 234,
+				Start:    171615,
+				Metrics: map[string]float64{
+					"someNum":               1.0,
+					"_sampling_priority_v1": 2.0,
+				},
+				Meta: map[string]string{
+					"someStr":            "bar",
+					"_dd.p.tid":          "BABA",
+					"env":                "production",
+					"component":          "http-client",
+					"span.kind":          "client",
+					"_dd.git.commit.sha": "abc123def456",
+					"_dd.p.dm":           "-1",
+					"_dd.hostname":       "my-hostname",
+				},
+				MetaStruct: map[string][]byte{
+					"bts": []byte("bar"),
+				},
+				TraceID: 5566881,
+			},
+		})})
+	tracesBytes, err := traces.MarshalMsg(nil)
+	assert.NoError(t, err)
+	st := idx.NewStringTable()
+	tp := &idx.InternalTracerPayload{Strings: st}
+	tp.UnmarshalMsgConverted(tracesBytes)
+	assert.NoError(t, err)
+	assert.Len(t, tp.Chunks, 2)
+	assert.Equal(t, "production", tp.Env())
+	assert.Equal(t, "my-hostname", tp.Hostname())
+	assert.Equal(t, "1.2.3", tp.AppVersion())
+	gitCommitSha, found := tp.GetAttributeAsString("_dd.git.commit.sha")
+	assert.True(t, found)
+	assert.Equal(t, "abc123def456", gitCommitSha)
+}

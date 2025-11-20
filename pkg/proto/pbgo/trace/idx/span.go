@@ -854,6 +854,107 @@ type SpanConvertedFields struct {
 	SamplingMechanism uint32 // the sampling mechanism
 	HostnameRef       uint32 // the hostname reference
 	SamplingPriority  uint32 // the sampling priority
+	OriginRef         uint32 // the origin reference
+}
+
+// ChunkConvertedFields is used to collect fields from v4 chunks that have been promoted to the tracer payload level
+type ChunkConvertedFields struct {
+	EnvRef          uint32
+	HostnameRef     uint32
+	AppVersionRef   uint32
+	GitCommitShaRef uint32
+}
+
+// UnmarshalMsgConverted unmarshals a list of list(sic) v4 spans directly into an InternalTracerPayload for efficiency
+func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, err error) {
+	if tp.Attributes == nil {
+		tp.Attributes = make(map[uint32]*AnyValue, 1)
+	}
+	if tp.Strings == nil {
+		tp.Strings = NewStringTable()
+	}
+	var numChunks uint32
+	numChunks, o, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	if cap(tp.Chunks) >= int(numChunks) {
+		tp.Chunks = tp.Chunks[:numChunks]
+	} else {
+		tp.Chunks = make([]*InternalTraceChunk, numChunks)
+	}
+	chunkConvertedFields := ChunkConvertedFields{}
+	for i := range tp.Chunks {
+		tp.Chunks[i] = &InternalTraceChunk{Strings: tp.Strings}
+		o, err = tp.Chunks[i].UnmarshalMsgConverted(o, &chunkConvertedFields)
+		if err != nil {
+			err = msgp.WrapError(err, i)
+			return
+		}
+	}
+	tp.envRef = chunkConvertedFields.EnvRef
+	tp.hostnameRef = chunkConvertedFields.HostnameRef
+	tp.appVersionRef = chunkConvertedFields.AppVersionRef
+	if chunkConvertedFields.GitCommitShaRef != 0 {
+		tp.setStringRefAttribute("_dd.git.commit.sha", chunkConvertedFields.GitCommitShaRef)
+	}
+	o = bts
+	return
+}
+
+// UnmarshalMsgConverted unmarshals a list of v4 spans directly into an InternalTraceChunk for efficiency
+// The provided InternalTraceChunk must have a non-nil Strings field
+func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFields *ChunkConvertedFields) (o []byte, err error) {
+	var numSpans uint32
+	numSpans, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	if cap(c.Spans) >= int(numSpans) {
+		c.Spans = c.Spans[:numSpans]
+	} else {
+		c.Spans = make([]*InternalSpan, numSpans)
+	}
+	convertedFields := SpanConvertedFields{}
+	for i := range c.Spans {
+		if msgp.IsNil(bts) {
+			bts, err = msgp.ReadNilBytes(bts)
+			if err != nil {
+				return
+			}
+			c.Spans[i] = nil
+		} else {
+			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
+			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, &convertedFields)
+			if err != nil {
+				err = msgp.WrapError(err, i)
+				return
+			}
+		}
+	}
+	tid := make([]byte, 16)
+	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDUpper)
+	binary.BigEndian.PutUint64(tid[:8], convertedFields.TraceIDLower)
+	c.TraceID = tid
+	c.samplingMechanism = convertedFields.SamplingMechanism
+	c.Priority = int32(convertedFields.SamplingPriority)
+	c.originRef = convertedFields.OriginRef
+	if convertedFields.EnvRef != 0 {
+		chunkConvertedFields.EnvRef = convertedFields.EnvRef
+	}
+	if convertedFields.HostnameRef != 0 {
+		chunkConvertedFields.HostnameRef = convertedFields.HostnameRef
+	}
+	if convertedFields.AppVersionRef != 0 {
+		chunkConvertedFields.AppVersionRef = convertedFields.AppVersionRef
+	}
+	if convertedFields.GitCommitShaRef != 0 {
+		chunkConvertedFields.GitCommitShaRef = convertedFields.GitCommitShaRef
+	}
+	o = bts
+	return
 }
 
 // UnmarshalMsgConverted unmarshals a v4 span directly into an InternalSpan for efficiency
@@ -1563,6 +1664,8 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 		convertedFields.SamplingMechanism = uint32(samplingMechanism)
 	case "_dd.hostname":
 		convertedFields.HostnameRef = metaVal
+	case "_dd.origin":
+		convertedFields.OriginRef = metaVal
 	}
 }
 

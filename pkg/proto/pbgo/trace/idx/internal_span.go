@@ -354,6 +354,15 @@ func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
+// setStringRefAttribute sets a string attribute for the tracer payload from a known pre-existing string ref.
+func (tp *InternalTracerPayload) setStringRefAttribute(key string, valueRef uint32) {
+	setAttribute(key, &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: valueRef,
+		},
+	}, tp.Strings, tp.Attributes)
+}
+
 // GetAttributeAsString gets a string attribute from the tracer payload.
 func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, tp.Strings, tp.Attributes)
