@@ -568,8 +568,6 @@ cc_library(
     linkstatic = True,
 )
 
-# This should be a cc_library but static linking seems to be
-# ignored when using that rule.
 cc_library(
     name = "libpython",
     srcs = [
@@ -586,6 +584,9 @@ cc_library(
         ":modules_getpath",
     ] + select({
         "@platforms//os:linux": [":dynload_shlib"],
+    }),
+    linkopts = select({
+        "@platforms//os:linux": ["-lutil"],
     }),
     linkstatic = True,
 )
@@ -609,9 +610,6 @@ cc_binary(
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
-    linkopts = select({
-        "@platforms//os:linux": ["-lutil"],
-    }),
 )
 
 so_symlink(
