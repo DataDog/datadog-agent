@@ -2701,6 +2701,7 @@ core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
