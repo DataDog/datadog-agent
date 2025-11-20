@@ -452,6 +452,15 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 
 	ddebpf.AddProbeFDMappings(t.m.Manager)
 
+	if t.config.BypassEnabled {
+		err := t.Pause()
+		if err == nil {
+			log.Info("BypassEnabled is true: successfully paused")
+		} else {
+			log.Warnf("BypassEnabled is true: could not pause: %s", err)
+		}
+	}
+
 	return nil
 }
 
