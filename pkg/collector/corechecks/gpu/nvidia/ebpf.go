@@ -88,11 +88,10 @@ type ebpfCollector struct {
 	device        ddnvml.Device
 	cache         *SystemProbeCache
 	activeMetrics map[model.StatsKey]bool // activeMetrics tracks processes that are active for this device
-	nsPidCache    *NsPidCache             // nsPidCache resolves and caches nspids for processes
 }
 
 // newEbpfCollector creates a new eBPF-based collector for the given device.
-func newEbpfCollector(device ddnvml.Device, nsPidCache *NsPidCache, cache *SystemProbeCache) (*ebpfCollector, error) {
+func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
 	if cache == nil {
 		return nil, fmt.Errorf("system-probe cache cannot be nil")
 	}
@@ -101,7 +100,6 @@ func newEbpfCollector(device ddnvml.Device, nsPidCache *NsPidCache, cache *Syste
 		device:        device,
 		cache:         cache,
 		activeMetrics: make(map[model.StatsKey]bool),
-		nsPidCache:    nsPidCache,
 	}, nil
 }
 
@@ -210,10 +208,10 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	// Emit limit metrics with aggregated PID tags
 	deviceMetrics = append(deviceMetrics,
 		Metric{
-			Name:      "core.limit",
-			Value:     float64(devInfo.CoreCount),
-			Type:      ddmetrics.GaugeType,
-			Priority:  High,
+			Name:                "core.limit",
+			Value:               float64(devInfo.CoreCount),
+			Type:                ddmetrics.GaugeType,
+			Priority:            High,
 			AssociatedWorkloads: allWorkloadIDs,
 		},
 		Metric{

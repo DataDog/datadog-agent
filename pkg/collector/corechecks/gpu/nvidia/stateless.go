@@ -81,7 +81,7 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 }
 
 // processMemorySample handles process memory usage collection logic
-func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
+func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 	procs, err := device.GetComputeRunningProcesses()
 
 	var processMetrics []Metric
@@ -119,7 +119,7 @@ func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
-func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
+func createStatelessAPIs() []apiCallInfo {
 	apis := []apiCallInfo{
 		// Memory collector APIs
 		{
@@ -388,7 +388,7 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 		{
 			Name: "process_memory_usage",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return processMemorySample(device, nsPidCache)
+				return processMemorySample(device)
 			},
 		},
 		// NVLink collector APIs
@@ -406,6 +406,6 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
-func newStatelessCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(stateless, device, statelessAPIFactory(deps.NsPidCache))
+func newStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+	return NewBaseCollector(stateless, device, statelessAPIFactory())
 }

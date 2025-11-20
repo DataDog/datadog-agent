@@ -48,7 +48,6 @@ type Check struct {
 	deviceCache        ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
 	spCache            *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
 	deviceEvtGatherer  *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
-	nsPidCache         *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
 	nvmlStateTelemetry *ddnvml.NvmlStateTelemetry   // nvmlStateTelemetry tracks the state of the NVML library
 	workloadTagCache   *WorkloadTagCache            // workloadTagCache caches workload tags for GPU metrics
 }
@@ -111,7 +110,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return fmt.Errorf("failed to create workload tag cache: %w", err)
 	}
 
-	c.nsPidCache = &nvidia.NsPidCache{}
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
@@ -160,7 +158,6 @@ func (c *Check) ensureInitCollectors() error {
 			&nvidia.CollectorDependencies{
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
-				NsPidCache:           c.nsPidCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
 			})
 		if err != nil {
@@ -239,9 +236,9 @@ func (c *Check) Run() error {
 		// Might cause empty metrics in collectors depending on device events
 	}
 
-	// Make sure ns pid resolution attempts retrieving the most up to date values.
+	// Make sure workload tag resolution attempts retrieving the most up to date values.
 	// Invalidated cache entries (from previous runs) might still be used as a fallback.
-	c.nsPidCache.Invalidate()
+	c.workloadTagCache.Invalidate()
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them

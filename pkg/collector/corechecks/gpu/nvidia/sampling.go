@@ -96,7 +96,7 @@ func processSample(device ddnvml.Device, metricName string, samplingType nvml.Sa
 }
 
 // processUtilizationSample handles process utilization sampling logic
-func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
+func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
 	currentTime := uint64(time.Now().UnixMicro())
 	processSamples, err := device.GetProcessUtilization(lastTimestamp)
 
@@ -148,13 +148,13 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64, nsPidC
 }
 
 // createSampleAPIs creates API call definitions for all sampling metrics on demand
-func createSampleAPIs(nsPidCache *NsPidCache) []apiCallInfo {
+func createSampleAPIs() []apiCallInfo {
 	return []apiCallInfo{
 		// Process utilization APIs (sample - requires timestamp tracking)
 		{
 			Name: "process_utilization",
 			Handler: func(device ddnvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-				return processUtilizationSample(device, lastTimestamp, nsPidCache)
+				return processUtilizationSample(device, lastTimestamp)
 			},
 		},
 		// Samples collector APIs - each sample type is separate for independent failure handling
@@ -205,6 +205,6 @@ func newStatefulCollector(name CollectorName, device ddnvml.Device, apiCalls []a
 var sampleAPIFactory = createSampleAPIs
 
 // newSamplingCollector creates a collector that consolidates all sampling collector types
-func newSamplingCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
-	return newStatefulCollector(sampling, device, sampleAPIFactory(deps.NsPidCache))
+func newSamplingCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
+	return newStatefulCollector(sampling, device, sampleAPIFactory())
 }
