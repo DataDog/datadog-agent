@@ -2318,8 +2318,8 @@ def tag_ci_job(ctx: Context):
     ctx.run(f"datadog-ci tag --level job {tags_str}")
 
     if len(metrics) > 0:
-        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
-        ctx.run(f"datadog-ci metric --level job {metrics_str}")
+        metrics_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci measure --level job {metrics_str}")
 
 
 @task
