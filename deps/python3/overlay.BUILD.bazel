@@ -587,9 +587,11 @@ cc_library(
         ":modules_getpath",
     ] + select({
         "@platforms//os:linux": [":dynload_shlib"],
+        "@platforms//os:macos": [":dynload_shlib"],
     }),
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
+        "//conditions:default": [],
     }),
     linkstatic = True,
 )
