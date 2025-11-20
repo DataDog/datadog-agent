@@ -215,7 +215,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 
 	// Subscribe to secret updates so we can tear down and recreate any configs
 	// that were resolved with the outdated values.
-	secretResolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+	secretResolver.SubscribeToChanges(func(_, origin string, _ []string, _, _ any) {
 		ac.refreshConfig(origin)
 	})
 
@@ -236,8 +236,9 @@ func (ac *AutoConfig) refreshConfig(origin string) {
 		}
 		ac.applyChanges(unschedule)
 	}
-
-	ac.processNewConfig(rawConfig)
+	ac.cfgMgr.removeActiveConfig(origin)
+	changes := ac.processNewConfig(rawConfig)
+	ac.applyChanges(changes)
 }
 
 // serviceListening is the main management goroutine for services.
