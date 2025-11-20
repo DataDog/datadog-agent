@@ -55,6 +55,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
                 job["needs"],
                 deps_to_keep=[
                     "go_e2e_deps",
+                    "go_tools_deps",
                     "tests_windows_sysprobe_x64",
                     "tests_windows_secagent_x64",
                     "go_e2e_test_binaries",
