@@ -97,6 +97,7 @@ func readResolvConf(entry *events.Process) (string, error) {
 func StripResolvConf(resolvConf string) string {
 	lines := strings.Split(resolvConf, "\n")
 	var sb strings.Builder
+	sb.Grow(len(resolvConf))
 
 	for _, rawLine := range lines {
 		line := strings.TrimSpace(rawLine)

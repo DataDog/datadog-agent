@@ -10,7 +10,6 @@ package containers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -93,13 +92,9 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 	errorLimit := log.NewLogLimit(5, 10*time.Second)
 
 	cache, err := lru.NewWithEvict(maxContainers, func(key *intern.Value, item containerStoreItem) {
-		log.TraceFunc(func() string {
-			containerID := "host"
-			if key != nil {
-				containerID = key.Get().(string)
-			}
-			return fmt.Sprintf("CNM ContainerStore evicting ID %s", containerID)
-		})
+		if log.ShouldLog(log.TraceLvl) {
+			logEvictingID(key)
+		}
 		if !item.isStale() {
 			containerStoreTelemetry.nonStaleEvictions.Add(1)
 		}
@@ -150,7 +145,7 @@ func (cs *ContainerStore) HandleProcessEvent(entry *events.Process) {
 	case cs.in <- entry:
 	default:
 		if cs.warnLimit.ShouldLog() {
-			log.Warn("CNM ContainerStore dropped a process event (too many in queue)")
+			log.Warnf("CNM ContainerStore dropped a process event (too many in queue)")
 		}
 		containerStoreTelemetry.eventsDropped.Inc()
 	}
@@ -164,12 +159,16 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 	}
 
 	item, err := cs.readContainerItem(cs.ctx, entry)
-	log.Debugf("CNM ContainerStore handled ID=%v with item=%v, err=%v", entry.ContainerID, item, err)
-	var noData *containerItemNoDataError
-	if cs.ctx.Err() != nil || errors.As(err, &noData) {
+	if log.ShouldLog(log.DebugLvl) {
+		logHandledID(entry.ContainerID, item, err)
+	}
+	if cs.ctx.Err() != nil {
 		return
 	}
 	if err != nil {
+		if _, ok := err.(*containerItemNoDataError); ok {
+			return
+		}
 		if cs.errorLimit.ShouldLog() {
 			log.Errorf("CNM ContainerStore failed to readContainerItem: %s", err)
 		}
@@ -183,9 +182,30 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 		return
 	}
 
-	log.Debugf("CNM ContainerStore successfully read resolv.conf of size %d", len(item.resolvConf.Get()))
+	if log.ShouldLog(log.DebugLvl) {
+		logResolvConfRead(len(item.resolvConf.Get()))
+	}
 
 	cs.cache.Add(entry.ContainerID, item)
+}
+
+// logEvictingID logs in a separate function to avoid allocation
+func logEvictingID(containerID network.ContainerID) {
+	containerStr := "host"
+	if containerID != nil {
+		containerStr = containerID.Get().(string)
+	}
+	log.Tracef("CNM ContainerStore evicting ID %s", containerStr)
+}
+
+// logHandledID logs in a separate function to avoid allocation
+func logHandledID(containerID network.ContainerID, item containerStoreItem, err error) {
+	log.Debugf("CNM ContainerStore handled ID=%v with item=%v, err=%v", containerID, item, err)
+}
+
+// logResolvConfRead logs in a separate function to avoid allocation
+func logResolvConfRead(size int) {
+	log.Debugf("CNM ContainerStore successfully read resolv.conf of size %d", size)
 }
 
 func (cs *ContainerStore) cleanMap() {
