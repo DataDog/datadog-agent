@@ -12,13 +12,13 @@ profile_filename = ".test_infra_config.yaml"
 
 
 class Config(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
 
     class Params(BaseModel):
-        model_config = ConfigDict(extra="forbid")
+        model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
 
         class Aws(BaseModel):
-            model_config = ConfigDict(extra="forbid")
+            model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             keyPairName: Optional[str]
             publicKeyPath: Optional[str]
             privateKeyPath: Optional[str] = None
@@ -44,7 +44,7 @@ You should consider moving to the agent-sandbox account. Please follow https://d
         aws: Optional[Aws]
 
         class Azure(BaseModel):
-            model_config = ConfigDict(extra="forbid")
+            model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             _DEFAULT_ACCOUNT = "agent-sandbox"
             publicKeyPath: Optional[str] = None
             account: Optional[str] = _DEFAULT_ACCOUNT
@@ -52,7 +52,7 @@ You should consider moving to the agent-sandbox account. Please follow https://d
         azure: Optional[Azure] = None
 
         class GCP(BaseModel):
-            model_config = ConfigDict(extra="forbid")
+            model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             _DEFAULT_ACCOUNT = "agent-sandbox"
             publicKeyPath: Optional[str] = None
             pullSecretPath: Optional[str] = None
@@ -61,13 +61,13 @@ You should consider moving to the agent-sandbox account. Please follow https://d
         gcp: Optional[GCP] = None
 
         class Local(BaseModel):
-            model_config = ConfigDict(extra="forbid")
+            model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             publicKeyPath: Optional[str] = None
 
         local: Optional[Local] = None
 
         class Agent(BaseModel):
-            model_config = ConfigDict(extra="forbid")
+            model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             apiKey: Optional[str]
             appKey: Optional[str]
             verifyCodeSignature: Optional[bool] = True  # noqa used in e2e tests
@@ -75,7 +75,7 @@ You should consider moving to the agent-sandbox account. Please follow https://d
         agent: Optional[Agent]
 
         class Pulumi(BaseModel):
-            model_config = ConfigDict(extra="forbid")
+            model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             logLevel: Optional[int] = None
             logToStdErr: Optional[bool] = None
             verboseProgressStreams: Optional[bool] = None  # noqa used in e2e tests
@@ -89,7 +89,7 @@ You should consider moving to the agent-sandbox account. Please follow https://d
     stackParams: Optional[Dict[str, Dict[str, str]]] = None
 
     class Options(BaseModel):
-        model_config = ConfigDict(extra="forbid")
+        model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
         checkKeyPair: Optional[bool]
 
     options: Optional[Options] = None

@@ -5,10 +5,10 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 try:
-    from termcolor import colored  # pyright: ignore
+    from termcolor import colored
 except ImportError:
 
-    def colored(*args):  # pyright: ignore
+    def colored(*args):  # type: ignore
         return args[0]
 
 

@@ -1,3 +1,4 @@
+# mypy: disable-error-code="arg-type"
 from invoke.collection import Collection
 
 import tasks.ci as ci
