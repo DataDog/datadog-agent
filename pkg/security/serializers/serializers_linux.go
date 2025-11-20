@@ -217,10 +217,10 @@ type ProcessCredentialsSerializer struct {
 // UserSessionContextSerializer serializes the user session context to JSON
 // easyjson:json
 type UserSessionContextSerializer struct {
-	// Unique identifier of the user session on the host
-	ID string `json:"id,omitempty"`
 	// Type of the user session
 	SessionType string `json:"session_type,omitempty"`
+	// Unique identifier of the user session on the host
+	K8SSessionID string `json:"id,omitempty"`
 	// Username of the Kubernetes "kubectl exec" session
 	K8SUsername string `json:"k8s_username,omitempty"`
 	// UID of the Kubernetes "kubectl exec" session
@@ -229,6 +229,8 @@ type UserSessionContextSerializer struct {
 	K8SGroups []string `json:"k8s_groups,omitempty"`
 	// Extra of the Kubernetes "kubectl exec" session
 	K8SExtra map[string][]string `json:"k8s_extra,omitempty"`
+	// Unique identifier of the SSH session
+	SSHSessionID string `json:"ssh_session_id,omitempty"`
 	// Port of the SSH session
 	SSHPort int `json:"ssh_port,omitempty"`
 	// Client IP of the SSH session
@@ -947,7 +949,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			CredentialsSerializer: credsSerializer,
 		}
 
-		if ps.UserSession.ID != 0 {
+		if ps.UserSession.K8SSessionID != 0 || ps.UserSession.SSHSessionID != 0 {
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
 		}
 
@@ -996,12 +998,13 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 	}
 
 	return &UserSessionContextSerializer{
-		ID:            fmt.Sprintf("%x", ctx.ID),
+		K8SSessionID:  fmt.Sprintf("%x", ctx.K8SSessionID),
 		SessionType:   model.UserSessionTypeStrings[usersession.Type(ctx.SessionType)],
 		K8SUsername:   ctx.K8SUsername,
 		K8SUID:        ctx.K8SUID,
 		K8SGroups:     ctx.K8SGroups,
 		K8SExtra:      ctx.K8SExtra,
+		SSHSessionID:  fmt.Sprintf("%x", ctx.SSHSessionID),
 		SSHPort:       ctx.SSHPort,
 		SSHClientIP:   ctx.SSHClientIP.IP.String(),
 		SSHAuthMethod: model.SSHAuthMethodStrings[usersession.AuthType(ctx.SSHAuthMethod)],

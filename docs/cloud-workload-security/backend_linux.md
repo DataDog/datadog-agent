@@ -2179,13 +2179,13 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "UserSessionContext": {
             "properties": {
-                "id": {
-                    "type": "string",
-                    "description": "Unique identifier of the user session on the host"
-                },
                 "session_type": {
                     "type": "string",
                     "description": "Type of the user session"
+                },
+                "id": {
+                    "type": "string",
+                    "description": "Unique identifier of the user session on the host"
                 },
                 "k8s_username": {
                     "type": "string",
@@ -2211,6 +2211,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "object",
                     "description": "Extra of the Kubernetes \"kubectl exec\" session"
+                },
+                "ssh_session_id": {
+                    "type": "string",
+                    "description": "Unique identifier of the SSH session"
                 },
                 "ssh_port": {
                     "type": "integer",
@@ -5623,13 +5627,13 @@ Workload Protection events for Linux systems have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
-        "id": {
-            "type": "string",
-            "description": "Unique identifier of the user session on the host"
-        },
         "session_type": {
             "type": "string",
             "description": "Type of the user session"
+        },
+        "id": {
+            "type": "string",
+            "description": "Unique identifier of the user session on the host"
         },
         "k8s_username": {
             "type": "string",
@@ -5655,6 +5659,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "object",
             "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        },
+        "ssh_session_id": {
+            "type": "string",
+            "description": "Unique identifier of the SSH session"
         },
         "ssh_port": {
             "type": "integer",
@@ -5682,12 +5690,13 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `id` | Unique identifier of the user session on the host |
 | `session_type` | Type of the user session |
+| `id` | Unique identifier of the user session on the host |
 | `k8s_username` | Username of the Kubernetes "kubectl exec" session |
 | `k8s_uid` | UID of the Kubernetes "kubectl exec" session |
 | `k8s_groups` | Groups of the Kubernetes "kubectl exec" session |
 | `k8s_extra` | Extra of the Kubernetes "kubectl exec" session |
+| `ssh_session_id` | Unique identifier of the SSH session |
 | `ssh_port` | Port of the SSH session |
 | `ssh_client_ip` | Client IP of the SSH session |
 | `ssh_auth_method` | Authentication method of the SSH session |

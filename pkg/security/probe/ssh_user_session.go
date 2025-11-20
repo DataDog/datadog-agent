@@ -47,7 +47,7 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 	// If the parent is a sshd process and the SSH_CLIENT environment variable is set, we consider it's a new ssh session
 	if parent != nil && parent.Comm == "sshd" && sshClientVar != "" {
 		sshSessionID := rand.Uint64()
-		event.ProcessContext.UserSession.ID = sshSessionID
+		event.ProcessContext.UserSession.SSHSessionID = sshSessionID
 		event.ProcessContext.UserSession.SessionType = int(usersession.UserSessionTypeSSH)
 		parts := strings.Fields(sshClientVar)
 		if len(parts) >= 2 {

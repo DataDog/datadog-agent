@@ -40,10 +40,10 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 			continue
 		}
 		switch key {
-		case "id":
-			out.ID = string(in.String())
 		case "session_type":
 			out.SessionType = string(in.String())
+		case "id":
+			out.K8SSessionID = string(in.String())
 		case "k8s_username":
 			out.K8SUsername = string(in.String())
 		case "k8s_uid":
@@ -112,6 +112,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 				}
 				in.Delim('}')
 			}
+		case "ssh_session_id":
+			out.SSHSessionID = string(in.String())
 		case "ssh_port":
 			out.SSHPort = int(in.Int())
 		case "ssh_client_ip":
@@ -134,21 +136,21 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.ID != "" {
-		const prefix string = ",\"id\":"
-		first = false
-		out.RawString(prefix[1:])
-		out.String(string(in.ID))
-	}
 	if in.SessionType != "" {
 		const prefix string = ",\"session_type\":"
+		first = false
+		out.RawString(prefix[1:])
+		out.String(string(in.SessionType))
+	}
+	if in.K8SSessionID != "" {
+		const prefix string = ",\"id\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.SessionType))
+		out.String(string(in.K8SSessionID))
 	}
 	if in.K8SUsername != "" {
 		const prefix string = ",\"k8s_username\":"
@@ -223,6 +225,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 			}
 			out.RawByte('}')
 		}
+	}
+	if in.SSHSessionID != "" {
+		const prefix string = ",\"ssh_session_id\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.SSHSessionID))
 	}
 	if in.SSHPort != 0 {
 		const prefix string = ",\"ssh_port\":"

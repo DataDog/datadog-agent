@@ -636,8 +636,8 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(event *model.Event, evtCtx *model.UserSessionContext) {
-	if !evtCtx.Resolved {
-		id := evtCtx.ID
+	if !evtCtx.K8SResolved {
+		id := evtCtx.K8SSessionID
 		if id == 0 {
 			id = event.ProcessContext.UserSessionID
 		}

@@ -276,7 +276,8 @@ type sshSessionPatcher = *probe.SSHUserSessionPatcher
 
 // createSSHSessionPatcher creates an SSH session patcher for Linux
 func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher {
-	if ev.ProcessContext.UserSession.ID != 0 && ev.ProcessContext.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
+	// Check if SSH session exists
+	if ev.ProcessContext.UserSession.SSHSessionID != 0 {
 		// Access the EBPFProbe to get the UserSessionsResolver
 		if ebpfProbe, ok := p.PlatformProbe.(*probe.EBPFProbe); ok {
 			if model.UserSessionTypeStrings == nil {
@@ -284,10 +285,10 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 			}
 			// Create the user session context serializer
 			userSessionCtx := &serializers.UserSessionContextSerializer{
-				ID:          fmt.Sprintf("%x", ev.ProcessContext.UserSession.ID),
-				SessionType: model.UserSessionTypeStrings[usersession.Type(ev.ProcessContext.UserSession.SessionType)],
-				SSHPort:     ev.ProcessContext.UserSession.SSHPort,
-				SSHClientIP: ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
+				SSHSessionID: fmt.Sprintf("%x", ev.ProcessContext.UserSession.SSHSessionID),
+				SessionType:  model.UserSessionTypeStrings[usersession.UserSessionTypeSSH],
+				SSHPort:      ev.ProcessContext.UserSession.SSHPort,
+				SSHClientIP:  ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
 			}
 			return probe.NewSSHUserSessionPatcher(
 				userSessionCtx,

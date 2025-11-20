@@ -15,7 +15,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -158,10 +157,13 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		// the session doesn't exist, leave now
 		return nil
 	}
-
+	sessionType := int(value.SessionType)
+	if sessionType != int(usersession.UserSessionTypeK8S) {
+		seclog.Debugf("session %d is not a k8s session: %v", id, sessionType)
+	}
 	ctx := &model.UserSessionContext{
-		ID:          id,
-		SessionType: int(value.SessionType),
+		K8SSessionID: id,
+		SessionType:  int(value.SessionType),
 	}
 	// parse the content of the user session context
 	err = json.Unmarshal([]byte(value.RawData), ctx)
@@ -170,7 +172,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		return nil
 	}
 
-	ctx.Resolved = true
+	ctx.K8SResolved = true
 
 	// cache resolved context
 	r.userSessions.Add(id, ctx)
@@ -474,34 +476,6 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 	go r.startReading()
 	// Note: the file is not closed here, as the sshLogReader manage it
 	return nil
-}
-
-// ResolveSSHUserSession resolves the ssh user session from the auth log
-func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.UserSessionContext {
-	id := ctx.ID
-	if id == 0 {
-		return nil
-	}
-
-	r.Lock()
-
-	defer r.Unlock()
-
-	key := SSHSessionKey{
-		IP:   ctx.SSHClientIP.IP.String(),
-		Port: strconv.Itoa(ctx.SSHPort),
-	}
-	r.SSHSessionParsed.Mu.Lock()
-	value, ok := r.SSHSessionParsed.Lru.Get(key)
-	r.SSHSessionParsed.Mu.Unlock()
-	if !ok {
-		ctx.Resolved = true
-		return nil
-	}
-	ctx.SSHAuthMethod = int(value.AuthenticationMethod)
-	ctx.SSHPublicKey = value.PublicKey
-	ctx.Resolved = true
-	return ctx
 }
 
 // Close closes the resolver

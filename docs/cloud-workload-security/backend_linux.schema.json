@@ -2168,13 +2168,13 @@
     },
     "UserSessionContext": {
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier of the user session on the host"
-        },
         "session_type": {
           "type": "string",
           "description": "Type of the user session"
+        },
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the user session on the host"
         },
         "k8s_username": {
           "type": "string",
@@ -2200,6 +2200,10 @@
           },
           "type": "object",
           "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        },
+        "ssh_session_id": {
+          "type": "string",
+          "description": "Unique identifier of the SSH session"
         },
         "ssh_port": {
           "type": "integer",

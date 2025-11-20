@@ -155,10 +155,10 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 	jsonPathValidation(testMod, data, func(_ *testModule, jsonData interface{}) {
 
 		// Check all the fields
-		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.id`); err != nil || el == nil {
-			t.Errorf("user_session.id not found: %v", err)
+		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_session_id`); err != nil || el == nil {
+			t.Errorf("user_session.ssh_session_id not found: %v", err)
 		} else if id, ok := el.(string); !ok || id == "" || id == "0" {
-			t.Errorf("user_session.id is empty or invalid: %v", el)
+			t.Errorf("user_session.user_session_id is empty or invalid: %v", el)
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.session_type`); err != nil || el == nil {
@@ -336,7 +336,7 @@ func TestSSHUserSession(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_ssh_user_session",
-			Expression: `process.user_session.id != 0 && process.user_session.session_type == ssh && exec.user == "` + testUser.Username + `"`,
+			Expression: `process.user_session.ssh_session_id != 0 && exec.user == "` + testUser.Username + `"`,
 		},
 	}
 
@@ -402,7 +402,7 @@ func TestSSHUserSessionRotated(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_ssh_user_session",
-			Expression: `exec.user_session.id != 0 && exec.user_session.session_type == ssh && exec.user == "` + testUser.Username + `"`,
+			Expression: `process.user_session.ssh_session_id != 0 && exec.user == "` + testUser.Username + `"`,
 		},
 	}
 
