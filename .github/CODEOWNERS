@@ -788,6 +788,7 @@
 /tools/bazel*                           @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
 /tools/ebpf/                            @DataDog/ebpf-platform
+/tools/elf-deduplicator/                @DataDog/agent-security
 /tools/gdb/                             @DataDog/agent-runtimes
 /tools/go-update/                       @DataDog/agent-runtimes
 /tools/NamedPipeCmd/                    @DataDog/windows-products
