@@ -26,6 +26,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var mu sync.Mutex
@@ -99,6 +100,7 @@ func (img *image) ConfigName() (v1.Hash, error) {
 func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	if len(img.inspect.RootFS.Layers) == 0 {
 		// Podman doesn't return RootFS...
+		log.Errorf("image %s has no RootFS layers, falling back to expensive configFile()", img.name)
 		return img.configFile()
 	}
 
@@ -109,6 +111,7 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	if len(img.inspect.RootFS.Layers) != nonEmptyLayerCount {
 		// In cases where empty layers are not correctly determined from the history API.
 		// There are some edge cases where we cannot guess empty layers well.
+		log.Errorf("image %s has some mismatched rootfs layers (%d) against non empty layers (%d/%d), falling back to expensive configFile()\nrootfs layers: %v\nimg.history: %v", img.name, len(img.inspect.RootFS.Layers), nonEmptyLayerCount, len(img.history), img.inspect.RootFS.Layers, img.history)
 		return img.configFile()
 	}
 
