@@ -240,6 +240,7 @@ func (cs *ContainerStore) GetResolvConfMap(conns []network.ConnectionStats) map[
 	allContainers := make(map[network.ContainerID]struct{})
 	resolvConfs := make(map[network.ContainerID]network.ResolvConf)
 	for i := range conns {
+		// if containerID is nil, this represents the host
 		containerID := conns[i].ContainerID.Source
 		allContainers[containerID] = struct{}{}
 		if _, ok := resolvConfs[containerID]; ok {
