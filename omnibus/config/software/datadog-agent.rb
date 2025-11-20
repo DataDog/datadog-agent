@@ -334,9 +334,6 @@ build do
 
   block do
     mkdir "#{install_dir}/sources"
-    # The command we would like is below, but pkg_install is failing on windows
-    # command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir='#{install_dir}/sources'"
-    command_on_repo_root "bazelisk build //compliance:sources.txt"
-    copy "bazel-bin/compliance/sources.txt, "#{install_dir}/sources"
+    command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir='#{install_dir}/sources'"
   end
 end
