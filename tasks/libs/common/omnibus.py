@@ -46,6 +46,7 @@ ENV_PASSHTROUGH = {
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_version': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
+    'AGENT_DATA_PLANE_VERSION': 'Agent Data Plane Version',
 }
 
 OS_SPECIFIC_ENV_PASSTHROUGH = {
@@ -86,6 +87,10 @@ OS_SPECIFIC_ENV_PASSTHROUGH = {
         'RPM_GPG_KEY': 'Used to sign packages',
         'RPM_GPG_KEY_NAME': 'Used to sign packages',
         'RPM_SIGNING_PASSPHRASE': 'Used to sign packages',
+        'AGENT_DATA_PLANE_HASH_LINUX_AMD64': 'Agent Data Plane Hash for Linux AMD64',
+        'AGENT_DATA_PLANE_HASH_LINUX_ARM64': 'Agent Data Plane Hash for Linux ARM64',
+        'AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64': 'Agent Data Plane Hash for FIPS Linux AMD64',
+        'AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64': 'Agent Data Plane Hash for FIPS Linux ARM64',
     },
     'darwin': {},
 }
