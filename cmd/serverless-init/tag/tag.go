@@ -74,7 +74,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	return tagsMap
 }
 
-// WithoutHihCardinalityTags creates a new tag map without high cardinality tags we use on traces
+// WithoutHighCardinalityTags creates a new tag map without high cardinality tags we use on traces
 func WithoutHighCardinalityTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {

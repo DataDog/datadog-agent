@@ -220,3 +220,23 @@ func TestGetCCRID(t *testing.T) {
 	assert.Equal(t, "/metadata/instance/compute/resourceId", lastRequest.URL.Path)
 	assert.Equal(t, "api-version=2021-02-01&format=text", lastRequest.URL.RawQuery)
 }
+
+func TestInstanceType(t *testing.T) {
+	ctx := context.Background()
+	expected := "Standard_E2s_v3"
+
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		io.WriteString(w, expected)
+		lastRequest = r
+	}))
+	defer ts.Close()
+	metadataURL = ts.URL
+
+	instanceType, err := GetInstanceType(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, instanceType)
+	assert.Equal(t, "/metadata/instance/compute/vmSize", lastRequest.URL.Path)
+	assert.Equal(t, "api-version=2021-02-01&format=text", lastRequest.URL.RawQuery)
+}
