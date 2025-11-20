@@ -44,6 +44,9 @@ exceptions:
   - "golang.org/x/mod/..."
   - "golang.org/x/xerrors/..."
   - "github.com/stretchr/testify"
+  # secret-backend
+  - "github.com/goware/modvendor"
+  - "github.com/go-enry/go-license-detector/..."
 
 additional:
   # list here paths to additional licenses
