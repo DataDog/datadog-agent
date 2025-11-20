@@ -86,10 +86,6 @@ func (r *HTTPReceiver) profileProxyHandler() http.Handler {
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		tags.WriteString(fmt.Sprintf(",orchestrator:fargate_%s", strings.ToLower(string(orch))))
 	}
-	if r.conf.LambdaFunctionName != "" {
-		tags.WriteString(fmt.Sprintf("functionname:%s", strings.ToLower(r.conf.LambdaFunctionName)))
-		tags.WriteString("_dd.origin:lambda")
-	}
 	if r.conf.AzureServerlessTags != "" {
 		tags.WriteString(r.conf.AzureServerlessTags)
 	}

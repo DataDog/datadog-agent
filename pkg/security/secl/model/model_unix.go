@@ -589,11 +589,12 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid       uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-	NetNS     uint32 `field:"-"`
-	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	Pid           uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid           uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
+	NetNS         uint32 `field:"-"`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
+	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
 	NSID uint64 `field:"-"`
 }
