@@ -169,7 +169,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 		// default value for tags is nspid=pid if the process is not running in a container
 		nspid = pid
 	}
-	tags = append(tags, fmt.Sprintf("nspid:%d", pid))
+	tags = append(tags, fmt.Sprintf("nspid:%d", nspid))
 
 	if containerID != "" {
 		entityID := workloadmeta.EntityID{
