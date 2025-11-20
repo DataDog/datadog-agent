@@ -14,11 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
+// RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
 	GetConfigs(product string) map[string]state.RawConfig
 	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
 }
 
+// ImageResolverConfig contains information needed to create an ImageResolver
 type ImageResolverConfig struct {
 	Site           string
 	DDRegistries   map[string]any
@@ -27,6 +29,7 @@ type ImageResolverConfig struct {
 	InitRetryDelay time.Duration
 }
 
+// NewImageResolverConfig creates a new ImageResolverConfig
 func NewImageResolverConfig(cfg config.Component, rcClient RemoteConfigClient) *ImageResolverConfig {
 	return &ImageResolverConfig{
 		Site:           cfg.GetString("site"),
@@ -37,6 +40,7 @@ func NewImageResolverConfig(cfg config.Component, rcClient RemoteConfigClient) *
 	}
 }
 
+// NewTestImageResolverConfig creates a new ImageResolverConfig for testing
 func NewTestImageResolverConfig(site string, ddRegistries map[string]any, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) *ImageResolverConfig {
 	return &ImageResolverConfig{
 		Site:           site,
