@@ -36,8 +36,6 @@ extensions:
     v0.139.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver
     v0.139.0
-- gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver
-    v0.139.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver
     v0.139.0
 - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver

@@ -31,6 +31,10 @@ core,code.cloudfoundry.org/garden/routes,Apache-2.0,"Copyright (c) 2016-Present 
 core,code.cloudfoundry.org/garden/transport,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/lager,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
+core,cyphar.com/go-pathrs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
+core,cyphar.com/go-pathrs/internal/fdutils,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
+core,cyphar.com/go-pathrs/internal/libpathrs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
+core,cyphar.com/go-pathrs/procfs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
 core,dario.cat/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
 core,filippo.io/edwards25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,filippo.io/edwards25519/field,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -870,7 +874,18 @@ core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,"Copyright 2017 CoreOS, In
 core,github.com/coreos/go-systemd/v22/journal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
-core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved | Copyright (C) 2017-2024 SUSE LLC. All rights reserved
+core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,copyright header describing its
+core,github.com/cyphar/filepath-securejoin/internal/consts,BSD-3-Clause,copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/assert,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/fd,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/gocompat,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/gopathrs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/kernelversion,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/linux,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/procfs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/procfs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
 core,github.com/dennwc/varint,MIT,Copyright (c) 2019 Denys Smirnov
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
@@ -1551,8 +1566,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observe
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver/internal/errctx,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/endpointswatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors

@@ -9,13 +9,13 @@
 package selftests
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"golang.org/x/net/context"
 )
 
 // EBPFLessSelfTest defines an ebpf less self test
