@@ -23,7 +23,7 @@ bazel:build-deps:macos-amd64:
 bazel:build-deps:macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
   script:
-    - bazel build @python3//
+    - bazel build @python3//:python3
     - bazel build //deps/... --platforms=//bazel/platforms:macos_arm64
 
 bazel:build-deps:windows-amd64:
