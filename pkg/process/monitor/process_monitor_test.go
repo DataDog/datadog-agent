@@ -95,11 +95,9 @@ func waitForProcessMonitor(t *testing.T, pm *ProcessMonitor) {
 	}, iterations*iterations*iterationInterval, iterationInterval)
 }
 
-func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
-	require.NoError(t, pm.Initialize(useEventStream))
-	if useEventStream {
-		InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
-	}
+func initializePM(t *testing.T, pm *ProcessMonitor) {
+	require.NoError(t, pm.Initialize())
+	InitializeEventConsumer(testutil.NewTestProcessConsumer(t))
 	waitForProcessMonitor(t, pm)
 }
 
@@ -134,7 +132,6 @@ func TestProcessMonitorSingleton(t *testing.T) {
 
 type processMonitorSuite struct {
 	suite.Suite
-	useEventStream bool
 }
 
 func (s *processMonitorSuite) TestProcessMonitorSanity() {
@@ -148,7 +145,7 @@ func (s *processMonitorSuite) TestProcessMonitorSanity() {
 	exitRecorder := newPidRecorder()
 	registerCallback(t, pm, false, getProcessCallback(exitRecorder))
 
-	initializePM(t, pm, s.useEventStream)
+	initializePM(t, pm)
 	cmd := exec.Command(testBinaryPath, "test")
 	require.NoError(t, cmd.Run())
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -156,22 +153,14 @@ func (s *processMonitorSuite) TestProcessMonitorSanity() {
 		assert.Truef(ct, exitRecorder.has(uint32(cmd.Process.Pid)), "didn't capture exit event %d", cmd.Process.Pid)
 	}, 5*time.Second, time.Millisecond*100)
 
-	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
-	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
 	require.NotEqual(t, int64(0), pm.tel.exec.Get())
 	require.NotEqual(t, int64(0), pm.tel.exit.Get())
-	require.Equal(t, int64(0), pm.tel.restart.Get())
-	require.Equal(t, int64(0), pm.tel.reinitFailed.Get())
-	require.Equal(t, int64(0), pm.tel.processScanFailed.Get())
 	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
 
 func TestProcessMonitor(t *testing.T) {
-	t.Run("netlink", func(t *testing.T) {
-		suite.Run(t, &processMonitorSuite{useEventStream: false})
-	})
 	t.Run("event stream", func(t *testing.T) {
-		suite.Run(t, &processMonitorSuite{useEventStream: true})
+		suite.Run(t, &processMonitorSuite{})
 	})
 }
 
@@ -192,7 +181,7 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 		exits[i] = newExitRecorder
 	}
 
-	initializePM(t, pm, s.useEventStream)
+	initializePM(t, pm)
 	cmd := exec.Command("/bin/sleep", "1")
 	require.NoError(t, cmd.Run())
 	require.EventuallyWithTf(t, func(ct *assert.CollectT) {
@@ -203,13 +192,8 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleCallbacks() {
 		}
 	}, 5*time.Second, 100*time.Millisecond, "at least of the callbacks didn't capture events")
 
-	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
-	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
 	require.NotEqual(t, int64(0), pm.tel.exec.Get())
 	require.NotEqual(t, int64(0), pm.tel.exit.Get())
-	require.Equal(t, int64(0), pm.tel.restart.Get())
-	require.Equal(t, int64(0), pm.tel.reinitFailed.Get())
-	require.Equal(t, int64(0), pm.tel.processScanFailed.Get())
 	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
 
@@ -243,7 +227,7 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	t.Cleanup(func() { monNs.Close() })
 
 	require.NoError(t, netnsutil.WithNS(monNs, func() error {
-		initializePM(t, pm, s.useEventStream)
+		initializePM(t, pm)
 		return nil
 	}), "could not start process monitor in netNS")
 	t.Cleanup(pm.Stop)
@@ -273,12 +257,7 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 		assert.Truef(ct, exitRecorder.has(pid), "didn't capture exit event %d", pid)
 	}, 5*time.Second, 100*time.Millisecond, "did not capture process EXEC/EXIT from root namespace")
 
-	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
-	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
 	require.NotEqual(t, int64(0), pm.tel.exec.Get())
 	require.NotEqual(t, int64(0), pm.tel.exit.Get())
-	require.Equal(t, int64(0), pm.tel.restart.Get())
-	require.Equal(t, int64(0), pm.tel.reinitFailed.Get())
-	require.Equal(t, int64(0), pm.tel.processScanFailed.Get())
 	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }

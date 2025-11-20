@@ -103,8 +103,6 @@ func TestSSLMapsCleaner(t *testing.T) {
 	// setup monitor
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
-	// test cleanup is faster without event stream, this test does not require event stream
-	cfg.EnableUSMEventStream = false
 
 	utils.SkipIfTLSUnsupported(t, cfg)
 	// use the monitor and its eBPF manager to check and access SSL related maps

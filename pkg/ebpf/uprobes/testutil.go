@@ -252,13 +252,11 @@ func (o *processMonitorProxy) Reset() {
 	o.exitCallbacks = make(map[*func(uint32)]struct{})
 }
 
-func launchProcessMonitor(t *testing.T, useEventStream bool) *monitor.ProcessMonitor {
+func launchProcessMonitor(t *testing.T) *monitor.ProcessMonitor {
 	pm := monitor.GetProcessMonitor()
 	t.Cleanup(pm.Stop)
-	require.NoError(t, pm.Initialize(useEventStream))
-	if useEventStream {
-		monitor.InitializeEventConsumer(consumertestutil.NewTestProcessConsumer(t))
-	}
+	require.NoError(t, pm.Initialize())
+	monitor.InitializeEventConsumer(consumertestutil.NewTestProcessConsumer(t))
 
 	return pm
 }

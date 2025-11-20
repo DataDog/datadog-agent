@@ -296,7 +296,7 @@ func (r *SameProcessAttacherRunner) onAttach(probe *manager.Probe, fpath *usmuti
 // RunAttacher starts the attacher in the same process as the test
 func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName AttacherTestConfigName) {
 	mgr := manager.Manager{}
-	procMon := launchProcessMonitor(t, false)
+	procMon := launchProcessMonitor(t)
 
 	cfg := GetAttacherTestConfig(t, configName)
 
