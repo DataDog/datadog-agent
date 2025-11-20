@@ -26,7 +26,7 @@ constexpr int RESULT_EXCEPTION = 2;
 
 static char *hstring_to_str(const winrt::hstring &hs) {
     if (hs.empty()) {
-        char *p = (char *)CoTaskMemAlloc(1);
+        char *p = static_cast<char *>(CoTaskMemAlloc(1));
         if (!p) {
             throw std::bad_alloc{};
         }
@@ -40,12 +40,16 @@ static char *hstring_to_str(const winrt::hstring &hs) {
         throw std::runtime_error("WideCharToMultiByte failed");
     }
 
-    char *p = (char *)CoTaskMemAlloc(len);
+    char *p = static_cast<char *>(CoTaskMemAlloc(len));
     if (!p) {
         throw std::bad_alloc{};
     }
 
-    WideCharToMultiByte(CP_UTF8, 0, hs.c_str(), -1, p, len, nullptr, nullptr);
+    len = WideCharToMultiByte(CP_UTF8, 0, hs.c_str(), -1, p, len, nullptr, nullptr);
+    if (len <= 0) {
+        CoTaskMemFree(p);
+        throw std::runtime_error("WideCharToMultiByte failed");
+    }
     return p;
 }
 
@@ -56,7 +60,7 @@ static char *ver_to_str(PackageVersion const &v) {
         len = 0;
         buf[0] = '\0';
     }
-    char *p = (char *)CoTaskMemAlloc(len + 1);
+    char *p = static_cast<char *>(CoTaskMemAlloc(len + 1));
     if (!p) {
         throw std::bad_alloc{};
     }
@@ -84,7 +88,7 @@ static char *dt_to_iso(DateTime const &dt) {
         }
     }
 
-    char *p = (char *)CoTaskMemAlloc(len + 1);
+    char *p = static_cast<char *>(CoTaskMemAlloc(len + 1));
     if (!p) {
         throw std::bad_alloc{};
     }
@@ -106,7 +110,7 @@ static MSStoreEntry make_entry(const Package &pkg, winrt::hstring displayName) {
     try {
         installDate = dt_to_iso(pkg.InstalledDate());
     } catch (...) {
-        installDate = (char *)CoTaskMemAlloc(1);
+        installDate = static_cast<char *>(CoTaskMemAlloc(1));
         if (!installDate) {
             throw std::bad_alloc{};
         }
@@ -179,13 +183,13 @@ extern "C" __declspec(dllexport) int ListStoreEntries(MSStoreEntry **out_array, 
 
         if (!rows.empty()) {
             size_t bytes = rows.size() * sizeof(MSStoreEntry);
-            arr = (MSStoreEntry *)CoTaskMemAlloc(bytes);
+            arr = static_cast<MSStoreEntry *>(CoTaskMemAlloc(bytes));
             if (!arr) {
                 throw std::bad_alloc{};
             }
             memcpy(arr, rows.data(), bytes);
             *out_array = arr;
-            *out_count = (int32_t)rows.size();
+            *out_count = static_cast<int32_t>(rows.size());
         }
         return RESULT_SUCCESS;
     } catch (...) {
