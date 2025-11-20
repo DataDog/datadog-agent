@@ -119,7 +119,7 @@ func TestWithoutHighCardinalityTags(t *testing.T) {
 	assert.Equal(t, map[string]string{"key1": "value1", "key2": "value2"}, filteredTags)
 }
 
-func TestBackendTraceStatsTag(t *testing.T) {
+func TestAddTraceStatsTags(t *testing.T) {
 	tests := []struct {
 		name                  string
 		envValue              string
@@ -153,9 +153,10 @@ func TestBackendTraceStatsTag(t *testing.T) {
 				t.Setenv(enableBackendTraceStatsEnvVar, tt.envValue)
 			}
 
-			tags := GetBaseTagsMapWithMetadata(make(map[string]string, 0), "_dd.datadog_init_version")
+			tags := AddTraceStatsTags(make(map[string]string, 0))
 
 			if tt.expectComputeStatsTag {
+				// compute_stats should be present in modified tags
 				assert.Equal(t, serverlessTag.ComputeStatsValue, tags[serverlessTag.ComputeStatsKey])
 			} else {
 				_, hasComputeStats := tags[serverlessTag.ComputeStatsKey]
