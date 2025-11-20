@@ -185,7 +185,7 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 
 // SetSamplersFilterList is not supported in the Serverless Agent implementation.
 // Serverless does not run checks, so we don't need to set any filter list on checks here.
-func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
+func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
 	d.statsdWorker.filterListChan <- histoFilterList
 }
 
