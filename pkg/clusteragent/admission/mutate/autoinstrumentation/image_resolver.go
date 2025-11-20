@@ -23,12 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// RemoteConfigClient defines the interface we need for remote config operations
-type RemoteConfigClient interface {
-	GetConfigs(product string) map[string]state.RawConfig
-	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
-}
-
 // ImageResolver resolves container image references from tag-based to digest-based.
 type ImageResolver interface {
 	// Resolve takes a registry, repository, and tag string (e.g., "gcr.io/datadoghq", "dd-lib-python-init", "v3")
@@ -56,7 +50,7 @@ func (r *noOpImageResolver) Resolve(registry string, repository string, tag stri
 // remoteConfigImageResolver resolves image references using remote configuration data.
 // It maintains a cache of image mappings received from the remote config service.
 type remoteConfigImageResolver struct {
-	rcClient RemoteConfigClient
+	rcClient imageresolver.RemoteConfigClient
 
 	mu                  sync.RWMutex
 	imageMappings       map[string]map[string]ImageInfo // repository name -> tag -> resolved image
