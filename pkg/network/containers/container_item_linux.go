@@ -60,7 +60,7 @@ func readContainerItem(ctx context.Context, entry *events.Process) (containerSto
 
 	// limit the size of payload sent, and give the intake some statistics
 	if len(resolvConf) > resolvConfMaxSizeBytes {
-		resolvConf = fmt.Sprintf("<too big: %d>", len(resolvConf))
+		resolvConf = resolvConfTooBig(len(resolvConf))
 	}
 
 	item := containerStoreItem{
@@ -69,6 +69,10 @@ func readContainerItem(ctx context.Context, entry *events.Process) (containerSto
 	}
 
 	return item, nil
+}
+
+func resolvConfTooBig(size int) string {
+	return fmt.Sprintf("<too big: %d>", size)
 }
 
 func readResolvConf(entry *events.Process) (string, error) {
@@ -85,12 +89,16 @@ func readResolvConf(entry *events.Process) (string, error) {
 		return "", nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("readResolvConf failed to read %s: %w", resolvConfPath, err)
+		return "", resolvConfReadError(resolvConfPath, err)
 	}
 
 	resolvConf := StripResolvConf(string(data))
 
 	return resolvConf, nil
+}
+
+func resolvConfReadError(resolvConfPath string, err error) error {
+	return fmt.Errorf("readResolvConf failed to read %s: %w", resolvConfPath, err)
 }
 
 // StripResolvConf removes comments from resolv.conf
@@ -134,9 +142,16 @@ func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, er
 
 	// detect (rare) PID reuse by comparing the StartTime
 	if entry.StartTime != createTime {
-		log.Debugf("CNM ContainerStore detected process reuse on pid=%d: timestamps %d vs %d", entry.Pid, entry.StartTime, createTime)
+		if log.ShouldLog(log.DebugLvl) {
+			logDetectedProcessReuse(entry, createTime)
+		}
 		return false, nil
 	}
 
 	return true, nil
+}
+
+// logDetectedProcessReuse logs in a separate function to avoid allocation
+func logDetectedProcessReuse(entry *events.Process, newTime int64) {
+	log.Debugf("CNM ContainerStore detected process reuse on pid=%d: timestamps %d vs %d", entry.Pid, entry.StartTime, newTime)
 }
