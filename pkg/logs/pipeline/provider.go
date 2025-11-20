@@ -90,7 +90,7 @@ func NewProvider(
 	serverlessMeta := sender.NewServerlessMeta(serverless)
 
 	if endpoints.UseGRPC {
-		senderImpl = grpcsender.NewGRPCSender(cfg, sink, endpoints, destinationsContext, metrics.NewTelemetryPipelineMonitor())
+		senderImpl = grpcsender.NewSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext)
 	} else if endpoints.UseHTTP {
 		senderImpl = httpSender(numberOfPipelines, cfg, sink, endpoints, destinationsContext, serverlessMeta, legacyMode)
 	} else {

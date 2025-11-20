@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package intake;
-option go_package = "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc";
+option go_package = "pkg/proto/pbgo/statefulpb";
 
 // ---------------------------------------------------------------------------
 // Dictionary-encoded
@@ -25,13 +25,6 @@ message DictEntryDelete {
 message PatternDefine {
   uint64 pattern_id = 1;
   string template = 2;
-  uint32 param_count = 3;
-  repeated uint32 pos_list = 4;
-}
-
-message PatternUpdate {
-  uint64 pattern_id = 1;
-  string new_template = 2;
   uint32 param_count = 3;
   repeated uint32 pos_list = 4;
 }
@@ -74,23 +67,31 @@ message DynamicValue {
 message Datum {
   oneof data {
     PatternDefine pattern_define = 1;
-    PatternUpdate pattern_update = 2;
-    PatternDelete pattern_delete = 3;
-    DictEntryDefine dict_entry_define = 4;
-    DictEntryDelete dict_entry_delete = 5;
-    Log logs = 6;
+    PatternDelete pattern_delete = 2;
+    DictEntryDefine dict_entry_define = 3;
+    DictEntryDelete dict_entry_delete = 4;
+    Log logs = 5;
   }
+}
+
+// DatumSequence wraps a sequence of Datum messages
+// Used for serialization in application-level compression
+message DatumSequence {
+  repeated Datum data = 1;
 }
 
 // data is sequence of pattern/dictionary changes + logs
 // the ordering is significant, must be processed in order
 message StatefulBatch {
   uint32 batch_id = 1;
-  repeated Datum data = 2;
+
+  // Bytes of a serialized DatumSequence. Eventually this will also be compressed.
+  // This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
+  bytes data = 2;
 }
 
 message BatchStatus {
-  int32 batch_id = 1;
+  uint32 batch_id = 1;
 
   // See Status Code Mappings section below for more details
   enum Status {

@@ -119,15 +119,12 @@ func BuildEndpointsWithConfig(coreConfig pkgconfigmodel.Reader, logsConfig *Logs
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
 	}
 
-	mrfEnabled := coreConfig.GetBool("multi_region_failover.enabled")
-
 	// logs_config.logs_dd_url might specify a HTTP(S) proxy. Never fall back to TCP in this case.
 	haveHTTPProxy := false
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
 		haveHTTPProxy = strings.HasPrefix(logsDDURL, "http://") || strings.HasPrefix(logsDDURL, "https://")
 	}
-
-	if logsConfig.isGRPCUse() || logsConfig.isForceHTTPUse() || haveHTTPProxy || mrfEnabled || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
+	if logsConfig.isGRPCUse() || logsConfig.isForceHTTPUse() || haveHTTPProxy || logsConfig.obsPipelineWorkerEnabled() || (bool(httpConnectivity) && !(logsConfig.isForceTCPUse() || logsConfig.isSocks5ProxySet() || logsConfig.hasAdditionalEndpoints())) {
 		return BuildHTTPEndpointsWithConfig(coreConfig, logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 	}
 	log.Warnf("You are currently sending Logs to Datadog through TCP (either because %s or %s is set or the HTTP connectivity test has failed) "+
@@ -376,14 +373,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	batchMaxContentSize := logsConfig.batchMaxContentSize()
 	inputChanSize := logsConfig.inputChanSize()
 
-	// Detect if gRPC transport is requested
-	useGRPC := logsConfig.isGRPCUse()
-	useProto := logsConfig.devModeUseProto() // Enable proto/pattern extraction mode
-	if useGRPC {
-		return NewEndpointsWithBatchSettings(main, additionals, useProto, false, true, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
-	} else {
-		return NewEndpointsWithBatchSettings(main, additionals, false, true, false, batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
-	}
+	return NewEndpointsWithBatchSettings(main, additionals, false, true, logsConfig.isGRPCUse(), batchWait, batchMaxConcurrentSend, batchMaxSize, batchMaxContentSize, inputChanSize), nil
 }
 
 type defaultParseAddressFunc func(string) (host string, port int, err error)

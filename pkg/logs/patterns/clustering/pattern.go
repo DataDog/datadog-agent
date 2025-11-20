@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
@@ -25,23 +26,21 @@ type Pattern struct {
 	LogCount  int              // Total number of logs that matched this pattern
 
 	// Timestamp tracking for stateful encoding
-	CreatedAt  time.Time // When pattern was first created
-	UpdatedAt  time.Time // When pattern was last modified
-	LastSentAt time.Time // When we last sent this pattern to gRPC
+	CreatedAt time.Time // When pattern was first created
+	UpdatedAt time.Time // When pattern was last modified
 }
 
 // newPattern creates a new pattern from a single token list.
 func newPattern(tokenList *token.TokenList, patternID uint64) *Pattern {
 	now := time.Now()
 	return &Pattern{
-		Template:   tokenList, // First log becomes initial template
-		Positions:  []int{},   // No wildcards yet
-		PatternID:  patternID,
-		Sample:     tokenList, // Store first log as sample
-		LogCount:   1,         // First log
-		CreatedAt:  now,
-		UpdatedAt:  now,
-		LastSentAt: time.Time{}, // Zero time - never sent
+		Template:  tokenList, // First log becomes initial template
+		Positions: []int{},   // No wildcards yet
+		PatternID: patternID,
+		Sample:    tokenList, // Store first log as sample
+		LogCount:  1,         // First log
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }
 
@@ -50,23 +49,23 @@ func (p *Pattern) size() int {
 	return p.LogCount
 }
 
-// getPatternString returns a string representation of the pattern.
-func (p *Pattern) getPatternString() string {
+// GetPatternString returns the pattern template.
+// Pattern template has no wildcard placeholders and wildcard tokens are completely omitted
+func (p *Pattern) GetPatternString() string {
 	if p.Template == nil {
 		return ""
 	}
 
 	var parts []string
 	for _, tok := range p.Template.Tokens {
-		// Use "*" for wildcard positions, actual value otherwise
+		// Skip wildcard tokens entirely
 		if tok.Wildcard == token.IsWildcard {
-			parts = append(parts, "*")
-		} else {
-			// Only use printable ASCII/UTF-8 characters in the template
-			cleaned := sanitizeForTemplate(tok.Value)
-			if cleaned != "" {
-				parts = append(parts, cleaned)
-			}
+			continue
+		}
+		// Only use printable ASCII/UTF-8 characters in the template
+		cleaned := sanitizeForTemplate(tok.Value)
+		if cleaned != "" {
+			parts = append(parts, cleaned)
 		}
 	}
 	return strings.Join(parts, "")
@@ -77,13 +76,17 @@ func (p *Pattern) hasWildcards() bool {
 	return len(p.Positions) > 0
 }
 
-// getWildcardPositions returns wildcard token positions (indices in token array).
-func (p *Pattern) getWildcardPositions() []int {
-	return p.Positions
+// GetWildcardCount returns the number of wildcard positions in this pattern.
+// This matches the ParamCount that will be sent in PatternDefine.
+func (p *Pattern) GetWildcardCount() int {
+	return len(p.Positions)
 }
 
-// getWildcardCharPositions returns character indices where wildcards appear in the pattern string.
-func (p *Pattern) getWildcardCharPositions() []int {
+// GetWildcardCharPositions returns character indices where dynamic values should be injected.
+// The template does NOT contain wildcard placeholders - wildcards are omitted entirely.
+// Positions mark the injection points in the template string.
+// Example: Template "User  logged" (wildcard omitted) returns [5] (inject after "User ")
+func (p *Pattern) GetWildcardCharPositions() []int {
 	if p.Template == nil {
 		return nil
 	}
@@ -92,14 +95,12 @@ func (p *Pattern) getWildcardCharPositions() []int {
 	currentPos := 0
 
 	for _, tok := range p.Template.Tokens {
-		// Clean the token value for proper length calculation
 		cleaned := sanitizeForTemplate(tok.Value)
 
 		if tok.Wildcard == token.IsWildcard {
-			// Record the current character position for this wildcard
+			// Mark the injection point (current position in template which excludes wildcards)
 			charPositions = append(charPositions, currentPos)
-			// Wildcard is represented as "*" (1 character)
-			currentPos += 1
+			// Wildcard tokens are NOT in the template, so don't advance currentPos
 		} else if cleaned != "" {
 			// Add the length of the cleaned token value
 			currentPos += len(cleaned)
@@ -109,41 +110,29 @@ func (p *Pattern) getWildcardCharPositions() []int {
 	return charPositions
 }
 
-// getWildcardValues extracts wildcard values from the sample log.
-// Note: In practice, wildcard values are extracted from incoming logs, not stored ones.
-func (p *Pattern) getWildcardValues() []string {
-	if p.Template == nil || p.Sample == nil {
-		return nil
-	}
-
-	// Extract values from sample at wildcard positions
-	return p.extractWildcardValues(p.Sample)
-}
-
-// extractWildcardValues extracts the wildcard values from a specific TokenList.
-func (p *Pattern) extractWildcardValues(tokenList *token.TokenList) []string {
+// GetWildcardValues extracts the wildcard values from a specific TokenList.
+func (p *Pattern) GetWildcardValues(tokenList *token.TokenList) []string {
 	if p.Template == nil || len(p.Positions) == 0 {
 		return []string{}
 	}
 
-	wildcardValues := make([]string, 0, len(p.Positions))
-	for _, pos := range p.Positions {
-		if pos < tokenList.Length() {
-			wildcardValues = append(wildcardValues, tokenList.Tokens[pos].Value)
+	// Check if tokenList matches p.Template structure
+	templateMatches := merging.CanMergeTokenLists(p.Template, tokenList) || merging.CanMergeTokenLists(tokenList, p.Template)
+	if !templateMatches {
+		return nil
+	}
+
+	wildcardValues := make([]string, len(p.Positions))
+
+	for i, templatePos := range p.Positions {
+		if templatePos < tokenList.Length() {
+			wildcardValues[i] = tokenList.Tokens[templatePos].Value
+		} else {
+			wildcardValues[i] = ""
 		}
 	}
 
 	return wildcardValues
-}
-
-// markAsSent updates the LastSentAt timestamp to indicate this pattern was sent to gRPC.
-func (p *Pattern) markAsSent() {
-	p.LastSentAt = time.Now()
-}
-
-// needsSending returns true if this pattern has never been sent or has been updated since last sent.
-func (p *Pattern) needsSending() bool {
-	return p.LastSentAt.IsZero() || p.UpdatedAt.After(p.LastSentAt)
 }
 
 // sanitizeForTemplate removes non-printable characters from template strings
