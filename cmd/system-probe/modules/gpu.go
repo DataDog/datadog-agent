@@ -225,11 +225,24 @@ func getAgentPID(procRoot string) (uint32, error) {
 func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Duration, reapplyInfinitely bool) {
 	root := hostRoot()
 
-	// First run at info level
-	doConfigureCgroupPermissions(root, log.Infof)
+	log.Infof("Configuring cgroup permissions for system-probe and agent processes")
 
-	// Now, if reapplyInterval is greater than 0, schedule a background task to run after that delay.
-	// If reapplyInfinitely is true, the task will run indefinitely, otherwise it will run only once.
+	// Always run once immediately
+	doConfigureCgroupPermissions(root)
+
+	// Now, if reapplyInterval is greater than 0, schedule a background task to
+	// run after that delay. If reapplyInfinitely is true, the task will run
+	// indefinitely, otherwise it will run only once. There are two reasons to
+	// enable this:
+	//
+	// 1. To fix race conditions between SystemD and the
+	// system-probe permission patching. SystemD might read an old version of
+	// the device permissions, then system-probe changes that configuration,
+	// patches the cgroup permissions and then SystemD changes the cgroups based
+	// on the old config.
+	//
+	// 2. If the agent container restarts, it will lose the permissions patch. For simplicity,
+	// reapply the permissions instead of having the agent request a permission patch.
 	if reapplyInterval > 0 {
 		go func() {
 			log.Infof("Scheduling background re-application of cgroup permissions for system-probe and agent processes in %v, infinite repeats: %t", reapplyInterval, reapplyInfinitely)
@@ -242,7 +255,7 @@ func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Durati
 					return
 				case <-ticker.C:
 					// do not spam the logs with informational messages, switch to debug level
-					doConfigureCgroupPermissions(root, log.Debugf)
+					doConfigureCgroupPermissions(root)
 					if !reapplyInfinitely {
 						return
 					}
@@ -253,12 +266,11 @@ func configureCgroupPermissions(ctx context.Context, reapplyInterval time.Durati
 }
 
 // doConfigureCgroupPermissions configures the cgroup permissions to access NVIDIA
-// devices for the system-probe and agent processes. The logfunc is used to allow logging
-// with info level at first and then switch to debug level for subsequent calls.
-func doConfigureCgroupPermissions(root string, loginfofunc func(format string, args ...interface{})) {
+// devices for the system-probe and agent processes.
+func doConfigureCgroupPermissions(root string) {
 	sysprobePID := uint32(os.Getpid())
 
-	loginfofunc("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
+	log.Debugf("Configuring cgroup permissions for system-probe process with PID %d", sysprobePID)
 	if err := gpu.ConfigureDeviceCgroups(sysprobePID, root); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for system-probe process: %v. gpu-monitoring module might not work properly", err)
 	}
@@ -270,7 +282,7 @@ func doConfigureCgroupPermissions(root string, loginfofunc func(format string, a
 		return
 	}
 
-	loginfofunc("Configuring cgroup permissions for agent process with PID %d", agentPID)
+	log.Debugf("Configuring cgroup permissions for agent process with PID %d", agentPID)
 	if err := gpu.ConfigureDeviceCgroups(agentPID, root); err != nil {
 		log.Warnf("Failed to configure cgroup permissions for agent process: %v. gpu-monitoring module might not work properly", err)
 	}
