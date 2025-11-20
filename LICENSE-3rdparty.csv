@@ -2491,6 +2491,7 @@ core,go.opentelemetry.io/ebpf-profiler/internal/controller,Apache-2.0,Copyright 
 core,go.opentelemetry.io/ebpf-profiler/internal/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/apmint,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/interpreter/beam,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/dotnet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/go,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/golabels,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2501,6 +2502,7 @@ core,go.opentelemetry.io/ebpf-profiler/interpreter/php,Apache-2.0,Copyright The 
 core,go.opentelemetry.io/ebpf-profiler/interpreter/python,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/ruby,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/kallsyms,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/libc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/basehash,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/hash,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2533,7 +2535,6 @@ core,go.opentelemetry.io/ebpf-profiler/stringutil,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/ebpf-profiler/successfailurecounter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/support,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/times,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/tpbase,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer/types,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/traceutil,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2861,7 +2862,6 @@ core,google.golang.org/grpc/balancer/endpointsharding,Apache-2.0,Copyright 2014 
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst/internal,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/balancer/pickfirst/pickfirstleaf,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2871,6 +2871,7 @@ core,google.golang.org/grpc/credentials,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/credentials/insecure,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/encoding/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/helloworld/helloworld,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/route_guide/routeguide,Apache-2.0,Copyright 2014 gRPC authors.
