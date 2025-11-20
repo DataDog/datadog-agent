@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/k8s"
 )
 
 const agentNamespace = "datadog"
@@ -319,34 +320,7 @@ func (c *kubernetesCapabilities) CheckWorkloadErrors(containerID string) error {
 		return nil
 	}
 
-	job, err := c.suite.Env().KubernetesCluster.Client().BatchV1().Jobs(jobNamespace).Get(context.Background(), jobName, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("error getting job %s: %w", jobName, err)
-	}
-
-	// Check if job has failed
-	if job.Status.Failed > 0 {
-		// Get pod logs for debugging
-		pods, err := c.suite.Env().KubernetesCluster.Client().CoreV1().Pods(jobNamespace).List(context.Background(), metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("job-name", jobName).String(),
-			Limit:         1,
-		})
-		if err == nil && len(pods.Items) > 0 {
-			pod := pods.Items[0]
-			for _, containerStatus := range pod.Status.ContainerStatuses {
-				if containerStatus.State.Terminated != nil && containerStatus.State.Terminated.ExitCode != 0 {
-					return fmt.Errorf("workload job %s failed: pod %s container %s exited with code %d: %s",
-						jobName, pod.Name, containerStatus.Name,
-						containerStatus.State.Terminated.ExitCode,
-						containerStatus.State.Terminated.Message)
-				}
-			}
-		}
-		return fmt.Errorf("workload job %s failed (failed pods: %d)", jobName, job.Status.Failed)
-	}
-
-	// Job is still running or succeeded - no errors
-	return nil
+	return k8s.CheckJobErrors(context.Background(), c.suite.Env().KubernetesCluster.Client(), jobNamespace, jobName)
 }
 
 func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
