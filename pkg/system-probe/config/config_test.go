@@ -23,34 +23,25 @@ func TestEventMonitor(t *testing.T) {
 	mock.NewSystemProbe(t)
 
 	for i, tc := range []struct {
-		cws, fim, processEvents, networkEvents, gpu bool
-		usmEvents                                   bool
-		enabled                                     bool
+		cws, fim, networkEvents, gpu bool
+		usmEvents                    bool
+		enabled                      bool
 	}{
-		{cws: false, fim: false, processEvents: false, networkEvents: false, enabled: false},
-		{cws: false, fim: false, processEvents: true, networkEvents: false, enabled: true},
-		{cws: false, fim: true, processEvents: false, networkEvents: false, enabled: true},
-		{cws: false, fim: true, processEvents: true, networkEvents: false, enabled: true},
-		{cws: true, fim: false, processEvents: false, networkEvents: false, enabled: true},
-		{cws: true, fim: false, processEvents: true, networkEvents: false, enabled: true},
-		{cws: true, fim: true, processEvents: false, networkEvents: false, enabled: true},
-		{cws: true, fim: true, processEvents: true, networkEvents: false, enabled: true},
-		{cws: false, fim: false, processEvents: false, networkEvents: true, enabled: true},
-		{cws: false, fim: false, processEvents: true, networkEvents: true, enabled: true},
-		{cws: false, fim: true, processEvents: false, networkEvents: true, enabled: true},
-		{cws: false, fim: true, processEvents: true, networkEvents: true, enabled: true},
-		{cws: true, fim: false, processEvents: false, networkEvents: true, enabled: true},
-		{cws: true, fim: false, processEvents: true, networkEvents: true, enabled: true},
-		{cws: true, fim: true, processEvents: false, networkEvents: true, enabled: true},
-		{cws: true, fim: true, processEvents: true, networkEvents: true, enabled: true},
-		{cws: false, fim: false, processEvents: false, networkEvents: false, gpu: true, enabled: true},
+		{cws: false, fim: false, networkEvents: false, enabled: false},
+		{cws: false, fim: true, networkEvents: false, enabled: true},
+		{cws: true, fim: false, networkEvents: false, enabled: true},
+		{cws: true, fim: true, networkEvents: false, enabled: true},
+		{cws: false, fim: false, networkEvents: true, enabled: true},
+		{cws: false, fim: true, networkEvents: true, enabled: true},
+		{cws: true, fim: false, networkEvents: true, enabled: true},
+		{cws: true, fim: true, networkEvents: true, enabled: true},
+		{cws: false, fim: false, networkEvents: false, gpu: true, enabled: true},
 		{usmEvents: true, enabled: true},
 	} {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			t.Logf("%+v\n", tc)
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(tc.cws))
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", strconv.FormatBool(tc.fim))
-			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED", strconv.FormatBool(tc.processEvents))
 			t.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(tc.networkEvents))
 			t.Setenv("DD_GPU_MONITORING_ENABLED", strconv.FormatBool(tc.gpu))

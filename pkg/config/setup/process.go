@@ -59,27 +59,6 @@ const (
 	// DefaultProcessEndpoint is the default endpoint for the process agent to send payloads to
 	DefaultProcessEndpoint = "https://process.datadoghq.com."
 
-	// DefaultProcessEventsEndpoint is the default endpoint for the process agent to send event payloads to
-	DefaultProcessEventsEndpoint = "https://process-events.datadoghq.com."
-
-	// DefaultProcessEventStoreMaxItems is the default maximum amount of events that can be stored in the Event Store
-	DefaultProcessEventStoreMaxItems = 200
-
-	// DefaultProcessEventStoreMaxPendingPushes is the default amount of pending push operations can be handled by the Event Store
-	DefaultProcessEventStoreMaxPendingPushes = 10
-
-	// DefaultProcessEventStoreMaxPendingPulls is the default amount of pending pull operations can be handled by the Event Store
-	DefaultProcessEventStoreMaxPendingPulls = 10
-
-	// DefaultProcessEventStoreStatsInterval is the default frequency at which the event store sends stats about expired events, in seconds
-	DefaultProcessEventStoreStatsInterval = 20
-
-	// DefaultProcessEventsMinCheckInterval is the minimum interval allowed for the process_events check
-	DefaultProcessEventsMinCheckInterval = time.Second
-
-	// DefaultProcessEventsCheckInterval is the default interval used by the process_events check
-	DefaultProcessEventsCheckInterval = 10 * time.Second
-
 	// DefaultProcessDiscoveryHintFrequency is the default frequency in terms of number of checks which we send a process discovery hint
 	DefaultProcessDiscoveryHintFrequency = 60
 )
@@ -125,7 +104,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_AGENT_URL",
 		"DD_PROCESS_CONFIG_URL",
 	)
-	procBindEnv(config, "process_config.events_dd_url")
 	procBindEnv(config, "process_config.dd_agent_env")
 	procBindEnv(config, "process_config.intervals.process_realtime")
 	procBindEnvAndSetDefault(config, "process_config.queue_size", DefaultProcessQueueSize)
@@ -171,7 +149,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 		"DD_PROCESS_AGENT_ADDITIONAL_ENDPOINTS",
 		"DD_PROCESS_ADDITIONAL_ENDPOINTS",
 	)
-	procBindEnvAndSetDefault(config, "process_config.events_additional_endpoints", make(map[string][]string))
 	procBindEnv(config, "process_config.intervals.connections")
 	procBindEnvAndSetDefault(config, "process_config.expvar_port", DefaultProcessExpVarPort)
 	procBindEnvAndSetDefault(config, "process_config.log_file", DefaultProcessAgentLogFile)
@@ -192,14 +169,6 @@ func setupProcesses(config pkgconfigmodel.Setup) {
 	procBindEnvAndSetDefault(config, "process_config.process_discovery.hint_frequency", DefaultProcessDiscoveryHintFrequency)
 
 	procBindEnvAndSetDefault(config, "process_config.drop_check_payloads", []string{})
-
-	// Process Lifecycle Events
-	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_items", DefaultProcessEventStoreMaxItems)
-	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pushes", DefaultProcessEventStoreMaxPendingPushes)
-	procBindEnvAndSetDefault(config, "process_config.event_collection.store.max_pending_pulls", DefaultProcessEventStoreMaxPendingPulls)
-	procBindEnvAndSetDefault(config, "process_config.event_collection.store.stats_interval", DefaultProcessEventStoreStatsInterval)
-	procBindEnvAndSetDefault(config, "process_config.event_collection.enabled", false)
-	procBindEnvAndSetDefault(config, "process_config.event_collection.interval", DefaultProcessEventsCheckInterval)
 
 	procBindEnvAndSetDefault(config, "process_config.cache_lookupid", false)
 
