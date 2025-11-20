@@ -67,11 +67,7 @@
 /.github/workflows/update_dependencies.yml           @DataDog/agent-runtimes
 /.github/workflows/buildimages-update.yml            @DataDog/agent-build @DataDog/agent-runtimes
 /.github/workflows/collector-generate-and-update.yml @DataDog/opentelemetry-agent
-
-/.github/chainguard/self.buildimages-update.*            @DataDog/agent-build @DataDog/agent-runtimes
-/.github/chainguard/self.collector-generate-and-update.* @DataDog/opentelemetry-agent
-/.github/chainguard/self.cws-btfhub-sync*               @DataDog/agent-security
-/.github/chainguard/*                             @DataDog/agent-devx @DataDog/agent-build
+/.github/workflows/update-kubernetes-versions.yml    @DataDog/container-integrations
 
 /.run                                                @DataDog/agent-devx
 /.run/docker/                                        @DataDog/container-integrations @DataDog/container-platform
@@ -267,7 +263,6 @@
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
-/cmd/security-agent/subcommands/check/      @DataDog/agent-cspm
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
 /cmd/host-profiler/                     @DataDog/opentelemetry-agent
 
@@ -354,6 +349,7 @@
 /comp/core/tagger @DataDog/container-platform
 /comp/core/workloadfilter @DataDog/container-platform
 /comp/core/workloadmeta @DataDog/container-platform
+/comp/forwarder/connectionsforwarder @DataDog/container-experiences
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
 /comp/forwarder/orchestrator @DataDog/container-app
@@ -530,6 +526,7 @@
 /pkg/privateactionrunner/               @DataDog/action-platform
 /pkg/proto/                             @DataDog/agent-runtimes
 /pkg/proto/datadog/languagedetection    @DataDog/container-experiences
+/pkg/proto/datadog/privateactionrunner  @DataDog/action-platform
 /pkg/proto/datadog/process              @DataDog/container-experiences
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
@@ -614,6 +611,7 @@
 /pkg/proto/pbgo/core/workloadfilter.pb.go     @DataDog/container-platform
 /pkg/proto/pbgo/core/workloadmeta.pb.go       @DataDog/container-platform
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-runtimes
+/pkg/proto/pbgo/privateactionrunner     @DataDog/action-platform
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/cloud-network-monitoring
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
