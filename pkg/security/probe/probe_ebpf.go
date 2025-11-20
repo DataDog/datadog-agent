@@ -372,9 +372,9 @@ func (p *EBPFProbe) sanityChecks() error {
 		p.config.Probe.NetworkFlowMonitorEnabled = false
 	}
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.isCgroupSysCtlNotSupported() {
+	if p.config.RuntimeSecurity.IsSysctlEventEnabled() && p.isCgroupSysCtlNotSupported() {
 		seclog.Warnf("The sysctl tracking feature of CWS requires a more recent kernel with support for the cgroup/sysctl program type, setting runtime_security_config.sysctl.enabled to false")
-		p.config.RuntimeSecurity.SysCtlEnabled = false
+		p.config.RuntimeSecurity.SysCtlEBPFEnabled = false
 	}
 
 	if p.config.Probe.CapabilitiesMonitoringEnabled && !p.isCapabilitiesMonitoringSupported() {
@@ -543,7 +543,9 @@ func (p *EBPFProbe) Init() error {
 		seclog.Warnf("fentry not supported, fallback to kprobes: %v", err)
 		p.useFentry = false
 
-		_ = p.Manager.Stop(manager.CleanAll)
+		if err := p.Manager.Stop(manager.CleanAll); err != nil {
+			seclog.Errorf("failed to clean manager while deactivating fentry mode: %v", err)
+		}
 
 		if err = p.initEBPFManager(); err != nil {
 			return err
@@ -779,7 +781,7 @@ func (p *EBPFProbe) Start() error {
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
 
-	if p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlSnapshotEnabled {
+	if p.config.RuntimeSecurity.IsSysctlSnapshotEnabled() {
 		// start sysctl snapshot loop
 		go p.startSysCtlSnapshotLoop()
 	}
@@ -830,7 +832,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 		tsA := eventA.ProcessContext.ExecTime
 		tsB := eventB.ProcessContext.ExecTime
 		if tsA.IsZero() || tsB.IsZero() || tsA.Equal(tsB) {
-			return eventA.PIDContext.Pid < eventB.PIDContext.Pid
+			return eventA.ProcessContext.Pid < eventB.ProcessContext.Pid
 		}
 
 		return tsA.Before(tsB)
@@ -1576,6 +1578,12 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if err := p.Resolvers.ProcessResolver.AddTracerMetadata(event.PIDContext.Pid, event); err != nil {
 			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
+		// Second handle for exec event because the context is required to detect a ssh session
+	case model.ExecEventType:
+		p.HandleSSHUserSession(event)
+
+	case model.ForkEventType:
+		p.HandleSSHUserSession(event)
 	}
 	return true
 }
@@ -1789,22 +1797,59 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 	}
 }
 
-// ApplyFilterPolicy is called when a passing policy for an event type is applied
-func (p *EBPFProbe) ApplyFilterPolicy(eventType eval.EventType, mode kfilters.PolicyMode) error {
-	seclog.Infof("Setting in-kernel filter policy to `%s` for `%s`", mode, eventType)
-	table, err := managerhelper.Map(p.Manager, "filter_policy")
-	if err != nil {
-		return fmt.Errorf("unable to find policy table: %w", err)
-	}
+type filterPolicyBlock struct {
+	eventTypes []ebpf.Uint32MapItem
+	policies   ebpf.SliceBinaryMarshaller[*kfilters.FilterPolicy]
+}
 
+func newFilterPolicyBlock() *filterPolicyBlock {
+	return &filterPolicyBlock{}
+}
+
+func (b *filterPolicyBlock) add(eventType eval.EventType, mode kfilters.PolicyMode) error {
 	et, err := model.ParseEvalEventType(eventType)
 	if err != nil {
 		return err
 	}
 
-	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.addRaw(et, mode)
+	return nil
+}
 
-	return table.Put(ebpf.Uint32MapItem(et), policy)
+func (b *filterPolicyBlock) addRaw(eventType model.EventType, mode kfilters.PolicyMode) {
+	b.eventTypes = append(b.eventTypes, ebpf.Uint32MapItem(eventType))
+	policy := &kfilters.FilterPolicy{Mode: mode}
+	b.policies = append(b.policies, policy)
+}
+
+func (b *filterPolicyBlock) apply(m *manager.Manager) error {
+	// log part
+	var sb strings.Builder
+	for i := range b.eventTypes {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("`%s`: `%s`", model.EventType(b.eventTypes[i]), b.policies[i].Mode))
+	}
+	seclog.Infof("Setting in-kernel filter policy to [%s]", sb.String())
+
+	table, err := managerhelper.Map(m, "filter_policy")
+	if err != nil {
+		return fmt.Errorf("unable to find policy table: %w", err)
+	}
+
+	if ebpf.BatchAPISupported() {
+		_, err := table.BatchUpdate(b.eventTypes, b.policies, &lib.BatchOptions{ElemFlags: uint64(lib.UpdateAny)})
+		return err
+	}
+
+	for i := range b.eventTypes {
+		if err := table.Put(b.eventTypes[i], b.policies[i]); err != nil {
+			return fmt.Errorf("unable to set policy for event type `%s`: %w", model.EventType(b.eventTypes[i]), err)
+		}
+	}
+
+	return nil
 }
 
 // setApprovers applies approvers and removes the unused ones
@@ -1905,7 +1950,7 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	case model.NetworkFlowMonitorEventType.String():
 		return p.probe.IsNetworkFlowMonitorEnabled()
 	case model.SyscallsEventType.String():
-		return p.probe.IsSysctlEventEnabled()
+		return p.config.RuntimeSecurity.IsSysctlEventEnabled()
 	}
 	return true
 }
@@ -2148,7 +2193,6 @@ func (p *EBPFProbe) Close() error {
 
 	// when we reach this point, we do not generate nor consume events anymore, we can close the resolvers
 	close(p.tcRequests)
-
 	return p.Resolvers.Close()
 }
 
@@ -2317,6 +2361,8 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 		seclog.Warnf("Forcing in-kernel filter policy to `pass`: filtering not enabled")
 	}
 
+	fpb := newFilterPolicyBlock()
+
 	for eventType := model.FirstEventType; eventType <= model.LastEventType; eventType++ {
 		var mode kfilters.PolicyMode
 
@@ -2328,10 +2374,13 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 			mode = kfilters.PolicyModeDeny
 		}
 
-		if err := p.ApplyFilterPolicy(eventType.String(), mode); err != nil {
-			seclog.Debugf("unable to apply to filter policy `%s` for `%s`", eventType, mode)
-		}
+		fpb.addRaw(eventType, mode)
 	}
+
+	if err := fpb.apply(p.Manager); err != nil {
+		seclog.Debugf("unable to apply to filter policy: %v", err)
+	}
+
 }
 
 func isKillActionPresent(rs *rules.RuleSet) bool {
@@ -2369,18 +2418,26 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		return nil, err
 	}
 
+	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
+		seclog.Warnf("failed to apply DNS default-drop mask: %v", err)
+	}
+
+	fpb := newFilterPolicyBlock()
+
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
-
-			if err := p.ApplyFilterPolicy(eventType, kfilters.PolicyModeAccept); err != nil {
+			if err := fpb.add(eventType, kfilters.PolicyModeAccept); err != nil {
 				return nil, err
 			}
 		} else {
-			if err := p.ApplyFilterPolicy(eventType, report.Mode); err != nil {
+			if err := fpb.add(eventType, report.Mode); err != nil {
 				return nil, err
 			}
 		}
+	}
+	if err := fpb.apply(p.Manager); err != nil {
+		return nil, fmt.Errorf("unable to apply to filter policy: %w", err)
 	}
 
 	eventTypes := rs.GetEventTypes()
@@ -2760,12 +2817,19 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
 
-	if !p.config.RuntimeSecurity.SysCtlEnabled {
+	if !(p.config.RuntimeSecurity.SysCtlEnabled && p.config.RuntimeSecurity.SysCtlEBPFEnabled) {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SysCtlProbeFunctionName)
 	}
 
 	if !p.config.Probe.CapabilitiesMonitoringEnabled {
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetCapabilitiesMonitoringProgramFunctions()...)
+	}
+
+	// on kernel before 4.15, you can only attach one eBPF program per tracepoint
+	// to prevent conflicts with other eBPF using programs, we exclude our sched_process_fork tracepoint program
+	// and use the get_task_pid kretprobe fallback instead
+	if p.kernelVersion.Code < kernel.Kernel4_15 {
+		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.SchedProcessForkTracepointName)
 	}
 
 	return nil

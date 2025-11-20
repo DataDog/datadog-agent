@@ -63,6 +63,11 @@ issues:
       linters: [staticcheck]
     - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
       linters: [staticcheck]
+    # Endpoints and EndpointSubsets are deprecated in Kubernetes v1.33+. We need to work on a migration path.
+    - text: "Endpoints is deprecated: This API is deprecated in v1.33+"
+      linters: [staticcheck]
+    - text: "EndpointSubset is deprecated: This API is deprecated in v1.33+"
+      linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
     - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
@@ -287,9 +292,6 @@ issues:
     - path: comp/core/workloadmeta/collectors/internal/process/process_collector.go
       linters:
         - pkgconfigusage
-    - path: comp/core/workloadmeta/collectors/internal/processlanguage/process_collector.go
-      linters:
-        - pkgconfigusage
     - path: comp/core/workloadmeta/collectors/internal/remote/generic.go
       linters:
         - pkgconfigusage
@@ -315,6 +317,9 @@ issues:
       linters:
         - pkgconfigusage
     - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
+      linters:
+        - pkgconfigusage
+    - path: comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go
       linters:
         - pkgconfigusage
     - path: comp/forwarder/defaultforwarder/blocked_endpoints.go

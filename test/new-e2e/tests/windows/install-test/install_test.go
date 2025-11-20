@@ -360,6 +360,8 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithLogsDdURL("https://logs.someurl.datadoghq.com"),
 		windowsAgent.WithProcessDdURL("https://process.someurl.datadoghq.com"),
 		windowsAgent.WithTraceDdURL("https://trace.someurl.datadoghq.com"),
+		windowsAgent.WithRemoteUpdates("true"),
+		windowsAgent.WithInfrastructureMode("basic"),
 	}
 
 	_ = s.installAgentPackage(vm, s.AgentPackage, installOpts...)
@@ -410,6 +412,12 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		assert.Equal(s.T(), "https://trace.someurl.datadoghq.com", apmConf["apm_dd_url"], "apm_dd_url should match")
 	}
 
+	assert.Contains(s.T(), confYaml, "remote_updates")
+	assert.Equal(s.T(), true, confYaml["remote_updates"], "remote_updates should match")
+
+	assert.Contains(s.T(), confYaml, "infrastructure_mode")
+	assert.Equal(s.T(), "basic", confYaml["infrastructure_mode"], "infrastructure_mode should match")
+
 	// check that agent is listening on the new bound port
 	var boundPort boundport.BoundPort
 	s.Require().EventuallyWithTf(func(c *assert.CollectT) {
@@ -417,15 +425,15 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		if !assert.NoError(c, err) {
 			return
 		}
-		boundPort, err = common.GetBoundPort(vm, cmdPort)
+		boundPort, err = common.GetBoundPort(vm, "tcp", cmdPort)
 		if !assert.NoError(c, err) {
 			return
 		}
-		if !assert.NotNil(c, boundPort, "port %d should be bound", cmdPort) {
+		if !assert.NotNil(c, boundPort, "port tcp/%d should be bound", cmdPort) {
 			return
 		}
-		assert.Equalf(c, pid, boundPort.PID(), "port %d should be bound by the agent", cmdPort)
-	}, 1*time.Minute, 500*time.Millisecond, "port %d should be bound by the agent", cmdPort)
+		assert.Equalf(c, pid, boundPort.PID(), "port tcp/%d should be bound by the agent", cmdPort)
+	}, 1*time.Minute, 500*time.Millisecond, "port tcp/%d should be bound by the agent", cmdPort)
 	s.Require().EqualValues("127.0.0.1", boundPort.LocalAddress(), "agent should only be listening locally")
 
 	s.cleanupOnSuccessInDevMode()

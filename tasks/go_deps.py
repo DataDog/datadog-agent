@@ -61,7 +61,6 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/sbomgen",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
     "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
     "cws-instrumentation": {
         "entrypoint": "cmd/cws-instrumentation",
@@ -79,6 +78,10 @@ BINARIES: dict[str, dict] = {
     },
     "otel-agent": {
         "entrypoint": "cmd/otel-agent",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "full-host-profiler": {
+        "entrypoint": "cmd/host-profiler",
         "platforms": ["linux/x64", "linux/arm64"],
     },
     "loader": {

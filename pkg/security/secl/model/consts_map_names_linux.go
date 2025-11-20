@@ -80,6 +80,7 @@ var bpfMapNames = []string{
 	"pid_cache",
 	"pid_ignored",
 	"pid_rate_limite",
+	"prctl_option_ap",
 	"proc_cache",
 	"process_event_g",
 	"raw_packet_enab",

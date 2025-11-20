@@ -29,7 +29,7 @@ import (
 // It is exported for testing purposes. Tests can interact with the
 // through the WithDependencies option.
 type dependencies struct {
-	Actuator            Actuator[ActuatorTenant]
+	Actuator            Actuator
 	Dispatcher          Dispatcher
 	DecoderFactory      DecoderFactory
 	IRGenerator         IRGenerator
@@ -45,6 +45,7 @@ type dependencies struct {
 // ProcessSubscriber emits combined process lifecycle updates and configuration
 // updates.
 type ProcessSubscriber interface {
+	Start()
 	Subscribe(callback func(process.ProcessesUpdate))
 }
 
@@ -86,6 +87,13 @@ type Decoder interface {
 		symbolicator symbol.Symbolicator,
 		out []byte,
 	) ([]byte, ir.ProbeDefinition, error)
+
+	// ReportStackPCs reports the program counters of the stack trace for a
+	// given stack hash.
+	ReportStackPCs(
+		stackHash uint64,
+		stackPCs []uint64,
+	)
 }
 
 // decoderFactory is the default decoder factory.
@@ -130,19 +138,11 @@ func (f decoderFactory) NewDecoder(
 	return decoder, nil
 }
 
-// Actuator is an interface that enables the Controller to create a new tenant.
-type Actuator[T ActuatorTenant] interface {
-	// NewTenant creates a new tenant.
-	NewTenant(name string, rt actuator.Runtime) T
-
-	Shutdown() error
-}
-
-// ActuatorTenant is an interface that enables the Controller to handle updates
-// from the actuator.
-type ActuatorTenant interface {
-	// HandleUpdate handles an update from the actuator.
-	HandleUpdate(actuator.ProcessesUpdate)
+// Actuator defines the interface for an actuator that can be injected.
+// This allows tests to use fake actuators.
+type Actuator interface {
+	HandleUpdate(update actuator.ProcessesUpdate)
+	SetRuntime(runtime actuator.Runtime)
 }
 
 // Dispatcher coordinates with the output dispatcher runtime.

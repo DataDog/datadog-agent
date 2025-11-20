@@ -62,7 +62,6 @@ type CheckScheduler struct {
 	collector      option.Option[collector.Component]
 	senderManager  sender.SenderManager
 	m              sync.RWMutex
-	allowedChecks  map[string]struct{}
 }
 
 // InitCheckScheduler creates and returns a check scheduler
@@ -71,7 +70,6 @@ func InitCheckScheduler(collector option.Option[collector.Component], senderMana
 		collector:      collector,
 		senderManager:  senderManager,
 		configToChecks: make(map[string][]checkid.ID),
-		allowedChecks:  GetAllowedChecks(setup.Datadog()), // Allow list depends on infrastructure mode
 		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
 	}
 	// add the check loaders
@@ -89,12 +87,9 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
-			// If the set is empty, all checks are allowed
-			if len(s.allowedChecks) > 0 {
-				if _, ok := s.allowedChecks[c.String()]; !ok {
-					log.Infof("Check %s is not allowed in infra basic mode, skipping", c.String())
-					continue
-				}
+			if !IsCheckAllowed(c.String(), setup.Datadog()) {
+				log.Warnf("Check %s is not allowed in infrastructure mode %q, skipping", c.String(), setup.Datadog().GetString("infrastructure_mode"))
+				continue
 			}
 			_, err := coll.RunCheck(c)
 			if err != nil {
@@ -183,7 +178,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			continue
 		}
 
-		errors := []string{}
 		selectedInstanceLoader := selectedLoader
 		instanceConfig := commonInstanceConfig{}
 
@@ -202,6 +196,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			log.Debugf("Loading check instance for check '%s' using default loaders", config.Name)
 		}
 
+		loaderErrors := make(map[string]error, len(s.loaders))
 		for _, loader := range s.loaders {
 			// the loader is skipped if the loader name is set and does not match
 			if (selectedInstanceLoader != "") && (selectedInstanceLoader != loader.Name()) {
@@ -211,16 +206,26 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
-				errorStats.removeLoaderErrors(config.Name)
 				checks = append(checks, c)
 				break
 			}
-			errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
-			errors = append(errors, fmt.Sprintf("%v: %s", loader, err))
+			loaderErrors[fmt.Sprintf("%v", loader)] = err
 		}
 
-		if len(errors) == numLoaders {
-			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, strings.Join(errors, "; "))
+		if len(loaderErrors) == numLoaders {
+			var concatErr strings.Builder
+			for loaderName, err := range loaderErrors {
+				errMsg := err.Error()
+				errorStats.setLoaderError(config.Name, loaderName, errMsg)
+
+				concatErr.WriteString(loaderName)
+				concatErr.WriteString(": ")
+				concatErr.WriteString(errMsg)
+				concatErr.WriteString("; ")
+			}
+			log.Errorf("Unable to load a check from instance of config '%s': %s", config.Name, concatErr.String())
+		} else {
+			errorStats.removeLoaderErrors(config.Name)
 		}
 	}
 

@@ -15,6 +15,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"slices"
 	"sync"
@@ -37,7 +38,12 @@ type MockAgentRCServer struct {
 		configVersion  int64
 		clientVersions map[string]int64
 		waiters        map[chan struct{}]struct{}
+		subscriptions  []*subscription
 	}
+}
+
+type subscription struct {
+	stream core.AgentSecure_CreateConfigSubscriptionServer
 }
 
 // NewMockAgentRCServer creates a new mock remote-config server.
@@ -230,6 +236,36 @@ func (s *MockAgentRCServer) writeResponse(w http.ResponseWriter, resp any) {
 	_, _ = buf.WriteTo(w)
 }
 
+// CreateConfigSubscription implements the server side of the remote config
+// subscription stream.
+func (s *MockAgentRCServer) CreateConfigSubscription(stream core.AgentSecure_CreateConfigSubscriptionServer) error {
+	s.mu.Lock()
+	sub := &subscription{
+		stream: stream,
+	}
+	s.mu.subscriptions = append(s.mu.subscriptions, sub)
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		for i, ss := range s.mu.subscriptions {
+			if ss == sub {
+				s.mu.subscriptions = append(s.mu.subscriptions[:i], s.mu.subscriptions[i+1:]...)
+				break
+			}
+		}
+		s.mu.Unlock()
+	}()
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
 func (s *MockAgentRCServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 	var req core.ClientGetConfigsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -252,6 +288,17 @@ func (s *MockAgentRCServer) handleConfig(w http.ResponseWriter, r *http.Request)
 		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
-
 	s.writeResponse(w, resp)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sub := range s.mu.subscriptions {
+		subResp := &core.ConfigSubscriptionResponse{
+			Client:         req.Client,
+			MatchedConfigs: s.mu.configResp.ClientConfigs,
+			TargetFiles:    s.mu.configResp.TargetFiles,
+		}
+		if err := sub.stream.Send(subResp); err != nil {
+			log.Warnf("mockrc: failed to send update to subscriber: %v", err)
+		}
+	}
 }
