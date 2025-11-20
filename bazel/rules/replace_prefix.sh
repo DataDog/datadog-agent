@@ -33,6 +33,7 @@ for f in "$@"; do
             ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
             ;;
         *.dylib)
+            install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
             # Get the old install name/ID
             dylib_name=$(basename "$f")
             new_id="$PREFIX/lib/$dylib_name"
@@ -46,6 +47,7 @@ for f in "$@"; do
                     dep_name=$(basename "$dep")
                     new_dep="$PREFIX/lib/$dep_name"
                     install_name_tool -change "$dep" "$new_dep" "$f" 2>/dev/null || true
+                    install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
                 fi
             done
             ;;
