@@ -935,8 +935,8 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 		}
 	}
 	tid := make([]byte, 16)
-	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDUpper)
-	binary.BigEndian.PutUint64(tid[:8], convertedFields.TraceIDLower)
+	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDLower)
+	binary.BigEndian.PutUint64(tid[:8], convertedFields.TraceIDUpper)
 	c.TraceID = tid
 	c.samplingMechanism = convertedFields.SamplingMechanism
 	c.Priority = int32(convertedFields.SamplingPriority)

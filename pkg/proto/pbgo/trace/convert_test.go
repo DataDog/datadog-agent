@@ -217,7 +217,7 @@ func TestConvertedTraceChunk(t *testing.T) {
 			MetaStruct: map[string][]byte{
 				"bts": []byte("bar"),
 			},
-			TraceID: 556677,
+			TraceID: 0xAA,
 		},
 		{
 			Service:  "my-service2",
@@ -246,7 +246,7 @@ func TestConvertedTraceChunk(t *testing.T) {
 			MetaStruct: map[string][]byte{
 				"bts": []byte("bar"),
 			},
-			TraceID: 556677,
+			TraceID: 0xAA,
 		},
 	})
 	traceBytes, err := trace.MarshalMsg(nil)
@@ -257,7 +257,7 @@ func TestConvertedTraceChunk(t *testing.T) {
 	chunk.UnmarshalMsgConverted(traceBytes, &chunkConvertedFields)
 	assert.NoError(t, err)
 	assert.Len(t, chunk.Spans, 2)
-	assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x8, 0x7e, 0x85, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xba, 0xba}, chunk.TraceID)
+	assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xba, 0xba, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0xaa}, chunk.TraceID)
 	assert.Equal(t, uint32(1), chunk.SamplingMechanism())
 	assert.Equal(t, int32(2), chunk.Priority)
 	assert.Equal(t, "lambda", chunk.Origin())

@@ -529,7 +529,7 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   tracerVersion,
 		}
-		return ConvertToIdx(oldPayload), err
+		return ConvertToIdx(oldPayload), err // TODO: write a custom deserializer for v0.5 payloads
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -560,18 +560,69 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 		}
 		return &tracerPayload, err
 	default:
-		var traces pb.Traces
-		if err = r.decodeRequest(req, &traces); err != nil {
-			return nil, err
+		tp := &idx.InternalTracerPayload{}
+		switch mediaType := getMediaType(req); mediaType {
+		case "application/msgpack":
+			buf := getBuffer()
+			defer putBuffer(buf)
+			_, err := r.copyRequestBody(buf, req)
+			if err != nil {
+				return nil, err
+			}
+			_, err = tp.UnmarshalMsgConverted(buf.Bytes())
+			if err != nil {
+				return nil, err
+			}
+		case "application/json":
+			fallthrough
+		case "text/json":
+			fallthrough
+		case "":
+			var v4Traces pb.Traces
+			err = json.NewDecoder(req.Body).Decode(&v4Traces)
+			if err != nil {
+				return nil, err
+			}
+			v4TracerPayload := &pb.TracerPayload{
+				LanguageName:    lang,
+				LanguageVersion: langVersion,
+				ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
+				Chunks:          traceChunksFromTraces(v4Traces),
+				TracerVersion:   tracerVersion,
+			}
+			return ConvertToIdx(v4TracerPayload), nil
+		default:
+			// do our best
+			var v4Traces pb.Traces
+			if err1 := json.NewDecoder(req.Body).Decode(&v4Traces); err1 != nil {
+				// JSON decoding failed, try msgpack
+				buf := getBuffer()
+				defer putBuffer(buf)
+				_, err2 := r.copyRequestBody(buf, req)
+				if err2 != nil {
+					return nil, err2
+				}
+				_, err2 = tp.UnmarshalMsgConverted(buf.Bytes())
+				if err2 != nil {
+					return nil, err2
+				}
+				break // proto succeeded, break out to set extra fields
+			}
+			// JSON decoding succeeded
+			v4TracerPayload := &pb.TracerPayload{
+				LanguageName:    lang,
+				LanguageVersion: langVersion,
+				ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
+				Chunks:          traceChunksFromTraces(v4Traces),
+				TracerVersion:   tracerVersion,
+			}
+			return ConvertToIdx(v4TracerPayload), nil
 		}
-		oldPayload := &pb.TracerPayload{
-			LanguageName:    lang,
-			LanguageVersion: langVersion,
-			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
-			TracerVersion:   tracerVersion,
-		}
-		return ConvertToIdx(oldPayload), nil
+		tp.SetLanguageName(lang)
+		tp.SetLanguageVersion(langVersion)
+		tp.SetContainerID(cIDProvider.GetContainerID(req.Context(), req.Header))
+		tp.SetTracerVersion(tracerVersion)
+		return tp, nil
 	}
 }
 
@@ -912,43 +963,6 @@ func (r *HTTPReceiver) Languages() string {
 
 	sort.Strings(str)
 	return strings.Join(str, "|")
-}
-
-// decodeRequest decodes the payload in http request `req` into `dest`.
-// It handles only v02, v03, v04 requests.
-// - ranHook reports whether the decoder was able to run the pb.MetaHook
-// - err is the first error encountered
-func (r *HTTPReceiver) decodeRequest(req *http.Request, dest *pb.Traces) error {
-	switch mediaType := getMediaType(req); mediaType {
-	case "application/msgpack":
-		buf := getBuffer()
-		defer putBuffer(buf)
-		_, err := r.copyRequestBody(buf, req)
-		if err != nil {
-			return err
-		}
-		_, err = dest.UnmarshalMsg(buf.Bytes())
-		return err
-	case "application/json":
-		fallthrough
-	case "text/json":
-		fallthrough
-	case "":
-		return json.NewDecoder(req.Body).Decode(&dest)
-	default:
-		// do our best
-		if err1 := json.NewDecoder(req.Body).Decode(&dest); err1 != nil {
-			buf := getBuffer()
-			defer putBuffer(buf)
-			_, err2 := r.copyRequestBody(buf, req)
-			if err2 != nil {
-				return err2
-			}
-			_, err2 = dest.UnmarshalMsg(buf.Bytes())
-			return err2
-		}
-		return nil
-	}
 }
 
 func traceChunksFromSpans(spans []*pb.Span) []*pb.TraceChunk {
