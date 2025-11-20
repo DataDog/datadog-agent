@@ -14,6 +14,8 @@ import (
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -30,6 +32,7 @@ const (
 	RuntimeNamePodman              Runtime = "podman"
 	RuntimeNameECSFargate          Runtime = "ecsfargate"
 	RuntimeNameECSManagedInstances Runtime = "ecsmanagedinstances"
+	RuntimeNameNonstandard         Runtime = "nonstandard"
 )
 
 var (
@@ -58,6 +61,7 @@ var (
 		RuntimeNamePodman,
 		RuntimeNameECSFargate,
 		RuntimeNameECSManagedInstances,
+		RuntimeNameNonstandard,
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows
@@ -67,6 +71,7 @@ var (
 		RuntimeNameContainerd,
 		RuntimeNameECSFargate,
 		RuntimeNameECSManagedInstances,
+		RuntimeNameNonstandard,
 	}
 )
 
@@ -143,6 +148,15 @@ func newProvider(wmeta option.Option[workloadmeta.Component]) *GenericProvider {
 // The best collector may change depending on other collectors availability.
 // You should not cache the result from this function.
 func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
+	// if the nonstandard runtime feature is present that means
+	// the user supplied a runtime socket that does not map to any of our known
+	// runtimes: containerd, docker, cri-o
+	if env.IsFeaturePresent(env.NonstandardRuntime) {
+		generic := NewRuntimeMetadata(string(RuntimeNameNonstandard), "")
+		log.Debugf("Overriding %s to %s because it is not a standard runtime", r, generic)
+		r = generic
+	}
+
 	// we can't return mp.collectors[runtime] directly because it will return a typed nil
 	if runtime, found := mp.collectors[r]; found {
 		return runtime

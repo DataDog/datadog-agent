@@ -37,4 +37,7 @@ const (
 	PodResources Feature = "podresources"
 	// NVML library present for GPU detection
 	NVML Feature = "nvml"
+	// NonstandardRuntime is a fallback for when customers supply a container runtime socket
+	// that is not containerd, docker, or cri-o
+	NonstandardRuntime = "nonstandard-runtime"
 )
