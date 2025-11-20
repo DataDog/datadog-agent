@@ -30,7 +30,7 @@ type AttachedProgram struct {
 }
 
 // Detach detaches the program from the target process.
-func (p *AttachedProgram) Detach() error {
+func (p *AttachedProgram) Detach(_ error) error {
 	var retErr error
 	for _, attachpoint := range p.attachpoints {
 		if err := attachpoint.Close(); err != nil {

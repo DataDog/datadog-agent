@@ -44,8 +44,10 @@ const (
 	// Whether we skip lines or bytes is dependent on whether we choose to compute the fingerprint by lines or by bytes.
 	DefaultLinesOrBytesToSkip = 0
 
-	// DefaultFingerprintingMaxLines is the default maximum number of lines to read before computing the fingerprint.
-	DefaultFingerprintingMaxLines = 1
+	// DefaultFingerprintingCount refers to the number of lines or bytes to use for fingerprinting.
+	// This option's default is an invalid value(0), and if not configured will be fixed to the appropriate default
+	// value based on the configured fingerprint_strategy.
+	DefaultFingerprintingCount = 0
 
 	// DefaultFingerprintStrategy is the default strategy for computing the checksum fingerprint.
 	// Options are:
@@ -301,6 +303,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
+	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
@@ -678,6 +681,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.nvml_lib_path", "")
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
+	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -978,7 +982,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
-	config.BindEnvAndSetDefault("sbom.compute_dependencies", false)
+	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
+	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", true)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
@@ -1213,6 +1218,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	config.BindEnvAndSetDefault("vsock_addr", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1557,7 +1564,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
-	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1582,8 +1589,6 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
-	config.BindEnvAndSetDefault("capture_lambda_payload", false)
-	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
@@ -1756,7 +1761,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// disable distributed senders
 	config.BindEnvAndSetDefault("logs_config.disable_distributed_senders", false)
 	// default fingerprint configuration
-	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingMaxLines)
+	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count", DefaultFingerprintingCount)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.max_bytes", DefaultFingerprintingMaxBytes)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.count_to_skip", DefaultLinesOrBytesToSkip)
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
@@ -2228,7 +2233,6 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_INTEGRATIONS":                          {},
 		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
 		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
-		"DD_LAMBDA_HANDLER":                        {},
 		"DD_LOGS_INJECTION":                        {},
 		"DD_MERGE_XRAY_TRACES":                     {},
 		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
@@ -2371,11 +2375,6 @@ func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []stri
 func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsLambda() {
-			log.Debug("No config file detected, using environment variable based configuration only")
-			// The remaining code in loadCustom is not run to keep a low cold start time
-			return nil
-		}
 		return err
 	}
 

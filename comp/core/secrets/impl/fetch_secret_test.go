@@ -317,6 +317,20 @@ func TestFetchSecretPayloadIncludesBackendConfig(t *testing.T) {
 	assert.Contains(t, capturedPayload, `"config":{"foo":"bar"}`)
 }
 
+func TestFetchSecretPayloadIncludesTimeout(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendTimeout = 60
+	var capturedPayload string
+	resolver.commandHookFunc = func(payload string) ([]byte, error) {
+		capturedPayload = payload
+		return []byte(`{"handle1":{"value":"test_value"}}`), nil
+	}
+	_, err := resolver.fetchSecret([]string{"handle1"})
+	require.NoError(t, err)
+	assert.Contains(t, capturedPayload, `"secret_backend_timeout":60`)
+}
+
 func TestFetchSecretBackendVersionSuccess(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)

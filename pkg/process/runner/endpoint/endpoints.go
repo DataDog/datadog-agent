@@ -11,7 +11,6 @@ import (
 	"net/url"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
@@ -28,7 +27,7 @@ func GetEventsAPIEndpoints(config pkgconfigmodel.Reader) (eps []apicfg.Endpoint,
 
 func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
 	// Setup main endpoint
-	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(pkgconfigsetup.Datadog(), prefix, defaultEpKey))
+	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(config, prefix, defaultEpKey))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing %s: %s", defaultEpKey, err)
 	}
