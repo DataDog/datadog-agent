@@ -19,7 +19,7 @@ DEFAULT_CONFIG = [
     "shared",
     "no-ssl3",
     "no-gost",
-    "zlib",
+    "zlib-dynamic",
 ]
 
 # In order to expose libs to pkg_install
@@ -112,7 +112,7 @@ configure_make(
         "//conditions:default": [
             "@bzip2//:bz2",
             "@xz//:liblzma",
-            "@zlib",
+            "@zlib//:zlib",
         ],
         "@platforms//os:windows": [],
     }),
