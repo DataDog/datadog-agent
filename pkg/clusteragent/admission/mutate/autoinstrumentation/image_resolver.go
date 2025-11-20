@@ -67,6 +67,29 @@ type remoteConfigImageResolver struct {
 	retryDelay time.Duration
 }
 
+func newRcImageResolver(cfg imageresolver.ImageResolverConfig) remoteConfigImageResolver {
+	resolver := &remoteConfigImageResolver{
+		rcClient:            cfg.RCClient,
+		imageMappings:       make(map[string]map[string]ImageInfo),
+		maxRetries:          cfg.MaxInitRetries,
+		retryDelay:          cfg.InitRetryDelay,
+		datadoghqRegistries: cfg.DDRegistries,
+	}
+
+	resolver.rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
+	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
+
+	go func() {
+		if err := resolver.waitForInitialConfig(); err != nil {
+			log.Warnf("Failed to load initial image resolution config: %v. Image resolution will remain disabled.", err)
+		} else {
+			log.Infof("Image resolution cache initialized successfully")
+		}
+	}()
+
+	return resolver
+}
+
 func (r *remoteConfigImageResolver) waitForInitialConfig() error {
 	if currentConfigs := r.rcClient.GetConfigs(state.ProductGradualRollout); len(currentConfigs) > 0 {
 		log.Debugf("Initial configs available immediately: %d configurations", len(currentConfigs))
@@ -260,27 +283,4 @@ func NewImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
 	}
 
 	return newRcImageResolver(cfg)
-}
-
-func newRcImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
-	resolver := &remoteConfigImageResolver{
-		rcClient:            cfg.RCClient,
-		imageMappings:       make(map[string]map[string]ImageInfo),
-		maxRetries:          cfg.MaxInitRetries,
-		retryDelay:          cfg.InitRetryDelay,
-		datadoghqRegistries: cfg.DDRegistries,
-	}
-
-	resolver.rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
-	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
-
-	go func() {
-		if err := resolver.waitForInitialConfig(); err != nil {
-			log.Warnf("Failed to load initial image resolution config: %v. Image resolution will remain disabled.", err)
-		} else {
-			log.Infof("Image resolution cache initialized successfully")
-		}
-	}()
-
-	return resolver
 }
