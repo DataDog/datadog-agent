@@ -225,7 +225,7 @@ cc_library(
     local_defines = select({
         "@@//:linux_x86_64": ['SOABI=\\"cpython-313-x86_64-linux-gnu\\"'],
         "@@//:linux_arm64": ['SOABI=\\"cpython-313-aarch64-linux-gnu\\"'],
-        "@platfoms//os:macos": ['SOABI=\\"cpython-313-darwin\\"'],
+        "@platforms//os:macos": ['SOABI=\\"cpython-313-darwin\\"'],
     }) + COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
