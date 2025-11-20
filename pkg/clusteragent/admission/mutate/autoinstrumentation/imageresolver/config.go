@@ -30,8 +30,8 @@ type Config struct {
 }
 
 // NewConfig creates a new Config
-func NewConfig(cfg config.Component, rcClient RemoteConfigClient) *Config {
-	return &Config{
+func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
+	return Config{
 		Site:           cfg.GetString("site"),
 		DDRegistries:   cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
 		RCClient:       rcClient,
@@ -41,8 +41,8 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) *Config {
 }
 
 // NewTestConfig creates a new Config for testing
-func NewTestConfig(site string, ddRegistries map[string]any, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) *Config {
-	return &Config{
+func NewTestConfig(site string, ddRegistries map[string]any, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) Config {
+	return Config{
 		Site:           site,
 		DDRegistries:   ddRegistries,
 		RCClient:       rcClient,
