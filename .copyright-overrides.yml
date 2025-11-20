@@ -20,7 +20,19 @@ github.com/GoogleCloudPlatform/docker-credential-gcr: Copyright 2016 Google, Inc
 github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
+github.com/aws/smithy-go: "Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 github.com/awslabs/amazon-ecr-credential-helper/*: "Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+github.com/Azure/azure-sdk-for-go: Copyright (c) Microsoft Corporation.
+github.com/Azure/go-autorest: Copyright 2015 Microsoft Corporation
+github.com/cenkalti/backoff/v3: "Copyright (c) 2014 Cenk Altı"
+github.com/dimchansky/utfbom: "Copyright (c) 2018-2020, Dmitrij Koniajev (dimchansky@gmail.com)"
+github.com/jmespath/go-jmespath: "Copyright 2015 James Saryerwinnie"
+github.com/kylelemons/godebug: "Copyright 2013 Google Inc.  All rights reserved."
+github.com/mattn/go-colorable: "Copyright (c) 2016 Yasuhiro Matsumoto"
+github.com/mattn/go-isatty: "Copyright (c) Yasuhiro MATSUMOTO <mattn.jp@gmail.com>"
+github.com/rs/zerolog: "Copyright (c) 2017 Olivier Poitrey"
+github.com/ryanuber/go-glob: "Copyright (c) 2014 Ryan Uber"
+github.com/sirupsen/logrus: "Copyright (c) 2014 Simon Eskildsen"
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc
 github.com/docker/*: Copyright 2012-2017 Docker, Inc.
