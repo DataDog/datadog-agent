@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,7 +37,7 @@ func TestOperationApply_Patch(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check file content
@@ -69,7 +70,7 @@ func TestOperationApply_MergePatch(t *testing.T) {
 		Patch:             []byte(mergePatch),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -97,7 +98,7 @@ func TestOperationApply_Delete(t *testing.T) {
 		FilePath:          "/datadog.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 	_, err = os.Stat(filePath)
 	assert.Error(t, err)
@@ -121,7 +122,7 @@ func TestOperationApply_EmptyYAMLFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that the file now contains the patched value
@@ -148,7 +149,7 @@ func TestOperationApply_NoFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	filePath := filepath.Join(tmpDir, "datadog.yaml")
@@ -177,7 +178,7 @@ func TestOperationApply_DisallowedFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not allowed")
 }
@@ -205,7 +206,7 @@ func TestOperationApply_NestedConfigFile(t *testing.T) {
 		Patch:             []byte(patchJSON),
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	updated, err := os.ReadFile(filePath)
@@ -315,24 +316,21 @@ func TestBuildOperationsFromLegacyConfigFile(t *testing.T) {
 	err = os.WriteFile(filepath.Join(managedDir, "datadog.yaml"), legacyConfig, 0644)
 	assert.NoError(t, err)
 
-	ops, err := buildOperationsFromLegacyConfigFile(filepath.Join(managedDir, "datadog.yaml"), tmpDir, legacyPathPrefix)
+	op, err := buildOperationsFromLegacyConfigFile(filepath.Join(managedDir, "datadog.yaml"), tmpDir, legacyPathPrefix)
 	assert.NoError(t, err)
-	assert.Len(t, ops, 2)
 
 	// Check merge patch operation
-	assert.Equal(t, FileOperationMergePatch, ops[0].FileOperationType)
-	assert.Equal(t, "/datadog.yaml", ops[0].FilePath)
-	assert.Equal(t, string(legacyConfig), string(ops[0].Patch))
-
-	// Check delete operation
-	assert.Equal(t, FileOperationDelete, ops[1].FileOperationType)
-	assert.Equal(t, filepath.Join(legacyPathPrefix, "datadog.yaml"), strings.TrimPrefix(strings.TrimPrefix(ops[1].FilePath, "/"), "\\"))
+	assert.Equal(t, FileOperationMergePatch, op.FileOperationType)
+	assert.Equal(t, "/datadog.yaml", op.FilePath)
+	assert.Equal(t, string(legacyConfig), string(op.Patch))
 }
 
 func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	tmpDir := t.TempDir()
-	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	managedDir := filepath.Join(tmpDir, filepath.Join("managed", "datadog-agent", "aaa-bbb-ccc"))
 	err := os.MkdirAll(managedDir, 0755)
+	assert.NoError(t, err)
+	err = os.Symlink(managedDir, filepath.Join(tmpDir, legacyPathPrefix))
 	assert.NoError(t, err)
 
 	// Create legacy config files
@@ -343,8 +341,8 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
 
-	// Should have 4 operations: 2 merge patches + 2 deletes
-	assert.Len(t, ops, 4)
+	// Should have 3 operations: 2 merge patches + 1 delete all
+	assert.Len(t, ops, 3)
 
 	// Check that we have operations for both files
 	filePaths := make(map[string]bool)
@@ -353,23 +351,30 @@ func TestBuildOperationsFromLegacyInstaller(t *testing.T) {
 	}
 	assert.True(t, filePaths["datadog.yaml"])
 	assert.True(t, filePaths["security-agent.yaml"])
-	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "datadog.yaml")])
-	assert.True(t, filePaths[filepath.Join("managed", "datadog-agent", "stable", "security-agent.yaml")])
+	assert.Equal(t, FileOperationDeleteAll, ops[0].FileOperationType)
+	assert.Equal(t, "/managed", ops[0].FilePath)
 }
 
 func TestBuildOperationsFromLegacyConfigFileKeepApplicationMonitoring(t *testing.T) {
 	tmpDir := t.TempDir()
-	managedDir := filepath.Join(tmpDir, legacyPathPrefix)
+	managedDir := filepath.Join(tmpDir, filepath.Join("managed", "datadog-agent", "aaa-bbb-ccc"))
 	err := os.MkdirAll(managedDir, 0755)
 	assert.NoError(t, err)
+	err = os.Symlink(managedDir, filepath.Join(tmpDir, legacyPathPrefix))
+	assert.NoError(t, err)
 
-	// Create a legacy config file
 	legacyConfig := []byte("{\"bar\":123,\"foo\":\"legacy_value\"}")
 	err = os.WriteFile(filepath.Join(managedDir, "application_monitoring.yaml"), legacyConfig, 0644)
 	assert.NoError(t, err)
 
 	ops := buildOperationsFromLegacyInstaller(tmpDir)
-	assert.Len(t, ops, 0)
+	assert.Len(t, ops, 2)
+
+	assert.Equal(t, FileOperationDeleteAll, ops[0].FileOperationType)
+	assert.Equal(t, "/managed", ops[0].FilePath)
+	assert.Equal(t, FileOperationMergePatch, ops[1].FileOperationType)
+	assert.Equal(t, "/"+filepath.Join("managed", "datadog-agent", "stable", "application_monitoring.yaml"), ops[1].FilePath)
+	assert.Equal(t, string(legacyConfig), string(ops[1].Patch))
 }
 
 func TestOperationApply_Copy(t *testing.T) {
@@ -392,7 +397,7 @@ func TestOperationApply_Copy(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that source file still exists
@@ -425,7 +430,7 @@ func TestOperationApply_Move(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that source file no longer exists
@@ -460,7 +465,7 @@ func TestOperationApply_CopyWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -494,7 +499,7 @@ func TestOperationApply_MoveWithNestedDestination(t *testing.T) {
 		DestinationPath:   "/conf.d/mycheck.d/config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.NoError(t, err)
 
 	// Check that nested directories were created
@@ -525,7 +530,7 @@ func TestOperationApply_CopyMissingSource(t *testing.T) {
 		DestinationPath:   "/security-agent.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
 }
 
@@ -542,6 +547,96 @@ func TestOperationApply_MoveMissingSource(t *testing.T) {
 		DestinationPath:   "/otel-config.yaml",
 	}
 
-	err = op.apply(root)
+	err = op.apply(root, tmpDir)
 	assert.Error(t, err)
+}
+
+func TestConfig_SimpleStartPromote(t *testing.T) {
+	stableDir := t.TempDir()     // This acts as the 'Stable' config directory
+	experimentDir := t.TempDir() // This acts as the 'Experiment' config directory
+
+	// Place a simple base config in the stable directory
+	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
+	baseContent := []byte("log_level: info\n")
+	assert.NoError(t, os.WriteFile(baseConfigPath, baseContent, 0644))
+
+	dirs := &Directories{
+		StablePath:     stableDir,
+		ExperimentPath: experimentDir,
+	}
+
+	// Start experiment: create a new config in experiment
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "exp-001",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level": "debug"}`),
+			},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/mycheck.d/config.yaml",
+				Patch:             []byte(`{"integration_setting": true}`),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Promote experiment
+	err = dirs.PromoteExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// After promote: stable has the new content
+	finalContent, err := os.ReadFile(filepath.Join(stableDir, "datadog.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(finalContent), "log_level: debug\n")
+	finalConfDContent, err := os.ReadFile(filepath.Join(stableDir, "conf.d", "mycheck.d", "config.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(finalConfDContent), "integration_setting: true\n")
+}
+
+func TestConfig_SimpleStartStop(t *testing.T) {
+	stableDir := t.TempDir()
+	experimentDir := t.TempDir()
+
+	// Place a simple base config in the stable directory
+	baseConfigPath := filepath.Join(stableDir, "datadog.yaml")
+	baseContent := []byte("log_level: warn\n")
+	assert.NoError(t, os.WriteFile(baseConfigPath, baseContent, 0644))
+
+	dirs := &Directories{
+		StablePath:     stableDir,
+		ExperimentPath: experimentDir,
+	}
+
+	// Start experiment: patch config
+	err := dirs.WriteExperiment(context.Background(), Operations{
+		DeploymentID: "exp-002",
+		FileOperations: []FileOperation{
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/datadog.yaml",
+				Patch:             []byte(`{"log_level": "debug"}`),
+			},
+			{
+				FileOperationType: FileOperationMergePatch,
+				FilePath:          "/conf.d/mycheck.d/config.yaml",
+				Patch:             []byte(`{"integration_setting": true}`),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Stop experiment (rollback to stable)
+	err = dirs.RemoveExperiment(context.Background())
+	assert.NoError(t, err)
+
+	// Stable should remain unchanged
+	finalContent, err := os.ReadFile(filepath.Join(stableDir, "datadog.yaml"))
+	assert.NoError(t, err)
+	assert.Equal(t, string(baseContent), string(finalContent))
+	_, err = os.ReadFile(filepath.Join(stableDir, "conf.d", "mycheck.d", "config.yaml"))
+	assert.Error(t, err)
+	assert.True(t, os.IsNotExist(err))
 }

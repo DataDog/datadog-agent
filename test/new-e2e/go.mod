@@ -7,13 +7,13 @@ go 1.24.9
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.172
-	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/test/fakeintake v0.73.0-rc.2
+	github.com/DataDog/agent-payload/v5 v5.0.175
+	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/test/fakeintake v0.73.0-rc.8
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.47.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -21,7 +21,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.6-0.20251030085244-f068acd734c6
+	github.com/DataDog/test-infra-definitions v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/aws/aws-sdk-go-v2 v1.39.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.12
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.256.0
@@ -58,8 +58,8 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.2
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.8
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -96,7 +96,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.2.4 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/cloudflare/circl v1.6.1 // indirect
-	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
+	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
@@ -233,11 +233,11 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/metrics v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.73.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/metrics v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.73.0-rc.8
+	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.8
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/orchestrion v1.4.0
@@ -252,14 +252,14 @@ require (
 
 require (
 	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/network/payload v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/network/payload v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.8 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.8 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.9 // indirect

@@ -295,9 +295,6 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 	}
 
 	for _, tracerMeta := range process.Service.TracerMetadata {
-		tagList.AddStandard(tags.Service, tracerMeta.ServiceName)
-		tagList.AddStandard(tags.Env, tracerMeta.ServiceEnv)
-		tagList.AddStandard(tags.Version, tracerMeta.ServiceVersion)
 		parseProcessTags(tagList, tracerMeta.ProcessTags)
 	}
 

@@ -121,6 +121,11 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if os.IsNotExist(err) {
 		return nil
 	}
+	// Ensure target directory exists before trying to write to it
+	err = os.MkdirAll(targetPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating target directory: %w", err)
+	}
 	deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error reading deployment ID file: %w", err)
@@ -134,11 +139,15 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
+		"/MIR",
+		"/SL",
 		sourcePath,
 		targetPath,
 		"*.yaml",
 	)
+	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err = cmd.Run()
 	var exitErr *exec.ExitError
@@ -146,7 +155,7 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("error executing robocopy: %w", err)
 	}
 	if exitErr != nil && exitErr.ExitCode() >= 8 {
-		return fmt.Errorf("error executing robocopy: %w\n%s", err, stderr.String())
+		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
 	return nil
 }
