@@ -5,6 +5,8 @@
 
 //go:build kubeapiserver
 
+// Package imageresolver provides configuration and utilities for resolving
+// container image references from mutable tags to digests.
 package imageresolver
 
 import (
