@@ -408,3 +408,46 @@ func TestRemoteRequest(t *testing.T) {
 
 	i.pm.AssertExpectations(t)
 }
+
+func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
+	i := newTestInstaller(t)
+	defer i.Stop()
+
+	testStablePackage := Package{
+		Name:    "test-package",
+		Version: "0.0.1",
+	}
+	testExperimentPackage := Package{
+		Name:     "test-package",
+		Version:  "1.0.0",
+		URL:      "oci://example.com/test-package@sha256:5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+		Platform: runtime.GOOS,
+		Arch:     runtime.GOARCH,
+	}
+	c := catalog{
+		Packages: []Package{testExperimentPackage},
+	}
+	versionParams := experimentTaskParams{
+		Version: testExperimentPackage.Version,
+	}
+	versionParamsJSON, _ := json.Marshal(versionParams)
+	i.rcc.SubmitCatalog(c)
+
+	// Submit a request with the special disableClientIDCheck value
+	testRequest := remoteAPIRequest{
+		ID:            "test-request-disable-check",
+		Method:        methodStartExperiment,
+		Package:       testExperimentPackage.Name,
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, StableConfig: testStablePackage.Version, ClientID: disableClientIDCheck},
+		Params:        versionParamsJSON,
+	}
+	i.pm.On("State", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.pm.On("ConfigState", mock.Anything, testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
+	i.bm.On("InstallExperiment", mock.Anything, mock.Anything, testExperimentPackage.URL).Return(nil).Once()
+	i.rcc.SubmitRequest(testRequest)
+	i.requestsWG.Wait()
+
+	// Verify that InstallExperiment was called even though client ID is the special bypass value
+	i.bm.AssertExpectations(t)
+	i.pm.AssertExpectations(t)
+}
