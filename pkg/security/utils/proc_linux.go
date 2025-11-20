@@ -19,9 +19,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/shirou/gopsutil/v4/process"
+
+	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 // GetpidFrom returns the current process ID from the given proc root
@@ -453,7 +455,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			return nspids, nil
 		}
 	}
-	return nil, fmt.Errorf("NSpid field not found")
+	return nil, agenterrors.NewNotFound("NSpid field")
 }
 
 // GetPidTasks returns the task IDs of a process

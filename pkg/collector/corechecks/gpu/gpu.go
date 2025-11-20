@@ -50,6 +50,7 @@ type Check struct {
 	deviceEvtGatherer  *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
 	nsPidCache         *nvidia.NsPidCache           // nsPidCache resolves and caches nspids for processes
 	nvmlStateTelemetry *ddnvml.NvmlStateTelemetry   // nvmlStateTelemetry tracks the state of the NVML library
+	workloadTagCache   *WorkloadTagCache            // workloadTagCache caches workload tags for GPU metrics
 }
 
 type checkTelemetry struct {
@@ -102,6 +103,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 
 	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
+	}
+
+	var err error
+	c.workloadTagCache, err = NewWorkloadTagCache(c.tagger, c.wmeta)
+	if err != nil {
+		return fmt.Errorf("failed to create workload tag cache: %w", err)
 	}
 
 	c.nsPidCache = &nvidia.NsPidCache{}
@@ -320,26 +327,33 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	// tag cache is for repeated calls during a single check run, not preserved between runs
-	containerTagCache := newContainerTagCache(c.tagger)
-
 	//iterate through devices to emit its metrics
 	for deviceUUID, deviceData := range perDeviceMetrics {
 		//filter out same metric with lower priority
 		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(deviceData.collectorMetrics)
 		c.telemetry.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
 
-		var containerTags []string
-		if container := gpuToContainersMap[deviceUUID]; container != nil {
-			if containerTags, err = containerTagCache.getContainerTags(container); err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
-			}
-		}
-
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
+			metricWorkloads := metric.AssociatedWorkloads
+
+			// Metrics with no associated workloads are assumed to apply to all workloads on the device.
+			if container := gpuToContainersMap[deviceUUID]; len(metricWorkloads) == 0 && container != nil {
+				metricWorkloads = []workloadmeta.EntityID{container.EntityID}
+			}
+
+			metricTags := []string{}
+			for _, workloadID := range metricWorkloads {
+				tags, err := c.workloadTagCache.GetWorkloadTags(workloadID)
+				if err != nil {
+					multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for GPU %s: %w", deviceUUID, err))
+					continue
+				}
+				metricTags = append(metricTags, tags...)
+			}
+
 			metricName := gpuMetricsNs + metric.Name
-			allTags := append(append(c.deviceTags[deviceUUID], containerTags...), metric.Tags...)
+			allTags := append(append(c.deviceTags[deviceUUID], metricTags...), metric.Tags...)
 
 			// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 			// We need this to ensure weighted metrics are calibrated correctly.
