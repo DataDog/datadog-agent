@@ -53,7 +53,7 @@ type SSHSession struct {
 func NewSSHClient(device *ncmconfig.DeviceInstance) (*SSHClient, error) {
 	if device.Auth.SSH != nil {
 		if err := validateClientConfig(device.Auth.SSH); err != nil {
-			return nil, fmt.Errorf("error validating ssh client config: %s", err)
+			return nil, fmt.Errorf("error validating ssh client config: %w", err)
 		}
 	}
 
@@ -66,7 +66,7 @@ func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, err
 	if config.KnownHostsPath != "" {
 		callbackFn, err := knownhosts.New(config.KnownHostsPath)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing known_hosts file from path: %s", err)
+			return nil, fmt.Errorf("error parsing known_hosts file from path: %w", err)
 		}
 		return callbackFn, nil
 	}
