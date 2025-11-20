@@ -529,7 +529,7 @@ cc_binary(
         srcs = info['srcs'] + [":python_headers", ":modules_headers", ":expat_headers"] + info.get('extra_files', []),
         includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
         local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
-        deps = [":mimalloc"] + info.get('deps', []),
+        deps = [":mimalloc", ":libpython"] + info.get('deps', []),
         copts = COMMON_COPTS,
         textual_hdrs = info.get('textual_hdrs', []),
     )
