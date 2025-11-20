@@ -227,7 +227,10 @@ const (
 )
 
 const (
-	KubeCapabilitiesID   = "kube-capability-id"
+	// KubeCapabilitiesID is a constant ID used to build workloadmeta kubelet capabilities entities
+	// This does not need to be unique because there can only be one per cluster.
+	KubeCapabilitiesID = "kube-capability-id"
+	// KubeCapabilitiesName is used to name the workloadmeta kubelet capabilities entity
 	KubeCapabilitiesName = "kube-capability"
 )
 
@@ -2110,6 +2113,7 @@ type CRD struct {
 	Versions []CRDVersion
 }
 
+// CRDVersion struct is a version of a CRD
 type CRDVersion struct {
 	Name       string
 	Served     bool
@@ -2117,6 +2121,7 @@ type CRDVersion struct {
 	Deprecated bool
 }
 
+// String implements Stringer#String.
 func (c CRDVersion) String() string {
 	return c.Name
 }
@@ -2162,12 +2167,14 @@ func (crd CRD) String(verbose bool) string {
 	return sb.String()
 }
 
+// FeatureGateStage represents the maturity level of a Kubernetes feature gate
 type FeatureGateStage string
 
+// FeatureGateStage constants represent the maturity level of a Kubernetes feature gate
 const (
 	StageAlpha      FeatureGateStage = "ALPHA"
 	StageBeta       FeatureGateStage = "BETA"
-	StageGA         FeatureGateStage = "" // empty string is used to represent GA
+	StageGA         FeatureGateStage = "" // StageGA is represented as an empty string
 	StageDeprecated FeatureGateStage = "DEPRECATED"
 )
 
@@ -2178,6 +2185,7 @@ type FeatureGate struct {
 	Enabled bool
 }
 
+// KubeCapabilities represents the capabilities of a Kubernetes cluster.
 type KubeCapabilities struct {
 	EntityID
 	EntityMeta
