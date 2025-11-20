@@ -302,13 +302,23 @@ func (c *safeConfig) HasSection(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	// Check file layer if it hasSection
-	fileLayer := c.configSources[model.SourceFile]
-	if fileLayer.HasSection(key) {
-		return true
+	for _, src := range model.Sources {
+		if src == model.SourceDefault || src == model.SourceUnknown {
+			continue
+		}
+		if src == model.SourceEnvVar {
+			if c.hasEnvVarSection(key) {
+				return true
+			}
+		} else if c.configSources[src].HasSection(key) {
+			return true
+		}
 	}
+	return false
+}
 
-	// Env var layer doesn't work because Viper doesn't store them
+func (c *safeConfig) hasEnvVarSection(key string) bool {
+	// Env var layer doesn't work the same because Viper doesn't store them
 	// Instead use our own cache in envVarTree
 	currTree := c.envVarTree
 	parts := strings.Split(key, ".")

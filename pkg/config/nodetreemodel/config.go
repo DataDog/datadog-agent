@@ -727,17 +727,22 @@ func isInnerOrLeafWithNilValue(node Node) bool {
 	return false
 }
 
-// HasSection returns whether the setting is
+// HasSection returns true if the setting is either an inner node,
+// or a leaf node with a nil value
 func (c *ntmConfig) HasSection(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 
-	node := c.nodeAtPathFromNode(key, c.file)
-	if isInnerOrLeafWithNilValue(node) {
-		return true
+	for _, src := range model.Sources {
+		if src == model.SourceDefault || src == model.SourceUnknown {
+			continue
+		}
+		tree, _ := c.getTreeBySource(src)
+		if isInnerOrLeafWithNilValue(c.nodeAtPathFromNode(key, tree)) {
+			return true
+		}
 	}
-	node = c.nodeAtPathFromNode(key, c.envs)
-	return isInnerOrLeafWithNilValue(node)
+	return false
 }
 
 // AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
