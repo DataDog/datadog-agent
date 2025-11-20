@@ -92,6 +92,9 @@ const (
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
+	// DefaultLogsStreamLifetime is the default gRPC stream lifetime in seconds (15 minutes)
+	DefaultLogsStreamLifetime = 900
+
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
@@ -1685,6 +1688,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
 	// send the logs to the port 443 of the logs-backend via TCP:
 	config.BindEnvAndSetDefault("logs_config.use_port_443", false)
+	config.BindEnvAndSetDefault("logs_config.use_grpc", false)
+	config.BindEnvAndSetDefault("logs_config.stream_lifetime", DefaultLogsStreamLifetime)
 	// increase the read buffer size of the UDP sockets:
 	config.BindEnvAndSetDefault("logs_config.frame_size", 9000)
 	// maximum log message size in bytes

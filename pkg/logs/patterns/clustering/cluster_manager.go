@@ -13,7 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // PatternChangeType indicates what changed when adding a TokenList to the cluster manager
@@ -45,6 +47,7 @@ func NewClusterManager() *ClusterManager {
 // Returns the pattern that was created/updated and a PatternChangeType indicating what changed.
 func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChangeType) {
 	if tokenList == nil || tokenList.IsEmpty() {
+		log.Errorf("Cluster Manager failed to add log: %v for patterning. Token list is empty or nil.", tokenList.String())
 		return nil, PatternNoChange
 	}
 
@@ -60,98 +63,44 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 
 	// Look for existing cluster with matching signature
 	for _, cluster := range clusters {
-		if cluster.Signature.Equals(signature) {
-			// Track the state before adding
-			hadPatterns := len(cluster.Patterns) > 0
-			oldPatternCount := len(cluster.Patterns)
-
-			// Track if patterns had wildcards before
-			hadWildcards := false
-			if hadPatterns {
-				for _, p := range cluster.Patterns {
-					if p.hasWildcards() {
-						hadWildcards = true
-						break
-					}
-				}
-			}
-
-			// Add to appropriate pattern within the cluster
-			pattern := cluster.AddTokenListToPatterns(tokenList)
-
-			// Determine if this created a new pattern or updated an existing one
-			if pattern != nil {
-				newPatternCount := len(cluster.Patterns)
-				if newPatternCount > oldPatternCount {
-					// New pattern was created within the cluster (multi-pattern scenario)
-					return pattern, PatternNew
-				}
-
-				// Check if wildcards were added to an existing pattern
-				if hadPatterns && pattern.hasWildcards() && !hadWildcards {
-					// Pattern gained wildcards
-					return pattern, PatternUpdated
-				}
-
-				// If pattern already had wildcards and got more, it's also an update
-				if hadPatterns && hadWildcards && pattern.size() > 2 {
-					// Pattern structure may have changed (more wildcards)
-					return pattern, PatternUpdated
-				}
-			}
-			return pattern, PatternNoChange
+		if !cluster.Signature.Equals(signature) {
+			continue
 		}
+
+		// Find which pattern within the cluster the tokenList will match
+		var matchedPattern *Pattern
+		var oldWildcardCount int
+		for _, p := range cluster.Patterns {
+			if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+				matchedPattern = p
+				oldWildcardCount = p.GetWildcardCount()
+				break
+			}
+		}
+
+		// Add the tokenList to the cluster (merges or creates new pattern)
+		pattern := cluster.AddTokenListToPatterns(tokenList)
+
+		// Check if a new pattern was created (no match found or merge failed)
+		if matchedPattern == nil || matchedPattern.PatternID != pattern.PatternID {
+			return pattern, PatternNew
+		}
+
+		// Check if wildcard count changed (pattern evolved)
+		if pattern.GetWildcardCount() != oldWildcardCount {
+			return pattern, PatternUpdated
+		}
+
+		return pattern, PatternNoChange
 	}
 
-	// Creating a new cluster means a new pattern
+	// If no matching pattern was found, create a new cluster and pattern.
 	newCluster := NewCluster(signature, tokenList)
 	// Add the token list to create the first pattern
 	pattern := newCluster.AddTokenListToPatterns(tokenList)
 	cm.hashBuckets[hash] = append(clusters, newCluster)
 
 	return pattern, PatternNew
-}
-
-// GetCluster retrieves the cluster with the given signature.
-func (cm *ClusterManager) GetCluster(signature token.Signature) *Cluster {
-	hash := signature.Hash
-
-	cm.mu.RLock()
-	defer cm.mu.RUnlock()
-
-	clusters, exists := cm.hashBuckets[hash]
-	if !exists {
-		return nil
-	}
-
-	for _, cluster := range clusters {
-		if cluster.Signature.Equals(signature) {
-			return cluster
-		}
-	}
-
-	return nil
-}
-
-// GetAllPatterns returns all patterns across all clusters.
-// This is useful for re-sending pattern state after stream hard rotation or shutdown.
-// Patterns are returned in no particular order since we are resending all patterns.
-// Quite expensive for now, might need to be optimized later.
-func (cm *ClusterManager) GetAllPatterns() []*Pattern {
-	var allPatterns []*Pattern
-
-	cm.mu.RLock()
-	defer cm.mu.RUnlock()
-
-	// Iterate through all clusters in all hash buckets
-	for _, clusters := range cm.hashBuckets {
-		for _, cluster := range clusters {
-			// Collect all patterns from this cluster
-			allPatterns = append(allPatterns, cluster.Patterns...)
-		}
-	}
-
-	return allPatterns
 }
 
 // Clear removes all clusters.

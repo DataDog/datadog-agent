@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,8 +39,8 @@ type Payload struct {
 	Encoding string
 	// The size of the unencoded payload
 	UnencodedSize int
-	// Indicates if this payload is a snapshot for stream rotation
-	IsSnapshot bool
+	// Extra information for Stateful gRPC streaming (batch-level state changes)
+	StatefulExtra any
 }
 
 // NewPayload creates a new payload with the given message metadata, encoded content, encoding type and unencoded size
@@ -70,6 +71,13 @@ func (m *Payload) Size() int64 {
 type Message struct {
 	MessageContent
 	MessageMetadata
+}
+
+// StatefulMessage represents a log message for gRPC stateful streaming
+// It contains a Datum (from stateful_encoding.proto) and associated metadata
+type StatefulMessage struct {
+	Datum    *statefulpb.Datum
+	Metadata *MessageMetadata
 }
 
 // MessageMetadata contains metadata information about a log message
@@ -127,8 +135,6 @@ type MessageContent struct { //nolint:revive
 	content []byte
 	// structured content
 	structuredContent StructuredContent
-	// rendered content preserved for pattern extraction (before encoding overwrites content)
-	renderedContent []byte
 	State           MessageContentState
 }
 
@@ -191,7 +197,6 @@ func (m *MessageContent) SetContent(content []byte) {
 // SetRendered sets the content for the MessageContent and sets MessageContent state to rendered.
 func (m *MessageContent) SetRendered(content []byte) {
 	m.content = content
-	m.renderedContent = content // Preserve for pattern extraction
 	m.State = StateRendered
 }
 
@@ -199,12 +204,6 @@ func (m *MessageContent) SetRendered(content []byte) {
 func (m *MessageContent) SetEncoded(content []byte) {
 	m.content = content
 	m.State = StateEncoded
-}
-
-// GetRenderedContent returns the preserved rendered content (before encoding).
-// This is used for pattern extraction which needs plain text, not encoded binary.
-func (m *MessageContent) GetRenderedContent() []byte {
-	return m.renderedContent
 }
 
 // ParsingExtra ships extra information parsers want to make available
