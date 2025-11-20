@@ -200,6 +200,8 @@ cc_library(
     local_defines = select({
         "@@//:linux_x86_64": ['MULTIARCH=\\"x86_64-linux-gnu\\"'],
         "@@//:linux_arm64": ['MULTIARCH=\\"aarch64-linux-gnu\\"'],
+        # MULTIARCH is only defined for linux builds
+        "//conditions:default": [],
     }) + [
         'ABIFLAGS=\\"\\"',
     ] + COMMON_DEFINES + PY_CORE_DEFINES,
@@ -223,6 +225,7 @@ cc_library(
     local_defines = select({
         "@@//:linux_x86_64": ['SOABI=\\"cpython-313-x86_64-linux-gnu\\"'],
         "@@//:linux_arm64": ['SOABI=\\"cpython-313-aarch64-linux-gnu\\"'],
+        "@platfoms//os:macos": ['SOABI=\\"cpython-313-darwin\\"'],
     }) + COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
