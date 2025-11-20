@@ -98,6 +98,7 @@ windows_msi_and_bosh_zip_x64-a7-fips:
       docker run --rm
       -m 24576M
       -v "$(Get-Location):c:\mnt"
+      -e CI
       -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
