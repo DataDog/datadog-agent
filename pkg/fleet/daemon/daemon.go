@@ -42,6 +42,8 @@ const (
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
 	refreshStateInterval = 30 * time.Second
+	// disableClientIDCheck is the magic string to disable the client ID check.
+	disableClientIDCheck = "disable-client-id-check"
 )
 
 var (
@@ -671,8 +673,8 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
 	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
-
-	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+	clientIDEqual := d.clientID == request.ExpectedState.ClientID || request.ExpectedState.ClientID == disableClientIDCheck
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual || !clientIDEqual) {
 		log.Infof(
 			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
 			request.ID, request.ExpectedState, s, c,
