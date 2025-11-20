@@ -62,6 +62,18 @@ func adjustUSM(cfg model.Config) {
 	deprecateBool(cfg, smNS("enable_http2_monitoring"), smNS("http2", "enabled"))
 	deprecateInt(cfg, smNS("http2_dynamic_table_map_cleaner_interval_seconds"), smNS("http2", "dynamic_table_map_cleaner_interval_seconds"))
 
+	// Redis configuration migration
+	deprecateBool(cfg, smNS("enable_redis_monitoring"), smNS("redis", "enabled"))
+
+	// Disable Redis monitoring if kernel version is not supported
+	if cfg.GetBool(smNS("redis", "enabled")) && !RedisMonitoringSupported() {
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			// Only log in system-probe, as we cannot reliably know this in the agent
+			log.Warn("disabling Redis monitoring as it is not supported for this kernel version")
+		}
+		cfg.Set(smNS("redis", "enabled"), false, model.SourceAgentRuntime)
+	}
+
 	// Disable HTTP2 monitoring if kernel version is not supported
 	if cfg.GetBool(smNS("http2", "enabled")) && !HTTP2MonitoringSupported() {
 		if flavor.GetFlavor() == flavor.SystemProbe {

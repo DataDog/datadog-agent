@@ -32,6 +32,11 @@ func ProcessEventDataStreamSupported() bool {
 	return false
 }
 
+// RedisMonitoringSupported returns false on unsupported platforms
+func RedisMonitoringSupported() bool {
+	return false
+}
+
 // HTTP2MonitoringSupported returns false on unsupported platforms
 func HTTP2MonitoringSupported() bool {
 	return false

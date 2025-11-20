@@ -259,6 +259,11 @@ func TestInitData(t *testing.T) {
 		expected["system_probe_track_udp_6_connections"] = false
 	}
 
+	// Redis may be disabled by adjust_usm.go on kernels < 5.4
+	if !sysprobecfg.RedisMonitoringSupported() {
+		expected["feature_usm_redis_enabled"] = false
+	}
+
 	// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
 	expected["feature_usm_http2_enabled"] = sysprobecfg.HTTP2MonitoringSupported()
 

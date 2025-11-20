@@ -19,6 +19,11 @@ func ProcessEventDataStreamSupported() bool {
 	return false
 }
 
+// RedisMonitoringSupported returns false on darwin as eBPF is not supported
+func RedisMonitoringSupported() bool {
+	return false
+}
+
 // HTTP2MonitoringSupported returns false on darwin as eBPF is not supported
 func HTTP2MonitoringSupported() bool {
 	return false
