@@ -26,6 +26,7 @@ include:
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-rpm.txt"
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=rpm"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
