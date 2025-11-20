@@ -41,7 +41,7 @@ func createProfilesReceiver(
 
 	var createProfiles xreceiver.CreateProfilesFunc
 	if config.SymbolUploader.Enabled {
-		executableReporter, err := newExecutableReporter(&config.SymbolUploader, logger)
+		executableReporter, err := newExecutableReporter(&config.SymbolUploader)
 		if err != nil {
 			return nil, err
 		}
