@@ -38,7 +38,7 @@ func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageM
 		return layer.Digest != ""
 	})
 	if len(layerIDs) != len(imageLayers) || len(layerPaths) > len(layerIDs) || len(layerPaths) == 0 {
-		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta)
+		return nil, fmt.Errorf("mismatch count for layer IDs and paths (layerIDs(%d)=%v, layerPaths(%d)=%v, imgMeta(%d)=%v)", len(layerIDs), layerIDs, len(layerPaths), layerPaths, len(imageLayers), imageLayers)
 	}
 
 	// for nydus snapshotter, we don't have one mount/layer path per container layer
