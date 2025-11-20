@@ -264,9 +264,8 @@ filegroup(
         ":modules_srcs",
         ":sysmodule_o",
         ":getplatform_o",
-    ] + select({
-        "@platforms//os:linux": [":dynload_shlib"],
-    }) + PYTHON_CORE_MODULES_SRCS,
+        ":dynload_shlib",
+    ] + PYTHON_CORE_MODULES_SRCS,
 )
 
 filegroup(
@@ -456,6 +455,7 @@ cc_binary(
     ],
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
+        "//conditions:default": [],
     }),
     copts = COMMON_COPTS,
     deps = [
@@ -509,6 +509,7 @@ cc_binary(
     ],
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
+        "//conditions:default": [],
     }),
     deps = [
         ":modules_getpath",
@@ -541,6 +542,7 @@ cc_binary(
         shared_lib_name = name + select({
             "@//:linux_arm64": ".cpython-313-aarch64-linux-gnu.so",
             "@//:linux_x86_64": ".cpython-313-x86_64-linux-gnu.so",
+            "@platforms//os:macos": ".cpython-313-darwin.so",
         }),
         deps = ["build_module_" + name],
         dynamic_deps = info.get('dynamic_deps', []),
