@@ -228,6 +228,7 @@ installer_suse_rpm-arm64:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
     DD_PROJECT: iot-agent
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=rhel"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
   retry: 2
