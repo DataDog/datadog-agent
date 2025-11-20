@@ -21,25 +21,41 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		getProvisionerOptions([]func(*agentparams.Params) error{
+			agentparams.WithAgentConfig(coreConfigStr),
+		})...,
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		getProvisionerOptions([]func(*agentparams.Params) error{
+			agentparams.WithAgentConfig(coreConfigNoCheckStr),
+		})...,
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		getProvisionerOptions([]func(*agentparams.Params) error{
+			agentparams.WithAgentConfig(processConfigStr),
+		})...,
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigNoCheckStr))))
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(
+		getProvisionerOptions([]func(*agentparams.Params) error{
+			agentparams.WithAgentConfig(processConfigNoCheckStr),
+		})...,
+	))
 	pid := s.startPython()
 	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
