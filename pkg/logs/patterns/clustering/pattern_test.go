@@ -92,7 +92,8 @@ func TestGetPatternString_WithWildcards(t *testing.T) {
 	pattern.Positions = []int{2}
 	result := pattern.GetPatternString()
 
-	assert.Equal(t, "Service *", result)
+	// Wildcard tokens are omitted from the template
+	assert.Equal(t, "Service ", result)
 }
 
 func TestGetPatternString_NilTemplate(t *testing.T) {
@@ -148,7 +149,7 @@ func TestGetParamCount(t *testing.T) {
 }
 
 func TestGetWildcardCharPositions(t *testing.T) {
-	// Create pattern: "Service *"
+	// Create pattern: "Service " (wildcard omitted from template)
 	tl := token.NewTokenList()
 	tl.Add(token.NewToken(token.TokenWord, "Service", token.NotWildcard))
 	tl.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
@@ -158,12 +159,12 @@ func TestGetWildcardCharPositions(t *testing.T) {
 	pattern.Positions = []int{2}
 
 	charPositions := pattern.GetWildcardCharPositions()
-	// "Service" (7 chars) + " " (1 char) = 8, wildcard at position 8
+	// "Service " = 8 chars, wildcard injection point is at position 8
 	assert.Equal(t, []int{8}, charPositions)
 }
 
 func TestGetWildcardCharPositions_MultipleWildcards(t *testing.T) {
-	// Create pattern: "Error * in *"
+	// Create pattern: "Error  in " (both wildcards omitted from template)
 	tl := token.NewTokenList()
 	tl.Add(token.NewToken(token.TokenWord, "Error", token.NotWildcard))
 	tl.Add(token.NewToken(token.TokenWord, " ", token.NotWildcard))
@@ -177,9 +178,10 @@ func TestGetWildcardCharPositions_MultipleWildcards(t *testing.T) {
 	pattern.Positions = []int{2, 6}
 
 	charPositions := pattern.GetWildcardCharPositions()
-	// "Error " = 6 chars, wildcard at position 6
-	// "Error * in " = 6 + 1 (wildcard) + 4 (" in ") = 11, wildcard at position 11
-	assert.Equal(t, []int{6, 11}, charPositions)
+	// Template is "Error  in " (wildcards omitted): "Error " (6 chars) + " in " (4 chars) = 10 chars
+	// First wildcard injection at position 6 (after "Error ")
+	// Second wildcard injection at position 10 (after "Error  in ")
+	assert.Equal(t, []int{6, 10}, charPositions)
 }
 
 func TestGetWildcardCharPositions_NilTemplate(t *testing.T) {
@@ -411,7 +413,8 @@ func TestPattern_IntegrationScenario(t *testing.T) {
 	assert.Equal(t, 2, pattern.LogCount)
 	assert.True(t, pattern.hasWildcards())
 	assert.Equal(t, 3, getParamCount(pattern))
-	assert.Equal(t, "ERROR: * * *", pattern.GetPatternString())
+	// Wildcard tokens are omitted from template, leaving: "ERROR: " + " " + " " = "ERROR:   "
+	assert.Equal(t, "ERROR:   ", pattern.GetPatternString())
 
 	// 3. Extract wildcard values from new log
 	log2 := token.NewTokenList()

@@ -49,7 +49,8 @@ func (p *Pattern) size() int {
 	return p.LogCount
 }
 
-// GetPatternString returns the pattern template as a string with wildcards marked as "*"
+// GetPatternString returns the pattern template.
+// Pattern template has no wildcard placeholders and wildcard tokens are completely omitted
 func (p *Pattern) GetPatternString() string {
 	if p.Template == nil {
 		return ""
@@ -57,15 +58,14 @@ func (p *Pattern) GetPatternString() string {
 
 	var parts []string
 	for _, tok := range p.Template.Tokens {
-		// Use "*" for wildcard positions, actual value otherwise
+		// Skip wildcard tokens entirely
 		if tok.Wildcard == token.IsWildcard {
-			parts = append(parts, "*")
-		} else {
-			// Only use printable ASCII/UTF-8 characters in the template
-			cleaned := sanitizeForTemplate(tok.Value)
-			if cleaned != "" {
-				parts = append(parts, cleaned)
-			}
+			continue
+		}
+		// Only use printable ASCII/UTF-8 characters in the template
+		cleaned := sanitizeForTemplate(tok.Value)
+		if cleaned != "" {
+			parts = append(parts, cleaned)
 		}
 	}
 	return strings.Join(parts, "")
@@ -82,9 +82,10 @@ func (p *Pattern) GetWildcardCount() int {
 	return len(p.Positions)
 }
 
-// GetWildcardCharPositions returns character indices where wildcards appear in the pattern string.
-// This matches the PosList that will be sent in PatternDefine.
-// Example: "User * logged in from *" returns [7, 12]
+// GetWildcardCharPositions returns character indices where dynamic values should be injected.
+// The template does NOT contain wildcard placeholders - wildcards are omitted entirely.
+// Positions mark the injection points in the template string.
+// Example: Template "User  logged" (wildcard omitted) returns [5] (inject after "User ")
 func (p *Pattern) GetWildcardCharPositions() []int {
 	if p.Template == nil {
 		return nil
@@ -94,14 +95,12 @@ func (p *Pattern) GetWildcardCharPositions() []int {
 	currentPos := 0
 
 	for _, tok := range p.Template.Tokens {
-		// Clean the token value for proper length calculation
 		cleaned := sanitizeForTemplate(tok.Value)
 
 		if tok.Wildcard == token.IsWildcard {
-			// Record the current character position for this wildcard
+			// Mark the injection point (current position in template which excludes wildcards)
 			charPositions = append(charPositions, currentPos)
-			// Wildcard is represented as "*" (1 character)
-			currentPos += 1
+			// Wildcard tokens are NOT in the template, so don't advance currentPos
 		} else if cleaned != "" {
 			// Add the length of the cleaned token value
 			currentPos += len(cleaned)
@@ -112,46 +111,23 @@ func (p *Pattern) GetWildcardCharPositions() []int {
 }
 
 // GetWildcardValues extracts the wildcard values from a specific TokenList.
-// This is called per-log to get that log's specific wildcard parameter values.
-//
-// NOTE: AddTokenListToPatterns now verifies that tokenList matches p.Template before
-// assigning it to a pattern, so this function should only be called when structures match.
-// However, we keep the defensive check below as a safety measure.
 func (p *Pattern) GetWildcardValues(tokenList *token.TokenList) []string {
 	if p.Template == nil || len(p.Positions) == 0 {
 		return []string{}
 	}
 
-	// CRITICAL CHECK: Verify tokenList matches p.Template structure
-	// Note: CanMergeTokenLists is not symmetric - template (with IsWildcard) vs tokenList (with PotentialWildcard)
-	// works one way but not the other. Since AddTokenListToPatterns already verified compatibility,
-	// we check both directions here as a safety measure.
+	// Check if tokenList matches p.Template structure
 	templateMatches := merging.CanMergeTokenLists(p.Template, tokenList) || merging.CanMergeTokenLists(tokenList, p.Template)
 	if !templateMatches {
-		// tokenList doesn't match p.Template structure in either direction
-		// This shouldn't happen if AddTokenListToPatterns worked correctly, but handle gracefully
-		// Return nil slice (not empty slice) to signal mismatch - caller should send raw log
 		return nil
 	}
 
-	// Ensure lengths match (CanMergeTokenLists already checks this, but be safe)
-	if tokenList.Length() != p.Template.Length() {
-		// Length mismatch - return nil to signal error
-		return nil
-	}
-
-	// Preallocate slice with exact size to ensure count matches ParamCount
 	wildcardValues := make([]string, len(p.Positions))
 
-	// p.Positions are token indices in p.Template where wildcards are
-	// Since tokenList matches p.Template structure (verified above),
-	// we can use the same indices to extract values from tokenList
 	for i, templatePos := range p.Positions {
 		if templatePos < tokenList.Length() {
 			wildcardValues[i] = tokenList.Tokens[templatePos].Value
 		} else {
-			// Position out of bounds - use empty string to maintain count
-			// This shouldn't happen if structure matches correctly
 			wildcardValues[i] = ""
 		}
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 )
 
-// Cluster represents a group of TokenLists with identical signatures.
+// Cluster represents a cluster with a group of TokenLists that have identical signatures.
 // A cluster may contain multiple patterns if token lists with the same signature cannot be merged since structural Fidelity is Valuable.
 // Examples:
 // "Status: OK"     → HTTP response format

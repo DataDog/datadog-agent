@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
 // PatternChangeType indicates what changed when adding a TokenList to the cluster manager
@@ -47,6 +47,7 @@ func NewClusterManager() *ClusterManager {
 // Returns the pattern that was created/updated and a PatternChangeType indicating what changed.
 func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChangeType) {
 	if tokenList == nil || tokenList.IsEmpty() {
+		log.Errorf("Cluster Manager failed to add log: %v for patterning. Token list is empty or nil.", tokenList.String())
 		return nil, PatternNoChange
 	}
 
@@ -62,70 +63,38 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 
 	// Look for existing cluster with matching signature
 	for _, cluster := range clusters {
-		if cluster.Signature.Equals(signature) {
-			// Track the state before adding
-			hadPatterns := len(cluster.Patterns) > 0
-			oldPatternCount := len(cluster.Patterns)
-
-			// Track if patterns had wildcards before
-			hadWildcards := false
-			var matchedPattern *Pattern
-			oldWildcardCount := 0
-
-			if hadPatterns {
-				// Find which pattern this tokenList will match (before adding it)
-				for _, p := range cluster.Patterns {
-					if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
-						matchedPattern = p
-						oldWildcardCount = p.GetWildcardCount()
-						if p.hasWildcards() {
-							hadWildcards = true
-						}
-						break
-					}
-				}
-			}
-
-			// Add to appropriate pattern within the cluster
-			pattern := cluster.AddTokenListToPatterns(tokenList)
-
-			// Determine if this created a new pattern or updated an existing one
-			if pattern != nil {
-				newPatternCount := len(cluster.Patterns)
-				if newPatternCount > oldPatternCount {
-					// New pattern was created within the cluster (multi-pattern scenario)
-					log.Debugf("[PATTERN_CHANGE] PatternNew: pattern_id=%d (new pattern in existing cluster)", pattern.PatternID)
-					return pattern, PatternNew
-				}
-
-				// Check if wildcards were added to an existing pattern (0 → N)
-				if hadPatterns && pattern.hasWildcards() && !hadWildcards {
-					// Pattern gained its first wildcards
-					newWildcardCount := pattern.GetWildcardCount()
-					log.Infof("[PATTERN_CHANGE] PatternUpdated: pattern_id=%d gained first wildcards (0 → %d)", pattern.PatternID, newWildcardCount)
-					return pattern, PatternUpdated
-				}
-
-				// Check if wildcard count changed for existing pattern (N → M where N != M)
-				if matchedPattern != nil && matchedPattern.PatternID == pattern.PatternID {
-					newWildcardCount := pattern.GetWildcardCount()
-					if newWildcardCount != oldWildcardCount {
-						// Pattern wildcard count changed
-						log.Infof("[PATTERN_CHANGE] PatternUpdated: pattern_id=%d wildcard count changed (%d → %d)", pattern.PatternID, oldWildcardCount, newWildcardCount)
-						return pattern, PatternUpdated
-					}
-					// Wildcard count unchanged - this is the normal case for stable patterns
-					log.Debugf("[PATTERN_CHANGE] PatternNoChange: pattern_id=%d wildcard count unchanged (%d)", pattern.PatternID, oldWildcardCount)
-				} else {
-					// No matched pattern or different pattern ID (shouldn't happen, but log it)
-					log.Debugf("[PATTERN_CHANGE] PatternNoChange: pattern_id=%d (no matched pattern or ID mismatch)", pattern.PatternID)
-				}
-			}
-			return pattern, PatternNoChange
+		if !cluster.Signature.Equals(signature) {
+			continue
 		}
+
+		// Find which pattern within the cluster the tokenList will match
+		var matchedPattern *Pattern
+		var oldWildcardCount int
+		for _, p := range cluster.Patterns {
+			if p.Sample != nil && merging.CanMergeTokenLists(tokenList, p.Sample) {
+				matchedPattern = p
+				oldWildcardCount = p.GetWildcardCount()
+				break
+			}
+		}
+
+		// Add the tokenList to the cluster (merges or creates new pattern)
+		pattern := cluster.AddTokenListToPatterns(tokenList)
+
+		// Check if a new pattern was created (no match found or merge failed)
+		if matchedPattern == nil || matchedPattern.PatternID != pattern.PatternID {
+			return pattern, PatternNew
+		}
+
+		// Check if wildcard count changed (pattern evolved)
+		if pattern.GetWildcardCount() != oldWildcardCount {
+			return pattern, PatternUpdated
+		}
+
+		return pattern, PatternNoChange
 	}
 
-	// Creating a new cluster means a new pattern
+	// If no matching pattern was found, create a new cluster and pattern.
 	newCluster := NewCluster(signature, tokenList)
 	// Add the token list to create the first pattern
 	pattern := newCluster.AddTokenListToPatterns(tokenList)
