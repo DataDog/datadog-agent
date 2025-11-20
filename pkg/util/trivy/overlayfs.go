@@ -37,8 +37,30 @@ func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageM
 	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
 		return layer.Digest != ""
 	})
-	if len(layerIDs) > len(layerPaths) || len(layerIDs) > len(imageLayers) {
+	if len(layerIDs) != len(imageLayers) || len(layerPaths) > len(layerIDs) || len(layerPaths) == 0 {
 		return nil, fmt.Errorf("mismatch count for layer IDs and paths (%v, %v, %v)", layerIDs, layerPaths, imgMeta)
+	}
+
+	// for nydus snapshotter, we don't have one mount/layer path per container layer
+	// let's just fill out the paths
+
+	if len(layerPaths) < len(layerIDs) {
+		/*
+						layer IDs:   [A, B, C, D, E]
+						               \  \  \ |  |
+			                            \--\  \|  |
+						layerPaths:          [p1, p2]
+		*/
+
+		newLayersPaths := make([]string, len(layerIDs))
+		for i := range layerIDs {
+			lpi := len(layerPaths) - i - 1
+			if lpi < 0 {
+				lpi = 0
+			}
+			newLayersPaths[len(layerIDs)-i-1] = layerPaths[lpi]
+		}
+		layerPaths = newLayersPaths
 	}
 
 	log.Debugf("create fake container with paths=%v", layerPaths)
