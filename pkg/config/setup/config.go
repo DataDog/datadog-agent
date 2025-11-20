@@ -813,6 +813,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
+	config.BindEnvAndSetDefault("cluster_checks.crd_collection", false)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
