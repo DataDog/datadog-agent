@@ -3,7 +3,7 @@
 This gathers package metadata annotations and emits packages them the
 way we need for the DataDog Agent. That includes several things.
 
-1.  Create a sectcion for LICENSES-3rdparty.csv.
+1.  Create a section for LICENSES-3rdparty.csv.
 Sample:
    Component,Origin,License,Copyright
    core,cel.dev/expr,Apache-2.0,TristonianJones <tswadell@google.com>
