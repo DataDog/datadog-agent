@@ -14,7 +14,6 @@
 
 #include "msstoreapps.h"
 
-using namespace winrt;
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::ApplicationModel;
 using namespace winrt::Windows::Management::Deployment;
@@ -102,7 +101,7 @@ static uint8_t is64(ProcessorArchitecture a) {
     return 0;
 }
 
-static MSStoreEntry make_entry(const winrt::Windows::ApplicationModel::Package& pkg, winrt::hstring displayName) {
+static MSStoreEntry make_entry(const Package& pkg, winrt::hstring displayName) {
     auto id = pkg.Id();
     char* installDate;
     // Not all packages have InstalledDate
