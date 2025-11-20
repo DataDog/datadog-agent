@@ -1315,6 +1315,93 @@ func TestHandleKubeMetadata(t *testing.T) {
 	}
 }
 
+func TestHandleKubeCRD(t *testing.T) {
+	const (
+		crdNamespace = "datadog"
+		crdName      = "datadogagent.datadoghq.com"
+		crdGroup     = "datadoghq.com"
+		crdKind      = "DatadogAgent"
+		crdVersion   = "v1alpha1"
+	)
+
+	kubeCRDID := string(util.GenerateKubeMetadataEntityID(crdGroup, crdKind, crdNamespace, crdName))
+
+	kubeCRDEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindCRD,
+		ID:   kubeCRDID,
+	}
+
+	taggerEntityID := types.NewEntityID(types.Crd, kubeCRDEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	store.Set(&workloadmeta.CRD{
+		EntityID: kubeCRDEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      crdName,
+			Namespace: crdNamespace,
+		},
+		Group:   crdGroup,
+		Kind:    crdKind,
+		Version: crdVersion,
+	})
+
+	tests := []struct {
+		name     string
+		kubeCRD  workloadmeta.CRD
+		expected []*types.TagInfo
+	}{
+		{
+			name: "CRD entity",
+			kubeCRD: workloadmeta.CRD{
+				EntityID: kubeCRDEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      crdName,
+					Namespace: crdNamespace,
+				},
+				Version: crdVersion,
+				Group:   crdGroup,
+				Kind:    crdKind,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               crdSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					StandardTags:         []string{},
+					LowCardTags: []string{
+						"crd_group:" + crdGroup,
+						"crd_kind:" + crdKind,
+						"crd_version:" + crdVersion,
+						"crd_namespace:" + crdNamespace,
+						"crd_name:" + crdName,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleCRD(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.kubeCRD,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
 func TestHandleKubeDeployment(t *testing.T) {
 	const deploymentName = "fooapp"
 

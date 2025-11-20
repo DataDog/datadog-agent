@@ -61,6 +61,7 @@ func TestFilterBuilderOps(t *testing.T) {
 					InternalID:             {},
 					GPU:                    {},
 					Kubelet:                {},
+					Crd:                    {},
 				},
 				cardinality: HighCardinality,
 			},

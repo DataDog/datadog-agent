@@ -191,7 +191,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Component) error {
-	var objectStores []*reflectorStore
+	var objectStores []cache.ResourceEventHandlerRegistration
 
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -223,6 +223,17 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
+	if c.config.GetBool("cluster_checks.crd_collection") {
+		log.Info("Enabling CRD informer for workloadmeta collector")
+		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)
+		if err != nil {
+			log.Errorf("failed to setup CRD informer: %v", err)
+		} else {
+			log.Debug("CRD informer configured for workloadmeta")
+			objectStores = append(objectStores, handlerRegistration)
+		}
+	}
+
 	go runStartupCheck(ctx, objectStores)
 
 	return nil
@@ -240,7 +251,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func runStartupCheck(ctx context.Context, stores []*reflectorStore) {
+func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
 	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the
