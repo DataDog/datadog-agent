@@ -24,10 +24,9 @@ constexpr int RESULT_SUCCESS = 0;
 constexpr int RESULT_INVALID_PARAMS = 1;
 constexpr int RESULT_EXCEPTION = 2;
 
-
-static char* hstring_to_str(const winrt::hstring& hs) {
+static char *hstring_to_str(const winrt::hstring &hs) {
     if (hs.empty()) {
-        char* p = (char*)CoTaskMemAlloc(1);
+        char *p = (char *)CoTaskMemAlloc(1);
         if (!p) {
             throw std::bad_alloc{};
         }
@@ -41,7 +40,7 @@ static char* hstring_to_str(const winrt::hstring& hs) {
         throw std::runtime_error("WideCharToMultiByte failed");
     }
 
-    char* p = (char*)CoTaskMemAlloc(len);
+    char *p = (char *)CoTaskMemAlloc(len);
     if (!p) {
         throw std::bad_alloc{};
     }
@@ -50,14 +49,14 @@ static char* hstring_to_str(const winrt::hstring& hs) {
     return p;
 }
 
-static char* ver_to_str(PackageVersion const& v) {
+static char *ver_to_str(PackageVersion const &v) {
     char buf[32];
     int len = _snprintf_s(buf, _TRUNCATE, "%u.%u.%u.%u", v.Major, v.Minor, v.Build, v.Revision);
     if (len < 0) {
         len = 0;
         buf[0] = '\0';
     }
-    char* p = (char*)CoTaskMemAlloc(len + 1);
+    char *p = (char *)CoTaskMemAlloc(len + 1);
     if (!p) {
         throw std::bad_alloc{};
     }
@@ -65,7 +64,7 @@ static char* ver_to_str(PackageVersion const& v) {
     return p;
 }
 
-static char* dt_to_iso(DateTime const& dt) {
+static char *dt_to_iso(DateTime const &dt) {
     ULARGE_INTEGER li{};
     li.QuadPart = static_cast<ULONGLONG>(dt.time_since_epoch().count());
     FILETIME ft{ li.LowPart, li.HighPart };
@@ -76,8 +75,7 @@ static char* dt_to_iso(DateTime const& dt) {
     if (!FileTimeToSystemTime(&ft, &st)) {
         buf[0] = '\0';
         len = 0;
-    }
-    else {
+    } else {
         len = _snprintf_s(buf, _TRUNCATE, "%04u-%02u-%02uT%02u:%02u:%02uZ",
             st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
         if (len < 0) {
@@ -86,7 +84,7 @@ static char* dt_to_iso(DateTime const& dt) {
         }
     }
 
-    char* p = (char*)CoTaskMemAlloc(len + 1);
+    char *p = (char *)CoTaskMemAlloc(len + 1);
     if (!p) {
         throw std::bad_alloc{};
     }
@@ -101,15 +99,14 @@ static uint8_t is64(ProcessorArchitecture a) {
     return 0;
 }
 
-static MSStoreEntry make_entry(const Package& pkg, winrt::hstring displayName) {
+static MSStoreEntry make_entry(const Package &pkg, winrt::hstring displayName) {
     auto id = pkg.Id();
-    char* installDate;
+    char *installDate;
     // Not all packages have InstalledDate
     try {
         installDate = dt_to_iso(pkg.InstalledDate());
-    }
-    catch (...) {
-        installDate = (char*)CoTaskMemAlloc(1);
+    } catch (...) {
+        installDate = (char *)CoTaskMemAlloc(1);
         if (!installDate) {
             throw std::bad_alloc{};
         }
@@ -131,8 +128,7 @@ static MSStoreEntry make_entry(const Package& pkg, winrt::hstring displayName) {
         e.publisher = hstring_to_str(id.Publisher());
         e.product_code = hstring_to_str(id.FamilyName());
         return e;
-    }
-    catch (...) {
+    } catch (...) {
         CoTaskMemFree(e.display_name);
         CoTaskMemFree(e.version);
         CoTaskMemFree(e.install_date);
@@ -142,8 +138,7 @@ static MSStoreEntry make_entry(const Package& pkg, winrt::hstring displayName) {
     }
 }
 
-extern "C" __declspec(dllexport)
-int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
+extern "C" __declspec(dllexport) int ListStoreEntries(MSStoreEntry **out_array, int32_t *out_count) {
     if (!out_array || !out_count) {
         return RESULT_INVALID_PARAMS;
     }
@@ -151,7 +146,7 @@ int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
     *out_count = 0;
 
     std::vector<MSStoreEntry> rows;
-    MSStoreEntry* arr = nullptr;
+    MSStoreEntry *arr = nullptr;
 
     try {
         winrt::init_apartment();
@@ -160,16 +155,15 @@ int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
 
         auto packages = pm.FindPackagesWithPackageTypes(PackageTypes::Main);
 
-        for (auto const& pkg : packages) {
+        for (auto const &pkg : packages) {
             auto id = pkg.Id();
             auto displayName = id.Name();
             auto appListEntries = pkg.GetAppListEntries();
 
             if (appListEntries.Size() == 0) {
                 rows.push_back(make_entry(pkg, displayName));
-            }
-            else {
-                for (auto const& appListEntry : appListEntries) {
+            } else {
+                for (auto const &appListEntry : appListEntries) {
                     auto displayInfo = appListEntry.DisplayInfo();
                     if (displayInfo) {
                         auto dn = displayInfo.DisplayName();
@@ -185,7 +179,7 @@ int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
 
         if (!rows.empty()) {
             size_t bytes = rows.size() * sizeof(MSStoreEntry);
-            arr = (MSStoreEntry*)CoTaskMemAlloc(bytes);
+            arr = (MSStoreEntry *)CoTaskMemAlloc(bytes);
             if (!arr) {
                 throw std::bad_alloc{};
             }
@@ -194,9 +188,8 @@ int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
             *out_count = (int32_t)rows.size();
         }
         return RESULT_SUCCESS;
-    }
-    catch (...) {
-        for (auto& e : rows) {
+    } catch (...) {
+        for (auto &e : rows) {
             CoTaskMemFree(e.display_name);
             CoTaskMemFree(e.version);
             CoTaskMemFree(e.install_date);
@@ -208,8 +201,7 @@ int ListStoreEntries(MSStoreEntry** out_array, int32_t* out_count) {
     }
 }
 
-extern "C" __declspec(dllexport)
-void FreeStoreEntries(MSStoreEntry* entries, int32_t count) {
+extern "C" __declspec(dllexport) void FreeStoreEntries(MSStoreEntry *entries, int32_t count) {
     if (!entries) {
         return;
     }
