@@ -54,12 +54,6 @@ func (m *MockSecretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback)
 	m.callback = cb
 }
 
-func (m *MockSecretResolver) trigger(handle, origin string) {
-	if m.callback != nil {
-		m.callback(handle, origin, nil, nil, nil)
-	}
-}
-
 func (m *MockSecretResolver) Refresh() (string, error) {
 	return "", nil
 }
@@ -94,8 +88,8 @@ var sharedTpl = integration.Config{
 	LogsConfig:   []byte("param4: ENC[log]"),
 }
 
-var makeSharedScenarios = func() []mockSecretScenario {
-	digest := sharedTpl.Digest()
+func makeScenariosForConfig(conf integration.Config) []mockSecretScenario {
+	digest := conf.Digest()
 	return []mockSecretScenario{
 		{
 			expectedData:   []byte("param1: ENC[foo]"),
@@ -122,6 +116,10 @@ var makeSharedScenarios = func() []mockSecretScenario {
 			returnedError:  nil,
 		},
 	}
+}
+
+var makeSharedScenarios = func() []mockSecretScenario {
+	return makeScenariosForConfig(sharedTpl)
 }
 
 func TestSecretResolve(t *testing.T) {

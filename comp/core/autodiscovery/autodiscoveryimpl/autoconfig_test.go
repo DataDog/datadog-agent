@@ -144,6 +144,12 @@ type MockScheduler struct {
 	mutex       sync.RWMutex
 }
 
+func (m *MockSecretResolver) trigger(handle, origin string) {
+	if m.callback != nil {
+		m.callback(handle, origin, nil, nil, nil)
+	}
+}
+
 // Schedule implements scheduler.Scheduler#Schedule.
 func (ms *MockScheduler) Schedule(configs []integration.Config) {
 	ms.mutex.Lock()
@@ -197,7 +203,10 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 }
 
 func (suite *AutoConfigTestSuite) TestRefreshConfig() {
-	mockResolver := MockSecretResolver{t: suite.T(), scenarios: nil}
+	raw := sharedTpl
+	raw.ADIdentifiers = nil
+
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: makeScenariosForConfig(raw)}
 
 	controller := scheduler.NewControllerAndStart()
 	suite.T().Cleanup(controller.Stop)
@@ -207,12 +216,7 @@ func (suite *AutoConfigTestSuite) TestRefreshConfig() {
 
 	ac := createNewAutoConfig(controller, &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry, suite.deps.FilterComp)
 
-	raw := integration.Config{
-		Name:       "refresh-test",
-		Instances:  []integration.Data{integration.Data([]byte("foo: ENC[bar]"))},
-		InitConfig: []byte("init: ENC[baz]"),
-	}
-	// rawDigest := raw.Digest()
+	rawDigest := raw.Digest()
 
 	changes := ac.processNewConfig(raw)
 	ac.applyChanges(changes)
@@ -223,30 +227,21 @@ func (suite *AutoConfigTestSuite) TestRefreshConfig() {
 		return len(mockScheduler.scheduled) == 1
 	}, 2*time.Second, 20*time.Millisecond, "expected resolved config to be scheduled")
 
-	// var resolvedBefore integration.Config
-	// mockScheduler.mutex.RLock()
-	// for _, cfg := range mockScheduler.scheduled {
-	// 	resolvedBefore = cfg
-	// }
-	// mockScheduler.mutex.RUnlock()
+	var resolvedBefore integration.Config
+	mockScheduler.mutex.RLock()
+	for _, cfg := range mockScheduler.scheduled {
+		resolvedBefore = cfg
+	}
+	mockScheduler.mutex.RUnlock()
 
-	// mockResolver.trigger("my-handle", rawDigest)
+	mockResolver.trigger("my-handle", rawDigest)
 
-	// require.Eventually(suite.T(), func() bool {
-	// 	mockScheduler.mutex.RLock()
-	// 	defer mockScheduler.mutex.RUnlock()
-	// 	return len(mockScheduler.unscheduled) == 1
-	// }, 2*time.Second, 20*time.Millisecond, "expected resolved config to be unscheduled")
-
-	// mockScheduler.mutex.RLock()
-	// require.Equal(suite.T(), resolvedBefore.Digest(), mockScheduler.unscheduled[0].Digest())
-	// mockScheduler.mutex.RUnlock()
-
-	// require.Eventually(suite.T(), func() bool {
-	// 	mockScheduler.mutex.RLock()
-	// 	defer mockScheduler.mutex.RUnlock()
-	// 	return len(mockScheduler.scheduled) == 1
-	// }, 2*time.Second, 20*time.Millisecond, "expected refreshed config to be scheduled")
+	require.Eventually(suite.T(), func() bool {
+		mockScheduler.mutex.RLock()
+		defer mockScheduler.mutex.RUnlock()
+		_, ok := mockScheduler.scheduled[resolvedBefore.Digest()]
+		return len(mockScheduler.scheduled) == 1 && ok
+	}, 2*time.Second, 20*time.Millisecond, "expected refreshed config to remain scheduled")
 }
 
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
