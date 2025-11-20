@@ -87,8 +87,6 @@ func (a *logAgent) rebuildTransientComponents(processingRules []*config.Processi
 	// create NEW destinations context
 	destinationsCtx := client.NewDestinationsContext()
 
-	// NEW endpoints created in `agent.go`
-	// use OLD: auditor, diagnosticMessageReceiver
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,

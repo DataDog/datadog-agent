@@ -115,8 +115,6 @@ func (a *logAgent) partialStop() error {
 	})
 
 	// Flush auditor to write current positions to disk
-	// Note: Due to async processing and the periodic file scanner, at-least-once
-	// delivery semantics apply during restart (1-2 logs may be re-read)
 	a.log.Debug("Flushing auditor registry after pipeline stop")
 	a.auditor.Flush()
 

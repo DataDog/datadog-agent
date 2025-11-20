@@ -313,11 +313,10 @@ func (a *logAgent) stop(context.Context) error {
 }
 
 // stopComponents stops the provided components using SerialStopper with a grace period timeout.
-// The stop process:
-// 1. Attempts graceful shutdown within the configured stop_grace_period
-// 2. If timeout expires, calls forceClose to force-flush pending data
-// 3. Waits an additional 5 seconds for cleanup
-// 4. If still not complete, dumps goroutines for debugging and exits
+//
+// Attempts graceful shutdown within the configured stop_grace_period
+// If timeout expires, calls forceClose to force-flush pending data
+// 3. Waits 5 seconds for cleanup, then dumps goroutines for debugging and exits
 func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose func()) {
 	stopper := startstop.NewSerialStopper(components...)
 
