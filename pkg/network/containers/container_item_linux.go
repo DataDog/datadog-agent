@@ -82,6 +82,10 @@ func readResolvConf(entry *events.Process) (string, error) {
 	}
 
 	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
+	return readResolvConfPath(resolvConfPath)
+}
+
+func readResolvConfPath(resolvConfPath string) (string, error) {
 	data, err := os.ReadFile(resolvConfPath)
 	if errors.Is(err, os.ErrNotExist) {
 		// report no data. don't turn this into an error, since if the process exited
@@ -92,9 +96,7 @@ func readResolvConf(entry *events.Process) (string, error) {
 		return "", resolvConfReadError(resolvConfPath, err)
 	}
 
-	resolvConf := StripResolvConf(string(data))
-
-	return resolvConf, nil
+	return StripResolvConf(string(data)), nil
 }
 
 func resolvConfReadError(resolvConfPath string, err error) error {
@@ -107,7 +109,7 @@ func StripResolvConf(resolvConf string) string {
 	var sb strings.Builder
 	sb.Grow(len(resolvConf))
 
-	for _, rawLine := range lines {
+	for i, rawLine := range lines {
 		line := strings.TrimSpace(rawLine)
 		if len(line) == 0 {
 			continue
@@ -116,6 +118,9 @@ func StripResolvConf(resolvConf string) string {
 			continue
 		}
 		sb.WriteString(line)
+		if i < len(lines)-1 {
+			sb.WriteByte('\n')
+		}
 	}
 
 	return sb.String()
