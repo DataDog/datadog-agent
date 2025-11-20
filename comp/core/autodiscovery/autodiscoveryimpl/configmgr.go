@@ -52,6 +52,13 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
+
+	// getConfigByDigest returns the raw config paired with the resolved
+	// configs currently scheduled for the given origin digest.
+	getConfigByDigest(origin string) (integration.Config, []integration.Config, bool)
+
+	// removeActiveConfig removes the raw config digest from the active map so it can be reprocessed.
+	removeActiveConfig(digest string)
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -105,21 +112,28 @@ type reconcilingConfigManager struct {
 	scheduledConfigs map[string]integration.Config
 
 	secretResolver secrets.Component
+
+	// scheduledConfigsOriginals keeps the resolved version of every config,
+	// keyed by the raw digest we store in activeConfigs. This lets us unschedule
+	// the exact resolved configs that were running when a secret refresh arrives.
+	scheduledConfigsOriginals map[string][]integration.Config
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
 func newReconcilingConfigManager(secretResolver secrets.Component) configManager {
-	return &reconcilingConfigManager{
-		activeConfigs:      map[string]integration.Config{},
-		activeServices:     map[string]serviceAndADIDs{},
-		templatesByADID:    newMultimap(),
-		servicesByADID:     newMultimap(),
-		serviceResolutions: map[string]map[string]string{},
-		scheduledConfigs:   map[string]integration.Config{},
-		secretResolver:     secretResolver,
+	cm := &reconcilingConfigManager{
+		activeConfigs:             map[string]integration.Config{},
+		activeServices:            map[string]serviceAndADIDs{},
+		templatesByADID:           newMultimap(),
+		servicesByADID:            newMultimap(),
+		serviceResolutions:        map[string]map[string]string{},
+		scheduledConfigs:          map[string]integration.Config{},
+		secretResolver:            secretResolver,
+		scheduledConfigsOriginals: make(map[string][]integration.Config),
 	}
+	return cm
 }
 
 // processNewService implements configManager#processNewService.
@@ -218,10 +232,14 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 	} else {
 		// Secrets always need to be resolved (done in reconcileService if template)
-		decryptedConfig, err := decryptConfig(config, cm.secretResolver)
+		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
 			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
 		}
+
+		// Store the resolved config under the raw digest so refresh logic knows
+		// exactly which instance to unschedule.
+		cm.scheduledConfigsOriginals[digest] = []integration.Config{decryptedConfig}
 
 		// Instances of the decrypted config change their ID when secrets are
 		// resolved.
@@ -258,6 +276,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
+		delete(cm.scheduledConfigsOriginals, digest)
 
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
@@ -277,7 +296,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		} else {
 			// Secrets need to be resolved before being unscheduled as otherwise
 			// the computed hashes can be different from the ones computed at schedule time.
-			config, err := decryptConfig(config, cm.secretResolver)
+			config, err := decryptConfig(config, cm.secretResolver, digest)
 			if err != nil {
 				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
 			}
@@ -317,6 +336,13 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 		res[k] = v.svc
 	}
 	return res
+}
+
+func (cm *reconcilingConfigManager) removeActiveConfig(digest string) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+	delete(cm.activeConfigs, digest)
+	delete(cm.scheduledConfigsOriginals, digest)
 }
 
 // reconcileService calculates the current set of resolved templates for the
@@ -394,6 +420,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+
+	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
@@ -401,14 +429,35 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		errorStats.setResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}
-	resolvedConfig, err := decryptConfig(config, cm.secretResolver)
+	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, msg)
 		return config, false
 	}
 	errorStats.removeResolveWarnings(tpl.Name)
+	cm.scheduledConfigsOriginals[digest] = append(cm.scheduledConfigsOriginals[digest], resolvedConfig)
 	return resolvedConfig, true
+}
+
+// getConfigByDigest retrieves the raw config plus the resolved configs we
+// previously scheduled for the provided origin digest. It returns false if the
+// digest is unknown or nothing is currently scheduled for it.
+func (cm *reconcilingConfigManager) getConfigByDigest(origin string) (integration.Config, []integration.Config, bool) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	raw, ok := cm.activeConfigs[origin]
+	if !ok {
+		return integration.Config{}, nil, false
+	}
+
+	resolved, ok := cm.scheduledConfigsOriginals[origin]
+	if !ok || len(resolved) == 0 {
+		return integration.Config{}, nil, false
+	}
+
+	return raw, resolved, true
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs

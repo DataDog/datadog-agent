@@ -29,6 +29,8 @@ type mockSecretScenario struct {
 type MockSecretResolver struct {
 	t         *testing.T
 	scenarios []mockSecretScenario
+	callback  secrets.SecretChangeCallback
+	callCount int
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
@@ -41,6 +43,9 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 	}
 	for n, scenario := range m.scenarios {
 		if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
+			if m.scenarios[n].called != m.callCount {
+				continue
+			}
 			m.scenarios[n].called++
 			return scenario.returnedData, scenario.returnedError
 		}
@@ -51,7 +56,15 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 
 func (m *MockSecretResolver) RemoveOrigin(_ string) {}
 
-func (m *MockSecretResolver) SubscribeToChanges(_ secrets.SecretChangeCallback) {}
+func (m *MockSecretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
+	m.callback = cb
+}
+
+func (m *MockSecretResolver) trigger(handle, origin string) {
+	if m.callback != nil {
+		m.callback(handle, origin, nil, nil, nil)
+	}
+}
 
 func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
 	return "", nil
@@ -69,7 +82,7 @@ func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 
 func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	for _, scenario := range m.scenarios {
-		if scenario.called != 0 {
+		if scenario.called != 0 && scenario.called != 2 {
 			return false
 		}
 	}
@@ -87,39 +100,71 @@ var sharedTpl = integration.Config{
 	LogsConfig:   []byte("param4: ENC[log]"),
 }
 
-var makeSharedScenarios = func() []mockSecretScenario {
+func makeScenariosForConfig(conf integration.Config) []mockSecretScenario {
+	digest := conf.Digest()
 	return []mockSecretScenario{
 		{
 			expectedData:   []byte("param1: ENC[foo]"),
-			expectedOrigin: "cpu",
+			expectedOrigin: digest,
 			returnedData:   []byte("param1: foo"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param2: ENC[bar]"),
-			expectedOrigin: "cpu",
+			expectedOrigin: digest,
 			returnedData:   []byte("param2: bar"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param3: ENC[met]"),
-			expectedOrigin: "cpu",
+			expectedOrigin: digest,
 			returnedData:   []byte("param3: met"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param4: ENC[log]"),
-			expectedOrigin: "cpu",
+			expectedOrigin: digest,
 			returnedData:   []byte("param4: log"),
 			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte("param1: ENC[foo]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param1: foo_new"),
+			returnedError:  nil,
+			called:         2,
+		},
+		{
+			expectedData:   []byte("param2: ENC[bar]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param2: bar_new"),
+			returnedError:  nil,
+			called:         2,
+		},
+		{
+			expectedData:   []byte("param3: ENC[met]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param3: met_new"),
+			returnedError:  nil,
+			called:         2,
+		},
+		{
+			expectedData:   []byte("param4: ENC[log]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param4: log_new"),
+			returnedError:  nil,
+			called:         2,
 		},
 	}
 }
 
-func TestSecretResolve(t *testing.T) {
-	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
+var makeSharedScenarios = func() []mockSecretScenario {
+	return makeScenariosForConfig(sharedTpl)
+}
 
-	newConfig, err := decryptConfig(sharedTpl, mockResolve)
+func TestSecretResolve(t *testing.T) {
+	mockResolve := &MockSecretResolver{t: t, scenarios: makeSharedScenarios()}
+	newConfig, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
 	require.NoError(t, err)
 
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
@@ -128,13 +173,13 @@ func TestSecretResolve(t *testing.T) {
 }
 
 func TestSkipSecretResolve(t *testing.T) {
-	mockResolve := &MockSecretResolver{t, makeSharedScenarios()}
+	mockResolve := &MockSecretResolver{t: t, scenarios: makeSharedScenarios()}
 
 	cfg := configmock.New(t)
 	cfg.SetWithoutSource("secret_backend_skip_checks", true)
 	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
 
-	c, err := decryptConfig(sharedTpl, mockResolve)
+	c, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
 	require.NoError(t, err)
 
 	assert.Equal(t, sharedTpl.Instances, c.Instances)
