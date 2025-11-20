@@ -112,6 +112,7 @@ func (d customResourceDecoder) Decode(v interface{}) error {
 	return mapstructure.Decode(d.data, v)
 }
 
+// StartDiscovery starts the custom resource discovery and returns a discoverer instance
 func StartDiscovery() *discovery.CRDiscoverer {
 	discovererInstance := &discovery.CRDiscoverer{
 		CRDsAddEventsCounter:    crdsAddEventsCounter,
