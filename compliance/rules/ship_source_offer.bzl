@@ -1,8 +1,8 @@
 """Declares rule `ship_source_offer`.
 
 This is a package_metadata attribute that declares we must offer to ship
-the souce to the product if this package is used. The build process
-will include the a mention in the file offer.txt if it is used in the
+the source to the product if this package is used. The build process
+will include a mention in the file offer.txt if it is used in the
 artifact we are building.
 
 Usage:
@@ -31,7 +31,7 @@ reason for doing so is a combination.
 - Aspect traversal hits the top level package_metadata target and stops,
   so that the aspect never sees the attributes directly. This is a bazel issue.
 - PackageMetadataInfo does not contain the kinds of the attributes, we
-  can't trigger on a special csae one without reading the metadata data
+  can't trigger on a special case one without reading the metadata data
   file itself.
 - Reading the file pushes detection from analysis time into execution,
   making it harder to trigger new things at build time.

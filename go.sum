@@ -1282,8 +1282,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/doc
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.139.0/go.mod h1:StCwXbhgQmG30PV5mBxX1O99l+yYJy+BZNisuOz7USk=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.139.0 h1:mU2fHKOt2m/x3fw8FO5HLlCQ0sInRLdr9RUqUZOTXTk=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.139.0/go.mod h1:0H0eEKhl4bjCSxJFU2O6xsW++Tju8H1WfvTBVMfc9VI=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver v0.139.0 h1:jDSDkdf6E/mgp63xzlCN4KZ2uZVPjCZe2b4uAl+AgLk=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver v0.139.0/go.mod h1:k6F3G1uU+7JPbQvBt3gNVRIc8y28ewCSkNWKKr7f3r4=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.139.0 h1:YXZvS2GytjrTvrvRsdeGNJOQv10EV9p3+j61lFulIZs=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.139.0/go.mod h1:JTjgDh4psDOvsb5XLlc4v6ev6xCUBUytCmea622nviE=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.139.0 h1:zV33tKHmU8OXBTUfTl8TioFIJof5uQ+RVHL6SbUxV6w=
