@@ -212,7 +212,32 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		filterStore:              filterStore,
 		telemetryStore:           acTelemetry.NewStore(telemetryComp),
 	}
+
+	// Subscribe to secret updates so we can tear down and recreate any configs
+	// that were resolved with the outdated values.
+	secretResolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
+		ac.refreshConfig(origin)
+	})
+
 	return ac
+}
+
+func (ac *AutoConfig) refreshConfig(origin string) {
+	rawConfig, resolvedConfigs, found := ac.cfgMgr.configsForSecretRefresh(origin)
+	if !found {
+		log.Warnf("no active config found for secret origin %s", origin)
+		return
+	}
+
+	if len(resolvedConfigs) > 0 {
+		var unschedule integration.ConfigChanges
+		for _, cfg := range resolvedConfigs {
+			unschedule.UnscheduleConfig(cfg)
+		}
+		ac.applyChanges(unschedule)
+	}
+
+	ac.processNewConfig(rawConfig)
 }
 
 // serviceListening is the main management goroutine for services.

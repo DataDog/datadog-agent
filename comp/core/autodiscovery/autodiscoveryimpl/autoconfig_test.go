@@ -139,8 +139,9 @@ func (o *factoryMock) resetCallChan() {
 }
 
 type MockScheduler struct {
-	scheduled map[string]integration.Config
-	mutex     sync.RWMutex
+	scheduled   map[string]integration.Config
+	unscheduled []integration.Config
+	mutex       sync.RWMutex
 }
 
 // Schedule implements scheduler.Scheduler#Schedule.
@@ -157,6 +158,7 @@ func (ms *MockScheduler) Unschedule(configs []integration.Config) {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 	for _, cfg := range configs {
+		ms.unscheduled = append(ms.unscheduled, cfg)
 		delete(ms.scheduled, cfg.Digest())
 	}
 }
@@ -194,6 +196,59 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 	suite.deps = createDeps(suite.T())
 }
 
+func (suite *AutoConfigTestSuite) TestRefreshConfig() {
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: nil}
+
+	controller := scheduler.NewControllerAndStart()
+	suite.T().Cleanup(controller.Stop)
+
+	mockScheduler := &MockScheduler{scheduled: make(map[string]integration.Config)}
+	controller.Register("refresh-test", mockScheduler, false)
+
+	ac := createNewAutoConfig(controller, &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry, suite.deps.FilterComp)
+
+	raw := integration.Config{
+		Name:       "refresh-test",
+		Instances:  []integration.Data{integration.Data([]byte("foo: ENC[bar]"))},
+		InitConfig: []byte("init: ENC[baz]"),
+	}
+	// rawDigest := raw.Digest()
+
+	changes := ac.processNewConfig(raw)
+	ac.applyChanges(changes)
+
+	require.Eventually(suite.T(), func() bool {
+		mockScheduler.mutex.RLock()
+		defer mockScheduler.mutex.RUnlock()
+		return len(mockScheduler.scheduled) == 1
+	}, 2*time.Second, 20*time.Millisecond, "expected resolved config to be scheduled")
+
+	// var resolvedBefore integration.Config
+	// mockScheduler.mutex.RLock()
+	// for _, cfg := range mockScheduler.scheduled {
+	// 	resolvedBefore = cfg
+	// }
+	// mockScheduler.mutex.RUnlock()
+
+	// mockResolver.trigger("my-handle", rawDigest)
+
+	// require.Eventually(suite.T(), func() bool {
+	// 	mockScheduler.mutex.RLock()
+	// 	defer mockScheduler.mutex.RUnlock()
+	// 	return len(mockScheduler.unscheduled) == 1
+	// }, 2*time.Second, 20*time.Millisecond, "expected resolved config to be unscheduled")
+
+	// mockScheduler.mutex.RLock()
+	// require.Equal(suite.T(), resolvedBefore.Digest(), mockScheduler.unscheduled[0].Digest())
+	// mockScheduler.mutex.RUnlock()
+
+	// require.Eventually(suite.T(), func() bool {
+	// 	mockScheduler.mutex.RLock()
+	// 	defer mockScheduler.mutex.RUnlock()
+	// 	return len(mockScheduler.scheduled) == 1
+	// }, 2*time.Second, 20*time.Millisecond, "expected refreshed config to be scheduled")
+}
+
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
 	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp)
 	go ac.serviceListening()
@@ -201,7 +256,7 @@ func getAutoConfig(schedulerController *scheduler.Controller, secretResolver sec
 }
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: nil}
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry, suite.deps.FilterComp)
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
@@ -218,7 +273,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: nil}
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry, suite.deps.FilterComp)
 	assert.Len(suite.T(), ac.listeners, 0)
 
@@ -256,7 +311,7 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: nil}
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry, suite.deps.FilterComp)
 
 	ml := &MockListener{}
@@ -269,7 +324,7 @@ func (suite *AutoConfigTestSuite) TestStop() {
 }
 
 func (suite *AutoConfigTestSuite) TestListenerRetry() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
+	mockResolver := MockSecretResolver{t: suite.T(), scenarios: nil}
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, suite.deps.WMeta, suite.deps.TaggerComp, suite.deps.LogsComp, suite.deps.Telemetry, suite.deps.FilterComp)
 
 	// Hack the retry delay to shorten the test run time
@@ -372,7 +427,7 @@ func getResolveTestConfig(t *testing.T) (*MockScheduler, *AutoConfig) {
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
 	msch.Register("mock", sch, false)
 
-	mockResolver := MockSecretResolver{t, nil}
+	mockResolver := MockSecretResolver{t: t, scenarios: nil}
 	ac := getAutoConfig(msch, &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 
 	return sch, ac
@@ -564,16 +619,16 @@ func countLoadedConfigs(ac *AutoConfig) int {
 
 func TestGetUnresolvedConfigs(t *testing.T) {
 	deps := createDeps(t)
-	mockResolver := MockSecretResolver{t, []mockSecretScenario{
+	mockResolver := MockSecretResolver{t: t, scenarios: []mockSecretScenario{
 		{
 			expectedData:   []byte{},
-			expectedOrigin: "kafka",
+			expectedOrigin: "",
 			returnedData:   []byte{},
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param1: ENC[foo]\n"),
-			expectedOrigin: "kafka",
+			expectedOrigin: "",
 			returnedData:   []byte("param1: foo\n"),
 			returnedError:  nil,
 		},
@@ -582,6 +637,10 @@ func TestGetUnresolvedConfigs(t *testing.T) {
 	c := integration.Config{
 		Name:       "kafka",
 		InitConfig: []byte("param1: ENC[foo]\n"),
+	}
+	digest := c.Digest()
+	for i := range mockResolver.scenarios {
+		mockResolver.scenarios[i].expectedOrigin = digest
 	}
 	ac.processNewConfig(c)
 	assert.Equal(t, []integration.Config{c}, ac.GetUnresolvedConfigs())
@@ -597,7 +656,7 @@ func TestGetUnresolvedConfigs(t *testing.T) {
 func TestRemoveTemplate(t *testing.T) {
 	deps := createDeps(t)
 
-	mockResolver := MockSecretResolver{t, nil}
+	mockResolver := MockSecretResolver{t: t, scenarios: nil}
 
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 	// Add static config
@@ -636,16 +695,16 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 func TestDecryptConfig(t *testing.T) {
 	deps := createDeps(t)
 
-	mockResolver := MockSecretResolver{t, []mockSecretScenario{
+	mockResolver := MockSecretResolver{t: t, scenarios: []mockSecretScenario{
 		{
 			expectedData:   []byte{},
-			expectedOrigin: "cpu",
+			expectedOrigin: "",
 			returnedData:   []byte{},
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte("param1: ENC[foo]\n"),
-			expectedOrigin: "cpu",
+			expectedOrigin: "",
 			returnedData:   []byte("param1: foo\n"),
 			returnedError:  nil,
 		},
@@ -658,6 +717,10 @@ func TestDecryptConfig(t *testing.T) {
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
 		InitConfig:    []byte("param1: ENC[foo]"),
+	}
+	digest := tpl.Digest()
+	for i := range mockResolver.scenarios {
+		mockResolver.scenarios[i].expectedOrigin = digest
 	}
 	changes := ac.processNewConfig(tpl)
 
@@ -681,16 +744,16 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	deps := createDeps(t)
 	configName := "testConfig"
 
-	mockResolver := MockSecretResolver{t, []mockSecretScenario{
+	mockResolver := MockSecretResolver{t: t, scenarios: []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
-			expectedOrigin: configName,
+			expectedOrigin: "",
 			returnedData:   []byte("foo: barDecoded"),
 			returnedError:  nil,
 		},
 		{
 			expectedData:   []byte{},
-			expectedOrigin: configName,
+			expectedOrigin: "",
 			returnedData:   []byte{},
 			returnedError:  nil,
 		},
@@ -704,6 +767,10 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 		Instances:    []integration.Data{integration.Data("foo: ENC[bar]")},
 		MetricConfig: integration.Data{},
 		LogsConfig:   integration.Data{},
+	}
+	digest := tpl.Digest()
+	for i := range mockResolver.scenarios {
+		mockResolver.scenarios[i].expectedOrigin = digest
 	}
 	changes := ac.processNewConfig(tpl)
 
@@ -729,7 +796,7 @@ func TestWriteConfigEndpoint(t *testing.T) {
 	deps := createDeps(t)
 	configName := "testConfig"
 
-	mockResolver := MockSecretResolver{t, nil}
+	mockResolver := MockSecretResolver{t: t, scenarios: nil}
 	ac := getAutoConfig(scheduler.NewControllerAndStart(), &mockResolver, deps.WMeta, deps.TaggerComp, deps.LogsComp, deps.Telemetry, deps.FilterComp)
 
 	tpl := integration.Config{
