@@ -77,7 +77,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 			errorMsg:    "auth is required: missing username",
 		},
 		{
-			name: "missing password",
+			name: "missing auth method (no password/private key)",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
@@ -87,7 +87,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing password",
+			errorMsg:    "auth is required: missing auth method (either password or private key) for device 100.1.1.1",
 		},
 		{
 			name: "invalid port",
@@ -121,7 +121,7 @@ func TestDeviceInstance_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.ValidateDeviceInstance()
+			err := tt.config.Validate()
 			if tt.expectValid {
 				assert.NoError(t, err)
 			} else {
@@ -171,7 +171,7 @@ func TestSSHConfig_Validation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.validateSSHConfig()
+			err := tt.config.validate()
 			if tt.errMsg != "" {
 				assert.EqualError(t, err, tt.errMsg)
 			} else {

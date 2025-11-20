@@ -275,6 +275,9 @@ func (s *SSHSession) Close() error {
 
 // connectToHost establishes an SSH connection to the specified IP address using the provided authentication credentials
 func connectToHost(ipAddress string, auth ncmconfig.AuthCredentials, config *ncmconfig.SSHConfig) (*ssh.Client, error) {
+	if config == nil {
+		return nil, fmt.Errorf("SSH configuration is required (host verification) but not provided for device %s", ipAddress)
+	}
 	callback, err := buildHostKeyCallback(config)
 	if err != nil {
 		return nil, err

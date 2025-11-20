@@ -95,55 +95,64 @@ type NcmComponentContext struct {
 func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.Data) (*NcmCheckContext, error) {
 	var err error
 
-	ncc := &NcmCheckContext{}
-
-	var deviceInstance DeviceInstance
+	// Unmarshal init config + device instance config
 	var initConfig InitConfig
-
-	//Parse init config
 	err = yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
 	}
-	// Validate and apply defaults for init config
-	err = initConfig.ValidateInitConfig()
-	if err != nil {
-		return nil, err
-	}
-	ncc.Namespace = initConfig.Namespace
-	ncc.MinCollectionInterval = time.Duration(initConfig.MinCollectionInterval) * time.Second
-
-	// Parse instance (for device)
+	var deviceInstance DeviceInstance
 	err = yaml.Unmarshal(rawInstance, &deviceInstance)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal device config: %s", err)
 	}
-	err = deviceInstance.ValidateDeviceInstance()
-	if err != nil {
-		return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
+
+	// Apply defaults if missing optional values
+	initConfig.applyDefaults()
+	deviceInstance.applyDefaults()
+
+	// Device-specific SSH config takes precedence, if not set, use init_config's SSH config as a "global"
+	if deviceInstance.Auth.SSH == nil {
+		deviceInstance.Auth.SSH = initConfig.SSH
 	}
-	// if no SSH configs supplied, use the init config as a global SSH config
-	deviceInstance.applyDefaultSSHConfigFallback(initConfig.SSH)
-	ncc.Device = &deviceInstance
+
+	// If still empty (init_config also has no SSH configs), error for needed configuration
+	if deviceInstance.Auth.SSH == nil {
+		return nil, fmt.Errorf("no SSH configuration found in device instance or init_config or device %s", deviceInstance.IPAddress)
+	}
+
+	// Validate configs after all of that
+	if err = initConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid init config: %w", err)
+	}
+	if err = deviceInstance.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid device config for %s: %w", deviceInstance.IPAddress, err)
+	}
 
 	// Populate the profiles map (from defaults/OOTB)
 	profMap, err := profile.GetProfileMap("default_profiles")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get profile map: %w", err)
 	}
-	ncc.ProfileMap = profMap
 
 	profileCache := &profile.Cache{}
 	// If profile is defined inline for the device, use that profile, otherwise it will have to attempt profiles later
-	if ncc.Device.Profile != "" {
-		p, err := ncc.ProfileMap.GetProfile(ncc.Device.Profile)
+	if deviceInstance.Profile != "" {
+		p, err := profMap.GetProfile(deviceInstance.Profile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get profile %s: %w", ncc.Device.Profile, err)
+			return nil, fmt.Errorf("failed to get profile %s: %w", deviceInstance.Profile, err)
 		}
 		profileCache = &profile.Cache{ProfileName: p.Name, Profile: p}
 	}
-	ncc.ProfileCache = profileCache
 
+	// Build the final context to send out
+	ncc := &NcmCheckContext{
+		Namespace:             initConfig.Namespace,
+		MinCollectionInterval: time.Duration(initConfig.MinCollectionInterval) * time.Second,
+		Device:                &deviceInstance,
+		ProfileMap:            profMap,
+		ProfileCache:          profileCache,
+	}
 	return ncc, nil
 }
 
@@ -179,7 +188,7 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal NCM device config: %s", err)
 				}
-				err = deviceInstance.ValidateDeviceInstance()
+				err = deviceInstance.Validate()
 				if err != nil {
 					return nil, fmt.Errorf("invalid device config for device %s: %w", deviceInstance.IPAddress, err)
 				}
@@ -192,7 +201,7 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 				if err != nil {
 					return nil, fmt.Errorf("failed to unmarshal init config: %s", err)
 				}
-				err = initConfig.ValidateInitConfig()
+				err = initConfig.Validate()
 				if err != nil {
 					return nil, err
 				}
@@ -219,35 +228,101 @@ func GetNCMContextFromCoreCheck(client ipc.HTTPClient) (*NcmComponentContext, er
 	return &ncc, nil
 }
 
-// ValidateInitConfig checks that the InitConfig has all required fields and applies defaults where needed
-func (ic *InitConfig) ValidateInitConfig() error {
-	// apply default values for anything missing that is not required
+func (ic *InitConfig) applyDefaults() {
 	if ic.Namespace == "" {
 		log.Debugf("No namespace specified in init config, applying default: %s", "default")
 		ic.Namespace = "default"
 	}
+	if ic.MinCollectionInterval <= 0 {
+		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
+		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
+	}
+}
+
+// Validate checks that the InitConfig has all required fields and applies defaults where needed
+func (ic *InitConfig) Validate() error {
 	namespace, err := utils.NormalizeNamespace(ic.Namespace)
 	if err != nil {
 		return err
 	}
 	ic.Namespace = namespace
 
-	// if invalid interval, use default
 	if ic.MinCollectionInterval <= 0 {
-		log.Debugf("No or invalid min_collection_interval specified in init config, applying default: %d", defaultCheckInterval)
-		ic.MinCollectionInterval = int(defaultCheckInterval.Seconds()) // Default to 15 minutes
+		return fmt.Errorf("min_collection_interval must be greater than zero")
 	}
 
+	// if SSH configs exist, ensure they're valid
 	if ic.SSH != nil {
-		if err = ic.SSH.validateSSHConfig(); err != nil {
-			return err
+		if err := ic.SSH.validate(); err != nil {
+			return fmt.Errorf("invalid init_config SSH config: %w", err)
 		}
+	}
+	return nil
+}
+
+// Validate checks that the DeviceInstance has all required fields and applies defaults where needed
+func (di *DeviceInstance) Validate() error {
+	// check for missing fields that are required
+	if err := di.hasRequiredFields(); err != nil {
+		return err
+	}
+
+	// check for validity of required/optional fields if present
+	// TODO: Protocol/network check? Are customers aware of what's possible?
+	ip := net.ParseIP(di.IPAddress)
+	if ip == nil {
+		return fmt.Errorf("invalid ip_address format: %s", di.IPAddress)
+	}
+
+	// Port validation
+	port, err := strconv.Atoi(di.Auth.Port)
+	if err != nil {
+		return fmt.Errorf("invalid port, not valid integer: %s", di.Auth.Port)
+	}
+	if !(port >= 0 && port <= 65535) { // max value for 16-bit unsigned int
+		return fmt.Errorf("invalid port, out of range: %s", di.Auth.Port)
+	}
+
+	// if SSH configs exist, ensure they are valid
+	if di.Auth.SSH != nil {
+		if err := di.Auth.SSH.validate(); err != nil {
+			return fmt.Errorf("invalid SSH config for device %s: %w", di.IPAddress, err)
+		}
+	}
+	return nil
+}
+
+// applyDefaults set default values for any optional fields that are not set + not required
+func (di *DeviceInstance) applyDefaults() {
+	if di.Auth.Port == "" {
+		log.Debugf("Applying default port for device %s: %s", di.IPAddress, "22")
+		di.Auth.Port = "22"
+	}
+	if di.Auth.Protocol == "" {
+		log.Debugf("Applying default protocol for device %s: %s", di.IPAddress, "tcp")
+		di.Auth.Protocol = "tcp"
+	}
+}
+
+func (di *DeviceInstance) hasRequiredFields() error {
+	// check for missing fields that are required for a device instance
+	if di.IPAddress == "" {
+		return fmt.Errorf("ip_address is required")
+	}
+	authBaseString := "auth is required: missing %s for device %s"
+	if di.Auth.Username == "" {
+		return fmt.Errorf(authBaseString, "username", di.IPAddress)
+	}
+	// must have at least 1 auth method: password or private key
+	if di.Auth.Password == "" && di.Auth.PrivateKeyFile == "" {
+		return fmt.Errorf(authBaseString, "auth method (either password or private key)", di.IPAddress)
 	}
 
 	return nil
 }
 
-func (sc *SSHConfig) validateSSHConfig() error {
+func (sc *SSHConfig) validate() error {
+	// apply defaults that are recommended
 	if sc.Timeout <= 0 {
 		log.Debugf("no or invalid SSH timeout specified in config, applying default: %d", defaultSSHTimeout)
 		sc.Timeout = defaultSSHTimeout
@@ -258,80 +333,10 @@ func (sc *SSHConfig) validateSSHConfig() error {
 	return nil
 }
 
-// ValidateDeviceInstance checks that the DeviceInstance has all required fields and applies defaults where needed
-func (dc *DeviceInstance) ValidateDeviceInstance() error {
-	// apply default values for anything missing that is not required
-	dc.applyDefaults()
-
-	// check for missing fields that are required
-	if err := dc.hasRequiredFields(); err != nil {
-		return err
-	}
-	if dc.IPAddress == "" {
-		return fmt.Errorf("ip_address is required")
-	}
-	authBaseString := "auth is required: missing %s for device %s"
-	if dc.Auth.Username == "" {
-		return fmt.Errorf(authBaseString, "username", dc.IPAddress)
-	}
-	if dc.Auth.Password == "" {
-		return fmt.Errorf(authBaseString, "password", dc.IPAddress)
-	}
-
-	// TODO: Protocol/network check? Are customers aware of what's possible?
-	ip := net.ParseIP(dc.IPAddress)
-	if ip == nil {
-		return fmt.Errorf("invalid ip_address format: %s", dc.IPAddress)
-	}
-	// Port validation
-	port, err := strconv.Atoi(dc.Auth.Port)
-	if err != nil {
-		return fmt.Errorf("invalid port, not valid integer: %s", dc.Auth.Port)
-	}
-	if !(port >= 0 && port <= 65535) { // max value for 16-bit unsigned int
-		return fmt.Errorf("invalid port, out of range: %s", dc.Auth.Port)
-	}
-	return nil
-}
-
-// applyDefaults set default values for any optional fields that are not set + not required
-func (dc *DeviceInstance) applyDefaults() {
-	if dc.Auth.Port == "" {
-		log.Debugf("Applying default port for device %s: %s", dc.IPAddress, "22")
-		dc.Auth.Port = "22"
-	}
-	if dc.Auth.Protocol == "" {
-		log.Debugf("Applying default protocol for device %s: %s", dc.IPAddress, "tcp")
-		dc.Auth.Protocol = "tcp"
-	}
-}
-
-func (dc *DeviceInstance) hasRequiredFields() error {
-	// check for missing fields that are required for a device instance
-	if dc.IPAddress == "" {
-		return fmt.Errorf("ip_address is required")
-	}
-	authBaseString := "auth is required: missing %s for device %s"
-	if dc.Auth.Username == "" {
-		return fmt.Errorf(authBaseString, "username", dc.IPAddress)
-	}
-	if dc.Auth.Password == "" {
-		return fmt.Errorf(authBaseString, "password", dc.IPAddress)
-	}
-	return nil
-}
-
 func (sc *SSHConfig) hasRequiredFields() error {
 	// must have at least a known paths specified or skip verification (insecure, only for development/testing purposes)
 	if sc.KnownHostsPath == "" && !sc.InsecureSkipVerify {
 		return fmt.Errorf("no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify")
 	}
 	return nil
-}
-
-func (dc *DeviceInstance) applyDefaultSSHConfigFallback(sc *SSHConfig) {
-	if dc.Auth.SSH == nil && sc != nil {
-		log.Warnf("No SSH configurations for device %s, applying init_config's SSH settings: %v", dc.IPAddress, sc)
-		dc.Auth.SSH = sc
-	}
 }
