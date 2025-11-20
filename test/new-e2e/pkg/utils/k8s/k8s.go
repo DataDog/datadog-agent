@@ -33,7 +33,7 @@ func CheckJobErrors(ctx context.Context, client kubernetes.Interface, namespace,
 		Limit:         1,
 	})
 	if err != nil {
-		return fmt.Errorf("error listing pods for job %s: %w", err)
+		return fmt.Errorf("error listing pods for job %s: %w", jobName, err)
 	}
 
 	// Try to find a pod that failed to return a specific error about what happened
