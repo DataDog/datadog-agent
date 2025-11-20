@@ -302,7 +302,7 @@ type IPTranslation struct {
 }
 
 func (c ConnectionStats) String() string {
-	return ConnectionSummary(&c, nil)
+	return connectionSummary(&c, nil)
 }
 
 // IsExpired returns whether the connection is expired according to the provided time and timeout.
@@ -389,8 +389,8 @@ func BeautifyKey(key string) string {
 	return fmt.Sprintf(keyFmt, pid, source, sport, dest, dport, family, typ)
 }
 
-// ConnectionSummary returns a string summarizing a connection
-func ConnectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
+// connectionSummary returns a string summarizing a connection
+func connectionSummary(c *ConnectionStats, names map[util.Address][]dns.Hostname) string {
 	str := fmt.Sprintf(
 		"[%s%s] [PID: %d] [%v:%d ⇄ %v:%d] ",
 		c.Type,
