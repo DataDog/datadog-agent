@@ -36,6 +36,7 @@
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
+      - omnibus/pkg/generated
   variables:
     SIGN: true
     KEYCHAIN_NAME: "build.keychain"
