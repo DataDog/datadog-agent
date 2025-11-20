@@ -41,8 +41,8 @@ func New(cfg config.Config, _ telemetry.Component) (*UnixTraceroute, error) {
 }
 
 // Run executes a traceroute
-func (l *UnixTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
-	resp, err := getTraceroute(l.sysprobeClient, clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.TCPMethod, l.cfg.TCPSynParisTracerouteMode, l.cfg.DisableWindowsDriver, l.cfg.ReverseDNS, l.cfg.MaxTTL, l.cfg.Timeout, l.cfg.TracerouteQueries, l.cfg.E2eQueries)
+func (l *UnixTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
+	resp, err := getTraceroute(ctx, l.sysprobeClient, clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.TCPMethod, l.cfg.TCPSynParisTracerouteMode, l.cfg.DisableWindowsDriver, l.cfg.ReverseDNS, l.cfg.MaxTTL, l.cfg.Timeout, l.cfg.TracerouteQueries, l.cfg.E2eQueries)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}

@@ -105,17 +105,10 @@ func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
-// Filterable defines the minimal interface needed for pipeline filtering. Both
-// Serie and SketchSeries implement this interface.
-type Filterable interface {
-	GetName() string
-}
-
-// Pipeline represents a data processing pipeline that filters metrics and marks
-// them for a specific destination
-type Pipeline struct {
-	FilterFunc  func(metric Filterable) bool
-	Destination transaction.Destination
+type serieWriter interface {
+	writeSerie(serie *metrics.Serie) error
+	startPayload() error
+	finishPayload() error
 }
 
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
@@ -123,31 +116,39 @@ type Pipeline struct {
 // single pass over the input data. If a compressed payload is larger than the
 // max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline) (transaction.BytesPayloads, error) {
-	pbs := make([]*PayloadsBuilder, len(pipelines))
-	for i := range pbs {
-		bufferContext := marshaler.NewBufferContext()
-		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-		if err != nil {
-			return nil, err
+func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
+	pbs := make([]serieWriter, 0, len(pipelines))
+	var sw serieWriter
+	for pipelineConfig, pipelineContext := range pipelines {
+		if !pipelineConfig.V3 {
+			bufferContext := marshaler.NewBufferContext()
+			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = &pb
+			pbs = append(pbs, sw)
+		} else {
+			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = pb
+			pbs = append(pbs, sw)
 		}
-		pbs[i] = &pb
-
-		err = pbs[i].startPayload()
+		err := sw.startPayload()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
-		for i, pipeline := range pipelines {
-			if pipeline.FilterFunc(series.source.Current()) {
-				err := pbs[i].writeSerie(series.source.Current())
-				if err != nil {
-					return nil, err
-				}
+		for _, pb := range pbs {
+			err := pb.writeSerie(series.source.Current())
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -156,43 +157,31 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 	for i := range pbs {
 		err := pbs[i].finishPayload()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	// assign destinations to payloads per strategy
-	for i, pipeline := range pipelines {
-		for _, payload := range pbs[i].payloads {
-			payload.Destination = pipeline.Destination
-		}
-	}
-
-	totalPayloads := 0
-	for _, pb := range pbs {
-		totalPayloads += len(pb.payloads)
-	}
-	payloads := make([]*transaction.BytesPayload, 0, totalPayloads)
-	for _, pb := range pbs {
-		payloads = append(payloads, pb.payloads...)
-	}
-
-	return payloads, nil
+	return nil
 }
 
 // NewPayloadsBuilder initializes a new PayloadsBuilder to be used for serializing series into a set of output payloads.
-func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (PayloadsBuilder, error) {
+func (series *IterableSeries) NewPayloadsBuilder(
+	bufferContext *marshaler.BufferContext,
+	config config.Component,
+	strategy compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) (PayloadsBuilder, error) {
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
 
 	return PayloadsBuilder{
 		bufferContext: bufferContext,
-		config:        config,
 		strategy:      strategy,
 
 		compressor: nil,
 		buf:        buf,
 		ps:         ps,
-		payloads:   []*transaction.BytesPayload{},
 
 		pointsThisPayload: 0,
 		seriesThisPayload: 0,
@@ -200,19 +189,20 @@ func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.Buffer
 		maxPayloadSize:      config.GetInt("serializer_max_series_payload_size"),
 		maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
 		maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
+
+		pipelineConfig:  pipelineConfig,
+		pipelineContext: pipelineContext,
 	}, nil
 }
 
 // PayloadsBuilder represents an in-progress serialization of a series into potentially multiple payloads.
 type PayloadsBuilder struct {
 	bufferContext *marshaler.BufferContext
-	config        config.Component
 	strategy      compression.Component
 
 	compressor *stream.Compressor
 	buf        *bytes.Buffer
 	ps         *molecule.ProtoStream
-	payloads   []*transaction.BytesPayload
 
 	pointsThisPayload int
 	seriesThisPayload int
@@ -220,6 +210,9 @@ type PayloadsBuilder struct {
 	maxPayloadSize      int
 	maxUncompressedSize int
 	maxPointsPerPayload int
+
+	pipelineConfig  PipelineConfig
+	pipelineContext *PipelineContext
 }
 
 // Prepare to write the next payload
@@ -276,6 +269,10 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	const serieMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
+
+	if !pb.pipelineConfig.Filter.Filter(serie) {
+		return nil
+	}
 
 	addToPayload := func() error {
 		err := pb.compressor.AddItem(pb.buf.Bytes())
@@ -477,7 +474,7 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	}
 
 	if pb.seriesThisPayload > 0 {
-		pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointsThisPayload))
+		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
 	return nil

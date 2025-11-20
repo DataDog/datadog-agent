@@ -33,6 +33,14 @@ var (
 	autoscalingQueueMetricsProvider = workqueuetelemetry.NewQueueMetricsProvider()
 	commonOpts                      = telemetry.Options{NoDoubleUnderscoreSep: true}
 
+	// telemetryReceivedRecommendationsVersion tracks the version of the received recommendations by the config retriever
+	telemetryReceivedRecommendationsVersion = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"received_recommendations_version",
+		[]string{"namespace", "target_name", "autoscaler_name", le.JoinLeaderLabel},
+		"Tracks the version of the received recommendations by the config retriever",
+		commonOpts,
+	)
 	// telemetryHorizontalScaleActions tracks the number of horizontal scaling attempts
 	telemetryHorizontalScaleActions = telemetry.NewCounterWithOpts(
 		subsystem,
@@ -66,20 +74,20 @@ var (
 		"Tracks the number of patch requests sent by the patcher to the kubernetes api server",
 		commonOpts,
 	)
-	// telemetryVerticalScaleReceivedRecommendationsLimits tracks the vertical scaling recommendation limits received
-	telemetryVerticalScaleReceivedRecommendationsLimits = telemetry.NewGaugeWithOpts(
-		subsystem,
-		"vertical_scaling_received_limits",
-		[]string{"namespace", "target_name", "autoscaler_name", "source", "container_name", "resource_name", le.JoinLeaderLabel},
-		"Tracks the value of limits received by the vertical scaling controller",
-		commonOpts,
-	)
 	// telemetryVerticalScaleReceivedRecommendationsRequests tracks the vertical scaling recommendation requests received
 	telemetryVerticalScaleReceivedRecommendationsRequests = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"vertical_scaling_received_requests",
 		[]string{"namespace", "target_name", "autoscaler_name", "source", "container_name", "resource_name", le.JoinLeaderLabel},
-		"Tracks the value of requests received by the vertical scaling recommendation",
+		"Tracks the value of requests received by the config retriever",
+		commonOpts,
+	)
+	// telemetryVerticalScaleReceivedRecommendationsLimits tracks the vertical scaling recommendation limits received
+	telemetryVerticalScaleReceivedRecommendationsLimits = telemetry.NewGaugeWithOpts(
+		subsystem,
+		"vertical_scaling_received_limits",
+		[]string{"namespace", "target_name", "autoscaler_name", "source", "container_name", "resource_name", le.JoinLeaderLabel},
+		"Tracks the value of limits received by the config retriever",
 		commonOpts,
 	)
 
@@ -103,6 +111,7 @@ var (
 
 	// telemetryMetricsForDeletion contains all gauge metrics that need to be cleaned up when deleting pod autoscaler telemetry
 	telemetryMetricsForDeletion = []telemetry.Gauge{
+		telemetryReceivedRecommendationsVersion,
 		telemetryHorizontalScaleAppliedRecommendations,
 		telemetryHorizontalScaleReceivedRecommendations,
 		telemetryVerticalScaleReceivedRecommendationsLimits,
@@ -110,6 +119,69 @@ var (
 		autoscalingStatusConditions,
 	}
 )
+
+func trackPodAutoscalerReceivedValues(podAutoscaler model.PodAutoscalerInternal, version uint64) {
+	// Emit telemetry for received values
+	// Target name cannot normally be empty, but we handle it just in case
+	var targetName string
+	if podAutoscaler.Spec() != nil {
+		targetName = podAutoscaler.Spec().TargetRef.Name
+	}
+
+	scalingValues := podAutoscaler.MainScalingValues()
+
+	// Track received recommendations version
+	telemetryReceivedRecommendationsVersion.Set(
+		float64(version),
+		podAutoscaler.Namespace(),
+		targetName,
+		podAutoscaler.Name(),
+		le.JoinLeaderValue,
+	)
+
+	// Horizontal value
+	if podAutoscaler.MainScalingValues().Horizontal != nil {
+		telemetryHorizontalScaleReceivedRecommendations.Set(
+			float64(scalingValues.Horizontal.Replicas),
+			podAutoscaler.Namespace(),
+			targetName,
+			podAutoscaler.Name(),
+			string(scalingValues.Horizontal.Source),
+			le.JoinLeaderValue,
+		)
+	}
+
+	// Vertical values
+	if scalingValues.Vertical != nil {
+		for _, containerResources := range scalingValues.Vertical.ContainerResources {
+			for resource, value := range containerResources.Requests {
+				telemetryVerticalScaleReceivedRecommendationsRequests.Set(
+					value.AsApproximateFloat64(),
+					podAutoscaler.Namespace(),
+					targetName,
+					podAutoscaler.Name(),
+					string(scalingValues.Vertical.Source),
+					containerResources.Name,
+					string(resource),
+					le.JoinLeaderValue,
+				)
+			}
+
+			for resource, value := range containerResources.Limits {
+				telemetryVerticalScaleReceivedRecommendationsLimits.Set(
+					value.AsApproximateFloat64(),
+					podAutoscaler.Namespace(),
+					targetName,
+					podAutoscaler.Name(),
+					string(scalingValues.Vertical.Source),
+					containerResources.Name,
+					string(resource),
+					le.JoinLeaderValue,
+				)
+			}
+		}
+	}
+}
 
 func trackPodAutoscalerStatus(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
 	for _, condition := range podAutoscaler.Status.Conditions {

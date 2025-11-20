@@ -21,5 +21,10 @@ func ProcessEventDataStreamSupported() bool {
 	return false
 }
 
+// RedisMonitoringSupported returns false on linux without BPF
+func RedisMonitoringSupported() bool {
+	return false
+}
+
 func allowPrebuiltEbpfFallback(_ model.Config) {
 }

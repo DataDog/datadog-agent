@@ -22,9 +22,6 @@ func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
 	}
 	switch ms {
 	case metrics.MetricSourceServerless,
-		metrics.MetricSourceAwsLambdaCustom,
-		metrics.MetricSourceAwsLambdaEnhanced,
-		metrics.MetricSourceAwsLambdaRuntime,
 		metrics.MetricSourceAzureContainerAppCustom,
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime,
@@ -383,10 +380,6 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime:
 		return 37
-	case metrics.MetricSourceAwsLambdaCustom,
-		metrics.MetricSourceAwsLambdaEnhanced,
-		metrics.MetricSourceAwsLambdaRuntime:
-		return 38
 	default:
 		return 0
 	}
@@ -1091,18 +1084,15 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 464
 	case metrics.MetricSourceInfiniband:
 		return 465
-	case metrics.MetricSourceAwsLambdaCustom,
-		metrics.MetricSourceAzureContainerAppCustom,
+	case metrics.MetricSourceAzureContainerAppCustom,
 		metrics.MetricSourceAzureAppServiceCustom,
 		metrics.MetricSourceGoogleCloudRunCustom:
 		return 472
-	case metrics.MetricSourceAwsLambdaEnhanced,
-		metrics.MetricSourceAzureContainerAppEnhanced,
+	case metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureAppServiceEnhanced,
 		metrics.MetricSourceGoogleCloudRunEnhanced:
 		return 473
-	case metrics.MetricSourceAwsLambdaRuntime,
-		metrics.MetricSourceAzureContainerAppRuntime,
+	case metrics.MetricSourceAzureContainerAppRuntime,
 		metrics.MetricSourceAzureAppServiceRuntime,
 		metrics.MetricSourceGoogleCloudRunRuntime:
 		return 474
