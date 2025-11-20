@@ -759,7 +759,13 @@ func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInf
 
 	tagList.AddLow("crd_group", crd.Group)
 	tagList.AddLow("crd_kind", crd.Kind)
-	tagList.AddLow("crd_version", crd.Version)
+	// use preferred version to tag
+	for _, version := range crd.Versions {
+		if version.Storage {
+			tagList.AddLow("crd_version", version.String())
+			break
+		}
+	}
 
 	low, orch, high, standard := tagList.Compute()
 
