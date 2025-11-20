@@ -94,6 +94,10 @@ configure_make(
             MACOS_LIBSSL,
             MACOS_LIBCRYPTO,
         ],
+        "@platforms//os:windows": [
+            "libssl.dll.a",
+            "libcrypto.dll.a",
+        ],
         "//conditions:default": [],
     }),
     out_pc_dir = "lib/pkgconfig",
