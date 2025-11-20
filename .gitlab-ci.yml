@@ -9,7 +9,6 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
-  - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
   - .gitlab/deploy_packages/include.yml
@@ -165,21 +164,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v82436147-ae37cb6d
+  CI_IMAGE_BTF_GEN: v83165674-efec7b86
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v82436147-ae37cb6d
+  CI_IMAGE_DOCKER_X64: v83165674-efec7b86
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v82436147-ae37cb6d
+  CI_IMAGE_DOCKER_ARM64: v83165674-efec7b86
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v82436147-ae37cb6d
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v83165674-efec7b86
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v82436147-ae37cb6d
+  CI_IMAGE_LINUX: v83165674-efec7b86
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v82436147-ae37cb6d
+  CI_IMAGE_RPM_X64: v83165674-efec7b86
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v82436147-ae37cb6d
+  CI_IMAGE_RPM_ARM64: v83165674-efec7b86
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v82436147-ae37cb6d
+  CI_IMAGE_RPM_ARMHF: v83165674-efec7b86
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v81809683-27a1a12f
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -422,13 +421,19 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
-# rule to trigger job for internal image deployment if deploy is set or
-# manually if not
-.on_deploy_internal_or_manual:
+# rule to trigger job for internal image deployment if deploy is set, or if there are changes to the internal image
+# deployment config file or manually if not
+.on_deploy_internal_or_internal_image_change_or_manual:
   - !reference [.except_mergequeue]
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
+  - changes:
+      paths:
+        - .gitlab/internal_image_deploy/internal_image_deploy.yml
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      RELEASE_PROD: "false"
   - when: manual
     allow_failure: true
     variables:
