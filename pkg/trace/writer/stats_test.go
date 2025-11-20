@@ -21,6 +21,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -496,6 +497,8 @@ func TestStatsWriterInfo(t *testing.T) {
 	sw.Stop()
 }
 
+var noopTagBuffer = containertagsbuffer.NewDisabledBuffer()
+
 func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 	srv := newTestServer()
 	cfg := &config.AgentConfig{
@@ -503,7 +506,7 @@ func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, noopTagBuffer), srv
 }
 
 func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
@@ -513,7 +516,7 @@ func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}), srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, noopTagBuffer), srv
 }
 
 type key struct {
