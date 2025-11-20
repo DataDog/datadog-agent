@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// CheckJobErrors checks if a job has failed and returns an error with more details about the failure, such as the pod that failed and the error code.
 func CheckJobErrors(ctx context.Context, client kubernetes.Interface, namespace, jobName string) error {
 	job, err := client.BatchV1().Jobs(namespace).Get(ctx, jobName, metav1.GetOptions{})
 	if err != nil {
