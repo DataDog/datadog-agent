@@ -187,6 +187,10 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	return tags, multiErr
 }
 
+// note: given /proc/X/task/Y/status, we have no guarantee that tasks Y will all
+// have the same NSpid values, specially in case of unusual pid namespace setups.
+// As such, we attempt reading the nspid for only on the main thread (group leader)
+// in /proc/X/task/X/status, or fail otherwise
 func getNsPID(pid int32) (int32, error) {
 	nspids, err := secutils.GetNsPids(uint32(pid), strconv.FormatUint(uint64(pid), 10))
 	if err != nil && agenterrors.IsNotFound(err) {
