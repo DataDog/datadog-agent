@@ -104,7 +104,7 @@ agent_rpm-x64-a7-fips:
   tags: ["arch:amd64", "specific:true"]
   needs: ["datadog-agent-7-x64-fips"]
   variables:
-    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_rpm_amd64_fips"
 
@@ -112,7 +112,7 @@ agent_rpm-arm64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
-    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_rpm_arm64_fips"
 
