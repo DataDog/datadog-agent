@@ -1,3 +1,10 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build test
+
 package testutil
 
 import (
@@ -89,7 +96,7 @@ func (f *flowMatcher) Matches(x interface{}) bool {
 		doCustomAssertionsMatch = doCustomAssertionsMatch && assertion(expectedEvent, actualEvent)
 	}
 
-	return doesGoMockMatch
+	return doesGoMockMatch && doCustomAssertionsMatch
 }
 
 // String implements the gomock interface according to the gomock.Eq() implementation
