@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 type pathType uint8
@@ -85,16 +84,8 @@ func (s *usmHTTP2Suite) getCfg() *config.Config {
 	return cfg
 }
 
-func skipIfKernelNotSupported(t *testing.T) {
-	currKernelVersion, err := kernel.HostVersion()
-	require.NoError(t, err)
-	if currKernelVersion < usmhttp2.MinimumKernelVersion {
-		t.Skipf("HTTP2 monitoring can not run on kernel before %v", usmhttp2.MinimumKernelVersion)
-	}
-}
-
 func TestHTTP2Scenarios(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -1802,7 +1793,7 @@ func (s *usmHTTP2Suite) TestRawHuffmanEncoding() {
 }
 
 func TestHTTP2InFlightMapCleaner(t *testing.T) {
-	skipIfKernelNotSupported(t)
+	skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableHTTP2Monitoring = true
 	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second

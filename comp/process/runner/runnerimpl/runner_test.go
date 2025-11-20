@@ -45,6 +45,7 @@ func TestRunnerRealtime(t *testing.T) {
 
 	t.Run("rt allowed", func(t *testing.T) {
 		rtChan := make(chan types.RTResponse)
+		defer close(rtChan)
 
 		deps := createDeps(t,
 			map[string]interface{}{"process_config.disable_realtime_checks": false},
@@ -69,6 +70,7 @@ func TestRunnerRealtime(t *testing.T) {
 	t.Run("rt disallowed", func(t *testing.T) {
 		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
 		rtChan := make(chan types.RTResponse, 1)
+		defer close(rtChan)
 
 		deps := createDeps(t,
 			map[string]interface{}{"process_config.disable_realtime_checks": true},

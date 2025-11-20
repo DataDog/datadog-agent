@@ -41,6 +41,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -831,6 +833,22 @@ var (
 	amqpBuffer   = []byte("AMQP")
 )
 
+// skipIfHTTP2KernelNotSupported returns a skip function for HTTP2 kernel checks that matches func(*testing.T) signature
+func skipIfHTTP2KernelNotSupported() func(*testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+		skipIfKernelNotSupported(t, usmhttp2.MinimumKernelVersion, "HTTP2")
+	}
+}
+
+// skipIfRedisKernelNotSupported returns a skip function for Redis kernel checks that matches func(*testing.T) signature
+func skipIfRedisKernelNotSupported() func(*testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+		skipIfKernelNotSupported(t, redis.MinimumKernelVersion, "Redis")
+	}
+}
+
 func TestConnectionStatesMap(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
@@ -851,7 +869,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:                 http2EnabledConfig, // Enabling any protocol other than HTTP to allow USM to run
 		expectedResult:      shouldNotExists,
 		sendRequestCallback: sendAndReadBuffer(httpBuffer),
-		skipCondition:       skipIfKernelNotSupported,
+		skipCondition:       skipIfHTTP2KernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:           "HTTP protocol already classified",
 		cfg:            httpEnabledConfig,
@@ -862,12 +880,13 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:            redisEnabledConfig, // Enabling any protocol other than HTTP to allow USM to run
 		expectedResult: shouldNotExists,
 		preTestSetup:   markConnectionProtocol(protocols.HTTP),
+		skipCondition:  skipIfRedisKernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:                "HTTP2 protocol enabled",
 		cfg:                 http2EnabledConfig,
 		expectedResult:      shouldExists,
 		sendRequestCallback: sendAndReadBuffer([]byte(http2.ClientPreface)),
-		skipCondition:       skipIfKernelNotSupported,
+		skipCondition:       skipIfHTTP2KernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:                "HTTP2 protocol disabled",
 		cfg:                 httpEnabledConfig, // Enabling any protocol other than HTTP2 to allow USM to run
@@ -878,7 +897,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:            http2EnabledConfig,
 		expectedResult: shouldExists,
 		preTestSetup:   markConnectionProtocol(protocols.HTTP2),
-		skipCondition:  skipIfKernelNotSupported,
+		skipCondition:  skipIfHTTP2KernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:           "HTTP2 protocol already classified but not enabled",
 		cfg:            httpEnabledConfig, // Enabling any protocol other than HTTP2 to allow USM to run
@@ -929,6 +948,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:                 redisEnabledConfig,
 		expectedResult:      shouldExists,
 		sendRequestCallback: sendAndReadBuffer(redisBuffer),
+		skipCondition:       skipIfRedisKernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:                "redis protocol disabled",
 		cfg:                 httpEnabledConfig, // Enabling any protocol other than Redis to allow USM to run
@@ -939,6 +959,7 @@ func TestConnectionStatesMap(t *testing.T) {
 		cfg:            redisEnabledConfig,
 		expectedResult: shouldExists,
 		preTestSetup:   markConnectionProtocol(protocols.Redis),
+		skipCondition:  skipIfRedisKernelNotSupported(),
 	}, connectionStatesMapTestCase{
 		name:           "Redis protocol already classified but not enabled",
 		cfg:            httpEnabledConfig, // Enabling any protocol other than Redis to allow USM to run

@@ -16,7 +16,6 @@ import (
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	dockerobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver"
 	ecsobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver"
-	ecstaskobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver"
 	hostobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver"
 	k8sobserver "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver"
 	pprofextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension"
@@ -67,7 +66,6 @@ func components() (otelcol.Factories, error) {
 		pprofextension.NewFactory(),
 		dockerobserver.NewFactory(),
 		ecsobserver.NewFactory(),
-		ecstaskobserver.NewFactory(),
 		hostobserver.NewFactory(),
 		k8sobserver.NewFactory(),
 		datadogextension.NewFactory(),
@@ -82,7 +80,6 @@ func components() (otelcol.Factories, error) {
 	factories.ExtensionModules[pprofextension.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.139.0"
 	factories.ExtensionModules[dockerobserver.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.139.0"
 	factories.ExtensionModules[ecsobserver.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.139.0"
-	factories.ExtensionModules[ecstaskobserver.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver v0.139.0"
 	factories.ExtensionModules[hostobserver.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.139.0"
 	factories.ExtensionModules[k8sobserver.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/k8sobserver v0.139.0"
 	factories.ExtensionModules[datadogextension.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.139.0"

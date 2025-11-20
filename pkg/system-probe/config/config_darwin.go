@@ -19,5 +19,10 @@ func ProcessEventDataStreamSupported() bool {
 	return false
 }
 
+// RedisMonitoringSupported returns false on darwin as eBPF is not supported
+func RedisMonitoringSupported() bool {
+	return false
+}
+
 func allowPrebuiltEbpfFallback(_ model.Config) {
 }

@@ -273,8 +273,8 @@ type BufferedAggregator struct {
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
 	// use this chan to trigger a filterList reconfiguration
-	filterListChan  chan *utilstrings.Matcher
-	flushFilterList *utilstrings.Matcher
+	filterListChan  chan utilstrings.Matcher
+	flushFilterList utilstrings.Matcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -353,7 +353,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan: make(chan *utilstrings.Matcher),
+		filterListChan: make(chan utilstrings.Matcher),
 	}
 
 	return aggregator
@@ -451,7 +451,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano(), agg.flushFilterList)
+			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)

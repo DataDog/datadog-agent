@@ -300,7 +300,7 @@ Package eventplatformreceiver implements the receiver for the event platform pac
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: container-app
+*Datadog Team*: kubernetes-experiences
 
 Package orchestrator implements the orchestrator forwarder component.
 
