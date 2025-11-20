@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -101,24 +102,24 @@ func resolvConfReadError(resolvConfPath string, err error) error {
 	return fmt.Errorf("readResolvConf failed to read %s: %w", resolvConfPath, err)
 }
 
+func shouldStripLine(line string) bool {
+	if len(line) == 0 {
+		return true
+	}
+	// remove comments
+	return line[0] == ';' || line[0] == '#'
+}
+
 // StripResolvConf removes comments from resolv.conf
 func StripResolvConf(resolvConf string) string {
 	lines := strings.Split(resolvConf, "\n")
-	var sb strings.Builder
-	sb.Grow(len(resolvConf))
-
-	for _, rawLine := range lines {
-		line := strings.TrimSpace(rawLine)
-		if len(line) == 0 {
-			continue
-		}
-		if line[0] == ';' || line[0] == '#' {
-			continue
-		}
-		sb.WriteString(line)
+	for i := range lines {
+		lines[i] = strings.TrimSpace(lines[i])
 	}
 
-	return sb.String()
+	lines = slices.DeleteFunc(lines, shouldStripLine)
+
+	return strings.Join(lines, "\n")
 }
 
 func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {
