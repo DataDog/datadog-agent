@@ -116,6 +116,10 @@ type Component interface {
 	// There can only be one kubelet entity so further specification is unnecessary.
 	GetKubelet() (*Kubelet, error)
 
+	// GetKubeCapabilities returns the kube capabilities. It fetches the entity with kind KindKubeCapabilities.
+	// There can only be one kube capabilities entity so further specification is unnecessary.
+	GetKubeCapabilities() (*KubeCapabilities, error)
+
 	// ListGPUs returns metadata about all known GPU devices, equivalent
 	// to all entities with kind KindGPU.
 	ListGPUs() []*GPU

@@ -480,6 +480,16 @@ func (w *workloadmeta) GetKubelet() (*wmdef.Kubelet, error) {
 	return entity.(*wmdef.Kubelet), nil
 }
 
+// GetKubeCapabilities implements Store#GetKubeCapabilities.
+func (w *workloadmeta) GetKubeCapabilities() (*wmdef.KubeCapabilities, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubeCapabilities, wmdef.KubeCapabilitiesID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeCapabilities), nil
+}
+
 // ListGPUs implements Store#ListGPUs.
 func (w *workloadmeta) ListGPUs() []*wmdef.GPU {
 	entities := w.listEntitiesByKind(wmdef.KindGPU)

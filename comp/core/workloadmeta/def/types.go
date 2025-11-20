@@ -54,7 +54,7 @@ const (
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
 	KindCRD                    Kind = "crd"
-	KindKubernetesCapability   Kind = "kubernetes_capability"
+	KindKubeCapabilities       Kind = "kubernetes_capability"
 )
 
 // Source is the source name of an entity.

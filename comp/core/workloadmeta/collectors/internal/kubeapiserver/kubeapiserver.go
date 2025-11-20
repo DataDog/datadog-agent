@@ -295,7 +295,7 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubeCapabilities{
 			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubernetesCapability,
+				Kind: workloadmeta.KindKubeCapabilities,
 				ID:   workloadmeta.KubeCapabilitiesID,
 			},
 			EntityMeta: workloadmeta.EntityMeta{
