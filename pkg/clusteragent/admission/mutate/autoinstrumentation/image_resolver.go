@@ -17,8 +17,8 @@ import (
 
 	"github.com/opencontainers/go-digest"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -65,37 +65,6 @@ type remoteConfigImageResolver struct {
 	// Retry configuration for initial cache loading
 	maxRetries int
 	retryDelay time.Duration
-}
-
-// newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
-// Assumes rcClient is non-nil.
-func newRemoteConfigImageResolver(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
-	return newRemoteConfigImageResolverWithRetryConfig(rcClient, 5, 1*time.Second, datadoghqRegistries)
-}
-
-// newRemoteConfigImageResolverWithRetryConfig creates a resolver with configurable retry behavior.
-// Useful for testing with faster retry settings.
-func newRemoteConfigImageResolverWithRetryConfig(rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration, datadoghqRegistries map[string]any) ImageResolver {
-	resolver := &remoteConfigImageResolver{
-		rcClient:            rcClient,
-		imageMappings:       make(map[string]map[string]ImageInfo),
-		maxRetries:          maxRetries,
-		retryDelay:          retryDelay,
-		datadoghqRegistries: datadoghqRegistries,
-	}
-
-	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
-	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
-
-	go func() {
-		if err := resolver.waitForInitialConfig(); err != nil {
-			log.Warnf("Failed to load initial image resolution config: %v. Image resolution will remain disabled.", err)
-		} else {
-			log.Infof("Image resolution cache initialized successfully")
-		}
-	}()
-
-	return resolver
 }
 
 func (r *remoteConfigImageResolver) waitForInitialConfig() error {
@@ -284,20 +253,34 @@ func newResolvedImage(registry string, repositoryName string, imageInfo ImageInf
 
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
-func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
-
-	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+func NewImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
+	if cfg.RCClient == nil || reflect.ValueOf(cfg.RCClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return newNoOpImageResolver()
 	}
 
-	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
-
-	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
+	return newRcImageResolver(cfg)
 }
 
-func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
-	resolver := newRemoteConfigImageResolver(rcClient, datadoghqRegistries)
-	resolver.(*remoteConfigImageResolver).datadoghqRegistries = datadoghqRegistries
+func newRcImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
+	resolver := &remoteConfigImageResolver{
+		rcClient:            cfg.RCClient,
+		imageMappings:       make(map[string]map[string]ImageInfo),
+		maxRetries:          cfg.MaxInitRetries,
+		retryDelay:          cfg.InitRetryDelay,
+		datadoghqRegistries: cfg.DDRegistries,
+	}
+
+	resolver.rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
+	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
+
+	go func() {
+		if err := resolver.waitForInitialConfig(); err != nil {
+			log.Warnf("Failed to load initial image resolution config: %v. Image resolution will remain disabled.", err)
+		} else {
+			log.Infof("Image resolution cache initialized successfully")
+		}
+	}()
+
 	return resolver
 }
