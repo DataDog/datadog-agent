@@ -331,4 +331,9 @@ build do
       end
     end
   end
+
+  block do
+    mkdir "#{install_dir}/sources"
+    command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir='#{install_dir}/sources'"
+  end
 end
