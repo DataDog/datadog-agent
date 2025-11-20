@@ -17,6 +17,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/telemetry"
 )
 
+const (
+	defaultCacheExpire = 1 * time.Second
+	defaultCachePurge  = 2 * time.Minute
+)
+
 // NewRemoteProgram creates a new remote program.
 func NewRemoteProgram(name string, objectType workloadfilter.ResourceType, logger log.Component, telemetryStore *telemetry.Store, provider program.ClientProvider) program.FilterProgram {
 	return &program.RemoteProgram{
@@ -25,6 +30,6 @@ func NewRemoteProgram(name string, objectType workloadfilter.ResourceType, logge
 		Logger:         logger,
 		Provider:       provider,
 		TelemetryStore: telemetryStore,
-		Cache:          cache.New(30*time.Second, 2*time.Minute),
+		Cache:          cache.New(defaultCacheExpire, defaultCachePurge),
 	}
 }

@@ -48,7 +48,7 @@ func (p *RemoteProgram) Evaluate(entity workloadfilter.Filterable) workloadfilte
 		if val, found := p.Cache.Get(cacheKey); found {
 			if res, ok := val.(workloadfilter.Result); ok {
 				// Slide the expiration
-				p.Cache.Set(cacheKey, res, 30*time.Second)
+				p.Cache.Set(cacheKey, res, 0)
 				p.TelemetryStore.CacheHits.Inc(p.ObjectType, p.Name, res.String())
 				return res
 			}
