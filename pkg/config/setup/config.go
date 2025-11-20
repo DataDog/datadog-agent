@@ -2652,6 +2652,13 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 			}
 		case map[interface{}]interface{}:
 			if k == len(trailingElements)-1 {
+				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
+				if index, err := strconv.Atoi(elem); err == nil {
+					if _, exists := modifyValue[index]; exists {
+						modifyValue[index] = newValue
+						continue
+					}
+				}
 				modifyValue[elem] = newValue
 			} else {
 				iterateValue = modifyValue[elem]
