@@ -131,7 +131,6 @@ cc_library(
     ],
     copts = [
         "-Wno-implicit-function-declaration",
-        "-fpic",
         "-O2",
     ],
     linkstatic = True,
