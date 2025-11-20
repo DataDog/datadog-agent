@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -248,6 +249,15 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		objectStores = append(objectStores, handlerRegistration)
 	}
 
+	kubeCapEvent := collectKubeCapabilities(ctx, apiserverClient)
+	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   kubeCapEvent.Type,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: kubeCapEvent.Entity,
+		},
+	})
+
 	go runStartupCheck(ctx, objectStores)
 
 	return nil
@@ -259,6 +269,42 @@ func (c *collector) Pull(_ context.Context) error {
 
 func (c *collector) GetID() string {
 	return c.id
+}
+
+func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient) workloadmeta.Event {
+	featureGates, err := apiserverClient.GetClusterFeatureGates(ctx)
+	if err != nil {
+		log.Errorf("failed to get cluster feature gates: %v", err)
+	}
+
+	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
+	for name, featureGate := range featureGates {
+		wlmFeatureGates[name] = workloadmeta.FeatureGate{
+			Name:    featureGate.Name,
+			Stage:   workloadmeta.FeatureGateStage(featureGate.Stage),
+			Enabled: featureGate.Enabled,
+		}
+	}
+
+	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 2*time.Second)
+	if err != nil {
+		log.Errorf("failed to get cluster version: %v", err)
+	}
+
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubeCapabilities{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesCapability,
+				ID:   workloadmeta.KubeCapabilitiesID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: workloadmeta.KubeCapabilitiesName,
+			},
+			Version:      versionInfo,
+			FeatureGates: wlmFeatureGates,
+		},
+	}
 }
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {

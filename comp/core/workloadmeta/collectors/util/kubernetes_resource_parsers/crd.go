@@ -23,18 +23,14 @@ func NewCRDParser() ObjectParser {
 func (p crdParser) Parse(obj interface{}) workloadmeta.Entity {
 	crd := obj.(*apiextensionsv1.CustomResourceDefinition)
 
-	// Use the first version as the primary version
-	// CRDs can have multiple versions, but we'll track the stored version
-	var version string
+	var versions []workloadmeta.CRDVersion
 	for _, v := range crd.Spec.Versions {
-		if v.Storage {
-			version = v.Name
-			break
-		}
-	}
-	// Fallback to first version if no storage version is found
-	if version == "" && len(crd.Spec.Versions) > 0 {
-		version = crd.Spec.Versions[0].Name
+		versions = append(versions, workloadmeta.CRDVersion{
+			Name:       v.Name,
+			Served:     v.Served,
+			Storage:    v.Storage,
+			Deprecated: v.Deprecated,
+		})
 	}
 
 	return &workloadmeta.CRD{
@@ -49,8 +45,8 @@ func (p crdParser) Parse(obj interface{}) workloadmeta.Entity {
 			Annotations: crd.Annotations,
 			UID:         string(crd.UID),
 		},
-		Group:   crd.Spec.Group,
-		Kind:    crd.Spec.Names.Kind,
-		Version: version,
+		Group:    crd.Spec.Group,
+		Kind:     crd.Spec.Names.Kind,
+		Versions: versions,
 	}
 }

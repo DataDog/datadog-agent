@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/version"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 
@@ -53,6 +54,7 @@ const (
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
 	KindCRD                    Kind = "crd"
+	KindKubernetesCapability   Kind = "kubernetes_capability"
 )
 
 // Source is the source name of an entity.
@@ -112,9 +114,6 @@ const (
 
 	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
 	SourceKubeAPIServer Source = "kubeapiserver"
-
-	// SourceCRDCollector represents metadata collected form the CRD collector
-	SourceCRDCollector Source = "crd_collector"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -225,6 +224,11 @@ const (
 	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
 	// There can only be one per node.
 	KubeletMetricsID = "kubelet-metrics"
+)
+
+const (
+	KubeCapabilitiesID   = "kube-capability-id"
+	KubeCapabilitiesName = "kube-capability"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -2101,10 +2105,20 @@ const (
 type CRD struct {
 	EntityID
 	EntityMeta
-	Group         string
-	Kind          string
-	Version       string
-	OtherVersions []string
+	Group    string
+	Kind     string
+	Versions []CRDVersion
+}
+
+type CRDVersion struct {
+	Name       string
+	Served     bool
+	Storage    bool
+	Deprecated bool
+}
+
+func (c CRDVersion) String() string {
+	return c.Name
 }
 
 var _ Entity = &CRD{}
@@ -2143,7 +2157,73 @@ func (crd CRD) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "Group:", crd.Group)
 	_, _ = fmt.Fprintln(&sb, "Kind:", crd.Kind)
-	_, _ = fmt.Fprintln(&sb, "Version:", crd.Version)
+	_, _ = fmt.Fprintln(&sb, "Versions:", crd.Versions)
+
+	return sb.String()
+}
+
+type FeatureGateStage string
+
+const (
+	StageAlpha      FeatureGateStage = "ALPHA"
+	StageBeta       FeatureGateStage = "BETA"
+	StageGA         FeatureGateStage = "" // empty string is used to represent GA
+	StageDeprecated FeatureGateStage = "DEPRECATED"
+)
+
+// FeatureGate represents a single Kubernetes feature gate
+type FeatureGate struct {
+	Name    string
+	Stage   FeatureGateStage
+	Enabled bool
+}
+
+type KubeCapabilities struct {
+	EntityID
+	EntityMeta
+	FeatureGates map[string]FeatureGate
+	Version      *version.Info
+}
+
+var _ Entity = &KubeCapabilities{}
+
+// GetID returns the CRD entity ID
+func (kc KubeCapabilities) GetID() EntityID {
+	return kc.EntityID
+}
+
+// Merge allows the merge of 2 CRD entities
+func (kc *KubeCapabilities) Merge(e Entity) error {
+	otherCrd, ok := e.(*KubeCapabilities)
+	if !ok {
+		return fmt.Errorf("cannot merge CRD type with other type: %T", e)
+	}
+
+	return merge(kc, otherCrd)
+}
+
+// DeepCopy returns a deep copy of the given CRD entity
+func (kc KubeCapabilities) DeepCopy() Entity {
+	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
+	return copyCrd
+}
+
+func (kc KubeCapabilities) String(verbose bool) string {
+	var sb strings.Builder
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, kc.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprintln(&sb, kc.EntityMeta.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "Version:", kc.Version)
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "Feature Gates:")
+		for name, featureGate := range kc.FeatureGates {
+			_, _ = fmt.Fprintln(&sb, "  ", name, " - ", featureGate)
+		}
+	}
 
 	return sb.String()
 }
