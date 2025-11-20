@@ -386,9 +386,6 @@ const (
 
 	// Serverless
 	MetricSourceServerless
-	MetricSourceAwsLambdaCustom
-	MetricSourceAwsLambdaEnhanced
-	MetricSourceAwsLambdaRuntime
 	MetricSourceAzureContainerAppCustom
 	MetricSourceAzureContainerAppEnhanced
 	MetricSourceAzureContainerAppRuntime
@@ -1107,12 +1104,6 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_couchdbreceiver"
 	case MetricSourceServerless:
 		return "serverless"
-	case MetricSourceAwsLambdaCustom:
-		return "aws_lambda_custom"
-	case MetricSourceAwsLambdaEnhanced:
-		return "aws_lambda_enhanced"
-	case MetricSourceAwsLambdaRuntime:
-		return "aws_lambda_runtime"
 	case MetricSourceAzureContainerAppCustom:
 		return "azure_container_app_custom"
 	case MetricSourceAzureContainerAppEnhanced:

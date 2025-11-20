@@ -126,7 +126,7 @@ func TestIntegration_NewSecurityInjector_UnsupportedProxy(t *testing.T) {
 	assert.NotContains(t, config.Proxies, appsecconfig.ProxyType("unsupported-proxy"), "Unsupported proxy should not be in proxies")
 }
 
-func TestIntegration_CompilePatterns_WithValidConfig(t *testing.T) {
+func TestIntegration_InstanciatePatterns_WithValidConfig(t *testing.T) {
 	f := newIntegrationFixture(t, map[string]interface{}{
 		"appsec.proxy.enabled":                                      true,
 		"cluster_agent.appsec.injector.enabled":                     true,
@@ -174,9 +174,9 @@ func TestIntegration_CompilePatterns_WithValidConfig(t *testing.T) {
 		leaderSub: leaderFakeSub,
 	}
 
-	patterns := si.CompilePatterns()
+	patterns := si.InstantiatePatterns()
 
-	require.Len(t, patterns, 1, "Should have one pattern")
+	require.Len(t, patterns, len(appsecconfig.AllProxyTypes), "Should have one pattern")
 	assert.Contains(t, patterns, appsecconfig.ProxyTypeEnvoyGateway, "Should have envoy-gateway pattern")
 
 	pattern := patterns[appsecconfig.ProxyTypeEnvoyGateway]

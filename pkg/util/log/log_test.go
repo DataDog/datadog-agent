@@ -429,7 +429,7 @@ func TestStackDepthfLogging(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
 
-			l, err := loggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[%LEVEL] %Func: %Msg%n")
+			l, err := loggerFromWriterWithMinLevelAndFormat(w, tc.seelogLevel, "[{{LEVEL}}] {{.func}}: {{.msg}}\n")
 			assert.NoError(t, err)
 
 			SetupLogger(l, tc.strLogLevel)

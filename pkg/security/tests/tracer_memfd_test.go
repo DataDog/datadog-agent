@@ -149,9 +149,9 @@ func TestTracerMemfd(t *testing.T) {
 
 		// Verify expected tags from the msgp-encoded metadata
 		expectedTags := []string{
-			"service:test-service",
-			"env:test-env",
-			"version:1.0.0",
+			"tracer_service_name:test-service",
+			"tracer_service_env:test-env",
+			"tracer_service_version:1.0.0",
 			"custom.tag:value",
 		}
 
