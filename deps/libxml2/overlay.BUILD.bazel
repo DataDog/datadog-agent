@@ -6,9 +6,9 @@ load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-_VERSION = "2.15.1"
+VERSION = "2.15.1"
 
-_PUBLIC_HEADERS = glob(["include/libxml/*.h"]) + [":xmlversion_h"]
+PUBLIC_HEADERS = glob(["include/libxml/*.h"]) + [":xmlversion_h"]
 
 license(
     name = "license",
@@ -31,7 +31,7 @@ expand_template(
     template = "include/libxml/xmlversion.h.in",
     out = "include/libxml/xmlversion.h",
     substitutions = {
-        "@VERSION@": _VERSION,
+        "@VERSION@": VERSION,
         "@LIBXML_VERSION_NUMBER@": "21501",
         "@LIBXML_VERSION_EXTRA@": "",
         "@WITH_THREADS@": "1",
@@ -115,7 +115,7 @@ cc_library(
         "html5ent.inc",
         "c14n.c",
     ] + glob(["include/private/*.h"]),
-    hdrs = _PUBLIC_HEADERS,
+    hdrs = PUBLIC_HEADERS,
     deps = [
         "@zlib//:zlib",
         "@xz//:liblzma",
@@ -150,7 +150,7 @@ so_symlink(
 
 pkg_files(
     name = "headers",
-    srcs = _PUBLIC_HEADERS,
+    srcs = PUBLIC_HEADERS,
     prefix = "include/libxml2/libxml",
 )
 
@@ -171,7 +171,7 @@ expand_template(
         "@XML_PC_LIBS_PRIVATE@": "-lz",
         "@XML_PC_LIBS@": "",
         "@LIBS@": "",
-        "@VERSION@": _VERSION,
+        "@VERSION@": VERSION,
         "@XML_INCLUDEDIR@": "-I${includedir}",
         "@XML_PC_CFLAGS_PRIVATE@": "",
         "@XML_STATIC_CFLAGS@": "",
