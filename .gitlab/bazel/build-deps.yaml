@@ -17,10 +17,10 @@ bazel:build-deps:linux-arm64:
 
 bazel:build-deps:macos-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
-  script:
-    - START=$(date '+%s%N' | cut -b1-13)
-    - bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64
-    - datadog-ci trace span --name "Build_C_deps" --start-time "$START" --end-time $(date '+%s%N' | cut -b1-13) --tags plaatform:macos_x86_64
+  script: >
+    START=$(date '+%s%N' | cut -b1-13) ;
+    bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64 ;
+    datadog-ci trace span --name "Build_C_deps" --start-time "$START" --end-time $(date '+%s%N' | cut -b1-13) --tags plaatform:macos_x86_64
 
 bazel:build-deps:macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
