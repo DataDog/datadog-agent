@@ -210,6 +210,8 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldFor
 	}
 	// we don't want to add certain tags to metrics for cardinality reasons
 	tags = serverlessInitTag.WithoutHighCardinalityTags(tags)
+	// if compute_stats is enabled, we add the tag needed for accurate metric trace counts after sampling
+	tags = serverlessInitTag.AddTraceStatsTags(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
 	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent
