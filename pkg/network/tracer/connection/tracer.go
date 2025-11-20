@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TracerType is the type of the underlying tracer
@@ -78,9 +79,13 @@ func NewTracer(cfg *config.Config, telemetryComp telemetry.Component) (Tracer, e
 		return newEbpfLessTracer(cfg)
 	}
 
-	if os.Getenv("DD_BYPASS_ENABLED") == "true" {
+	bypassEnv := os.Getenv("DD_BYPASS_ENABLED")
+	log.Infof("DD_BYPASS_ENABLED env var value: '%s', BypassEnabled before: %v", bypassEnv, cfg.BypassEnabled)
+	if bypassEnv == "true" {
 		cfg.BypassEnabled = true
+		log.Info("Setting BypassEnabled to true based on DD_BYPASS_ENABLED environment variable")
 	}
+	log.Infof("BypassEnabled after: %v", cfg.BypassEnabled)
 
 	return newEbpfTracer(cfg, telemetryComp)
 }
