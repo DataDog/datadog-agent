@@ -605,7 +605,7 @@ new-e2e-orchestrator:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/orchestrator
-    TEAM: container-app
+    TEAM: kubernetes-experiences
     ON_NIGHTLY_FIPS: "true"
   timeout: 55m
 
