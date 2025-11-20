@@ -209,11 +209,11 @@ def notify_macos(ctx, text):
     display notification (item 2 of argv) with title (item 1 of argv)
     end run
     '''
-    ctx.run(f"osascript -e '{CMD}' test-infra-definitions '{text}'")
+    ctx.run(f"osascript -e '{CMD}' test/e2e-framework '{text}'")
 
 
 def notify_linux(ctx, text):
-    ctx.run(f"notify-send 'test-infra-definitions' '{text}'")
+    ctx.run(f"notify-send 'test/e2e-framework' '{text}'")
 
 
 def notify_windows():

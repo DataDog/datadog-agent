@@ -28,13 +28,13 @@ sudo apt install libnotify-bin
 1. Clone this repository
 
 ```bash
-cd ~/dd && git clone git@github.com:DataDog/test-infra-definitions.git
+cd ~/dd && git clone git@github.com:DataDog/datadog-agent.git
 ```
 
 2. Install Python dependencies
 
 ```bash
-cd ~/dd/test-infra-definitions && dda -v self dep sync -f legacy-e2e -f legacy-github
+cd ~/dd/datadog-agent/test/e2e-framework && dda -v self dep sync -f legacy-e2e -f legacy-github
 ```
 
 3. Add a PULUMI_CONFIG_PASSPHRASE to your Terminal rc file. Create a random password using 1Password and store it there
