@@ -18,7 +18,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.48.0
-	github.com/DataDog/test-infra-definitions v0.0.6-0.20251107170748-5d4ea60490c6
+	github.com/DataDog/test-infra-definitions v0.0.6-0.20251120084653-5b94ee61712e
 	github.com/aws/aws-sdk-go-v2 v1.39.4
 	github.com/aws/aws-sdk-go-v2/config v1.31.15
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.259.0
