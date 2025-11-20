@@ -53,7 +53,9 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 	if err != nil {
 		return err
 	}
-	_ = seelog.ReplaceLogger(loggerInterface)
+	if logger, ok := loggerInterface.(seelog.LoggerInterface); ok {
+		_ = seelog.ReplaceLogger(logger)
+	}
 	log.SetupLogger(loggerInterface, seelogLogLevel.String())
 
 	// Registering a callback in case of "log_level" update
@@ -68,12 +70,13 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 			log.Warnf("Unable to set new log level: %v", err)
 			return
 		}
-		// We create a new logger to propagate the new log level everywhere seelog is used (including dependencies)
 		logger, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 		if err != nil {
 			return
 		}
-		_ = seelog.ReplaceLogger(logger)
+		if logger, ok := logger.(seelog.LoggerInterface); ok {
+			_ = seelog.ReplaceLogger(logger)
+		}
 		// We wire the new logger with the Datadog logic
 		log.ChangeLogLevel(logger, seelogLogLevel)
 	})
@@ -98,7 +101,7 @@ func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.Logger
 }
 
 func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false)
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false, nil, commonFormatter(loggerName, cfg))
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
 	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
@@ -110,16 +113,16 @@ func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, lo
 	// Configure log file, log file max size, log file roll up
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("dogstatsd_log_file_max_size"), uint(dogstatsdLogFileMaxRolls))
 
-	return generateLoggerInterface(config)
+	return generateLoggerInterface(config, cfg)
 }
 
-func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (seelog.LoggerInterface, error) {
+func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
 	formatID := "common"
 	if jsonFormat {
 		formatID = "json"
 	}
 
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC)
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC, jsonFormatter(loggerName, cfg), commonFormatter(loggerName, cfg))
 	config.EnableConsoleLog(logToConsole)
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
 
@@ -127,22 +130,21 @@ func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, sy
 		config.ConfigureSyslog(syslogURI)
 	}
 
-	return generateLoggerInterface(config)
+	return generateLoggerInterface(config, cfg)
 }
 
 // generateLoggerInterface return a logger Interface from a log config
-func generateLoggerInterface(logConfig *seelogCfg.Config) (seelog.LoggerInterface, error) {
+func generateLoggerInterface(logConfig *seelogCfg.Config, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
+	if cfg.GetBool("log_use_slog") {
+		return logConfig.SlogLogger()
+	}
+
 	configTemplate, err := logConfig.Render()
 	if err != nil {
 		return nil, err
 	}
 
-	loggerInterface, err := seelog.LoggerFromConfigAsString(configTemplate)
-	if err != nil {
-		return nil, err
-	}
-
-	return loggerInterface, nil
+	return seelog.LoggerFromConfigAsString(configTemplate)
 }
 
 // logWriter is a Writer that logs all written messages with the global seelog logger

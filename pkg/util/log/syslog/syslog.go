@@ -47,6 +47,11 @@ func CreateSyslogHeaderFormatter(params string) seelog.FormatterFunc {
 		fmt.Println("badly formatted syslog header parameters - using defaults")
 	}
 
+	return HeaderFormatter(facility, rfc)
+}
+
+// HeaderFormatter creates a seelog formatter function that formats a message as a syslog header.
+func HeaderFormatter(facility int, rfc bool) seelog.FormatterFunc {
 	pid := os.Getpid()
 	appName := filepath.Base(os.Args[0])
 
@@ -111,15 +116,18 @@ func getSyslogConnection(uri *url.URL) (net.Conn, error) {
 
 // ReceiveMessage process current log message
 func (s *Receiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.LogContextInterface) error {
+	_, err := s.Write([]byte(message))
+	return err
+}
+
+// Write writes the message to the syslog receiver
+func (s *Receiver) Write(message []byte) (int, error) {
 	if !s.enabled {
-		return nil
+		return 0, nil
 	}
 
 	if s.conn != nil {
-		_, err := s.conn.Write([]byte(message))
-		if err == nil {
-			return nil
-		}
+		return s.conn.Write(message)
 	}
 
 	// try to reconnect - close the connection first just in case
@@ -129,13 +137,13 @@ func (s *Receiver) ReceiveMessage(message string, _ seelog.LogLevel, _ seelog.Lo
 	}
 	conn, err := getSyslogConnection(s.uri)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	s.conn = conn
-	_, err = s.conn.Write([]byte(message))
+	n, err := s.conn.Write(message)
 	fmt.Printf("Retried: %v\n", message)
-	return err
+	return n, err
 }
 
 // AfterParse parses the receiver configuration

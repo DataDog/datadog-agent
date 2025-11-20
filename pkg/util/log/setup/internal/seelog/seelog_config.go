@@ -8,10 +8,24 @@ package seelog
 
 import (
 	"bytes"
+	"context"
 	"encoding/xml"
 	"fmt"
+	"io"
+	stdslog "log/slog"
+	"os"
 	"strings"
 	"sync"
+
+	"github.com/cihub/seelog"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
+	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 // Config abstracts seelog XML configuration definition
@@ -28,7 +42,9 @@ type Config struct {
 	format                string
 	syslogRFC             bool
 	jsonFormat            string
+	jsonFormatter         func(ctx context.Context, r stdslog.Record) string
 	commonFormat          string
+	commonFormatter       func(ctx context.Context, r stdslog.Record) string
 }
 
 const seelogConfigurationTemplate = `
@@ -71,6 +87,100 @@ func (c *Config) Render() (string, error) {
 	return fmt.Sprintf(seelogConfigurationTemplate, c.logLevel, c.format, consoleLoggingEnabled, logfile, syslogURI, c.jsonFormat, c.commonFormat, c.syslogRFC, jsonSyslogFormat, xmlEscape(c.loggerName)), nil
 }
 
+// SlogLogger returns a slog logger behaving the same way as Render would configure a seelog logger
+func (c *Config) SlogLogger() (types.LoggerInterface, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	var closeFuncs []func()
+
+	var writers []io.Writer
+	if c.consoleLoggingEnabled {
+		writers = append(writers, os.Stdout)
+	}
+
+	if c.logfile != "" {
+		fw, err := filewriter.NewRollingFileWriterSize(c.logfile, int64(c.maxsize), int(c.maxrolls), filewriter.RollingNameModePostfix)
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, fw)
+		closeFuncs = append(closeFuncs, func() { fw.Close() })
+	}
+
+	var handlerList []stdslog.Handler
+	if len(writers) > 0 {
+		formatter := c.commonFormatter
+		if c.format == "json" {
+			formatter = c.jsonFormatter
+		}
+		handlerList = append(handlerList, handlers.NewFormat(formatter, io.MultiWriter(writers...)))
+	}
+
+	if c.syslogURI != "" {
+		syslogReceiver := syslog.Receiver{}
+		err := syslogReceiver.AfterParse(seelog.CustomReceiverInitArgs{
+			XmlCustomAttrs: map[string]string{
+				"uri": c.syslogURI,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		syslogFormatter := c.commonSyslogFormatter
+		if c.format == "json" {
+			syslogFormatter = c.jsonSyslogFormatter
+		}
+		handlerList = append(handlerList, handlers.NewFormat(syslogFormatter, &syslogReceiver))
+		closeFuncs = append(closeFuncs, func() { syslogReceiver.Close() })
+	}
+
+	multiHandler := handlers.NewMulti(handlerList...)
+	asyncHandler := handlers.NewAsync(multiHandler)
+	closeFuncs = append(closeFuncs, asyncHandler.Close)
+
+	lvl, err := log.ValidateLogLevel(c.logLevel)
+	if err != nil {
+		return nil, err
+	}
+	levelHandler := handlers.NewLevel(types.ToSlogLevel(lvl), asyncHandler)
+
+	closeFunc := func() {
+		for _, closeFunc := range closeFuncs {
+			closeFunc()
+		}
+	}
+
+	logger := slog.NewWrapperWithCloseAndFlush(levelHandler, asyncHandler.Flush, closeFunc)
+
+	return logger, nil
+}
+
+func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) string {
+	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
+	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
+
+	frame := formatters.Frame(r)
+	level := formatters.CapitalizedLevel(r.Level)
+	shortFilePath := formatters.ShortFilePath(frame)
+	funcShort := formatters.ShortFunction(frame)
+	extraContext := formatters.ExtraTextContext(r)
+
+	return fmt.Sprintf("%s %s | %s | (%s:%d in %s) | %s%s\n", syslogHeader, c.loggerName, level, shortFilePath, frame.Line, funcShort, extraContext, r.Message)
+}
+
+func (c *Config) jsonSyslogFormatter(_ context.Context, r stdslog.Record) string {
+	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
+	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
+
+	frame := formatters.Frame(r)
+	level := formatters.UppercaseLevel(r.Level)
+	relfile := formatters.RelFile(frame)
+	extraContext := formatters.ExtraJSONContext(r)
+
+	return fmt.Sprintf(`%s {"agent":"%s","level":"%s","relfile":"%s","line":"%d","msg":"%s"%s}`+"\n", syslogHeader, strings.ToLower(c.loggerName), level, relfile, frame.Line, r.Message, extraContext)
+}
+
 // EnableConsoleLog sets enable or disable console logging depending on the parameter value
 func (c *Config) EnableConsoleLog(v bool) {
 	c.Lock()
@@ -103,13 +213,15 @@ func (c *Config) ConfigureSyslog(syslogURI string) {
 }
 
 // NewSeelogConfig returns a SeelogConfig filled with correct parameters
-func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool) *Config {
+func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool, jsonFormatter, commonFormatter func(ctx context.Context, r stdslog.Record) string) *Config {
 	c := &Config{}
 	c.loggerName = name
 	c.format = xmlEscape(format)
 	c.syslogRFC = syslogRFC
 	c.jsonFormat = xmlEscape(jsonFormat)
+	c.jsonFormatter = jsonFormatter
 	c.commonFormat = xmlEscape(commonFormat)
+	c.commonFormatter = commonFormatter
 	c.logLevel = xmlEscape(level)
 	return c
 }
