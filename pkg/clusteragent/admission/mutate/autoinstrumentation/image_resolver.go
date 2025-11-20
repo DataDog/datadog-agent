@@ -61,7 +61,7 @@ type remoteConfigImageResolver struct {
 	retryDelay time.Duration
 }
 
-func newRcImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
+func newRcImageResolver(cfg imageresolver.Config) ImageResolver {
 	resolver := &remoteConfigImageResolver{
 		rcClient:            cfg.RCClient,
 		imageMappings:       make(map[string]map[string]ImageInfo),
@@ -270,7 +270,7 @@ func newResolvedImage(registry string, repositoryName string, imageInfo ImageInf
 
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
-func NewImageResolver(cfg imageresolver.ImageResolverConfig) ImageResolver {
+func NewImageResolver(cfg imageresolver.Config) ImageResolver {
 	if cfg.RCClient == nil || reflect.ValueOf(cfg.RCClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return newNoOpImageResolver()

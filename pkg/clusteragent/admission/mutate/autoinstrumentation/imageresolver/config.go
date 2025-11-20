@@ -20,8 +20,8 @@ type RemoteConfigClient interface {
 	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
 }
 
-// ImageResolverConfig contains information needed to create an ImageResolver
-type ImageResolverConfig struct {
+// Config contains information needed to create an ImageResolver
+type Config struct {
 	Site           string
 	DDRegistries   map[string]any
 	RCClient       RemoteConfigClient
@@ -29,9 +29,9 @@ type ImageResolverConfig struct {
 	InitRetryDelay time.Duration
 }
 
-// NewImageResolverConfig creates a new ImageResolverConfig
-func NewImageResolverConfig(cfg config.Component, rcClient RemoteConfigClient) *ImageResolverConfig {
-	return &ImageResolverConfig{
+// NewConfig creates a new Config
+func NewConfig(cfg config.Component, rcClient RemoteConfigClient) *Config {
+	return &Config{
 		Site:           cfg.GetString("site"),
 		DDRegistries:   cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
 		RCClient:       rcClient,
@@ -40,9 +40,9 @@ func NewImageResolverConfig(cfg config.Component, rcClient RemoteConfigClient) *
 	}
 }
 
-// NewTestImageResolverConfig creates a new ImageResolverConfig for testing
-func NewTestImageResolverConfig(site string, ddRegistries map[string]any, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) *ImageResolverConfig {
-	return &ImageResolverConfig{
+// NewTestConfig creates a new Config for testing
+func NewTestConfig(site string, ddRegistries map[string]any, rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration) *Config {
+	return &Config{
 		Site:           site,
 		DDRegistries:   ddRegistries,
 		RCClient:       rcClient,
