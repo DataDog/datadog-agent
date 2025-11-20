@@ -40,7 +40,7 @@ var instanceIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 			log.Debugf("Alibaba cloud provider is disabled by configuration")
-			return nil, nil
+			return []string{}, nil
 		}
 
 		endpoint := metadataURL + "/latest/meta-data/instance-id"
