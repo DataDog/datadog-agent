@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
+	sysprobecfg "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -256,6 +257,11 @@ func TestInitData(t *testing.T) {
 	if !kernel.IsIPv6Enabled() {
 		expected["system_probe_track_tcp_6_connections"] = false
 		expected["system_probe_track_udp_6_connections"] = false
+	}
+
+	// Redis may be disabled by adjust_usm.go on kernels < 5.4
+	if !sysprobecfg.RedisMonitoringSupported() {
+		expected["feature_usm_redis_enabled"] = false
 	}
 
 	for name, value := range expected {
