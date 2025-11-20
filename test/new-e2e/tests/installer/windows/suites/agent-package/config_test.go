@@ -434,8 +434,9 @@ func (s *testAgentConfigSuite) TestConfigCustomUser() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("all").
 		WithValueEqual("log_to_console", false).
-		WithValueEqual("installedUser", agentUser).
 		HasDDAgentUserFileAccess().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
 		HasAService("datadogagent").
 		WithIdentity(identity)
 }
@@ -448,7 +449,7 @@ func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
-	s.installPreviousAgentVersion(
+	s.installCurrentAgentVersion(
 		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
 		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
 		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
@@ -484,9 +485,9 @@ func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("all").
 		WithValueEqual("log_to_console", false).
-		WithValueEqual("installedUser", agentUser).
 		HasDDAgentUserFileAccess().
 		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
 		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
 		WithValueEqual("InstallPath", altInstallPath+`\`)
 }
