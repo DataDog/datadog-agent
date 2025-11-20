@@ -56,8 +56,7 @@ def send_metrics(series):
     from datadog_api_client.v2.api.metrics_api import MetricsApi
     from datadog_api_client.v2.model.metric_payload import MetricPayload
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = MetricsApi(api_client)
         response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
@@ -85,8 +84,7 @@ def send_event(title: str, text: str, tags: list[str] = None):
         tags=tags or [],
     )
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = EventsApi(api_client)
         try:
             response = api_instance.create_event(body=body)
@@ -110,8 +108,7 @@ def get_ci_pipeline_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = CIVisibilityPipelinesApi(api_client)
         response = api_instance.list_ci_app_pipeline_events(
             filter_query=query,
@@ -130,11 +127,10 @@ def get_ci_test_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
 
-    configuration = Configuration()
     all_events = []
     page_cursor = None
 
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api = CIVisibilityTestsApi(api_client)
 
         while True:

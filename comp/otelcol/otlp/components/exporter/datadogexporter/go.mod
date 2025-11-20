@@ -122,7 +122,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.48.0 // indirect
-	github.com/DataDog/go-sqllexer v0.1.9 // indirect
+	github.com/DataDog/go-sqllexer v0.1.10 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
@@ -242,7 +242,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
+	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect

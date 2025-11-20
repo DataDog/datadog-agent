@@ -19,17 +19,17 @@ func TestTracers(t *testing.T) {
 	config := defaultConfig()
 	cfg := config.(Config)
 
-	require.Greater(t, len(cfg.Ebpfcollector.Tracers), 0)
-	require.NotContains(t, cfg.Ebpfcollector.Tracers, "go")
-	require.NotContains(t, cfg.Ebpfcollector.Tracers, "labels")
+	require.Greater(t, len(cfg.EbpfCollectorConfig.Tracers), 0)
+	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "go")
+	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 
 	cfg.ReporterConfig.CollectContext = false
 	require.NoError(t, cfg.Validate())
-	require.NotContains(t, cfg.Ebpfcollector.Tracers, "labels")
+	require.NotContains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 
 	cfg.ReporterConfig.CollectContext = true
 	require.NoError(t, cfg.Validate())
-	require.Contains(t, cfg.Ebpfcollector.Tracers, "labels")
+	require.Contains(t, cfg.EbpfCollectorConfig.Tracers, "labels")
 }
 
 func TestServiceNameEnvVars(t *testing.T) {
@@ -37,9 +37,9 @@ func TestServiceNameEnvVars(t *testing.T) {
 	cfg := config.(Config)
 	cfg.EnableSplitByService = false
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, "", cfg.Ebpfcollector.IncludeEnvVars)
+	require.Equal(t, "", cfg.EbpfCollectorConfig.IncludeEnvVars)
 
 	cfg.EnableSplitByService = true
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, strings.Join(reporter.ServiceNameEnvVars, ","), cfg.Ebpfcollector.IncludeEnvVars)
+	require.Equal(t, strings.Join(reporter.ServiceNameEnvVars, ","), cfg.EbpfCollectorConfig.IncludeEnvVars)
 }

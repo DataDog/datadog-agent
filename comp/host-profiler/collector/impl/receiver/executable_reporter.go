@@ -32,12 +32,13 @@ func newExecutableReporter(config *reporter.SymbolUploaderConfig, logger *zap.Lo
 		config.SymbolEndpoints,
 		func(msg string) { logger.Info(msg) }, func(msg string) { logger.Warn(msg) })
 
-	symbolUploader, err := reporter.NewDatadogSymbolUploader(config)
+	ctx := context.Background()
+	symbolUploader, err := reporter.NewDatadogSymbolUploader(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 
-	symbolUploader.Start(context.Background())
+	symbolUploader.Start(ctx)
 	return &executableReporter{
 		symbolUploader: symbolUploader,
 	}, nil
