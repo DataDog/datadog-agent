@@ -261,7 +261,7 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 func (s *DockerFakeintakeSuite) TestAPMMode() {
 	s.Run("default", func() {
 		s.EventuallyWithT(func(c *assert.CollectT) {
-			testAPMMode(c, s.Env().FakeIntake, "full")
+			testAPMMode(c, s.Env().FakeIntake, "")
 		}, 2*time.Minute, 10*time.Second)
 	})
 }

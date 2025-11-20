@@ -441,6 +441,15 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, expectedAPMM
 	if !assert.NotEmpty(c, traces) {
 		return
 	}
+	if expectedAPMMode == "" {
+		for _, p := range traces {
+			// assert that apm mod tag does not exist
+			v, ok := p.Tags["_dd.apm_mode"]
+			assert.False(c, ok)
+			assert.Empty(c, v)
+		}
+		return
+	}
 	for _, p := range traces {
 		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm_mode"])
 	}

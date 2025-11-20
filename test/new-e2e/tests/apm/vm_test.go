@@ -410,7 +410,7 @@ func (s *VMFakeintakeSuite) TestAPMMode() {
 
 	s.EventuallyWithTf(func(c *assert.CollectT) {
 		s.logStatus()
-		testAPMMode(c, s.Env().FakeIntake, "full")
+		testAPMMode(c, s.Env().FakeIntake, "")
 		s.logJournal(false)
 	}, 2*time.Minute, 10*time.Second, "Failed finding traces with correct APM mode")
 }
