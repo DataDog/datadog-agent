@@ -35,7 +35,7 @@ build do
       end
     end
     if !windows?
-    lib_extension = if linux_target? then ".so.#{version}" else "#{version}.dylib" end
+    lib_extension = if linux_target? then ".so.#{version}" else ".#{version}.dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
       " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
