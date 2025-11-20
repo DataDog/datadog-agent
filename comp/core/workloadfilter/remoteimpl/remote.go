@@ -12,7 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 
+	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -27,6 +29,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // remoteFilterStore is the remote implementation of the workloadfilter component.
@@ -113,6 +116,24 @@ func (r *remoteFilterStore) start(_ context.Context) error {
 		r.target,
 		grpc.WithTransportCredentials(credentials.NewTLS(r.tlsConfig)),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+			if vsockAddr := r.Config.GetString("vsock_addr"); vsockAddr != "" {
+				_, sPort, err := net.SplitHostPort(url)
+				if err != nil {
+					return nil, err
+				}
+
+				port, err := strconv.Atoi(sPort)
+				if err != nil {
+					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+				}
+
+				cid, err := socket.ParseVSockAddress(vsockAddr)
+				if err != nil {
+					return nil, err
+				}
+
+				return vsock.Dial(cid, uint32(port), &vsock.Config{})
+			}
 			return net.Dial("tcp", url)
 		}),
 	)
@@ -122,7 +143,7 @@ func (r *remoteFilterStore) start(_ context.Context) error {
 
 	r.client = pb.NewAgentSecureClient(r.conn)
 
-	r.BaseFilterStore.Log.Info("remote workloadfilter initialized successfully")
+	r.Log.Info("remote workloadfilter initialized successfully")
 
 	return nil
 }
