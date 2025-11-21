@@ -70,7 +70,7 @@ func (a *AppService) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for AppService
-func (a *AppService) Init() error {
+func (a *AppService) Init(_ interface{}) error {
 	return nil
 }
 

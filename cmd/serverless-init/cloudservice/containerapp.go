@@ -128,7 +128,7 @@ func NewContainerApp() *ContainerApp {
 }
 
 // Init initializes ContainerApp specific code
-func (c *ContainerApp) Init() error {
+func (c *ContainerApp) Init(_ interface{}) error {
 	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,

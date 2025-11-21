@@ -31,7 +31,8 @@ type CloudService interface {
 	GetSource() metrics.MetricSource
 
 	// Init bootstraps the CloudService.
-	Init() error
+	// traceAgent is optional and only used by CloudRunJobs
+	Init(traceAgent interface{}) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
 	// traceAgent is optional and currently only used by CloudRunJobs
@@ -75,7 +76,7 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 }
 
 // Init is not necessary for LocalService
-func (l *LocalService) Init() error {
+func (l *LocalService) Init(_ interface{}) error {
 	return nil
 }
 

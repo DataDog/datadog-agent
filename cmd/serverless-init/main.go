@@ -123,10 +123,6 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
-	// Ignore errors for now. Once we go GA, check for errors
-	// and exit right away.
-	_ = cloudService.Init()
-
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
 			serverlessTag.ArrayToMap(
@@ -154,6 +150,9 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
+
+	// TODO check for errors and exit
+	_ = cloudService.Init(traceAgent)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
