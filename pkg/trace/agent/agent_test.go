@@ -625,6 +625,7 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
@@ -646,6 +647,7 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "edge"
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -670,6 +672,7 @@ func TestProcess(t *testing.T) {
 		defer func() { log.SetLogger(oldLogger) }()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = ""
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
@@ -697,6 +700,7 @@ func TestProcess(t *testing.T) {
 		defer func() { log.SetLogger(oldLogger) }()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
+		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta[tagAPMMode] = "invalid"
 		agnt.Process(&api.Payload{
 			TracerPayload: tp,
