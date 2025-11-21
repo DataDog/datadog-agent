@@ -15,6 +15,8 @@ variables:
   image: $BENCHMARKS_CI_IMAGE
   needs: ["setup_agent_version"]
   script:
+    # NOTE: If you encounter any issue by cloning this repository, it's probably because the pipeline has been triggered via `dda inv -- pipeline.run`.
+    # Please reach out #agent-devx-help if you need to trigger this job using a manually triggered pipeline.
     - git clone --branch trace-agent https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/benchmarking-platform platform && cd platform
     - ./steps/run-benchmarks.sh
   artifacts:
