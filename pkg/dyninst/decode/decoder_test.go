@@ -93,7 +93,7 @@ func TestDecoderManually(t *testing.T) {
 			require.Nil(t, decoder.entryOrLine.rootType)
 			require.Nil(t, decoder.entryOrLine.rootData)
 			require.Zero(t, decoder.entryOrLine.evaluationErrors)
-			require.Zero(t, decoder.snapshotMessage)
+			require.Zero(t, decoder.message)
 		})
 	}
 }
