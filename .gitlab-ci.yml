@@ -1212,10 +1212,11 @@ workflow:
 
 
 celian:
-  - !reference [.manual]
-  - image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v83165674-efec7b86
-  - tags: ["arch:amd64", "specific:true"]
-  - stage: .pre
-  - needs: []
-  - script:
+  rules:
+    - !reference [.manual]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v83165674-efec7b86
+  tags: ["arch:amd64", "specific:true"]
+  stage: .pre
+  needs: []
+  script:
     - dda inv -- -e release.celian
