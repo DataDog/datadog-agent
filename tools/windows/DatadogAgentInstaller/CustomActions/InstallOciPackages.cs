@@ -318,9 +318,11 @@ namespace Datadog.CustomActions
                 endOfName = colonPos;
             }
             var imageName = url.Substring(lastSlash, endOfName - lastSlash);
-            if (!imageName.Equals("ddot-package", StringComparison.OrdinalIgnoreCase))
+            // accommodate for e2e and registry publishing
+            if (!(imageName.Equals("ddot-package", StringComparison.OrdinalIgnoreCase)
+               || imageName.Equals("datadog-agent-ddot", StringComparison.OrdinalIgnoreCase)))
             {
-                error = "invalid ddot image name; expected 'ddot-package'";
+                error = "invalid ddot image name; expected 'ddot-package' or 'datadog-agent-ddot'";
                 return false;
             }
 
