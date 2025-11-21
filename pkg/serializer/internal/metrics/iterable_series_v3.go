@@ -319,21 +319,8 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 		return nil
 	}
 
-	if len(serie.Points) == 0 {
-		return nil
-	}
-
-	if len(serie.Points) > pb.maxPointsPerPayload {
-		tlmItemTooBig.Inc()
-		return nil
-	}
-
-	if len(serie.Points)+pb.pointsThisPayload > pb.maxPointsPerPayload {
-		tlmSplitReason.Inc("max_points")
-		err := pb.finishPayload()
-		if err != nil {
-			return err
-		}
+	if ok, err := pb.checkPointsLimit(len(serie.Points)); !ok {
+		return err
 	}
 
 	serie.PopulateDeviceField()
@@ -347,6 +334,26 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 		}
 		return err
 	}
+}
+
+func (pb *payloadsBuilderV3) checkPointsLimit(numPoints int) (bool, error) {
+	if numPoints == 0 {
+		return false, nil
+	}
+
+	if numPoints > pb.maxPointsPerPayload {
+		tlmItemTooBig.Inc()
+		return false, nil
+	}
+
+	if numPoints+pb.pointsThisPayload > pb.maxPointsPerPayload {
+		tlmSplitReason.Inc("max_points")
+		err := pb.finishPayload()
+		if err != nil {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 var errRetry = errors.New("retry")
