@@ -106,8 +106,44 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
-# Start the tray icon app only when not in system-wide installation
-if [ ! -f "/tmp/install-ddagent/system-wide" ]; then
+# Install GUI LaunchAgent based on installation mode
+if [ -f "/tmp/install-ddagent/system-wide" ]; then
+  # System-wide installation: Install GUI for ALL users
+  echo "# Configuring GUI for system-wide installation (all users)"
+
+  # Only install GUI if WLAN check is enabled
+  if [ -f "$INSTALL_DIR/etc/conf.d/wlan.d/conf.yaml" ]; then
+    echo "WLAN check enabled, installing GUI LaunchAgent for all users..."
+
+    # Copy to system-wide LaunchAgents directory (runs for every user at login)
+    cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
+
+    # Set proper ownership and permissions for system-wide LaunchAgent
+    chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
+    chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
+
+    # Inform about GUI and location permission
+    echo ""
+    echo "=========================================="
+    echo "Datadog Agent GUI (System-Wide)"
+    echo "=========================================="
+    echo "The GUI will launch automatically for each user when they log in."
+    echo ""
+    echo "For WiFi data collection (SSID/BSSID), each user must grant Location permission:"
+    echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+    echo ""
+    echo "Note: The GUI will prompt for this permission when it starts for each user."
+    echo "      At least one user should grant permission for WLAN metrics to work."
+    echo "=========================================="
+    echo ""
+  else
+    echo "WLAN check not enabled, skipping GUI installation"
+    echo ""
+  fi
+else
+  # Per-user installation: Install GUI only for current user
+  echo "# Configuring GUI for per-user installation"
+
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
