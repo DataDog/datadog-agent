@@ -43,8 +43,9 @@ const (
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
-	startTime time.Time
-	jobSpan   *pb.Span
+	startTime  time.Time
+	jobSpan    *pb.Span
+	traceAgent interface{}
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
@@ -102,10 +103,12 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 }
 
 // Init records the start time for CloudRunJobs and initializes the job span
-func (c *CloudRunJobs) Init() error {
+func (c *CloudRunJobs) Init(traceAgent interface{}) error {
 	c.startTime = time.Now()
+	c.traceAgent = traceAgent
 	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") {
 		c.initJobSpan()
+		c.setSpanModifier()
 	}
 	return nil
 }
@@ -167,6 +170,18 @@ func (c *CloudRunJobs) initJobSpan() {
 		c.startTime.UnixNano(),
 		tags,
 	)
+}
+
+// setSpanModifier sets up the span modifier to reparent user spans under the job span
+func (c *CloudRunJobs) setSpanModifier() {
+	if c.traceAgent == nil || c.jobSpan == nil {
+		return
+	}
+
+	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobSpan.TraceID, c.jobSpan.SpanID)
+	if ta, ok := c.traceAgent.(serverlessInitTrace.SpanModifierSetter); ok {
+		ta.SetSpanModifier(modifier)
+	}
 }
 
 // completeAndSubmitJobSpan finalizes the span with duration and error status, then submits it

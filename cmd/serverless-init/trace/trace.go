@@ -35,9 +35,8 @@ func InitSpan(service, name, resource, spanType string, startTime int64, tags ma
 	return span
 }
 
-// ServerlessTraceAgent is an interface for submitting traces
-// This avoids importing pkg/serverless/trace which has a cyclic dependency
-type ServerlessTraceAgent interface {
+// Processor is an interface for processing trace payloads
+type Processor interface {
 	Process(*api.Payload)
 }
 
@@ -60,7 +59,7 @@ func SubmitSpan(span *pb.Span, origin string, traceAgent interface{}) {
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	if ta, ok := traceAgent.(ServerlessTraceAgent); ok {
+	if ta, ok := traceAgent.(Processor); ok {
 		ta.Process(&api.Payload{
 			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 			TracerPayload: tracerPayload,
