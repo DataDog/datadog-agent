@@ -16,15 +16,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"go.uber.org/atomic"
 )
 
 const cacheKeyPrefix = "snmp"
@@ -47,6 +48,7 @@ type Discovery struct {
 
 	sessionFactory session.Factory
 	agentConfig    config.Component
+	scanManager    snmpscanmanager.Component
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
@@ -267,6 +269,14 @@ func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 	if writeCache {
 		d.writeCache(subnet)
 	}
+
+	if d.scanManager == nil {
+		log.Errorf("SNMP scan manager not initialized, could not request device scan for '%s'", deviceIP)
+	} else {
+		d.scanManager.RequestScan(snmpscanmanager.ScanRequest{
+			DeviceIP: deviceIP,
+		})
+	}
 }
 
 // deleteDevice removes a device from discovered devices list and cache
@@ -339,12 +349,13 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 }
 
 // NewDiscovery return a new Discovery instance
-func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, agentConfig config.Component) *Discovery {
+func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, agentConfig config.Component, scanManager snmpscanmanager.Component) *Discovery {
 	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,
 		sessionFactory:    sessionFactory,
 		agentConfig:       agentConfig,
+		scanManager:       scanManager,
 	}
 }
