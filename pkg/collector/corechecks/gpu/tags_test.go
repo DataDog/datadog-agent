@@ -9,6 +9,9 @@ package gpu
 
 import (
 	"fmt"
+	"math/rand"
+	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -892,4 +895,125 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	tags, err = cache.GetWorkloadTags(workloadID)
 	require.NoError(t, err)
 	assert.Equal(t, expectedTags, tags)
+}
+
+type createdWorkload struct {
+	workloadID workloadmeta.EntityID
+	tags       []string
+}
+
+// TestWorkloadTagCacheSizeLimit tests that the cache size doesn't grow indefinitely
+// by creating many workloads, requesting tags, invalidating, and removing workloads.
+func TestWorkloadTagCacheSizeLimit(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockWmeta := testutil.GetWorkloadMetaMock(t)
+	cacheSize := 20 // Use a small cache size to make the test more effective
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, cacheSize)
+	require.NoError(t, err)
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	createdWorkloads := make([]createdWorkload, 0)
+
+	// Run multiple iterations to test cache behavior
+	const iterations = 2000
+	const workloadsPerIteration = 30
+	const removeRatio = 0.4           // Remove 40% of workloads each iteration
+	const queryExistingWorkloads = 10 // Query 3 additional workloads each iteration
+
+	for i := range iterations {
+		// Create some random workloads
+		for j := range workloadsPerIteration {
+			var workloadID workloadmeta.EntityID
+			var tags []string
+
+			// Randomly choose between container and process
+			if rng.Intn(2) == 0 {
+				containerID := fmt.Sprintf("container-%d-%d", i, j)
+				workloadID = newContainerWorkloadID(containerID)
+				tags = []string{fmt.Sprintf("service:service-%d", rng.Intn(10))}
+				setWorkloadInWorkloadMeta(t, mockWmeta, workloadID, workloadmeta.ContainerRuntimeContainerd)
+				setWorkloadTags(t, mockTagger, workloadID, tags, nil, nil)
+			} else {
+				pid := int32(i*2000 + j)
+				workloadID = newProcessWorkloadID(pid)
+				tags = []string{fmt.Sprintf("pid:%d", pid), fmt.Sprintf("nspid:%d", pid+1000)}
+				process := &workloadmeta.Process{
+					EntityID: workloadID,
+					NsPid:    pid + 1000,
+					Owner:    nil,
+				}
+				mockWmeta.Set(process)
+			}
+
+			createdWorkloads = append(createdWorkloads, createdWorkload{
+				workloadID: workloadID,
+				tags:       tags,
+			})
+
+			// Request tags to populate the cache
+			actualTags, err := cache.GetWorkloadTags(workloadID)
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tags, actualTags)
+		}
+
+		for range queryExistingWorkloads {
+			workload := createdWorkloads[rng.Intn(len(createdWorkloads))]
+
+			// Ensure that the workload is still in workloadmeta. This is just to make
+			// debugging easier, in case we get errors that are actually cased by the test logic.
+			var err error
+			switch workload.workloadID.Kind {
+			case workloadmeta.KindContainer:
+				_, err = mockWmeta.GetContainer(workload.workloadID.ID)
+			case workloadmeta.KindProcess:
+				var pid int
+				pid, err = strconv.Atoi(workload.workloadID.ID)
+				require.NoError(t, err)
+				pid32 := int32(pid)
+				_, err = mockWmeta.GetProcess(pid32)
+			}
+			require.NoError(t, err, "workload %+v is not in workloadmeta. Possible test logic error, this should not happen.", workload.workloadID)
+
+			actualTags, err := cache.GetWorkloadTags(workload.workloadID)
+			require.NoError(t, err)
+			assert.Equal(t, workload.tags, actualTags)
+		}
+
+		// Invalidate the cache
+		cache.Invalidate()
+
+		// Remove some random workloads from workloadmeta
+		removeCount := int(float64(len(createdWorkloads)) * removeRatio)
+		if removeCount > 0 && len(createdWorkloads) > 0 {
+			for k := 0; k < removeCount && len(createdWorkloads) > 0; k++ {
+				idx := rng.Intn(len(createdWorkloads))
+				workload := createdWorkloads[idx]
+
+				// Remove from workloadmeta
+				switch workload.workloadID.Kind {
+				case workloadmeta.KindContainer:
+					mockWmeta.Unset(&workloadmeta.Container{
+						EntityID: workload.workloadID,
+					})
+				case workloadmeta.KindProcess:
+					mockWmeta.Unset(&workloadmeta.Process{
+						EntityID: workload.workloadID,
+					})
+				}
+
+				createdWorkloads = slices.Delete(createdWorkloads, idx, idx+1)
+			}
+		}
+
+		// Verify cache size doesn't exceed the limit
+		cacheSizeActual := cache.Size()
+		assert.LessOrEqual(t, cacheSizeActual, cacheSize,
+			"Cache size (%d) exceeded limit (%d) at iteration %d", cacheSizeActual, cacheSize, i)
+	}
+
+	// Final verification: cache size should still be within limits
+	finalSize := cache.Size()
+	assert.LessOrEqual(t, finalSize, cacheSize,
+		"Final cache size (%d) exceeded limit (%d)", finalSize, cacheSize)
 }
