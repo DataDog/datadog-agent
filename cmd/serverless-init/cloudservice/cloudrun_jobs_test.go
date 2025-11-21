@@ -68,7 +68,7 @@ func TestCloudRunJobsGetOrigin(t *testing.T) {
 
 func TestCloudRunJobsInit(t *testing.T) {
 	service := &CloudRunJobs{}
-	assert.NoError(t, service.Init())
+	assert.NoError(t, service.Init(nil))
 }
 
 func TestIsCloudRunJob(t *testing.T) {
@@ -140,7 +140,7 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 	t.Setenv("CLOUD_RUN_JOB", "my-test-job")
 
 	jobs := &CloudRunJobs{}
-	jobs.Init()
+	jobs.Init(nil)
 
 	// Verify span was created
 	assert.NotNil(t, jobs.jobSpan)
