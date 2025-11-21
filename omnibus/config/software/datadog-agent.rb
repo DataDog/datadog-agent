@@ -335,6 +335,6 @@ build do
   block do
     # TODO: pkg_install is still buggy on Windows. Fix it and use that.
     mkdir "#{install_dir}/sources"
-    command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir=#{install_dir}/sources"
+    command_on_repo_root "BUILD_WORKSPACE_DIRECTORY=. bazelisk run -- //compliance:install_source_offers --destdir=#{install_dir}"
   end
 end
