@@ -83,25 +83,6 @@ chown -vR "${INSTALL_USER}:admin" $CONF_DIR
 mkdir -vp /usr/local/bin
 ln -vs $INSTALL_DIR/bin/agent/agent /usr/local/bin/datadog-agent
 
-# Link for conf files (let's ease the user's life)
-USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
-sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
-rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
-sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
-sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
-sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
-
-# Error if app not properly installed or root
-if [ "$INSTALL_USER" = "root" ]; then
-    echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
-    echo 'but is not configured. Running Datadog Agent as root is not advised!'
-    exit 1
-fi
-
-echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
-sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-
 if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
@@ -143,6 +124,25 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
 else
   # Per-user installation: Install GUI only for current user
   echo "# Configuring GUI for per-user installation"
+
+  # Error if app not properly installed or root
+  if [ "$INSTALL_USER" = "root" ]; then
+      echo 'INSTALL_USER is set to root, Datadog Agent app has been installed'
+      echo 'but is not configured. Running Datadog Agent as root is not advised!'
+      exit 1
+  fi
+
+  # Link for conf files (let's ease the user's life)
+  USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+  sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
+  rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
+  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
+  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
+  sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
+
+  echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
+  sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
+  sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
