@@ -1,12 +1,12 @@
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
 _SPECS = [
-    struct(os = "linux", format = "{}.so{}"),
-    struct(os = "macos", format = "{}{}.dylib"),
-    struct(os = "windows", format = "{}.dll"),
+    struct(os = "linux", prefix = "lib/", format = "{}.so{}"),
+    struct(os = "macos", prefix = "lib/", format = "{}{}.dylib"),
+    struct(os = "windows", prefix = "bin/", format = "{}.dll"),
 ]
 
-def _gen_targets(base_name, src, libname, version, prefix, spec):
+def _gen_targets(base_name, src, libname, version, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
     target = spec.format.format(libname, ".{}".format(version))
@@ -14,7 +14,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
     pkg_files(
         name = targets[-1],
         srcs = [src],
-        prefix = prefix,
+        prefix = spec.prefix,
         renames = {src: target},
         target_compatible_with = [platform],
     )
@@ -27,7 +27,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
         targets.append("{}_{}".format(name, link_name))
         pkg_mklink(
             name = targets[-1],
-            link_name = "{}{}".format(prefix, link),
+            link_name = "{}{}".format(spec.prefix, link),
             target = target,
             target_compatible_with = [platform],
         )
@@ -36,7 +36,7 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
     return platform, ":{}".format(name)
 
-def so_symlink(name, src, libname, version, prefix = "lib/"):
+def so_symlink(name, src, libname, version):
     """Creates shared library symlink chain following Unix conventions.
 
     Generates the common multilevel symlink hierarchy for shared libraries, for reference:
@@ -51,9 +51,8 @@ def so_symlink(name, src, libname, version, prefix = "lib/"):
         src: Label of the cc_shared_library to package
         libname: Library name without extension (e.g., "libreadline")
         version: Full version string (e.g., "3.0")
-        prefix: Installation directory prefix (default: "lib/")
     """
     native.alias(
         name = name,
-        actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec) for spec in _SPECS])),
+        actual = select(dict([_gen_targets(name, src, libname, version, spec) for spec in _SPECS])),
     )
