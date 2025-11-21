@@ -56,7 +56,7 @@ type redisProtocolParsingSuite struct {
 }
 
 func TestRedisMonitoring(t *testing.T) {
-	skipTestIfKernelNotSupported(t)
+	skipIfKernelNotSupported(t, redis.MinimumKernelVersion, "Redis")
 
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(redisProtocolParsingSuite))

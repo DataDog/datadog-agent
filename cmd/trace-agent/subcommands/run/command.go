@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
@@ -93,7 +94,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				// that we do not need the container tagging provided by the
 				// remote tagger in this environment, so we can use the noop
 				// tagger instead.
-				Disable: serverlessenv.IsAzureAppServicesExtension,
+				Disable: func(_ coreconfig.Component) bool { return serverlessenv.IsAzureAppServicesExtension() },
 			},
 			tagger.NewRemoteParams()),
 		fx.Invoke(func(_ config.Component) {}),
@@ -109,6 +110,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),

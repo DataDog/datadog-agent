@@ -57,12 +57,6 @@ type Config struct {
 	// This is used during reload to avoid removing all the discarders at the same time.
 	FlushDiscarderWindow int
 
-	// SocketPath is the path to the socket that is used to communicate with the security agent
-	SocketPath string
-
-	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
-	EventServerBurst int
-
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 
@@ -225,10 +219,6 @@ func NewConfig() (*Config, error) {
 		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
 		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
-		// event server
-		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
-		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
-
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
 
@@ -308,10 +298,6 @@ func (c *Config) sanitizeConfigNetwork() {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
 	}
-}
-
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
 }
 
 func getAllKeys(key string) (string, string) {
