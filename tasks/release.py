@@ -743,6 +743,32 @@ def get_release_json_value(ctx, key, release_branch=None, skip_checkout=False, w
     print(release_json)
 
 
+@task
+def celian(ctx):
+    print('config')
+    set_gitconfig_in_ci(ctx)
+
+    print('checkout')
+    ctx.run("git checkout main")
+    print('pull')
+    ctx.run("git pull origin main")
+    print('switch')
+    ctx.run("git checkout -b celian/test-push-branch")
+
+    print('write')
+    with open('hello.md', 'w') as f:
+        f.write("Celian's favorite number is 618!")
+
+    print('add')
+    ctx.run("git add hello.md")
+    print('commit')
+    ctx.run("git commit -m 'Add hello.md'")
+    # print('push')
+    # ctx.run("git push --set-upstream origin celian/test-push-branch")
+
+    print('ok')
+
+
 def create_and_update_release_branch(
     ctx, repo, release_branch, base_branch: str | None = None, base_directory="~/dd", upstream="origin"
 ):
