@@ -47,7 +47,14 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 }
 
 func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
-	// the fakeintake says that any API key is invalid by sending a 403 code
+	// restart the agent with config to check API key validation every second
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
+	))
+
+	// configure fakeintake to reject API key validation after the environment is stable
+	// this must be done after UpdateEnv to ensure the override persists even if the stack is recreated
 	override := api.ResponseOverride{
 		Endpoint:   "/api/v1/validate",
 		StatusCode: 403,
@@ -56,12 +63,6 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 	}
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
-
-	// restart the agent, which validates the key using the fakeintake at startup
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
-	))
 
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
 		// forwarder should be unhealthy because the key is invalid
