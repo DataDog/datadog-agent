@@ -43,7 +43,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.73.0-devel.0.20251119154241-4f9b6bc // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect

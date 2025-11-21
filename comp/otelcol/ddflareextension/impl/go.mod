@@ -51,7 +51,7 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.0.0-20251030121902-cd89eab046d6 // indirect
 
 require (
-	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.73.0-devel.0.20251119154241-4f9b6bc // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.259.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.49.1 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
