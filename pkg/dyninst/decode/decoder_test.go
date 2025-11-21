@@ -44,15 +44,25 @@ func FuzzDecoder(f *testing.F) {
 			EntryOrLine: output.Event(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, []byte{})
-		require.Empty(t, decoder.entry.dataItems)
-		require.Empty(t, decoder.entry.currentlyEncoding)
+		require.Empty(t, decoder.entryOrLine.dataItems)
+		require.Empty(t, decoder.entryOrLine.currentlyEncoding)
+		require.Empty(t, decoder._return.dataItems)
 	})
 }
 
 type (
-	captures      struct{ Entry struct{ Arguments any } }
-	debugger      struct{ Snapshot struct{ Captures captures } }
-	eventCaptures struct{ Debugger debugger }
+	captures struct{ Entry struct{ Arguments any } }
+	debugger struct {
+		Snapshot         struct{ Captures captures }
+		EvaluationErrors []struct {
+			Expression string `json:"expr"`
+			Message    string `json:"message"`
+		} `json:"evaluationErrors,omitempty"`
+	}
+	eventCaptures struct {
+		Debugger debugger
+		Message  string `json:"message,omitempty"`
+	}
 )
 
 // TestDecoderManually is a test that manually constructs an event and decodes
@@ -75,11 +85,14 @@ func TestDecoderManually(t *testing.T) {
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 			require.Equal(t, c.expected, e.Debugger.Snapshot.Captures.Entry.Arguments)
-			require.Empty(t, decoder.entry.dataItems)
-			require.Empty(t, decoder.entry.currentlyEncoding)
-			require.Nil(t, decoder.entry.rootType)
-			require.Nil(t, decoder.entry.rootData)
-			require.Zero(t, decoder.entry.evaluationErrors)
+			if c.expectedMessage != "" {
+				require.Equal(t, c.expectedMessage, e.Message)
+			}
+			require.Empty(t, decoder.entryOrLine.dataItems)
+			require.Empty(t, decoder.entryOrLine.currentlyEncoding)
+			require.Nil(t, decoder.entryOrLine.rootType)
+			require.Nil(t, decoder.entryOrLine.rootData)
+			require.Zero(t, decoder.entryOrLine.evaluationErrors)
 			require.Zero(t, decoder.snapshotMessage)
 		})
 	}
@@ -109,6 +122,7 @@ type testCase struct {
 	probeName        string
 	eventConstructor func(testing.TB, *ir.Program) []byte
 	expected         any
+	expectedMessage  string
 }
 
 var cases = []testCase{
@@ -116,21 +130,25 @@ var cases = []testCase{
 		probeName:        "stringArg",
 		eventConstructor: simpleStringArgEvent,
 		expected:         simpleStringArgExpected,
+		expectedMessage:  "s: abcdefghijklmnop",
 	},
 	{
 		probeName:        "mapArg",
 		eventConstructor: simpleMapArgEvent,
 		expected:         simpleMapArgExpected,
+		expectedMessage:  "m: map[a: 1]",
 	},
 	{
 		probeName:        "bigMapArg",
 		eventConstructor: simpleBigMapArgEvent,
 		expected:         simpleBigMapArgExpected,
+		expectedMessage:  "m: map[b: {Field1: 1, Field2: 0, Field3: 0, Field4: 0, Field5: 0, ...}}]",
 	},
 	{
 		probeName:        "PointerChainArg",
 		eventConstructor: simplePointerChainArgEvent,
 		expected:         simplePointerChainArgExpected,
+		expectedMessage:  "ptr: 17",
 	},
 }
 
@@ -175,14 +193,14 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	}
 	require.NotNil(t, stringType)
 	require.NotNil(t, eventType)
-	require.Equal(t, uint32(17), eventType.GetByteSize())
+	require.Equal(t, uint32(33), eventType.GetByteSize())
 
 	var item []byte
 	eventHeader := output.EventHeader{
 		Data_byte_len: uint32(
 			unsafe.Sizeof(output.EventHeader{}) +
 				1 /* bitset */ + unsafe.Sizeof(output.DataItemHeader{}) +
-				16 + 7 /* padding */ +
+				32 + 7 /* padding */ +
 				unsafe.Sizeof(output.DataItemHeader{}) +
 				16,
 		),
@@ -193,7 +211,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	}
 	dataItem0 := output.DataItemHeader{
 		Type:    uint32(eventType.GetID()),
-		Length:  17,
+		Length:  33,
 		Address: 0,
 	}
 	dataItem1 := output.DataItemHeader{
@@ -207,7 +225,11 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 1) // bitset
+	item = append(item, 3) // bitset: bit 0 (argument) and bit 1 (template_segment) set
+	// First expression (argument) at offset 1
+	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
+	item = binary.NativeEndian.AppendUint64(item, 16)
+	// Second expression (template_segment) at offset 17
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
 	item = append(item, 0, 0, 0, 0, 0, 0, 0) // padding
@@ -248,8 +270,8 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	require.NotNil(t, eventType)
-	// Expect exactly one expression for parameter 'm'
-	require.NotEmpty(t, eventType.Expressions)
+	// Expect two expressions: argument and template_segment
+	require.GreaterOrEqual(t, len(eventType.Expressions), 2)
 	paramType := eventType.Expressions[0].Expression.Type
 	var ok bool
 	mapParamType, ok = paramType.(*ir.GoMapType)
@@ -293,14 +315,18 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		strAddr     = uint64(0x300000003)
 	)
 
-	// Build root data item (presence bitset + pointer to header)
+	// Build root data item (presence bitset + pointers to header)
 	rootData := make([]byte, rootLen)
-	// Set presence bit for first expression
+	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 1
+		rootData[0] = 3 // bits 0 and 1 set
 	}
+	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
+	// Second expression (template_segment) at offset 9
+	templatePtrOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
 
 	// Build header bytes
 	headerData := make([]byte, headerLen)
@@ -497,11 +523,16 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	rootData := make([]byte, rootLen)
+	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 1
+		rootData[0] = 3 // bits 0 and 1 set
 	}
+	// First expression (argument) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
+	// Second expression (template_segment) at offset 9
+	templatePtrOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
 
 	headerData := make([]byte, headerLen)
 	binary.NativeEndian.PutUint64(headerData[countOff:countOff+8], 1)
@@ -614,8 +645,9 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	eventType := events[0].Type
 	rootLen := int(eventType.GetByteSize())
 	rootData := make([]byte, rootLen)
+	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
 	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 1
+		rootData[0] = 3 // bits 0 and 1 set
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type
@@ -639,9 +671,12 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		addr4 = uint64(0xa0000004)
 		addr5 = uint64(0xa0000005)
 	)
-	// Root data contains address of first pointer
+	// First expression (argument) at offset 1: address of first pointer
 	off := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[off:off+8], addr1)
+	// Second expression (template_segment) at offset 9: same address
+	templateOff := int(eventType.Expressions[1].Offset)
+	binary.NativeEndian.PutUint64(rootData[templateOff:templateOff+8], addr1)
 
 	// Helper to build a pointer data item (8-byte address payload)
 	makePtrItem := func(tid ir.TypeID, addr uint64, pointsTo uint64) (hdr output.DataItemHeader, data []byte) {
@@ -724,6 +759,29 @@ func fieldOffsetByName(t testing.TB, fields []ir.Field, name string) uint32 {
 	}
 	require.Failf(t, "field not found", "field %q not found", name)
 	return 0
+}
+
+// addStackToEvent adds a stack trace to an event and returns a new event with
+// the stack embedded.
+func addStackToEvent(event []byte, stack []uint64) []byte {
+	stackByteLen := len(stack) * 8
+	headerSize := int(unsafe.Sizeof(output.EventHeader{}))
+	newEvent := make([]byte, len(event)+stackByteLen)
+	copy(newEvent, event)
+	copy(newEvent[headerSize+stackByteLen:], event[headerSize:])
+	header, err := output.Event(newEvent[:len(event)]).Header()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get header: %v", err))
+	}
+	header.Data_byte_len += uint32(stackByteLen)
+	header.Stack_byte_len = uint16(stackByteLen)
+	*(*output.EventHeader)(unsafe.Pointer(&newEvent[0])) = *header
+	for i, addr := range stack {
+		binary.NativeEndian.PutUint64(
+			newEvent[headerSize+i*8:], addr,
+		)
+	}
+	return newEvent
 }
 
 type noopSymbolicator struct{}
@@ -892,4 +950,95 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	require.Contains(t, string(out), "no decoder type found")
 	require.Equal(t, buf, []byte{1, 2, 3, 4, 5})
 
+}
+
+func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
+	tests := []struct {
+		name                    string
+		pairingExpectation      output.EventPairingExpectation
+		expectedErrorExpression string
+		expectedErrorMessage    string
+		shouldHaveError         bool
+	}{
+		{
+			name:                    "return pairing expected",
+			pairingExpectation:      output.EventPairingExpectationReturnPairingExpected,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: return event not received",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "buffer full",
+			pairingExpectation:      output.EventPairingExpectationBufferFull,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: userspace buffer capacity exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "call map full",
+			pairingExpectation:      output.EventPairingExpectationCallMapFull,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: call map capacity exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:                    "call count exceeded",
+			pairingExpectation:      output.EventPairingExpectationCallCountExceeded,
+			expectedErrorExpression: "@duration",
+			expectedErrorMessage:    "no return value available: maximum call count exceeded",
+			shouldHaveError:         true,
+		},
+		{
+			name:               "no pairing expected",
+			pairingExpectation: output.EventPairingExpectationNone,
+			shouldHaveError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			irProg := generateIrForProbes(t, "simple", "stringArg")
+			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+			require.NoError(t, err)
+
+			// Construct an entry event with the specified pairing expectation
+			eventData := simpleStringArgEvent(t, irProg)
+			stack := []uint64{0x1000, 0x2000, 0x3000}
+			newEvent := addStackToEvent(eventData, stack)
+			header, err := output.Event(newEvent).Header()
+			require.NoError(t, err)
+			header.Event_pairing_expectation = uint8(tt.pairingExpectation)
+
+			buf, probe, err := decoder.Decode(Event{
+				EntryOrLine: newEvent,
+				Return:      nil, // Explicitly no return event
+				ServiceName: "foo",
+			}, &noopSymbolicator{}, []byte{})
+			require.NoError(t, err)
+			require.Equal(t, "stringArg", probe.GetID())
+
+			var e eventCaptures
+			require.NoError(t, json.Unmarshal(buf, &e))
+
+			if tt.shouldHaveError {
+				require.NotEmpty(t, e.Debugger.EvaluationErrors,
+					"expected evaluation error but none found")
+				found := false
+				for _, evalErr := range e.Debugger.EvaluationErrors {
+					if evalErr.Expression == tt.expectedErrorExpression &&
+						evalErr.Message == tt.expectedErrorMessage {
+						found = true
+						break
+					}
+				}
+				require.True(t, found,
+					"expected evaluation error with expression %q and message %q, got errors: %+v",
+					tt.expectedErrorExpression, tt.expectedErrorMessage,
+					e.Debugger.EvaluationErrors)
+			} else {
+				// Check that there's no return-related error
+				require.Empty(t, e.Debugger.EvaluationErrors)
+			}
+		})
+	}
 }
