@@ -10,20 +10,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -71,6 +79,9 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertProcessCollectedNew(c, payloads, false, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
+			"stress-ng": agentmodel.ContainerState_running,
+		})
 		assertFargateHostname(t, payloads)
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -104,6 +115,9 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
+			"stress-ng": agentmodel.ContainerState_running,
+		})
 		assertFargateHostname(t, payloads)
 	}, 5*time.Minute, 10*time.Second)
 }
