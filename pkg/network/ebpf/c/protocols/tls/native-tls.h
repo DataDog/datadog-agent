@@ -10,7 +10,7 @@
 SEC("uprobe/SSL_do_handshake")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_do_handshake, void *ssl_ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_do_handshake: pid_tgid=%llx ssl_ctx=%p", pid_tgid, ssl_ctx);
+    log_debug("guy uprobe/SSL_do_handshake: pid_tgid=%llu ssl_ctx=%p", pid_tgid, ssl_ctx);
     bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
@@ -18,7 +18,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_do_handshake, void *ssl_ctx) {
 SEC("uretprobe/SSL_do_handshake")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__SSL_do_handshake) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uretprobe/SSL_do_handshake: pid_tgid=%llx", pid_tgid);
+    log_debug("guy uretprobe/SSL_do_handshake: pid_tgid=%llu", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
@@ -26,7 +26,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__SSL_do_handshake) {
 SEC("uprobe/SSL_connect")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_connect, void *ssl_ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_connect: pid_tgid=%llx ssl_ctx=%p", pid_tgid, ssl_ctx);
+    log_debug("guy uprobe/SSL_connect: pid_tgid=%llu ssl_ctx=%p", pid_tgid, ssl_ctx);
     bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
     return 0;
 }
@@ -34,7 +34,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_connect, void *ssl_ctx) {
 SEC("uretprobe/SSL_connect")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__SSL_connect) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uretprobe/SSL_connect: pid_tgid=%llx", pid_tgid);
+    log_debug("guy uretprobe/SSL_connect: pid_tgid=%llu", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     return 0;
 }
@@ -42,7 +42,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__SSL_connect) {
 // this uprobe is essentially creating an index mapping a SSL context to a conn_tuple_t
 SEC("uprobe/SSL_set_fd")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_set_fd, void *ssl_ctx, u32 socket_fd) {
-    log_debug("uprobe/SSL_set_fd: ctx=%p fd=%d", ssl_ctx, socket_fd);
+    log_debug("guy uprobe/SSL_set_fd: ctx=%p fd=%d", ssl_ctx, socket_fd);
     init_ssl_sock(ssl_ctx, socket_fd);
     return 0;
 }
@@ -50,7 +50,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_set_fd, void *ssl_ctx, u32 socket_fd) {
 SEC("uprobe/BIO_new_socket")
 int BPF_BYPASSABLE_UPROBE(uprobe__BIO_new_socket, u32 socket_fd) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/BIO_new_socket: pid_tgid=%llx fd=%d", pid_tgid, socket_fd);
+    log_debug("guy uprobe/BIO_new_socket: pid_tgid=%llu fd=%d", pid_tgid, socket_fd);
     bpf_map_update_with_telemetry(bio_new_socket_args, &pid_tgid, &socket_fd, BPF_ANY);
     return 0;
 }
@@ -58,7 +58,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__BIO_new_socket, u32 socket_fd) {
 SEC("uretprobe/BIO_new_socket")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__BIO_new_socket, void *bio) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uretprobe/BIO_new_socket: pid_tgid=%llx", pid_tgid);
+    log_debug("guy uretprobe/BIO_new_socket: pid_tgid=%llu", pid_tgid);
     u32 *socket_fd = bpf_map_lookup_elem(&bio_new_socket_args, &pid_tgid);
     if (socket_fd == NULL) {
         return 0;
@@ -76,7 +76,7 @@ cleanup:
 
 SEC("uprobe/SSL_set_bio")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_set_bio, void *ssl_ctx, void *bio) {
-    log_debug("uprobe/SSL_set_bio: ctx=%p bio=%p", ssl_ctx, bio);
+    log_debug("guy uprobe/SSL_set_bio: ctx=%p bio=%p", ssl_ctx, bio);
     u32 *socket_fd = bpf_map_lookup_elem(&fd_by_ssl_bio, &bio);
     if (socket_fd == NULL) {
         return 0;
@@ -92,7 +92,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_read: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
+    log_debug("guy uprobe/SSL_read: pid_tgid=%llu ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_args, &pid_tgid, &args, BPF_ANY);
 
     // Trigger mapping of SSL context to connection tuple in case it is missing.
@@ -104,11 +104,11 @@ static __always_inline int SSL_read_ret(struct pt_regs *ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int len = (int)PT_REGS_RC(ctx);
     if (len <= 0) {
-        log_debug("uretprobe/SSL_read: pid_tgid=%llx ret=%d", pid_tgid, len);
+        log_debug("guy uretprobe/SSL_read: pid_tgid=%llu ret=%d", pid_tgid, len);
         goto cleanup;
     }
 
-    log_debug("uretprobe/SSL_read: pid_tgid=%llx", pid_tgid);
+    log_debug("guy uretprobe/SSL_read: pid_tgid=%llu", pid_tgid);
     ssl_read_args_t *args = bpf_map_lookup_elem(&ssl_read_args, &pid_tgid);
     if (args == NULL) {
         return 0;
@@ -117,7 +117,7 @@ static __always_inline int SSL_read_ret(struct pt_regs *ctx, __u64 tags) {
     void *ssl_ctx = args->ctx;
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (t == NULL) {
-        log_debug("uretprobe/SSL_read: pid_tgid=%llx ctx=%p: no conn tuple", pid_tgid, ssl_ctx);
+        log_debug("guy uretprobe/SSL_read: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, ssl_ctx);
         goto cleanup;
     }
 
@@ -158,15 +158,18 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_write) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_write: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
+    log_debug("guy uprobe/SSL_write: pid_tgid=%llu ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
+
+    // Trigger mapping of SSL context to connection tuple in case it is missing.
+    tup_from_ssl_ctx(args.ctx, pid_tgid);
     return 0;
 }
 
 static __always_inline int SSL_write_ret(struct pt_regs* ctx, __u64 flags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int write_len = (int)PT_REGS_RC(ctx);
-    log_debug("uretprobe/SSL_write: pid_tgid=%llx len=%d", pid_tgid, write_len);
+    log_debug("guy uretprobe/SSL_write: pid_tgid=%llu len=%d", pid_tgid, write_len);
     if (write_len <= 0) {
         goto cleanup;
     }
@@ -178,8 +181,13 @@ static __always_inline int SSL_write_ret(struct pt_regs* ctx, __u64 flags) {
 
     conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (t == NULL) {
+        log_debug("guy SSL_write_ret: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, args->ctx);
         goto cleanup;
     }
+
+    log_debug("guy | SSL_write_ret | saddr_h: %llu | saddr_l: %llu | sport: %d", t->saddr_h, t->saddr_l, t->sport);
+    log_debug("guy | SSL_write_ret | daddr_h: %llu | daddr_l: %llu | dport: %d", t->daddr_h, t->daddr_l, t->dport);
+    log_debug("guy | SSL_write_ret | pid: %u | metadata: %u | netns: %u", t->pid, t->metadata, t->netns);
 
     char *buffer_ptr = args->buf;
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
@@ -219,7 +227,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_read_ex) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_read_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
+    log_debug("guy uprobe/SSL_read_ex: pid_tgid=%llu ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_read_ex_args, &pid_tgid, &args, BPF_ANY);
 
     // Trigger mapping of SSL context to connection tuple in case it is missing.
@@ -231,32 +239,32 @@ static __always_inline int SSL_read_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
-        log_debug("uretprobe/SSL_read_ex: failed pid_tgid=%llx ret=%d", pid_tgid, return_code);
+        log_debug("guy uretprobe/SSL_read_ex: failed pid_tgid=%llu ret=%d", pid_tgid, return_code);
         goto cleanup;
     }
 
     ssl_read_ex_args_t *args = bpf_map_lookup_elem(&ssl_read_ex_args, &pid_tgid);
     if (args == NULL) {
-        log_debug("uretprobe/SSL_read_ex: no args pid_tgid=%llx", pid_tgid);
+        log_debug("guy uretprobe/SSL_read_ex: no args pid_tgid=%llu", pid_tgid);
         return 0;
     }
 
     if (args->size_out_param == NULL) {
-        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx buffer size out param is null", pid_tgid);
+        log_debug("guy uretprobe/SSL_read_ex: pid_tgid=%llu buffer size out param is null", pid_tgid);
         goto cleanup;
     }
 
     size_t bytes_count = 0;
     bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
     if ( bytes_count <= 0) {
-        log_debug("uretprobe/SSL_read_ex: read non positive number of bytes (pid_tgid=%llx len=%zu)", pid_tgid, bytes_count);
+        log_debug("guy uretprobe/SSL_read_ex: read non positive number of bytes (pid_tgid=%llu len=%zu)", pid_tgid, bytes_count);
         goto cleanup;
     }
 
     void *ssl_ctx = args->ctx;
     conn_tuple_t *conn_tuple = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
     if (conn_tuple == NULL) {
-        log_debug("uretprobe/SSL_read_ex: pid_tgid=%llx ctx=%p: no conn tuple", pid_tgid, ssl_ctx);
+        log_debug("guy uretprobe/SSL_read_ex: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, ssl_ctx);
         goto cleanup;
     }
 
@@ -293,7 +301,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__SSL_write_ex) {
     args.buf = (void *)PT_REGS_PARM2(ctx);
     args.size_out_param = (size_t *)PT_REGS_PARM4(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_write_ex: pid_tgid=%llx ctx=%p", pid_tgid, args.ctx);
+    log_debug("guy uprobe/SSL_write_ex: pid_tgid=%llu ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_write_ex_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -302,31 +310,31 @@ static __always_inline int SSL_write_ex_ret(struct pt_regs* ctx, __u64 tags) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     const int return_code = (int)PT_REGS_RC(ctx);
     if (return_code != 1) {
-        log_debug("uretprobe/SSL_write_ex: failed pid_tgid=%llx len=%d", pid_tgid, return_code);
+        log_debug("guy uretprobe/SSL_write_ex: failed pid_tgid=%llu len=%d", pid_tgid, return_code);
         goto cleanup;
     }
 
     ssl_write_ex_args_t *args = bpf_map_lookup_elem(&ssl_write_ex_args, &pid_tgid);
     if (args == NULL) {
-        log_debug("uretprobe/SSL_write_ex: no args pid_tgid=%llx", pid_tgid);
+        log_debug("guy uretprobe/SSL_write_ex: no args pid_tgid=%llu", pid_tgid);
         return 0;
     }
 
     if (args->size_out_param == NULL) {
-        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx buffer size out param is null", pid_tgid);
+        log_debug("guy uretprobe/SSL_write_ex: pid_tgid=%llu buffer size out param is null", pid_tgid);
         goto cleanup;
     }
 
     size_t bytes_count = 0;
     bpf_probe_read_user(&bytes_count, sizeof(bytes_count), args->size_out_param);
     if ( bytes_count <= 0) {
-        log_debug("uretprobe/SSL_write_ex: wrote non positive number of bytes (pid_tgid=%llx len=%zu)", pid_tgid, bytes_count);
+        log_debug("guy uretprobe/SSL_write_ex: wrote non positive number of bytes (pid_tgid=%llu len=%zu)", pid_tgid, bytes_count);
         goto cleanup;
     }
 
     conn_tuple_t *conn_tuple = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (conn_tuple == NULL) {
-        log_debug("uretprobe/SSL_write_ex: pid_tgid=%llx: no conn tuple", pid_tgid);
+        log_debug("guy uretprobe/SSL_write_ex: pid_tgid=%llu: no conn tuple", pid_tgid);
         goto cleanup;
     }
 
@@ -359,14 +367,18 @@ int BPF_BYPASSABLE_URETPROBE(nodejs_uretprobe__SSL_write_ex) {
 SEC("uprobe/SSL_shutdown")
 int BPF_BYPASSABLE_UPROBE(uprobe__SSL_shutdown, void *ssl_ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/SSL_shutdown: pid_tgid=%llx ctx=%p", pid_tgid, ssl_ctx);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_ctx, pid_tgid);
+    log_debug("guy uprobe/SSL_shutdown: pid_tgid=%llu ctx=%p", pid_tgid, ssl_ctx);
+    my_key_t m = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_ctx,
+    };
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &m);
     if (t == NULL) {
+        log_debug("guy SSL_shutdown: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, ssl_ctx);
         return 0;
     }
 
-    // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_ctx);
     tls_finish(ctx, t, false);
 
     return 0;
@@ -395,7 +407,7 @@ SEC("uprobe/gnutls_transport_set_int2")
 int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_transport_set_int2, void *ssl_session, int recv_fd) {
     // Use the recv_fd and ignore the send_fd;
     // in most real-world scenarios, they are the same.
-    log_debug("gnutls_transport_set_int2: ctx=%p fd=%d", ssl_session, recv_fd);
+    log_debug("guy gnutls_transport_set_int2: ctx=%p fd=%d", ssl_session, recv_fd);
 
     init_ssl_sock(ssl_session, (u32)recv_fd);
     return 0;
@@ -406,7 +418,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_transport_set_int2, void *ssl_session, 
 SEC("uprobe/gnutls_transport_set_ptr")
 int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_transport_set_ptr, void *ssl_session, int fd) {
     // This is a void*, but it might contain the socket fd cast as a pointer.
-    log_debug("gnutls_transport_set_ptr: ctx=%p fd=%d", ssl_session, fd);
+    log_debug("guy gnutls_transport_set_ptr: ctx=%p fd=%d", ssl_session, fd);
 
     init_ssl_sock(ssl_session, (u32)fd);
     return 0;
@@ -457,6 +469,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_recv, ssize_t read_len) {
     log_debug("uret/gnutls_record_recv: pid=%llu ctx=%p", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
     if (t == NULL) {
+        log_debug("guy gnutls_record_recv: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, ssl_session);
         goto cleanup;
     }
 
@@ -483,7 +496,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_record_send) {
     args.ctx = (void *)PT_REGS_PARM1(ctx);
     args.buf = (void *)PT_REGS_PARM2(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uprobe/gnutls_record_send: pid=%llu ctx=%p", pid_tgid, args.ctx);
+    log_debug("guy uprobe/gnutls_record_send: pid=%llu ctx=%p", pid_tgid, args.ctx);
     bpf_map_update_with_telemetry(ssl_write_args, &pid_tgid, &args, BPF_ANY);
     return 0;
 }
@@ -491,7 +504,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_record_send) {
 SEC("uretprobe/gnutls_record_send")
 int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_send, ssize_t write_len) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("uretprobe/gnutls_record_send: pid=%llu len=%zd", pid_tgid, write_len);
+    log_debug("guy uretprobe/gnutls_record_send: pid=%llu len=%zd", pid_tgid, write_len);
     if (write_len <= 0) {
         goto cleanup;
     }
@@ -503,6 +516,7 @@ int BPF_BYPASSABLE_URETPROBE(uretprobe__gnutls_record_send, ssize_t write_len) {
 
     conn_tuple_t *t = tup_from_ssl_ctx(args->ctx, pid_tgid);
     if (t == NULL) {
+        log_debug("guy gnutls_record_send: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, args->ctx);
         goto cleanup;
     }
 
@@ -524,14 +538,18 @@ cleanup:
 
 static __always_inline void gnutls_goodbye(struct pt_regs *ctx, void *ssl_session) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
+    log_debug("guy gnutls_goodbye: pid=%llu ctx=%p", pid_tgid, ssl_session);
     conn_tuple_t *t = tup_from_ssl_ctx(ssl_session, pid_tgid);
+    my_key_t m = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_session,
+    };
+    // tls_finish can launch a tail call, thus cleanup should be done before.
+    bpf_map_delete_elem(&ssl_sock_by_ctx, &m);
     if (t == NULL) {
+        log_debug("guy gnutls_goodbye: pid_tgid=%llu ctx=%p: no conn tuple", pid_tgid, ssl_session);
         return;
     }
-
-    // tls_finish can launch a tail call, thus cleanup should be done before.
-    bpf_map_delete_elem(&ssl_sock_by_ctx, &ssl_session);
     tls_finish(ctx, t, false);
 }
 
@@ -551,7 +569,7 @@ int BPF_BYPASSABLE_UPROBE(uprobe__gnutls_deinit, void *ssl_session) {
 
 SEC("kprobe/tcp_sendmsg")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
-    log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
+    log_debug("guy kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
     return 0;
@@ -564,6 +582,7 @@ static __always_inline void delete_pid_in_maps() {
     bpf_map_delete_elem(&ssl_read_ex_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_write_args, &pid_tgid);
     bpf_map_delete_elem(&ssl_write_ex_args, &pid_tgid);
+    log_debug("guy | delete_pid_in_maps | pid tgid: %llu", pid_tgid);
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     bpf_map_delete_elem(&bio_new_socket_args, &pid_tgid);
 }

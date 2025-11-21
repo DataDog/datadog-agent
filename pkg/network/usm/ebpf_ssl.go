@@ -600,10 +600,10 @@ func (o *sslProgram) initAllMapCleaners() error {
 		return err
 	}
 
-	o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
-	if err != nil {
-		return err
-	}
+	// o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
+	// if err != nil {
+	// 	return err
+	// }
 
 	o.sslCtxByTupleMapCleaner, err = initMapCleaner[http.ConnTuple, uint64](o.ebpfManager, sslCtxByTupleMap, UsmTLSAttacherName)
 	if err != nil {
@@ -821,10 +821,10 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 	})
 
 	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
-	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
-		_, shouldClean := sslCtxToClean[sslCtx]
-		return shouldClean
-	})
+	// o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
+	// 	_, shouldClean := sslCtxToClean[sslCtx]
+	// 	return shouldClean
+	// })
 
 	// Third pass: Clean ssl_ctx_by_tuple map using collected SSL contexts
 	o.sslCtxByTupleMapCleaner.Clean(nil, nil, func(_ int64, _ http.ConnTuple, sslCtx uint64) bool {

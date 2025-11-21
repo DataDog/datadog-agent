@@ -65,24 +65,24 @@ update_stack:
 
 /*
  * Processes decrypted TLS traffic and dispatches it to appropriate protocol handlers.
- * 
+ *
  * This function is called by various TLS hookpoints (OpenSSL, GnuTLS, GoTLS, JavaTLS)
  * to process decrypted TLS payloads. It manages the protocol stack for each connection,
  * classifies the decrypted payload if the application protocol is not yet known, and
  * dispatches the traffic to the appropriate protocol handler via tail calls.
- * 
+ *
  * The function first creates or retrieves a protocol stack for the connection. If the
  * application protocol is unknown, it attempts to classify the payload. For Kafka traffic,
  * an additional classification step may be performed via a tail call if Kafka monitoring
  * is enabled.
- * 
+ *
  * For each supported protocol, the function performs a tail call to a dedicated handler:
  * - HTTP: PROG_HTTP
  * - HTTP2: PROG_HTTP2_HANDLE_FIRST_FRAME
  * - Kafka: PROG_KAFKA
  * - PostgreSQL: PROG_POSTGRES
  * - Redis: PROG_REDIS
- * 
+ *
  * The function takes the BPF program context, connection metadata (tuple), a pointer to
  * the decrypted payload and its length, and connection metadata tags as input.
  */
@@ -269,7 +269,11 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
 }
 
 static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgid) {
-    ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &ssl_ctx);
+    my_key_t m = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_ctx,
+    };
+    ssl_sock_t *ssl_sock = bpf_map_lookup_elem(&ssl_sock_by_ctx, &m);
     if (ssl_sock == NULL) {
         // Best-effort fallback mechanism to guess the socket address without
         // intercepting the SSL socket initialization. This improves the the quality
@@ -282,7 +286,8 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         // then followed by the execution of tcp_sendmsg within the same CPU
         // context. This is not necessarily true for all cases (such as when
         // using the async SSL API) but seems to work on most-cases.
-        bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
+        log_debug("guy | tup_from_ssl_ctx | setting pid %llu ctx %p", pid_tgid, ssl_ctx);
+        bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &m, BPF_ANY);
         return NULL;
     }
 
@@ -308,25 +313,44 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
 static __always_inline void init_ssl_sock(void *ssl_ctx, u32 socket_fd) {
     ssl_sock_t ssl_sock = { 0 };
     ssl_sock.fd = socket_fd;
-    bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+
+    my_key_t m = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_ctx,
+    };
+    bpf_map_update_with_telemetry(ssl_sock_by_ctx, &m, &ssl_sock, BPF_ANY);
+    log_debug("guy | init_ssl_sock | pid: %llu; ctx: %p", pid_tgid, ssl_ctx);
+//    bpf_map_update_with_telemetry(ssl_ctx_by_pid_tgid, &pid_tgid, &ssl_ctx, BPF_ANY);
 }
 
 static __always_inline void map_ssl_ctx_to_sock(struct sock *skp) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     void **ssl_ctx_map_val = bpf_map_lookup_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
     if (ssl_ctx_map_val == NULL) {
+        log_debug("guy | map_ssl_ctx_to_sock (1) | pid: %llu", pid_tgid);
         return;
     }
     bpf_map_delete_elem(&ssl_ctx_by_pid_tgid, &pid_tgid);
 
     ssl_sock_t ssl_sock = {};
     if (!read_conn_tuple(&ssl_sock.tup, skp, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("guy | map_ssl_ctx_to_sock (2) | pid: %llu", pid_tgid);
         return;
     }
 
     // copy map value to stack. required for older kernels
     void *ssl_ctx = *ssl_ctx_map_val;
-    bpf_map_update_with_telemetry(ssl_sock_by_ctx, &ssl_ctx, &ssl_sock, BPF_ANY);
+    log_debug("guy | map_ssl_ctx_to_sock (3) | pid: %llu", pid_tgid);
+    log_debug("guy | map_ssl_ctx_to_sock (3) | saddr_h: %llu | saddr_l: %llu | sport: %d", ssl_sock.tup.saddr_h, ssl_sock.tup.saddr_l, ssl_sock.tup.sport);
+    log_debug("guy | map_ssl_ctx_to_sock (3) | daddr_h: %llu | daddr_l: %llu | dport: %d", ssl_sock.tup.daddr_h, ssl_sock.tup.daddr_l, ssl_sock.tup.dport);
+    log_debug("guy | map_ssl_ctx_to_sock (3) | pid: %u | metadata: %u | netns: %u", ssl_sock.tup.pid, ssl_sock.tup.metadata, ssl_sock.tup.netns);
+    my_key_t m = {
+        .pid_tgid = pid_tgid,
+        .ctx = ssl_ctx,
+    };
+    bpf_map_update_with_telemetry(ssl_sock_by_ctx, &m, &ssl_sock, BPF_ANY);
     bpf_map_update_with_telemetry(ssl_ctx_by_tuple, &ssl_sock.tup, &ssl_ctx, BPF_ANY);
 }
 

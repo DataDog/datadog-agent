@@ -3,7 +3,12 @@
 
 #include "map-defs.h"
 
-BPF_HASH_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 1)
+typedef struct {
+    __u64 pid_tgid;
+    void *ctx;
+} my_key_t;
+
+BPF_HASH_MAP(ssl_sock_by_ctx, my_key_t, ssl_sock_t, 1)
 
 BPF_HASH_MAP(ssl_ctx_by_tuple, conn_tuple_t, void *, 1)
 

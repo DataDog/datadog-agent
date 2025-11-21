@@ -344,6 +344,7 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 current_stream->status_code.finalized = true;
                 __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (is_path_index(current_header->index)) {
+                bpf_printk("guy | http2 | path");
                 current_stream->path.static_table_entry = current_header->index;
                 current_stream->path.finalized = true;
             }
@@ -357,6 +358,7 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 break;
             }
             if (is_path_index(dynamic_value->original_index)) {
+                bpf_printk("guy | http2 | path (2)");
                 current_stream->path.length = dynamic_value->string_len;
                 current_stream->path.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->path.finalized = true;
@@ -382,6 +384,10 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
             }
             if (is_path_index(current_header->original_index)) {
+                bpf_printk("guy | http2 | path (3)");
+                bpf_printk("guy | http2 | saddr_h: %llu | saddr_l: %llu | sport: %d", dynamic_index->tup.saddr_h, dynamic_index->tup.saddr_l, dynamic_index->tup.sport);
+                bpf_printk("guy | http2 | daddr_h: %llu | daddr_l: %llu | dport: %d", dynamic_index->tup.daddr_h, dynamic_index->tup.daddr_l, dynamic_index->tup.dport);
+                bpf_printk("guy | http2 | pid: %u | metadata: %u | netns: %u", dynamic_index->tup.pid, dynamic_index->tup.metadata, dynamic_index->tup.netns);
                 current_stream->path.length = current_header->new_dynamic_value_size;
                 current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->path.finalized = true;
@@ -930,7 +936,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         }
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
-        
+
          // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
                 // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
         if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {

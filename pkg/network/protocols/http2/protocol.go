@@ -418,6 +418,7 @@ func (p *Protocol) processHTTP2(events []EbpfTx) {
 		}
 		p.telemetry.Count(eventWrapper)
 		p.statkeeper.Process(eventWrapper)
+		fmt.Printf("guy | http2 | tx: %s\n", eventWrapper)
 	}
 }
 
