@@ -82,6 +82,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "map[foo: 1, bar: 2]"
   }
 ]
