@@ -11,7 +11,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.9
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.37.0
+	golang.org/x/sys v0.38.0
 )
 
 require (
