@@ -997,19 +997,36 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 		model.InitSSHAuthMethodConstants()
 	}
 
-	return &UserSessionContextSerializer{
-		K8SSessionID:  fmt.Sprintf("%x", ctx.K8SSessionID),
-		SessionType:   model.UserSessionTypeStrings[usersession.Type(ctx.SessionType)],
-		K8SUsername:   ctx.K8SUsername,
-		K8SUID:        ctx.K8SUID,
-		K8SGroups:     ctx.K8SGroups,
-		K8SExtra:      ctx.K8SExtra,
-		SSHSessionID:  fmt.Sprintf("%x", ctx.SSHSessionID),
-		SSHPort:       ctx.SSHPort,
-		SSHClientIP:   ctx.SSHClientIP.IP.String(),
-		SSHAuthMethod: model.SSHAuthMethodStrings[usersession.AuthType(ctx.SSHAuthMethod)],
-		SSHPublicKey:  ctx.SSHPublicKey,
+	userSessionContextSerializer := &UserSessionContextSerializer{
+		SessionType: model.UserSessionTypeStrings[usersession.Type(ctx.SessionType)],
 	}
+
+	if ctx.K8SSessionID != 0 {
+		userSessionContextSerializer.K8SSessionID = fmt.Sprintf("%x", ctx.K8SSessionID)
+		userSessionContextSerializer.K8SUsername = ctx.K8SUsername
+		userSessionContextSerializer.K8SUID = ctx.K8SUID
+		userSessionContextSerializer.K8SGroups = ctx.K8SGroups
+		userSessionContextSerializer.K8SExtra = ctx.K8SExtra
+	}
+	if ctx.SSHSessionID != 0 {
+		sshClientIP := ctx.SSHClientIP.IP.String()
+		if sshClientIP == "<nil>" {
+			sshClientIP = ""
+		}
+
+		sshAuthMethod := model.SSHAuthMethodStrings[usersession.AuthType(ctx.SSHAuthMethod)]
+		if sshAuthMethod == "<nil>" {
+			sshAuthMethod = ""
+		}
+
+		userSessionContextSerializer.SSHSessionID = fmt.Sprintf("%x", ctx.SSHSessionID)
+		userSessionContextSerializer.SSHPort = ctx.SSHPort
+		userSessionContextSerializer.SSHClientIP = sshClientIP
+		userSessionContextSerializer.SSHAuthMethod = sshAuthMethod
+		userSessionContextSerializer.SSHPublicKey = ctx.SSHPublicKey
+	}
+
+	return userSessionContextSerializer
 }
 
 func newUserContextSerializer(e *model.Event) *UserContextSerializer {
