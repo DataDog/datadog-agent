@@ -25,6 +25,7 @@ license_csv(
 pkg_files(
     name = "source_offers",
     srcs = [":sources.txt"],
+    # Must be writable or the signing step in finalize fails.
     attributes = pkg_attributes(
         mode = "0644",
     ),
