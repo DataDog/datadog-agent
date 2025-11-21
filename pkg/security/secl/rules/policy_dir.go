@@ -35,22 +35,22 @@ func (p *PoliciesDirProvider) Start() {}
 func (p *PoliciesDirProvider) loadPolicy(filename string, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return nil, &ErrPolicyLoad{Name: filename, Source: PolicyProviderTypeDir, ContentType: "", Err: err}
+		return nil, &ErrPolicyLoad{Name: filename, Source: PolicyProviderTypeDir, Type: "", Err: err}
 	}
 	defer f.Close()
 
 	name := filepath.Base(filename)
-	var policyType PolicyType
+	var internalPolicyType InternalPolicyType
 	if name == DefaultPolicyName {
-		policyType = DefaultPolicyType
+		internalPolicyType = DefaultPolicyType
 	} else {
-		policyType = CustomPolicyType
+		internalPolicyType = CustomPolicyType
 	}
 
 	pInfo := &PolicyInfo{
-		Name:   name,
-		Source: PolicyProviderTypeDir,
-		Type:   policyType,
+		Name:         name,
+		Source:       PolicyProviderTypeDir,
+		InternalType: internalPolicyType,
 	}
 
 	return LoadPolicy(pInfo, f, macroFilters, ruleFilters)
