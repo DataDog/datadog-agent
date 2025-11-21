@@ -641,6 +641,8 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 
 		// Stream-level gRPC status (non-OK): RPC is over → signal receiver failure or block terminal
 		if st, ok := status.FromError(err); ok {
+			log.Warnf("Worker %s: recv: gRPC error (code %v): %v", s.workerID, st.Code(), err)
+
 			switch st.Code() {
 			case codes.Unauthenticated, codes.PermissionDenied:
 				// Terminal until fixed; do not signal receiver failure here
@@ -652,7 +654,6 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 				return
 			default:
 				// All other non-OK statuses: signal receiver failure
-				log.Warnf("Worker %s: gRPC error (code %v): %v", s.workerID, st.Code(), err)
 				s.signalRecvFailure(streamInfo)
 				return
 			}
