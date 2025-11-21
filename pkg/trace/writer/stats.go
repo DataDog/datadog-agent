@@ -50,7 +50,7 @@ type DatadogStatsWriter struct {
 	statsLastMinute *info.StatsWriterInfo // aggregated stats over the last minute. Shared with info package
 	conf            *config.AgentConfig
 
-	containerTagsBuffer *containertagsbuffer.ContainerTagsBuffer
+	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -69,7 +69,7 @@ func NewStatsWriter(
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
-	containerTagsBuffer *containertagsbuffer.ContainerTagsBuffer,
+	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer,
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
 		stats:               &info.StatsWriterInfo{},

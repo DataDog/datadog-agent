@@ -110,7 +110,7 @@ type Agent struct {
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
-	ContainerTagsBuffer   *containertagsbuffer.ContainerTagsBuffer
+	ContainerTagsBuffer   containertagsbuffer.ContainerTagsBuffer
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
 	PrioritySampler       *sampler.PrioritySampler
@@ -567,7 +567,7 @@ func (a *Agent) writeChunks(p *writer.SampledChunks) {
 	a.ContainerTagsBuffer.AsyncEnrichment(p.TracerPayload.ContainerID, fn, int64(p.Size))
 }
 
-// enrichTracesWithCtags modifies the trace payload in-place by appending container tags.
+// enrichTracesWithCtags modifies the trace payload in-place by overriding container tags.
 func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error) {
 	if err != nil {
 		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)

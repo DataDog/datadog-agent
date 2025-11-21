@@ -20,14 +20,15 @@ import (
 const (
 	maxBufferDuration = 10 * time.Second
 
-	metricMemoryUsage     = "datadog.trace_agent.tag_buffer.memory_usage"
-	metricPayloadsPending = "datadog.trace_agent.tag_buffer.pending_payloads"
-	metricDenied          = "datadog.trace_agent.tag_buffer.denied_payloads"
+	metricMemoryUsage      = "datadog.trace_agent.tag_buffer.memory_usage"
+	metricPayloadsPending  = "datadog.trace_agent.tag_buffer.pending_payloads"
+	metricPayloadsBuffered = "datadog.trace_agent.tag_buffer.buffered_payloads"
+	metricDenied           = "datadog.trace_agent.tag_buffer.denied_payloads"
 )
 
 // ContainerTagsBuffer is a buffer for container tag resolution.
 //
-// In kubenetes, container start and emits spans before container tags
+// In kubernetes, containers start and emit spans before container tags
 // (pod, deployment..) are extracted from the kubelet.
 // This buffer holds incoming tagging requests until specific tags (e.g., "kube_pod_name")
 //
@@ -36,11 +37,17 @@ const (
 // - payloads can't be buffered more then `maxBufferDuration`
 // - if we failed the resolution of a containerID before the time limit, further payloads
 // from this containerID are not buffered
-type ContainerTagsBuffer struct {
-	conf         *config.AgentConfig
-	resolveFunc  func(string) ([]string, error)
-	isKubernetes func() bool
-	statsd       statsd.ClientInterface
+type ContainerTagsBuffer interface {
+	Start()
+	Stop()
+	IsEnabled() bool
+	AsyncEnrichment(containerID string, applyResult func([]string, error), payloadSize int64) (pending bool)
+}
+
+type containerTagsBuffer struct {
+	conf        *config.AgentConfig
+	resolveFunc func(string) ([]string, error)
+	statsd      statsd.ClientInterface
 
 	in        chan bufferInput
 	stopCh    chan struct{}
@@ -57,14 +64,27 @@ type ContainerTagsBuffer struct {
 	memoryUsage atomic.Int64
 
 	// shared stats
-	hitHardTimeLimit     atomic.Int64
-	hitMemoryLimit       atomic.Int64
-	totalPayloadsPending atomic.Int64
+	hitHardTimeLimit      atomic.Int64
+	hitMemoryLimit        atomic.Int64
+	totalPayloadsPending  atomic.Int64
+	totalPayloadsBuffered atomic.Int64
 }
 
-// NewContainerTagsBuffer creates a new buffer instance.
-func NewContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterface) *ContainerTagsBuffer {
-	ctb := &ContainerTagsBuffer{
+// NewContainerTagsBuffer creates a new buffer if it's enabled in configuration and the agent is in kubernetes
+// elses returns a NoOpTagBuffer
+func NewContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterface) ContainerTagsBuffer {
+	if !env.IsFeaturePresent(env.Kubernetes) {
+		return &NoOpTagsBuffer{}
+	}
+	if !conf.ContainerTagsBuffer {
+		return &NoOpTagsBuffer{}
+	}
+
+	return newContainerTagsBuffer(conf, statsd)
+}
+
+func newContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterface) *containerTagsBuffer {
+	ctb := &containerTagsBuffer{
 		conf:             conf,
 		statsd:           statsd,
 		in:               make(chan bufferInput, 5),
@@ -77,18 +97,17 @@ func NewContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterf
 		maxSize:        int64(conf.MaxMemory * 0.1),
 	}
 	ctb.resolveFunc = conf.ContainerTags
-	ctb.isKubernetes = func() bool { return env.IsFeaturePresent(env.Kubernetes) }
 	return ctb
 }
 
-func (p *ContainerTagsBuffer) forceFlush() {
+func (p *containerTagsBuffer) forceFlush() {
 	for cid, buffer := range p.containersBuffer {
 		ctags, _, err := p.resolveContainerTagsWithSource(cid)
 		buffer.flush(tagResult{tags: ctags, err: err})
 	}
 }
 
-func (p *ContainerTagsBuffer) resolvePendingContainers(now time.Time) {
+func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 	for cid, buffer := range p.containersBuffer {
 		ctags, okSources, err := p.resolveContainerTagsWithSource(cid)
 		// happy path, we resolved containers
@@ -105,8 +124,8 @@ func (p *ContainerTagsBuffer) resolvePendingContainers(now time.Time) {
 	}
 }
 
-// Stop flushed all pending payloads and stops the worker
-func (p *ContainerTagsBuffer) Stop() {
+// Stop flushes all pending payloads and stops the worker
+func (p *containerTagsBuffer) Stop() {
 	close(p.stopCh)
 }
 
@@ -114,7 +133,7 @@ func (p *ContainerTagsBuffer) Stop() {
 // 1. enqueues pre-validated buffer requests (memory usage is taken in account prior)
 // 2. retries periodically tag resolution
 // 3. flushes when max buffer duration is exceeded
-func (p *ContainerTagsBuffer) Start() {
+func (p *containerTagsBuffer) Start() {
 	p.isRunning.Store(true)
 	go func() {
 		resolveTicker := time.NewTicker(1 * time.Second)
@@ -137,12 +156,15 @@ func (p *ContainerTagsBuffer) Start() {
 	}()
 }
 
-func (p *ContainerTagsBuffer) report() {
+func (p *containerTagsBuffer) report() {
 	if hardTimeLimit := p.hitHardTimeLimit.Swap(0); hardTimeLimit > 0 {
 		_ = p.statsd.Count(metricDenied, hardTimeLimit, []string{"reason:hardtimelimit"}, 1)
 	}
 	if memoryLimit := p.hitMemoryLimit.Swap(0); memoryLimit > 0 {
 		_ = p.statsd.Count(metricDenied, memoryLimit, []string{"reason:memorylimit"}, 1)
+	}
+	if payloadsBuffered := p.totalPayloadsBuffered.Swap(0); payloadsBuffered > 0 {
+		_ = p.statsd.Count(metricPayloadsBuffered, payloadsBuffered, nil, 1)
 	}
 	payloadsPending := p.totalPayloadsPending.Load()
 	_ = p.statsd.Gauge(metricPayloadsPending, float64(payloadsPending), nil, 1)
@@ -150,7 +172,7 @@ func (p *ContainerTagsBuffer) report() {
 	_ = p.statsd.Gauge(metricMemoryUsage, float64(memoryUsage), nil, 1)
 }
 
-func (p *ContainerTagsBuffer) buffer(in bufferInput) {
+func (p *containerTagsBuffer) buffer(in bufferInput) {
 	cb, ok := p.containersBuffer[in.cid]
 	if !ok {
 		cb = containerBuffer{
@@ -163,21 +185,12 @@ func (p *ContainerTagsBuffer) buffer(in bufferInput) {
 	p.containersBuffer[in.cid] = cb
 }
 
-// IsEnabled checks if the buffering logic should run
-// 1. feature is enabled in the AgentConfig.
-// 2. agent is running in a Kubernetes environment.
-// 3. buffer background worker is running
-func (p *ContainerTagsBuffer) IsEnabled() bool {
-	if !p.conf.ContainerTagsBuffer {
-		return false
-	}
-	if !p.isKubernetes() {
-		return false
-	}
+// IsEnabled is true if the buffer has been started
+func (p *containerTagsBuffer) IsEnabled() bool {
 	return p.isRunning.Load()
 }
 
-func (p *ContainerTagsBuffer) resolveContainerTagsWithSource(containerID string) ([]string, bool, error) {
+func (p *containerTagsBuffer) resolveContainerTagsWithSource(containerID string) ([]string, bool, error) {
 	ctags, err := p.resolveFunc(containerID)
 	// cheat - testing kube tag presence, waiting for tagger to expose source
 	var okSource bool
@@ -191,7 +204,7 @@ func (p *ContainerTagsBuffer) resolveContainerTagsWithSource(containerID string)
 	return ctags, okSource, err
 }
 
-func (p *ContainerTagsBuffer) registerMemory(payloadSize int64) (bool, func()) {
+func (p *containerTagsBuffer) registerMemory(payloadSize int64) (bool, func()) {
 	releaseMemory := func() {
 		p.memoryUsage.Add(-payloadSize)
 	}
@@ -213,7 +226,7 @@ func (p *ContainerTagsBuffer) registerMemory(payloadSize int64) (bool, func()) {
 //   - true (Pending): The container is missing critical tags (e.g., "kube_") and resolution is buffered
 //   - false (Resolved/Skipped): The tags are ready, the buffer is full, or the container is denied.
 //     The 'applyResult' callback has already been called synchronously.
-func (p *ContainerTagsBuffer) AsyncEnrichment(containerID string, applyResult func([]string, error), payloadSize int64) (pending bool) {
+func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult func([]string, error), payloadSize int64) (pending bool) {
 	ctags, okSources, err := p.resolveContainerTagsWithSource(containerID)
 	// happy path complete container tags
 	if okSources && err == nil {
@@ -237,11 +250,12 @@ func (p *ContainerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 		return false
 	}
 	p.totalPayloadsPending.Add(1)
-	defer p.totalPayloadsPending.Add(-1)
+	p.totalPayloadsBuffered.Add(1)
 
 	resChan := make(chan tagResult, 1)
 	go func() {
 		defer releasePayloadSize()
+		defer p.totalPayloadsPending.Add(-1)
 		p.in <- bufferInput{
 			cid:      containerID,
 			now:      now,

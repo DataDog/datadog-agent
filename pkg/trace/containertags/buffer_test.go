@@ -40,12 +40,11 @@ func (m *mockResolver) Resolve(string) ([]string, error) {
 func TestBuffer_DelayedSuccess(t *testing.T) {
 	mock := &mockResolver{tags: []string{"short_image:java"}}
 
-	buff := NewContainerTagsBuffer(&config.AgentConfig{
+	buff := newContainerTagsBuffer(&config.AgentConfig{
 		ContainerTagsBuffer: true,
 		MaxMemory:           2000.0,
 	}, &statsd.NoOpClient{})
 	buff.resolveFunc = mock.Resolve
-	buff.isKubernetes = func() bool { return true }
 	buff.Start()
 	defer close(buff.stopCh)
 
@@ -78,24 +77,19 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 
 func TestIsEnabled(t *testing.T) {
 	tests := []struct {
-		name         string
-		configEnable bool
-		running      bool
-		isKube       bool
-		expected     bool
+		name     string
+		running  bool
+		expected bool
 	}{
-		{"Enabled and Running and Kube", true, true, true, true},
-		{"Disabled in Config", false, true, true, false},
-		{"Not Kube", true, true, false, false},
-		{"Not running", true, false, true, false},
+		{"Running", true, true},
+		{"Not running", false, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := &config.AgentConfig{ContainerTagsBuffer: tt.configEnable}
-			ctb := NewContainerTagsBuffer(conf, &statsd.NoOpClient{})
+			conf := &config.AgentConfig{}
+			ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 
-			ctb.isKubernetes = func() bool { return tt.isKube }
 			if tt.running {
 				ctb.Start()
 			}
@@ -115,8 +109,7 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 		},
 	}
 
-	ctb := NewContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.isKubernetes = func() bool { return true }
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.Start()
 	defer ctb.Stop()
 
@@ -143,8 +136,7 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 		ContainerTags:       mock.Resolve,
 	}
 
-	ctb := NewContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.isKubernetes = func() bool { return true }
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.Start()
 	defer ctb.Stop()
 
@@ -181,8 +173,7 @@ func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
 			return []string{"kube_pod_name:abc", "image:123"}, nil
 		},
 	}
-	ctb := NewContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.isKubernetes = func() bool { return true }
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.Start()
 	defer ctb.Stop()
 
@@ -209,8 +200,7 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 		},
 	}
 
-	ctb := NewContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.isKubernetes = func() bool { return true }
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.bufferDuration = 1 * time.Nanosecond
 	ctb.Start()
 
@@ -244,8 +234,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 		},
 	}
 
-	ctb := NewContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.isKubernetes = func() bool { return true }
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
 	ctb.hardTimeLimit = 1 * time.Nanosecond
 	ctb.Start()
 
