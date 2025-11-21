@@ -45,3 +45,5 @@ license_csv(
     tags = ["manual"],
     target = ":all_deps",
 )
+
+exports_files(["python3/test_module.sh"])

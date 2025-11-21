@@ -570,6 +570,16 @@ cc_binary(
 ]
 
 [
+    sh_test(
+        name = "test_module_" + name,
+        srcs = ["@@//deps:python3/test_module.sh"],
+        args = ["$(location :python3)", name],
+        data = [":python3"],
+    )
+    for name in PYTHON_MODULES.keys()
+]
+
+[
     python_freeze(
         name = "frozen_" + name,
         input = info['src'],
