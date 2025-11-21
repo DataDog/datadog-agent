@@ -252,6 +252,7 @@ cc_library(
             "src/x86/internal.h",
             "src/x86/internal64.h",
             "src/x86/unix64.S",
+            "src/x86/sysv.S",
         ],
         "//conditions:default": [],
     }),
