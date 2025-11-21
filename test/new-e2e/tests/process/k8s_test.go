@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -76,6 +77,9 @@ func TestK8sTestSuite(t *testing.T) {
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", "", false, nil)
+			}),
 			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 		)),
 	}
@@ -118,6 +122,7 @@ func (s *K8sSuite) TestManualProcessDiscoveryCheck() {
 func (s *K8sSuite) TestManualContainerCheck() {
 	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "container")
 	assertManualContainerCheck(s.T(), checkOutput, "stress-ng")
+	assertAbsentManualContainerCheck(s.T(), checkOutput, "nginx")
 }
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
