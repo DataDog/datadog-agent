@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package intake;
+package datadog.intake.stateful;
 option go_package = "pkg/proto/pbgo/statefulpb";
 
 // ---------------------------------------------------------------------------
@@ -37,12 +37,24 @@ message PatternDelete {
 // Log payload
 // ---------------------------------------------------------------------------
 
+message Tag {
+  DynamicValue key = 1;
+  DynamicValue value = 2;
+}
+
 message Log {
   uint64 timestamp = 1;
   oneof content {
     StructuredLog structured = 2;
     string raw = 3;
   }
+  
+  // TODO: right now we are assuming logs are attached per tag - in the future we may have common tags in the stream
+  // state and auto-populate them downstream.
+  // Required tags: `service`, `hostname`,
+  // Other tags on agent payload: `status`, `source`
+  // All other tags are sent as `ddtags`
+    repeated Tag tags = 4;
 }
 
 message StructuredLog {
@@ -93,10 +105,10 @@ message StatefulBatch {
 message BatchStatus {
   uint32 batch_id = 1;
 
-  // See Status Code Mappings section below for more details
+  // TODO: only OK is used right now - should we just remove this enum?
   enum Status {
-     UNKNOWN=0;
-     OK=1;
+    UNKNOWN = 0;
+    OK = 1;
   }
   Status status = 2;
 }
