@@ -10,6 +10,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -39,11 +40,14 @@ func fixtureHandler(payload string) http.HandlerFunc {
 }
 
 func serverURL(server *httptest.Server) (string, string, error) {
-	splitURL := strings.Split(strings.TrimPrefix(server.URL, "http://"), ":")
-	if len(splitURL) < 2 {
-		return "", "", fmt.Errorf("failed to parse test server URL: %s", server.URL)
+	// Use net.SplitHostPort to properly handle both IPv4 and IPv6 addresses
+	// httptest.Server.URL is in the format "http://host:port" or "http://[::1]:port"
+	urlWithoutScheme := strings.TrimPrefix(server.URL, "http://")
+	host, port, err := net.SplitHostPort(urlWithoutScheme)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to parse test server URL: %s: %w", server.URL, err)
 	}
-	return splitURL[0], splitURL[1], nil
+	return host, port, nil
 }
 
 func testClient(server *httptest.Server) (*Client, error) {
