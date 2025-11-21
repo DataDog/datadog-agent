@@ -3,6 +3,7 @@ name "python3"
 default_version "3.13.7"
 
 unless windows?
+  dependency "libffi"
   dependency "zlib"
   dependency "bzip2"
   dependency "libsqlite3"
