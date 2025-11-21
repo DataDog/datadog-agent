@@ -22,14 +22,10 @@ import (
 // This is used to switch between transport protocols
 // without disrupting the entire agent.
 func (a *logAgent) restart(context.Context) error {
-	a.log.Info("Attempting to restart logs-agent pipeline with HTTP")
+	a.log.Info("Attempting to restart logs-agent pipeline")
 
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()
-
-	if a.isShuttingDown.Load() {
-		return errors.New("agent shutting down")
-	}
 
 	a.log.Info("Gracefully stopping logs-agent")
 
@@ -43,7 +39,6 @@ func (a *logAgent) restart(context.Context) error {
 
 	a.log.Info("Re-starting logs-agent...")
 
-	// REBUILD endpoints
 	endpoints, err := buildEndpoints(a.config)
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
@@ -53,7 +48,6 @@ func (a *logAgent) restart(context.Context) error {
 
 	a.endpoints = endpoints
 
-	// REBUILD pipeline
 	err = a.setupAgentForRestart()
 	if err != nil {
 		message := fmt.Sprintf("Could not re-start logs-agent: %v", err)
@@ -61,7 +55,7 @@ func (a *logAgent) restart(context.Context) error {
 		return errors.New(message)
 	}
 
-	a.restartPipelineWithHTTP()
+	a.restartPipeline()
 	return nil
 }
 
@@ -78,16 +72,16 @@ func (a *logAgent) setupAgentForRestart() error {
 	return nil
 }
 
-// restartPipelineWithHTTP restarts the logs pipeline after a transport switch.
+// restartPipeline restarts the logs pipeline after a transport switch.
 // Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
-func (a *logAgent) restartPipelineWithHTTP() {
+func (a *logAgent) restartPipeline() {
 	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()
 
-	a.log.Info("Successfully restarted pipeline with HTTP")
+	a.log.Info("Successfully restarted pipeline")
 }
 
 // partialStop stops only the transient components that will be recreated during restart.

@@ -330,25 +330,6 @@ func (suite *RestartTestSuite) TestRestart_InvalidEndpointsLeavesStateIntact() {
 	suite.Same(originalLaunchers, agent.launchers)
 }
 
-func (suite *RestartTestSuite) TestRestart_AbortsWhenShuttingDown() {
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil, true, false)
-
-	agent, _, _ := createTestAgent(suite, endpoints)
-
-	// Set shutdown flag
-	agent.isShuttingDown.Store(true)
-
-	// Execute restart
-	err := agent.restart(context.TODO())
-
-	// Should abort
-	suite.Error(err)
-	suite.Contains(err.Error(), "agent shutting down")
-}
-
 func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
@@ -503,7 +484,7 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	suite.NotSame(originalLaunchers, agent.launchers)
 
 	// Start the rebuilt components and ensure they are wired to the preserved sources
-	agent.restartPipelineWithHTTP()
+	agent.restartPipeline()
 
 	f, err := os.OpenFile(suite.testLogFile, os.O_APPEND|os.O_WRONLY, 0)
 	suite.NoError(err)

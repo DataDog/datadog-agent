@@ -130,8 +130,7 @@ type logAgent struct {
 	started *atomic.Uint32
 
 	// make restart thread safe
-	restartMutex   sync.Mutex
-	isShuttingDown atomic.Bool
+	restartMutex sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -185,6 +184,9 @@ func newLogsAgent(deps dependencies) provides {
 }
 
 func (a *logAgent) start(context.Context) error {
+	a.restartMutex.Lock()
+	defer a.restartMutex.Unlock()
+
 	a.log.Info("Starting logs-agent...")
 
 	// setup the server config
@@ -209,7 +211,6 @@ func (a *logAgent) start(context.Context) error {
 	return nil
 }
 
-// restart conducts a partial restart of the logs-agent pipeline.
 // This is used to switch between transport protocols (TCP to HTTP)
 // without disrupting the entire agent.
 func (a *logAgent) setupAgent() error {
@@ -292,6 +293,9 @@ func (a *logAgent) startSchedulers() {
 }
 
 func (a *logAgent) stop(context.Context) error {
+	a.restartMutex.Lock()
+	defer a.restartMutex.Unlock()
+
 	a.log.Info("Stopping logs-agent")
 
 	status.Clear()
