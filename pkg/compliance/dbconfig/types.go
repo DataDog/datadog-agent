@@ -18,13 +18,25 @@ type DBResource struct {
 // DBConfig represents a database application configuration metadata that we
 // were able to scan.
 type DBConfig struct {
-	ProcessName     string      `json:"process_name,omitempty"`
-	ProcessUser     string      `json:"process_user,omitempty"`
-	ConfigFilePath  string      `json:"config_file_path"`
-	ConfigFileUser  string      `json:"config_file_user"`
-	ConfigFileGroup string      `json:"config_file_group"`
-	ConfigFileMode  uint32      `json:"config_file_mode"`
-	ConfigData      interface{} `json:"config_data"`
+	ProcessName     string            `json:"process_name,omitempty"`
+	ProcessUser     string            `json:"process_user,omitempty"`
+	ProcessFlags    map[string]string `json:"process_flags,omitempty"`
+	ConfigFilePath  string            `json:"config_file_path"`
+	ConfigFileUser  string            `json:"config_file_user"`
+	ConfigFileGroup string            `json:"config_file_group"`
+	ConfigFileMode  uint32            `json:"config_file_mode"`
+	ConfigData      interface{}       `json:"config_data"`
+}
+
+var mongoDBRedactedFlags = map[string]struct{}{
+	"--auditEncryptionKeyUID":         {},
+	"--kmipClientCertificatePassword": {},
+	"--kmipKeyIdentifier":             {},
+	"--ldapQueryPassword":             {},
+	"--ldapQueryUser":                 {},
+	"--setParameter":                  {},
+	"--tlsCertificateKeyFilePassword": {},
+	"--tlsClusterPassword":            {},
 }
 
 type mongoDBConfig struct {
