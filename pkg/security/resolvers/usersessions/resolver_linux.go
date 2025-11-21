@@ -51,6 +51,9 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	}
 
 	e.SessionType = usersession.Type(data[0])
+	if e.SessionType != usersession.UserSessionTypeK8S {
+		seclog.Debugf("not k8s session: %v", e.SessionType)
+	}
 	e.RawData += model.NullTerminatedString(data[1:240])
 	return nil
 }
