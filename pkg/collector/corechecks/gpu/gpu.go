@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -40,16 +41,17 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors         []nvidia.Collector           // collectors for NVML metrics
-	tagger             tagger.Component             // Tagger instance to add tags to outgoing metrics
-	telemetry          *checkTelemetry              // Telemetry component to emit internal telemetry
-	wmeta              workloadmeta.Component       // Workloadmeta store to get the list of containers
-	deviceTags         map[string][]string          // deviceTags is a map of device UUID to tags
-	deviceCache        ddnvml.DeviceCache           // deviceCache is a cache of GPU devices
-	spCache            *nvidia.SystemProbeCache     // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
-	deviceEvtGatherer  *nvidia.DeviceEventsGatherer // deviceEvtGatherer asynchronously listens for device events and gathers them
-	nvmlStateTelemetry *ddnvml.NvmlStateTelemetry   // nvmlStateTelemetry tracks the state of the NVML library
-	workloadTagCache   *WorkloadTagCache            // workloadTagCache caches workload tags for GPU metrics
+	collectors         []nvidia.Collector               // collectors for NVML metrics
+	tagger             tagger.Component                 // Tagger instance to add tags to outgoing metrics
+	telemetry          *checkTelemetry                  // Telemetry component to emit internal telemetry
+	wmeta              workloadmeta.Component           // Workloadmeta store to get the list of containers
+	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
+	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
+	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	nvmlStateTelemetry *ddnvml.NvmlStateTelemetry       // nvmlStateTelemetry tracks the state of the NVML library
+	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
+	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 }
 
 type checkTelemetry struct {
@@ -104,12 +106,17 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		return err
 	}
 
-	var err error
-	c.workloadTagCache, err = NewWorkloadTagCache(c.tagger, c.wmeta)
-	if err != nil {
-		return fmt.Errorf("failed to create workload tag cache: %w", err)
+	if c.containerProvider == nil {
+		// Do not re-set the container provider if it is already set. It would be better to have it as an argument like the tagger and wmeta,
+		// but because it's not componentized yet with FX, we need to do it this way (see service discovery check for a similar pattern).
+		containerProvider, err := proccontainers.GetSharedContainerProvider()
+		if err != nil {
+			return fmt.Errorf("failed to get shared container provider: %w", err)
+		}
+		c.containerProvider = containerProvider
 	}
 
+	c.workloadTagCache = NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider)
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics

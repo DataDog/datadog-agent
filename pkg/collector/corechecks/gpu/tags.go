@@ -40,18 +40,13 @@ type WorkloadTagCache struct {
 }
 
 // NewWorkloadTagCache creates a new WorkloadTagCache
-func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component) (*WorkloadTagCache, error) {
-	containerProvider, err := proccontainers.GetSharedContainerProvider()
-	if err != nil {
-		return nil, fmt.Errorf("error getting shared container provider: %w", err)
-	}
-
+func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider) *WorkloadTagCache {
 	return &WorkloadTagCache{
 		cache:             make(map[workloadmeta.EntityID]*workloadTagCacheEntry),
 		tagger:            tagger,
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
-	}, nil
+	}
 }
 
 // GetWorkloadTags retrieves the tags for a workload from the cache or builds them if they are not in the cache.
@@ -78,7 +73,8 @@ func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]
 
 	// First, ensure we have a cache entry, to simplify the logic later
 	if !cacheEntryExists {
-		c.cache[workloadID] = &workloadTagCacheEntry{}
+		cacheEntry = &workloadTagCacheEntry{}
+		c.cache[workloadID] = cacheEntry
 	}
 
 	if err == nil {
@@ -217,6 +213,13 @@ func getNsPID(pid int32) (int32, error) {
 // Returns an empty string if the container ID is not found.
 func (c *WorkloadTagCache) getContainerID(pid int32) string {
 	if c.pidToCid == nil {
+		if c.containerProvider == nil {
+			// with no container provider, we cannot get the container ID, so return an empty string.
+			// this might happen in tests that use the WorkloadTagCache without a container provider, where this logic is not needed
+			// or under test but might cause panics if we don't have this check.
+			return ""
+		}
+
 		// Get the PID -> CID mapping from the container provider with no cache validity, as we have already failed to hit the
 		// workloadmeta cache for the process data. This mapping will be stored until it's invalidated for the
 		// next run
