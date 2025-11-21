@@ -241,6 +241,7 @@ filegroup(
         "Objects/typeslots.inc",
     ] + select({
         "@platforms//os:linux": ["Python/asm_trampoline.S"],
+        "@platforms//os:macos": ["Python/asm_trampoline.S"],
         "//conditions:default": [],
     }) + glob(["Objects/*.h"])
 )
