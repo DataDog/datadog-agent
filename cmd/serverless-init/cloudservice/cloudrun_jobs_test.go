@@ -92,7 +92,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
 	require.Error(t, err)
-	jobs.Shutdown(agent, err)
+	jobs.Shutdown(agent, nil, err)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Empty(t, timedMetrics)
@@ -115,7 +115,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
 	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
 
-	jobs.Shutdown(agent, nil)
+	jobs.Shutdown(agent, nil, nil)
 
 	generatedMetrics, _ := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -127,6 +127,34 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 		}
 	}
 	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestCloudRunJobsSpanCreation(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "my-test-job")
+
+	jobs := &CloudRunJobs{}
+	jobs.Init()
+
+	// Verify span was created
+	assert.NotNil(t, jobs.jobSpan)
+	if jobs.jobSpan != nil {
+		// Service should fallback to job name since DD_SERVICE is not in tags
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Service)
+		assert.Equal(t, "gcp.run.job.task", jobs.jobSpan.Name)
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Resource)
+		assert.NotZero(t, jobs.jobSpan.TraceID)
+		assert.NotZero(t, jobs.jobSpan.SpanID)
+		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
+		assert.NotNil(t, jobs.jobSpan.Meta)
+		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+	}
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
