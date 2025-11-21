@@ -1404,7 +1404,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opt
 	resolversOpts := resolvers.Opts{
 		Tagger: probe.Opts.Tagger,
 	}
-	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.Scrubber, resolversOpts)
+	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
 	}
