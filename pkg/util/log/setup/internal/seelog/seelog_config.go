@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	stdslog "log/slog"
@@ -91,6 +92,11 @@ func (c *Config) Render() (string, error) {
 func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 	c.Lock()
 	defer c.Unlock()
+
+	if !c.consoleLoggingEnabled && c.logfile == "" && c.syslogURI == "" {
+		// seelog requires at least one output to be configured, we do the same
+		return nil, errors.New("no logging configuration provided")
+	}
 
 	var closeFuncs []func()
 
