@@ -28,6 +28,7 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -118,6 +120,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
 		agenttelemetryfx.Module(),
+		fx.Invoke(func(tm coretelemetry.Component) {
+			api.InitTelemetry(tm)
+		}),
 		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {

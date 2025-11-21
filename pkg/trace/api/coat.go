@@ -6,22 +6,45 @@
 package api
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"sync"
+
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 )
 
 var (
 	// OTLPIngestAgentTracesEvents is COAT metric for tracking OTLP trace events (spans) in the agent.
-	OTLPIngestAgentTracesEvents = telemetry.NewCounter(
+	OTLPIngestAgentTracesEvents coretelemetry.Counter
+	// OTLPIngestAgentTracesRequests is Coat metric for tracking OTLP trace requests in the agent.
+	OTLPIngestAgentTracesRequests coretelemetry.Counter
+
+	coatTelemetryMu sync.Mutex
+)
+
+func init() {
+	InitTelemetry(nil)
+}
+
+// InitTelemetry wires the COAT counters using the provided telemetry component.
+// Passing nil falls back to a noop component so callers can safely invoke the counters before initialization.
+func InitTelemetry(tm coretelemetry.Component) {
+	coatTelemetryMu.Lock()
+	defer coatTelemetryMu.Unlock()
+
+	if tm == nil {
+		tm = nooptelemetry.GetCompatComponent()
+	}
+
+	OTLPIngestAgentTracesEvents = tm.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_traces_events",
 		[]string{},
 		"Counter metric of OTLP Trace events in OTLP ingestion with the Datadog agent",
 	)
-	// OTLPIngestAgentTracesRequests is Coat metric for tracking OTLP trace requests in the agent.
-	OTLPIngestAgentTracesRequests = telemetry.NewCounter(
+	OTLPIngestAgentTracesRequests = tm.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_traces_requests",
 		[]string{},
 		"Counter metric of OTLP Trace requests in OTLP ingestion with the Datadog agent",
 	)
-)
+}
