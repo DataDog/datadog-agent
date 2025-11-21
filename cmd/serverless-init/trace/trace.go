@@ -42,7 +42,7 @@ type ServerlessTraceAgent interface {
 
 // SubmitSpan submits a completed span to the trace agent
 func SubmitSpan(span *pb.Span, origin string, traceAgent interface{}) {
-	if span == nil {
+	if span == nil || traceAgent == nil {
 		return
 	}
 
@@ -64,8 +64,8 @@ func SubmitSpan(span *pb.Span, origin string, traceAgent interface{}) {
 			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 			TracerPayload: tracerPayload,
 		})
-		log.Debug("Synthetic span submitted successfully")
+		log.Debug("Inferred span submitted successfully")
 	} else {
-		log.Warn("Unable to submit synthetic span")
+		log.Warn("Unable to submit inferred span")
 	}
 }
