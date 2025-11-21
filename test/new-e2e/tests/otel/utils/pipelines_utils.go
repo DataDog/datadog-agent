@@ -180,7 +180,7 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	// Verify tags on traces and spans
 	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
 	assert.Equal(s.T(), env, tp.Env())
-	assert.Equal(s.T(), version, tp.AppVersion)
+	assert.Equal(s.T(), version, tp.AppVersion())
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
 	spans := tp.Chunks[0].Spans
