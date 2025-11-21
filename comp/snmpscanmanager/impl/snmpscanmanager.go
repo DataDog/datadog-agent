@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"math/rand"
 	"sync"
 	"time"
@@ -370,4 +371,11 @@ func (m *snmpScanManagerImpl) scheduleScanRetry(req snmpscanmanager.ScanRequest,
 		req:        req,
 		nextScanTs: lastScanTs.Add(scanRetryDelays[idx]),
 	})
+}
+
+func (m *snmpScanManagerImpl) cloneDeviceScans() deviceScansByIP {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return maps.Clone(m.deviceScans)
 }
