@@ -339,6 +339,25 @@ cc_library(
     linkstatic = True,
 )
 
+cc_library(
+    name = "hacl_sha2",
+    srcs = [
+        "Modules/_hacl/Hacl_Hash_SHA2.c",
+        "Modules/_hacl/Hacl_Hash_SHA2.h",
+        "Modules/_hacl/Hacl_Streaming_Types.h",
+        "Modules/_hacl/internal/Hacl_Hash_SHA2.h",
+        "Modules/_hacl/python_hacl_namespaces.h",
+    ] + glob([
+        "Modules/_hacl/include/krml/**/*.h"
+    ]),
+    includes = ["Modules/_hacl/include"],
+    local_defines = [
+        "_BSD_SOURCE",
+        "_DEFAULT_SOURCE",
+    ],
+)
+
+
 filegroup(
     name = "libexpat_srcs",
     srcs = glob([

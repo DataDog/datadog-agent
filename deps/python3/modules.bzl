@@ -200,6 +200,10 @@ PYTHON_MODULES = {
         ],
         "includes": [
             "Modules/_hacl/include"
+        ],
+        "local_defines": [
+            "_BSD_SOURCE",
+            "DEFAULT_SOURCE"
         ]
     },
     "_sha2": {
@@ -208,6 +212,9 @@ PYTHON_MODULES = {
         ],
         "includes": [
             "Modules/_hacl/include"
+        ],
+        "deps": [
+            ":hacl_sha2"
         ]
     },
     "_sha3": {
@@ -217,6 +224,10 @@ PYTHON_MODULES = {
         ],
         "includes": [
             "Modules/_hacl/include"
+        ],
+        "local_defines": [
+            "_BSD_SOURCE",
+            "DEFAULT_SOURCE"
         ]
     },
     "_blake2": {

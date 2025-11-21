@@ -34,6 +34,9 @@ def postprocess(modules):
     modules["_ssl"]["textual_hdrs"] = ["Modules/_ssl/debughelpers.c", "Modules/_ssl/misc.c", "Modules/_ssl/cert.c"]
     del modules["_curses"]
     del modules["_curses_panel"]
+    modules["_sha2"]["deps"] = [":hacl_sha2"]
+    modules["_sha1"]["local_defines"] = ["_BSD_SOURCE", "DEFAULT_SOURCE"]
+    modules["_sha3"]["local_defines"] = ["_BSD_SOURCE", "DEFAULT_SOURCE"]
 
 
 def read_makefile(makefile: str):
