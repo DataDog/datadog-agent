@@ -314,28 +314,6 @@ func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
 	pb.resourcesBuf = append(pb.resourcesBuf, serie.Resources...)
 }
 
-func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
-	if !pb.pipelineConfig.Filter.Filter(serie) {
-		return nil
-	}
-
-	if ok, err := pb.checkPointsLimit(len(serie.Points)); !ok {
-		return err
-	}
-
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
-
-	for {
-		pb.writeSerieToTxn(serie)
-		err := pb.finishTxn(len(serie.Points))
-		if err == errRetry {
-			continue
-		}
-		return err
-	}
-}
-
 func (pb *payloadsBuilderV3) checkPointsLimit(numPoints int) (bool, error) {
 	if numPoints == 0 {
 		return false, nil
@@ -380,6 +358,28 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 		pb.pointsThisPayload += numPoints
 		return nil
 	default:
+		return err
+	}
+}
+
+func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
+	if !pb.pipelineConfig.Filter.Filter(serie) {
+		return nil
+	}
+
+	if ok, err := pb.checkPointsLimit(len(serie.Points)); !ok {
+		return err
+	}
+
+	serie.PopulateDeviceField()
+	serie.PopulateResources()
+
+	for {
+		pb.writeSerieToTxn(serie)
+		err := pb.finishTxn(len(serie.Points))
+		if err == errRetry {
+			continue
+		}
 		return err
 	}
 }
