@@ -46,7 +46,7 @@ func SubmitSpan(span *pb.Span, origin string, traceAgent interface{}) {
 		return
 	}
 
-	log.Debugf("Submitting synethtic span: Service=%s, Name=%s, TraceID=%d, SpanID=%d, Duration=%dns",
+	log.Debugf("Submitting inferred span: Service=%s, Name=%s, TraceID=%d, SpanID=%d, Duration=%dns",
 		span.Service, span.Name, span.TraceID, span.SpanID, span.Duration)
 
 	traceChunk := &pb.TraceChunk{

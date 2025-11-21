@@ -138,19 +138,31 @@ func isCloudRunJob() bool {
 
 // initJobSpan creates and initializes the job span with Cloud Run Job metadata
 func (c *CloudRunJobs) initJobSpan() {
+	tags := c.GetTags()
 	jobNameVal := os.Getenv(cloudRunJobNameEnvVar)
 
-	if jobNameVal == "" {
-		jobNameVal = "unknown"
+	// Use DD_SERVICE for the service name, fallback to job name, then "gcp.run.job"
+	serviceName := tags["service"]
+	if serviceName == "" {
+		serviceName = jobNameVal
+	}
+	if serviceName == "" {
+		serviceName = "gcp.run.job"
+	}
+
+	// Use job name for resource, fallback to "unknown"
+	resourceName := jobNameVal
+	if resourceName == "" {
+		resourceName = "unknown"
 	}
 
 	c.jobSpan = serverlessInitTrace.InitSpan(
-		"gcp.run.job",
+		serviceName,
 		"gcp.run.job.task",
-		jobNameVal,
-		"serverless",
+		resourceName,
+		"", // TODO add custom 'job' span type (requires UI changes)
 		c.startTime.UnixNano(),
-		c.GetTags(),
+		tags,
 	)
 }
 
