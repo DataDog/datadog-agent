@@ -32,6 +32,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
+/*
+Below is a diagram of the workloadfilter component in the core agent and a remote agent.
+
+  Workloadfilter component in                            Remote Agent
+  core agent evaluates the          ┌─────────────────────────────────────────────────┐
+  filter program result             │                ╔═══════════════════╗            │
+                                    │                ║                   ║            │
+                                    │                ║      Client       ║            │
+        Core Agent                  │                ║                   ║            │
+┌──────────────────────────┐        │                ╚══▲═══╤════════════╝            │
+│       WorkloadFilter     │        │         Remote    │   │          Remote         │
+│  ┌─────────────────────┐ │        │     FilterProgram │   │      WorkloadFilter     │
+│  │  ╔════════╗         │ │        │   ┌───────────────┼───┼─┐   ┌───────────────┐   │
+│  │  ║        ║         │ │        │   │ ┌─────────┐   │   │ │   │               │   │
+│  │  ║ Filter ║       ──┼─┼────────┼───┼─┼▶      ──┼───┘   │ │   │   Agent IPC   │   │
+│  │  ║ Store◁─╫─▷ Eval  │ │        │   │ │  Cache  │       │ │   │     Client    │   │
+│  │  ║        ║       ◀─┼─┼────────┼───┼─┼─      ◀─┼───────┘ │   │               │   │
+│  │  ╚════════╝         │ │        │   │ └────▲────┘         │   │       │       │   │
+│  └─────────────────────┘ │        │   └──────┼──────────────┘   └───────┼───────┘   │
+└──────────────────────────┘        │          └──────────────────────────┘           │
+                                    └─────────────────────────────────────────────────┘
+*/
+
 // remoteFilterStore is the remote implementation of the workloadfilter component.
 type remoteFilterStore struct {
 	*baseimpl.BaseFilterStore
