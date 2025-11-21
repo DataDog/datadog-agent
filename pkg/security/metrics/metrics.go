@@ -23,10 +23,6 @@ var (
 	// security-agent was not processing them fast enough
 	// Tags: rule_id
 	MetricEventServerExpired = newRuntimeMetric(".rules.event_server.expired")
-	// MetricProcessEventsServerExpired is the name of the metric used to count the number of process events that
-	// expired because the process-agent was not processing them fast enough
-	// Tags: -
-	MetricProcessEventsServerExpired = newRuntimeMetric(".event_server.process_events_expired")
 
 	// Rate limiter metrics
 
