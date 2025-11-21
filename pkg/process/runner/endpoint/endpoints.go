@@ -20,11 +20,6 @@ func GetAPIEndpoints(config pkgconfigmodel.Reader) (eps []apicfg.Endpoint, err e
 	return getAPIEndpointsWithKeys(config, "https://process.", "process_config.process_dd_url", "process_config.additional_endpoints")
 }
 
-// GetEventsAPIEndpoints returns the list of api event endpoints from the config
-func GetEventsAPIEndpoints(config pkgconfigmodel.Reader) (eps []apicfg.Endpoint, err error) {
-	return getAPIEndpointsWithKeys(config, "https://process-events.", "process_config.events_dd_url", "process_config.events_additional_endpoints")
-}
-
 func getAPIEndpointsWithKeys(config pkgconfigmodel.Reader, prefix, defaultEpKey, additionalEpsKey string) (eps []apicfg.Endpoint, err error) {
 	// Setup main endpoint
 	mainEndpointURL, err := url.Parse(utils.GetMainEndpoint(config, prefix, defaultEpKey))

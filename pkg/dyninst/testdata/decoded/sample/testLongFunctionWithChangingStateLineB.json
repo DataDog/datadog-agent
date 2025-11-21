@@ -67,7 +67,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -137,7 +138,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -207,7 +209,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -277,7 +280,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -347,7 +351,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -417,7 +422,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -487,7 +493,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -557,7 +564,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -627,7 +635,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -697,6 +706,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   }
 ]
