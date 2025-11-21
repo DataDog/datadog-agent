@@ -8,10 +8,12 @@ package logsagentexporter
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	gocache "github.com/patrickmn/go-cache"
@@ -136,7 +138,12 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 	var isWatchEvent bool
 
-	var clusterID string
+	clusterID := getCachedClusterID(ld)
+	if clusterID == "" {
+		e.set.Logger.Warn("Failed to get cluster ID, skipping manifest payload")
+		return nil
+	}
+
 	var clusterName string
 
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
@@ -148,14 +155,6 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 
 			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
 				logRecord := scopeLogs.LogRecords().At(k)
-
-				k8sClusterID, ok := resource.Attributes().Get("k8s.cluster.uid")
-				if ok {
-					clusterID = k8sClusterID.AsString()
-				} else {
-					e.set.Logger.Error("Failed to get cluster ID, skipping manifest payload", zap.Error(err))
-					continue
-				}
 
 				k8sClusterName, ok := resource.Attributes().Get("k8s.cluster.name")
 				if ok {
@@ -297,4 +296,98 @@ func sendManifestPayload(ctx context.Context, endpoint, apiKey string, payload *
 	}
 
 	return nil
+}
+
+var (
+	// cachedClusterID stores the cluster ID
+	cachedClusterID atomic.Value
+)
+
+// getCachedClusterID returns the cached cluster ID if available, otherwise
+// extracts it from the logs and caches it for future calls.
+func getCachedClusterID(ld plog.Logs) string {
+	// Check cache first
+	if cached := cachedClusterID.Load(); cached != nil {
+		return cached.(string)
+	}
+
+	// Extract cluster ID from logs
+	clusterID := getClusterID(ld)
+	if clusterID != "" {
+		cachedClusterID.Store(clusterID)
+	}
+
+	return clusterID
+}
+
+// getClusterID attempts to retrieve the Kubernetes cluster ID from OTLP logs.
+func getClusterID(ld plog.Logs) string {
+	// Try to find cluster ID from resource attributes or log bodies
+	for i := 0; i < ld.ResourceLogs().Len(); i++ {
+		resourceLogs := ld.ResourceLogs().At(i)
+		resource := resourceLogs.Resource()
+
+		// Check resource attribute first
+		if clusterUIDAttr, ok := resource.Attributes().Get("k8s.cluster.uid"); ok {
+			clusterID := clusterUIDAttr.AsString()
+			if clusterID != "" {
+				return clusterID
+			}
+		}
+
+		// If not found in attributes, search log bodies for kube-system namespace
+		for j := 0; j < resourceLogs.ScopeLogs().Len(); j++ {
+			scopeLogs := resourceLogs.ScopeLogs().At(j)
+
+			for k := 0; k < scopeLogs.LogRecords().Len(); k++ {
+				logRecord := scopeLogs.LogRecords().At(k)
+
+				// Try to extract cluster ID from kube-system namespace UID
+				if clusterID := extractClusterIDFromLogBody(logRecord); clusterID != "" {
+					return clusterID
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// extractClusterIDFromLogBody attempts to extract the cluster ID from a log record body
+// by looking for the kube-system namespace UID.
+func extractClusterIDFromLogBody(logRecord plog.LogRecord) string {
+	var logBodyMap map[string]interface{}
+	if err := json.Unmarshal([]byte(logRecord.Body().AsString()), &logBodyMap); err != nil {
+		return ""
+	}
+
+	// Extract the k8s object field (maybe nested under "object" key or at top-level)
+	var k8sResource map[string]interface{}
+	if objectField, hasObject := logBodyMap["object"]; hasObject {
+		k8sResource, _ = objectField.(map[string]interface{})
+	} else {
+		k8sResource = logBodyMap
+	}
+
+	// Validate k8s resource structure
+	if k8sResource == nil {
+		return ""
+	}
+
+	// Check if this is the kube-system namespace
+	resourceKind, _ := k8sResource["kind"].(string)
+	resourceAPIVersion, _ := k8sResource["apiVersion"].(string)
+	resourceMetadata, ok := k8sResource["metadata"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	namespaceName, _ := resourceMetadata["name"].(string)
+	namespaceUID, _ := resourceMetadata["uid"].(string)
+
+	// kube-system namespace UID is used as cluster ID
+	if resourceAPIVersion == "v1" && resourceKind == "Namespace" && namespaceName == "kube-system" && namespaceUID != "" {
+		return namespaceUID
+	}
+
+	return ""
 }

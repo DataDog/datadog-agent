@@ -8,6 +8,7 @@ package logsagentexporter
 import (
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -646,4 +647,437 @@ func TestManifestCacheTTL(t *testing.T) {
 	// After expiry, entry should be gone
 	_, found = testCache.Get(manifest.Uid)
 	assert.False(t, found, "Cache entry should have expired")
+}
+
+func TestExtractClusterIDFromLogBody(t *testing.T) {
+	tests := []struct {
+		name      string
+		logBody   string
+		wantID    string
+		wantNilID bool
+	}{
+		{
+			name: "valid kube-system namespace with nested object",
+			logBody: `{
+				"object": {
+					"apiVersion": "v1",
+					"kind": "Namespace",
+					"metadata": {
+						"name": "kube-system",
+						"uid": "cluster-abc-123"
+					}
+				}
+			}`,
+			wantID: "cluster-abc-123",
+		},
+		{
+			name: "valid kube-system namespace at top-level",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace",
+				"metadata": {
+					"name": "kube-system",
+					"uid": "cluster-xyz-456"
+				}
+			}`,
+			wantID: "cluster-xyz-456",
+		},
+		{
+			name: "not kube-system namespace",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace",
+				"metadata": {
+					"name": "default",
+					"uid": "some-other-uid"
+				}
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "wrong kind (not namespace)",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Pod",
+				"metadata": {
+					"name": "kube-system",
+					"uid": "pod-uid-123"
+				}
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "wrong apiVersion",
+			logBody: `{
+				"apiVersion": "v2",
+				"kind": "Namespace",
+				"metadata": {
+					"name": "kube-system",
+					"uid": "cluster-uid"
+				}
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "missing metadata",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace"
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "missing name in metadata",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace",
+				"metadata": {
+					"uid": "cluster-uid"
+				}
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "missing uid in metadata",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace",
+				"metadata": {
+					"name": "kube-system"
+				}
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "empty uid in metadata",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace",
+				"metadata": {
+					"name": "kube-system",
+					"uid": ""
+				}
+			}`,
+			wantNilID: true,
+		},
+		{
+			name:      "invalid json",
+			logBody:   `{invalid json`,
+			wantNilID: true,
+		},
+		{
+			name:      "empty log body",
+			logBody:   ``,
+			wantNilID: true,
+		},
+		{
+			name: "metadata not a map",
+			logBody: `{
+				"apiVersion": "v1",
+				"kind": "Namespace",
+				"metadata": "not a map"
+			}`,
+			wantNilID: true,
+		},
+		{
+			name: "object field not a map",
+			logBody: `{
+				"object": "not a map"
+			}`,
+			wantNilID: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logRecord := plog.NewLogRecord()
+			logRecord.Body().SetStr(tt.logBody)
+
+			clusterID := extractClusterIDFromLogBody(logRecord)
+
+			if tt.wantNilID {
+				assert.Empty(t, clusterID, "Expected empty cluster ID")
+			} else {
+				assert.Equal(t, tt.wantID, clusterID)
+			}
+		})
+	}
+}
+
+func TestGetClusterID(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupLogs   func() plog.Logs
+		expectedID  string
+		expectEmpty bool
+	}{
+		{
+			name: "cluster ID from resource attribute",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				resourceLogs.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-from-attr-456")
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				scopeLogs.LogRecords().AppendEmpty()
+				return logs
+			},
+			expectedID: "cluster-from-attr-456",
+		},
+		{
+			name: "cluster ID from kube-system namespace in log body",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				logRecord := scopeLogs.LogRecords().AppendEmpty()
+
+				logBody := `{
+					"apiVersion": "v1",
+					"kind": "Namespace",
+					"metadata": {
+						"name": "kube-system",
+						"uid": "cluster-from-body-789"
+					}
+				}`
+				logRecord.Body().SetStr(logBody)
+				return logs
+			},
+			expectedID: "cluster-from-body-789",
+		},
+		{
+			name: "cluster ID from nested object in log body",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				logRecord := scopeLogs.LogRecords().AppendEmpty()
+
+				logBody := `{
+					"type": "ADDED",
+					"object": {
+						"apiVersion": "v1",
+						"kind": "Namespace",
+						"metadata": {
+							"name": "kube-system",
+							"uid": "cluster-nested-999"
+						}
+					}
+				}`
+				logRecord.Body().SetStr(logBody)
+				return logs
+			},
+			expectedID: "cluster-nested-999",
+		},
+		{
+			name: "no cluster ID found - empty logs",
+			setupLogs: func() plog.Logs {
+				return plog.NewLogs()
+			},
+			expectEmpty: true,
+		},
+		{
+			name: "no cluster ID found - no resource attribute and wrong namespace",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				logRecord := scopeLogs.LogRecords().AppendEmpty()
+
+				logBody := `{
+					"apiVersion": "v1",
+					"kind": "Namespace",
+					"metadata": {
+						"name": "default",
+						"uid": "some-uid"
+					}
+				}`
+				logRecord.Body().SetStr(logBody)
+				return logs
+			},
+			expectEmpty: true,
+		},
+		{
+			name: "resource attribute takes precedence over log body",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				resourceLogs.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-from-attr")
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				logRecord := scopeLogs.LogRecords().AppendEmpty()
+
+				// Even though log body has kube-system, attribute should be used
+				logBody := `{
+					"apiVersion": "v1",
+					"kind": "Namespace",
+					"metadata": {
+						"name": "kube-system",
+						"uid": "cluster-from-body"
+					}
+				}`
+				logRecord.Body().SetStr(logBody)
+				return logs
+			},
+			expectedID: "cluster-from-attr",
+		},
+		{
+			name: "empty cluster uid in resource attribute ignored",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				resourceLogs.Resource().Attributes().PutStr("k8s.cluster.uid", "")
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				logRecord := scopeLogs.LogRecords().AppendEmpty()
+
+				// Should fall back to log body
+				logBody := `{
+					"apiVersion": "v1",
+					"kind": "Namespace",
+					"metadata": {
+						"name": "kube-system",
+						"uid": "cluster-from-body-fallback"
+					}
+				}`
+				logRecord.Body().SetStr(logBody)
+				return logs
+			},
+			expectedID: "cluster-from-body-fallback",
+		},
+		{
+			name: "multiple resources - first valid cluster ID wins",
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+
+				// First resource has cluster ID
+				resourceLogs1 := logs.ResourceLogs().AppendEmpty()
+				resourceLogs1.Resource().Attributes().PutStr("k8s.cluster.uid", "first-cluster")
+				scopeLogs1 := resourceLogs1.ScopeLogs().AppendEmpty()
+				scopeLogs1.LogRecords().AppendEmpty()
+
+				// Second resource has different cluster ID (should be ignored)
+				resourceLogs2 := logs.ResourceLogs().AppendEmpty()
+				resourceLogs2.Resource().Attributes().PutStr("k8s.cluster.uid", "second-cluster")
+				scopeLogs2 := resourceLogs2.ScopeLogs().AppendEmpty()
+				scopeLogs2.LogRecords().AppendEmpty()
+
+				return logs
+			},
+			expectedID: "first-cluster",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logs := tt.setupLogs()
+			clusterID := getClusterID(logs)
+
+			if tt.expectEmpty {
+				assert.Empty(t, clusterID, "Expected empty cluster ID")
+			} else {
+				assert.Equal(t, tt.expectedID, clusterID)
+			}
+		})
+	}
+}
+
+func TestGetCachedClusterID(t *testing.T) {
+	resetClusterIDCache := func() {
+		cachedClusterID = atomic.Value{}
+	}
+
+	tests := []struct {
+		name        string
+		setupLogs   func() plog.Logs
+		setupCache  func()
+		expectedID  string
+		expectEmpty bool
+	}{
+		{
+			name: "cache hit returns cached value",
+			setupCache: func() {
+				cachedClusterID.Store("cached-cluster-123")
+			},
+			setupLogs: func() plog.Logs {
+				// Even with different cluster ID in logs, cache should be returned
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				resourceLogs.Resource().Attributes().PutStr("k8s.cluster.uid", "different-cluster")
+				return logs
+			},
+			expectedID: "cached-cluster-123",
+		},
+		{
+			name: "cache miss - extracts and caches cluster ID from resource attribute",
+			setupCache: func() {
+				resetClusterIDCache()
+			},
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				resourceLogs.Resource().Attributes().PutStr("k8s.cluster.uid", "cluster-from-attr-456")
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				scopeLogs.LogRecords().AppendEmpty()
+				return logs
+			},
+			expectedID: "cluster-from-attr-456",
+		},
+		{
+			name: "cache miss - extracts and caches cluster ID from log body",
+			setupCache: func() {
+				resetClusterIDCache()
+			},
+			setupLogs: func() plog.Logs {
+				logs := plog.NewLogs()
+				resourceLogs := logs.ResourceLogs().AppendEmpty()
+				scopeLogs := resourceLogs.ScopeLogs().AppendEmpty()
+				logRecord := scopeLogs.LogRecords().AppendEmpty()
+
+				logBody := `{
+					"apiVersion": "v1",
+					"kind": "Namespace",
+					"metadata": {
+						"name": "kube-system",
+						"uid": "cluster-from-body-789"
+					}
+				}`
+				logRecord.Body().SetStr(logBody)
+				return logs
+			},
+			expectedID: "cluster-from-body-789",
+		},
+		{
+			name: "cache miss - no cluster ID found",
+			setupCache: func() {
+				resetClusterIDCache()
+			},
+			setupLogs: func() plog.Logs {
+				return plog.NewLogs()
+			},
+			expectEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setupCache != nil {
+				tt.setupCache()
+			}
+
+			logs := tt.setupLogs()
+			clusterID := getCachedClusterID(logs)
+
+			if tt.expectEmpty {
+				assert.Empty(t, clusterID, "Expected empty cluster ID")
+				// Verify nothing was cached
+				cached := cachedClusterID.Load()
+				assert.Nil(t, cached, "Should not cache empty cluster ID")
+			} else {
+				assert.Equal(t, tt.expectedID, clusterID)
+
+				// Verify the cluster ID was cached (if it wasn't already)
+				cached := cachedClusterID.Load()
+				require.NotNil(t, cached)
+				assert.Equal(t, tt.expectedID, cached.(string), "Cluster ID should be cached")
+			}
+		})
+	}
 }
