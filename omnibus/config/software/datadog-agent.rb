@@ -333,7 +333,9 @@ build do
   end
 
   block do
+    # TODO: pkg_install is still buggy on Windows. Fix it and use that.
     mkdir "#{install_dir}/sources"
-    command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir='#{install_dir}/sources'"
+    command_on_repo_root "bazelisk build -- //compliance:license
+    copy "bazel-bin/compliance/sources.txt", "#{install_dir}/sources"
   end
 end
