@@ -38,10 +38,10 @@ func TestPayloadChunking(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedPayloadCount := 4
+	expectedPayloadCount := 5
 	// make a payload that will need to be chunked into separate payloads
 	var traces pb.Traces
-	for range 1290 { // We know 1290 traces will fit into 4 payloads out (we do not calculate up front due to the v1 payload size limit reducing the size required before chunking)
+	for range 1290 { // We know 1290 traces will fit into 5 payloads out (we do not calculate up front due to the v1 payload size limit reducing the size required before chunking)
 		traces = append(traces, trace)
 	}
 
