@@ -144,7 +144,6 @@ func testDyninst(
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
-	cfg.ProcessSyncDisabled = true
 	var sendUpdate fakeProcessSubscriber
 	cfg.TestingKnobs.ProcessSubscriberOverride = func(
 		real module.ProcessSubscriber,

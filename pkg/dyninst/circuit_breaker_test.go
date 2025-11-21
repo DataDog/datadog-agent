@@ -53,7 +53,6 @@ func testCircuitBreaker(
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
-	cfg.ProcessSyncDisabled = true
 	cfg.CircuitBreakerConfig = actuator.CircuitBreakerConfig{
 		Interval:          10 * time.Millisecond,
 		PerProbeCPULimit:  0.1,
