@@ -20,12 +20,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 )
 
-func mockReadContainerItem(resolvConfs map[network.ContainerID]network.ResolvConf) func(context.Context, *events.Process) (containerStoreItem, error) {
-	return func(_ context.Context, entry *events.Process) (containerStoreItem, error) {
-		return containerStoreItem{
-			timestamp:  time.Now(),
-			resolvConf: resolvConfs[entry.ContainerID],
-		}, nil
+func mockReadContainerItemResult(resolvConf network.ResolvConf) readContainerItemResult {
+	item := containerStoreItem{
+		timestamp:  time.Now(),
+		resolvConf: resolvConf,
+	}
+	return readContainerItemResult{item: item}
+}
+
+func mockReadContainerItem(resolvConfs map[network.ContainerID]network.ResolvConf) func(context.Context, *events.Process) (readContainerItemResult, error) {
+	return func(_ context.Context, entry *events.Process) (readContainerItemResult, error) {
+		return mockReadContainerItemResult(resolvConfs[entry.ContainerID]), nil
 	}
 }
 
@@ -96,8 +101,8 @@ func TestContainerStoreErrorHandling(t *testing.T) {
 	}
 
 	// mock an error result
-	cs.readContainerItem = func(_ context.Context, _ *events.Process) (containerStoreItem, error) {
-		return containerStoreItem{}, errors.New("failed to read container item")
+	cs.readContainerItem = func(_ context.Context, _ *events.Process) (readContainerItemResult, error) {
+		return readContainerItemResult{}, errors.New("failed to read container item")
 	}
 
 	cs.HandleProcessEvent(processEvent)
@@ -134,19 +139,16 @@ func TestContainerStoreNoData(t *testing.T) {
 
 	callCount := 0
 	resolvConf := stringInterner.GetString("nameserver 1.1.1.1\nnameserver 1.0.0.1")
-	cs.readContainerItem = func(_ context.Context, _ *events.Process) (containerStoreItem, error) {
+	cs.readContainerItem = func(_ context.Context, _ *events.Process) (readContainerItemResult, error) {
 		callCount++
 		switch callCount {
 		case 1:
-			return containerStoreItem{}, &containerItemNoDataError{Err: errors.New("process exited")}
+			return readContainerItemResult{noDataReason: "process not running"}, nil
 		case 2:
-			return containerStoreItem{
-				timestamp:  time.Now(),
-				resolvConf: resolvConf,
-			}, nil
+			return mockReadContainerItemResult(resolvConf), nil
 		default:
 			require.Fail(t, "Should only be called twice")
-			return containerStoreItem{}, errors.New("shouldn't get here")
+			return readContainerItemResult{}, errors.New("shouldn't get here")
 		}
 	}
 
@@ -180,17 +182,14 @@ func TestContainerStoreDuplicate(t *testing.T) {
 
 	callCount := 0
 	resolvConf := stringInterner.GetString("nameserver 1.1.1.1\nnameserver 1.0.0.1")
-	cs.readContainerItem = func(_ context.Context, _ *events.Process) (containerStoreItem, error) {
+	cs.readContainerItem = func(_ context.Context, _ *events.Process) (readContainerItemResult, error) {
 		callCount++
 		switch callCount {
 		case 1:
-			return containerStoreItem{
-				timestamp:  time.Now(),
-				resolvConf: resolvConf,
-			}, nil
+			return mockReadContainerItemResult(resolvConf), nil
 		default:
 			require.Fail(t, "Should only be called once")
-			return containerStoreItem{}, errors.New("shouldn't get here")
+			return readContainerItemResult{}, errors.New("shouldn't get here")
 		}
 	}
 

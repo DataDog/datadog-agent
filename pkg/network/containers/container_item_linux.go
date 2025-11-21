@@ -8,12 +8,14 @@
 package containers
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -42,26 +44,35 @@ var hostRoot = funcs.MemoizeNoError(func() string {
 
 var stringInterner = utilintern.NewStringInterner()
 
-var errProcessNotRunning = &containerItemNoDataError{Err: fmt.Errorf("process is no longer running")}
+type containerReader struct {
+	resolvStripper
+}
 
-func readContainerItem(ctx context.Context, entry *events.Process) (containerStoreItem, error) {
-	resolvConf, err := readResolvConf(entry)
+type readContainerItemResult struct {
+	item         containerStoreItem
+	noDataReason string
+}
+
+func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
+	resolvConf, err := cr.readResolvConf(entry)
 	if err != nil {
-		return containerStoreItem{}, err
+		return readContainerItemResult{}, err
 	}
 
 	// we must check this last, to guarantee the result of readResolvConf is valid
 	isRunning, err := isProcessStillRunning(ctx, entry)
 	if err != nil {
-		return containerStoreItem{}, err
+		return readContainerItemResult{}, err
 	}
 	if !isRunning {
-		return containerStoreItem{}, errProcessNotRunning
+		return readContainerItemResult{
+			noDataReason: "process not running",
+		}, nil
 	}
 
 	// limit the size of payload sent, and give the intake some statistics
 	if len(resolvConf) > resolvConfMaxSizeBytes {
-		resolvConf = resolvConfTooBig(len(resolvConf))
+		resolvConf = resolvConfTooBig("output", len(resolvConf))
 	}
 
 	item := containerStoreItem{
@@ -69,21 +80,36 @@ func readContainerItem(ctx context.Context, entry *events.Process) (containerSto
 		resolvConf: stringInterner.GetString(resolvConf),
 	}
 
-	return item, nil
+	return readContainerItemResult{item: item}, nil
 }
 
-func resolvConfTooBig(size int) string {
-	return fmt.Sprintf("<too big: %d>", size)
+func resolvConfTooBig(kind string, size int) string {
+	return fmt.Sprintf("<too big: kind=%s size=%d>", kind, size)
 }
 
-func readResolvConf(entry *events.Process) (string, error) {
+func resolvConfReadError(resolvConfPath string, err error) error {
+	return fmt.Errorf("readResolvConf failed to read %s: %w", resolvConfPath, err)
+}
+
+type resolvStripper struct {
+	buf []byte
+}
+
+func makeResolvStripper(size int) resolvStripper {
+	return resolvStripper{
+		buf: make([]byte, 0, size),
+	}
+}
+
+func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	rootPath := hostRoot()
 	if entry.ContainerID != nil {
 		rootPath = kernel.HostProc(strconv.Itoa(int(entry.Pid)), "root")
 	}
 
 	resolvConfPath := filepath.Join(rootPath, "etc/resolv.conf")
-	data, err := os.ReadFile(resolvConfPath)
+
+	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
 	if errors.Is(err, os.ErrNotExist) {
 		// report no data. don't turn this into an error, since if the process exited
 		// that will be checked later by isProcessStillRunning
@@ -93,33 +119,50 @@ func readResolvConf(entry *events.Process) (string, error) {
 		return "", resolvConfReadError(resolvConfPath, err)
 	}
 
-	resolvConf := StripResolvConf(string(data))
-
 	return resolvConf, nil
 }
 
-func resolvConfReadError(resolvConfPath string, err error) error {
-	return fmt.Errorf("readResolvConf failed to read %s: %w", resolvConfPath, err)
-}
-
-func shouldStripLine(line string) bool {
-	if len(line) == 0 {
-		return true
-	}
-	// remove comments
-	return line[0] == ';' || line[0] == '#'
-}
-
-// StripResolvConf removes comments from resolv.conf
-func StripResolvConf(resolvConf string) string {
-	lines := strings.Split(resolvConf, "\n")
-	for i := range lines {
-		lines[i] = strings.TrimSpace(lines[i])
+func (r *resolvStripper) stripResolvConfFilepath(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
 	}
 
-	lines = slices.DeleteFunc(lines, shouldStripLine)
+	stat, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
 
-	return strings.Join(lines, "\n")
+	return r.stripResolvConf(int(stat.Size()), file)
+}
+
+func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) {
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(r.buf, cap(r.buf))
+	var sb strings.Builder
+
+	if size > cap(r.buf) {
+		return resolvConfTooBig("input", size), nil
+	}
+	sb.Grow(size)
+
+	for scanner.Scan() {
+		trim := bytes.TrimSpace(scanner.Bytes())
+		if len(trim) == 0 {
+			continue
+		}
+		if trim[0] == ';' || trim[0] == '#' {
+			continue
+		}
+		if sb.Len() != 0 {
+			sb.WriteByte('\n')
+		}
+		sb.Write(trim)
+	}
+	if scanner.Err() != nil {
+		return "", scanner.Err()
+	}
+	return sb.String(), nil
 }
 
 func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {

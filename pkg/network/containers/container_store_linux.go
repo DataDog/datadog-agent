@@ -10,7 +10,6 @@ package containers
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -22,23 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// containerItemNoDataError is returned when readContainerItem() didn't fail, but doesn't
-// have data to share. This can happen when the process exited at the same time, or on unsupported platforms
-type containerItemNoDataError struct {
-	Err error
-}
-
-func (e *containerItemNoDataError) Error() string {
-	return fmt.Sprintf("readContainerItem() doesn't have data: %s", e.Err)
-}
-func (e *containerItemNoDataError) Unwrap() error {
-	return e.Err
-}
-
 const (
-	resolvConfMaxSizeBytes = 1024
-	maxProcessQueueLen     = 100
-	moduleName             = "network_tracer__containerStore"
+	resolvConfInputMaxSizeBytes = 4096
+	resolvConfMaxSizeBytes      = 1024
+	maxProcessQueueLen          = 100
+	moduleName                  = "network_tracer__containerStore"
 
 	// containerStaleTime: when to re-fetch a container's resolv.conf
 	containerStaleTime = 10 * time.Minute
@@ -76,7 +63,9 @@ type ContainerStore struct {
 	warnLimit  *log.Limit
 	errorLimit *log.Limit
 
-	readContainerItem func(ctx context.Context, entry *events.Process) (containerStoreItem, error)
+	containerReader containerReader
+
+	readContainerItem func(ctx context.Context, entry *events.Process) (readContainerItemResult, error)
 }
 
 func (csi containerStoreItem) isStale() bool {
@@ -115,8 +104,11 @@ func NewContainerStore(maxContainers int) (*ContainerStore, error) {
 		warnLimit:  warnLimit,
 		errorLimit: errorLimit,
 
-		readContainerItem: readContainerItem,
+		containerReader: containerReader{
+			resolvStripper: makeResolvStripper(resolvConfInputMaxSizeBytes),
+		},
 	}
+	cs.readContainerItem = cs.containerReader.readContainerItem
 
 	cleanTicker := time.NewTicker(cleanerInterval)
 
@@ -158,17 +150,14 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 		return
 	}
 
-	item, err := cs.readContainerItem(cs.ctx, entry)
+	result, err := cs.readContainerItem(cs.ctx, entry)
 	if log.ShouldLog(log.DebugLvl) {
-		logHandledID(entry.ContainerID, item, err)
+		logHandledID(entry.ContainerID, result, err)
 	}
 	if cs.ctx.Err() != nil {
 		return
 	}
 	if err != nil {
-		if _, ok := err.(*containerItemNoDataError); ok {
-			return
-		}
 		if cs.errorLimit.ShouldLog() {
 			log.Errorf("CNM ContainerStore failed to readContainerItem: %s", err)
 		}
@@ -181,6 +170,14 @@ func (cs *ContainerStore) addProcess(entry *events.Process) {
 
 		return
 	}
+	if result.noDataReason != "" {
+		if log.ShouldLog(log.DebugLvl) {
+			logNoData(entry.ContainerID, result.noDataReason)
+		}
+		return
+	}
+
+	item := result.item
 
 	if log.ShouldLog(log.DebugLvl) {
 		logResolvConfRead(len(item.resolvConf.Get()))
@@ -199,8 +196,13 @@ func logEvictingID(containerID network.ContainerID) {
 }
 
 // logHandledID logs in a separate function to avoid allocation
-func logHandledID(containerID network.ContainerID, item containerStoreItem, err error) {
-	log.Debugf("CNM ContainerStore handled ID=%v with item=%v, err=%v", containerID, item, err)
+func logHandledID(containerID network.ContainerID, result readContainerItemResult, err error) {
+	log.Debugf("CNM ContainerStore handled ID=%v with result=%v, err=%v", containerID, result, err)
+}
+
+// logNoData logs in a separate function to avoid allocation
+func logNoData(containerID network.ContainerID, reason string) {
+	log.Debugf("CNM ContainerStore read ID=%v and found no data: %s", containerID, reason)
 }
 
 // logResolvConfRead logs in a separate function to avoid allocation

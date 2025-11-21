@@ -8,6 +8,7 @@
 package containers
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,9 +20,13 @@ func TestStripResolvConf(t *testing.T) {
 # other comment goes here
 nameserver 8.8.8.8
 	# indented comment with spaces
-	nameserver 8.8.4.4
+	nameserver 8.8.4.4  
 `
-	stripped := StripResolvConf(resolvConf)
+	reader := strings.NewReader(resolvConf)
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	stripped, err := rs.stripResolvConf(len(resolvConf), reader)
+	require.NoError(t, err)
 
 	require.Equal(t, "nameserver 8.8.8.8\nnameserver 8.8.4.4", stripped)
 }
