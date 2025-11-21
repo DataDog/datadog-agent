@@ -117,6 +117,8 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		// runtime compiled implementation
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer || coreTracer, kv, probes.TCPRetransmit, probes.TCPRetransmitPre470, kv470))
 		enableProbe(enabled, probes.TCPRetransmitRet)
+
+		enableProbe(enabled, probes.ERPC)
 	}
 
 	if c.CollectUDPv4Conns {

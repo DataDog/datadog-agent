@@ -57,6 +57,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.Inet6BindRet,
 	probes.UDPSendPage,
 	probes.UDPSendPageReturn,
+	probes.ERPC,
 }
 
 var batchProbes = []probes.ProbeFuncName{

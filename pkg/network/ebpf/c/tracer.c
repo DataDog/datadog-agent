@@ -21,6 +21,8 @@
 #include "protocols/classification/protocol-classification.h"
 #include "pid_tgid.h"
 
+#include "tracer/erpc.h"
+
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
     protocol_classifier_entrypoint(skb);

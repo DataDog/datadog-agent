@@ -18,6 +18,8 @@
 #include "skb.h"
 #include "pid_tgid.h"
 #include "timestamp_ms.h"
+#include "process.h"
+#include "span.h"
 
 #ifdef COMPILE_PREBUILT
 static __always_inline __u64 offset_rtt();
@@ -270,92 +272,6 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
 
     if (stats.failure_reason != 0) {
         val->failure_reason = stats.failure_reason;
-    }
-}
-
-BPF_LRU_MAP(span_tls, u32, struct span_tls_t, 1)
-
-struct span_tls_t {
-    u64 format;
-    u64 max_threads;
-    void *base;
-};
-
-struct span_context_t {
-    u64 span_id;
-    u64 trace_id[2];
-};
-u64 __attribute__((always_inline)) get_pid_level_offset() {
-    u64 pid_level_offset;
-    LOAD_CONSTANT("pid_level_offset", pid_level_offset);
-    return pid_level_offset;
-}
-
-u64 __attribute__((always_inline)) get_pid_numbers_offset() {
-    u64 pid_numbers_offset;
-    LOAD_CONSTANT("pid_numbers_offset", pid_numbers_offset);
-    return pid_numbers_offset;
-}
-
-u64 __attribute__((always_inline)) get_sizeof_upid() {
-    u64 sizeof_upid;
-    LOAD_CONSTANT("sizeof_upid", sizeof_upid);
-    return sizeof_upid;
-}
-
-u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
-    u64 kernel_has_pid_link_struct;
-    LOAD_CONSTANT("kernel_has_pid_link_struct", kernel_has_pid_link_struct);
-
-    u64 task_struct_pid_offset;
-    if (kernel_has_pid_link_struct) { // kernels < 4.19
-        u64 task_struct_pid_link_offset;
-        LOAD_CONSTANT("task_struct_pid_link_offset", task_struct_pid_link_offset);
-        u64 pid_link_pid_offset;
-        LOAD_CONSTANT("pid_link_pid_offset", pid_link_pid_offset);
-        task_struct_pid_offset = task_struct_pid_link_offset + pid_link_pid_offset;
-    } else {
-        LOAD_CONSTANT("task_struct_pid_offset", task_struct_pid_offset);
-    }
-
-    return task_struct_pid_offset;
-}
-
-u32 __attribute__((always_inline)) get_namespace_nr_from_task_struct(struct task_struct *task) {
-    struct pid *pid = NULL;
-    bpf_probe_read_kernel(&pid, sizeof(pid), (void *)task + get_task_struct_pid_offset());
-
-    u32 pid_level = 0;
-    bpf_probe_read_kernel(&pid_level, sizeof(pid_level), (void *)pid + get_pid_level_offset());
-
-    // read the namespace nr from &pid->numbers[pid_level].nr
-    u32 namespace_nr = 0;
-    u64 namespace_numbers_offset = pid_level * get_sizeof_upid();
-    bpf_probe_read_kernel(&namespace_nr, sizeof(namespace_nr), (void *)pid + get_pid_numbers_offset() + namespace_numbers_offset);
-
-    return namespace_nr;
-}
-
-void __attribute__((always_inline)) fill_span_context(struct span_context_t *span) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 tgid = pid_tgid >> 32;
-
-    struct span_tls_t *tls = bpf_map_lookup_elem(&span_tls, &tgid);
-    if (tls) {
-        u32 tid = pid_tgid;
-
-        struct task_struct *current_ptr = (struct task_struct *)bpf_get_current_task();
-        u32 pid = get_namespace_nr_from_task_struct(current_ptr);
-        if (pid) {
-            tid = pid;
-        }
-
-        int offset = (tid % tls->max_threads) * sizeof(struct span_context_t);
-        int ret = bpf_probe_read_user(span, sizeof(struct span_context_t), tls->base + offset);
-        if (ret < 0) {
-            span->span_id = 0;
-            span->trace_id[0] = span->trace_id[1] = 0;
-        }
     }
 }
 

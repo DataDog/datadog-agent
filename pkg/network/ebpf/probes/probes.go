@@ -186,6 +186,8 @@ const (
 
 	// ConntrackFillInfo is the probe for dumping existing conntrack entries
 	ConntrackFillInfo ProbeFuncName = "kprobe_ctnetlink_fill_info"
+
+	ERPC ProbeFuncName = "hook_security_file_ioctl"
 )
 
 // BPFMapName stores the name of the BPF maps storing statistics and other info
