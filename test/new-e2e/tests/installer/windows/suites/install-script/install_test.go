@@ -21,13 +21,6 @@ type testInstallScriptSuite struct {
 	installerwindows.BaseSuite
 }
 
-const (
-	oldInstallerURL     = "http://dd-agent.s3.amazonaws.com/datadog-installer-7.63.0-installer-0.12.5-1-x86_64.exe"
-	oldInstallerScript  = "http://dd-agent.s3.amazonaws.com/Install-Datadog-7.63.0-installer-0.12.5-1.ps1"
-	oldInstallerVersion = "7.62"
-	oldAgentVersion     = "7.63.2"
-)
-
 // TestInstallScript tests the usage of the Datadog installer script to install the Datadog Agent package.
 func TestInstallScript(t *testing.T) {
 	e2e.Run(t, &testInstallScriptSuite{},
@@ -124,40 +117,6 @@ func (s *testInstallScriptSuite) upgradeToLatestExperiment() {
 	_, err := s.Installer().PromoteExperiment(consts.AgentPackage)
 	s.Require().NoError(err, "daemon should respond to request")
 	s.AssertSuccessfulAgentPromoteExperiment(s.CurrentAgentVersion().PackageVersion())
-}
-
-func (s *testInstallScriptSuite) installOldInstallerAndAgent() {
-	// Arrange
-	agentVersion := fmt.Sprintf("%s-1", oldAgentVersion)
-	// Act
-	opts := []installerwindows.Option{
-		installerwindows.WithExtraEnvVars(map[string]string{
-			// all of these make sure we install old versions from dd-agent.s3.amazonaws.com
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_INSTALLER": oldInstallerVersion,
-			"DD_INSTALLER_REGISTRY_URL_DATADOG_INSTALLER":        "dd-agent.s3.amazonaws.com",
-			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT":     agentVersion,
-			"DD_INSTALLER_REGISTRY_URL_DATADOG_AGENT":            "dd-agent.s3.amazonaws.com",
-			"DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE":            "dd-agent.s3.amazonaws.com",
-			"DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE":        "dd-agent.s3.amazonaws.com",
-		}),
-		installerwindows.WithInstallerURL(oldInstallerURL),
-		installerwindows.WithInstallerScript(oldInstallerScript),
-	}
-
-	output, err := s.InstallScript().Run(opts...)
-	if s.NoError(err) {
-		fmt.Printf("%s\n", output)
-	}
-
-	// Assert
-	s.Require().NoErrorf(err, "failed to install the Datadog Agent package: %s", output)
-	s.Require().NoError(s.WaitForInstallerService("Running"))
-	s.Require().Host(s.Env().RemoteHost).
-		HasARunningDatadogInstallerService().
-		HasARunningDatadogAgentService().
-		WithVersionMatchPredicate(func(version string) {
-			s.Require().Contains(version, oldAgentVersion)
-		})
 }
 
 // TestReinstallAfterMSIUninstall tests that the install script can reinstall the agent after MSI uninstallation.
