@@ -215,7 +215,7 @@ cc_library(
 
 # ffi will be prepended by lib automatically
 cc_library(
-    name = "ffi",
+    name = "libffi",
     hdrs = [
         ":ffi_h",
         ":fficonfig_h",
@@ -267,5 +267,11 @@ cc_library(
                 "//conditions:default": [],
             }),
     implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
+    visibility = ["//visibility:public"],
+)
+
+cc_shared_library(
+    name = "ffi",
+    deps = [":libffi"],
     visibility = ["//visibility:public"],
 )

@@ -373,6 +373,9 @@ PYTHON_MODULES = {
             "Modules/_ctypes/cfield.c"
         ],
         "deps": [
+            "@libffi//:libffi"
+        ],
+        "dynamic_deps": [
             "@libffi//:ffi"
         ]
     },
