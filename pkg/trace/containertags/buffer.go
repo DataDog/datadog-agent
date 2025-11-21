@@ -73,13 +73,12 @@ type containerTagsBuffer struct {
 // NewContainerTagsBuffer creates a new buffer if it's enabled in configuration and the agent is in kubernetes
 // elses returns a NoOpTagBuffer
 func NewContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterface) ContainerTagsBuffer {
-	if !env.IsFeaturePresent(env.Kubernetes) {
-		return &NoOpTagsBuffer{}
-	}
 	if !conf.ContainerTagsBuffer {
 		return &NoOpTagsBuffer{}
 	}
-
+	if !env.IsFeaturePresent(env.Kubernetes) {
+		return &NoOpTagsBuffer{}
+	}
 	return newContainerTagsBuffer(conf, statsd)
 }
 
