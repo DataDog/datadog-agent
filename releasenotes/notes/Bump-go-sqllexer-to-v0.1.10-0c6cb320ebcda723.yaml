@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    [DBM] Bump go-sqllexer to v0.1.10 to fix the following bugs:
+    - Fixes a normalization bug in SqlServer parameterized queries containing multiple depths of parentheses.
+    - Fixes identifier quote removal to preserve quotes for aliases that aren't strictly alphanumeric.  
+
+

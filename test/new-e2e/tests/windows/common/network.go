@@ -33,6 +33,12 @@ func (b *BoundPort) LocalPort() int {
 	return b.localPort
 }
 
+// Transport returns the transport protocol of the bound port
+func (b *BoundPort) Transport() string {
+	// TODO: We currently only collect listening TCP sockets. We could likely get UDP by querying `Get-NetUDPEndpoint`.
+	return "tcp"
+}
+
 // Process returns the process name of the bound port
 func (b *BoundPort) Process() string {
 	return b.processName
