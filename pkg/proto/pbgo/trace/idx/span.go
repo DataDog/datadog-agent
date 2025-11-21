@@ -1265,6 +1265,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			}
 		}
 	}
+	s.SetAttributeFromString("_dd.convertedv1", "true")
 	o = bts
 	return
 }
@@ -1329,9 +1330,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 					}
 					value = nil
 				} else {
-					if value == nil {
-						value = new(AnyValue)
-					}
+					value = new(AnyValue)
 					bts, err = value.UnmarshalMsgConverted(strings, bts)
 					if err != nil {
 						err = msgp.WrapError(err, "Attributes", keyRef)
