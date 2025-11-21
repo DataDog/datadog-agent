@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/grpc
 
-go 1.24.10
+go 1.24.0
 
 require (
 	cloud.google.com/go/compute v1.38.0
