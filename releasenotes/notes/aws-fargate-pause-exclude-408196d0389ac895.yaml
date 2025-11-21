@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    Exclude the 'amazon/aws-fargate-pause' container from the default
+    Exclude the 'aws-fargate-pause' container from the default
     pause container exclusion list.

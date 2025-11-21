@@ -27,7 +27,7 @@ const (
 
 	pauseContainerKubernetes = "image:kubernetes/pause"
 	pauseContainerECS        = "image:amazon/amazon-ecs-pause"
-	pauseContainerFargate    = "image:amazon/aws-fargate-pause"
+	pauseContainerFargate    = "image:aws-fargate-pause"
 	pauseContainerOpenshift  = "image:openshift/origin-pod"
 	pauseContainerOpenshift3 = "image:.*rhel7/pod-infrastructure"
 
