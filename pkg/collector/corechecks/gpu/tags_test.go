@@ -467,6 +467,34 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
+// TestBuildProcessTagsNsPidMissingEntry tests that buildProcessTags falls back to pid when
+// there's no NSpid entry available in procfs.
+func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockWmeta := testutil.GetWorkloadMetaMock(t)
+	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+
+	pid := int32(4321)
+
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: uint32(pid), NsPid: 0},
+	})
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	require.NoError(t, err)
+
+	expectedTags := []string{
+		fmt.Sprintf("pid:%d", pid),
+		fmt.Sprintf("nspid:%d", pid),
+	}
+
+	assert.ElementsMatch(t, expectedTags, tags)
+	if err != nil {
+		assert.Contains(t, err.Error(), "nspid")
+	}
+}
+
 // TestBuildProcessTagsFallbackToContainerProvider tests fallback when process not in workloadmeta
 func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
@@ -533,10 +561,7 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 	// Don't set up container in workloadmeta - it will return NotFound
 
 	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
-	// Due to IsNotFound not supporting wrapped errors, this currently returns an error
-	// TODO: Once IsNotFound supports wrapped errors, this should not error
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "error building container tags")
+	assert.NoError(t, err) //
 
 	expectedTags := []string{
 		fmt.Sprintf("pid:%d", pid),
@@ -661,11 +686,18 @@ func TestGetContainerIDPIDNotFound(t *testing.T) {
 	assert.Equal(t, "", result)
 }
 
-// TestGetNsPID_NotFoundError tests that getNsPID preserves NotFound errors
-func TestGetNsPID_NotFoundError(t *testing.T) {
-	// This test would require mocking secutils.GetNsPids which is challenging
-	// In a real scenario, we'd need to use integration tests or refactor to inject the dependency
-	t.Skip("getNsPID requires integration testing or dependency injection refactoring")
+// TestGetNsPID_NotFoundError tests that getNsPID returns NotFound when there's no nspid field
+func TestGetNsPIDNotFoundError(t *testing.T) {
+	pid := int32(1234)
+	fakeprocfs := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: uint32(pid), NsPid: 0}, // With 0 will not have the nspid field
+	})
+	kernel.WithFakeProcFS(t, fakeprocfs)
+
+	nspid, err := getNsPID(pid)
+	assert.Error(t, err)
+	assert.True(t, agenterrors.IsNotFound(err))
+	assert.Equal(t, int32(0), nspid)
 }
 
 // TestGetWorkloadTagsMultipleRuns tests the full flow through GetWorkloadTags

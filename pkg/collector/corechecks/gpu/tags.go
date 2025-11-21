@@ -189,15 +189,11 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 // in /proc/X/task/X/status, or fail otherwise
 func getNsPID(pid int32) (int32, error) {
 	nspids, err := secutils.GetNsPids(uint32(pid), strconv.FormatUint(uint64(pid), 10))
-	if err != nil && agenterrors.IsNotFound(err) {
-		// (temporary) report agenterrors.IsNotFound directly, IsNotFound doesnot support wrapped errors so if we wrap here we'll lose the ability to check for it later
-		// Remove this once IsNotFound supports wrapped errors
-		return 0, err
-	} else if err != nil {
-		return 0, fmt.Errorf("failed reading nspids for host pid %d: %w", pid, err)
+	if err != nil {
+		return 0, fmt.Errorf("could not get nspid for pid %d: %w", pid, err)
 	}
 	if len(nspids) == 0 {
-		return 0, fmt.Errorf("found no nspids for host pid %d", pid)
+		return 0, agenterrors.NewNotFound("nspid field")
 	}
 
 	return int32(nspids[len(nspids)-1]), nil
