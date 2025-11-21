@@ -37,13 +37,13 @@ var validProducts = map[string]struct{}{
 	ProductNDMDeviceProfilesCustom:      {},
 	ProductMetricControl:                {},
 	ProductDataStreamsLiveMessages:      {},
+	ProductDataStreamsKafkaActions:      {},
 	ProductLiveDebuggingSymbolDB:        {},
 	ProductGradualRollout:               {},
 	ProductApmPolicies:                  {},
 	ProductSyntheticsTest:               {},
 	ProductBTFDD:                        {},
 	ProductFFEFlags:                     {},
-	ProductDebug:                        {},
 }
 
 const (
@@ -114,6 +114,8 @@ const (
 	ProductMetricControl = "METRIC_CONTROL"
 	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductDataStreamsKafkaActions is used for executing Kafka actions remotely
+	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
 	// ProductGradualRollout tracks the latest stable release versions for K8s gradual rollout.
 	ProductGradualRollout = "K8S_INJECTION_DD"
 	// ProductBTFDD accesses a BTF catalog used when the kernel is newer than the system-probe has bundled support for
@@ -122,6 +124,4 @@ const (
 	ProductApmPolicies = "APM_POLICIES"
 	// ProductFFEFlags is used for feature flagging experiments remote updates
 	ProductFFEFlags = "FFE_FLAGS"
-	// ProductDebug is for debugging and testing remote configuration
-	ProductDebug = "DEBUG"
 )

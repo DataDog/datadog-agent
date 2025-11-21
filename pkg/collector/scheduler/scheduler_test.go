@@ -207,18 +207,30 @@ func TestStopOneTimeSchedule(t *testing.T) {
 // RunOnceTestCheck is a test check that can be configured as run-once or regular
 type RunOnceTestCheck struct {
 	stub.StubCheck
+	mu         sync.RWMutex
 	id         string
 	runOnce    bool
 	intl       time.Duration
 	runCounter int
 }
 
-func (c *RunOnceTestCheck) ID() checkid.ID          { return checkid.ID(c.id) }
-func (c *RunOnceTestCheck) RunOnce() bool           { return c.runOnce }
+func (c *RunOnceTestCheck) ID() checkid.ID { return checkid.ID(c.id) }
+func (c *RunOnceTestCheck) RunOnce() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.runOnce
+}
 func (c *RunOnceTestCheck) Interval() time.Duration { return c.intl }
 func (c *RunOnceTestCheck) Run() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.runCounter++
 	return nil
+}
+func (c *RunOnceTestCheck) GetRunCounter() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.runCounter
 }
 
 func TestRunOnceCheckDescheduling(t *testing.T) {
@@ -269,29 +281,28 @@ func TestRunOnceCheckDescheduling(t *testing.T) {
 	runOnceCheck := &RunOnceTestCheck{
 		id:      "run-once-check",
 		runOnce: true,
+		intl:    1 * time.Second,
 	}
-	runOnceCheck.intl = 1 * time.Second
 
 	regularCheck := &RunOnceTestCheck{
 		id:      "regular-check",
 		runOnce: false,
+		intl:    1 * time.Second,
 	}
-	regularCheck.intl = 1 * time.Second
+
+	// Manually create a job queue for 1 second interval and replace its ticker
+	// This must be done BEFORE calling Enter to avoid race conditions
+	jq := newJobQueue(1 * time.Second)
+	tickerChan := make(chan time.Time, 10)
+	jq.bucketTicker.Stop()
+	jq.bucketTicker = &time.Ticker{C: tickerChan}
+	s.jobQueues[1*time.Second] = jq
 
 	// Schedule both checks
 	err := s.Enter(runOnceCheck)
 	require.NoError(t, err)
 	err = s.Enter(regularCheck)
 	require.NoError(t, err)
-
-	// Verify both checks are in the queue
-	jq := s.jobQueues[1*time.Second]
-	require.NotNil(t, jq)
-
-	// Replace the ticker's channel with one we control
-	jq.bucketTicker.Stop()
-	tickerChan := make(chan time.Time, 10)
-	jq.bucketTicker = &time.Ticker{C: tickerChan}
 
 	// Start the scheduler
 	s.Run()

@@ -86,7 +86,7 @@ func (c *actionsController) manageSubscriptionToRC() {
 		}
 		c.closeMutex.RUnlock()
 		if isConnectedToKafka(c.ac) {
-			c.rcclient.Subscribe(data.ProductDebug, c.update)
+			c.rcclient.Subscribe(data.ProductDataStreamsKafkaActions, c.update)
 			return
 		}
 	}
