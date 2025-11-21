@@ -7,6 +7,7 @@
 package forwarders
 
 import (
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 )
 
@@ -14,8 +15,7 @@ import (
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type Component interface {
-	GetEventForwarder() defaultforwarder.Component
 	GetProcessForwarder() defaultforwarder.Component
 	GetRTProcessForwarder() defaultforwarder.Component
-	GetConnectionsForwarder() defaultforwarder.Component
+	GetConnectionsForwarder() connectionsforwarder.Component
 }

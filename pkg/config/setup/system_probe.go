@@ -45,9 +45,9 @@ const (
 	defaultBTFOutputDir = "/var/tmp/datadog-agent/system-probe/btf"
 
 	// defaultDynamicInstrumentationDebugInfoDir is the default path for debug
-	// info for dynamic instrumentation this is the directory where the debug
-	// info is decompressed into during processing.
-	defaultDynamicInstrumentationDebugInfoDir = "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
+	// info for Dynamic Instrumentation. This is the directory where the DWARF
+	// data from analyzed binaries is decompressed into during processing.
+	defaultDynamicInstrumentationDebugInfoDir = "/tmp/datadog-agent/system-probe/dynamic-instrumentation/decompressed-debug-info"
 
 	// defaultAptConfigDirSuffix is the default path under `/etc` to the apt config directory
 	defaultAptConfigDirSuffix = "/apt"
@@ -189,6 +189,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_bytes"), int64(512<<20 /* 512MiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_percent"), float64(0.0))
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interval"), 1*time.Second)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "per_probe_cpu_limit"), 0.1)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "all_probes_cpu_limit"), 0.5)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interrupt_overhead"), 5*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -298,7 +302,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "entries_for_iteration_restart_detection"), 100)
 
 	// event monitoring
-	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_all_probes"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
@@ -341,8 +344,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.period"), "5s")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "snapshot_using_listmount"), false)
-	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
-	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)
 
 	// process event monitoring data limits for network tracer
@@ -390,7 +391,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "device_cache_refresh_interval"), 5*time.Second)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_delay"), 30*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_interval"), 30*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_infinitely"), false)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)
