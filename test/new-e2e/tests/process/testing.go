@@ -183,7 +183,7 @@ func assertContainersCollectedNew(t assert.TestingT, payloads []*aggregator.Proc
 func assertContainerStates(t require.TestingT, payloads []*aggregator.ProcessPayload, expected map[string]agentmodel.ContainerState) {
 	for name, state := range expected {
 		containers := collectContainersByName(payloads, name)
-		require.NotEmpty(t, containers, "%s container not found in payloads: %+v", name, payloads)
+		assert.NotEmptyf(t, containers, "%s container not found in payloads: %+v", name, payloads)
 		for _, container := range containers {
 			assert.Equalf(t, state, container.State, "%s container has unexpected state", name)
 		}
