@@ -58,7 +58,7 @@ func (d *dispatcher) scheduleKSMCheck(config integration.Config) bool {
 		return false
 	}
 
-	log.Infof("Created %d resource-sharded KSM configs", len(shardedConfigs))
+	log.Debugf("Created %d resource-sharded KSM configs", len(shardedConfigs))
 
 	// Schedule resource-sharded configs using dispatcher's logic
 	// Shards are created and tracked regardless of current runner availability

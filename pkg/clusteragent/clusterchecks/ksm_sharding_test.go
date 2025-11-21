@@ -110,20 +110,6 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:   "empty collectors list - uses defaults",
-			config: createKSMConfig([]string{}),
-			// When collectors is empty, should use options.DefaultResources which includes:
-			// pods, nodes, deployments, services, configmaps, secrets, etc.
-			// Should create 3 groups: pods, nodes, others
-			expectedGroups: []resourceGroup{
-				{Name: "pods", Collectors: []string{"pods"}},
-				{Name: "nodes", Collectors: []string{"nodes"}},
-				// others will contain all remaining default resources
-				// We just check it exists and has multiple collectors
-			},
-			expectError: false,
-		},
-		{
 			name: "not a KSM check",
 			config: integration.Config{
 				Name: "prometheus",
@@ -162,22 +148,6 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-
-			// Special case for empty collectors - uses defaults
-			if tt.name == "empty collectors list - uses defaults" {
-				// Should have 3 groups: pods, nodes, others
-				assert.Equal(t, 3, len(groups))
-				assert.Equal(t, "pods", groups[0].Name)
-				assert.Equal(t, []string{"pods"}, groups[0].Collectors)
-				assert.Equal(t, "nodes", groups[1].Name)
-				assert.Equal(t, []string{"nodes"}, groups[1].Collectors)
-				assert.Equal(t, "others", groups[2].Name)
-				// others should have multiple default collectors
-				assert.Greater(t, len(groups[2].Collectors), 0, "others group should have collectors from DefaultResources")
-				return
-			}
-
-			// Normal validation for explicit collectors
 			assert.Equal(t, len(tt.expectedGroups), len(groups))
 
 			for i, expectedGroup := range tt.expectedGroups {
@@ -186,6 +156,31 @@ func TestAnalyzeKSMConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnalyzeKSMConfig_EmptyCollectors(t *testing.T) {
+	manager := newKSMShardingManager(true)
+
+	// When collectors is empty, should use options.DefaultResources which includes:
+	// pods, nodes, deployments, services, configmaps, secrets, etc.
+	// Should create 3 groups: pods, nodes, others
+	config := createKSMConfig([]string{})
+
+	groups, err := manager.analyzeKSMConfig(config)
+	require.NoError(t, err)
+
+	// Should have 3 groups: pods, nodes, others
+	assert.Equal(t, 3, len(groups))
+
+	assert.Equal(t, "pods", groups[0].Name)
+	assert.Equal(t, []string{"pods"}, groups[0].Collectors)
+
+	assert.Equal(t, "nodes", groups[1].Name)
+	assert.Equal(t, []string{"nodes"}, groups[1].Collectors)
+
+	assert.Equal(t, "others", groups[2].Name)
+	// others should have multiple default collectors
+	assert.Greater(t, len(groups[2].Collectors), 0, "others group should have collectors from DefaultResources")
 }
 
 func TestShouldShardKSMCheck(t *testing.T) {
@@ -289,12 +284,6 @@ func TestCreateShardedKSMConfigs(t *testing.T) {
 			name:           "all three groups",
 			config:         createKSMConfig([]string{"pods", "nodes", "deployments", "services"}),
 			expectedShards: 3,
-			expectError:    false,
-		},
-		{
-			name:           "all three groups - always 3 shards",
-			config:         createKSMConfig([]string{"pods", "nodes", "deployments", "services"}),
-			expectedShards: 3, // Always create 3 shards (pods, nodes, others) regardless of runner count
 			expectError:    false,
 		},
 		{
