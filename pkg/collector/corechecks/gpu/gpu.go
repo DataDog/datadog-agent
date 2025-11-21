@@ -23,6 +23,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -356,10 +357,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 			metricTags := []string{}
 			for _, workloadID := range metricWorkloads {
 				tags, err := c.workloadTagCache.GetWorkloadTags(workloadID)
-				if err != nil {
+				if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
 					multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for GPU %s: %w", deviceUUID, err))
-					continue
 				}
+
+				// always continue with whatever tags we can get even if there are errors
 				metricTags = append(metricTags, tags...)
 			}
 
