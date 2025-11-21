@@ -27,7 +27,11 @@ default_version "3.5.4"
 
 build do
   if (windows? && ENV["AGENT_FLAVOR"] != "fips") || (!windows? && ENV["AGENT_FLAVOR"] != "fips")
-    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
+    installation_dir = "#{install_dir}/embedded"
+    if windows?
+      installation_dir = "#{python_3_embedded}"
+    end
+    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{installation_dir}"
     if windows?
       # shutil generates temporary files during run install that are not removed afterwards.
       Dir.glob("#{install_dir}/embedded/include/openssl/tmp*").each do |tmp_file|
