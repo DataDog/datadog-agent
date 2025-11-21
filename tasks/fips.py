@@ -54,6 +54,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
             job["needs"] = update_needs_parent(
                 job["needs"],
                 deps_to_keep=[
+                    # Warning: if you want to add a dependency here you will hit a gitlab limit (no more than 5 needs https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731)
                     "go_e2e_deps",
                     "go_tools_deps",
                     "tests_windows_sysprobe_x64",
