@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -394,14 +393,16 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 			}
 			if !haveKind {
 				haveKind = true
-				if err := writeTokens(enc, kind.token, jsontext.BeginObject); err != nil {
+				if err := writeTokens(
+					enc, kind.token, jsontext.BeginObject,
+				); err != nil {
 					return err
 				}
 			}
 			err := ce.processExpression(enc, expr, presenceBitSet, i)
 			if errors.Is(err, errEvaluation) {
-				// This expression resulted in an evaluation error, we mark it to be
-				// skipped and will try again
+				// This expression resulted in an evaluation error, we mark it
+				// to be skipped and will try again
 				ce.skippedIndices.set(i)
 			}
 			if err != nil {
@@ -425,39 +426,27 @@ type stackData struct {
 }
 
 func (sd *stackData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	var err error
-	if err = writeTokens(enc, jsontext.BeginArray); err != nil {
+	if err := writeTokens(enc, jsontext.BeginArray); err != nil {
 		return err
 	}
-
 	for i := range sd.frames {
 		for j := range sd.frames[i].Lines {
-			if err = json.MarshalEncode(
-				enc, (*stackLine)(&sd.frames[i].Lines[j]),
+			sl := sd.frames[i].Lines[j]
+			if err := writeTokens(enc,
+				jsontext.BeginObject,
+				jsontext.String("function"),
+				jsontext.String(sl.Function),
+				jsontext.String("fileName"),
+				jsontext.String(sl.File),
+				jsontext.String("lineNumber"),
+				jsontext.Int(int64(sl.Line)),
+				jsontext.EndObject,
 			); err != nil {
 				return err
 			}
 		}
 	}
-	if err = writeTokens(enc, jsontext.EndArray); err != nil {
-		return err
-	}
-	return nil
-}
-
-type stackLine gosym.GoLocation
-
-func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if err := writeTokens(enc,
-		jsontext.BeginObject,
-		jsontext.String("function"),
-		jsontext.String(sl.Function),
-		jsontext.String("fileName"),
-		jsontext.String(sl.File),
-		jsontext.String("lineNumber"),
-		jsontext.Int(int64(sl.Line)),
-		jsontext.EndObject,
-	); err != nil {
+	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
 	return nil
@@ -477,7 +466,9 @@ func encodeValue(
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-	if err := writeTokens(enc, jsontext.String("type"), jsontext.String(valueType)); err != nil {
+	if err := writeTokens(
+		enc, jsontext.String("type"), jsontext.String(valueType),
+	); err != nil {
 		return err
 	}
 	if err := decoderType.encodeValueFields(c, enc, data); err != nil {
