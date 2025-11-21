@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -58,6 +59,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	taskAttemptVal := os.Getenv(cloudRunTaskAttemptEnvVar)
 	taskCountVal := os.Getenv(cloudRunTaskCountEnvVar)
 
+	// TODO: remove high cardinality tags and include them only in logs/traces.
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
 		tags[jobNameTag] = jobNameVal
@@ -102,8 +104,9 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 // Init records the start time for CloudRunJobs and initializes the job span
 func (c *CloudRunJobs) Init() error {
 	c.startTime = time.Now()
-	// TODO only if tracing is enabled
-	c.initJobSpan()
+	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") {
+		c.initJobSpan()
+	}
 	return nil
 }
 
