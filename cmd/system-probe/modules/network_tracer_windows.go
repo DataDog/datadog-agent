@@ -9,6 +9,7 @@ package modules
 
 import (
 	"time"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
