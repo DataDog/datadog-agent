@@ -7,6 +7,7 @@ package net
 
 import "net/http"
 
+// GetNetworkID is not implemented on windows
 func GetNetworkID(_ *http.Client) (string, error) {
 	return "", nil
 }
