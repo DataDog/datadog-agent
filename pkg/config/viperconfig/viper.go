@@ -303,7 +303,7 @@ func (c *safeConfig) HasSection(key string) bool {
 	defer c.RUnlock()
 
 	for _, src := range model.Sources {
-		if src == model.SourceDefault || src == model.SourceUnknown {
+		if src == model.SourceDefault {
 			continue
 		}
 		if src == model.SourceEnvVar {
