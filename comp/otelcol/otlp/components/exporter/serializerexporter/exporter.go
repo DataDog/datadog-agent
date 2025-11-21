@@ -191,7 +191,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		OTLPIngestAgentMetricsRequests.Inc()
 		OTLPIngestAgentMetricsEvents.Add(float64(ld.MetricCount()))
 	case ddot:
-		OTLPIngestDDOTMetricsRequests.Add(1)
+		OTLPIngestDDOTMetricsRequests.Inc()
 		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
 	}
 	if e.hostmetadata.Enabled {
