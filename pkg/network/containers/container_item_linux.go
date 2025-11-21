@@ -141,7 +141,7 @@ func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) 
 	scanner.Buffer(r.buf, cap(r.buf))
 	var sb strings.Builder
 
-	if size > cap(r.buf) {
+	if size >= cap(r.buf) {
 		return resolvConfTooBig("input", size), nil
 	}
 	sb.Grow(size)
