@@ -106,9 +106,9 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 
 	err := modeConf.Runner(logConfig)
 
-	// Defers are LIFO
+	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer cloudService.Shutdown(*metricAgent, traceAgent, err)
 
 	return err
 }

@@ -150,8 +150,8 @@ func (c *ContainerApp) Init() error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix), 1.0, c.GetSource(), agent)
+func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix), 1.0, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events

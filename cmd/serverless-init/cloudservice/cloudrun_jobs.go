@@ -104,6 +104,7 @@ func (c *CloudRunJobs) Init() error {
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error) {
 	durationMetricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
 	duration := float64(time.Since(c.startTime).Milliseconds())
 	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
