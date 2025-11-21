@@ -24,9 +24,11 @@ build do
   unless windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
 
+    sh_lib = if linux_target? then "libpython3.13.so" else "libpython3.13.dylib" end
     command_on_repo_root "bazelisk run -- @python3//:install --destdir='#{install_dir}/embedded'"
+    # on macOS, the modules are still named foo.so, but the main python library extension is .dylib, as expected
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
-      " #{install_dir}/embedded/lib/libpython3.13.so" \
+      " #{install_dir}/embedded/lib/#{sh_lib}" \
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3"
 
