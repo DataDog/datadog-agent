@@ -10,6 +10,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -21,7 +22,10 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
+
+const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
 
 type workloadTagCacheEntry struct {
 	tags  []string
@@ -54,14 +58,13 @@ type workloadTagCacheTelemetry struct {
 }
 
 func newWorkloadTagCacheTelemetry(tm telemetry.Component) *workloadTagCacheTelemetry {
-	subsystem := consts.GpuTelemetryModule + "__workload_tag_cache"
 	return &workloadTagCacheTelemetry{
-		cacheHits:        tm.NewCounter(subsystem, "hits", []string{"entity_kind"}, "Number of cache hits"),
-		cacheMisses:      tm.NewCounter(subsystem, "misses", []string{"entity_kind"}, "Number of cache misses"),
-		cacheEvictions:   tm.NewCounter(subsystem, "evictions", []string{"entity_kind"}, "Number of cache evictions"),
-		staleEntriesUsed: tm.NewCounter(subsystem, "stale_entries_used", []string{"entity_kind"}, "Number of stale cache used"),
-		cacheSize:        tm.NewGauge(subsystem, "size", []string{}, "Cache size"),
-		buildErrors:      tm.NewCounter(subsystem, "build_errors", []string{"entity_kind"}, "Number of errors building workload tags"),
+		cacheHits:        tm.NewCounter(workloadTagCacheTelemetrySubsystem, "hits", []string{"entity_kind"}, "Number of cache hits"),
+		cacheMisses:      tm.NewCounter(workloadTagCacheTelemetrySubsystem, "misses", []string{"entity_kind"}, "Number of cache misses"),
+		cacheEvictions:   tm.NewCounter(workloadTagCacheTelemetrySubsystem, "evictions", []string{"entity_kind"}, "Number of cache evictions"),
+		staleEntriesUsed: tm.NewCounter(workloadTagCacheTelemetrySubsystem, "stale_entries_used", []string{"entity_kind"}, "Number of stale cache used"),
+		cacheSize:        tm.NewGauge(workloadTagCacheTelemetrySubsystem, "size", []string{}, "Cache size"),
+		buildErrors:      tm.NewCounter(workloadTagCacheTelemetrySubsystem, "build_errors", []string{"entity_kind"}, "Number of errors building workload tags"),
 	}
 }
 
@@ -75,7 +78,7 @@ func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, 
 	}
 
 	var err error
-	c.cache, err = simplelru.NewLRU[workloadmeta.EntityID, *workloadTagCacheEntry](cacheSize, c.onLRUEvicted)
+	c.cache, err = simplelru.NewLRU(cacheSize, c.onLRUEvicted)
 	if err != nil {
 		return nil, fmt.Errorf("error creating LRU cache: %w", err)
 	}
@@ -199,13 +202,23 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	} else if agenterrors.IsNotFound(err) {
 		// If workloadmeta does not have the process data, we fall back to
 		// retrieving the data directly.
+		containerID = c.getContainerID(pid)
 		nspid, err = getNsPID(pid)
-		if err != nil && !agenterrors.IsNotFound(err) {
-			// A non-containerized process might not have a nspid, so ignore "NotFound" errors
+		if err != nil && !agenterrors.IsNotFound(err) && !os.IsNotExist(err) {
+			// A non-containerized process might not have a nspid, or the process might not exist anymore, so ignore "NotFound" errors
 			multiErr = errors.Join(multiErr, fmt.Errorf("error getting nspid for process %d: %w", pid, err))
 		}
 
-		containerID = c.getContainerID(pid)
+		if err != nil && containerID == "" {
+			// We could not get any data for the process. If that's because the process does not exist,
+			// we want to return a "NotFound" error so that we can return stale data.
+			if !kernel.ProcessExists(int(pid)) {
+				return tags, agenterrors.NewNotFound("process not found")
+			}
+
+			// Some other error happened, return it so it can be reported correctly.
+			return tags, multiErr
+		}
 	}
 
 	if nspid == 0 {

@@ -22,6 +22,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
@@ -645,6 +646,20 @@ func TestBuildProcessTagsInvalidPID(t *testing.T) {
 	assert.Contains(t, err.Error(), "error converting process ID to int")
 }
 
+func TestBuildProcessTagsProcessNotFound(t *testing.T) {
+	mockTagger := taggerfxmock.SetupFakeTagger(t)
+	mockWmeta := testutil.GetWorkloadMetaMock(t)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
+	require.NoError(t, err)
+
+	// Create an empty procfs to ensure the process is not found
+	kernel.WithFakeProcFS(t, kernel.CreateFakeProcFS(t, nil))
+
+	_, err = cache.buildProcessTags("1234")
+	assert.Error(t, err)
+	assert.True(t, agenterrors.IsNotFound(err))
+}
+
 // TestGetContainerIDFirstCall tests that getContainerID initializes pidToCid on first call
 func TestGetContainerIDFirstCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
@@ -902,16 +917,27 @@ type createdWorkload struct {
 	tags       []string
 }
 
+type expectedTelemetryMetrics struct {
+	queriesNewWorkloads      int
+	queriesExistingWorkloads int
+	queriesRemovedWorkloads  int
+}
+
 // TestWorkloadTagCacheSizeLimit tests that the cache size doesn't grow indefinitely
 // by creating many workloads, requesting tags, invalidating, and removing workloads.
 func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
+	telemetryMock := testutil.GetTelemetryMock(t)
 	cacheSize := 20 // Use a small cache size to make the test more effective
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), cacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, telemetryMock, cacheSize)
 	require.NoError(t, err)
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	// Use an empty fake procfs to avoid any issues with the real procfs
+	fakeprocfs := kernel.CreateFakeProcFS(t, nil)
+	kernel.WithFakeProcFS(t, fakeprocfs)
 
 	createdWorkloads := make([]createdWorkload, 0)
 
@@ -920,6 +946,8 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 	const workloadsPerIteration = 30
 	const removeRatio = 0.4           // Remove 40% of workloads each iteration
 	const queryExistingWorkloads = 10 // Query 3 additional workloads each iteration
+
+	var expectedTelemetryMetrics expectedTelemetryMetrics
 
 	for i := range iterations {
 		// Create some random workloads
@@ -936,8 +964,9 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 				setWorkloadTags(t, mockTagger, workloadID, tags, nil, nil)
 			} else {
 				pid := int32(i*2000 + j)
+				nspid := pid + 1000
 				workloadID = newProcessWorkloadID(pid)
-				tags = []string{fmt.Sprintf("pid:%d", pid), fmt.Sprintf("nspid:%d", pid+1000)}
+				tags = []string{fmt.Sprintf("pid:%d", pid), fmt.Sprintf("nspid:%d", nspid)}
 				process := &workloadmeta.Process{
 					EntityID: workloadID,
 					NsPid:    pid + 1000,
@@ -952,9 +981,16 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 			})
 
 			// Request tags to populate the cache
+			expectedTelemetryMetrics.queriesNewWorkloads++
 			actualTags, err := cache.GetWorkloadTags(workloadID)
 			require.NoError(t, err)
-			assert.ElementsMatch(t, tags, actualTags)
+			require.ElementsMatch(t, tags, actualTags)
+		}
+
+		// In order to have deterministic results for the telemetry, mark all entries as valid
+		// so that we know the following loop will always hit the cache
+		for entry := range cache.cache.ValuesIter() {
+			entry.valid = true
 		}
 
 		for range queryExistingWorkloads {
@@ -975,12 +1011,12 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 			}
 			require.NoError(t, err, "workload %+v is not in workloadmeta. Possible test logic error, this should not happen.", workload.workloadID)
 
+			expectedTelemetryMetrics.queriesExistingWorkloads++
 			actualTags, err := cache.GetWorkloadTags(workload.workloadID)
 			require.NoError(t, err)
-			assert.Equal(t, workload.tags, actualTags)
+			require.Equal(t, workload.tags, actualTags)
 		}
 
-		// Invalidate the cache
 		cache.Invalidate()
 
 		// Remove some random workloads from workloadmeta
@@ -1003,17 +1039,83 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 				}
 
 				createdWorkloads = slices.Delete(createdWorkloads, idx, idx+1)
+
+				// Query it to ensure we get a stale entry, all entries have been invalidated before
+				// Ignore the tags because the entry might have been evicted before and we won't have stale data
+				expectedTelemetryMetrics.queriesRemovedWorkloads++
+				_, err := cache.GetWorkloadTags(workload.workloadID)
+				require.Error(t, err, "stale entries should return an error")
+				require.True(t, agenterrors.IsNotFound(err), "stale entries should return a NotFound error, got %v", err)
 			}
 		}
 
-		// Verify cache size doesn't exceed the limit
 		cacheSizeActual := cache.Size()
-		assert.LessOrEqual(t, cacheSizeActual, cacheSize,
+		require.LessOrEqual(t, cacheSizeActual, cacheSize,
 			"Cache size (%d) exceeded limit (%d) at iteration %d", cacheSizeActual, cacheSize, i)
+
+		validateTelemetryMetrics(t, telemetryMock, cache, cacheSize, expectedTelemetryMetrics)
+	}
+}
+
+func getTotalMetricValue(telemetryMock telemetry.Mock, metricName string) int {
+	metrics, err := telemetryMock.GetCountMetric(workloadTagCacheTelemetrySubsystem, metricName)
+	if err != nil {
+		return 0
 	}
 
-	// Final verification: cache size should still be within limits
-	finalSize := cache.Size()
-	assert.LessOrEqual(t, finalSize, cacheSize,
-		"Final cache size (%d) exceeded limit (%d)", finalSize, cacheSize)
+	total := 0
+	for _, m := range metrics {
+		total += int(m.Value())
+	}
+	return total
+}
+
+// validateTelemetryMetrics validates telemetry metrics match expected values
+func validateTelemetryMetrics(t *testing.T, telemetryMock telemetry.Mock, cache *WorkloadTagCache, cacheSize int, expectedTelemetryMetrics expectedTelemetryMetrics) {
+	subsystem := "gpu__workload_tag_cache"
+
+	// Validate cache size gauge matches actual cache size
+	cacheSizeMetrics, err := telemetryMock.GetGaugeMetric(subsystem, "size")
+	require.NoError(t, err)
+	require.Len(t, cacheSizeMetrics, 1)
+	require.Equal(t, float64(cache.Size()), cacheSizeMetrics[0].Value(), "cache size gauge should match actual cache size")
+
+	hits := getTotalMetricValue(telemetryMock, "hits")
+	misses := getTotalMetricValue(telemetryMock, "misses")
+	evictions := getTotalMetricValue(telemetryMock, "evictions")
+	staleEntriesUsed := getTotalMetricValue(telemetryMock, "stale_entries_used")
+	buildErrors := getTotalMetricValue(telemetryMock, "build_errors")
+
+	// Validate cache hits (should be > 0 when querying existing workloads). We
+	// cannot assert the exact number of hits, because we don't know if they
+	// have been evicted
+	if expectedTelemetryMetrics.queriesExistingWorkloads > 0 {
+		require.Greater(t, hits, 0, "cache hits should be greater than 0 when querying existing workloads")
+	}
+
+	// Validate cache misses (should be > 0 when creating new workloads)
+	if expectedTelemetryMetrics.queriesNewWorkloads > 0 {
+
+		// There might be more misses in case there were evictions, but we know
+		// for sure that these ones should have hit the miss path
+		require.LessOrEqual(t, expectedTelemetryMetrics.queriesNewWorkloads, misses, "cache misses should match the expected number of queries for new workloads")
+	}
+
+	if expectedTelemetryMetrics.queriesNewWorkloads > cacheSize {
+		require.Greater(t, evictions, 0, "cache evictions should occur when cache is at capacity")
+	}
+
+	if expectedTelemetryMetrics.queriesRemovedWorkloads > 0 {
+		// Removed workloads can hit two paths:
+		// - using the stale entry if available
+		// - build error because there's no cache either.
+		// There might be more stale entries from other parts of the code, so we just have a minimum value
+		require.GreaterOrEqual(t, staleEntriesUsed+buildErrors, expectedTelemetryMetrics.queriesRemovedWorkloads, "stale entries used should be greater than or equal to the expected number of stale queries")
+	}
+
+	// build errors are not accounted for in here, as the test logic we're using
+	// does not create any errors, and that's validated by test assertions
+	actualTotalQueries := hits + misses + staleEntriesUsed + buildErrors
+	expectedTotalQueries := expectedTelemetryMetrics.queriesNewWorkloads + expectedTelemetryMetrics.queriesExistingWorkloads + expectedTelemetryMetrics.queriesRemovedWorkloads
+	require.Equal(t, expectedTotalQueries, actualTotalQueries, "total queries should match the expected number of queries")
 }
