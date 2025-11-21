@@ -188,7 +188,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	// Track requests based on ingestion path
 	switch e.ipath {
 	case agentOTLPIngest:
-		OTLPIngestAgentMetricsRequests.Add(1)
+		OTLPIngestAgentMetricsRequests.Inc()
 		OTLPIngestAgentMetricsEvents.Add(float64(ld.MetricCount()))
 	case ddot:
 		OTLPIngestDDOTMetricsRequests.Add(1)
