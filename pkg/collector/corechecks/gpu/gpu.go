@@ -44,6 +44,7 @@ type Check struct {
 	collectors         []nvidia.Collector               // collectors for NVML metrics
 	tagger             tagger.Component                 // Tagger instance to add tags to outgoing metrics
 	telemetry          *checkTelemetry                  // Telemetry component to emit internal telemetry
+	telemetryComponent telemetry.Component              // Telemetry component to emit internal telemetry
 	wmeta              workloadmeta.Component           // Workloadmeta store to get the list of containers
 	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
 	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
@@ -80,6 +81,7 @@ func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta work
 		deviceTags:         make(map[string][]string),
 		deviceCache:        ddnvml.NewDeviceCache(),
 		nvmlStateTelemetry: ddnvml.NewNvmlStateTelemetry(telemetry),
+		telemetryComponent: telemetry,
 	}
 }
 
@@ -117,7 +119,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	workloadTagCacheSize := pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size")
-	workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, workloadTagCacheSize)
+	workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, c.telemetryComponent, workloadTagCacheSize)
 	if err != nil {
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}

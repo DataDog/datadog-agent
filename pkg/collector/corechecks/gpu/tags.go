@@ -14,8 +14,10 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
@@ -38,21 +40,47 @@ type WorkloadTagCache struct {
 	wmeta             workloadmeta.Component
 	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 	pidToCid          map[int]string                   // pidToCid is the mapping of PIDs to container IDs, retrieved from the container provider until it is invalidated.
+	telemetry         *workloadTagCacheTelemetry       // telemetry is the telemetry component for the workload tag cache
+}
+
+type workloadTagCacheTelemetry struct {
+	cacheHits        telemetry.Counter
+	cacheMisses      telemetry.Counter
+	buildErrors      telemetry.Counter
+	staleEntriesUsed telemetry.Counter
+	cacheEvictions   telemetry.Counter
+	cacheEntries     telemetry.Gauge
+	cacheSize        telemetry.Gauge
+}
+
+func newWorkloadTagCacheTelemetry(tm telemetry.Component) *workloadTagCacheTelemetry {
+	subsystem := consts.GpuTelemetryModule + "__workload_tag_cache"
+	return &workloadTagCacheTelemetry{
+		cacheHits:        tm.NewCounter(subsystem, "hits", []string{"entity_kind"}, "Number of cache hits"),
+		cacheMisses:      tm.NewCounter(subsystem, "misses", []string{"entity_kind"}, "Number of cache misses"),
+		cacheEvictions:   tm.NewCounter(subsystem, "evictions", []string{"entity_kind"}, "Number of cache evictions"),
+		staleEntriesUsed: tm.NewCounter(subsystem, "stale_entries_used", []string{"entity_kind"}, "Number of stale cache used"),
+		cacheSize:        tm.NewGauge(subsystem, "size", []string{}, "Cache size"),
+		buildErrors:      tm.NewCounter(subsystem, "build_errors", []string{"entity_kind"}, "Number of errors building workload tags"),
+	}
 }
 
 // NewWorkloadTagCache creates a new WorkloadTagCache
-func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider, cacheSize int) (*WorkloadTagCache, error) {
-	cache, err := simplelru.NewLRU[workloadmeta.EntityID, *workloadTagCacheEntry](cacheSize, nil)
+func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider, tm telemetry.Component, cacheSize int) (*WorkloadTagCache, error) {
+	c := &WorkloadTagCache{
+		tagger:            tagger,
+		wmeta:             wmeta,
+		containerProvider: containerProvider,
+		telemetry:         newWorkloadTagCacheTelemetry(tm),
+	}
+
+	var err error
+	c.cache, err = simplelru.NewLRU[workloadmeta.EntityID, *workloadTagCacheEntry](cacheSize, c.onLRUEvicted)
 	if err != nil {
 		return nil, fmt.Errorf("error creating LRU cache: %w", err)
 	}
 
-	return &WorkloadTagCache{
-		cache:             cache,
-		tagger:            tagger,
-		wmeta:             wmeta,
-		containerProvider: containerProvider,
-	}, nil
+	return c, nil
 }
 
 func (c *WorkloadTagCache) Size() int {
@@ -66,6 +94,7 @@ func (c *WorkloadTagCache) Size() int {
 func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
 	cacheEntry, cacheEntryExists := c.cache.Get(workloadID)
 	if cacheEntryExists && cacheEntry.valid {
+		c.telemetry.cacheHits.Inc(string(workloadID.Kind))
 		return cacheEntry.tags, nil
 	}
 
@@ -90,9 +119,14 @@ func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]
 	if err == nil {
 		// If no error happened, we can assume that the new tags are correct, so we store them
 		cacheEntry.tags = tags
+		c.telemetry.cacheMisses.Inc(string(workloadID.Kind))
 	} else if cacheEntryExists {
 		// an error happened, so we return the previously cached tags
 		tags = cacheEntry.tags
+		c.telemetry.staleEntriesUsed.Inc(string(workloadID.Kind))
+	} else {
+		// This is the worst case, we had an error and no previous tags, so we cannot return anything
+		c.telemetry.buildErrors.Inc(string(workloadID.Kind))
 	}
 
 	// Now we always mark the cache entry as valid. This is obvious in the case of no error, but
@@ -110,6 +144,9 @@ func (c *WorkloadTagCache) Invalidate() {
 		entry.valid = false
 	}
 	c.pidToCid = nil
+
+	// Update the telemetry metrics after invalidation
+	c.telemetry.cacheSize.Set(float64(c.cache.Len()))
 }
 
 // buildContainerTags builds the tags for a container. Can return "ErrNotFound" if the container is not found.
@@ -238,4 +275,8 @@ func (c *WorkloadTagCache) getContainerID(pid int32) string {
 	}
 
 	return containerID
+}
+
+func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, entry *workloadTagCacheEntry) {
+	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
 }

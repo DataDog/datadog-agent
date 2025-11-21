@@ -117,7 +117,7 @@ func TestBuildContainerTagsCardinality(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			wmetaMock := testutil.GetWorkloadMetaMock(t)
-			cache, err := NewWorkloadTagCache(fakeTagger, wmetaMock, nil, defaultCacheSize)
+			cache, err := NewWorkloadTagCache(fakeTagger, wmetaMock, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 			require.NoError(t, err)
 
 			containerID := "test-container-id"
@@ -161,7 +161,7 @@ func TestBuildContainerTagsCardinality(t *testing.T) {
 func TestBuildContainerTagsNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	containerID := "nonexistent-container"
@@ -176,7 +176,7 @@ func TestBuildContainerTagsNotFound(t *testing.T) {
 func TestBuildContainerTagsTaggerReturnsEmptyTags(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 	containerID := "test-container-id"
 	workloadID := newContainerWorkloadID(containerID)
@@ -298,7 +298,7 @@ func TestGetWorkloadTags(t *testing.T) {
 				t.Run(testCase.name, func(tt *testing.T) {
 					mockTagger := taggerfxmock.SetupFakeTagger(tt)
 					mockWmeta := testutil.GetWorkloadMetaMock(tt)
-					cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+					cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(tt), defaultCacheSize)
 					require.NoError(tt, err)
 
 					if testCase.cacheEntry != nil {
@@ -341,7 +341,7 @@ func TestGetWorkloadTags(t *testing.T) {
 func TestInvalidate(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	// Populate cache with some entries
@@ -374,7 +374,7 @@ func TestInvalidate(t *testing.T) {
 func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -422,7 +422,7 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -454,7 +454,7 @@ func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -486,7 +486,7 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(4321)
@@ -515,7 +515,7 @@ func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -554,7 +554,7 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -594,7 +594,7 @@ func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -636,7 +636,7 @@ func TestBuildProcessTagsInvalidPID(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	tags, err := cache.buildProcessTags("invalid-pid")
@@ -650,7 +650,7 @@ func TestGetContainerIDFirstCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(1234)
@@ -673,7 +673,7 @@ func TestGetContainerIDSubsequentCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	cache.pidToCid = map[int]string{
@@ -695,7 +695,7 @@ func TestGetContainerIDPIDNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(9999)
@@ -729,7 +729,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	// Test container workload
@@ -814,7 +814,7 @@ func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockContainerProvider := mock_containers.NewMockContainerProvider(ctrl)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid1 := int32(1234)
@@ -863,7 +863,7 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	containerID := "test-container-id"
@@ -908,7 +908,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	cacheSize := 20 // Use a small cache size to make the test more effective
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, cacheSize)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), cacheSize)
 	require.NoError(t, err)
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
