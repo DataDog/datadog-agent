@@ -638,7 +638,7 @@ func New() *AgentConfig {
 		Proxy:                     http.ProxyFromEnvironment,
 		OTLPReceiver:              &OTLP{},
 		ContainerTags:             noopContainerTagsFunc,
-		ContainerTagsBuffer:       true,
+		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
