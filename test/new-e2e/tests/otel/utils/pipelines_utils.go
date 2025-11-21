@@ -179,7 +179,7 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 
 	// Verify tags on traces and spans
 	tp := idx.FromProto(traces[0].IdxTracerPayloads[0])
-	assert.Equal(s.T(), env, tp.Env)
+	assert.Equal(s.T(), env, tp.Env())
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
 	require.NotEmpty(s.T(), tp.Chunks[0].Spans)
@@ -189,7 +189,7 @@ func TestTracesWithSpanReceiverV2(s OTelTestSuite) {
 	assert.NotEmpty(s.T(), tp.Chunks[0].TraceID)
 	assert.NotZero(s.T(), tp.Chunks[0].LegacyTraceID())
 	for _, sp := range spans {
-		assert.Equal(s.T(), CalendarService, sp.Service)
+		assert.Equal(s.T(), CalendarService, sp.Service())
 		assert.Equal(s.T(), env, sp.Env())
 		assert.Equal(s.T(), version, sp.Version())
 		actualAttributeValue, ok := sp.GetAttributeAsString(customAttribute)
@@ -262,7 +262,7 @@ func TestTracesWithOperationAndResourceName(
 		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service())
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
@@ -274,12 +274,12 @@ func TestTracesWithOperationAndResourceName(
 
 	for _, sp := range spans {
 		if sp.Kind() == idx.SpanKind_SPAN_KIND_CLIENT {
-			assert.Equal(s.T(), clientOperationName, sp.Name)
-			assert.Equal(s.T(), clientResourceName, sp.Resource)
+			assert.Equal(s.T(), clientOperationName, sp.Name())
+			assert.Equal(s.T(), clientResourceName, sp.Resource())
 		} else {
 			assert.Equal(s.T(), idx.SpanKind_SPAN_KIND_SERVER, sp.Kind())
-			assert.Equal(s.T(), serverOperationName, sp.Name)
-			assert.Equal(s.T(), serverResourceName, sp.Resource)
+			assert.Equal(s.T(), serverOperationName, sp.Name())
+			assert.Equal(s.T(), serverResourceName, sp.Resource())
 		}
 	}
 }
