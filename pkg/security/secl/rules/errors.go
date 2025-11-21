@@ -59,10 +59,11 @@ func (e ErrNoEventTypeBucket) Error() string {
 
 // ErrPolicyLoad is returned on policy file error
 type ErrPolicyLoad struct {
-	Name    string
-	Version string
-	Source  string
-	Err     error
+	Name        string
+	Version     string
+	ContentType string
+	Source      string
+	Err         error
 }
 
 func (e *ErrPolicyLoad) Error() string {

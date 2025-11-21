@@ -205,6 +205,8 @@ type PolicyInfo struct {
 	Source string
 	// Type is the type of the policy
 	Type PolicyType
+	// ContentType is the type of content served by the policy (e.g. "policy", "detection_pack" or empty)
+	ContentType string
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
 	// ReplacePolicyID is the ID that this policy should replace
@@ -388,7 +390,7 @@ func LoadPolicy(info *PolicyInfo, reader io.Reader, macroFilters []MacroFilter, 
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
-		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Err: err}
+		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, ContentType: info.ContentType, Err: err}
 	}
 
 	return LoadPolicyFromDefinition(info, &def, macroFilters, ruleFilters)
