@@ -28,14 +28,15 @@ import (
 )
 
 const fakeTaggerSource = "foo"
+const defaultCacheSize = 1024
 
 // some helper functions to set up the mock data
 
 func setCacheEntry(cache *WorkloadTagCache, workloadID workloadmeta.EntityID, tags []string, valid bool) {
-	cache.cache[workloadID] = &workloadTagCacheEntry{
+	cache.cache.Add(workloadID, &workloadTagCacheEntry{
 		tags:  tags,
 		valid: valid,
-	}
+	})
 }
 
 func setWorkloadInWorkloadMeta(t *testing.T, mockWmeta workloadmetamock.Mock, workloadID workloadmeta.EntityID, runtime workloadmeta.ContainerRuntime) {
@@ -113,7 +114,8 @@ func TestBuildContainerTagsCardinality(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fakeTagger := taggerfxmock.SetupFakeTagger(t)
 			wmetaMock := testutil.GetWorkloadMetaMock(t)
-			cache := NewWorkloadTagCache(fakeTagger, wmetaMock, nil)
+			cache, err := NewWorkloadTagCache(fakeTagger, wmetaMock, nil, defaultCacheSize)
+			require.NoError(t, err)
 
 			containerID := "test-container-id"
 			cardinalityToTags := map[taggertypes.TagCardinality][]string{
@@ -156,7 +158,8 @@ func TestBuildContainerTagsCardinality(t *testing.T) {
 func TestBuildContainerTagsNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 
 	containerID := "nonexistent-container"
 
@@ -170,7 +173,8 @@ func TestBuildContainerTagsNotFound(t *testing.T) {
 func TestBuildContainerTagsTaggerReturnsEmptyTags(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 	containerID := "test-container-id"
 	workloadID := newContainerWorkloadID(containerID)
 
@@ -232,7 +236,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			setTaggerTags:     expectedTags,
 			expected:          expectedTags,
 			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache[containerWorkloadID]
+				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Equal(t, expectedTags, cacheEntry.tags)
 				assert.True(t, cacheEntry.valid)
@@ -249,7 +253,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			setTaggerTags:     expectedTags,
 			expected:          expectedTags,
 			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache[containerWorkloadID]
+				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Equal(t, expectedTags, cacheEntry.tags)
 				assert.True(t, cacheEntry.valid)
@@ -265,7 +269,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			expected:  errorCacheTags,
 			expectErr: true,
 			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache[containerWorkloadID]
+				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Equal(t, errorCacheTags, cacheEntry.tags)
 				assert.True(t, cacheEntry.valid)
@@ -277,7 +281,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			expected:   nil,
 			expectErr:  true,
 			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache[containerWorkloadID]
+				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Nil(t, cacheEntry.tags)
 				assert.True(t, cacheEntry.valid)
@@ -291,7 +295,8 @@ func TestGetWorkloadTags(t *testing.T) {
 				t.Run(testCase.name, func(tt *testing.T) {
 					mockTagger := taggerfxmock.SetupFakeTagger(tt)
 					mockWmeta := testutil.GetWorkloadMetaMock(tt)
-					cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+					cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+					require.NoError(tt, err)
 
 					if testCase.cacheEntry != nil {
 						setCacheEntry(cache, testCase.workloadID, testCase.cacheEntry.tags, testCase.cacheEntry.valid)
@@ -333,7 +338,8 @@ func TestGetWorkloadTags(t *testing.T) {
 func TestInvalidate(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 
 	// Populate cache with some entries
 	workloadID1 := workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-1"}
@@ -346,14 +352,16 @@ func TestInvalidate(t *testing.T) {
 
 	cache.Invalidate()
 
-	// Verify all entries are marked as invalid
-	assert.False(t, cache.cache[workloadID1].valid)
-	assert.False(t, cache.cache[workloadID2].valid)
+	// Verify all entries are marked as invalid and that the tags are still present for fallback
+	cacheEntry1, exists := cache.cache.Get(workloadID1)
+	require.True(t, exists)
+	assert.False(t, cacheEntry1.valid)
+	assert.Equal(t, tags1, cacheEntry1.tags)
 
-	// Verify tags are still present (for fallback)
-	assert.Equal(t, tags1, cache.cache[workloadID1].tags)
-	assert.Equal(t, tags2, cache.cache[workloadID2].tags)
-
+	cacheEntry2, exists := cache.cache.Get(workloadID2)
+	require.True(t, exists)
+	assert.False(t, cacheEntry2.valid)
+	assert.Equal(t, tags2, cacheEntry2.tags)
 	// Verify pidToCid is cleared
 	assert.Nil(t, cache.pidToCid)
 }
@@ -363,7 +371,8 @@ func TestInvalidate(t *testing.T) {
 func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 	nspid := int32(5678)
@@ -410,7 +419,8 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 	nspid := int32(5678)
@@ -441,7 +451,8 @@ func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 
@@ -472,7 +483,8 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(4321)
 
@@ -500,7 +512,8 @@ func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 	containerID := "container-123"
@@ -538,7 +551,8 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 	nspid := int32(5678)
@@ -577,7 +591,8 @@ func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 	nspid := int32(5678)
@@ -618,7 +633,8 @@ func TestBuildProcessTagsInvalidPID(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	tags, err := cache.buildProcessTags("invalid-pid")
 	assert.Error(t, err)
@@ -631,7 +647,8 @@ func TestGetContainerIDFirstCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(1234)
 	containerID := "container-123"
@@ -653,7 +670,8 @@ func TestGetContainerIDSubsequentCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	cache.pidToCid = map[int]string{
 		1234: "container-123",
@@ -674,7 +692,8 @@ func TestGetContainerIDPIDNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid := int32(9999)
 
@@ -707,7 +726,8 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	// Test container workload
 	containerID := "container-123"
@@ -747,13 +767,21 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	assert.ElementsMatch(t, expectedProcessTags, tags)
 
 	// Verify both are cached
-	assert.True(t, cache.cache[containerWorkloadID].valid)
-	assert.True(t, cache.cache[processWorkloadID].valid)
+	cacheEntry, exists := cache.cache.Get(containerWorkloadID)
+	require.True(t, exists)
+	assert.True(t, cacheEntry.valid)
+	cacheEntry, exists = cache.cache.Get(processWorkloadID)
+	require.True(t, exists)
+	assert.True(t, cacheEntry.valid)
 
 	// Test invalidation
 	cache.Invalidate()
-	assert.False(t, cache.cache[containerWorkloadID].valid)
-	assert.False(t, cache.cache[processWorkloadID].valid)
+	cacheEntry, exists = cache.cache.Get(containerWorkloadID)
+	require.True(t, exists)
+	assert.False(t, cacheEntry.valid)
+	cacheEntry, exists = cache.cache.Get(processWorkloadID)
+	require.True(t, exists)
+	assert.False(t, cacheEntry.valid)
 
 	// Test that after invalidation, we rebuild tags
 	newContainerTags := []string{"service:new-service", "env:staging"}
@@ -762,14 +790,18 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	tags, err = cache.GetWorkloadTags(containerWorkloadID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, newContainerTags, tags)
-	assert.True(t, cache.cache[containerWorkloadID].valid)
+	cacheEntry, exists = cache.cache.Get(containerWorkloadID)
+	require.True(t, exists)
+	assert.True(t, cacheEntry.valid)
 
 	// tags for the process owned by the container should also be rebuilt
 	tags, err = cache.GetWorkloadTags(processWorkloadID)
 	require.NoError(t, err)
 	expectedProcessTags = append(baseProcessTags, newContainerTags...)
 	assert.ElementsMatch(t, expectedProcessTags, tags)
-	assert.True(t, cache.cache[processWorkloadID].valid)
+	cacheEntry, exists = cache.cache.Get(processWorkloadID)
+	require.True(t, exists)
+	assert.True(t, cacheEntry.valid)
 }
 
 func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
@@ -779,13 +811,8 @@ func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockContainerProvider := mock_containers.NewMockContainerProvider(ctrl)
-
-	cache := &WorkloadTagCache{
-		cache:             make(map[workloadmeta.EntityID]*workloadTagCacheEntry),
-		tagger:            mockTagger,
-		wmeta:             mockWmeta,
-		containerProvider: mockContainerProvider,
-	}
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	pid1 := int32(1234)
 	pid2 := int32(5678)
@@ -833,7 +860,8 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, defaultCacheSize)
+	require.NoError(t, err)
 
 	containerID := "test-container-id"
 	workloadID := workloadmeta.EntityID{
@@ -847,7 +875,7 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	assert.Nil(t, tags)
 
 	// Cache entry should be marked as valid to avoid retrying
-	cacheEntry, exists := cache.cache[workloadID]
+	cacheEntry, exists := cache.cache.Get(workloadID)
 	require.True(t, exists)
 	assert.True(t, cacheEntry.valid)
 

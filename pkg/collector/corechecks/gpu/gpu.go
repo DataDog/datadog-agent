@@ -116,7 +116,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.containerProvider = containerProvider
 	}
 
-	c.workloadTagCache = NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider)
+	workloadTagCacheSize := pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size")
+	workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, workloadTagCacheSize)
+	if err != nil {
+		return fmt.Errorf("error creating workload tag cache: %w", err)
+	}
+	c.workloadTagCache = workloadTagCache
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics

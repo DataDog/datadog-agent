@@ -25,8 +25,6 @@ import (
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
-const nsPidCacheSize = 1024
-
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
 	if val {

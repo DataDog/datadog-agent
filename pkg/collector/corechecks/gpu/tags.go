@@ -18,6 +18,7 @@ import (
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 )
 
 type workloadTagCacheEntry struct {
@@ -32,7 +33,7 @@ type workloadTagCacheEntry struct {
 // processes or containers that no longer exist but were still in the cache from
 // the previous run.
 type WorkloadTagCache struct {
-	cache             map[workloadmeta.EntityID]*workloadTagCacheEntry
+	cache             *simplelru.LRU[workloadmeta.EntityID, *workloadTagCacheEntry]
 	tagger            tagger.Component
 	wmeta             workloadmeta.Component
 	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
@@ -40,13 +41,22 @@ type WorkloadTagCache struct {
 }
 
 // NewWorkloadTagCache creates a new WorkloadTagCache
-func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider) *WorkloadTagCache {
+func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider, cacheSize int) (*WorkloadTagCache, error) {
+	cache, err := simplelru.NewLRU[workloadmeta.EntityID, *workloadTagCacheEntry](cacheSize, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating LRU cache: %w", err)
+	}
+
 	return &WorkloadTagCache{
-		cache:             make(map[workloadmeta.EntityID]*workloadTagCacheEntry),
+		cache:             cache,
 		tagger:            tagger,
 		wmeta:             wmeta,
 		containerProvider: containerProvider,
-	}
+	}, nil
+}
+
+func (c *WorkloadTagCache) Size() int {
+	return c.cache.Len()
 }
 
 // GetWorkloadTags retrieves the tags for a workload from the cache or builds them if they are not in the cache.
@@ -54,7 +64,7 @@ func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, 
 // If an error happens, this function will return the previously cached tags if they exist, along with the error
 // that happened when getting them.
 func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
-	cacheEntry, cacheEntryExists := c.cache[workloadID]
+	cacheEntry, cacheEntryExists := c.cache.Get(workloadID)
 	if cacheEntryExists && cacheEntry.valid {
 		return cacheEntry.tags, nil
 	}
@@ -74,7 +84,7 @@ func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]
 	// First, ensure we have a cache entry, to simplify the logic later
 	if !cacheEntryExists {
 		cacheEntry = &workloadTagCacheEntry{}
-		c.cache[workloadID] = cacheEntry
+		c.cache.Add(workloadID, cacheEntry)
 	}
 
 	if err == nil {
@@ -94,7 +104,7 @@ func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]
 }
 
 func (c *WorkloadTagCache) Invalidate() {
-	for _, entry := range c.cache {
+	for entry := range c.cache.ValuesIter() {
 		// Mark entries as invalid, so that they are rebuilt on the next run, but can still
 		// be used if we cannot find the entity later.
 		entry.valid = false
