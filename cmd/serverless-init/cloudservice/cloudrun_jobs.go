@@ -153,10 +153,10 @@ func (c *CloudRunJobs) initJobSpan() {
 		serviceName = "gcp.run.job"
 	}
 
-	// Use job name for resource, fallback to "unknown"
+	// Use job name for resource, fallback
 	resourceName := jobNameVal
 	if resourceName == "" {
-		resourceName = "unknown"
+		resourceName = "gcp.run.job"
 	}
 
 	c.jobSpan = serverlessInitTrace.InitSpan(
