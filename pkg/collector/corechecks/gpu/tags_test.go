@@ -17,16 +17,71 @@ import (
 	"github.com/stretchr/testify/require"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-// TestBuildContainerTags_Cardinality tests that buildContainerTags uses the correct cardinality based on runtime
-func TestBuildContainerTags_Cardinality(t *testing.T) {
+const fakeTaggerSource = "foo"
+
+// some helper functions to set up the mock data
+
+func setCacheEntry(cache *WorkloadTagCache, workloadID workloadmeta.EntityID, tags []string, valid bool) {
+	cache.cache[workloadID] = &workloadTagCacheEntry{
+		tags:  tags,
+		valid: valid,
+	}
+}
+
+func setWorkloadInWorkloadMeta(t *testing.T, mockWmeta workloadmetamock.Mock, workloadID workloadmeta.EntityID, runtime workloadmeta.ContainerRuntime) {
+	switch workloadID.Kind {
+	case workloadmeta.KindContainer:
+		mockWmeta.Set(&workloadmeta.Container{
+			EntityID: workloadID,
+			Runtime:  runtime,
+		})
+	case workloadmeta.KindProcess:
+		mockWmeta.Set(&workloadmeta.Process{
+			EntityID: workloadID,
+		})
+	default:
+		t.Fatalf("unsupported workload kind: %s", workloadID.Kind)
+	}
+}
+
+func setWorkloadTags(t *testing.T, mockTagger taggermock.Mock, workloadID workloadmeta.EntityID, low, orch, high []string) {
+	workloadToTaggerType := map[workloadmeta.Kind]taggertypes.EntityIDPrefix{
+		workloadmeta.KindContainer: taggertypes.ContainerID,
+		workloadmeta.KindProcess:   taggertypes.Process,
+	}
+
+	require.Contains(t, workloadToTaggerType, workloadID.Kind, "workloadID.Kind not found in workloadToTaggerType")
+
+	taggerID := taggertypes.NewEntityID(workloadToTaggerType[workloadID.Kind], workloadID.ID)
+	mockTagger.SetTags(taggerID, fakeTaggerSource, low, orch, high, nil)
+}
+
+func newContainerWorkloadID(containerID string) workloadmeta.EntityID {
+	return workloadmeta.EntityID{
+		Kind: workloadmeta.KindContainer,
+		ID:   containerID,
+	}
+}
+
+func newProcessWorkloadID(pid int32) workloadmeta.EntityID {
+	return workloadmeta.EntityID{
+		Kind: workloadmeta.KindProcess,
+		ID:   fmt.Sprintf("%d", pid),
+	}
+}
+
+// TestBuildContainerTagsCardinality tests that buildContainerTags uses the correct cardinality based on runtime
+func TestBuildContainerTagsCardinality(t *testing.T) {
 	tests := []struct {
 		name             string
 		runtime          workloadmeta.ContainerRuntime
@@ -66,25 +121,22 @@ func TestBuildContainerTags_Cardinality(t *testing.T) {
 				taggertypes.OrchestratorCardinality: {"type:orchestrator"},
 				taggertypes.LowCardinality:          {"type:low"},
 			}
+			workloadID := newContainerWorkloadID(containerID)
 
 			// Set up the mock tagger with expected tags
-			fakeTagger.SetTags(
-				taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-				"foo",
+			setWorkloadTags(
+				t,
+				fakeTagger,
+				workloadID,
 				cardinalityToTags[taggertypes.LowCardinality],
 				cardinalityToTags[taggertypes.OrchestratorCardinality],
 				cardinalityToTags[taggertypes.HighCardinality],
-				nil,
 			)
 
-			container := &workloadmeta.Container{
-				EntityID: workloadmeta.EntityID{
-					ID:   containerID,
-					Kind: workloadmeta.KindContainer,
-				},
-				Runtime: tt.runtime,
-			}
-			wmetaMock.Set(container)
+			wmetaMock.Set(&workloadmeta.Container{
+				EntityID: workloadID,
+				Runtime:  tt.runtime,
+			})
 
 			var expectedTags []string
 			for cardinality, tags := range cardinalityToTags {
@@ -100,8 +152,8 @@ func TestBuildContainerTags_Cardinality(t *testing.T) {
 	}
 }
 
-// TestBuildContainerTags_NotFound tests that buildContainerTags returns an error when container is not found
-func TestBuildContainerTags_NotFound(t *testing.T) {
+// TestBuildContainerTagsNotFound tests that buildContainerTags returns an error when container is not found
+func TestBuildContainerTagsNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
@@ -114,23 +166,16 @@ func TestBuildContainerTags_NotFound(t *testing.T) {
 	assert.True(t, agenterrors.IsNotFound(err))
 }
 
-// TestBuildContainerTags_TaggerReturnsEmptyTags tests that buildContainerTags succeeds even when tagger returns empty tags
-func TestBuildContainerTags_TaggerReturnsEmptyTags(t *testing.T) {
+// TestBuildContainerTagsTaggerReturnsEmptyTags tests that buildContainerTags succeeds even when tagger returns empty tags
+func TestBuildContainerTagsTaggerReturnsEmptyTags(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
-
 	containerID := "test-container-id"
+	workloadID := newContainerWorkloadID(containerID)
 
 	// Set up workloadmeta with container
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
+	setWorkloadInWorkloadMeta(t, mockWmeta, workloadID, workloadmeta.ContainerRuntimeContainerd)
 
 	// The fake tagger returns empty tags for unknown entities (no error)
 	tags, err := cache.buildContainerTags(containerID)
@@ -138,202 +183,150 @@ func TestBuildContainerTags_TaggerReturnsEmptyTags(t *testing.T) {
 	assert.Empty(t, tags)
 }
 
-// TestGetWorkloadTags_CacheHit tests that GetWorkloadTags returns cached tags when valid
-func TestGetWorkloadTags_CacheHit(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+func TestGetWorkloadTags(t *testing.T) {
+	const containerID = "test-container-id"
+	const processID = 123
 
-	containerID := "test-container-id"
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
-	}
+	containerWorkloadID := newContainerWorkloadID(containerID)
+	processWorkloadID := newProcessWorkloadID(processID)
 
 	expectedTags := []string{"service:my-service", "env:prod"}
+	errorCacheTags := []string{"old:tag"}
 
-	// Pre-populate cache with valid entry
-	cache.cache[workloadID] = &workloadTagCacheEntry{
-		tags:  expectedTags,
-		valid: true,
-	}
-
-	// Should return cached tags without hitting workloadmeta or tagger, which in this case would return empty
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedTags, tags)
-}
-
-// TestGetWorkloadTags_CacheMiss tests that GetWorkloadTags builds tags when cache is invalid or missing
-func TestGetWorkloadTags_CacheMiss(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
-
-	containerID := "test-container-id"
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
-	}
-
-	expectedTags := []string{"service:my-service", "env:prod"}
-
-	// Set up the mock tagger
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		expectedTags,
-		nil,
-		nil,
-	)
-
-	// Set up workloadmeta with container
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
+	workloadSetup := []struct {
+		name       string
+		workloadID workloadmeta.EntityID
+	}{
+		{
+			name:       "container",
+			workloadID: containerWorkloadID,
 		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
-
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedTags, tags)
-
-	// Verify tags are now in cache
-	cacheEntry, exists := cache.cache[workloadID]
-	assert.True(t, exists)
-	assert.Equal(t, expectedTags, cacheEntry.tags)
-	assert.True(t, cacheEntry.valid)
-}
-
-// TestGetWorkloadTags_InvalidCacheEntry tests that GetWorkloadTags rebuilds tags when cache entry is invalid
-func TestGetWorkloadTags_InvalidCacheEntry(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
-
-	containerID := "test-container-id"
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
-	}
-
-	oldTags := []string{"old:tag"}
-	newTags := []string{"service:my-service", "env:prod"}
-
-	// Pre-populate cache with invalid entry
-	cache.cache[workloadID] = &workloadTagCacheEntry{
-		tags:  oldTags,
-		valid: false,
-	}
-
-	// Set up the mock tagger with new tags
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		newTags,
-		nil,
-		nil,
-	)
-
-	// Set up workloadmeta with container
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
+		{
+			name:       "process",
+			workloadID: processWorkloadID,
 		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
-
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.NoError(t, err)
-	assert.Equal(t, newTags, tags)
-
-	// Verify cache is updated
-	cacheEntry, exists := cache.cache[workloadID]
-	assert.True(t, exists)
-	assert.Equal(t, newTags, cacheEntry.tags)
-	assert.True(t, cacheEntry.valid)
-}
-
-// TestGetWorkloadTags_ErrorWithExistingCache tests that GetWorkloadTags returns old tags when error occurs
-func TestGetWorkloadTags_ErrorWithExistingCache(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
-
-	containerID := "test-container-id"
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
 	}
 
-	oldTags := []string{"old:tag"}
-
-	// Pre-populate cache with invalid entry
-	cache.cache[workloadID] = &workloadTagCacheEntry{
-		tags:  oldTags,
-		valid: false,
+	tests := []struct {
+		name              string
+		workloadID        workloadmeta.EntityID
+		cacheEntry        *workloadTagCacheEntry
+		setInWorkloadMeta bool
+		setTaggerTags     []string
+		expected          []string
+		expectErr         bool
+		assertFunc        func(t *testing.T, cache *WorkloadTagCache)
+	}{
+		{
+			name: "cache hit returns stored tags",
+			cacheEntry: &workloadTagCacheEntry{
+				tags:  expectedTags,
+				valid: true,
+			},
+			expected: expectedTags,
+		},
+		{
+			name:              "cache miss builds tags",
+			workloadID:        containerWorkloadID,
+			setInWorkloadMeta: true,
+			setTaggerTags:     expectedTags,
+			expected:          expectedTags,
+			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
+				cacheEntry, exists := cache.cache[containerWorkloadID]
+				require.True(t, exists)
+				assert.Equal(t, expectedTags, cacheEntry.tags)
+				assert.True(t, cacheEntry.valid)
+			},
+		},
+		{
+			name:       "invalid cache entry rebuilds tags",
+			workloadID: containerWorkloadID,
+			cacheEntry: &workloadTagCacheEntry{
+				tags:  errorCacheTags,
+				valid: false,
+			},
+			setInWorkloadMeta: true,
+			setTaggerTags:     expectedTags,
+			expected:          expectedTags,
+			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
+				cacheEntry, exists := cache.cache[containerWorkloadID]
+				require.True(t, exists)
+				assert.Equal(t, expectedTags, cacheEntry.tags)
+				assert.True(t, cacheEntry.valid)
+			},
+		},
+		{
+			name:       "error returns cached tags when entry exists",
+			workloadID: containerWorkloadID,
+			cacheEntry: &workloadTagCacheEntry{
+				tags:  errorCacheTags,
+				valid: false,
+			},
+			expected:  errorCacheTags,
+			expectErr: true,
+			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
+				cacheEntry, exists := cache.cache[containerWorkloadID]
+				require.True(t, exists)
+				assert.Equal(t, errorCacheTags, cacheEntry.tags)
+				assert.True(t, cacheEntry.valid)
+			},
+		},
+		{
+			name:       "error without cache entry stores nil tags",
+			workloadID: containerWorkloadID,
+			expected:   nil,
+			expectErr:  true,
+			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
+				cacheEntry, exists := cache.cache[containerWorkloadID]
+				require.True(t, exists)
+				assert.Nil(t, cacheEntry.tags)
+				assert.True(t, cacheEntry.valid)
+			},
+		},
 	}
 
-	// Don't set up container in workloadmeta to cause error
+	for _, workload := range workloadSetup {
+		t.Run(workload.name, func(t *testing.T) {
+			for _, testCase := range tests {
+				t.Run(testCase.name, func(tt *testing.T) {
+					mockTagger := taggerfxmock.SetupFakeTagger(tt)
+					mockWmeta := testutil.GetWorkloadMetaMock(tt)
+					cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
 
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.Error(t, err)
-	assert.Equal(t, oldTags, tags, "should return old tags on error")
+					if testCase.cacheEntry != nil {
+						setCacheEntry(cache, testCase.workloadID, testCase.cacheEntry.tags, testCase.cacheEntry.valid)
+					}
 
-	// Verify cache entry is marked as valid (to avoid retrying)
-	cacheEntry, exists := cache.cache[workloadID]
-	assert.True(t, exists)
-	assert.Equal(t, oldTags, cacheEntry.tags)
-	assert.True(t, cacheEntry.valid)
-}
+					if testCase.setInWorkloadMeta {
+						setWorkloadInWorkloadMeta(
+							tt,
+							mockWmeta,
+							testCase.workloadID,
+							workloadmeta.ContainerRuntimeContainerd,
+						)
+					}
 
-// TestGetWorkloadTags_ErrorWithoutExistingCache tests that GetWorkloadTags returns nil tags when error occurs without cache
-func TestGetWorkloadTags_ErrorWithoutExistingCache(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
+					if testCase.setTaggerTags != nil {
+						setWorkloadTags(tt, mockTagger, testCase.workloadID, testCase.setTaggerTags, nil, nil)
+					}
 
-	containerID := "test-container-id"
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
+					tags, err := cache.GetWorkloadTags(testCase.workloadID)
+
+					if testCase.expectErr {
+						assert.Error(tt, err)
+					} else {
+						require.NoError(tt, err)
+					}
+
+					assert.Equal(tt, testCase.expected, tags)
+
+					if testCase.assertFunc != nil {
+						testCase.assertFunc(tt, cache)
+					}
+				})
+			}
+		})
 	}
-
-	// Don't set up container in workloadmeta to cause error
-
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.Error(t, err)
-	assert.Nil(t, tags)
-
-	// Verify cache entry exists and is marked as valid (to avoid retrying)
-	cacheEntry, exists := cache.cache[workloadID]
-	require.True(t, exists)
-	assert.Nil(t, cacheEntry.tags)
-	assert.True(t, cacheEntry.valid)
-}
-
-// TestGetWorkloadTags_UnsupportedKind tests that GetWorkloadTags returns error for unsupported kinds
-func TestGetWorkloadTags_UnsupportedKind(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
-
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindKubernetesPod,
-		ID:   "test-pod",
-	}
-
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.Error(t, err)
-	assert.Nil(t, tags)
-	assert.Contains(t, err.Error(), "unsupported workload kind")
 }
 
 // TestInvalidate tests that Invalidate marks all cache entries as invalid
@@ -345,15 +338,11 @@ func TestInvalidate(t *testing.T) {
 	// Populate cache with some entries
 	workloadID1 := workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container-1"}
 	workloadID2 := workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "123"}
+	tags1 := []string{"tag1"}
+	tags2 := []string{"tag2"}
 
-	cache.cache[workloadID1] = &workloadTagCacheEntry{
-		tags:  []string{"tag1"},
-		valid: true,
-	}
-	cache.cache[workloadID2] = &workloadTagCacheEntry{
-		tags:  []string{"tag2"},
-		valid: true,
-	}
+	setCacheEntry(cache, workloadID1, tags1, true)
+	setCacheEntry(cache, workloadID2, tags2, true)
 
 	cache.Invalidate()
 
@@ -362,15 +351,16 @@ func TestInvalidate(t *testing.T) {
 	assert.False(t, cache.cache[workloadID2].valid)
 
 	// Verify tags are still present (for fallback)
-	assert.Equal(t, []string{"tag1"}, cache.cache[workloadID1].tags)
-	assert.Equal(t, []string{"tag2"}, cache.cache[workloadID2].tags)
+	assert.Equal(t, tags1, cache.cache[workloadID1].tags)
+	assert.Equal(t, tags2, cache.cache[workloadID2].tags)
 
 	// Verify pidToCid is cleared
 	assert.Nil(t, cache.pidToCid)
 }
 
-// TestBuildProcessTags_FromWorkloadmeta tests building process tags when data is available in workloadmeta
-func TestBuildProcessTags_FromWorkloadmeta(t *testing.T) {
+// TestBuildProcessTagsFromWorkloadMetaIncludingContainer tests building process
+// tags when data is available in workloadmeta including container tags
+func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
@@ -382,37 +372,27 @@ func TestBuildProcessTags_FromWorkloadmeta(t *testing.T) {
 	containerTags := []string{"service:my-service", "env:prod"}
 
 	// Set up workloadmeta with process and container
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		Runtime: workloadmeta.ContainerRuntimeContainerd,
+	}
+	mockWmeta.Set(container)
+
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
 			ID:   fmt.Sprintf("%d", pid),
 		},
 		NsPid: nspid,
-		Owner: &workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		},
+		Owner: &container.EntityID,
 	}
 	mockWmeta.Set(process)
 
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
-
 	// Set up tagger for container
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		containerTags,
-		nil,
-		nil,
-	)
+	setWorkloadTags(t, mockTagger, container.EntityID, containerTags, nil, nil)
 
 	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
 	require.NoError(t, err)
@@ -426,8 +406,8 @@ func TestBuildProcessTags_FromWorkloadmeta(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTags_WithoutContainer tests building process tags when process has no container
-func TestBuildProcessTags_WithoutContainer(t *testing.T) {
+// TestBuildProcessTagsWithoutContainer tests building process tags when process has no container
+func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
@@ -457,8 +437,8 @@ func TestBuildProcessTags_WithoutContainer(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTags_NsPidZero tests that nspid defaults to pid when nspid is 0
-func TestBuildProcessTags_NsPidZero(t *testing.T) {
+// TestBuildProcessTagsNsPidZero tests that nspid defaults to pid when nspid is 0
+func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	cache := NewWorkloadTagCache(mockTagger, mockWmeta, nil)
@@ -487,8 +467,8 @@ func TestBuildProcessTags_NsPidZero(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTags_FallbackToContainerProvider tests fallback when process not in workloadmeta
-func TestBuildProcessTags_FallbackToContainerProvider(t *testing.T) {
+// TestBuildProcessTagsFallbackToContainerProvider tests fallback when process not in workloadmeta
+func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -505,25 +485,8 @@ func TestBuildProcessTags_FallbackToContainerProvider(t *testing.T) {
 		GetPidToCid(time.Duration(0)).
 		Return(map[int]string{int(pid): containerID})
 
-	// Set up container in workloadmeta for tag retrieval
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
-
-	// Set up tagger for container
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		containerTags,
-		nil,
-		nil,
-	)
+	setWorkloadInWorkloadMeta(t, mockWmeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
+	setWorkloadTags(t, mockTagger, newContainerWorkloadID(containerID), containerTags, nil, nil)
 
 	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
 	require.NoError(t, err)
@@ -541,9 +504,9 @@ func TestBuildProcessTags_FallbackToContainerProvider(t *testing.T) {
 	assert.Equal(t, containerID, cache.pidToCid[int(pid)])
 }
 
-// TestBuildProcessTags_ContainerNotFound tests behavior when container is not found
+// TestBuildProcessTagsContainerNotFound tests behavior when container is not found
 // Note: Currently IsNotFound doesn't support wrapped errors, so this returns an error
-func TestBuildProcessTags_ContainerNotFound(t *testing.T) {
+func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -584,8 +547,8 @@ func TestBuildProcessTags_ContainerNotFound(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTags_ContainerTagsReturnsEmpty tests behavior when tagger returns empty tags
-func TestBuildProcessTags_ContainerTagsReturnsEmpty(t *testing.T) {
+// TestBuildProcessTagsContainerTagsReturnsEmpty tests behavior when tagger returns empty tags
+func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -609,14 +572,7 @@ func TestBuildProcessTags_ContainerTagsReturnsEmpty(t *testing.T) {
 	}
 	mockWmeta.Set(process)
 
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
+	setWorkloadInWorkloadMeta(t, mockWmeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
 
 	// Don't set up tagger tags - the fake tagger returns empty tags (no error)
 
@@ -632,8 +588,8 @@ func TestBuildProcessTags_ContainerTagsReturnsEmpty(t *testing.T) {
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
-// TestBuildProcessTags_InvalidPID tests that buildProcessTags returns error for invalid PID
-func TestBuildProcessTags_InvalidPID(t *testing.T) {
+// TestBuildProcessTagsInvalidPID tests that buildProcessTags returns error for invalid PID
+func TestBuildProcessTagsInvalidPID(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -645,8 +601,8 @@ func TestBuildProcessTags_InvalidPID(t *testing.T) {
 	assert.Contains(t, err.Error(), "error converting process ID to int")
 }
 
-// TestGetContainerID_FirstCall tests that getContainerID initializes pidToCid on first call
-func TestGetContainerID_FirstCall(t *testing.T) {
+// TestGetContainerIDFirstCall tests that getContainerID initializes pidToCid on first call
+func TestGetContainerIDFirstCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -667,8 +623,8 @@ func TestGetContainerID_FirstCall(t *testing.T) {
 	assert.Equal(t, containerID, cache.pidToCid[int(pid)])
 }
 
-// TestGetContainerID_SubsequentCall tests that getContainerID reuses cached pidToCid
-func TestGetContainerID_SubsequentCall(t *testing.T) {
+// TestGetContainerIDSubsequentCall tests that getContainerID reuses cached pidToCid
+func TestGetContainerIDSubsequentCall(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -688,8 +644,8 @@ func TestGetContainerID_SubsequentCall(t *testing.T) {
 	assert.Equal(t, "container-123", result)
 }
 
-// TestGetContainerID_PIDNotFound tests that getContainerID returns empty string when PID not found
-func TestGetContainerID_PIDNotFound(t *testing.T) {
+// TestGetContainerIDPIDNotFound tests that getContainerID returns empty string when PID not found
+func TestGetContainerIDPIDNotFound(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -712,8 +668,10 @@ func TestGetNsPID_NotFoundError(t *testing.T) {
 	t.Skip("getNsPID requires integration testing or dependency injection refactoring")
 }
 
-// TestGetWorkloadTags_Integration tests the full flow through GetWorkloadTags for both container and process
-func TestGetWorkloadTags_Integration(t *testing.T) {
+// TestGetWorkloadTagsMultipleRuns tests the full flow through GetWorkloadTags
+// for both container and process, using multiple runs with an invalidation in
+// between.
+func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -721,29 +679,11 @@ func TestGetWorkloadTags_Integration(t *testing.T) {
 
 	// Test container workload
 	containerID := "container-123"
-	containerWorkloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
-	}
+	containerWorkloadID := newContainerWorkloadID(containerID)
 	containerTags := []string{"service:my-service", "env:prod"}
 
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
-	}
-	mockWmeta.Set(container)
-
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		nil,
-		containerTags,
-		nil,
-	)
+	setWorkloadInWorkloadMeta(t, mockWmeta, containerWorkloadID, workloadmeta.ContainerRuntimeDocker)
+	setWorkloadTags(t, mockTagger, containerWorkloadID, nil, nil, containerTags)
 
 	tags, err := cache.GetWorkloadTags(containerWorkloadID)
 	require.NoError(t, err)
@@ -751,17 +691,11 @@ func TestGetWorkloadTags_Integration(t *testing.T) {
 
 	// Test process workload
 	pid := int32(1234)
-	processWorkloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindProcess,
-		ID:   fmt.Sprintf("%d", pid),
-	}
+	processWorkloadID := newProcessWorkloadID(pid)
 
 	process := &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
-		},
-		NsPid: 5678,
+		EntityID: processWorkloadID,
+		NsPid:    5678,
 		Owner: &workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   containerID,
@@ -772,11 +706,11 @@ func TestGetWorkloadTags_Integration(t *testing.T) {
 	tags, err = cache.GetWorkloadTags(processWorkloadID)
 	require.NoError(t, err)
 
-	expectedProcessTags := []string{
+	baseProcessTags := []string{
 		"pid:1234",
 		"nspid:5678",
 	}
-	expectedProcessTags = append(expectedProcessTags, containerTags...)
+	expectedProcessTags := append(baseProcessTags, containerTags...)
 
 	assert.ElementsMatch(t, expectedProcessTags, tags)
 
@@ -791,23 +725,22 @@ func TestGetWorkloadTags_Integration(t *testing.T) {
 
 	// Test that after invalidation, we rebuild tags
 	newContainerTags := []string{"service:new-service", "env:staging"}
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		nil,
-		newContainerTags,
-		nil,
-	)
+	setWorkloadTags(t, mockTagger, containerWorkloadID, nil, nil, newContainerTags)
 
 	tags, err = cache.GetWorkloadTags(containerWorkloadID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, newContainerTags, tags)
 	assert.True(t, cache.cache[containerWorkloadID].valid)
+
+	// tags for the process owned by the container should also be rebuilt
+	tags, err = cache.GetWorkloadTags(processWorkloadID)
+	require.NoError(t, err)
+	expectedProcessTags = append(baseProcessTags, newContainerTags...)
+	assert.ElementsMatch(t, expectedProcessTags, tags)
+	assert.True(t, cache.cache[processWorkloadID].valid)
 }
 
-// TestBuildProcessTags_CachedPidToCid tests that subsequent calls to getContainerID reuse cached pidToCid
-func TestBuildProcessTags_CachedPidToCid(t *testing.T) {
+func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	ctrl := gomock.NewController(t)
@@ -840,41 +773,12 @@ func TestBuildProcessTags_CachedPidToCid(t *testing.T) {
 		Times(1) // Should only be called once
 
 	// Set up containers in workloadmeta
-	container1 := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID1,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container1)
-
-	container2 := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID2,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container2)
+	setWorkloadInWorkloadMeta(t, mockWmeta, newContainerWorkloadID(containerID1), workloadmeta.ContainerRuntimeContainerd)
+	setWorkloadInWorkloadMeta(t, mockWmeta, newContainerWorkloadID(containerID2), workloadmeta.ContainerRuntimeContainerd)
 
 	// Set up tagger for both containers
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID1),
-		"foo",
-		nil,
-		containerTags1,
-		nil,
-		nil,
-	)
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID2),
-		"foo",
-		nil,
-		containerTags2,
-		nil,
-		nil,
-	)
+	setWorkloadTags(t, mockTagger, newContainerWorkloadID(containerID1), containerTags1, nil, nil)
+	setWorkloadTags(t, mockTagger, newContainerWorkloadID(containerID2), containerTags2, nil, nil)
 
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{Pid: uint32(pid1), NsPid: 3, Cmdline: "", Command: "", Exe: ""},
@@ -893,8 +797,7 @@ func TestBuildProcessTags_CachedPidToCid(t *testing.T) {
 	assert.Contains(t, tags2, "service:service2")
 }
 
-// TestGetWorkloadTags_ErrorRecovery tests that cache can recover after an error
-func TestGetWorkloadTags_ErrorRecovery(t *testing.T) {
+func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
 	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -922,52 +825,11 @@ func TestGetWorkloadTags_ErrorRecovery(t *testing.T) {
 
 	// Now add the container to workloadmeta
 	expectedTags := []string{"service:my-service", "env:prod"}
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			ID:   containerID,
-			Kind: workloadmeta.KindContainer,
-		},
-		Runtime: workloadmeta.ContainerRuntimeContainerd,
-	}
-	mockWmeta.Set(container)
-
-	mockTagger.SetTags(
-		taggertypes.NewEntityID(taggertypes.ContainerID, containerID),
-		"foo",
-		nil,
-		expectedTags,
-		nil,
-		nil,
-	)
+	setWorkloadInWorkloadMeta(t, mockWmeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
+	setWorkloadTags(t, mockTagger, newContainerWorkloadID(containerID), expectedTags, nil, nil)
 
 	// Second call after invalidation - should succeed
 	tags, err = cache.GetWorkloadTags(workloadID)
 	require.NoError(t, err)
 	assert.Equal(t, expectedTags, tags)
-}
-
-// TestBuildContainerTags_Bug86Fix verifies the bug fix where cacheEntry wasn't initialized
-func TestBuildContainerTags_Bug86Fix(t *testing.T) {
-	mockTagger := taggerfxmock.SetupFakeTagger(t)
-	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	cache := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider)
-
-	containerID := "test-container-id"
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   containerID,
-	}
-
-	// Don't set up container in workloadmeta - will cause error
-
-	// This should not panic (the bug was that cacheEntry wasn't initialized)
-	tags, err := cache.GetWorkloadTags(workloadID)
-	assert.Error(t, err)
-	assert.Nil(t, tags)
-
-	// Verify cache entry was created even on error
-	cacheEntry, exists := cache.cache[workloadID]
-	require.True(t, exists)
-	assert.NotNil(t, cacheEntry)
 }
