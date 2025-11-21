@@ -53,6 +53,7 @@ type checkCfg struct {
 	ExcludedTenants                       []string `yaml:"excluded_tenants"`
 	SendDeviceMetadata                    *bool    `yaml:"send_device_metadata"`
 	SendInterfaceMetadata                 *bool    `yaml:"send_interface_metadata"`
+	SendTopologyMetadata                  *bool    `yaml:"send_topology_metadata"`
 	MinCollectionInterval                 int      `yaml:"min_collection_interval"`
 	CollectHardwareMetrics                *bool    `yaml:"collect_hardware_metrics"`
 	CollectDirectorInterfaceMetrics       *bool    `yaml:"collect_director_interface_metrics"`
@@ -202,9 +203,29 @@ func (v *VersaCheck) Run() error {
 		log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
 	}
 
+	// UPDATE HERE TO GET TOPOLOGY METADATA
+	var topologyMetadata []devicemetadata.TopologyLinkMetadata
+	log.Infof("SendTopologyMetadata config value: %v", *v.config.SendTopologyMetadata)
+	
+	// Get topology link metadata
+	if *v.config.SendTopologyMetadata {
+		var err error
+		topologyMetadata, err = payload.GetTopologyMetadata()
+		if err != nil {
+			if len(topologyMetadata) == 0 {
+				log.Errorf("failed to parse all topology metadata: %v", err)
+			} else {
+				log.Errorf("partial failure in parsing topology metadata: %v", err)
+			}
+		}
+
+		log.Tracef("topology metadata is as follows: %+v", topologyMetadata)
+	}
+
+	// UPDATE HERE TO GET TOPOLOGY METADATA
 	// Send the metadata to the metrics sender
 	if len(deviceMetadata) > 0 || len(interfaceMetadata) > 0 {
-		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil)
+		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil, topologyMetadata)
 	}
 
 	// Send interface status metrics
@@ -417,6 +438,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectHardwareMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
 	instanceConfig.SendInterfaceMetadata = boolPointer(false)
+	instanceConfig.SendTopologyMetadata = boolPointer(false)
 	instanceConfig.CollectDirectorInterfaceMetrics = boolPointer(false)
 
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
