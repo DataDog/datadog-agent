@@ -112,7 +112,7 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 
-	// scheduledConfigsOriginals keeps the resolved version(s) of every config,
+	// scheduledConfigsOriginals keeps the resolved version of every config,
 	// keyed by the raw digest we store in activeConfigs. This lets us unschedule
 	// the exact resolved configs that were running when a secret refresh arrives.
 	scheduledConfigsOriginals map[string][]integration.Config
