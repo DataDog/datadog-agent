@@ -6,12 +6,15 @@
 package scheduler
 
 import (
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"
 )
 
@@ -22,6 +25,8 @@ type TestCheck struct {
 }
 
 func (c *TestCheck) Interval() time.Duration { return c.intl }
+
+func (c *TestCheck) RunOnce() bool { return false }
 
 var initialMinAllowedInterval = minAllowedInterval
 
@@ -197,4 +202,159 @@ func TestStopOneTimeSchedule(t *testing.T) {
 	close(s.checksPipe)
 	// sleep to make the runtime schedule the hanging goroutines, if there are any
 	time.Sleep(time.Millisecond)
+}
+
+// RunOnceTestCheck is a test check that can be configured as run-once or regular
+type RunOnceTestCheck struct {
+	stub.StubCheck
+	id         string
+	runOnce    bool
+	intl       time.Duration
+	runCounter int
+}
+
+func (c *RunOnceTestCheck) ID() checkid.ID          { return checkid.ID(c.id) }
+func (c *RunOnceTestCheck) RunOnce() bool           { return c.runOnce }
+func (c *RunOnceTestCheck) Interval() time.Duration { return c.intl }
+func (c *RunOnceTestCheck) Run() error {
+	c.runCounter++
+	return nil
+}
+
+func TestRunOnceCheckDescheduling(t *testing.T) {
+	checkChan := make(chan check.Check, 100)
+	stop := make(chan bool)
+
+	// Track what checks are scheduled
+	scheduledChecks := make(map[checkid.ID]int)
+	var mu sync.RWMutex
+	go func() {
+		for {
+			select {
+			case chk := <-checkChan:
+				mu.Lock()
+				scheduledChecks[chk.ID()]++
+				mu.Unlock()
+			case <-stop:
+				return
+			}
+		}
+	}()
+	defer func() {
+		stop <- true
+	}()
+
+	// Helper to wait for a condition
+	waitForCondition := func(condition func() bool, timeout time.Duration, msg string) {
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			if condition() {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		t.Fatalf("Timeout waiting for: %s", msg)
+	}
+
+	// Helper to get scheduled count for a check
+	getScheduledCount := func(id checkid.ID) int {
+		mu.RLock()
+		defer mu.RUnlock()
+		return scheduledChecks[id]
+	}
+
+	s := NewScheduler(checkChan)
+
+	// Create a run-once check and a regular check
+	runOnceCheck := &RunOnceTestCheck{
+		id:      "run-once-check",
+		runOnce: true,
+	}
+	runOnceCheck.intl = 1 * time.Second
+
+	regularCheck := &RunOnceTestCheck{
+		id:      "regular-check",
+		runOnce: false,
+	}
+	regularCheck.intl = 1 * time.Second
+
+	// Schedule both checks
+	err := s.Enter(runOnceCheck)
+	require.NoError(t, err)
+	err = s.Enter(regularCheck)
+	require.NoError(t, err)
+
+	// Verify both checks are in the queue
+	jq := s.jobQueues[1*time.Second]
+	require.NotNil(t, jq)
+
+	// Replace the ticker's channel with one we control
+	jq.bucketTicker.Stop()
+	tickerChan := make(chan time.Time, 10)
+	jq.bucketTicker = &time.Ticker{C: tickerChan}
+
+	// Start the scheduler
+	s.Run()
+
+	// Manually trigger the first tick - both checks should run
+	tickerChan <- time.Now()
+	waitForCondition(func() bool {
+		return getScheduledCount("run-once-check") == 1 && getScheduledCount("regular-check") == 1
+	}, 1*time.Second, "both checks to be scheduled once")
+
+	// Verify both checks were scheduled once
+	require.Equal(t, 1, getScheduledCount("run-once-check"), "run-once check should run exactly once")
+	require.Equal(t, 1, getScheduledCount("regular-check"), "regular check should run once so far")
+
+	// Verify run-once check was removed from the queue
+	waitForCondition(func() bool {
+		totalRunOnceJobs := 0
+		for _, bucket := range jq.buckets {
+			bucket.mu.RLock()
+			for _, job := range bucket.jobs {
+				if job.ID() == "run-once-check" {
+					totalRunOnceJobs++
+				}
+			}
+			bucket.mu.RUnlock()
+		}
+		return totalRunOnceJobs == 0
+	}, 1*time.Second, "run-once check to be removed from queue")
+
+	totalRunOnceJobs := 0
+	totalRegularJobs := 0
+	for _, bucket := range jq.buckets {
+		bucket.mu.RLock()
+		for _, job := range bucket.jobs {
+			if job.ID() == "run-once-check" {
+				totalRunOnceJobs++
+			}
+			if job.ID() == "regular-check" {
+				totalRegularJobs++
+			}
+		}
+		bucket.mu.RUnlock()
+	}
+	require.Equal(t, 0, totalRunOnceJobs, "run-once check should be removed from the queue")
+	require.Equal(t, 1, totalRegularJobs, "regular check should remain in the queue")
+
+	// Trigger another tick - only regular check should run
+	tickerChan <- time.Now()
+	waitForCondition(func() bool {
+		return getScheduledCount("regular-check") == 2
+	}, 1*time.Second, "regular check to run twice")
+
+	require.Equal(t, 1, getScheduledCount("run-once-check"), "run-once check should still be 1")
+	require.Equal(t, 2, getScheduledCount("regular-check"), "regular check should run twice")
+
+	// Trigger one more tick to be sure
+	tickerChan <- time.Now()
+	waitForCondition(func() bool {
+		return getScheduledCount("regular-check") == 3
+	}, 1*time.Second, "regular check to run three times")
+
+	require.Equal(t, 1, getScheduledCount("run-once-check"), "run-once check should still be 1")
+	require.Equal(t, 3, getScheduledCount("regular-check"), "regular check should run three times")
+
+	s.Stop()
 }

@@ -613,8 +613,10 @@ func startAgent(
 	if configUtils.IsRemoteConfigEnabled(cfg) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
-		controller := datastreams.NewController(ac, rcclient)
-		ac.AddConfigProvider(controller, false, 0)
+		liveMessagesController := datastreams.NewController(ac, rcclient)
+		ac.AddConfigProvider(liveMessagesController, false, 0)
+		actionsController := datastreams.NewActionsController(ac, rcclient)
+		ac.AddConfigProvider(actionsController, false, 0)
 
 		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
