@@ -1047,6 +1047,7 @@ generate-fips-e2e-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - all-artifacts
     - agent_deb-x64-a7-fips
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7-fips
