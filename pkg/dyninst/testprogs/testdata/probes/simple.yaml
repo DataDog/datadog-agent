@@ -111,8 +111,6 @@ probes:
     - json:
         ref: "s"
       dsl: "s"
-  tags:
-  - "issue:UnsupportedFeature"
 - id: spanProbe
   type: SPAN_PROBE
   where:
