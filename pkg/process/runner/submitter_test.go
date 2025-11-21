@@ -301,23 +301,6 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
-		{
-			name:    "process_events",
-			message: &model.CollectorProcEvent{},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:              testHostName,
-				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
-				headers.ContainerCountHeader:    "0",
-				headers.ContentTypeHeader:       headers.ProtobufContentType,
-				headers.EVPOriginHeader:         "process-agent",
-				headers.EVPOriginVersionHeader:  version.AgentVersion,
-				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:           "process_agent",
-				headers.ProcessesEnabled:        "false",
-				headers.ServiceDiscoveryEnabled: "false",
-			},
-		},
 	}
 
 	for _, test := range tests {
