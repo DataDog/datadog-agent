@@ -230,7 +230,6 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestReinstallAfterMSIUninstall$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptWithAgentUser"

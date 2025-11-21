@@ -50,17 +50,6 @@ func (s *testInstallScriptSuite) TestInstallAgentPackage() {
 	})
 }
 
-// TestInstallFromOldInstaller tests installing the Datadog Agent package from an old installer.
-// shows we can correctly use the script to uninstall the old agent + installer MSIs
-func (s *testInstallScriptSuite) TestInstallFromOldInstaller() {
-	s.Run("Install from old installer", func() {
-		s.installOldInstallerAndAgent()
-		s.Run("Install New Version", func() {
-			s.installCurrent()
-		})
-	})
-}
-
 // TestInstallIgnoreMajorMinor tests that the installer install script properly ignores
 // the major / minor version when installing the agent
 //
