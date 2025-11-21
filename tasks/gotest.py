@@ -125,8 +125,7 @@ def test_flavor(
     """
     Runs unit tests for given flavor, build tags, and modules.
     """
-    print("TRYING DDA")
-    ctx.run("dda self feature test-kevin")
+
     # Early return if no modules are given
     # Can happen when --only-impacted-packages or --only-modified-packages is used
     if not modules:
