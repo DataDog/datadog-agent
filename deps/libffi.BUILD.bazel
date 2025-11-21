@@ -2,6 +2,9 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 
 package(
     default_applicable_licenses = [":license"],
@@ -213,7 +216,6 @@ cc_library(
     visibility = ["//visibility:private"],
 )
 
-# ffi will be prepended by lib automatically
 cc_library(
     name = "libffi",
     hdrs = [
@@ -270,8 +272,33 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+# ffi will be prepended by lib automatically
 cc_shared_library(
     name = "ffi",
     deps = [":libffi"],
     visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    libname = "libffi",
+    src = ":ffi",
+    version = "8.1.4",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [
+        ":ffi_h",
+        ":ffitarget_h",
+    ],
+    prefix = "include/",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
 )
