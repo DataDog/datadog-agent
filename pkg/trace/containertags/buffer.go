@@ -144,12 +144,10 @@ func (p *ContainerTagsBuffer) report() {
 	if memoryLimit := p.hitMemoryLimit.Swap(0); memoryLimit > 0 {
 		_ = p.statsd.Count(metricDenied, memoryLimit, []string{"reason:memorylimit"}, 1)
 	}
-	if payloadsPending := p.totalPayloadsPending.Load(); payloadsPending > 0 {
-		_ = p.statsd.Gauge(metricPayloadsPending, float64(payloadsPending), nil, 1)
-	}
-	if memoryUsage := p.memoryUsage.Load(); memoryUsage > 0 {
-		_ = p.statsd.Gauge(metricMemoryUsage, float64(memoryUsage), nil, 1)
-	}
+	payloadsPending := p.totalPayloadsPending.Load()
+	_ = p.statsd.Gauge(metricPayloadsPending, float64(payloadsPending), nil, 1)
+	memoryUsage := p.memoryUsage.Load()
+	_ = p.statsd.Gauge(metricMemoryUsage, float64(memoryUsage), nil, 1)
 }
 
 func (p *ContainerTagsBuffer) buffer(in bufferInput) {
