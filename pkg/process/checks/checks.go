@@ -8,6 +8,7 @@ package checks
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -15,13 +16,12 @@ import (
 
 // Name for check performed by process-agent or system-probe
 const (
-	ProcessCheckName       = "process"
-	RTProcessCheckName     = "rtprocess"
-	ContainerCheckName     = "container"
-	RTContainerCheckName   = "rtcontainer"
-	ConnectionsCheckName   = "connections"
-	DiscoveryCheckName     = "process_discovery"
-	ProcessEventsCheckName = "process_events"
+	ProcessCheckName     = "process"
+	RTProcessCheckName   = "rtprocess"
+	ContainerCheckName   = "container"
+	RTContainerCheckName = "rtcontainer"
+	ConnectionsCheckName = "connections"
+	DiscoveryCheckName   = "process_discovery"
 )
 
 // SysProbeConfig provides access to system probe configuration
