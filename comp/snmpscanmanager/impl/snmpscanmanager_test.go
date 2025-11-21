@@ -754,6 +754,7 @@ func TestQueueDueScans(t *testing.T) {
 
 func assertDeviceScans(t assert.TestingT, expectedDeviceScans deviceScansByIP, scanManager *snmpScanManagerImpl) {
 	actualDeviceScans := cloneDeviceScans(scanManager)
+
 	assert.Equal(t, len(expectedDeviceScans), len(actualDeviceScans))
 	for _, actualScan := range actualDeviceScans {
 		expectedScan, exists := expectedDeviceScans[actualScan.DeviceIP]
