@@ -34,7 +34,7 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot         snapshotData      `json:"snapshot"`
+	Snapshot         snapshotData      `json:"snapshot,omitempty"`
 	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
 }
 
@@ -184,9 +184,12 @@ type snapshotData struct {
 	Language  string    `json:"language"`
 
 	// dynamic fields:
-	Stack    stackData   `json:"stack"`
-	Probe    probeData   `json:"probe"`
-	Captures captureData `json:"captures"`
+	Stack    *stackData   `json:"stack,omitempty"`
+	Probe    probeData    `json:"probe"`
+	Captures *captureData `json:"captures,omitempty"`
+
+	stack    stackData
+	captures captureData
 }
 
 type probeData struct {

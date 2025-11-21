@@ -152,6 +152,7 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 		}
 
 		actionsMap["run_once"] = true
+		actionsMap["remote_config_id"] = parsed.remoteConfigID
 		for k, v := range auth {
 			actionsMap[k] = v
 		}
@@ -182,6 +183,7 @@ type parsedActionsConfig struct {
 	path             string
 	bootstrapServers string
 	actionsJSON      json.RawMessage
+	remoteConfigID   string
 }
 
 func parseActionsConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) []parsedActionsConfig {
@@ -205,6 +207,7 @@ func parseActionsConfig(updates map[string]state.RawConfig, applyStateCallback f
 			path:             path,
 			bootstrapServers: bootstrapServers,
 			actionsJSON:      cfg.Actions,
+			remoteConfigID:   rawConfig.Metadata.ID,
 		})
 	}
 	return configs
