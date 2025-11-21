@@ -149,6 +149,10 @@ so_symlink(
     src = ":libssl",
     libname = "libssl",
     version = "3.5.4",
+    prefix = select({
+        "@platforms//os:windows": "bin",
+        "//conditions:default": "lib",
+    }),
 )
 
 so_symlink(
@@ -156,6 +160,10 @@ so_symlink(
     src = ":libcrypto",
     libname = "libcrypto",
     version = "3.5.4",
+    prefix = select({
+        "@platforms//os:windows": "bin",
+        "//conditions:default": "lib",
+    }),
 )
 
 filegroup(
