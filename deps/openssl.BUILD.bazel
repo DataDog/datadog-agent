@@ -19,6 +19,7 @@ DEFAULT_CONFIG = [
     "shared",
     "no-ssl3",
     "no-gost",
+    "--libdir=lib",
     "zlib-dynamic",
 ]
 
@@ -69,11 +70,7 @@ configure_make(
             "no-zlib",
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
-        # OpenSSL uses lib64 by default for x86_64 builds
-        "@platforms//os:linux": [
-            "--libdir=lib",
-        ] + DEFAULT_CONFIG,
-        "//conditions:default": [],
+        "//conditions:default": DEFAULT_CONFIG,
     }),
     env = select({
         "@platforms//os:macos": {
@@ -85,6 +82,13 @@ configure_make(
     }),
     lib_source = ":all",
     out_include_dir = "include",
+    out_static_libs = select({
+        "@platforms//os:windows": [
+            "libssl.dll.a",
+            "libcrypto.dll.a",
+        ],
+        "//conditions:default": [],
+    }),
     out_shared_libs = select({
         "@platforms//os:linux": [
             LINUX_LIBSSL,
@@ -93,10 +97,6 @@ configure_make(
         "@platforms//os:macos": [
             MACOS_LIBSSL,
             MACOS_LIBCRYPTO,
-        ],
-        "@platforms//os:windows": [
-            "libssl.dll.a",
-            "libcrypto.dll.a",
         ],
         "//conditions:default": [],
     }),
@@ -177,6 +177,27 @@ filegroup(
     output_group = "pkgconfig",
 )
 
+filegroup(
+    name = "libcrypto_dll_a",
+    srcs = [":openssl"],
+    output_group = "libcrypto.dll.a",
+)
+
+filegroup(
+    name = "libssl_dll_a",
+    srcs = [":openssl"],
+    output_group = "libssl.dll.a",
+)
+
+pkg_files(
+    name = "dll_a",
+    srcs = [
+        ":libcrypto_dll_a",
+        ":libssl_dll_a",
+    ],
+    prefix = "lib",
+)
+
 pkg_files(
     name = "openssl_pkgconfig",
     srcs = [":pkgconfig_dir"],
@@ -190,5 +211,6 @@ pkg_install(
         ":openssl_pkgconfig",
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
+        ":dll_a",
     ],
 )
