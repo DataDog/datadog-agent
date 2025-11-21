@@ -763,8 +763,8 @@ def celian(ctx):
     ctx.run("git add hello.md")
     print('commit')
     ctx.run("git commit -m 'Add hello.md'")
-    # print('push')
-    # ctx.run("git push --set-upstream origin celian/test-push-branch")
+    print('push')
+    ctx.run("git push --set-upstream origin celian/test-push-branch")
 
     print('ok')
 
