@@ -9,6 +9,7 @@ use (
 	.
 	./pkg/util/hostinfo
 	./pkg/util/jsonquery
+	cmd/secret-backend
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
