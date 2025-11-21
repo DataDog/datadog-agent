@@ -31,6 +31,8 @@ type mockLongRunningCheck struct {
 	runningCh chan struct{}
 }
 
+func (m *mockLongRunningCheck) RunOnce() bool { return false }
+
 func (m *mockLongRunningCheck) Stop() {
 	m.Called()
 }

@@ -79,7 +79,7 @@ type Decoder struct {
 
 	// These fields are initialized and reset for each message.
 	snapshotMessage snapshotMessage
-	entry           captureEvent
+	entryOrLine     captureEvent
 	_return         captureEvent
 	line            lineCaptureData
 }
@@ -128,7 +128,7 @@ func NewDecoder(
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
 	}
-	decoder.entry.encodingContext = encodingContext{
+	decoder.entryOrLine.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
 		typesByGoRuntimeType: decoder.typesByGoRuntimeType,
 		typeResolver:         typeNameResolver,
@@ -203,8 +203,8 @@ func (d *Decoder) Decode(
 }
 
 func (d *Decoder) resetForNextMessage() {
-	clear(d.entry.dataItems)
-	d.entry.clear()
+	clear(d.entryOrLine.dataItems)
+	d.entryOrLine.clear()
 	d.line.clear()
 	d._return.clear()
 	d.snapshotMessage = snapshotMessage{}
@@ -226,6 +226,7 @@ type snapshotMessage struct {
 	Debugger  debuggerData     `json:"debugger"`
 	Timestamp int              `json:"timestamp"`
 	Duration  uint64           `json:"duration,omitzero"`
+	Message   messageData      `json:"message,omitempty"`
 }
 
 func (s *snapshotMessage) init(
@@ -244,12 +245,12 @@ func (s *snapshotMessage) init(
 	if event.EntryOrLine == nil {
 		return nil, fmt.Errorf("entry event is nil")
 	}
-	if err := decoder.entry.init(
+	if err := decoder.entryOrLine.init(
 		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
-	probeEvent := decoder.probeEvents[decoder.entry.rootType.ID]
+	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
 	header, err := event.EntryOrLine.Header()
 	if err != nil {
@@ -257,10 +258,10 @@ func (s *snapshotMessage) init(
 	}
 	switch probeEvent.event.Kind {
 	case ir.EventKindEntry:
-		s.Debugger.Snapshot.Captures.Entry = &decoder.entry
+		s.Debugger.Snapshot.Captures.Entry = &decoder.entryOrLine
 	case ir.EventKindLine:
 		decoder.line.sourceLine = probeEvent.event.SourceLine
-		decoder.line.capture = &decoder.entry
+		decoder.line.capture = &decoder.entryOrLine
 		s.Debugger.Snapshot.Captures.Lines = &decoder.line
 	}
 	var returnHeader *output.EventHeader
@@ -389,5 +390,14 @@ func (s *snapshotMessage) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 	s.Debugger.Snapshot.Stack.frames = stackFrames
+
+	if probe.Template != nil {
+		s.Message = messageData{
+			entryOrLine: &decoder.entryOrLine,
+			_return:     &decoder._return,
+			template:    probe.Template,
+		}
+	}
+
 	return probe, nil
 }

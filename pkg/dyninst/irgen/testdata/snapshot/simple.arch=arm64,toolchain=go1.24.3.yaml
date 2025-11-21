@@ -5,8 +5,8 @@ Probes:
       type: LOG_PROBE
       where: {methodName: main.PointerChainArg}
       capture: {maxReferenceDepth: 3}
-      template: ""
-      segments: []
+      template: 'ptr: {ptr}'
+      segments: ['ptr: ', {json: {ref: ptr}, dsl: ptr}]
       captureSnapshot: true
       subprogram: {subprogram: 13}
       events:
@@ -14,6 +14,14 @@ Probes:
           Type: 202 EventRootType Probe[main.PointerChainArg]
           InjectionPoints: [{PC: "0xb520c", Frameless: false}]
           Condition: null
+      probeTemplate:
+        TemplateString: 'ptr: {ptr}'
+        Segments:
+            - 'ptr: '
+            - JSON: {Ref: ptr}
+              DSL: ptr
+              EventKind: Entry
+              EventExpressionIndex: 1
     - id: PointerSmallChainArg
       version: 0
       type: LOG_PROBE
@@ -32,8 +40,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.bigMapArg}
-      template: ""
-      segments: []
+      template: 'm: {m}'
+      segments: ['m: ', {json: {ref: m}, dsl: m}]
       captureSnapshot: true
       subprogram: {subprogram: 9}
       events:
@@ -45,6 +53,14 @@ Probes:
           Type: 195 EventRootType Probe[main.bigMapArg]Return
           InjectionPoints: [{PC: "0xb5764", Frameless: false}]
           Condition: null
+      probeTemplate:
+        TemplateString: 'm: {m}'
+        Segments:
+            - 'm: '
+            - JSON: {Ref: m}
+              DSL: m
+              EventKind: Entry
+              EventExpressionIndex: 1
     - id: inlined
       version: 0
       type: LOG_PROBE
@@ -135,8 +151,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.mapArg}
-      template: ""
-      segments: []
+      template: 'm: {m}'
+      segments: ['m: ', {json: {ref: m}, dsl: m}]
       captureSnapshot: true
       subprogram: {subprogram: 8}
       events:
@@ -148,6 +164,14 @@ Probes:
           Type: 193 EventRootType Probe[main.mapArg]Return
           InjectionPoints: [{PC: "0xb56a8", Frameless: false}]
           Condition: null
+      probeTemplate:
+        TemplateString: 'm: {m}'
+        Segments:
+            - 'm: '
+            - JSON: {Ref: m}
+              DSL: m
+              EventKind: Entry
+              EventExpressionIndex: 1
     - id: noArgs
       version: 0
       type: LOG_PROBE
@@ -169,8 +193,8 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.stringArg}
-      template: ""
-      segments: []
+      template: 's: {s}'
+      segments: ['s: ', {json: {ref: s}, dsl: s}]
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
@@ -182,6 +206,14 @@ Probes:
           Type: 182 EventRootType Probe[main.stringArg]Return
           InjectionPoints: [{PC: "0xb5364", Frameless: false}]
           Condition: null
+      probeTemplate:
+        TemplateString: 's: {s}'
+        Segments:
+            - 's: '
+            - JSON: {Ref: s}
+              DSL: s
+              EventKind: Entry
+              EventExpressionIndex: 1
     - id: stringArrayArg
       version: 0
       type: LOG_PROBE
@@ -732,12 +764,22 @@ Types:
     - __kind: EventRootType
       ID: 202
       Name: Probe[main.PointerChainArg]
-      ByteSize: 9
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: ptr
           Offset: 1
           Kind: argument
+          Expression:
+            Type: 124 PointerType *****int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 13, index: 0, name: ptr}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: ptr
+          Offset: 9
+          Kind: template_segment
           Expression:
             Type: 124 PointerType *****int
             Operations:
@@ -764,12 +806,22 @@ Types:
     - __kind: EventRootType
       ID: 194
       Name: Probe[main.bigMapArg]
-      ByteSize: 9
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
           Kind: argument
+          Expression:
+            Type: 114 GoMapType map[string]main.bigStruct
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 9, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: m
+          Offset: 9
+          Kind: template_segment
           Expression:
             Type: 114 GoMapType map[string]main.bigStruct
             Operations:
@@ -859,12 +911,22 @@ Types:
     - __kind: EventRootType
       ID: 192
       Name: Probe[main.mapArg]
-      ByteSize: 9
+      ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: m
           Offset: 1
           Kind: argument
+          Expression:
+            Type: 109 GoMapType map[string]int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 8, index: 0, name: m}
+                  Offset: 0
+                  ByteSize: 8
+        - Name: m
+          Offset: 9
+          Kind: template_segment
           Expression:
             Type: 109 GoMapType map[string]int
             Operations:
@@ -884,12 +946,22 @@ Types:
     - __kind: EventRootType
       ID: 181
       Name: Probe[main.stringArg]
-      ByteSize: 17
+      ByteSize: 33
       PresenceBitsetSize: 1
       Expressions:
         - Name: s
           Offset: 1
           Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 0, name: s}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: s
+          Offset: 17
+          Kind: template_segment
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
