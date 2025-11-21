@@ -7,6 +7,7 @@ package metrics
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/bits"
 	"slices"
@@ -340,30 +341,39 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 
 	for {
 		pb.writeSerieToTxn(serie)
-
-		err := pb.compressor.AddItem(pb.txn)
-		switch err {
-		case stream.ErrPayloadFull:
-			tlmSplitReason.Inc("payload_full")
-			err = pb.finishPayload()
-			if err != nil {
-				return err
-			}
+		err := pb.finishTxn(len(serie.Points))
+		if err == errRetry {
 			continue
-		case stream.ErrItemTooBig:
-			tlmItemTooBig.Inc()
-			tlmSplitReason.Inc("item_too_big")
-			err = pb.finishPayload()
-			if err != nil {
-				return err
-			}
-			return nil
-		case nil:
-			pb.pointsThisPayload += len(serie.Points)
-			return nil
-		default:
+		}
+		return err
+	}
+}
+
+var errRetry = errors.New("retry")
+
+func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
+	err := pb.compressor.AddItem(pb.txn)
+	switch err {
+	case stream.ErrPayloadFull:
+		tlmSplitReason.Inc("payload_full")
+		err = pb.finishPayload()
+		if err != nil {
 			return err
 		}
+		return errRetry
+	case stream.ErrItemTooBig:
+		tlmItemTooBig.Inc()
+		tlmSplitReason.Inc("item_too_big")
+		err = pb.finishPayload()
+		if err != nil {
+			return err
+		}
+		return nil
+	case nil:
+		pb.pointsThisPayload += numPoints
+		return nil
+	default:
+		return err
 	}
 }
 
