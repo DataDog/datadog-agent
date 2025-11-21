@@ -92,35 +92,31 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
   # System-wide installation: Install GUI for ALL users
   echo "# Configuring GUI for system-wide installation (all users)"
 
-  # Only install GUI if WLAN check is enabled
-  if [ -f "$INSTALL_DIR/etc/conf.d/wlan.d/conf.yaml" ]; then
-    echo "WLAN check enabled, installing GUI LaunchAgent for all users..."
+  # Copy plist and add --headless flag for system-wide mode (no menu bar icon needed)
+  cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
 
-    # Copy to system-wide LaunchAgents directory (runs for every user at login)
-    cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
+  # Add --headless flag to ProgramArguments (inserts before the closing </array> tag)
+  sed -i '' '/<\/array>/i\
+            <string>--headless<\/string>
+' /Library/LaunchAgents/com.datadoghq.gui.plist
 
-    # Set proper ownership and permissions for system-wide LaunchAgent
-    chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
-    chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
+  # Set proper ownership and permissions for system-wide LaunchAgent
+  chown root:wheel /Library/LaunchAgents/com.datadoghq.gui.plist
+  chmod 644 /Library/LaunchAgents/com.datadoghq.gui.plist
 
-    # Inform about GUI and location permission
-    echo ""
-    echo "=========================================="
-    echo "Datadog Agent GUI (System-Wide)"
-    echo "=========================================="
-    echo "The GUI will launch automatically for each user when they log in."
-    echo ""
-    echo "For WiFi data collection (SSID/BSSID), each user must grant Location permission:"
-    echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
-    echo ""
-    echo "Note: The GUI will prompt for this permission when it starts for each user."
-    echo "      At least one user should grant permission for WLAN metrics to work."
-    echo "=========================================="
-    echo ""
-  else
-    echo "WLAN check not enabled, skipping GUI installation"
-    echo ""
-  fi
+  # Inform about GUI and location permission
+  echo ""
+  echo "=========================================="
+  echo "Datadog Agent GUI (System-Wide)"
+  echo "=========================================="
+  echo "The GUI will launch automatically for each user when they log in."
+  echo ""
+  echo "For WiFi data collection (SSID/BSSID), users must grant Location permission:"
+  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+  echo ""
+  echo "Note: The GUI will prompt for this permission when it starts."
+  echo "=========================================="
+  echo ""
 else
   # Per-user installation: Install GUI only for current user
   echo "# Configuring GUI for per-user installation"
@@ -147,28 +143,21 @@ else
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
   sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
-  # Only load GUI if WLAN check is enabled (conf.yaml exists)
-  # In the future, if WLAN enablement is done through the main config file, we may need to revisit this.
-  if [ -f "$INSTALL_DIR/etc/conf.d/wlan.d/conf.yaml" ]; then
-    echo "WLAN check enabled, loading GUI for WiFi data collection..."
-    # Load the tray app service (this will start it due to RunAtLoad: true)
-    sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
 
-    # Inform user about location permission requirement
-    echo ""
-    echo "=========================================="
-    echo "Datadog Agent Location Permission"
-    echo "=========================================="
-    echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
-    echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
-    echo ""
-    echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
-    echo "=========================================="
-    echo ""
-  else
-    echo "WLAN check not enabled, skipping GUI installation"
-    echo ""
-  fi
+  # Load the GUI LaunchAgent
+  sudo -Hu "$INSTALL_USER" launchctl load -w "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
+
+  # Inform user about location permission requirement
+  echo ""
+  echo "=========================================="
+  echo "Datadog Agent GUI"
+  echo "=========================================="
+  echo "To enable WiFi data collection (SSID/BSSID), grant Location permission:"
+  echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
+  echo ""
+  echo "Note: The Datadog Agent GUI will prompt for this permission when it starts."
+  echo "=========================================="
+  echo ""
 fi
 
 # A little debriefing won't hurt
