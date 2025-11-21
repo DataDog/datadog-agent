@@ -6,11 +6,8 @@
 package compliance
 
 import (
-	"context"
 	"fmt"
-	"net"
 	"net/http"
-	"os"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -57,12 +54,7 @@ func StartCompliance(log log.Component,
 	}
 	stopper.Add(context)
 
-	resolverOptions := compliance.ResolverOptions{
-		Hostname:           hostname,
-		HostRoot:           os.Getenv("HOST_ROOT"),
-		DockerProvider:     compliance.DefaultDockerProvider,
-		LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
-	}
+	resolverOptions := createResolverOptions(hostname)
 
 	if metricsEnabled {
 		resolverOptions.StatsdClient = statsdClient
@@ -84,7 +76,7 @@ func StartCompliance(log log.Component,
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
 	agent := compliance.NewAgent(telemetrySender, wmeta, ipc, compliance.AgentOptions{
-		ResolverOptions:               resolverOptions,
+		ResolverOptions:               *resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,
 		CheckInterval:                 checkInterval,
@@ -122,20 +114,4 @@ func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName stri
 	}()
 
 	return heartbeat
-}
-
-func newSysProbeClient(address string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", address)
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
-	}
 }

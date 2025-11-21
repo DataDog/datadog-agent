@@ -248,6 +248,7 @@ type (
 		Package       *InputSpecPackage       `yaml:"package,omitempty" json:"package,omitempty"`
 		XCCDF         *InputSpecXCCDF         `yaml:"xccdf,omitempty" json:"xccdf,omitempty"`
 		Constants     *InputSpecConstants     `yaml:"constants,omitempty" json:"constants,omitempty"`
+		Registry      *InputSpecRegistry      `yaml:"registry,omitempty" json:"registry,omitempty"`
 
 		TagName string `yaml:"tag,omitempty" json:"tag,omitempty"`
 		Type    string `yaml:"type,omitempty" json:"type,omitempty"`
@@ -308,6 +309,14 @@ type (
 		Profile string   `yaml:"profile" json:"profile"`
 		Rule    string   `yaml:"rule" json:"rule"`
 		Rules   []string `yaml:"rules,omitempty" json:"rules,omitempty"`
+	}
+
+	// InputSpecRegistry describes the spec to resolve a Windows Registry entry.
+	InputSpecRegistry struct {
+		Hive      string `yaml:"hive" json:"hive"`
+		Path      string `yaml:"path" json:"path"`
+		ValueName string `yaml:"valueName" json:"valueName"`
+		ValueType string `yaml:"valueType" json:"valueType"`
 	}
 
 	// InputSpecConstants can be used to pass constants data to the evaluator.

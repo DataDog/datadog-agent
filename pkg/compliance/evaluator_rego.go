@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build unix
+//go:build unix || windows
 
 package compliance
 
@@ -145,6 +145,7 @@ func newCheckEventFromRegoResult(data interface{}, rule *Rule, resolvedInputs Re
 	return event
 }
 
+// buildRegoModules creates an inventory of rego files found in the rootDir.
 func buildRegoModules(rootDir string, rule *Rule) (map[string]string, error) {
 	modules := map[string]string{
 		"datadog_helpers.rego": regoHelpersSource,
