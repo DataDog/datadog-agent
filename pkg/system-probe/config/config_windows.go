@@ -49,5 +49,10 @@ func ProcessEventDataStreamSupported() bool {
 	return true
 }
 
+// RedisMonitoringSupported returns false on windows as eBPF is not supported
+func RedisMonitoringSupported() bool {
+	return false
+}
+
 func allowPrebuiltEbpfFallback(_ model.Config) {
 }

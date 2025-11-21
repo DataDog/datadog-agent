@@ -76,6 +76,7 @@ git_override(
     commit = "e736410ced16744922c11762783b7c1fdddf620c",
     patch_args = ["-p1"],
     patches = [
+        "//bazel/patches:gcc-toolchain/0000-fix-no-repository-visible-as-@.patch",
         "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
@@ -110,7 +111,7 @@ register_toolchains(
 visual_studio(
     name = "visual_studio",
     path_variable = "VSTUDIO_ROOT",
-    version = "17.14.36623.8",
+    version = "17.14.36717.8",
 )
 
 # =========================================

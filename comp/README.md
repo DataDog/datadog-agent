@@ -300,7 +300,7 @@ Package eventplatformreceiver implements the receiver for the event platform pac
 
 ### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
 
-*Datadog Team*: container-app
+*Datadog Team*: kubernetes-experiences
 
 Package orchestrator implements the orchestrator forwarder component.
 
@@ -546,10 +546,6 @@ Package processcheck implements a component to handle Process data collection in
 ### [comp/process/processdiscoverycheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck)
 
 Package processdiscoverycheck implements a component to handle Process Discovery data collection in the Process Agent for customers who do not pay for live processes.
-
-### [comp/process/processeventscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/processeventscheck)
-
-Package processeventscheck implements a component to handle Process Events data collection in the Process Agent.
 
 ### [comp/process/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/profiler)
 
