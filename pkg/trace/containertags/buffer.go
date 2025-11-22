@@ -20,7 +20,9 @@ import (
 )
 
 const (
-	maxBufferDuration = 10 * time.Second
+	maxBufferDuration = 8 * time.Second
+	// 5M is an order of magnitude less then trace-agent binary in memory
+	maxSizeForNoLimit = int64(5_000_000)
 
 	metricMemoryUsage      = "datadog.trace_agent.tag_buffer.memory_usage"
 	metricPayloadsPending  = "datadog.trace_agent.tag_buffer.pending_payloads"
@@ -97,6 +99,11 @@ func newContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterf
 		bufferDuration: maxBufferDuration,
 		hardTimeLimit:  maxBufferDuration + time.Second,
 		maxSize:        int64(conf.MaxMemory * 0.1),
+	}
+	// set a reasonable max size when the agent is configured with no
+	// memory boundary
+	if ctb.maxSize == 0 {
+		ctb.maxSize = maxSizeForNoLimit
 	}
 	ctb.resolveFunc = conf.ContainerTags
 	return ctb

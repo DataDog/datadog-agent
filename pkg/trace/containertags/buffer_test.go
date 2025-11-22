@@ -8,7 +8,10 @@
 package containertagsbuffer
 
 import (
+	"errors"
 	"fmt"
+	"math/rand"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -73,7 +76,6 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 	case tags := <-resultCh:
 		assert.Contains(t, tags, "kube_pod_name:app", "Should have received the new tags")
 	case <-time.After(10 * time.Second):
-		fmt.Println("oh no", time.Now())
 		t.Fatal("Timed out waiting for buffer to resolve")
 	}
 	assert.Equal(t, calledOnce.Load(), int64(1))
@@ -102,6 +104,12 @@ func TestIsEnabled(t *testing.T) {
 			ctb.Stop()
 		})
 	}
+}
+
+func TestMaxSizeNoLimit(t *testing.T) {
+	conf := &config.AgentConfig{}
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
+	assert.Equal(t, ctb.maxSize, maxSizeForNoLimit)
 }
 
 func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
@@ -261,4 +269,68 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))
+}
+
+func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
+	containerIDs := []string{"c-error", "c-to-resolve-1", "c-to-resolve-2", "c-will-expire1", "c-will-expire2"}
+
+	var shouldResolveContainers atomic.Bool
+
+	conf := &config.AgentConfig{
+		MaxMemory:           10 * 1024 * 1024,
+		ContainerTagsBuffer: true,
+		ContainerTags: func(cid string) ([]string, error) {
+			if strings.Contains(cid, "c-error") {
+				return nil, errors.New("container not found")
+			}
+
+			if shouldResolveContainers.Load() {
+				return []string{fmt.Sprintf("kube_image:%s", cid)}, nil
+			}
+			return []string{"tag:incomplete_tags"}, nil
+		},
+	}
+
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
+	ctb.bufferDuration = 500 * time.Millisecond
+	ctb.Start()
+
+	testDuration := 3 * time.Second
+	time.AfterFunc(testDuration/2, func() {
+		shouldResolveContainers.Store(true)
+		t.Log("--- SWITCHING STATE: Containers should now resolve with kube_ tags ---")
+	})
+
+	var wg sync.WaitGroup
+	start := time.Now()
+
+	var totalExecuted atomic.Int64
+	var totalAsyncCalls atomic.Int64
+
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for time.Since(start) < testDuration {
+				cid := containerIDs[rand.Intn(len(containerIDs))]
+
+				totalAsyncCalls.Add(1)
+				ctb.AsyncEnrichment(cid, func([]string, error) { totalExecuted.Add(1) }, 100)
+			}
+		}()
+	}
+
+	wg.Wait()
+	ctb.Stop()
+
+	// memory usage release happens in a deferred call inside the AsyncEnrichment goroutines.
+	assert.Eventually(t, func() bool {
+		return ctb.memoryUsage.Load() == 0
+	}, 2*time.Second, 10*time.Millisecond, "Memory usage should eventually drop to 0")
+
+	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-error"))
+	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-will-expire1"))
+	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-will-expire2"))
+	assert.Equal(t, totalExecuted.Load(), totalAsyncCalls.Load())
 }
