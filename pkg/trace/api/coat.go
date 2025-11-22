@@ -6,8 +6,6 @@
 package api
 
 import (
-	"sync"
-
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 )
@@ -17,8 +15,6 @@ var (
 	OTLPIngestAgentTracesEvents coretelemetry.Counter
 	// OTLPIngestAgentTracesRequests is Coat metric for tracking OTLP trace requests in the agent.
 	OTLPIngestAgentTracesRequests coretelemetry.Counter
-
-	coatTelemetryMu sync.Mutex
 )
 
 func init() {
@@ -28,9 +24,6 @@ func init() {
 // InitTelemetry wires the COAT counters using the provided telemetry component.
 // Passing nil falls back to a noop component so callers can safely invoke the counters before initialization.
 func InitTelemetry(tm coretelemetry.Component) {
-	coatTelemetryMu.Lock()
-	defer coatTelemetryMu.Unlock()
-
 	if tm == nil {
 		tm = nooptelemetry.GetCompatComponent()
 	}
