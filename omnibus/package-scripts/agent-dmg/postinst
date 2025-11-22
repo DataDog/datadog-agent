@@ -87,12 +87,22 @@ if [ ! -e "$CONF_DIR/datadog.yaml" ]; then
     exit 1
 fi
 
+# Get the user home directory (needed for both installation modes)
+USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
+
+# Create agent plist unconditionally (both modes need it)
+# For system-wide: install_mac_os.sh will move it to /Library/LaunchDaemons/
+# For per-user: it stays in ~/Library/LaunchAgents/
+echo "# Configuring the agent as a launchd service"
+sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
+sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
+
 # Install GUI LaunchAgent based on installation mode
 if [ -f "/tmp/install-ddagent/system-wide" ]; then
-  # System-wide installation: Install GUI for ALL users
-  echo "# Configuring GUI for system-wide installation (all users)"
+  # System-wide installation: Install GUI app for all users (headless mode)
+  echo "# Configuring GUI for system-wide installation"
 
-  # Copy plist and add --headless flag for system-wide mode (no menu bar icon needed)
+  # Install GUI appfor ALL users (headless mode)
   cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
 
   # Add --headless flag to ProgramArguments (inserts before the closing </array> tag)
@@ -118,7 +128,7 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
   echo "=========================================="
   echo ""
 else
-  # Per-user installation: Install GUI only for current user
+  # Per-user installation: Install GUI for current user
   echo "# Configuring GUI for per-user installation"
 
   # Error if app not properly installed or root
@@ -129,16 +139,11 @@ else
   fi
 
   # Link for conf files (let's ease the user's life)
-  USER_HOME=$(sudo -Hu "$INSTALL_USER" sh -c 'echo $HOME')
   sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/.datadog-agent"
   rm -vf "$USER_HOME/.datadog-agent/conf.d" "$USER_HOME/.datadog-agent/datadog.yaml" "$USER_HOME/.datadog-agent/checks.d"
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/conf.d "$USER_HOME/.datadog-agent/conf.d"
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/datadog.yaml "$USER_HOME/.datadog-agent/datadog.yaml"
   sudo -Hu "$INSTALL_USER" ln -vs $CONF_DIR/checks.d "$USER_HOME/.datadog-agent/checks.d"
-
-  echo "# Configuring the agent as a launchd service for the current user (LaunchAgent)"
-  sudo -Hu "$INSTALL_USER" mkdir -vp "$USER_HOME/Library/LaunchAgents"
-  sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.agent.plist"
 
   # Create the tray icon app launchctl service
   sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" "$USER_HOME/Library/LaunchAgents/com.datadoghq.gui.plist"
