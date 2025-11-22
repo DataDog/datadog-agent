@@ -4,7 +4,7 @@ Usage:
     load("@@//deps:all_deps.bzl", "ALL_DEPS")
 
     info = ALL_DEPS[repo_name]
-    
+
     ... info contains the fiels name, version, sha256, strip_prefix, urls
 """
 
