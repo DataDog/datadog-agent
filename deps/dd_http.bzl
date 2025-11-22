@@ -79,13 +79,6 @@ dd_http_archive_attrs = {
     "workspace_file_content": attr.string(),
 }
 
-def _update_integrity_attr(ctx, attrs, download_info):
-    # We don't need to override the integrity attribute if sha256 is already specified.
-    if ctx.attr.sha256 or ctx.attr.integrity:
-        return ctx.repo_metadata(reproducible = True)
-    integrity_override = {"integrity": download_info.integrity}
-    return ctx.repo_metadata(attrs_for_reproducibility = update_attrs(ctx.attr, attrs.keys(), integrity_override))
-
 def _update_http_archive_integrity_attrs(ctx, attrs, info, integrity):
     integrity_override = {}
 
