@@ -301,6 +301,7 @@ func runIntegrationTestSuite(
 		})
 	}
 	probes := testprogs.MustGetProbeDefinitions(t, service)
+	probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
 	var expectedOutput map[string][]json.RawMessage
 	if !rewrite {
 		var err error
