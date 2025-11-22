@@ -143,7 +143,7 @@ func (m *mockContainerTagsBuffer) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), size int64) bool {
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), _ int64) bool {
 	cb(m.returnTags, m.returnErr)
 	return m.pending
 }
