@@ -9,11 +9,13 @@ package containertagsbuffer
 
 import (
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -50,7 +52,8 @@ type containerTagsBuffer struct {
 	statsd      statsd.ClientInterface
 
 	in        chan bufferInput
-	stopCh    chan struct{}
+	exit      chan struct{}
+	exitWG    sync.WaitGroup
 	isRunning atomic.Bool
 
 	deniedContainers *deniedContainers
@@ -87,7 +90,7 @@ func newContainerTagsBuffer(conf *config.AgentConfig, statsd statsd.ClientInterf
 		conf:             conf,
 		statsd:           statsd,
 		in:               make(chan bufferInput, 5),
-		stopCh:           make(chan struct{}, 1),
+		exit:             make(chan struct{}),
 		deniedContainers: newDeniedContainers(),
 		containersBuffer: make(map[string]containerBuffer, 100),
 
@@ -112,6 +115,8 @@ func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 		// happy path, we resolved containers
 		if okSources && err == nil {
 			buffer.flush(tagResult{tags: ctags, err: nil})
+			delete(p.containersBuffer, cid)
+			continue
 		}
 		// wait longer
 		if now.Before(buffer.expireTs) {
@@ -119,13 +124,15 @@ func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 		}
 		// force flush + deny
 		buffer.flush(tagResult{tags: ctags, err: nil})
+		delete(p.containersBuffer, cid)
 		p.deniedContainers.deny(now, cid)
 	}
 }
 
 // Stop flushes all pending payloads and stops the worker
 func (p *containerTagsBuffer) Stop() {
-	close(p.stopCh)
+	close(p.exit)
+	p.exitWG.Wait()
 }
 
 // Start begins the background worker loop that
@@ -134,13 +141,17 @@ func (p *containerTagsBuffer) Stop() {
 // 3. flushes when max buffer duration is exceeded
 func (p *containerTagsBuffer) Start() {
 	p.isRunning.Store(true)
+	p.exitWG.Add(1)
 	go func() {
+		log.Debug("Starting container tags buffer with memory limit: ", p.maxSize)
+		defer p.exitWG.Done()
 		resolveTicker := time.NewTicker(1 * time.Second)
 		statsTicker := time.NewTicker(10 * time.Second)
 		defer resolveTicker.Stop()
+		defer statsTicker.Stop()
 		for {
 			select {
-			case <-p.stopCh:
+			case <-p.exit:
 				p.forceFlush()
 				return
 			case toBuffer := <-p.in:
@@ -289,7 +300,6 @@ func (b *containerBuffer) flush(res tagResult) {
 	for _, fn := range b.pendingResult {
 		fn(res)
 	}
-	b.pendingResult = nil
 }
 
 type bufferInput struct {

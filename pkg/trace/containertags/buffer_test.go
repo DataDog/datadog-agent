@@ -10,6 +10,7 @@ package containertagsbuffer
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,11 +47,13 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 	}, &statsd.NoOpClient{})
 	buff.resolveFunc = mock.Resolve
 	buff.Start()
-	defer close(buff.stopCh)
+	defer close(buff.exit)
 
 	resultCh := make(chan []string, 1)
 
+	var calledOnce atomic.Int64
 	onResolution := func(ctags []string, _ error) {
+		calledOnce.Add(1)
 		resultCh <- ctags
 	}
 	pending := buff.AsyncEnrichment("c-delayed", onResolution, 100)
@@ -73,6 +76,7 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 		fmt.Println("oh no", time.Now())
 		t.Fatal("Timed out waiting for buffer to resolve")
 	}
+	assert.Equal(t, calledOnce.Load(), int64(1))
 }
 
 func TestIsEnabled(t *testing.T) {
