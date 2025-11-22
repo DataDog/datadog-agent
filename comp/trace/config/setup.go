@@ -135,7 +135,6 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 	cfg.HTTPTransportFunc = func() *http.Transport {
 		return httputils.CreateHTTPTransport(coreConfigObject)
 	}
-	cfg.ContainerTagsBuffer = true
 
 	return cfg, nil
 }
