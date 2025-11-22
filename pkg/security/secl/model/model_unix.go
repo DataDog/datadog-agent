@@ -58,7 +58,6 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // genaccessors
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
