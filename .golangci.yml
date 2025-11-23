@@ -20,7 +20,6 @@ issues:
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
-    - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
     - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
@@ -317,6 +316,9 @@ issues:
       linters:
         - pkgconfigusage
     - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
+      linters:
+        - pkgconfigusage
+    - path: comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go
       linters:
         - pkgconfigusage
     - path: comp/forwarder/defaultforwarder/blocked_endpoints.go

@@ -182,32 +182,30 @@ func (p *Program) Close() {
 
 // RuntimeStats are cumulative stats aggregated throughout program lifetime.
 type RuntimeStats struct {
+	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
+	CPU time.Duration
 	// Number of probe hits.
 	HitCnt uint64
 	// Number of probe hits that skipped data capture due to throttling.
 	ThrottledCnt uint64
-	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
-	CPU time.Duration
 }
 
-// RuntimeStats returns the runtime stats for the program.
-func (p *Program) RuntimeStats() (stats RuntimeStats) {
+// RuntimeStats returns the per-core runtime stats for the program.
+func (p *Program) RuntimeStats() []RuntimeStats {
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
-		return
+		return nil
 	}
 	entries := statsMap.Iterate()
 	var key uint32
-	var perCPUStats []RuntimeStats
-	if !entries.Next(&key, &perCPUStats) {
-		return stats
-	}
-	for _, cpuStats := range perCPUStats {
-		stats.HitCnt += cpuStats.HitCnt
-		stats.ThrottledCnt += cpuStats.ThrottledCnt
-		stats.CPU += cpuStats.CPU
-	}
-	return
+	var stats []stats
+	_ = entries.Next(&key, &stats)
+	// This is safe because these two structs have the same layout.
+	// See TestRuntimeStatsHasSameLayoutAsStats for more details.
+	return unsafe.Slice(
+		(*RuntimeStats)(unsafe.Pointer(unsafe.SliceData(stats))),
+		len(stats),
+	)
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB

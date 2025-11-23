@@ -303,6 +303,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_stateful_metric_expiration_time", 25*time.Hour)
 	config.BindEnvAndSetDefault("check_sampler_expire_metrics", true)
 	config.BindEnvAndSetDefault("check_sampler_context_metrics", false)
+	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
 	config.BindEnvAndSetDefault("host_aliases", []string{})
 	config.BindEnvAndSetDefault("collect_ccrid", true)
 
@@ -812,6 +813,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
+	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -981,8 +983,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))
-	config.BindEnvAndSetDefault("sbom.compute_dependencies", false)
-	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", false)
+	config.BindEnvAndSetDefault("sbom.compute_dependencies", true)
+	config.BindEnvAndSetDefault("sbom.simplify_bom_refs", true)
 	config.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	config.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	config.BindEnvAndSetDefault("sbom.cache.clean_interval", "1h")         // used by custom cache.
@@ -1217,6 +1219,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
+
+	config.BindEnvAndSetDefault("vsock_addr", "")
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1295,6 +1299,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("health_platform.enabled", false)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
@@ -1561,7 +1566,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
-	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api_series", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -1586,8 +1591,6 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.SetDefault("serverless.enabled", false)
 	config.BindEnvAndSetDefault("serverless.logs_enabled", true)
 	config.BindEnvAndSetDefault("enhanced_metrics", true)
-	config.BindEnvAndSetDefault("capture_lambda_payload", false)
-	config.BindEnvAndSetDefault("capture_lambda_payload_max_depth", 10)
 	config.BindEnvAndSetDefault("serverless.trace_enabled", true, "DD_TRACE_ENABLED")
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
@@ -2232,7 +2235,6 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		"DD_INTEGRATIONS":                          {},
 		"DD_INTERNAL_NATIVE_LOADER_PATH":           {},
 		"DD_INTERNAL_PROFILING_NATIVE_ENGINE_PATH": {},
-		"DD_LAMBDA_HANDLER":                        {},
 		"DD_LOGS_INJECTION":                        {},
 		"DD_MERGE_XRAY_TRACES":                     {},
 		"DD_PROFILER_EXCLUDE_PROCESSES":            {},
@@ -2257,7 +2259,7 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		// these variables are used by source code integration
 		"DD_GIT_COMMIT_SHA":     {},
 		"DD_GIT_REPOSITORY_URL": {},
-		// signals whether or not ADP is enabled
+		// signals whether or not ADP is enabled (deprecated)
 		"DD_ADP_ENABLED": {},
 		// trace-loader socket file descriptors
 		"DD_APM_NET_RECEIVER_FD":  {},
@@ -2375,11 +2377,6 @@ func LoadSystemProbe(config pkgconfigmodel.Config, additionalKnownEnvVars []stri
 func loadCustom(config pkgconfigmodel.Config, additionalKnownEnvVars []string) error {
 	log.Info("Starting to load the configuration")
 	if err := config.ReadInConfig(); err != nil {
-		if pkgconfigenv.IsLambda() {
-			log.Debug("No config file detected, using environment variable based configuration only")
-			// The remaining code in loadCustom is not run to keep a low cold start time
-			return nil
-		}
 		return err
 	}
 
@@ -2657,6 +2654,13 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 			}
 		case map[interface{}]interface{}:
 			if k == len(trailingElements)-1 {
+				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
+				if index, err := strconv.Atoi(elem); err == nil {
+					if _, exists := modifyValue[index]; exists {
+						modifyValue[index] = newValue
+						continue
+					}
+				}
 				modifyValue[elem] = newValue
 			} else {
 				iterateValue = modifyValue[elem]
