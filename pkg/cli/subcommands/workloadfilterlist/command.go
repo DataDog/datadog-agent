@@ -9,9 +9,12 @@ package workloadfilterlist
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
+	"strings"
 
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -19,6 +22,8 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/fatih/color"
@@ -46,13 +51,12 @@ type GlobalParams struct {
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
-	return &cobra.Command{
-		Use:   "workloadfilter",
+	parentCmd := &cobra.Command{
+		Use:   "workloadfilterlist",
 		Short: "Print the workload filter status of a running agent",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
-
 			cliParams.GlobalParams = globalParams
 
 			return fxutil.OneShot(workloadFilterList,
@@ -71,6 +75,108 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			)
 		},
 	}
+
+	// Add verify-cel subcommand
+	var inputFile string
+
+	verifyCelCmd := &cobra.Command{
+		Use:   "verify-cel",
+		Short: "Validate CEL workload filter rules from a YAML file",
+		Long:  ``,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return verifyCELConfig(inputFile)
+		},
+	}
+
+	verifyCelCmd.Flags().StringVarP(&inputFile, "input", "i", "", "Path to YAML file containing CEL workload exclude rules")
+	if err := verifyCelCmd.MarkFlagRequired("input"); err != nil {
+		panic(err)
+	}
+
+	parentCmd.AddCommand(verifyCelCmd)
+
+	return parentCmd
+}
+
+// verifyCELConfig validates CEL rules from a YAML file
+func verifyCELConfig(filePath string) error {
+	fmt.Fprintf(color.Output, "\n%s Validating CEL Configuration\n", color.HiCyanString("->"))
+	fmt.Fprintf(color.Output, "  File: %s\n\n", filePath)
+
+	// Load the YAML file from the file path
+	fmt.Fprintf(color.Output, "%s Loading YAML file...\n", color.CyanString("->"))
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Fprintf(color.Output, "%s Failed to read file\n", color.HiRedString("✗"))
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var ruleBundles []workloadfilter.RuleBundle
+	err = yaml.Unmarshal(data, &ruleBundles)
+	if err != nil {
+		fmt.Fprintf(color.Output, "%s Failed to unmarshal YAML\n", color.HiRedString("✗"))
+		return fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	if len(ruleBundles) == 0 {
+		fmt.Fprintf(color.Output, "%s No rules found in the file\n", color.HiRedString("✗"))
+		return fmt.Errorf("no rules found in the file")
+	}
+
+	fmt.Fprintf(color.Output, "%s YAML loaded successfully (%d bundle(s))\n",
+		color.HiGreenString("✓"), len(ruleBundles))
+
+	fmt.Fprintf(color.Output, "\n%s Validating configuration structure...\n", color.CyanString("->"))
+	productRules, parseErrors := parse.GetProductConfigs(ruleBundles)
+
+	if parseErrors != nil {
+		fmt.Fprintf(color.Output, "%s Configuration structure errors:\n", color.HiRedString("✗"))
+		for _, err := range parseErrors {
+			fmt.Fprintf(color.Output, "  - %s\n", color.RedString(err.Error()))
+		}
+		return fmt.Errorf("invalid configuration structure")
+	}
+
+	fmt.Fprintf(color.Output, "%s Configuration structure is valid\n", color.HiGreenString("✓"))
+
+	// Compiling the CEL rules
+	fmt.Fprintf(color.Output, "\n%s Compiling CEL rules...\n", color.CyanString("->"))
+	hasErrors := false
+
+	for product, resourceRules := range productRules {
+		fmt.Fprintf(color.Output, "\n  %s %s\n", color.HiCyanString("->"), color.CyanString(string(product)))
+
+		for resourceType, rules := range resourceRules {
+			fmt.Fprintf(color.Output, "    %s %s (%d rule(s))\n", color.HiCyanString("Resource:"), string(resourceType), len(rules))
+
+			rulesStr := strings.Join(rules, " || ")
+
+			_, err := celprogram.CreateCELProgram(rulesStr, resourceType)
+			if err != nil {
+				hasErrors = true
+				fmt.Fprintf(color.Output, "      %s Compilation failed: %s\n",
+					color.HiRedString("✗"),
+					color.RedString(err.Error()))
+
+				for i, rule := range rules {
+					fmt.Fprintf(color.Output, "        Rule %d: %s\n", i+1, rule)
+				}
+			} else {
+				fmt.Fprintf(color.Output, "      %s All rules compiled successfully\n",
+					color.HiGreenString("✓"))
+			}
+		}
+	}
+
+	fmt.Fprintln(color.Output)
+	if hasErrors {
+		fmt.Fprintf(color.Output, "%s Validation failed - some rules have errors\n",
+			color.HiRedString("✗"))
+		return fmt.Errorf("CEL compilation failed")
+	}
+
+	fmt.Fprintf(color.Output, "%s All rules are valid!\n", color.HiGreenString("✅"))
+	return nil
 }
 
 func workloadFilterList(_ log.Component, filterComponent workloadfilter.Component, _ *cliParams) error {
