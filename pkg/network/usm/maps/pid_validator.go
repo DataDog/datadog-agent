@@ -13,6 +13,8 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // extractPID extracts the PID from a uint64 key where PID is in the upper 32 bits
@@ -20,9 +22,11 @@ func extractPID(pidTGID uint64) uint32 {
 	return uint32(pidTGID >> 32)
 }
 
-// pidExists checks if a process with the given PID exists
+// pidExists checks if a process with the given PID exists.
+// It uses kernel.HostProc() to correctly handle containerized environments
+// where the agent runs in a container but needs to check PIDs from the host namespace.
 func pidExists(pid uint32) bool {
-	_, err := os.Stat(fmt.Sprintf("/proc/%d", pid))
+	_, err := os.Stat(kernel.HostProc(fmt.Sprintf("%d", pid)))
 	return err == nil
 }
 
