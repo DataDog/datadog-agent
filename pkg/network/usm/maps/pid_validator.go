@@ -52,12 +52,16 @@ func ValidatePIDKeyedMap(mapName string, m *ebpf.Map) (*MapLeakInfo, error) {
 		return nil, fmt.Errorf("failed to get map info for %s: %w", mapName, err)
 	}
 
+	var key uint64
+	// Validate that the map has uint64 keys as expected
+	if mapInfo.KeySize != uint32(unsafe.Sizeof(key)) {
+		return nil, fmt.Errorf("map %s has unexpected key size %d, expected %d bytes for uint64", mapName, mapInfo.KeySize, unsafe.Sizeof(key))
+	}
+
 	valueSize := mapInfo.ValueSize
 	value := make([]byte, valueSize)
 
 	seenPIDs := make(map[uint32]bool)
-
-	var key uint64
 	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value[0])) {
 		info.TotalEntries++
 
