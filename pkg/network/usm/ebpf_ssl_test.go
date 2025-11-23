@@ -347,9 +347,8 @@ func TestPIDKeyedMapNameUniqueness(t *testing.T) {
 	// Log all truncated names for reference
 	t.Logf("Current PID-keyed TLS map names and their truncated forms:")
 	for _, name := range names {
-		truncName := name
 		if len(name) > 15 {
-			truncName = name[:15]
+			truncName := name[:15]
 			t.Logf("  %q -> %q (truncated)", name, truncName)
 		} else {
 			t.Logf("  %q (no truncation)", name)
