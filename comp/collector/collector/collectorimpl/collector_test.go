@@ -48,7 +48,6 @@ func (c *TestCheck) Stop()                   { c.stop <- true }
 func (c *TestCheck) Cancel()                 { c.Called() }
 func (c *TestCheck) Interval() time.Duration { return 1 * time.Minute }
 func (c *TestCheck) Run() error              { <-c.stop; return nil }
-func (c *TestCheck) RunOnce() bool           { return false }
 func (c *TestCheck) ID() checkid.ID {
 	if c.uniqueID != "" {
 		return c.uniqueID
