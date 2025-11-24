@@ -55,7 +55,7 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 			if port, err := strconv.Atoi(parts[1]); err != nil {
 				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
 			} else {
-				event.ProcessContext.UserSession.SSHPort = port
+				event.ProcessContext.UserSession.SSHClientPort = port
 			}
 		} else {
 			seclog.Warnf("SSH_CLIENT is not in the expected format: %q", sshClientVar)
@@ -83,12 +83,12 @@ func getIPfromEnv(ipStr string) net.IPNet {
 
 // SSHUserSessionPatcher defines a patcher for SSH user sessions
 type SSHUserSessionPatcher struct {
-	userSessionCtx *serializers.UserSessionContextSerializer
+	userSessionCtx *serializers.SSHSessionContextSerializer
 	resolver       *usersessions.Resolver
 }
 
 // NewSSHUserSessionPatcher creates a new SSH user session patcher
-func NewSSHUserSessionPatcher(userSessionCtx *serializers.UserSessionContextSerializer, resolver *usersessions.Resolver) *SSHUserSessionPatcher {
+func NewSSHUserSessionPatcher(userSessionCtx *serializers.SSHSessionContextSerializer, resolver *usersessions.Resolver) *SSHUserSessionPatcher {
 	return &SSHUserSessionPatcher{
 		userSessionCtx: userSessionCtx,
 		resolver:       resolver,
@@ -107,7 +107,7 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 	// Check in LRU
 	key := usersessions.SSHSessionKey{
 		IP:   p.userSessionCtx.SSHClientIP,
-		Port: strconv.Itoa(p.userSessionCtx.SSHPort),
+		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
 
 	p.resolver.SSHSessionParsed.Mu.Lock()
@@ -116,7 +116,7 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 
 	if !ok {
 		return fmt.Errorf("ssh session not found in LRU for %s:%d",
-			p.userSessionCtx.SSHClientIP, p.userSessionCtx.SSHPort)
+			p.userSessionCtx.SSHClientIP, p.userSessionCtx.SSHClientPort)
 	}
 
 	return nil
@@ -134,7 +134,7 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 
 	key := usersessions.SSHSessionKey{
 		IP:   p.userSessionCtx.SSHClientIP,
-		Port: strconv.Itoa(p.userSessionCtx.SSHPort),
+		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
 	p.resolver.SSHSessionParsed.Mu.Lock()
 	value, ok := p.resolver.SSHSessionParsed.Lru.Get(key)

@@ -90,7 +90,7 @@ type sshSessionParsed struct {
 // Resolver is used to resolve the user sessions context
 type Resolver struct {
 	sync.RWMutex
-	userSessions *simplelru.LRU[uint64, *model.UserSessionContext]
+	k8suserSessions *simplelru.LRU[uint64, *model.K8SSessionContext]
 
 	userSessionsMap *ebpf.Map
 
@@ -100,13 +100,13 @@ type Resolver struct {
 
 // NewResolver returns a new instance of Resolver
 func NewResolver(cacheSize int) (*Resolver, error) {
-	lru, err := simplelru.NewLRU[uint64, *model.UserSessionContext](cacheSize, nil)
+	lru, err := simplelru.NewLRU[uint64, *model.K8SSessionContext](cacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create User Session resolver cache: %v", err)
 	}
 
 	return &Resolver{
-		userSessions: lru,
+		k8suserSessions: lru,
 	}, nil
 }
 
@@ -129,8 +129,8 @@ func (r *Resolver) Start(manager *manager.Manager) error {
 	return nil
 }
 
-// ResolveUserSession returns the user session associated to the provided ID
-func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
+// ResolveK8SUserSession returns the user session associated to the provided ID
+func (r *Resolver) ResolveK8SUserSession(id uint64) *model.K8SSessionContext {
 	if id == 0 {
 		return nil
 	}
@@ -140,7 +140,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	defer r.Unlock()
 
 	// is this session already in cache ?
-	if session, ok := r.userSessions.Get(id); ok {
+	if session, ok := r.k8suserSessions.Get(id); ok {
 		return session
 	}
 
@@ -164,9 +164,8 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	if sessionType != int(usersession.UserSessionTypeK8S) {
 		seclog.Debugf("session %d is not a k8s session: %v", id, sessionType)
 	}
-	ctx := &model.UserSessionContext{
+	ctx := &model.K8SSessionContext{
 		K8SSessionID: id,
-		SessionType:  int(value.SessionType),
 	}
 	// parse the content of the user session context
 	err = json.Unmarshal([]byte(value.RawData), ctx)
@@ -178,7 +177,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	ctx.K8SResolved = true
 
 	// cache resolved context
-	r.userSessions.Add(id, ctx)
+	r.k8suserSessions.Add(id, ctx)
 	return ctx
 }
 

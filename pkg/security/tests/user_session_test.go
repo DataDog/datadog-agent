@@ -90,6 +90,9 @@ func TestK8SUserSession(t *testing.T) {
 					"XYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZXYZ",
 				},
 			}, event.ProcessContext.UserSession.K8SExtra)
+			// Check that user session data is well set
+			assert.Equal(t, event.ProcessContext.UserSession.Identity, event.ProcessContext.UserSession.K8SUsername)
+			assert.Equal(t, event.ProcessContext.UserSession.ID, fmt.Sprintf("%x", event.ProcessContext.UserSession.K8SSessionID))
 		})
 	})
 }

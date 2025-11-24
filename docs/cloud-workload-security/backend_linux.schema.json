@@ -2176,6 +2176,14 @@
           "type": "string",
           "description": "Unique identifier of the user session on the host"
         },
+        "username": {
+          "type": "string",
+          "description": "Username of the user session"
+        },
+        "k8s_session_id": {
+          "type": "string",
+          "description": "Unique identifier of the user session on the host"
+        },
         "k8s_username": {
           "type": "string",
           "description": "Username of the Kubernetes \"kubectl exec\" session"
@@ -2205,7 +2213,7 @@
           "type": "string",
           "description": "Unique identifier of the SSH session"
         },
-        "ssh_port": {
+        "ssh_client_port": {
           "type": "integer",
           "description": "Port of the SSH session"
         },

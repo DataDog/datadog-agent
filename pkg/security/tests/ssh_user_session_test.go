@@ -155,10 +155,24 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 	jsonPathValidation(testMod, data, func(_ *testModule, jsonData interface{}) {
 
 		// Check all the fields
+		var sshSessionID string
+		var sshClientIP string
+		var sshClientPort float64
+
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_session_id`); err != nil || el == nil {
 			t.Errorf("user_session.ssh_session_id not found: %v", err)
-		} else if id, ok := el.(string); !ok || id == "" || id == "0" {
-			t.Errorf("user_session.user_session_id is empty or invalid: %v", el)
+		} else {
+			var ok bool
+			sshSessionID, ok = el.(string)
+			if !ok || sshSessionID == "" || sshSessionID == "0" {
+				t.Errorf("user_session.user_session_id is empty or invalid: %v", el)
+			}
+		}
+
+		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.id`); err != nil || el == nil {
+			t.Errorf("user_session.id not found: %v", err)
+		} else if id, ok := el.(string); !ok || id != sshSessionID {
+			t.Errorf("user_session.id is different from ssh_session_id: got %v, want %v", el, sshSessionID)
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.session_type`); err != nil || el == nil {
@@ -167,18 +181,34 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 			t.Errorf("user_session.session_type is not 'ssh': %v", el)
 		}
 
-		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_port`); err != nil || el == nil {
+		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_client_port`); err != nil || el == nil {
 			t.Errorf("user_session.ssh_port not found: %v", err)
-		} else if port, ok := el.(float64); !ok || port <= 0 {
-			t.Errorf("user_session.ssh_port is invalid: %v", el)
+		} else {
+			var ok bool
+			sshClientPort, ok = el.(float64)
+			if !ok || sshClientPort <= 0 {
+				t.Errorf("user_session.ssh_client_port is invalid: %v", el)
+			}
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_client_ip`); err != nil || el == nil {
 			t.Errorf("user_session.ssh_client_ip not found: %v", err)
-		} else if ip, ok := el.(string); !ok || ip == "" {
-			t.Errorf("user_session.ssh_client_ip is empty: %v", el)
-		} else if ip != "127.0.0.1" && ip != "::1" {
-			t.Errorf("user_session.ssh_client_ip should be localhost (127.0.0.1 or ::1): %v", ip)
+		} else {
+			var ok bool
+			sshClientIP, ok = el.(string)
+			if !ok || sshClientIP == "" {
+				t.Errorf("user_session.ssh_client_ip is empty: %v", el)
+			} else if sshClientIP != "127.0.0.1" && sshClientIP != "::1" {
+				t.Errorf("user_session.ssh_client_ip should be localhost (127.0.0.1 or ::1): %v", sshClientIP)
+			}
+		}
+
+		// Check Port and IP as username
+
+		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.username`); err != nil || el == nil {
+			t.Errorf("user_session.username not found: %v", err)
+		} else if username, ok := el.(string); !ok || username == fmt.Sprintf("%s:%f", sshClientIP, sshClientPort) {
+			t.Errorf("user_session.username is empty: %v", el)
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_auth_method`); err != nil || el == nil {

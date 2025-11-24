@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -284,11 +283,10 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 				model.InitUserSessionTypes()
 			}
 			// Create the user session context serializer
-			userSessionCtx := &serializers.UserSessionContextSerializer{
-				SSHSessionID: fmt.Sprintf("%x", ev.ProcessContext.UserSession.SSHSessionID),
-				SessionType:  model.UserSessionTypeStrings[usersession.UserSessionTypeSSH],
-				SSHPort:      ev.ProcessContext.UserSession.SSHPort,
-				SSHClientIP:  ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
+			userSessionCtx := &serializers.SSHSessionContextSerializer{
+				SSHSessionID:  fmt.Sprintf("%x", ev.ProcessContext.UserSession.SSHSessionID),
+				SSHClientPort: ev.ProcessContext.UserSession.SSHClientPort,
+				SSHClientIP:   ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
 			}
 			return probe.NewSSHUserSessionPatcher(
 				userSessionCtx,
