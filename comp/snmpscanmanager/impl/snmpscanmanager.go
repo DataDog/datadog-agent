@@ -29,10 +29,11 @@ import (
 
 const (
 	scanWorkers   = 2 // Max concurrent scans allowed
-	scanQueueSize = 10000
+	scanQueueSize = 10_000
 
 	snmpCallsPerSecond = 8
 	snmpCallInterval   = time.Second / snmpCallsPerSecond
+	maxSnmpCallCount   = 100_000
 
 	scanSchedulerCheckInterval = 10 * time.Minute
 	scanRefreshInterval        = 182 * 24 * time.Hour   // 6 months
@@ -201,6 +202,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 		snmpscan.ScanParams{
 			ScanType:     metadata.DefaultScan,
 			CallInterval: snmpCallInterval,
+			MaxCallCount: maxSnmpCallCount,
 		})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
