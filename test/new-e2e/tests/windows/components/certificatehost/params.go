@@ -6,7 +6,7 @@
 package certificatehost
 
 import (
-	"github.com/DataDog/test-infra-definitions/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

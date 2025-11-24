@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 )
 
 // RemoteHostAgent represents an Agent running directly on a Host
