@@ -63,7 +63,7 @@ func TestPipelineSendValidate(t *testing.T) {
 	err = ctx.send(fwd, http.Header{})
 	require.NoError(t, err)
 
-	// out of two dstinations and two payloads, we get 4 transactions
+	// out of two destinations and two payloads, we get 4 transactions
 	testutil.ElementsMatchFn(t, slices.All(fwd.txn),
 		func(t require.TestingT, _ int, txn *transaction.HTTPTransaction) {
 			require.Equal(t, "http://example.test", txn.Domain)
