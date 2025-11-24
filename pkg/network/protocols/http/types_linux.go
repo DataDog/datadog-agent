@@ -14,6 +14,10 @@ type ConnTuple = struct {
 	Pid      uint32
 	Metadata uint32
 }
+type SSLCtxPidTGID struct {
+	Tgid uint64
+	Ctx  uint64
+}
 type SslSock struct {
 	Tup       ConnTuple
 	Fd        uint32

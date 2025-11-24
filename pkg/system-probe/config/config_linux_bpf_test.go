@@ -76,6 +76,14 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	}
 }
 
+func TestHTTP2MonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	require.Equal(t, HTTP2MonitoringSupported(), cfg.GetBool("service_monitoring_config.http2.enabled"))
+}
+
 func TestNPMEnabled(t *testing.T) {
 	tests := []struct {
 		npm, usm, ccm, csm, csmNpm bool
@@ -112,6 +120,18 @@ func TestNPMEnabled(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
 		})
+	}
+}
+
+func TestRedisMonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	if RedisMonitoringSupported() {
+		require.True(t, cfg.GetBool("service_monitoring_config.redis.enabled"))
+	} else {
+		require.False(t, cfg.GetBool("service_monitoring_config.redis.enabled"))
 	}
 }
 
