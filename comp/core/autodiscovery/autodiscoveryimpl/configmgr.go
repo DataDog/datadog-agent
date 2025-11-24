@@ -275,6 +275,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
+		delete(cm.scheduledConfigsOriginals, digest)
 
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
