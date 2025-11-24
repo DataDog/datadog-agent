@@ -226,7 +226,7 @@
       "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251120_7497a561"
     },
     "debian_9": {
       "os_name": "Debian GNU/Linux",
@@ -273,6 +273,28 @@
       "os_version": "8.4",
       "image": "rocky-8.4-x86_64.qcow2.xz",
       "image_version": "20250320_7cf8bbf7"
+    },
+    "ubuntu_25.04": {
+      "image": "ubuntu-25.04-x86_64.qcow2.xz",
+      "image_version": "20251020_18933692",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.14.0-33-generic",
+      "os_version": "25.04",
+      "alt_version_names": [
+        "plucky"
+      ]
+    },
+    "ubuntu_25.10": {
+      "image": "ubuntu-25.10-x86_64.qcow2.xz",
+      "image_version": "20251024_ac38a07f",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.17.0-5-generic",
+      "os_version": "25.10",
+      "alt_version_names": [
+        "questing"
+      ]
     }
   },
   "arm64": {
@@ -482,7 +504,7 @@
       "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251120_7497a561"
     },
     "fedora_40": {
       "os_name": "Fedora Linux",
@@ -510,6 +532,28 @@
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
       "image_version": "20241209_f6a14db0"
+    },
+    "ubuntu_25.04": {
+      "image": "ubuntu-25.04-arm64.qcow2.xz",
+      "image_version": "20251020_18933692",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.14.0-33-generic",
+      "os_version": "25.04",
+      "alt_version_names": [
+        "plucky"
+      ]
+    },
+    "ubuntu_25.10": {
+      "image": "ubuntu-25.10-arm64.qcow2.xz",
+      "image_version": "20251024_ac38a07f",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.17.0-5-generic",
+      "os_version": "25.10",
+      "alt_version_names": [
+        "questing"
+      ]
     }
   }
 }

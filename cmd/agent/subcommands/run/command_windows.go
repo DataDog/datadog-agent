@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
@@ -78,6 +79,7 @@ import (
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -144,6 +146,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
 			delegatedAuthComp option.Option[delegatedauth.Component],
+			snmpScanManager snmpscanmanager.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -168,6 +171,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				hostname,
 				ipc,
 				delegatedAuthComp,
+				snmpScanManager,
 			)
 			if err != nil {
 				return err
@@ -247,6 +251,7 @@ func getPlatformModules() fx.Option {
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
+		notableeventsfx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

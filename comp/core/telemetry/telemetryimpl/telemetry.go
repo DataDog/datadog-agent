@@ -7,6 +7,7 @@
 package telemetryimpl
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/expfmt"
 )
 
 // Module defines the fx options for this component.
@@ -98,12 +100,12 @@ func (t *telemetryImpl) Reset() {
 
 // RegisterCollector Registers a Collector with the prometheus registry
 func (t *telemetryImpl) RegisterCollector(c prometheus.Collector) {
-	registry.MustRegister(c)
+	t.registry.MustRegister(c)
 }
 
 // UnregisterCollector unregisters a Collector with the prometheus registry
 func (t *telemetryImpl) UnregisterCollector(c prometheus.Collector) bool {
-	return registry.Unregister(c)
+	return t.registry.Unregister(c)
 }
 
 func (t *telemetryImpl) NewCounter(subsystem, name string, tags []string, help string) telemetry.Counter {
@@ -258,5 +260,30 @@ func (t *telemetryImpl) Gather(defaultGather bool) ([]*telemetry.MetricFamily, e
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	return registry.Gather()
+	return t.registry.Gather()
+}
+
+func (t *telemetryImpl) GatherText(defaultGather bool, filter telemetry.MetricFilter) (string, error) {
+	// Gather metrics
+	metricFamilies, err := t.Gather(defaultGather)
+	if err != nil {
+		return "", err
+	}
+
+	// Write to a buffer (or any io.Writer)
+	var buf bytes.Buffer
+	encoder := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
+	for _, mf := range metricFamilies {
+		if !filter(mf) {
+			continue
+		}
+		if err := encoder.Encode(mf); err != nil {
+			return "", err
+		}
+	}
+
+	// buf.String() now contains the Prometheus text format
+	prometheusText := buf.String()
+
+	return prometheusText, nil
 }

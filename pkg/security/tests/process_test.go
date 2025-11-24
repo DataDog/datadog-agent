@@ -297,7 +297,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.RunMultiMode(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"-al", "--password", "secret", "--custom", "secret"}
+		args := []string{"-al", "--password", "secret", "--custom", "secret", "gh-1234567890"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
@@ -361,6 +361,10 @@ func TestProcessContext(t *testing.T) {
 
 			if strings.Contains(str, "secret") || strings.Contains(str, "dd-api-key") {
 				t.Error("secret or env values exposed")
+			}
+
+			if strings.Contains(str, "gh-1234567890") {
+				t.Error("gh-1234567890 exposed")
 			}
 		}))
 	})
@@ -1024,9 +1028,9 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Parent.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Process.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Ancestor.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Parent.ContainerContext.ContainerID)
 			}
 		}))
 	})
@@ -2318,7 +2322,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
-			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.ProcessContext.Process.ContainerContext.ContainerID, entry2.ProcessContext.Process.ContainerContext.ContainerID)
 			if checkCookie {
 				assert.Equal(t, entry1.Cookie, entry2.Cookie)
 			}

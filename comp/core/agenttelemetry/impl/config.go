@@ -206,6 +206,9 @@ var defaultProfiles = `
             - check_name
             - state
         - name: pymem.inuse
+        - name: health_platform.issues_detected
+          aggregate_tags:
+            - health_check_id
     schedule:
       start_after: 30
       iterations: 0
@@ -368,6 +371,11 @@ var defaultProfiles = `
             - command
             - host
         - name: runtime.datadog_agent_ddot_traces
+          aggregate_tags:
+            - version
+            - command
+            - host
+        - name: runtime.datadog_agent_ddot_gateway_usage
           aggregate_tags:
             - version
             - command
@@ -602,7 +610,7 @@ func parseConfig(cfg config.Component) (*Config, error) {
 	atCfgMap := cfg.GetStringMap("agent_telemetry")
 	if len(atCfgMap) > 0 {
 		// Reconvert to string and back to object.
-		// Config.UnmarshalKey() is better but it did not work in some cases
+		// structure.UnmarshalKey() is better but it did not work in some cases
 		atCfgBytes, err := yaml.Marshal(atCfgMap)
 		if err != nil {
 			return nil, err

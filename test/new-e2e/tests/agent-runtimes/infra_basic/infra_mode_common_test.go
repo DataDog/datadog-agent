@@ -7,6 +7,7 @@
 package infrabasic
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -14,9 +15,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -24,6 +25,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
+
+//go:embed fixtures/custom_mycheck.py
+var customCheckPython []byte
 
 var (
 	// allowedChecks lists all checks that should work in basic mode
@@ -276,12 +280,9 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 	})
 }
 
-// TestAdditionalCheckWorks verifies that a check can be added via infra_basic_additional_checks.
-// This test dynamically updates the environment to add a check not in the default allow list.
+// TestAdditionalCheckWorks verifies that checks can be added via infra_basic_additional_checks
+// and that the hardcoded custom_ prefix pattern works.
 func (s *infraBasicSuite) TestAdditionalCheckWorks() {
-	// Use http_check as an example of a check not in the default allow list
-	additionalCheckName := "http_check"
-
 	// HTTP check configuration
 	httpCheckConfig := `
 init_config:
@@ -292,7 +293,14 @@ instances:
     timeout: 1
 `
 
-	// Agent configuration with the additional check enabled
+	// Custom check configuration (tests hardcoded custom_ prefix)
+	customCheckConfig := `
+init_config:
+instances:
+  - {}
+`
+
+	// Agent configuration with additional checks (exact name matching)
 	agentConfigWithAdditionalCheck := `
 api_key: "00000000000000000000000000000000"
 site: "datadoghq.com"
@@ -304,33 +312,58 @@ process_config:
   enabled: false
 telemetry:
   enabled: true
-infra_basic_additional_checks:
+allowed_additional_checks:
   - http_check
 `
 
-	s.T().Logf("Updating environment to enable additional check: %s", additionalCheckName)
+	s.T().Logf("Updating environment to test additional checks and custom_ prefix")
 
-	// Update the environment with the new agent config and check integration
+	// Determine the correct path for the custom check Python file based on OS
+	customCheckPath := "/etc/datadog-agent/checks.d/custom_mycheck.py"
+	if s.descriptor.Family() == e2eos.WindowsFamily {
+		customCheckPath = "C:/ProgramData/Datadog/checks.d/custom_mycheck.py"
+	}
+
+	// Update the environment with the new agent config and check integrations
 	s.UpdateEnv(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
 		awshost.WithAgentOptions(
 			agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
-			agentparams.WithIntegration(additionalCheckName+".d", httpCheckConfig),
+			agentparams.WithIntegration("http_check.d", httpCheckConfig),
+			agentparams.WithIntegration("custom_mycheck.d", customCheckConfig),
+			agentparams.WithFile(customCheckPath, string(customCheckPython), true),
 		),
 	))
 
-	s.T().Run("via_status_api", func(t *testing.T) {
-		t.Logf("Verifying additional check %s is scheduled via status API...", additionalCheckName)
+	s.T().Run("additional_check_in_config", func(t *testing.T) {
+		t.Run("via_status_api", func(t *testing.T) {
+			t.Logf("Verifying http_check is allowed via infra_basic_additional_checks...")
 
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			s.verifyCheckSchedulingViaStatusAPI(c, []string{additionalCheckName}, true)
-		}, 1*time.Minute, 10*time.Second, "Additional check should be scheduled within 1 minute")
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				s.verifyCheckSchedulingViaStatusAPI(c, []string{"http_check"}, true)
+			}, 1*time.Minute, 10*time.Second, "http_check should be allowed via infra_basic_additional_checks")
+		})
+
+		t.Run("via_cli", func(t *testing.T) {
+			t.Logf("Testing http_check is allowed via infra_basic_additional_checks...")
+			ran := s.verifyCheckRuns("http_check")
+			assert.True(t, ran, "http_check must be allowed via infra_basic_additional_checks")
+		})
 	})
 
-	s.T().Run("via_cli", func(t *testing.T) {
-		// Verify the additional check can be run via CLI
-		t.Logf("Testing additional check %s via CLI...", additionalCheckName)
-		ran := s.verifyCheckRuns(additionalCheckName)
-		assert.True(t, ran, "Check %s must be runnable via CLI in basic mode when added via infra_basic_additional_checks", additionalCheckName)
+	s.T().Run("hardcoded_custom_prefix", func(t *testing.T) {
+		t.Run("via_status_api", func(t *testing.T) {
+			t.Logf("Verifying custom_mycheck is allowed via hardcoded custom_ prefix...")
+
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				s.verifyCheckSchedulingViaStatusAPI(c, []string{"custom_mycheck"}, true)
+			}, 1*time.Minute, 10*time.Second, "custom_mycheck should be allowed via hardcoded custom_ prefix")
+		})
+
+		t.Run("via_cli", func(t *testing.T) {
+			t.Logf("Testing custom_mycheck is allowed via hardcoded custom_ prefix...")
+			ran := s.verifyCheckRuns("custom_mycheck")
+			assert.True(t, ran, "custom_mycheck must be allowed via hardcoded custom_ prefix")
+		})
 	})
 }

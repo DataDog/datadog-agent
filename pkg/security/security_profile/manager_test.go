@@ -992,17 +992,17 @@ type testIteration struct {
 func craftFakeEvent(t0 time.Time, ti *testIteration, defaultContainerID string) *model.Event {
 	event := model.NewFakeEvent()
 	event.Type = uint32(ti.eventType)
-	event.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	event.TimestampRaw = uint64(t0.Add(ti.eventTimestampRaw).UnixNano())
 	event.Timestamp = t0.Add(ti.eventTimestampRaw)
 
 	// setting process
 	event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	event.ProcessCacheEntry.ContainerID = containerutils.ContainerID(defaultContainerID)
+	event.ProcessCacheEntry.ContainerContext.ContainerID = containerutils.ContainerID(defaultContainerID)
 	event.ProcessCacheEntry.FileEvent.PathnameStr = ti.eventProcessPath
 	event.ProcessCacheEntry.FileEvent.Inode = 42
 	event.ProcessCacheEntry.Args = "foo"
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	event.ProcessContext.Process.ContainerContext.CreatedAt = uint64(t0.Add(ti.containerCreatedAt).UnixNano())
 	switch ti.eventType {
 	case model.ExecEventType:
 		event.Exec.Process = &event.ProcessCacheEntry.ProcessContext.Process
@@ -1052,6 +1052,7 @@ func TestSecurityProfileManager_tryAutolearn(t *testing.T) {
 			eventType:           model.ExecEventType,
 			eventProcessPath:    "/bin/foo0",
 		},
+
 		// and for dns:
 		{
 			name:                "warmup-dns/insert-dns-process",

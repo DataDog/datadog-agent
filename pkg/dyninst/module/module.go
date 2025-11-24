@@ -8,6 +8,7 @@
 package module
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,10 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procscrape"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -33,11 +34,14 @@ import (
 
 // Module is the dynamic instrumentation system probe module.
 type Module struct {
-	tenant ActuatorTenant
-	symdb  symdbManagerInterface
+	actuator Actuator
+	symdb    symdbManagerInterface
 
-	store       *processStore
-	diagnostics *diagnosticsManager
+	store        *processStore
+	diagnostics  *diagnosticsManager
+	runtimeStats *runtimeStats
+
+	cancel context.CancelFunc
 
 	shutdown struct {
 		sync.Once
@@ -47,9 +51,10 @@ type Module struct {
 
 // NewModule creates a new dynamic instrumentation module.
 func NewModule(
-	config *Config, processEventSource procscrape.EventSource,
+	config *Config,
+	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
 ) (_ *Module, err error) {
-	realDeps, err := makeRealDependencies(config, processEventSource)
+	realDeps, err := makeRealDependencies(config, remoteConfigSubscriber)
 	if err != nil {
 		return nil, err
 	}
@@ -60,11 +65,21 @@ func NewModule(
 	if override := config.TestingKnobs.IRGeneratorOverride; override != nil {
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
-	m := newUnstartedModule(deps)
+	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath)
 	m.shutdown.realDependencies = realDeps
 
-	if realDeps.processSubscriber != nil {
-		realDeps.processSubscriber.Start()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+
+	if deps.ProcessSubscriber != nil {
+		// Start the subscriber in a separate goroutine since WaitOutTombstone()
+		// may block.
+		go func() {
+			// Wait for a while if we're recovering from a crash.
+			tombstone.WaitOutTombstone(ctx, config.ProbeTombstoneFilePath, config.TestingKnobs.TombstoneSleepKnobs)
+
+			deps.ProcessSubscriber.Start()
+		}()
 	}
 	return m, nil
 }
@@ -72,7 +87,13 @@ func NewModule(
 // TODO: make this configurable.
 const bufferedMessagesByteLimit = 512 << 10
 
-func newUnstartedModule(deps dependencies) *Module {
+// tombstoneFilePath is the path to the tombstone file left behind to detect
+// crashes while loading programs. If empty, tombstone files are not
+// created.
+//
+// tombstoneFilePath is the path to the tombstone file left behind to detect
+// crashes while loading programs. If empty, tombstone files are not created.
+func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	// A zero-value symdbManager is valid and disabled.
 	if deps.symdbManager == nil {
 		deps.symdbManager = &symdbManager{}
@@ -93,14 +114,16 @@ func newUnstartedModule(deps dependencies) *Module {
 		logsFactory:              logsUploader,
 		procRuntimeIDbyProgramID: &sync.Map{},
 		bufferedMessageTracker:   bufferedMessagesTracker,
+		tombstoneFilePath:        tombstoneFilePath,
 	}
-	tenant := deps.Actuator.NewTenant("dyninst", runtime)
-
+	deps.Actuator.SetRuntime(runtime)
 	m := &Module{
-		store:       store,
-		diagnostics: diagnostics,
-		symdb:       deps.symdbManager,
-		tenant:      tenant,
+		store:        store,
+		diagnostics:  diagnostics,
+		symdb:        deps.symdbManager,
+		actuator:     deps.Actuator,
+		runtimeStats: &runtime.stats,
+		cancel:       func() {}, // This gets overwritten in NewModule
 	}
 	if deps.ProcessSubscriber != nil {
 		deps.ProcessSubscriber.Subscribe(m.handleProcessesUpdate)
@@ -109,17 +132,17 @@ func newUnstartedModule(deps dependencies) *Module {
 }
 
 type realDependencies struct {
-	logUploader       *uploader.LogsUploaderFactory
-	diagsUploader     *uploader.DiagnosticsUploader
-	actuator          *actuator.Actuator
-	dispatcher        *dispatcher.Dispatcher
-	loader            *loader.Loader
-	attacher          *defaultAttacher
-	scraper           *rcscrape.Scraper
-	symdbManager      *symdbManager
-	processSubscriber *procscrape.Subscriber
-	decoderFactory    decoderFactory
-	programCompiler   *stackMachineCompiler
+	logUploader    *uploader.LogsUploaderFactory
+	diagsUploader  *uploader.DiagnosticsUploader
+	actuator       *actuator.Actuator
+	dispatcher     *dispatcher.Dispatcher
+	loader         *loader.Loader
+	attacher       *defaultAttacher
+	symdbManager   *symdbManager
+	procSubscriber *procsubscribe.Subscriber
+
+	decoderFactory  decoderFactory
+	programCompiler *stackMachineCompiler
 
 	objectLoader object.Loader
 	irGenerator  IRGenerator
@@ -127,8 +150,8 @@ type realDependencies struct {
 
 func (c *realDependencies) asDependencies() dependencies {
 	return dependencies{
-		Actuator:            &erasedActuator[*actuator.Actuator, *actuator.Tenant]{a: c.actuator},
-		ProcessSubscriber:   c.processSubscriber,
+		Actuator:            c.actuator,
+		ProcessSubscriber:   c.procSubscriber,
 		Dispatcher:          c.dispatcher,
 		DecoderFactory:      c.decoderFactory,
 		IRGenerator:         c.irGenerator,
@@ -142,12 +165,6 @@ func (c *realDependencies) asDependencies() dependencies {
 }
 
 func (c *realDependencies) shutdown() {
-	if c.logUploader != nil {
-		c.logUploader.Stop()
-	}
-	if c.diagsUploader != nil {
-		c.diagsUploader.Stop()
-	}
 	if c.actuator != nil {
 		if err := c.actuator.Shutdown(); err != nil {
 			log.Warnf("error shutting down actuator: %v", err)
@@ -161,17 +178,23 @@ func (c *realDependencies) shutdown() {
 	if c.loader != nil {
 		c.loader.Close()
 	}
+	if c.logUploader != nil {
+		c.logUploader.Stop()
+	}
+	if c.diagsUploader != nil {
+		c.diagsUploader.Stop()
+	}
 	if c.symdbManager != nil {
 		c.symdbManager.stop()
 	}
-	if c.processSubscriber != nil {
-		c.processSubscriber.Close()
+	if c.procSubscriber != nil {
+		c.procSubscriber.Close()
 	}
 }
 
 func makeRealDependencies(
 	config *Config,
-	procEventSource procscrape.EventSource,
+	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
 ) (_ realDependencies, retErr error) {
 	var ret realDependencies
 	defer func() {
@@ -200,7 +223,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator()
+	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
@@ -232,23 +255,19 @@ func makeRealDependencies(
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
 	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
-	ret.scraper = rcscrape.NewScraper(ret.actuator, ret.dispatcher, ret.loader)
-	if procEventSource == nil {
-		return ret, fmt.Errorf("missing process subscriber dependency")
-	}
-	ret.processSubscriber = procscrape.NewSubscriber(
-		ret.scraper, procEventSource, config.ProcessSyncDisabled,
+	ret.procSubscriber = procsubscribe.NewRemoteConfigProcessSubscriber(
+		remoteConfigSubscriber,
 	)
 
 	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	ret.decoderFactory = decoderFactory{approximateBootTime: approximateBootTime}
-	ret.symdbManager = newSymdbManager(symdbUploaderURL, ret.objectLoader)
+	ret.symdbManager = newSymdbManager(symdbUploaderURL, ret.objectLoader, config.SymDBCacheDir)
 	ret.attacher = &defaultAttacher{}
 	ret.programCompiler = &stackMachineCompiler{}
 	return ret, nil
 }
 
-// GetStats returns the stats of the module
+// GetStats returns the stats of the module.
 func (m *Module) GetStats() map[string]any {
 	stats := map[string]any{}
 	if m.shutdown.realDependencies.actuator != nil {
@@ -256,6 +275,9 @@ func (m *Module) GetStats() map[string]any {
 		if actuatorStats != nil {
 			stats["actuator"] = actuatorStats
 		}
+	}
+	if m.runtimeStats != nil {
+		stats["runtime"] = m.runtimeStats.asStats()
 	}
 	return stats
 }
@@ -280,6 +302,7 @@ func (m *Module) Register(router *module.Router) error {
 func (m *Module) Close() {
 	m.shutdown.Once.Do(func() {
 		log.Debugf("closing dynamic instrumentation module")
+		m.cancel()
 		m.shutdown.realDependencies.shutdown()
 	})
 }
@@ -287,8 +310,8 @@ func (m *Module) Close() {
 func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 	if removals := update.Removals; len(removals) > 0 {
 		m.store.remove(removals, m.diagnostics)
-		if len(removals) > 0 && m.tenant != nil {
-			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
+		if len(removals) > 0 && m.actuator != nil {
+			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
 		}
 		for _, pid := range removals {
 			m.symdb.removeUploadByPID(pid)
@@ -314,8 +337,8 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				m.symdb.removeUpload(runtimeID)
 			}
 		}
-		if m.tenant != nil {
-			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
+		if m.actuator != nil {
+			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
 		}
 	}
 }

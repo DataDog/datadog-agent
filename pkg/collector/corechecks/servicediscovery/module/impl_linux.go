@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -62,44 +61,20 @@ type discovery struct {
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
-
-	// scrubber is used to remove potentially sensitive data from the command line
-	scrubber *procutil.DataScrubber
-}
-
-type networkCollectorFactory func(_ *core.DiscoveryConfig) (core.NetworkCollector, error)
-
-func newDiscoveryWithNetwork(getNetworkCollector networkCollectorFactory) *discovery {
-	cfg := core.NewConfig()
-
-	var network core.NetworkCollector
-	if cfg.NetworkStatsEnabled {
-		var err error
-		network, err = getNetworkCollector(cfg)
-		if err != nil {
-			log.Warn("unable to get network collector", err)
-
-			// Do not fail on error since the collector could fail due to eBPF
-			// errors but we want the rest of our module to continue.
-			network = nil
-		}
-	}
-
-	return &discovery{
-		core: core.Discovery{
-			Config:  cfg,
-			Network: network,
-		},
-		config:             cfg,
-		mux:                &sync.RWMutex{},
-		privilegedDetector: privileged.NewLanguageDetector(),
-		scrubber:           procutil.NewDefaultDataScrubber(),
-	}
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
-	d := newDiscoveryWithNetwork(newNetworkCollector)
+	cfg := core.NewConfig()
+
+	d := &discovery{
+		core: core.Discovery{
+			Config: cfg,
+		},
+		config:             cfg,
+		mux:                &sync.RWMutex{},
+		privilegedDetector: privileged.NewLanguageDetector(),
+	}
 
 	return d, nil
 }
@@ -113,7 +88,6 @@ func (s *discovery) GetStats() map[string]any {
 func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
-	httpMux.HandleFunc("/network-stats", s.handleNetworkStatsEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
 
 	return nil
@@ -133,19 +107,13 @@ func (s *discovery) handleStatusEndpoint(w http.ResponseWriter, _ *http.Request)
 	_, _ = w.Write([]byte("Discovery Module is running"))
 }
 
-type state struct {
-	NetworkEnabled bool `json:"network_enabled"`
-}
-
 // handleStateEndpoint is the handler for the /state endpoint.
 // Returns the internal state of the discovery module.
 func (s *discovery) handleStateEndpoint(w http.ResponseWriter, _ *http.Request) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
-	state := &state{
-		NetworkEnabled: s.core.Network != nil,
-	}
+	state := make(map[string]interface{})
 
 	utils.WriteAsJSON(w, state, utils.CompactOutput)
 }
@@ -400,8 +368,6 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 	nameMeta := detector.GetServiceName(lang, ctx)
 	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
 
-	cmdline, _ = s.scrubber.ScrubCommand(cmdline)
-
 	return &model.Service{
 		PID:                      int(pid),
 		GeneratedName:            nameMeta.Name,
@@ -415,7 +381,6 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		},
 		Language:           string(lang),
 		APMInstrumentation: apmInstrumentation == apm.Provided,
-		CommandLine:        truncateCmdline(lang, cmdline),
 	}, nil
 }
 
@@ -602,55 +567,6 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	service.Type = string(servicetype.Detect(tcpPorts, udpPorts))
 
 	return service
-}
-
-// handleNetworkStatsEndpoint is the handler for the /network-stats endpoint.
-// Returns network statistics for the provided list of PIDs.
-func (s *discovery) handleNetworkStatsEndpoint(w http.ResponseWriter, req *http.Request) {
-	if s.core.Network == nil {
-		http.Error(w, "network stats collection is not enabled", http.StatusServiceUnavailable)
-		return
-	}
-
-	// Parse PIDs from query parameter
-	pidsStr := req.URL.Query().Get("pids")
-	if pidsStr == "" {
-		http.Error(w, "missing required 'pids' query parameter", http.StatusBadRequest)
-		return
-	}
-
-	// Split and parse PIDs
-	pidStrs := strings.Split(pidsStr, ",")
-	pids := make(core.PidSet, len(pidStrs))
-	for _, pidStr := range pidStrs {
-		pid, err := strconv.ParseInt(pidStr, 10, 32)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid PID format: %s", pidStr), http.StatusBadRequest)
-			return
-		}
-		pids.Add(int32(pid))
-	}
-
-	// Get network stats
-	stats, err := s.core.Network.GetStats(pids)
-	if err != nil {
-		log.Errorf("failed to get network stats: %v", err)
-		http.Error(w, "failed to get network stats", http.StatusInternalServerError)
-		return
-	}
-
-	// Convert stats to response format
-	response := model.NetworkStatsResponse{
-		Stats: make(map[int]model.NetworkStats, len(stats)),
-	}
-	for pid, stat := range stats {
-		response.Stats[int(pid)] = model.NetworkStats{
-			RxBytes: stat.Rx,
-			TxBytes: stat.Tx,
-		}
-	}
-
-	utils.WriteAsJSON(w, response, utils.CompactOutput)
 }
 
 // detectAPMInjectorFromMaps reads /proc/pid/maps and checks for APM injector library

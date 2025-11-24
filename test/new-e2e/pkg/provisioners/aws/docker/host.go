@@ -14,16 +14,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/components/remote"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -164,6 +164,32 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 
 	params := runParams.ProvisionerParams
 
+	// Create FakeIntake if required
+	if params.fakeintakeOptions != nil {
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		if params.agentOptions != nil {
+			// Prepend in case it's overridden by the user
+			newOpts := []dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+
+			// Add the fakeintake dependency to the VM options, this is not strictly required but added to make sure we destroy the VM first and then the fakeintake, to avoid agent sending data to a reused IP
+			params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+		}
+
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.FakeIntake = nil
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
 		return err
@@ -187,28 +213,6 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams)
 	err = manager.Export(ctx, &env.Docker.ManagerOutput)
 	if err != nil {
 		return err
-	}
-
-	// Create FakeIntake if required
-	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-		if params.agentOptions != nil {
-			// Prepend in case it's overridden by the user
-			newOpts := []dockeragentparams.Option{dockeragentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.FakeIntake = nil
 	}
 
 	for _, hook := range params.preAgentInstallHooks {

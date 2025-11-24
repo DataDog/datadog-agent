@@ -14,8 +14,8 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,7 +77,7 @@ func TestVMSuite(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Log(tc.testName)
-		e2e.Run(t, tc.suite, e2e.WithProvisioner(tc.provisioner))
+		e2e.Run(t, tc.suite, e2e.WithProvisioner(tc.provisioner), e2e.WithSkipCoverage())
 	}
 }
 

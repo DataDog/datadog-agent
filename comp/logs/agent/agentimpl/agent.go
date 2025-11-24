@@ -27,6 +27,7 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -85,6 +86,7 @@ type dependencies struct {
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
+	HealthPlatform     option.Option[healthplatform.Component]
 	// DelegatedAuth ensures the delegated auth component is initialized before the logs agent
 	// This is critical because the API key from delegated auth must be available before endpoints are created
 	DelegatedAuth option.Option[delegatedauth.Component]
@@ -125,6 +127,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+	healthPlatform            option.Option[healthplatform.Component]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -157,6 +160,7 @@ func newLogsAgent(deps dependencies) provides {
 			integrationsLogs:   integrationsLogs,
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
+			healthPlatform:     deps.HealthPlatform,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -183,7 +187,7 @@ func newLogsAgent(deps dependencies) provides {
 	}
 }
 
-func (a *logAgent) start(context.Context) error {
+func (a *logAgent) start(_ context.Context) error {
 	a.log.Info("Starting logs-agent...")
 
 	// setup the server config
@@ -236,7 +240,7 @@ func (a *logAgent) setupAgent() error {
 
 	fingerprintConfig, err := config.GlobalFingerprintConfig(a.config)
 	if err != nil {
-		message := fmt.Sprintf("Invalid fingerprinting config: %v", err)
+		message := fmt.Sprintf("Invalid fingerprint_config setting: %v", err)
 		status.AddGlobalError(invalidFingerprintConfig, message)
 		return errors.New(message)
 	}

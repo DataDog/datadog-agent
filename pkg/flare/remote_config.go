@@ -218,4 +218,17 @@ func printRemoteConfigStateContents(w io.Writer, state *pbgo.GetStateConfigRespo
 	if len(state.ActiveClients) == 0 {
 		fmt.Fprintln(w, "No active clients")
 	}
+
+	if len(state.ConfigSubscriptionStates) > 0 {
+		fmt.Fprintln(w, "\nRemote config active subscriptions")
+		fmt.Fprintln(w, strings.Repeat("-", 34))
+		for _, subscription := range state.ConfigSubscriptionStates {
+			fmt.Fprintf(w, "\n- Subscription %d\n", subscription.SubscriptionId)
+			for _, trackedClient := range subscription.TrackedClients {
+				fmt.Fprintf(w, "    - Tracked client %s - Seen any: %t - Products: %s\n",
+					trackedClient.RuntimeId, trackedClient.SeenAny, trackedClient.Products.String(),
+				)
+			}
+		}
+	}
 }

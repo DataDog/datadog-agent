@@ -308,11 +308,18 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	refreshCallCount := 0
 	var mu sync.Mutex
 
-	// Create a mock core agent server where registration hangs
+	// Create a mock core agent server where registration hangs the 2 first calls
 	mockCoreAgent := newMockCoreAgentServer(t, ipcComp,
 		func(ctx context.Context, _ *pbcore.RegisterRemoteAgentRequest) (*pbcore.RegisterRemoteAgentResponse, error) {
 			mu.Lock()
 			registerCallCount++
+			if registerCallCount > 2 {
+				defer mu.Unlock()
+				return &pbcore.RegisterRemoteAgentResponse{
+					SessionId:                      "uuid_session_id",
+					RecommendedRefreshIntervalSecs: 1,
+				}, nil
+			}
 			mu.Unlock()
 
 			// Block forever to prevent registration from completing
@@ -353,7 +360,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	regCount := registerCallCount
 	mu.Unlock()
 
-	assert.GreaterOrEqual(t, regCount, 2, "Registration should have been retried after timeout")
+	require.Equal(t, regCount, 3, "Registration should have been retried after timeout")
 
 	// Now test refresh contention - the server should be registered by now
 	// Wait a bit more to ensure refresh is called
@@ -364,7 +371,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	mu.Unlock()
 
 	// We should have at least one refresh call by now
-	assert.GreaterOrEqual(t, refCount, 0, "Refresh should have been called")
+	assert.Greater(t, refCount, 0, "Refresh should have been called")
 }
 
 // TestSessionIDInResponseMetadata tests that the session ID is properly

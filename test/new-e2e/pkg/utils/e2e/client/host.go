@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	oscomp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
@@ -371,6 +371,27 @@ func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
 	}
 
 	return entries, nil
+}
+
+// FindFiles returns a list of files with a given name
+func (h *Host) FindFiles(name string) ([]string, error) {
+	h.context.T().Logf("Finding files with name %s", name)
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		out, err := h.Execute(fmt.Sprintf("Get-ChildItem -Path C:\\ -Filter %s", name))
+		if err != nil {
+			return nil, err
+		}
+		return strings.Split(out, "\n"), nil
+	case oscomp.LinuxFamily:
+		out, err := h.Execute(fmt.Sprintf("sudo find / -name %s", name))
+		if err != nil {
+			return nil, err
+		}
+		return strings.Split(out, "\n"), nil
+	default:
+		return nil, errors.ErrUnsupported
+	}
 }
 
 // Lstat returns a FileInfo structure describing path.

@@ -53,7 +53,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -88,7 +87,7 @@ func main() {
 		coreconfig.Module(),
 		logscompressionfx.Module(),
 		secretsfx.Module(),
-		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
 		hostnameimpl.Module(),
@@ -117,7 +116,7 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 }
 
 func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
-	tracelog.SetLogger(corelogger{})
+	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
@@ -147,6 +146,10 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
+
+	// Disable UDS listener for serverless environments - traces are sent via HTTP to localhost instead.
+	// This avoids noisy error logs.
+	pkgconfigsetup.Datadog().Set("apm_config.receiver_socket", "", model.SourceAgentRuntime)
 
 	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
@@ -188,7 +191,6 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanID:     random.Random.Uint64(),
 		AzureServerlessTags: azureTags.String(),
 		FunctionTags:        functionTags,
 	})
