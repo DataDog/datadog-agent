@@ -8,8 +8,8 @@ package client
 import (
 	"fmt"
 
-	"github.com/DataDog/test-infra-definitions/components"
-	oscomp "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 const (
