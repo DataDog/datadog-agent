@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/linux"
@@ -43,7 +44,7 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	hostname := v.Env().RemoteHost.MustExecute("hostname")
 	hostname = strings.TrimSpace(hostname)
 
-	metadataStr := v.Env().RemoteHost.MustExecute(`curl -s -H "Metadata: true" http://169.254.169.254/metadata/instance/compute?api-version=2017-08-01`)
+	metadataStr := v.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?api-version=%s", azure.GetMetadataAPIVersion()))
 
 	var metadata struct {
 		VMID              string
