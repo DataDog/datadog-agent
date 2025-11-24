@@ -6,6 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/config v0.70.0
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.70.0
@@ -18,6 +19,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo v0.0.0-20251027120702-0e91eee9852f
 	github.com/DataDog/datadog-agent/pkg/util/http v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery v0.0.0-20251027120702-0e91eee9852f
+	github.com/DataDog/datadog-agent/pkg/util/option v0.70.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.70.0
 	github.com/DataDog/datadog-agent/pkg/version v0.70.0
 	github.com/DataDog/zstd v1.5.7
@@ -51,7 +53,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.70.0 // indirect
