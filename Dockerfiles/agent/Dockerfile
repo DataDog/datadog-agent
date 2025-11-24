@@ -84,7 +84,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -161,6 +161,7 @@ RUN --mount=from=artifacts,target=/artifacts \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/embedded/bin/installer \
+    opt/datadog-agent/embedded/bin/dd-compile-policy \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
     opt/datadog-agent/embedded/share/man \

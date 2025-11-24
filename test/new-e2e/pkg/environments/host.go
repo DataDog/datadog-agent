@@ -6,12 +6,13 @@
 package environments
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
@@ -99,25 +100,53 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 	return dstPath, nil
 }
 
-func (e *Host) getAgentCoverageCommands(family os.Family) (map[string]string, error) {
+func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec, error) {
 	switch family {
 	case os.LinuxFamily:
-		return map[string]string{
-			"datadog-agent":  "sudo datadog-agent coverage generate",
-			"trace-agent":    "sudo /opt/datadog-agent/embedded/bin/trace-agent -c /etc/datadog-agent coverage generate",
-			"process-agent":  "sudo /opt/datadog-agent/embedded/bin/process-agent coverage generate",
-			"security-agent": "sudo /opt/datadog-agent/embedded/bin/security-agent coverage generate",
-			"system-probe":   "sudo /opt/datadog-agent/embedded/bin/system-probe coverage generate",
-		}, nil
+		return []CoverageTargetSpec{{
+			AgentName:       "datadog-agent",
+			CoverageCommand: []string{"sudo", "datadog-agent", "coverage", "generate"},
+			Required:        true,
+		}, {
+			AgentName:       "trace-agent",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/trace-agent", "-c", "/etc/datadog-agent", "coverage", "generate"},
+			Required:        false,
+		}, {
+			AgentName:       "process-agent",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/process-agent", "coverage", "generate"},
+			Required:        false,
+		}, {
+			AgentName:       "security-agent",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/security-agent", "coverage", "generate"},
+			Required:        false,
+		}, {
+			AgentName:       "system-probe",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
+			Required:        false,
+		}}, nil
 	case os.WindowsFamily:
 		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
-		return map[string]string{
-			"datadog-agent":  fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath),
-			"trace-agent":    fmt.Sprintf(`& "%s\bin\agent\trace-agent.exe" "coverage" "generate"`, installPath),
-			"process-agent":  fmt.Sprintf(`& "%s\bin\agent\process-agent.exe" "coverage" "generate"`, installPath),
-			"security-agent": fmt.Sprintf(`& "%s\bin\agent\security-agent.exe" "coverage" "generate"`, installPath),
-			"system-probe":   fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath),
-		}, nil
+		return []CoverageTargetSpec{{
+			AgentName:       "datadog-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath)},
+			Required:        true,
+		}, {
+			AgentName:       "trace-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\trace-agent.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}, {
+			AgentName:       "process-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\process-agent.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}, {
+			AgentName:       "security-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\security-agent.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}, {
+			AgentName:       "system-probe",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}}, nil
 	}
 	return nil, fmt.Errorf("unsupported OS family: %v", family)
 }
@@ -125,34 +154,44 @@ func (e *Host) getAgentCoverageCommands(family os.Family) (map[string]string, er
 // Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
 func (e *Host) Coverage(outputDir string) (string, error) {
 
+	if e.RemoteHost == nil {
+		return "RemoteHost component is not initialized, skipping coverage", nil
+	}
+	if e.Agent == nil {
+		return "Agent component is not initialized, skipping coverage", nil
+	}
+
 	outStr := []string{}
 	outStr = append(outStr, "===== Coverage =====")
 	commandCoverages, err := e.getAgentCoverageCommands(e.RemoteHost.OSFamily)
 	if err != nil {
 		return "", err
 	}
-	for agent, command := range commandCoverages {
-		outStr = append(outStr, fmt.Sprintf("==== %s ====", agent))
-		output, err := e.RemoteHost.Execute(command)
+	errs := []error{}
+	for _, target := range commandCoverages {
+		outStr = append(outStr, fmt.Sprintf("==== %s ====", target.AgentName))
+		output, err := e.RemoteHost.Execute(strings.Join(target.CoverageCommand, " "))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("%s: %v", agent, err))
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 		// find coverage folder in command output
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(output)
 		if len(matches) < 2 {
-			outStr = append(outStr, fmt.Sprintf("%s: output does not contain the path to the coverage folder, output: %s", agent, output))
+			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", output))
 			continue
 		}
-		outStr = append(outStr, fmt.Sprintf("Coverage folder: %s", matches[1]))
 		err = e.RemoteHost.GetFolder(matches[1], filepath.Join(outputDir, filepath.Base(matches[1])))
 		if err != nil {
-			outStr = append(outStr, fmt.Sprintf("%s: error while getting folder:%v", agent, err))
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
 		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
 	}
 
+	if len(errs) > 0 {
+		return strings.Join(outStr, "\n"), errors.Join(errs...)
+	}
 	return strings.Join(outStr, "\n"), nil
 }

@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	tifeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -33,6 +33,7 @@ func TestEKSSuite(t *testing.T) {
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+		awskubernetes.WithDeployArgoRollout(),
 	)))
 }
 

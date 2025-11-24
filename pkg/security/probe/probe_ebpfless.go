@@ -366,9 +366,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	}
 
 	// container context
-	event.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
+	event.ProcessContext.ContainerContext.ContainerID = containerutils.ContainerID(syscallMsg.ContainerID)
 	if containerContext, exists := p.containerContexts[syscallMsg.ContainerID]; exists {
-		event.ContainerContext.CreatedAt = containerContext.CreatedAt
+		event.ProcessContext.ContainerContext.CreatedAt = containerContext.CreatedAt
 	}
 
 	// copy span context if any
@@ -406,7 +406,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
-	logTraceEvent(event.GetEventType(), event)
+	p.probe.logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -699,6 +699,7 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFLessOrigin
+	p.event.ProcessContext = &model.ProcessContext{}
 	return p.event
 }
 

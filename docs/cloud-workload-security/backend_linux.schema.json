@@ -931,6 +931,23 @@
       ],
       "description": "IPPortFamilySerializer is used to serialize an IP, port, and address family context to JSON"
     },
+    "Layer": {
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "Layer": {
+          "$ref": "#/$defs/Layer"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "Layer"
+      ],
+      "description": "LayerSerializer defines a layer serializer"
+    },
     "MMapEvent": {
       "properties": {
         "address": {
@@ -1747,6 +1764,12 @@
         },
         "dropped": {
           "type": "boolean"
+        },
+        "layers": {
+          "items": {
+            "$ref": "#/$defs/Layer"
+          },
+          "type": "array"
         }
       },
       "additionalProperties": false,
@@ -2177,6 +2200,22 @@
           },
           "type": "object",
           "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        },
+        "ssh_port": {
+          "type": "integer",
+          "description": "Port of the SSH session"
+        },
+        "ssh_client_ip": {
+          "type": "string",
+          "description": "Client IP of the SSH session"
+        },
+        "ssh_auth_method": {
+          "type": "string",
+          "description": "Authentication method of the SSH session"
+        },
+        "ssh_public_key": {
+          "type": "string",
+          "description": "Public key of the SSH session"
         }
       },
       "additionalProperties": false,

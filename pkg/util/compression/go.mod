@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/DataDog/zstd v1.5.7
-	github.com/klauspost/compress v1.18.0
+	github.com/klauspost/compress v1.18.1
 )
 
 require (
@@ -32,7 +32,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
@@ -57,11 +56,13 @@ require (
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mdlayher/socket v0.5.1 // indirect
+	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/shirou/gopsutil/v4 v4.25.9 // indirect
+	github.com/shirou/gopsutil/v4 v4.25.10 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -75,9 +76,11 @@ require (
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -200,6 +203,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../../pkg/opentelemetry-mapping-go/otlp/metrics
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../pkg/orchestrator/model
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util => ../../../pkg/orchestrator/util
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
@@ -212,7 +216,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
-	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ../../../pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../pkg/util/cache
@@ -249,6 +252,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel

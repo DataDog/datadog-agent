@@ -40,7 +40,7 @@ import (
 func main() {
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", secretsnoop.NewComponent().Comp, nil)
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, nil)
 	if err != nil {
 		log.Warnf("Failed to load the configuration: %v", err)
 		execOrExit(os.Environ())
@@ -238,7 +238,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	}
 
 	// OTLP TCP receiver
-	if configcheck.IsEnabled(cfg) {
+	if configcheck.IsConfigEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
 		ln, err := loader.GetTCPListener(fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))

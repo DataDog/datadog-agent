@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 // Package ddflareextensionimpl defines the OpenTelemetry Extension implementation.
 package ddflareextensionimpl
 
@@ -37,6 +39,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"gopkg.in/yaml.v2"
 )
 
@@ -48,6 +51,7 @@ func addFactories(factories otelcol.Factories) {
 	})
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil, nil)
 	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, option.None[ipc.Component](), false)
+	factories.Telemetry = otelconftelemetry.NewFactory()
 }
 
 func TestGetConfDump(t *testing.T) {

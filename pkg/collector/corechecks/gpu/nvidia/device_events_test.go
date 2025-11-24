@@ -148,6 +148,10 @@ func (m *mockDeviceEventsCollectorCache) RegisterDevice(device safenvml.Device) 
 	return nil
 }
 
+func (m *mockDeviceEventsCollectorCache) SupportsDevice(_ safenvml.Device) (bool, error) {
+	return true, nil
+}
+
 func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceEventData, error) {
 	return m.events, m.err
 }
@@ -155,21 +159,23 @@ func (m *mockDeviceEventsCollectorCache) GetEvents(_ string) ([]safenvml.DeviceE
 func TestDeviceEventsCollector(t *testing.T) {
 	cache := mockDeviceEventsCollectorCache{}
 	device := setupMockDevice(t, nil)
+	uuid := device.GetDeviceInfo().UUID
+
 	collector, err := newDeviceEventsCollectorWithCache(device, &cache)
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
-	// make sure metadata is all good
-	uuid := device.GetDeviceInfo().UUID
+	// initially, no device should be registered before the first metrics collection
 	require.Equal(t, uuid, collector.DeviceUUID())
-	require.Len(t, cache.uuids, 1)
-	require.Equal(t, cache.uuids[0], uuid)
 	require.Equal(t, deviceEvents, collector.Name())
+	require.Empty(t, cache.uuids)
 
-	// no metrics until no event is received
+	// no metrics until no event is received, but device should now be registered
 	mm, err := collector.Collect()
 	require.NoError(t, err)
 	require.Empty(t, mm)
+	require.Len(t, cache.uuids, 1)
+	require.Equal(t, cache.uuids[0], uuid)
 
 	// make sure non-xid events are ignored
 	cache.events = []safenvml.DeviceEventData{

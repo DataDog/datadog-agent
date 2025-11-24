@@ -1,0 +1,83 @@
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files")
+
+# Keep in sync with the ones on repos.MODULE.bazel
+python_externals = {
+    "bzip2": "1.0.8",
+    "mpdecimal": "4.0.0",
+    "sqlite": "3.50.4.0",
+    "xz": "5.2.5",
+    "zlib": "1.3.1",
+    "libffi": "3.4.4",
+    "openssl-bin": "3.0.16.2",
+    "tcltk": "8.6.15.0",
+}
+
+# These rules will make it easier to get a reference to their folder via $(location)
+# and they add the version in the folder name (as some of the vcxproj stuff relies on that)
+[
+    copy_to_directory(
+        name = "{}_win_dir".format(dep),
+        srcs = ["@{}_win".format(dep)],
+        out = "{}-{}".format(dep, version),
+        include_external_repositories = ["*"],
+    )
+    for dep, version in python_externals.items()
+]
+
+run_binary(
+    name = "python_win",
+    srcs = (
+        glob(
+            ["**"],
+            exclude = ["**/*.pyc"],
+        ) + [
+            "bzip2_win_dir",
+            "mpdecimal_win_dir",
+            "sqlite_win_dir",
+            "xz_win_dir",
+            "zlib_win_dir",
+            "libffi_win_dir",
+            "openssl-bin_win_dir",
+            "tcltk_win_dir",
+            "@visual_studio//:msbuild",
+        ]
+    ),
+    env = {
+        "PROCESSOR_ARCHITECTURE": "AMD64",
+        # Input and output paths
+        "SRCFILE": r"$(location LICENSE)",  # Any file at the root of the repo works here
+        "OUTDIR": "$(@D)",
+        # Paths to dependencies:
+        "BZ2_DIR": "$(location bzip2_win_dir)",
+        "MPDECIMAL_DIR": "$(location mpdecimal_win_dir)",
+        "SQLITE3_DIR": "$(location sqlite_win_dir)",
+        "XZ_DIR": "$(location xz_win_dir)",
+        "ZLIB_DIR": "$(location zlib_win_dir)",
+        "LIBFFI_DIR": "$(location libffi_win_dir)",
+        "OPENSSL_DIR": r"$(location openssl-bin_win_dir)\amd64",
+        "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
+        "TCL_VERSION": python_externals["tcltk"],
+        "MSBUILD": "$(location @visual_studio//:msbuild)",
+    },
+    out_dirs = ["python_win"],
+    tool = "build_python.bat",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "install_files",
+    srcs = select({
+        "@platforms//os:windows": [":python_win"],
+    }),
+    renames = {
+        "python_win": REMOVE_BASE_DIRECTORY,
+    },
+)
+
+pkg_install(
+    name = "install",
+    srcs = [":install_files"],
+)

@@ -15,17 +15,10 @@ import (
 	"strconv"
 	"strings"
 
-	admiv1 "k8s.io/api/admission/v1"
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
 
-	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,102 +26,9 @@ const (
 	volumeName = "datadog-auto-instrumentation"
 	mountPath  = "/datadog-lib"
 
-	webhookName = "lib_injection"
-
 	// apmInjectionErrorAnnotationKey this annotation is added when the apm auto-instrumentation admission controller failed to mutate the Pod.
 	apmInjectionErrorAnnotationKey = "apm.datadoghq.com/injection-error"
 )
-
-// Webhook is the auto instrumentation webhook
-type Webhook struct {
-	name            string
-	resources       map[string][]string
-	operations      []admissionregistrationv1.OperationType
-	matchConditions []admissionregistrationv1.MatchCondition
-
-	wmeta   workloadmeta.Component
-	mutator mutatecommon.Mutator
-
-	// use to store all the config option from the config component to avoid costly lookups in the admission webhook hot path.
-	config *WebhookConfig
-}
-
-// NewWebhook returns a new Webhook dependent on the injection filter.
-func NewWebhook(config *Config, wmeta workloadmeta.Component, mutator mutatecommon.Mutator) (*Webhook, error) {
-	webhook := &Webhook{
-		name:            webhookName,
-		resources:       map[string][]string{"": {"pods"}},
-		operations:      []admissionregistrationv1.OperationType{admissionregistrationv1.Create},
-		matchConditions: []admissionregistrationv1.MatchCondition{},
-		mutator:         mutator,
-		wmeta:           wmeta,
-		config:          config.Webhook,
-	}
-
-	log.Debug("Successfully created SSI webhook")
-	return webhook, nil
-}
-
-// Name returns the name of the webhook
-func (w *Webhook) Name() string {
-	return w.name
-}
-
-// WebhookType returns the type of the webhook
-func (w *Webhook) WebhookType() common.WebhookType {
-	return common.MutatingWebhook
-}
-
-// IsEnabled returns whether the webhook is enabled
-func (w *Webhook) IsEnabled() bool {
-	return w.config.IsEnabled
-}
-
-// Endpoint returns the endpoint of the webhook
-func (w *Webhook) Endpoint() string {
-	return w.config.Endpoint
-}
-
-// Resources returns the kubernetes resources for which the webhook should
-// be invoked
-func (w *Webhook) Resources() map[string][]string {
-	return w.resources
-}
-
-// Timeout returns the timeout for the webhook
-func (w *Webhook) Timeout() int32 {
-	return 0
-}
-
-// Operations returns the operations on the resources specified for which
-// the webhook should be invoked
-func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
-	return w.operations
-}
-
-// LabelSelectors returns the label selectors that specify when the webhook
-// should be invoked
-func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
-}
-
-// MatchConditions returns the Match Conditions used for fine-grained
-// request filtering
-func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
-	return w.matchConditions
-}
-
-// WebhookFunc returns the function that mutates the resources
-func (w *Webhook) WebhookFunc() admission.WebhookFunc {
-	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, w.Name(), w.inject, request.DynamicClient))
-	}
-}
-
-func (w *Webhook) inject(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-	log.Debugf("Mutating pod with SSI %q", mutatecommon.PodString(pod))
-	return w.mutator.MutatePod(pod, ns, cl)
-}
 
 func initContainerName(lang language) string {
 	return fmt.Sprintf("datadog-lib-%s-init", lang)
@@ -190,11 +90,9 @@ func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 type libInfoSource int
 
 const (
-	// libInfoSourceNone is no source provided.
-	libInfoSourceNone libInfoSource = iota
 	// libInfoSourceLibInjection is when the user sets up annotations on their pods for
 	// library injection and single step is disabled.
-	libInfoSourceLibInjection
+	libInfoSourceLibInjection libInfoSource = iota
 	// libInfoSourceSingleStepInstrumentation is when we are using the instrumentation config
 	// to determine which libraries to inject.
 	libInfoSourceSingleStepInstrumentation
@@ -214,10 +112,6 @@ func (s libInfoSource) injectionType() string {
 	default:
 		return "unknown"
 	}
-}
-
-func (s libInfoSource) isSingleStep() bool {
-	return s.injectionType() == singleStepInstrumentationInstallType
 }
 
 // isFromLanguageDetection tells us whether this source comes from

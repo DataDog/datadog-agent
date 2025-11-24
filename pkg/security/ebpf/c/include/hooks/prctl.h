@@ -4,6 +4,7 @@
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 #include "helpers/process.h"
+#include "helpers/approvers.h"
 #include <linux/prctl.h>
 
 long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
@@ -39,13 +40,18 @@ int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
     if (!syscall) {
         return 0;
     }
+
+    if (approve_syscall(syscall, prctl_approvers) == DISCARDED) {
+        return 0;
+    }
+
     struct prctl_event_t event = {
         .syscall.retval = retval,
         .event.flags = syscall->async,
         .option = syscall->prctl.option,
-        .name_truncated = syscall->prctl.name_truncated,        
+        .name_truncated = syscall->prctl.name_truncated,
     };
-    bpf_probe_read(&event.name, MAX_PRCTL_NAME_LEN, &syscall->prctl.name);
+    bpf_probe_read_str(&event.name, MAX_PRCTL_NAME_LEN, &syscall->prctl.name);
     event.sent_size = (syscall->prctl.name_size_to_send >= MAX_PRCTL_NAME_LEN)
         ? MAX_PRCTL_NAME_LEN
         : syscall->prctl.name_size_to_send;

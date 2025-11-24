@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
@@ -125,7 +126,7 @@ network_devices:
 	// NOTE: Error message differs, but that is an acceptable difference
 	err = unmarshalKeyReflection(ntmConf, "network_devices.autodiscovery", &cfg)
 	assert.Error(t, err)
-	assert.ErrorContains(t, err, "can't GetChild(workers) of a leaf node")
+	assert.ErrorContains(t, err, "expected map at '' got: [map[workers:10]]")
 }
 
 type MetadataProviders struct {
@@ -249,4 +250,103 @@ func TestCompareNegativeNumber(t *testing.T) {
 
 	assert.Equal(t, uint64(0xfffffffffffffcf7), mf1.Large)
 	assert.Equal(t, uint64(0xfffffffffffffcf7), mf2.Large)
+}
+
+func TestUnmarshalKeyMapToBools(t *testing.T) {
+	viperConf, ntmConf := constructBothConfigs("", false, func(cfg model.Setup) {
+		cfg.BindEnvAndSetDefault("test", map[string]bool{})
+	})
+
+	type testBool struct {
+		A bool
+		B bool
+	}
+
+	objBool1 := testBool{}
+	objBool2 := testBool{}
+
+	viperConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
+	err := unmarshalKeyReflection(viperConf, "test", &objBool1)
+	require.NoError(t, err)
+	assert.Equal(t, objBool1, testBool{A: false, B: true})
+
+	ntmConf.Set("test", map[string]bool{"a": false, "b": true}, model.SourceAgentRuntime)
+	err = unmarshalKeyReflection(ntmConf, "test", &objBool2)
+	require.NoError(t, err)
+	assert.Equal(t, objBool2, testBool{A: false, B: true})
+}
+
+type TargetStruct struct {
+	BoolToString  string   `mapstructure:"bool_to_string"`
+	NumToString   string   `mapstructure:"num_to_string"`
+	BoolToInt     int      `mapstructure:"bool_to_int"`
+	StringToInt   int      `mapstructure:"string_to_int"`
+	StringToInt2  int      `mapstructure:"string_to_int2"`
+	IntToBool     bool     `mapstructure:"int_to_bool"`
+	IntToBool2    bool     `mapstructure:"int_to_bool2"`
+	StringToBool  bool     `mapstructure:"string_to_bool"`
+	StringToBool2 bool     `mapstructure:"string_to_bool2"`
+	StringToBool3 bool     `mapstructure:"string_to_bool3"`
+	StringToBool4 bool     `mapstructure:"string_to_bool4"`
+	StrSlice      []string `mapstructure:"str_slice"`
+	IntSlice      []int    `mapstructure:"int_slice"`
+}
+
+func TestUnmarshalWeaklyTyped(t *testing.T) {
+	// Validate that UnmarshalKey uses mapstructure's implicit conversion from
+	// mapstructure's WeaklyTypedInput setting.
+	// https://github.com/mitchellh/mapstructure/blob/8508981c8b6c964e6986dd8aa85490e70ce3c2e2/mapstructure.go#L229
+	dataYaml := `
+my_target:
+  bool_to_string:  true
+  num_to_string:   5
+  bool_to_int:     true
+  string_to_int:   "345"
+  string_to_int2:  "0x123"
+  int_to_bool:     3
+  int_to_bool2:    0
+  string_to_bool:  T
+  string_to_bool2: True
+  string_to_bool3: "1"
+  string_to_bool4: "FALSE"
+  str_slice:       abc
+  int_slice:       7
+`
+	viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+		cfg.SetKnown("my_target") //nolint:forbidigo // legit usage, often used for UnmarshalKey settings
+	})
+
+	var target TargetStruct
+	err := viperConf.UnmarshalKey("my_target", &target)
+	assert.Equal(t, "1", target.BoolToString)
+	assert.Equal(t, "5", target.NumToString)
+	assert.Equal(t, 1, target.BoolToInt)
+	assert.Equal(t, 345, target.StringToInt)
+	assert.Equal(t, 291, target.StringToInt2)
+	assert.Equal(t, true, target.IntToBool)
+	assert.Equal(t, false, target.IntToBool2)
+	assert.Equal(t, true, target.StringToBool)
+	assert.Equal(t, true, target.StringToBool2)
+	assert.Equal(t, true, target.StringToBool3)
+	assert.Equal(t, false, target.StringToBool4)
+	assert.Equal(t, []string{"abc"}, target.StrSlice)
+	assert.Equal(t, []int{7}, target.IntSlice)
+	require.NoError(t, err)
+
+	target = TargetStruct{}
+	err = unmarshalKeyReflection(ntmConf, "my_target", &target)
+	assert.Equal(t, "true", target.BoolToString)
+	assert.Equal(t, "5", target.NumToString)
+	assert.Equal(t, 1, target.BoolToInt)
+	assert.Equal(t, 345, target.StringToInt)
+	assert.Equal(t, 291, target.StringToInt2)
+	assert.Equal(t, true, target.IntToBool)
+	assert.Equal(t, false, target.IntToBool2)
+	assert.Equal(t, true, target.StringToBool)
+	assert.Equal(t, true, target.StringToBool2)
+	assert.Equal(t, true, target.StringToBool3)
+	assert.Equal(t, false, target.StringToBool4)
+	assert.Equal(t, []string{"abc"}, target.StrSlice)
+	assert.Equal(t, []int{7}, target.IntSlice)
+	require.NoError(t, err)
 }

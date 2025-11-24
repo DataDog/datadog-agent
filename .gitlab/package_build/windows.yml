@@ -11,6 +11,8 @@
       docker run --rm
       -m 24576M
       -v "$(Get-Location):c:\mnt"
+      -e CI=true
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
       -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
@@ -43,6 +45,7 @@
       -e OMNIBUS_RUBY_VERSION="${OMNIBUS_RUBY_VERSION}"
       -e PYTHONUTF8=1
       -e E2E_COVERAGE_PIPELINE=${E2E_COVERAGE_PIPELINE}
+      -e DEPLOY_AGENT=${DEPLOY_AGENT}
       -e CI_JOB_TOKEN=${CI_JOB_TOKEN}
       ${WINBUILDIMAGE}
       powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1 -BuildUpgrade 1"

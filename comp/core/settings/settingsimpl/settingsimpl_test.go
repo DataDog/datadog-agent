@@ -235,7 +235,7 @@ func TestRuntimeSettings(t *testing.T) {
 			func(t *testing.T, comp settings.Component) {
 				layerMaxSize := 1024 * 60
 				config := comp.(*settingsRegistry).config
-				config.Set("big_config_value", strings.Repeat("a", layerMaxSize), model.SourceEnvVar)
+				t.Setenv("big_config_value", strings.Repeat("a", layerMaxSize))
 				config.Set("big_config_value", strings.Repeat("b", layerMaxSize), model.SourceFile)
 				config.Set("big_config_value", strings.Repeat("c", layerMaxSize), model.SourceAgentRuntime)
 

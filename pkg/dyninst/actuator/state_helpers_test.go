@@ -25,8 +25,9 @@ func deepCopyState(original *state) *state {
 	}
 
 	// Create new state with basic fields copied.
-	copied := newState()
+	copied := newState(CircuitBreakerConfig{})
 
+	copied.counters = original.counters
 	copied.programIDAlloc = original.programIDAlloc
 
 	// Deep copy programs map first (needed for queue and currentlyCompiling
@@ -68,7 +69,7 @@ func deepCopyProgram(original *program) *program {
 		id:         original.id,
 		config:     copiedConfig,
 		executable: original.executable,
-		processKey: original.processKey,
+		processID:  original.processID,
 	}
 
 	// Note: loadedProgram interface is more complex to copy and represents
@@ -96,7 +97,7 @@ func deepCopyProcess(original *process) *process {
 
 	copied := &process{
 		state:           original.state,
-		processKey:      original.processKey,
+		processID:       original.processID,
 		executable:      original.executable,
 		probes:          copiedProbes,
 		currentProgram:  original.currentProgram,
@@ -108,7 +109,7 @@ func deepCopyProcess(original *process) *process {
 
 // TestDeepCopyState verifies that deepCopyState works correctly.
 func TestDeepCopyState(t *testing.T) {
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	processID := ProcessID{PID: 123}
 	executable := Executable{Path: "/test/path"}
 	probe := &rcjson.SnapshotProbe{
@@ -123,12 +124,7 @@ func TestDeepCopyState(t *testing.T) {
 		},
 	}
 	s.programIDAlloc = 5
-	tenantID := tenantID(1)
-	key := processKey{
-		tenantID:  tenantID,
-		ProcessID: processID,
-	}
-	s.processes[key] = &process{
+	s.processes[processID] = &process{
 		state:      processStateWaitingForProgram,
 		executable: executable,
 		probes: map[probeKey]ir.ProbeDefinition{
@@ -142,7 +138,7 @@ func TestDeepCopyState(t *testing.T) {
 		id:         programID,
 		config:     []ir.ProbeDefinition{probe},
 		executable: executable,
-		processKey: key,
+		processID:  processID,
 	}
 	s.programs[programID] = program
 
@@ -153,11 +149,11 @@ func TestDeepCopyState(t *testing.T) {
 
 	// Verify processes are deeply copied.
 	require.Equal(t, len(clone.processes), len(clone.processes))
-	copiedProcess := clone.processes[key]
+	copiedProcess := clone.processes[processID]
 	require.NotNil(t, copiedProcess)
-	require.NotSame(t, s.processes[key], copiedProcess)
-	require.Equal(t, s.processes[key].state, copiedProcess.state)
-	require.Equal(t, s.processes[key].processKey, copiedProcess.processKey)
+	require.NotSame(t, s.processes[processID], copiedProcess)
+	require.Equal(t, s.processes[processID].state, copiedProcess.state)
+	require.Equal(t, s.processes[processID].processID, copiedProcess.processID)
 
 	// Verify programs are deeply copied.
 	require.Equal(t, len(clone.programs), len(clone.programs))

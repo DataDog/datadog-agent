@@ -45,67 +45,32 @@ func init() {
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress sketch series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled gogen.SketchPayload objects. gogen.SketchPayload is not directly marshaled - instead
-// it's contents are marshaled individually, packed with the appropriate protobuf metadata, and compressed in stream.
-// The resulting payloads (when decompressed) are binary equal to the result of marshaling the whole object at once.
-func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) (transaction.BytesPayloads, error) {
-	var err error
-
-	pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-
-	// start things off
-	err = pb.startPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	for sl.MoveNext() {
-		ss := sl.Current()
-		err = pb.marshal(ss)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	err = pb.finishPayload()
-	if err != nil {
-		logger.Debugf("Failed to finish payload with err %v", err)
-		return nil, err
-	}
-
-	return pb.payloads, nil
-}
-
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress sketch series payloads across multiple pipelines. Each pipeline
 // defines a filter function and destination, enabling selective routing of
 // sketches to different endpoints.
-func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines []Pipeline, logger log.Component) (transaction.BytesPayloads, error) {
+func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet, logger log.Component) error {
 	var err error
 
 	// Create payload builders for each pipeline
-	pbs := make([]*payloadsBuilder, len(pipelines))
-	for i := range pbs {
+	pbs := make([]*payloadsBuilder, 0, len(pipelines))
+	for pipelineConfig, pipelineContext := range pipelines {
 		bufferContext := marshaler.NewBufferContext()
-		pb := newPayloadsBuilder(bufferContext, config, strategy, logger)
-		pbs[i] = &pb
+		pb := newPayloadsBuilder(bufferContext, config, strategy, logger, pipelineConfig, pipelineContext)
+		pbs = append(pbs, &pb)
 
-		err = pbs[i].startPayload()
+		err = pb.startPayload()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	for sl.MoveNext() {
 		ss := sl.Current()
-		for i, pipeline := range pipelines {
-			if pipeline.FilterFunc(ss) {
-				err := pbs[i].marshal(ss)
-				if err != nil {
-					return nil, err
-				}
+		for i := range pbs {
+			err := pbs[i].marshal(ss)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -113,32 +78,27 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 	for i := range pbs {
 		err := pbs[i].finishPayload()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	for i, pipeline := range pipelines {
-		for _, payload := range pbs[i].payloads {
-			payload.Destination = pipeline.Destination
-		}
-	}
-
-	payloads := make([]*transaction.BytesPayload, 0)
-	for _, pb := range pbs {
-		payloads = append(payloads, pb.payloads...)
-	}
-
-	return payloads, nil
+	return nil
 }
 
-func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component, logger log.Component) payloadsBuilder {
+func newPayloadsBuilder(
+	bufferContext *marshaler.BufferContext,
+	config config.Component,
+	strategy compression.Component,
+	logger log.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) payloadsBuilder {
 	buf := bufferContext.PrecompressionBuf
 	pb := payloadsBuilder{
 		bufferContext: bufferContext,
 		strategy:      strategy,
 		compressor:    nil,
 		buf:           buf,
-		payloads:      transaction.BytesPayloads{},
 		ps:            molecule.NewProtoStream(buf),
 		// the backend accepts payloads up to specific compressed / uncompressed
 		// sizes, but prefers small uncompressed payloads.
@@ -146,6 +106,9 @@ func newPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Co
 		maxUncompressedSize: config.GetInt("serializer_max_uncompressed_payload_size"),
 		pointCount:          0,
 		logger:              logger,
+
+		pipelineConfig:  pipelineConfig,
+		pipelineContext: pipelineContext,
 	}
 	return pb
 }
@@ -155,12 +118,14 @@ type payloadsBuilder struct {
 	strategy            compression.Component
 	compressor          *stream.Compressor
 	buf                 *bytes.Buffer
-	payloads            transaction.BytesPayloads
 	ps                  *molecule.ProtoStream
 	maxPayloadSize      int
 	maxUncompressedSize int
 	pointCount          int
 	logger              log.Component
+
+	pipelineConfig  PipelineConfig
+	pipelineContext *PipelineContext
 }
 
 // Prepare to write the next payload
@@ -251,6 +216,10 @@ func (pb *payloadsBuilder) marshal(ss *metrics.SketchSeries) error {
 	const sketchMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
+
+	if !pb.pipelineConfig.Filter.Filter(ss) {
+		return nil
+	}
 
 	pb.buf.Reset()
 	err := pb.ps.Embedded(payloadSketches, func(ps *molecule.ProtoStream) error {
@@ -411,7 +380,7 @@ func (pb *payloadsBuilder) finishPayload() error {
 		return err
 	}
 
-	pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointCount))
+	pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointCount))
 
 	return nil
 }

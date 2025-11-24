@@ -465,8 +465,8 @@ func TestRun(t *testing.T) {
 	for _, job := range r.(*runnerMock).jobs {
 		totalProfiles += len(job.profiles)
 	}
-	// Default config has 11 profiles total (checks, logs-and-metrics, database, api, ondemand, service-discovery, runtime-started, runtime-running, hostname, otlp, trace-agent)
-	assert.Equal(t, 11, totalProfiles)
+	// Default config has 12 profiles total (checks, logs-and-metrics, database, api, ondemand, service-discovery, runtime-started, runtime-running, hostname, otlp, trace-agent, gpu)
+	assert.Equal(t, 12, totalProfiles)
 }
 
 func TestReportMetricBasic(t *testing.T) {

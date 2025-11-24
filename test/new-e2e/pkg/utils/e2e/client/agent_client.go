@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	osComp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,6 +45,7 @@ func NewHostAgentClient(context common.Context, hostOutput remote.HostOutput, wa
 		if err := waitForReadyTimeout(commandRunner, agentReadyTimeout); err != nil {
 			return nil, err
 		}
+		commandRunner.isReady = true
 	}
 
 	return commandRunner, nil

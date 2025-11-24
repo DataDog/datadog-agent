@@ -100,8 +100,8 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 	// add pid one for hash resolution outside of a container
 	process := event.ProcessContext.Process
 	rootPIDs := []uint32{process.Pid, 1}
-	if process.ContainerID != "" && r.cgroupResolver != nil {
-		w, ok := r.cgroupResolver.GetWorkload(process.ContainerID)
+	if process.ContainerContext.ContainerID != "" && r.cgroupResolver != nil {
+		w, ok := r.cgroupResolver.GetWorkload(process.ContainerContext.ContainerID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}
@@ -132,7 +132,7 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 
 		// init the cache key to lookup
 		key := LRUCacheKey{
-			containerID: process.ContainerID,
+			containerID: process.ContainerContext.ContainerID,
 			path:        path,
 			mTime:       fileInfo.ModTime().UnixNano(),
 		}

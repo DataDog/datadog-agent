@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -147,7 +148,11 @@ func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Proce
 	var result DBConfig
 	result.ProcessUser, _ = proc.UsernameWithContext(ctx)
 	result.ProcessName, _ = proc.NameWithContext(ctx)
-
+	if result.ProcessUser == "" {
+		if uids, _ := proc.UidsWithContext(ctx); len(uids) > 0 {
+			result.ProcessUser = fmt.Sprintf("uid:%d", uids[0]) // RUID
+		}
+	}
 	cmdline, _ := proc.CmdlineSlice()
 	for i, arg := range cmdline {
 		if arg == "--config" && i+1 < len(cmdline) {
@@ -155,6 +160,16 @@ func LoadMongoDBConfig(ctx context.Context, hostroot string, proc *process.Proce
 			break
 		}
 	}
+	result.ProcessFlags = make(map[string]string)
+	foreachFlags(cmdline, func(k, v string) {
+		if strings.HasPrefix(k, "--") {
+			if _, redacted := mongoDBRedactedFlags[k]; redacted || strings.Contains(strings.ToLower(k), "password") {
+				result.ProcessFlags[k] = "<redacted>"
+			} else {
+				result.ProcessFlags[k] = v
+			}
+		}
+	})
 
 	configPath := filepath.Join(hostroot, configLocalPath)
 	fi, err := os.Stat(configPath)
@@ -476,4 +491,37 @@ func isIdentifierChar(c uint8) bool {
 		c == '-' ||
 		c == '_' ||
 		c == '.'
+}
+
+func foreachFlags(cmdline []string, f func(k, v string)) {
+	if len(cmdline) <= 1 {
+		return
+	}
+	cmdline = cmdline[1:]
+	pendingFlagValue := false
+	for i, arg := range cmdline {
+		if strings.HasPrefix(arg, "--") && len(arg) > 2 {
+			if pendingFlagValue {
+				f(cmdline[i-1], "true")
+			}
+			pendingFlagValue = false
+			parts := strings.SplitN(arg, "=", 2)
+			if len(parts) == 2 {
+				f(parts[0], parts[1])
+			} else {
+				f(parts[0], "")
+				pendingFlagValue = true
+			}
+		} else {
+			if pendingFlagValue {
+				pendingFlagValue = false
+				f(cmdline[i-1], arg)
+			} else {
+				f(arg, "")
+			}
+		}
+	}
+	if pendingFlagValue {
+		f(cmdline[len(cmdline)-1], "true")
+	}
 }

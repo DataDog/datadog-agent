@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -399,73 +398,47 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-type seclVariableEventPreparator struct {
-	ctxPool *eval.ContextPool
-	event   *model.Event
-}
-
-func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
-	return &seclVariableEventPreparator{
-		ctxPool: eval.NewContextPool(),
-		event:   e.probe.PlatformProbe.NewEvent(),
+// GetSECLVariables returns the state of all current variable instances
+func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
+	rs := e.GetRuleSet()
+	if rs == nil {
+		return nil
 	}
-}
 
-var eventZeroer = model.NewEventZeroer()
+	seclVariableStates := make(map[string]*api.SECLVariableState)
 
-func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
-	eventZeroer(p.event)
-	f(p.event)
-	return p.ctxPool.Get(p.event)
-}
-
-func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
-	p.ctxPool.Put(ctx)
-}
-
-func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
-	for name, value := range rsVariables {
-		if strings.HasPrefix(name, "process.") {
-			scopedVariable := value.(eval.ScopedVariable)
-			if !scopedVariable.IsMutable() {
-				continue
+	addVariableState := func(name string, instance eval.VariableInstance) {
+		defer func() {
+			if err := recover(); err != nil {
+				seclog.Errorf("recovered panic while getting value of variable '%s': %v", name, err)
 			}
-
-			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
-				ctx := preparator.get(func(event *model.Event) {
-					event.ProcessCacheEntry = entry
-				})
-				defer preparator.put(ctx)
-
-				value, found := scopedVariable.GetValue(ctx)
-				if !found {
-					return
-				}
-
-				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
-				scopedValue := fmt.Sprintf("%+v", value)
-				seclVariables[scopedName] = &api.SECLVariableState{
-					Name:  scopedName,
-					Value: scopedValue,
-				}
-			})
-		} else if strings.Contains(name, ".") { // other scopes
-			continue
-		} else { // global variables
-			value, found := value.(eval.Variable).GetValue()
-			if !found {
-				continue
-			}
-			scopedValue := fmt.Sprintf("%+v", value)
-			seclVariables[name] = &api.SECLVariableState{
-				Name:  name,
-				Value: scopedValue,
-			}
+		}()
+		seclVariableStates[name] = &api.SECLVariableState{
+			Name:  name,
+			Value: fmt.Sprintf("%+v", instance.GetValue()),
 		}
 	}
+
+	rs.IterVariables(func(definition eval.VariableDefinition, instances map[string]eval.VariableInstance) {
+		name := definition.VariableName(true)
+		switch definition.Scoper().Type() {
+		case eval.GlobalScoperType:
+			globalInstance, ok := instances[rules.GlobalScopeKey]
+			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+				addVariableState(name, globalInstance)
+			}
+		case eval.ProcessScoperType, eval.CGroupScoperType, eval.ContainerScoperType:
+			for scopeKey, instance := range instances {
+				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
+					continue
+				}
+				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
+				addVariableState(scopedName, instance)
+			}
+		}
+	})
+
+	return seclVariableStates
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
@@ -516,7 +489,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
@@ -531,9 +504,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -546,9 +519,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	var extTagsCb func() ([]string, bool)
 
-	if ev.ContainerContext.ContainerID != "" {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ContainerID
+		containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
 
 		extTagsCb = func() ([]string, bool) {
 			return e.probe.GetEventTags(containerID), true

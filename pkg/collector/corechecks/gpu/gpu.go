@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -60,6 +59,7 @@ type checkTelemetry struct {
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
 	collectorTelemetry           *nvidia.CollectorTelemetry // collectorTelemetry holds specific telemetry for the collectors, it will also be passed to the collector dependencies
+	deviceCount                  telemetry.Gauge            // emitted as a telemetry metric too in order to send it through COAT
 }
 
 // Factory creates a new check factory
@@ -89,6 +89,7 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
 		collectorTelemetry:           nvidia.NewCollectorTelemetry(tm),
+		deviceCount:                  tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
 	}
 }
 
@@ -192,12 +193,21 @@ func (c *Check) Run() error {
 	// Commit the metrics even in case of an error
 	defer snd.Commit()
 
+	// Check the state of the NVML library for telemetry
+	c.nvmlStateTelemetry.Check()
+
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
 	}
 
-	// Check the state of the NVML library for telemetry
-	c.nvmlStateTelemetry.Check()
+	deviceCount, err := c.deviceCache.Count()
+	if err != nil {
+		if logLimitCheck.ShouldLog() {
+			log.Warnf("failed to get device count: %v", err)
+		}
+		deviceCount = 0
+	}
+	c.telemetry.deviceCount.Set(float64(deviceCount))
 
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
@@ -310,8 +320,8 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	// Cache container tags to avoid repeated tagger calls for the same container
-	containerTagsCache := make(map[string][]string)
+	// tag cache is for repeated calls during a single check run, not preserved between runs
+	containerTagCache := newContainerTagCache(c.tagger)
 
 	//iterate through devices to emit its metrics
 	for deviceUUID, deviceData := range perDeviceMetrics {
@@ -321,24 +331,8 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 
 		var containerTags []string
 		if container := gpuToContainersMap[deviceUUID]; container != nil {
-			containerID := container.EntityID.ID
-
-			// Check cache first
-			if cachedTags, exists := containerTagsCache[containerID]; exists {
-				containerTags = cachedTags // Direct reference, no copy
-			} else {
-				// Fetch and cache container tags
-				entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-				// we use orchestrator cardinality here to ensure we get the pod_name tag
-				// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
-				tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
-				if err != nil {
-					multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
-					containerTagsCache[containerID] = nil // Cache the error state to avoid repeated calls
-				} else {
-					containerTagsCache[containerID] = tags
-					containerTags = tags // Direct reference, no copy
-				}
+			if containerTags, err = containerTagCache.getContainerTags(container); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
 			}
 		}
 

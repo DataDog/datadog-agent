@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
-	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	tifEcs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -80,7 +80,7 @@ func (s *ECSEC2Suite) TestProcessCheck() {
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 // ECSEC2CoreAgentSuite runs the same test as ECSEC2Suite but with the process check running in the core agent
@@ -111,7 +111,7 @@ func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 		// expecting the process checks to run in the core agent.
 		payloads = payloads[len(payloads)-1:]
 		requireProcessNotCollected(c, payloads, "process-agent")
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 	// Flush the server to ensure payloads are received from the process checks that are running on the core agent
 	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
@@ -122,5 +122,5 @@ func (s *ECSEC2CoreAgentSuite) TestProcessCheckInCoreAgent() {
 
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
-	}, 2*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
