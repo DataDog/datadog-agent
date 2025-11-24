@@ -454,11 +454,7 @@ filegroup(
     ]) + [
         ":public_headers",
         ":copy_pyconfig",
-        ":pegen_headers",
-        ":tokenizer_headers",
         ":parser_headers",
-        ":stringlib_clinic_headers",
-        ":stringlib_other_headers",
     ]
 )
 
