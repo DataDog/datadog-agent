@@ -16,7 +16,7 @@ namespace WixSetup.Datadog_Agent
         // if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
         public string SecurityAgent => $@"{_binSource}\security-agent.exe";
         public string LibDatadogAgentThree => $@"{_binSource}\libdatadog-agent-three.dll";
-        public string MSStoreApps => $@"{_binSource}\MSStoreApps.dll";
+        public string WindowsNative => $@"{_binSource}\WindowsNative.dll";
 
         public AgentBinaries(string binSource, string installerSource)
         {
