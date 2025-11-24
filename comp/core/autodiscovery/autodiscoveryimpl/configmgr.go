@@ -444,6 +444,9 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 // previously scheduled for the provided origin digest. It returns false if the
 // digest is unknown or nothing is currently scheduled for it.
 func (cm *reconcilingConfigManager) configsForSecretRefresh(origin string) (integration.Config, []integration.Config, bool) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
 	raw, ok := cm.activeConfigs[origin]
 	if !ok {
 		return integration.Config{}, nil, false
