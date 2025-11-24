@@ -51,7 +51,7 @@ type refCountedUploader struct {
 // of tags. It wraps a batcher and provides a Close() method to remove itself
 // from the parent LogsUploaderFactory.
 type LogsUploader struct {
-	*batcher
+	batcher *batcher
 	// onClose is called when the uploader is closed to decrement its refcount
 	// in the parent LogsUploaderFactory.
 	onClose func()
@@ -145,7 +145,7 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 
 // Enqueue adds a message to the uploader's queue.
 func (u *LogsUploader) Enqueue(data json.RawMessage) {
-	u.enqueue(data)
+	u.batcher.enqueue(data)
 }
 
 // Close decrements the reference count of the uploader. If the ref count reaches zero,
@@ -174,7 +174,7 @@ func (u *LogsUploaderFactory) closeUploader(metadata LogsUploaderMetadata) {
 	if rc.refCount <= 0 {
 		log.Debugf("stopping uploader with metadata %v", metadata)
 		delete(u.uploaders, metadata)
-		rc.LogsUploader.stop()
+		rc.LogsUploader.batcher.stop()
 	}
 }
 
@@ -184,7 +184,7 @@ func (u *LogsUploaderFactory) Stop() {
 	defer u.mu.Unlock()
 
 	for tags, rc := range u.uploaders {
-		rc.LogsUploader.stop()
+		rc.LogsUploader.batcher.stop()
 		delete(u.uploaders, tags)
 	}
 }
@@ -196,7 +196,7 @@ func (u *LogsUploaderFactory) Stats() map[string]int64 {
 
 	totalStats := make(map[string]int64)
 	for _, rc := range u.uploaders {
-		stats := rc.state.metrics.Stats()
+		stats := rc.batcher.state.metrics.Stats()
 		for k, v := range stats {
 			totalStats[k] += v
 		}
