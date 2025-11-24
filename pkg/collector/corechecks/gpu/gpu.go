@@ -124,7 +124,8 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		// but because it's not componentized yet with FX, we need to do it this way (see service discovery check for a similar pattern).
 		containerProvider, err := proccontainers.GetSharedContainerProvider()
 		if err != nil {
-			return fmt.Errorf("failed to get shared container provider: %w", err)
+			// Do not return an error here, as it would prevent the check from running in standalone mode (with `agent check run`)
+			log.Errorf("failed to get shared container provider: %w", err)
 		}
 		c.containerProvider = containerProvider
 	}
