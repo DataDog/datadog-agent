@@ -177,7 +177,10 @@ func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error
 	meta := []byte(`{
 "ddsource": "dd_debugger",
 "service": "` + s.service + `",
-"runtimeId": "` + s.runtimeID + `"
+"runtimeId": "` + s.runtimeID + `",
+"debugger": {
+	"type": "symdb"
+}
 }`)
 	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
