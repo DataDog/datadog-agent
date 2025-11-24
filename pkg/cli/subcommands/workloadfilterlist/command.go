@@ -100,7 +100,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 // verifyCELConfig validates CEL rules from a YAML file
 func verifyCELConfig(filePath string) error {
-	fmt.Fprintf(color.Output, "\n%s Validating CEL Configuration\n", color.HiCyanString("->"))
+	fmt.Fprintf(color.Output, "\n%s Validating CEL Configuration\n", color.CyanString("->"))
 	fmt.Fprintf(color.Output, "  File: %s\n\n", filePath)
 
 	// Load the YAML file from the file path
