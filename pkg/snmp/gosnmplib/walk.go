@@ -67,7 +67,7 @@ RequestLoop:
 			response, err = session.GetNext([]string{oid})
 		}
 		if err != nil {
-			return err
+			return NewConnectionError(err)
 		}
 		if len(response.Variables) == 0 {
 			break RequestLoop

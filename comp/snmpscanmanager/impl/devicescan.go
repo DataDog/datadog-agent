@@ -14,17 +14,32 @@ type deviceScansByIP map[string]deviceScan
 type deviceScan struct {
 	DeviceIP   string     `json:"device_ip"`
 	ScanStatus scanStatus `json:"scan_status"`
-	ScanEndTs  *time.Time `json:"scan_end_ts,omitempty"`
+	ScanEndTs  time.Time  `json:"scan_end_ts"`
+	Failures   int        `json:"failures"`
 }
 
 type scanStatus string
 
 const (
-	pendingStatus scanStatus = "pending"
-	successStatus scanStatus = "success"
-	failedStatus  scanStatus = "failed"
+	successScan scanStatus = "success"
+	failedScan  scanStatus = "failed"
 )
 
-func (ds *deviceScan) isCacheable() bool {
-	return ds.ScanStatus == successStatus || ds.ScanStatus == failedStatus
+func (ds *deviceScan) isSuccess() bool {
+	return ds.ScanStatus == successScan
+}
+
+func (ds *deviceScan) isFailed() bool {
+	return ds.ScanStatus == failedScan
+}
+
+type ipSet map[string]struct{}
+
+func (s ipSet) add(ip string) {
+	s[ip] = struct{}{}
+}
+
+func (s ipSet) contains(ip string) bool {
+	_, ok := s[ip]
+	return ok
 }

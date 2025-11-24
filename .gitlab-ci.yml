@@ -368,6 +368,12 @@ variables:
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
 
+.on_build_changes: &on_build_changes
+  changes:
+    paths: 
+      - omnibus/**/*
+    compare_to: $COMPARE_TO_BRANCH
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
@@ -527,18 +533,18 @@ workflow:
 
 .on_all_builds:
   - <<: *if_run_all_builds
-
-.on_e2e_tests:
-  - <<: *if_installer_tests
+  - <<: *on_build_changes
 
 .on_all_install_script_tests:
   - <<: *if_installer_tests
+  - <<: *on_build_changes
 
 .on_default_new_e2e_tests:
   - !reference [.except_mergequeue]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
+  - <<: *on_build_changes
   - <<: *if_auto_e2e_tests
     variables:
       E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
