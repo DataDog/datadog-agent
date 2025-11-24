@@ -11,6 +11,9 @@ __pycache__
 .pytest_cache
 venv*/
 
+# Rust build artifacts
+process_manager/daemon/target/
+
 **/*.tmp
 **/debug.test
 # files

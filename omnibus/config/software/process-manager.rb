@@ -1,0 +1,35 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2016-present Datadog, Inc.
+
+require 'pathname'
+
+name 'process-manager'
+
+skip_transitive_dependency_licensing true
+
+source path: '..'
+relative_path 'src/github.com/DataDog/datadog-agent'
+
+build do
+  license :project_license
+
+  # Process manager is only available on Linux
+  if linux_target?
+    # Build the Rust binary
+    env = {
+      'PATH' => "#{ENV['HOME']}/.cargo/bin:#{ENV['PATH']}",
+    }
+
+    # Build the process manager binary using cargo
+    command "cargo build --release --manifest-path=process_manager/daemon/Cargo.toml", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    # Create necessary directories
+    mkdir "#{install_dir}/bin"
+
+    # Copy the binary to the install directory
+    copy 'process_manager/daemon/target/release/dd-procmgrd', "#{install_dir}/bin/dd-procmgrd"
+  end
+end
+

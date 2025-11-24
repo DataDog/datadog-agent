@@ -234,6 +234,7 @@ if do_build
 
   if linux_target?
     dependency 'datadog-security-agent-policies'
+    dependency 'process-manager'
   end
 
   # this dependency puts few files out of the omnibus install dir and move them
