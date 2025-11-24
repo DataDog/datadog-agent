@@ -14,7 +14,7 @@ RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
 Restart=on-failure
-ExecStart=/opt/datadog-packages/datadog-agent/stable/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/stable/run/agent.pid
+ExecStart=/opt/datadog-packages/datadog-agent/stable/bin/dd-procmgrd
 
 
 [Install]
