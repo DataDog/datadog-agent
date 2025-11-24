@@ -278,21 +278,6 @@ func generateIR(
 	}
 	defer cleanupCloser(methodIndex, "method index")()
 
-	// Resolve placeholder types by a unified, budgeted expansion from
-	// subprogram parameter roots. Container internals are zero-cost.
-	{
-		budgets := computeDepthBudgets(processed.pendingSubprograms)
-		// Specialize any already-added container types before traversal.
-		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
-			return nil, err
-		}
-		if err := expandTypesWithBudgets(
-			typeCatalog, typeTab, methodIndex, typeIndex, materializedSubprograms, budgets,
-		); err != nil {
-			return nil, err
-		}
-	}
-
 	// Collect line information about subprograms. It's important for
 	// performance to batch analysis of each compilation unit, and do it in
 	// incremental pc order for each compilation unit.
@@ -335,6 +320,8 @@ func generateIR(
 	defer textSection.data.Close()
 
 	// Instantiate probes and gather any probe-related issues.
+	// This must happen before type expansion so we have Events and
+	// InjectionPoints for expression analysis.
 	probes, subprograms, probeIssues, err := createProbes(
 		arch, processed.pendingSubprograms, lineData, idToSub, &textSection,
 		cfg.skipReturnEvents,
@@ -362,12 +349,36 @@ func generateIR(
 		}
 	}
 
-	// Compute the set of expressions for the probes. This will populate
-	// the probe's Template field and resolve relevant variables etc.
-	probeExpressions := make([][]probeExpression, len(probes))
-	for i, p := range probes {
-		p.Template, probeExpressions[i] = processProbeExpressions(p)
+	// Analyze all probe expressions in one pass. This parses expressions once,
+	// matches them to variables, checks availability, and computes exploration
+	// roots. Must happen before type expansion.
+	budgets := computeDepthBudgets(processed.pendingSubprograms)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets)
+
+	// Populate probe templates from analysis.
+	for i, ap := range analyzedProbes {
+		probes[i].Template = ap.template
 	}
+
+	// Resolve placeholder types by a unified, budgeted expansion from
+	// exploration roots. Container internals are zero-cost.
+	{
+		// Specialize any already-added container types before traversal.
+		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
+			return nil, err
+		}
+		if err := expandTypesWithBudgets(
+			typeCatalog, typeTab, methodIndex, typeIndex,
+			explorationRoots, analyzedProbes,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate that all expression types were properly explored during
+	// expandTypesWithBudgets. This marks invalid segments for expressions
+	// that fail to resolve (e.g., type mismatches, missing fields).
+	exploreTypesForExpressions(typeCatalog, analyzedProbes)
 
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
@@ -376,7 +387,7 @@ func generateIR(
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
-		probes, probeExpressions, typeCatalog,
+		probes, analyzedProbes, typeCatalog,
 	)
 	issues = append(issues, eventIssues...)
 
@@ -405,142 +416,238 @@ func generateIR(
 	}, nil
 }
 
-// probeExpression is an expression that applies to a probe.
-type probeExpression struct {
-	def exprlang.Expr
-	// As of writing, the only supported expressions reference a single
-	// variable. As this evolves, more variables may need to be supported.
-	relevantVariable *ir.Variable
+// analyzedExpression holds all information about a parsed expression.
+// Expressions are parsed once during analysis and reused throughout.
+type analyzedExpression struct {
+	// The parsed expression AST (parsed once, used many times).
+	expr exprlang.Expr
+
+	// The DSL string for error messages.
+	dsl string
+
+	// The root variable matched from the subprogram (nil if not found).
+	rootVariable *ir.Variable
+
 	// The kind of event at which this expression is evaluated.
 	eventKind ir.EventKind
-	// The kind of expression -- this is used to inform the deserialization
-	// code about how this expression should be displayed.
+
+	// The kind of expression for deserialization.
 	exprKind ir.RootExpressionKind
-	// If the exprKind is ir.RootExpressionTemplateSegment, this is the
-	// corresponding segment.
-	segment *ir.JSONSegment
+
+	// For template segments, the segment reference and index.
+	segment    *ir.JSONSegment
+	segmentIdx int // -1 if not a segment
 }
 
-// processProbeExpressions processes template segments and the snapshot
-// expressions for variables available at probe events. It computes the
-// ir.Template and the probeExpressions for the probe.
-func processProbeExpressions(
-	probe *ir.Probe,
-) (template *ir.Template, exprs []probeExpression) {
-	if td := probe.ProbeDefinition.GetTemplate(); td != nil {
-		template = newTemplate(td)
+// analyzedProbe holds all analyzed expressions for a single probe.
+type analyzedProbe struct {
+	probe       *ir.Probe
+	expressions []analyzedExpression
+	template    *ir.Template
+
+	// Budget for type exploration.
+	budget uint32
+
+	// Whether this is a snapshot probe (affects exploration strategy).
+	isSnapshot bool
+}
+
+// extractRootVariableName extracts the root variable name from an expression.
+func extractRootVariableName(expr exprlang.Expr) (string, bool) {
+	const maxDepth = 30
+	for range maxDepth {
+		switch e := expr.(type) {
+		case *exprlang.RefExpr:
+			return e.Ref, true
+		case *exprlang.GetMemberExpr:
+			expr = e.Base
+		default:
+			return "", false
+		}
 	}
-	type jsonSegment struct {
-		*ir.JSONSegment
-		index int
+	return "", false
+}
+
+// analyzeAllProbes performs a single pass through all probes, parsing
+// expressions once and matching them to variables. This must be called after
+// probes are created (so we have Events and InjectionPoints) but before type
+// expansion. Returns analyzed probes and exploration roots for type expansion.
+func analyzeAllProbes(
+	probes []*ir.Probe,
+	budgets map[ir.SubprogramID]uint32,
+) ([]analyzedProbe, []explorationRoot) {
+	analyzed := make([]analyzedProbe, 0, len(probes))
+
+	// Track exploration roots (typeID -> max budget).
+	rootBudgets := make(map[ir.TypeID]uint32)
+	addRoot := func(typeID ir.TypeID, budget uint32) {
+		if existing, ok := rootBudgets[typeID]; !ok || budget > existing {
+			rootBudgets[typeID] = budget
+		}
 	}
-	var segmentRefs map[string][]jsonSegment
-	if template != nil {
-		segmentRefs = make(map[string][]jsonSegment)
-		for i, s := range template.Segments {
-			switch s := s.(type) {
-			case *ir.JSONSegment:
-				switch expr := s.JSON.(type) {
-				case *exprlang.RefExpr:
-					segmentRefs[expr.Ref] = append(segmentRefs[expr.Ref],
-						jsonSegment{JSONSegment: s, index: i})
+
+	for _, probe := range probes {
+		budget := budgets[probe.Subprogram.ID]
+		isSnapshot := probe.GetKind() == ir.ProbeKindSnapshot
+
+		ap := analyzedProbe{
+			probe:      probe,
+			budget:     budget,
+			isSnapshot: isSnapshot,
+		}
+
+		// Build variable lookup for this probe's subprogram.
+		varByName := make(map[string]*ir.Variable, len(probe.Subprogram.Variables))
+		for _, v := range probe.Subprogram.Variables {
+			varByName[v.Name] = v
+		}
+
+		// Parse template and create template segments.
+		if td := probe.ProbeDefinition.GetTemplate(); td != nil {
+			ap.template = newTemplate(td)
+		}
+
+		// Determine event kinds for this probe.
+		isKind := func(kind ir.EventKind) func(*ir.Event) bool {
+			return func(ev *ir.Event) bool { return ev.Kind == kind }
+		}
+		haveEntry := slices.ContainsFunc(probe.Events, isKind(ir.EventKindEntry))
+		haveReturn := slices.ContainsFunc(probe.Events, isKind(ir.EventKindReturn))
+
+		// Check variable availability at injection points.
+		variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
+			locIdx := 0
+			for _, ip := range ips {
+				for locIdx < len(v.Locations) &&
+					v.Locations[locIdx].Range[1] <= ip.PC {
+					locIdx++
+				}
+				if locIdx < len(v.Locations) &&
+					ip.PC >= v.Locations[locIdx].Range[0] {
+					return true
+				}
+			}
+			return false
+		}
+
+		// Build segment references for matching.
+		type segmentRef struct {
+			segment *ir.JSONSegment
+			index   int
+		}
+		segmentRefs := make(map[string][]segmentRef)
+		if ap.template != nil {
+			for i, s := range ap.template.Segments {
+				if seg, ok := s.(*ir.JSONSegment); ok {
+					if rootVar, ok := extractRootVariableName(seg.JSON); ok {
+						segmentRefs[rootVar] = append(segmentRefs[rootVar],
+							segmentRef{segment: seg, index: i})
+					}
 				}
 			}
 		}
-	}
-	isKind := func(kind ir.EventKind) func(*ir.Event) bool {
-		return func(ev *ir.Event) bool { return ev.Kind == kind }
-	}
-	haveEntry := slices.ContainsFunc(probe.Events, isKind(ir.EventKindEntry))
-	haveReturn := slices.ContainsFunc(probe.Events, isKind(ir.EventKindReturn))
-	variableIsAvailble := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
-		locIdx := 0
-		var available bool
-		for _, ip := range ips {
-			for locIdx < len(v.Locations) && v.Locations[locIdx].Range[1] <= ip.PC {
-				locIdx++
-			}
-			available = locIdx < len(v.Locations) &&
-				ip.PC >= v.Locations[locIdx].Range[0]
-			if available {
-				return true
-			}
-		}
-		return false
-	}
-	for _, v := range probe.Subprogram.Variables {
-		var (
-			evKind   ir.EventKind
-			exprKind ir.RootExpressionKind
-		)
-		switch {
 
-		// The entry event for a method probe.
-		case haveEntry && v.Role == ir.VariableRoleParameter:
-			evKind, exprKind = ir.EventKindEntry, ir.RootExpressionKindArgument
+		// Process each variable.
+		for _, v := range probe.Subprogram.Variables {
+			var evKind ir.EventKind
+			var exprKind ir.RootExpressionKind
 
-		// The return event for a method probe.
-		//
-		// TODO: We should return available locals from return probes, which
-		// would just require extending the next case to also be triggered for
-		// return variables.
-		case haveReturn && v.Role == ir.VariableRoleReturn:
-			evKind, exprKind = ir.EventKindReturn, ir.RootExpressionKindLocal
+			switch {
+			case haveEntry && v.Role == ir.VariableRoleParameter:
+				// The entry event for a method probe.
+				evKind = ir.EventKindEntry
+				exprKind = ir.RootExpressionKindArgument
 
-		// The line-probe case:
-		case len(probe.Events) == 1 && probe.Events[0].Kind == ir.EventKindLine:
-			ips := probe.Events[0].InjectionPoints
-			if !variableIsAvailble(ips, v) {
+			case haveReturn && v.Role == ir.VariableRoleReturn:
+				// The return event for a method probe.
+				//
+				// TODO: We should return available locals from return probes,
+				// which would just require extending the next case to also be
+				// triggered for return variables.
+				evKind = ir.EventKindReturn
+				exprKind = ir.RootExpressionKindLocal
+
+			case len(probe.Events) == 1 &&
+				probe.Events[0].Kind == ir.EventKindLine:
+				// The line-probe case.
+				ips := probe.Events[0].InjectionPoints
+				if !variableIsAvailable(ips, v) {
+					continue
+				}
+				// TODO: the exprKind should be argument for available arguments.
+				evKind = ir.EventKindLine
+				exprKind = ir.RootExpressionKindLocal
+
+			default:
 				continue
 			}
-			// TODO: the exprKind should be argument for available arguments.
-			evKind, exprKind = ir.EventKindLine, ir.RootExpressionKindLocal
 
-		default:
-			continue
-		}
-		if probe.GetKind() == ir.ProbeKindSnapshot {
-			exprs = append(exprs, probeExpression{
-				def:              &exprlang.RefExpr{Ref: v.Name},
-				relevantVariable: v,
-				eventKind:        evKind,
-				exprKind:         exprKind,
-			})
+			// For snapshot probes, add variable itself as an expression.
+			if isSnapshot {
+				ap.expressions = append(ap.expressions, analyzedExpression{
+					expr:         &exprlang.RefExpr{Ref: v.Name},
+					dsl:          v.Name,
+					rootVariable: v,
+					eventKind:    evKind,
+					exprKind:     exprKind,
+					segmentIdx:   -1,
+				})
+				// Snapshot: add all variable types to exploration roots.
+				addRoot(v.Type.GetID(), budget)
+			}
+
+			// Match template segments to this variable.
+			//
+			// Note: there's no risk of picking the wrong variable due to
+			// shadowing, but there should be! In materializePending we ensure
+			// that we only track a single variable with a given name. This is
+			// incorrect in cases of shadowing. Instead we could record all
+			// shadowed variables and handle ambiguity of template resolution
+			// based on the specific return point (as that's all that matters
+			// for scoping in the case of shadowing) and come up with a naming
+			// scheme to describe the shadowed variables in snapshots.
+			segs, ok := segmentRefs[v.Name]
+			if !ok {
+				continue
+			}
+			for _, seg := range segs {
+				ap.expressions = append(ap.expressions, analyzedExpression{
+					expr:         seg.segment.JSON,
+					dsl:          seg.segment.DSL,
+					rootVariable: v,
+					eventKind:    evKind,
+					exprKind:     ir.RootExpressionKindTemplateSegment,
+					segment:      seg.segment,
+					segmentIdx:   seg.index,
+				})
+				// Log probe: add root variable type to exploration roots.
+				if !isSnapshot {
+					addRoot(v.Type.GetID(), budget)
+				}
+			}
+			delete(segmentRefs, v.Name)
 		}
 
-		// Note: there's no risk of picking the wrong variable due to shadowing,
-		// but there should be! In materializePending we ensure that we only
-		// track a single variable with a given name. This is incorrect in cases
-		// of shadowing.  Instead we could record all shadowed variables and
-		// handle ambiguity of template resolution based on the specific return
-		// point (as that's all that matters for scoping in the case of
-		// shadowing) and come up with a naming scheme to describe the shadowed
-		// variables in snapshots.
-
-		segs, ok := segmentRefs[v.Name]
-		if !ok {
-			continue
-		}
-		for _, seg := range segs {
-			exprs = append(exprs, probeExpression{
-				def:              seg.JSON,
-				relevantVariable: v,
-				eventKind:        evKind,
-				exprKind:         ir.RootExpressionKindTemplateSegment,
-				segment:          seg.JSONSegment,
-			})
-		}
-		delete(segmentRefs, v.Name)
-	}
-	for name, segs := range segmentRefs {
-		for _, seg := range segs {
-			template.Segments[seg.index] = ir.InvalidSegment{
-				Error: fmt.Sprintf("failed to resolve reference %q", name),
-				DSL:   seg.DSL,
+		// Mark unmatched segments as invalid.
+		for name, segs := range segmentRefs {
+			for _, seg := range segs {
+				ap.template.Segments[seg.index] = ir.InvalidSegment{
+					Error: fmt.Sprintf("failed to resolve reference %q", name),
+					DSL:   seg.segment.DSL,
+				}
 			}
 		}
+
+		analyzed = append(analyzed, ap)
 	}
-	return template, exprs
+
+	// Convert root budgets to slice.
+	roots := make([]explorationRoot, 0, len(rootBudgets))
+	for typeID, budget := range rootBudgets {
+		roots = append(roots, explorationRoot{typeID: typeID, budget: budget})
+	}
+
+	return analyzed, roots
 }
 
 // newTemplate creates a new template from a template definition.
@@ -571,21 +678,24 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 						addSegment(&ir.DurationSegment{})
 						continue
 					}
-					addSegment(&ir.JSONSegment{
-						DSL:  segment.GetDSL(),
-						JSON: expr,
-
-						// These will be filled in by populateProbeExpressions.
-						EventKind:            0,
-						EventExpressionIndex: 0,
-					})
+				case *exprlang.GetMemberExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := fmt.Sprintf("unsupported operation: %s", expr.Operation)
 					addInvalid(segment, msg)
+					continue
 				default:
 					msg := fmt.Sprintf("unsupported expression: %T", expr)
 					addInvalid(segment, msg)
+					continue
 				}
+				addSegment(&ir.JSONSegment{
+					DSL:  segment.GetDSL(),
+					JSON: expr,
+
+					// These will be filled in by populateProbeExpressions.
+					EventKind:            0,
+					EventExpressionIndex: 0,
+				})
 			}
 		}
 		i++
@@ -609,6 +719,12 @@ func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint3
 		budgets[p.id] = maxDepth
 	}
 	return budgets
+}
+
+// explorationRoot represents a type that should be explored with a budget.
+type explorationRoot struct {
+	typeID ir.TypeID
+	budget uint32
 }
 
 type typeQueueEntry struct {
@@ -661,86 +777,64 @@ func newTypeQueue() *typeQueue {
 	}
 }
 
-// expandTypesWithBudgets performs a unified graph expansion starting from all
-// subprogram parameter roots, observing per-subprogram depth budgets. Only
-// pointer dereferences consume depth; container internals (strings, slices,
-// maps) are zero-cost. Newly materialized types are immediately completed to
-// ensure correct container specialization.
-func expandTypesWithBudgets(
-	tc *typeCatalog,
-	goTypes *gotype.Table,
-	methodIndex methodToGoTypeIndex,
-	gotypeTypeIndex goTypeToOffsetIndex,
-	subprograms []*ir.Subprogram,
-	budgets map[ir.SubprogramID]uint32,
-) error {
-	// Track the best (maximum) processed remaining depth per type.
-	processedBest := make(map[ir.TypeID]uint32)
+// typeQueueProcessor encapsulates the state needed for processing the type
+// exploration queue. It handles budget-based type graph traversal.
+type typeQueueProcessor struct {
+	q               *typeQueue
+	processedBest   map[ir.TypeID]uint32
+	tc              *typeCatalog
+	goTypes         *gotype.Table
+	gotypeTypeIndex goTypeToOffsetIndex
+	methodIndex     methodToGoTypeIndex
 
-	q := newTypeQueue()
+	// Reusable buffers.
+	methodBuf   []gotype.IMethod
+	ii          implementorIterator
+	iiInitiated bool
+}
 
-	// Initialize the type queue with all types with a depth budget of 0 to make
-	// sure we properly explore every type. In general there's an invariant that
-	// every non-placeholder type be explored, and this ensures that.
-	for id, t := range tc.typesByID {
-		if _, ok := t.(*pointeePlaceholderType); ok {
-			continue
-		}
-		q.pos[id] = uint32(len(q.items))
-		q.items = append(q.items, typeQueueEntry{id: id, remaining: 0})
+// push enqueues (or improves) a type only if strictly better than any
+// already processed or enqueued remaining budget.
+func (p *typeQueueProcessor) push(t ir.Type, remaining uint32) {
+	id := t.GetID()
+	if r, ok := p.processedBest[id]; ok && remaining <= r {
+		return
 	}
-
-	// Update the budgets from the subprogram variables to that of the
-	// corresponding subprogram.
-	for _, sp := range subprograms {
-		budget := budgets[sp.ID]
-		for _, v := range sp.Variables {
-			pos := q.pos[v.Type.GetID()]
-			item := &q.items[pos]
-			item.remaining = max(item.remaining, budget)
-		}
-	}
-
-	// Initialize the heap now that everything has been updated.
-	heap.Init(q)
-
-	// push enqueues (or improves) only if strictly better than any
-	// already processed or enqueued remaining budget.
-	push := func(t ir.Type, remaining uint32) {
-		id := t.GetID()
-		if r, ok := processedBest[id]; ok && remaining <= r {
+	if idx, ok := p.q.pos[id]; ok {
+		if remaining <= p.q.items[idx].remaining {
 			return
 		}
-		if idx, ok := q.pos[id]; ok {
-			if remaining <= q.items[idx].remaining {
-				return
-			}
-			q.items[idx].remaining = remaining
-			heap.Fix(q, int(idx))
-			return
-		}
-		q.push(typeQueueEntry{id: id, remaining: remaining})
+		p.q.items[idx].remaining = remaining
+		heap.Fix(p.q, int(idx))
+		return
+	}
+	p.q.push(typeQueueEntry{id: id, remaining: remaining})
+}
+
+// ensureCompleted completes a type by ID.
+func (p *typeQueueProcessor) ensureCompleted(id ir.TypeID) error {
+	return completeGoTypes(p.tc, id, id)
+}
+
+// drainQueue processes all items in the queue until empty.
+func (p *typeQueueProcessor) drainQueue() error {
+	if !p.iiInitiated {
+		p.ii = makeImplementorIterator(p.methodIndex)
+		p.iiInitiated = true
 	}
 
-	// Local helper to complete a just-added type ID.
-	ensureCompleted := func(id ir.TypeID) error {
-		return completeGoTypes(tc, id, id)
-	}
-
-	var methodBuf []gotype.IMethod
-	ii := makeImplementorIterator(methodIndex)
-	for q.Len() > 0 {
-		wi := q.pop()
-		if r, ok := processedBest[wi.id]; ok && wi.remaining <= r {
+	for p.q.Len() > 0 {
+		wi := p.q.pop()
+		if r, ok := p.processedBest[wi.id]; ok && wi.remaining <= r {
 			continue
 		}
 
 		// Ensure the current type is specialized before visiting.
-		if err := ensureCompleted(wi.id); err != nil {
+		if err := p.ensureCompleted(wi.id); err != nil {
 			return err
 		}
 
-		t := tc.typesByID[wi.id]
+		t := p.tc.typesByID[wi.id]
 
 		switch tt := t.(type) {
 
@@ -758,89 +852,37 @@ func expandTypesWithBudgets(
 			if wi.remaining <= 0 {
 				break
 			}
-			// Now we need to iterate through the implementations of the
-			// interface.
-			grtID, ok := tt.GetGoRuntimeType()
-			if !ok {
-				break
-			}
-			grt, err := goTypes.ParseGoType(gotype.TypeID(grtID))
-			if err != nil {
-				return fmt.Errorf("failed to parse go type for interface %q: %w", tt.GetName(), err)
-			}
-			iface, ok := grt.Interface()
-			if !ok {
-				return fmt.Errorf("go type for interface %q is not an interface: %v", tt.GetName(), grt.Kind())
-			}
-			methods, err := iface.Methods(methodBuf[:0])
-			if err != nil {
-				return fmt.Errorf("failed to get methods for interface %q: %w", tt.GetName(), err)
-			}
-			for ii.seek(methods); ii.valid(); ii.next() {
-				impl := ii.cur()
-				var t ir.Type
-				if tid, ok := tc.typesByGoRuntimeType[impl]; ok {
-					t = tc.typesByID[tid]
-				} else {
-					implOffset, ok := gotypeTypeIndex.resolveDwarfOffset(impl)
-					if !ok {
-						// This is suspicious, but not obviously worth failing out
-						// over.
-						continue
-					}
-					if tid, ok := tc.typesByDwarfType[implOffset]; ok {
-						t = tc.typesByID[tid]
-					} else {
-						var err error
-						t, err = tc.addType(implOffset)
-						if err != nil {
-							return fmt.Errorf("failed to add type for implementation of %q: %w", tt.GetName(), err)
-						}
-						if err := ensureCompleted(t.GetID()); err != nil {
-							return fmt.Errorf("failed to complete type for implementation of %q: %w", tt.GetName(), err)
-						}
-					}
-				}
-				if ppt, ok := t.(*pointeePlaceholderType); ok {
-					var err error
-					t, err = tc.addType(ppt.offset)
-					if err != nil {
-						return fmt.Errorf("failed to add type for implementation of %q: %w", tt.GetName(), err)
-					}
-					if err := ensureCompleted(t.GetID()); err != nil {
-						return fmt.Errorf("failed to complete type for implementation of %q: %w", tt.GetName(), err)
-					}
-				}
-				push(t, wi.remaining-1)
+			if err := p.processInterface(tt, wi.remaining); err != nil {
+				return err
 			}
 
 		// Zero-cost neighbors (do not dereference pointers here).
 		case *ir.StructureType:
 			for i := range tt.RawFields {
-				push(tt.RawFields[i].Type, wi.remaining)
+				p.push(tt.RawFields[i].Type, wi.remaining)
 			}
 		case *ir.GoSliceHeaderType:
-			push(tt.Data, wi.remaining)
+			p.push(tt.Data, wi.remaining)
 		case *ir.GoStringHeaderType:
-			push(tt.Data, wi.remaining)
+			p.push(tt.Data, wi.remaining)
 		case *ir.ArrayType:
-			push(tt.Element, wi.remaining)
+			p.push(tt.Element, wi.remaining)
 		case *ir.GoMapType:
-			push(tt.HeaderType, wi.remaining)
+			p.push(tt.HeaderType, wi.remaining)
 		case *ir.GoHMapHeaderType:
-			push(tt.BucketsType, wi.remaining)
-			push(tt.BucketType, wi.remaining)
+			p.push(tt.BucketsType, wi.remaining)
+			p.push(tt.BucketType, wi.remaining)
 		case *ir.GoSwissMapHeaderType:
-			push(tt.TablePtrSliceType, wi.remaining)
-			push(tt.GroupType, wi.remaining)
+			p.push(tt.TablePtrSliceType, wi.remaining)
+			p.push(tt.GroupType, wi.remaining)
 		case *ir.GoSliceDataType:
-			push(tt.Element, wi.remaining)
+			p.push(tt.Element, wi.remaining)
 		case *ir.GoHMapBucketType:
-			push(tt.KeyType, wi.remaining)
-			push(tt.ValueType, wi.remaining)
+			p.push(tt.KeyType, wi.remaining)
+			p.push(tt.ValueType, wi.remaining)
 		case *ir.GoSwissMapGroupsType:
-			push(tt.GroupType, wi.remaining)
-			push(tt.GroupSliceType, wi.remaining)
+			p.push(tt.GroupType, wi.remaining)
+			p.push(tt.GroupSliceType, wi.remaining)
 
 		// Depth-cost step: pointer dereference.
 		case *ir.PointerType:
@@ -848,23 +890,178 @@ func expandTypesWithBudgets(
 				break
 			}
 			if placeholder, ok := tt.Pointee.(*pointeePlaceholderType); ok {
-				newT, err := tc.addType(placeholder.offset)
+				newT, err := p.tc.addType(placeholder.offset)
 				if err != nil {
 					return err
 				}
 				tt.Pointee = newT
-				if err := ensureCompleted(newT.GetID()); err != nil {
+				if err := p.ensureCompleted(newT.GetID()); err != nil {
 					return err
 				}
 			}
-			push(tt.Pointee, wi.remaining-1)
+			p.push(tt.Pointee, wi.remaining-1)
 
 		default:
 			return fmt.Errorf("unexpected ir.Type %[1]T: %#[1]v", tt)
 		}
 
 		// Mark processed with this best remaining.
-		processedBest[wi.id] = wi.remaining
+		p.processedBest[wi.id] = wi.remaining
+	}
+	return nil
+}
+
+// processInterface handles interface type exploration by iterating through
+// implementations.
+func (p *typeQueueProcessor) processInterface(
+	tt *ir.GoInterfaceType,
+	remaining uint32,
+) error {
+	grtID, ok := tt.GetGoRuntimeType()
+	if !ok {
+		return nil
+	}
+	grt, err := p.goTypes.ParseGoType(gotype.TypeID(grtID))
+	if err != nil {
+		return fmt.Errorf(
+			"failed to parse go type for interface %q: %w", tt.GetName(), err,
+		)
+	}
+	iface, ok := grt.Interface()
+	if !ok {
+		return fmt.Errorf(
+			"go type for interface %q is not an interface: %v",
+			tt.GetName(), grt.Kind(),
+		)
+	}
+	clear(p.methodBuf)
+	methods, err := iface.Methods(p.methodBuf[:0])
+	if err != nil {
+		return fmt.Errorf(
+			"failed to get methods for interface %q: %w", tt.GetName(), err,
+		)
+	}
+	for p.ii.seek(methods); p.ii.valid(); p.ii.next() {
+		impl := p.ii.cur()
+		var t ir.Type
+		if tid, ok := p.tc.typesByGoRuntimeType[impl]; ok {
+			t = p.tc.typesByID[tid]
+		} else {
+			implOffset, ok := p.gotypeTypeIndex.resolveDwarfOffset(impl)
+			if !ok {
+				// This is suspicious, but not obviously worth failing out over.
+				continue
+			}
+			if tid, ok := p.tc.typesByDwarfType[implOffset]; ok {
+				t = p.tc.typesByID[tid]
+			} else {
+				var err error
+				t, err = p.tc.addType(implOffset)
+				if err != nil {
+					return fmt.Errorf(
+						"failed to add type for implementation of %q: %w",
+						tt.GetName(), err,
+					)
+				}
+				if err := p.ensureCompleted(t.GetID()); err != nil {
+					return fmt.Errorf(
+						"failed to complete type for implementation of %q: %w",
+						tt.GetName(), err,
+					)
+				}
+			}
+		}
+		if ppt, ok := t.(*pointeePlaceholderType); ok {
+			var err error
+			t, err = p.tc.addType(ppt.offset)
+			if err != nil {
+				return fmt.Errorf(
+					"failed to add type for implementation of %q: %w",
+					tt.GetName(), err,
+				)
+			}
+			if err := p.ensureCompleted(t.GetID()); err != nil {
+				return fmt.Errorf(
+					"failed to complete type for implementation of %q: %w",
+					tt.GetName(), err,
+				)
+			}
+		}
+		p.push(t, remaining-1)
+	}
+	return nil
+}
+
+// expandTypesWithBudgets performs a unified graph expansion starting from
+// pre-computed exploration roots, observing depth budgets. Only pointer
+// dereferences consume depth; container internals (strings, slices, maps) are
+// zero-cost. Newly materialized types are immediately completed to ensure
+// correct container specialization.
+//
+// After budget-based exploration, expression paths from analyzed probes are
+// walked to ensure all types needed for expression evaluation are resolved.
+// This happens before placeholders are converted to UnresolvedPointeeType.
+func expandTypesWithBudgets(
+	tc *typeCatalog,
+	goTypes *gotype.Table,
+	methodIndex methodToGoTypeIndex,
+	gotypeTypeIndex goTypeToOffsetIndex,
+	explorationRoots []explorationRoot,
+	analyzedProbes []analyzedProbe,
+) error {
+	// Track the best (maximum) processed remaining depth per type.
+	processedBest := make(map[ir.TypeID]uint32)
+
+	q := newTypeQueue()
+
+	// Initialize the type queue with all types with a depth budget of 0 to make
+	// sure we properly explore every type. In general there's an invariant that
+	// every non-placeholder type be explored, and this ensures that.
+	for id, t := range tc.typesByID {
+		if _, ok := t.(*pointeePlaceholderType); ok {
+			continue
+		}
+		q.pos[id] = uint32(len(q.items))
+		q.items = append(q.items, typeQueueEntry{id: id, remaining: 0})
+	}
+
+	// Update budgets for the pre-computed exploration roots.
+	for _, root := range explorationRoots {
+		pos := q.pos[root.typeID]
+		item := &q.items[pos]
+		item.remaining = max(item.remaining, root.budget)
+	}
+
+	// Initialize the heap now that everything has been updated.
+	heap.Init(q)
+
+	// Create the queue processor with all necessary state.
+	proc := &typeQueueProcessor{
+		q:               q,
+		processedBest:   processedBest,
+		tc:              tc,
+		goTypes:         goTypes,
+		gotypeTypeIndex: gotypeTypeIndex,
+		methodIndex:     methodIndex,
+	}
+
+	// Process initial exploration roots.
+	if err := proc.drainQueue(); err != nil {
+		return err
+	}
+
+	// Explore types needed by expression paths and push leaf types to the
+	// queue with their budgets. This ensures expression results are explored
+	// to the full depth.
+	if err := exploreExpressionPathTypesFromAnalysis(
+		tc, analyzedProbes, proc.push,
+	); err != nil {
+		return err
+	}
+
+	// Process any newly added expression leaf types.
+	if err := proc.drainQueue(); err != nil {
+		return err
 	}
 
 	// Rewrite placeholders to unresolved pointee types.
@@ -897,6 +1094,214 @@ func expandTypesWithBudgets(
 			},
 		}
 	}
+	return nil
+}
+
+// exploreExpressionPathTypesFromAnalysis walks pre-parsed expression paths
+// from analyzed probes, ensures all types along the path are resolved, and
+// pushes the leaf types to the exploration queue with the probe's budget.
+// This ensures that expression results are explored to the full depth
+// configured for the probe.
+func exploreExpressionPathTypesFromAnalysis(
+	tc *typeCatalog,
+	analyzedProbes []analyzedProbe,
+	push func(ir.Type, uint32),
+) error {
+	for _, ap := range analyzedProbes {
+		// Build variable lookup for this probe's subprogram.
+		varByName := make(map[string]*ir.Variable, len(ap.probe.Subprogram.Variables))
+		for _, v := range ap.probe.Subprogram.Variables {
+			varByName[v.Name] = v
+		}
+
+		// Walk each pre-parsed expression.
+		for _, expr := range ap.expressions {
+			if expr.rootVariable == nil {
+				continue
+			}
+
+			// Walk the expression path, resolving types.
+			leafType, err := walkExpressionPathTypes(tc, expr.expr, varByName)
+			if err != nil {
+				// Error will be reported later during expression resolution.
+				continue
+			}
+
+			// Push the leaf type to the queue with the probe's budget.
+			// This ensures the expression result is explored to full depth.
+			if leafType != nil {
+				push(leafType, ap.budget)
+			}
+		}
+	}
+	return nil
+}
+
+// walkExpressionPathTypes walks an expression and resolves any placeholder
+// types encountered along the path. Returns the leaf type of the expression.
+func walkExpressionPathTypes(
+	tc *typeCatalog,
+	expr exprlang.Expr,
+	varByName map[string]*ir.Variable,
+) (ir.Type, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		v, ok := varByName[e.Ref]
+		if !ok {
+			return nil, nil // Variable not found, will error later.
+		}
+		if err := ensureTypeExplored(tc, v.Type); err != nil {
+			return nil, err
+		}
+		return v.Type, nil
+
+	case *exprlang.GetMemberExpr:
+		// First walk the base expression.
+		if _, err := walkExpressionPathTypes(tc, e.Base, varByName); err != nil {
+			return nil, err
+		}
+
+		// Get the base type.
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+
+		// Walk to the member and get the field type.
+		return walkMemberPathTypes(tc, baseType, e.Member)
+
+	default:
+		return nil, nil
+	}
+}
+
+// getExprType returns the type of an expression.
+func getExprType(
+	tc *typeCatalog,
+	expr exprlang.Expr,
+	varByName map[string]*ir.Variable,
+) (ir.Type, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		v, ok := varByName[e.Ref]
+		if !ok {
+			return nil, fmt.Errorf("variable %q not found", e.Ref)
+		}
+		return v.Type, nil
+
+	case *exprlang.GetMemberExpr:
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+
+		// Dereference pointer if needed.
+		curType := baseType
+		if ptrType, ok := curType.(*ir.PointerType); ok {
+			pointee := tc.typesByID[ptrType.Pointee.GetID()]
+			curType = pointee
+		}
+
+		// Get struct field.
+		structType, ok := curType.(*ir.StructureType)
+		if !ok {
+			return nil, fmt.Errorf("cannot access member on non-struct type %T", curType)
+		}
+
+		f, err := field(tc, structType, e.Member)
+		if err != nil {
+			return nil, err
+		}
+		return f.Type, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported expression type %T", expr)
+	}
+}
+
+// walkMemberPathTypes walks from a type to a member, resolving placeholders.
+// Returns the field's type.
+func walkMemberPathTypes(
+	tc *typeCatalog,
+	t ir.Type,
+	memberName string,
+) (ir.Type, error) {
+	curType := t
+
+	// Dereference pointer if needed.
+	if ptrType, ok := curType.(*ir.PointerType); ok {
+		if err := resolvePointerPlaceholder(tc, ptrType); err != nil {
+			return nil, err
+		}
+		pointee := tc.typesByID[ptrType.Pointee.GetID()]
+		curType = pointee
+	}
+
+	// Access struct field.
+	structType, ok := curType.(*ir.StructureType)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cannot access member %q on non-struct type %T", memberName, curType,
+		)
+	}
+
+	// Ensure struct is completed.
+	if err := completeGoTypes(tc, structType.GetID(), structType.GetID()); err != nil {
+		return nil, err
+	}
+
+	// Find and explore the field type.
+	f, err := field(tc, structType, memberName)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ensureTypeExplored(tc, f.Type); err != nil {
+		return nil, err
+	}
+
+	return f.Type, nil
+}
+
+// ensureTypeExplored ensures a type and its immediate dependencies are
+// explored, resolving placeholders as needed. For pointers, this also explores
+// the pointee since expressions dereference their final pointer result.
+func ensureTypeExplored(tc *typeCatalog, t ir.Type) error {
+	switch tt := t.(type) {
+	case *ir.PointerType:
+		if err := resolvePointerPlaceholder(tc, tt); err != nil {
+			return err
+		}
+		// Also explore pointee for final dereference.
+		pointee := tc.typesByID[tt.Pointee.GetID()]
+		return ensureTypeExplored(tc, pointee)
+	case *ir.StructureType:
+		return completeGoTypes(tc, tt.GetID(), tt.GetID())
+	default:
+		return nil
+	}
+}
+
+// resolvePointerPlaceholder resolves a pointer's placeholder pointee if needed.
+func resolvePointerPlaceholder(tc *typeCatalog, ptrType *ir.PointerType) error {
+	pointee := tc.typesByID[ptrType.Pointee.GetID()]
+	ppt, ok := pointee.(*pointeePlaceholderType)
+	if !ok {
+		return nil // Not a placeholder.
+	}
+
+	// Resolve the placeholder.
+	newT, err := tc.addType(ppt.offset)
+	if err != nil {
+		return fmt.Errorf("failed to resolve pointee placeholder: %w", err)
+	}
+	ptrType.Pointee = newT
+
+	// Complete the new type.
+	if err := completeGoTypes(tc, newT.GetID(), newT.GetID()); err != nil {
+		return fmt.Errorf("failed to complete pointee type: %w", err)
+	}
+
 	return nil
 }
 
@@ -2466,13 +2871,427 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 	return pointee, nil
 }
 
+// exploreTypesForExpressions validates that all types needed for expressions
+// are available and marks invalid segments for expressions that fail to resolve
+// (e.g., type mismatches, missing fields). Expressions that fail are cleared
+// so they won't be processed by populateProbeEventsExpressions.
+func exploreTypesForExpressions(
+	tc *typeCatalog,
+	analyzedProbes []analyzedProbe,
+) {
+	for i := range analyzedProbes {
+		ap := &analyzedProbes[i]
+		for j := range ap.expressions {
+			expr := &ap.expressions[j]
+			if expr.rootVariable == nil {
+				continue
+			}
+			exprPath := ""
+			if ref, ok := expr.expr.(*exprlang.RefExpr); ok {
+				exprPath = ref.Ref
+			}
+			if _, err := exploreExpressionTypes(
+				expr.expr, expr.rootVariable.Type, tc, exprPath,
+			); err != nil {
+				// Mark segment as invalid instead of failing.
+				if expr.segment != nil && ap.template != nil {
+					ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
+						Error: err.Error(),
+						DSL:   expr.dsl,
+					}
+				}
+				// Clear the expression so it won't be processed later.
+				expr.rootVariable = nil
+			}
+		}
+	}
+}
+
+// exploreExpressionTypes walks an expression tree and eagerly resolves types
+// when encountering placeholders or unresolved pointees. This reuses the same
+// traversal logic as resolveExpression but focuses on type resolution.
+// Returns the resolved type after exploration.
+func exploreExpressionTypes(
+	expr exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string, // Path for error messages (e.g., "a.b.c")
+) (ir.Type, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		// Base case: nothing to do for simple refs.
+		return currentType, nil
+
+	case *exprlang.GetMemberExpr:
+		// Collect all members in the chain (e.g., a.b.c becomes [c, b, a]).
+		var members []string
+		var base exprlang.Expr = e
+		for {
+			if gm, ok := base.(*exprlang.GetMemberExpr); ok {
+				members = append(members, gm.Member)
+				base = gm.Base
+			} else {
+				break
+			}
+		}
+		// Reverse to get correct order (a.b.c).
+		slices.Reverse(members)
+
+		// Build expression path for error messages.
+		basePath := exprPath
+		if basePath == "" {
+			if ref, ok := base.(*exprlang.RefExpr); ok {
+				basePath = ref.Ref
+			}
+		}
+		memberPath := basePath
+		for _, m := range members {
+			if memberPath != "" {
+				memberPath += "." + m
+			} else {
+				memberPath = m
+			}
+		}
+
+		// Explore base expression first and get its resolved type.
+		baseType, err := exploreExpressionTypes(base, currentType, tc, basePath)
+		if err != nil {
+			return nil, err
+		}
+
+		// Now traverse the member chain, resolving types as we go.
+		curType := baseType
+		for i, memberName := range members {
+			// Build current expression path for error messages.
+			currentPath := basePath
+			for j := 0; j <= i; j++ {
+				if currentPath != "" {
+					currentPath += "." + members[j]
+				} else {
+					currentPath = members[j]
+				}
+			}
+
+			// Handle pointer dereference if needed.
+			if ptrType, ok := curType.(*ir.PointerType); ok {
+				// Check for void pointer.
+				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+					return nil, fmt.Errorf(
+						"cannot dereference void pointer in expression %q",
+						currentPath,
+					)
+				}
+
+				// Check for unresolved pointee or placeholder.
+				pointee := ptrType.Pointee
+				pointee = tc.typesByID[pointee.GetID()]
+				if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+					// Eagerly resolve the placeholder.
+					newT, err := tc.addType(ppt.offset)
+					if err != nil {
+						return nil, fmt.Errorf(
+							"failed to resolve pointee placeholder in expression %q: %w",
+							currentPath, err,
+						)
+					}
+					if err := completeGoTypes(tc, newT.GetID(), newT.GetID()); err != nil {
+						return nil, fmt.Errorf(
+							"failed to complete pointee type in expression %q: %w",
+							currentPath, err,
+						)
+					}
+					ptrType.Pointee = newT
+					curType = newT
+				} else if _, isUnresolved := pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+					// Unresolved pointee means it wasn't explored. We can't resolve it here
+					// since we don't have the DWARF offset. This should have been handled
+					// during initial type exploration, but if it wasn't, we'll fail during
+					// expression resolution.
+					return nil, fmt.Errorf(
+						"cannot resolve expression %q: pointee type %q not explored",
+						currentPath, pointee.GetName(),
+					)
+				} else {
+					curType = pointee
+				}
+			}
+
+			// Handle structure field access.
+			structType, ok := curType.(*ir.StructureType)
+			if !ok {
+				return nil, fmt.Errorf(
+					"cannot access member %q on type %T (%q) in expression %q",
+					memberName, curType, curType.GetName(), currentPath,
+				)
+			}
+
+			// Ensure struct type is completed (fields are populated).
+			if err := completeGoTypes(tc, structType.GetID(), structType.GetID()); err != nil {
+				return nil, fmt.Errorf(
+					"failed to complete struct type in expression %q: %w",
+					currentPath, err,
+				)
+			}
+
+			// Find field.
+			field, err := field(tc, structType, memberName)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"failed to resolve field %q in expression %q: %w",
+					memberName, currentPath, err,
+				)
+			}
+
+			curType = field.Type
+			// Recursively explore field type if it's a pointer or struct.
+			if _, err := exploreExpressionTypes(
+				&exprlang.RefExpr{}, curType, tc, currentPath,
+			); err != nil {
+				return nil, err
+			}
+		}
+
+		// Final dereference if result is a pointer.
+		if ptrType, ok := curType.(*ir.PointerType); ok {
+			// Check for void pointer.
+			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+				return nil, fmt.Errorf(
+					"cannot dereference void pointer in expression %q",
+					memberPath,
+				)
+			}
+
+			pointee := ptrType.Pointee
+			pointee = tc.typesByID[pointee.GetID()]
+			if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+				// Eagerly resolve the placeholder.
+				newT, err := tc.addType(ppt.offset)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"failed to resolve final pointee placeholder in expression %q: %w",
+						memberPath, err,
+					)
+				}
+				if err := completeGoTypes(tc, newT.GetID(), newT.GetID()); err != nil {
+					return nil, fmt.Errorf(
+						"failed to complete final pointee type in expression %q: %w",
+						memberPath, err,
+					)
+				}
+				ptrType.Pointee = newT
+				curType = newT
+			} else if _, isUnresolved := pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+				return nil, fmt.Errorf(
+					"cannot resolve expression %q: final pointee type %q not explored",
+					memberPath, pointee.GetName(),
+				)
+			} else {
+				curType = pointee
+			}
+		}
+
+		return curType, nil
+
+	default:
+		// Unknown expression type - nothing to explore.
+		return currentType, nil
+	}
+}
+
+// resolveExpression resolves an expression AST to an IR Expression.
+func resolveExpression(
+	expr exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		variableSize := rootVar.Type.GetByteSize()
+		return ir.Expression{
+			Type: rootVar.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: rootVar,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		}, nil
+
+	case *exprlang.GetMemberExpr:
+		// Collect all members in the chain (e.g., a.b.c becomes [c, b, a]).
+		var members []string
+		var base exprlang.Expr = e
+		for {
+			if gm, ok := base.(*exprlang.GetMemberExpr); ok {
+				members = append(members, gm.Member)
+				base = gm.Base
+			} else {
+				break
+			}
+		}
+		// Reverse to get correct order (a.b.c).
+		slices.Reverse(members)
+
+		// Resolve base expression (RefExpr or other).
+		baseExpr, err := resolveExpression(base, rootVar, tc)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf(
+				"failed to resolve base expression: %w", err,
+			)
+		}
+
+		currentType := baseExpr.Type
+		operations := baseExpr.Operations
+		bias := uint32(0)
+		hasDereferenced := false
+		// Track the index of the last DereferenceOp we added, so we can update
+		// the correct one when we encounter field accesses after dereferences.
+		lastDerefOpIdx := -1
+
+		// Process each member in the chain.
+		for _, memberName := range members {
+			// Handle pointer dereference if needed.
+			if ptrType, ok := currentType.(*ir.PointerType); ok {
+				// Check for void pointer.
+				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+					return ir.Expression{}, fmt.Errorf(
+						"cannot dereference void pointer",
+					)
+				}
+
+				// Check for unresolved pointee.
+				if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+					return ir.Expression{}, fmt.Errorf(
+						"cannot resolve expression: pointee type %q not explored",
+						ptrType.Pointee.GetName(),
+					)
+				}
+
+				// Resolve pointee type (handles placeholders lazily).
+				pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+				if err != nil {
+					return ir.Expression{}, fmt.Errorf(
+						"failed to resolve pointee type: %w", err,
+					)
+				}
+
+				pointeeSize := pointee.GetByteSize()
+				operations = append(operations, &ir.DereferenceOp{
+					Bias:     bias,
+					ByteSize: pointeeSize,
+				})
+				lastDerefOpIdx = len(operations) - 1
+
+				currentType = pointee
+				bias = 0 // Reset bias after dereference.
+				hasDereferenced = true
+			}
+
+			// Handle structure field access.
+			structType, ok := currentType.(*ir.StructureType)
+			if !ok {
+				return ir.Expression{}, fmt.Errorf(
+					"cannot access member %q on type %T (%q)",
+					memberName, currentType, currentType.GetName(),
+				)
+			}
+
+			// Find field.
+			field, err := field(tc, structType, memberName)
+			if err != nil {
+				return ir.Expression{}, fmt.Errorf(
+					"field %q not found in type %q",
+					memberName, structType.Name,
+				)
+			}
+
+			if !hasDereferenced {
+				// Direct struct access: update LocationOp offset directly.
+				if len(operations) == 1 {
+					if locOp, ok := operations[0].(*ir.LocationOp); ok {
+						// Update the LocationOp offset to point to the field.
+						locOp.Offset += field.Offset
+						// Update the byte size to match the field size.
+						locOp.ByteSize = field.Type.GetByteSize()
+					}
+				}
+			} else {
+				// After dereference: update the DereferenceOp that corresponds to
+				// the current pointer being dereferenced (tracked by lastDerefOpIdx).
+				if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
+					if derefOp, ok := operations[lastDerefOpIdx].(*ir.DereferenceOp); ok {
+						// Update the DereferenceOp's bias to include this field offset.
+						derefOp.Bias += field.Offset
+						// Update the byte size to match the field size.
+						derefOp.ByteSize = field.Type.GetByteSize()
+					} else {
+						// Should not happen, but accumulate bias for safety.
+						bias += field.Offset
+					}
+				} else {
+					// Fallback: accumulate bias if we can't find the deref op.
+					bias += field.Offset
+				}
+			}
+
+			currentType = field.Type
+		}
+
+		// Final dereference if result is a pointer.
+		if ptrType, ok := currentType.(*ir.PointerType); ok {
+			// Check for void pointer.
+			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+				return ir.Expression{}, fmt.Errorf(
+					"cannot dereference void pointer",
+				)
+			}
+
+			// Check for unresolved pointee.
+			if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+				return ir.Expression{}, fmt.Errorf(
+					"cannot resolve expression: pointee type %q not explored",
+					ptrType.Pointee.GetName(),
+				)
+			}
+
+			// Final dereference.
+			pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+			if err != nil {
+				return ir.Expression{}, fmt.Errorf(
+					"failed to resolve final pointee type: %w", err,
+				)
+			}
+
+			pointeeSize := pointee.GetByteSize()
+			operations = append(operations, &ir.DereferenceOp{
+				Bias:     bias,
+				ByteSize: pointeeSize,
+			})
+
+			currentType = pointee
+		}
+
+		return ir.Expression{
+			Type:       currentType,
+			Operations: operations,
+		}, nil
+
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"unsupported expression type: %T", expr,
+		)
+	}
+}
+
 func populateProbeEventsExpressions(
 	probes []*ir.Probe,
-	exprs [][]probeExpression,
+	analyzedProbes []analyzedProbe,
 	typeCatalog *typeCatalog,
 ) (successful []*ir.Probe, failed []ir.ProbeIssue) {
 	for i, probe := range probes {
-		if issue := populateProbeExpressions(probe, exprs[i], typeCatalog); !issue.IsNone() {
+		ap := &analyzedProbes[i]
+		if issue := populateProbeExpressions(probe, ap, typeCatalog); !issue.IsNone() {
 			failed = append(failed, ir.ProbeIssue{
 				ProbeDefinition: probe.ProbeDefinition,
 				Issue:           issue,
@@ -2486,11 +3305,11 @@ func populateProbeEventsExpressions(
 
 func populateProbeExpressions(
 	probe *ir.Probe,
-	exprs []probeExpression,
+	ap *analyzedProbe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	for _, event := range probe.Events {
-		issue := populateEventExpressions(probe, event, exprs, typeCatalog)
+		issue := populateEventExpressions(probe, event, ap, typeCatalog)
 		if !issue.IsNone() {
 			return issue
 		}
@@ -2501,35 +3320,47 @@ func populateProbeExpressions(
 func populateEventExpressions(
 	probe *ir.Probe,
 	event *ir.Event,
-	exprs []probeExpression,
+	ap *analyzedProbe,
 	typeCatalog *typeCatalog,
 ) ir.Issue {
 	id := typeCatalog.idAlloc.next()
 	var expressions []*ir.RootExpression
-	for _, expr := range exprs {
+	for _, expr := range ap.expressions {
 		if expr.eventKind != event.Kind {
 			continue
 		}
-		v := expr.relevantVariable
-		variableSize := v.Type.GetByteSize()
+		v := expr.rootVariable
+		if v == nil {
+			// Expression was already marked invalid by exploreTypesForExpressions.
+			continue
+		}
+
+		// Resolve expression to IR.
+		resolvedExpr, err := resolveExpression(expr.expr, v, typeCatalog)
+		if err != nil {
+			// For template segments, mark as invalid instead of failing probe.
+			if expr.segment != nil && ap.template != nil {
+				ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
+					Error: fmt.Sprintf("failed to resolve expression: %v", err),
+					DSL:   expr.dsl,
+				}
+				continue
+			}
+			// For snapshot expressions (no segment), skip silently.
+			continue
+		}
+
+		// Update segment with expression index after successful resolution.
 		if seg := expr.segment; seg != nil {
 			seg.EventKind = expr.eventKind
 			seg.EventExpressionIndex = len(expressions)
 		}
+
 		expressions = append(expressions, &ir.RootExpression{
-			Name:   v.Name,
-			Offset: uint32(0),
-			Kind:   expr.exprKind,
-			Expression: ir.Expression{
-				Type: v.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: v,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
+			Name:       expr.dsl,
+			Offset:     uint32(0),
+			Kind:       expr.exprKind,
+			Expression: resolvedExpr,
 		})
 	}
 	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
