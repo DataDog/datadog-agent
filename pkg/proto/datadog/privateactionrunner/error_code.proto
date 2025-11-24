@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.errorcode;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode";
+
+// These errors don't map to an HTTP status code. Their goal is to make explicit
+// how our API can error and to have a centralized repositories of things that
+// can go wrong that a client should know about. Every ErrorCode should map to a
+// human-readable message.
+enum ActionPlatformErrorCode {
+  UNSPECIFIED = 0;
+  INTERNAL_ERROR = 1;
+  ACTION_ERROR = 2;
+  CONNECTION_ERROR = 3;
+  SIGNATURE_KEY_NOT_FOUND = 4;
+  SIGNATURE_ERROR = 5;
+  EXPIRED_TASK = 6;
+  MISMATCHED_ORG_ID = 7;
+  MISMATCHED_RUNNER_ID = 8;
+
+  DEPRECATED_INTEGRATION_ERR_UNEXPECTED = 4012 [deprecated = true];
+  DEPRECATED_INTEGRATION_ERR_ACTION = 4009 [deprecated = true];
+  DEPRECATED_INTEGRATION_ERR_CONNECTION = 4001 [deprecated = true];
+}
+
+message ActionPlatformError {
+  ActionPlatformErrorCode error_code = 1;
+  bool retryable = 2;
+  string message = 3;
+  string external_message = 4;
+  string dependency_message = 5;
+}
