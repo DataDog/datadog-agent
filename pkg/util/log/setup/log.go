@@ -54,7 +54,10 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		return err
 	}
 	if logger, ok := loggerInterface.(seelog.LoggerInterface); ok {
+		loggerInterface.Info("using seelog logger")
 		_ = seelog.ReplaceLogger(logger)
+	} else {
+		loggerInterface.Info("using slog logger")
 	}
 	log.SetupLogger(loggerInterface, seelogLogLevel.String())
 
@@ -91,13 +94,31 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	// The JMX logger always logs at level "info", because JMXFetch does its
 	// own level filtering on and provides all messages to seelog at the info
 	// or error levels, via log.JMXInfo and log.JMXError.
-	return buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	logger, err := buildLogger(JMXLoggerName, log.InfoLvl, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := logger.(seelog.LoggerInterface); ok {
+		logger.Info("using seelog logger")
+	} else {
+		logger.Info("using slog logger")
+	}
+	return logger, nil
 }
 
 // SetupDogstatsdLogger returns a logger with dogstatsd logger name and log level
 // if a non empty logFile is provided, it will also log to the file
 func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	return buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
+	logger, err := buildDogstatsdLogger(DogstatsDLoggerName, log.InfoLvl, logFile, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := logger.(seelog.LoggerInterface); ok {
+		logger.Info("using seelog logger")
+	} else {
+		logger.Info("using slog logger")
+	}
+	return logger, nil
 }
 
 func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
