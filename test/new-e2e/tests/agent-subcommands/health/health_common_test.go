@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +48,12 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 }
 
 func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
+	// restart the agent, which validates the key using the fakeintake at startup
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
+	))
+
 	// the fakeintake says that any API key is invalid by sending a 403 code
 	override := api.ResponseOverride{
 		Endpoint:   "/api/v1/validate",
@@ -54,14 +61,20 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 		Method:     http.MethodGet,
 		Body:       []byte("invalid API key"),
 	}
+
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
 
-	// restart the agent, which validates the key using the fakeintake at startup
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
-	))
+	var svcManager svcmanager.ServiceManager
+	if v.descriptor.Family() == os.WindowsFamily {
+		svcManager = svcmanager.NewWindows(v.Env().RemoteHost)
+	} else {
+		svcManager = svcmanager.NewSystemctl(v.Env().RemoteHost)
+	}
+
+	out, err := svcManager.Restart("datadog-agent")
+	v.T().Log(out)
+	require.NoError(v.T(), err)
 
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
 		// forwarder should be unhealthy because the key is invalid
