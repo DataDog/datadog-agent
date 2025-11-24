@@ -44,8 +44,8 @@ type Check struct {
 	core.CheckBase
 	collectors         []nvidia.Collector               // collectors for NVML metrics
 	tagger             tagger.Component                 // Tagger instance to add tags to outgoing metrics
-	telemetry          *checkTelemetry                  // Telemetry component to emit internal telemetry
-	telemetryComponent telemetry.Component              // Telemetry component to emit internal telemetry
+	telemetry          *checkTelemetry                  // Internal telemetry metrics for the check
+	telemetryComponent telemetry.Component              // Telemetry component
 	wmeta              workloadmeta.Component           // Workloadmeta store to get the list of containers
 	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
 	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices

@@ -146,14 +146,15 @@ func (c *WorkloadTagCache) MarkStale() {
 		entry.stale = true
 	}
 
-	//
+	// Invalidate the PID -> CID mapping, so that it's refreshed on the next run
 	c.pidToCid = nil
 
-	// Update the telemetry metrics after invalidation
+	// Update the telemetry metrics with the current state of the cache.
 	c.telemetry.cacheSize.Set(float64(c.cache.Len()))
 }
 
-// buildContainerTags builds the tags for a container. Can return "ErrNotFound" if the container is not found.
+// buildContainerTags builds the tags for a container. Can return "ErrNotFound"
+// (coming from the workloadmeta component) if the container is not found.
 func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, error) {
 	container, err := c.wmeta.GetContainer(containerID)
 	if err != nil {
@@ -175,8 +176,8 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 	return c.tagger.Tag(entityID, cardinality)
 }
 
-// buildProcessTags builds the tags for a process. Does not return "ErrNotFound", as it will try to get
-// the data directly if workloadmeta does not have process data.
+// buildProcessTags builds the tags for a process. Can return "ErrNotFound" if the process
+// is not found in workloadmeta and is not running.
 func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) {
 	var multiErr error
 
@@ -261,17 +262,16 @@ func getNsPID(pid int32) (int32, error) {
 // getContainerID retrieves the container ID for a given PID from the container
 // provider, used when workloadmeta does not have data for the process. We use
 // the containerProvider as a fallback, however it also depends on workloadmeta
-// for the container data. That dependency is not a problem for us: the reason we want
-// the container is to get the container tags. If the container is not in workloadmeta
-// we won't be able to get the tags anyway even if we got the container ID from another place
-// that didn't depend at all on workloadmeta.
-// Returns an empty string if the container ID is not found.
+// for the container data. That dependency is not a problem for us: the reason
+// we want the container is to get the container tags. If the container is not
+// in workloadmeta we won't be able to get the tags anyway even if we got the
+// container ID from another place that didn't depend at all on workloadmeta.
+//
+// Returns an empty string and a "ErrNotFound" error if the container is not
+// found
 func (c *WorkloadTagCache) getContainerID(pid int32) (string, error) {
 	if c.pidToCid == nil {
 		if c.containerProvider == nil {
-			// with no container provider, we cannot get the container ID, so return an empty string.
-			// this might happen in tests that use the WorkloadTagCache without a container provider, where this logic is not needed
-			// or under test but might cause panics if we don't have this check.
 			return "", fmt.Errorf("no container provider available")
 		}
 

@@ -112,7 +112,6 @@ func processUtilizationSample(device ddnvml.Device, lastTimestamp uint64) ([]Met
 		}
 	} else {
 		for _, sample := range processSamples {
-			// Create PID tag for this process
 			workloads := []workloadmeta.EntityID{{
 				Kind: workloadmeta.KindProcess,
 				ID:   strconv.Itoa(int(sample.Pid)),
