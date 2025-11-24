@@ -8,6 +8,7 @@
 package receiver
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -35,6 +36,19 @@ type Config struct {
 
 var _ xconfmap.Validator = (*Config)(nil)
 
+func errSymbolEndpointsRequired() error {
+	return errors.New("symbol_endpoints is required")
+}
+func errSymbolEndpointsSiteRequired() error {
+	return errors.New("symbol_endpoints.site is required")
+}
+func errSymbolEndpointsAPIKeyRequired() error {
+	return errors.New("symbol_endpoints.api_key is required")
+}
+func errSymbolEndpointsAppKeyRequired() error {
+	return errors.New("symbol_endpoints.app_key is required")
+}
+
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
 func (c *Config) Validate() error {
@@ -57,6 +71,22 @@ func (c *Config) Validate() error {
 		c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
 	}
 
+	if c.SymbolUploader.Enabled {
+		if len(c.SymbolUploader.SymbolEndpoints) == 0 {
+			return errSymbolEndpointsRequired()
+		}
+		for _, endpoint := range c.SymbolUploader.SymbolEndpoints {
+			if endpoint.Site == "" {
+				return errSymbolEndpointsSiteRequired()
+			}
+			if endpoint.APIKey == "" {
+				return errSymbolEndpointsAPIKeyRequired()
+			}
+			if endpoint.AppKey == "" {
+				return errSymbolEndpointsAppKeyRequired()
+			}
+		}
+	}
 	return nil
 }
 
