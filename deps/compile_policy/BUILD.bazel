@@ -10,6 +10,9 @@ alias(
         "//:linux_arm64": "@compile_policy_arm64//:dd-compile-policy",
         "//:linux_x86_64": "@compile_policy_x86_64//:dd-compile-policy",
     }),
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
 )
 
 pkg_files(
