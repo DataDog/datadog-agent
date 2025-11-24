@@ -813,6 +813,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
+	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1566,6 +1567,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
