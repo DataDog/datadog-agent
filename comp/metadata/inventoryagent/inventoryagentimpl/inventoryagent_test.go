@@ -264,6 +264,9 @@ func TestInitData(t *testing.T) {
 		expected["feature_usm_redis_enabled"] = false
 	}
 
+	// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+	expected["feature_usm_http2_enabled"] = sysprobecfg.HTTP2MonitoringSupported()
+
 	for name, value := range expected {
 		assert.Equal(t, value, ia.data[name], "value for '%s' is wrong", name)
 	}

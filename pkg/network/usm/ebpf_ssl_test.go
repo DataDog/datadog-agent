@@ -311,3 +311,47 @@ func TestSSLMapsCleanup(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+// TestPIDKeyedMapNameUniqueness verifies that all PID-keyed TLS map names are unique
+// within their first 15 characters to prevent collisions from kernel truncation.
+//
+// eBPF map names are limited to 15 characters by the kernel (BPF_OBJ_NAME_LEN - 1).
+// The leak detection system searches maps by truncated names, so names like
+// "hash_map_name_10" and "hash_map_name_11" would collide as both truncate to
+// "hash_map_name_1".
+//
+// This test ensures we catch such collisions at compile/test time rather than
+// discovering them in production.
+func TestPIDKeyedMapNameUniqueness(t *testing.T) {
+	names := GetPIDKeyedTLSMapNames()
+	require.NotEmpty(t, names, "No PID-keyed map names found")
+
+	truncated := make(map[string]string)
+	for _, name := range names {
+		truncName := name
+		if len(name) > 15 {
+			truncName = name[:15]
+		}
+
+		if existing, found := truncated[truncName]; found {
+			t.Errorf("Map name collision detected:\n"+
+				"  Map 1: %q\n"+
+				"  Map 2: %q\n"+
+				"  Both truncate to: %q\n"+
+				"Map names must be unique within their first 15 characters due to kernel limitation (BPF_OBJ_NAME_LEN - 1).",
+				existing, name, truncName)
+		}
+		truncated[truncName] = name
+	}
+
+	// Log all truncated names for reference
+	t.Logf("Current PID-keyed TLS map names and their truncated forms:")
+	for _, name := range names {
+		if len(name) > 15 {
+			truncName := name[:15]
+			t.Logf("  %q -> %q (truncated)", name, truncName)
+		} else {
+			t.Logf("  %q (no truncation)", name)
+		}
+	}
+}
