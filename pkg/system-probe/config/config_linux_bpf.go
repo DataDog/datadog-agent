@@ -60,6 +60,16 @@ func RedisMonitoringSupported() bool {
 	return kernelVersion.Code >= ebpfkernel.Kernel5_4
 }
 
+// HTTP2MonitoringSupported returns true if HTTP2 monitoring is supported on the current kernel
+func HTTP2MonitoringSupported() bool {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		log.Errorf("unable to detect the kernel version: %s", err)
+		return false
+	}
+	return kernelVersion.Code >= ebpfkernel.Kernel5_2
+}
+
 func allowPrebuiltEbpfFallback(cfg model.Config) {
 	// only allow falling back to prebuilt eBPF if the config
 	// is not explicitly set and prebuilt eBPF is not deprecated
