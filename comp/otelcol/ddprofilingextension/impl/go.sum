@@ -21,8 +21,8 @@ github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/
 github.com/DataDog/gostackparse v0.7.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
-github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 h1:uX4ZqokylxBI67r+AN09CiFY+s8Frmf33YZlyqIMBc4=
-github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
+github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3 h1:92RG43PJUX0unYAdqtNWeQMKigUDK7tpV3iHeeby2e4=
+github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
 github.com/DataDog/zstd v1.5.7/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 h1:sBEjpZlNHzK1voKq9695PJSX2o5NEXl7/OL3coiIY0c=

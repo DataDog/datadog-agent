@@ -56,8 +56,6 @@ type Check interface {
 	GetDiagnoses() ([]diagnose.Diagnosis, error)
 	// IsHASupported returns if the check is compatible with High Availability
 	IsHASupported() bool
-	// RunOnce returns true if the check should be descheduled after its first run
-	RunOnce() bool
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check
