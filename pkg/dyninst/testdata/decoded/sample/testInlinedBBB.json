@@ -56,10 +56,10 @@
           "location": {
             "method": "main.testInlinedBBB"
           }
-        },
-        "captures": {}
+        }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testInlinedBBB"
   }
 ]

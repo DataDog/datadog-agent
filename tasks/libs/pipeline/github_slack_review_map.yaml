@@ -29,7 +29,7 @@
 '@datadog/kubernetes-experiences': '#kubernetes-experiences'
 '@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/agent-onboarding': '#agent-onboarding-ops'
-'@datadog/container-experiences': '#process-agent-ops'
+'@datadog/container-experiences': '#container-experiences'
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-platform': '#container-platform'
 '@datadog/data-jobs-monitoring': '#data-jobs-monitoring'

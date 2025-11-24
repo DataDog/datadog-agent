@@ -75,6 +75,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "false, 42, 122, 1337, xyz"
   }
 ]

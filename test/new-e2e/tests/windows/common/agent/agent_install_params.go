@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams/msi"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/msi"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"

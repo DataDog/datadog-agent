@@ -9,15 +9,15 @@ package gcpkubernetes
 import (
 	"fmt"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/gke"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/gke"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )

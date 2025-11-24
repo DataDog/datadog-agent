@@ -1914,36 +1914,6 @@ def process_btfhub_archive(ctx, branch="main"):
 
 
 @task
-def generate_event_monitor_proto(ctx):
-    with tempfile.TemporaryDirectory() as temp_gobin:
-        with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
-
-            plugin_opts = " ".join(
-                [
-                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
-                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
-                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
-                ]
-            )
-
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
-            )
-
-    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
-        print(f"replacing protoc version in {path}")
-        with open(path) as f:
-            content = f.read()
-
-        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
-        with open(path, "w") as f:
-            f.write(replaced_content)
-
-
-@task
 def save_test_dockers(ctx, output_dir, arch, use_crane=False):
     if is_windows:
         return

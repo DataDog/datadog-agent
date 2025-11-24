@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"

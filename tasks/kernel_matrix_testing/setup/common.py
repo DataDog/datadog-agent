@@ -88,8 +88,8 @@ class TestInfraDefinitionsRepo(Requirement):
 
         # Default to common paths if a specific setting has not been forced
         return [
-            get_repo_root().parent / "test-infra-definitions",
-            Path("~/go/src/github.com/DataDog/test-infra-definitions").expanduser(),
+            get_repo_root() / "test/e2e-framework",
+            Path("~/go/src/github.com/DataDog/datadog-agent/test/e2e-framework").expanduser(),
         ]
 
     @staticmethod

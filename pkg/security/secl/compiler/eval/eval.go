@@ -36,16 +36,14 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string, state *State) (Field, Field, RegisterID, error) {
-	if state.regexpCache.arraySubscriptFindRE == nil {
-		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
-	}
-	if state.regexpCache.arraySubscriptReplaceRE == nil {
-		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	}
+var (
+	arraySubscriptFindRE    = regexp.MustCompile(`\[([^\]]*)\]`)
+	arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+)
 
+func extractField(field string) (Field, Field, RegisterID, error) {
 	var regID RegisterID
-	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
+	ids := arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
@@ -56,8 +54,8 @@ func extractField(field string, state *State) (Field, Field, RegisterID, error) 
 		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
-	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
+	resField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
 	return resField, itField, regID, nil
 }
@@ -78,7 +76,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident, state)
+	field, itField, regID, err := extractField(*obj.Ident)
 	if err != nil {
 		return nil, obj.Pos, err
 	}

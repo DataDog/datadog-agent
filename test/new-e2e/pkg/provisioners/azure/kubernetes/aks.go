@@ -9,11 +9,11 @@ package azurekubernetes
 import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/resources/azure"
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/aks"
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/aks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"

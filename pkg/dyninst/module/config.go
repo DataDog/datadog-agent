@@ -47,9 +47,6 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	// ProcessSyncDisabled disables the process sync for the module.
-	ProcessSyncDisabled bool
-
 	// CircuitBreakerConfig is the configuration for the circuit breaker enforcing probe cpu-limits.
 	CircuitBreakerConfig actuator.CircuitBreakerConfig
 

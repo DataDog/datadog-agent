@@ -368,6 +368,7 @@
 /comp/etw @DataDog/windows-products
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
+/comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
 /comp/networkdeviceconfig @DataDog/network-device-monitoring
 /comp/notableevents @DataDog/windows-products
@@ -377,6 +378,7 @@
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/ndm-core
+/comp/snmpscanmanager @DataDog/ndm-core
 /comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 /comp/workloadselection @DataDog/injection-platform
@@ -594,7 +596,6 @@
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring
-/pkg/process/events/consumer/           @DataDog/agent-security
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/cloud-network-monitoring
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/cloud-network-monitoring @DataDog/windows-products
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
@@ -733,6 +734,7 @@
 /test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
+/test/new-e2e/system-probe/config/vmconfig-security-agent.json @DataDog/ebpf-platform @Datadog/agent-security
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/agent-onboarding @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations

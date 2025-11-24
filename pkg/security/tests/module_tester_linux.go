@@ -76,9 +76,10 @@ system_probe_config:
   enable_runtime_compiler: true
 
 event_monitoring_config:
-  socket: /tmp/test-event-monitor.sock
   custom_sensitive_words:
     - "*custom*"
+  custom_sensitive_regexps:
+    - "gh-[a-zA-Z0-9]+"
   network:
     enabled: true
     flow_monitor:
@@ -365,7 +366,13 @@ func assertReturnValue(tb testing.TB, retval, expected int64) bool {
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event) {
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -484,7 +491,13 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event) {
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, nil)
+		scrubber, err := utils.NewScrubber(nil, nil)
+		if err != nil {
+			tb.Errorf("failed to create scrubber: %v", err)
+			return
+		}
+
+		eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -539,7 +552,13 @@ func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) 
 		return
 	}
 
-	eventJSON, err := serializers.MarshalEvent(event, nil)
+	scrubber, err := utils.NewScrubber(nil, nil)
+	if err != nil {
+		tb.Errorf("failed to create scrubber: %v", err)
+		return
+	}
+
+	eventJSON, err := serializers.MarshalEvent(event, nil, scrubber)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return

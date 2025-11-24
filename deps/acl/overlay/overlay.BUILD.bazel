@@ -1,17 +1,35 @@
 # libacl
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
+package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
+
 _VERSION = "2.3.1"
 
-# TODO: libacl.rb referred include: ship_source_offer true. Find out what that means.
-# TODO: https://datadoghq.atlassian.net/browse/ABLD-295
+# This is going to change in the future. Debate the syntax in https://github.com/bazel-contrib/supply-chain/issues/124
+PURL = "pkg:https/download.savannah.nongnu.org/acl@{version}?url=https://download.savannah.nongnu.org/releases/acl/attr-%{version}.tar.xz".format(
+    version = _VERSION,
+)
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = PURL,
+)
+
+ship_source_offer(name = "ship_source_offer")
+
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],

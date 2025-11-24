@@ -10,5 +10,8 @@ http_archive(
     },
     sha256 = "c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
     strip_prefix = "acl-2.3.1",
-    url = "http://download.savannah.nongnu.org/releases/acl/acl-2.3.1.tar.xz",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/acl-acl-2.3.1.tar.xz",
+        "https://download.savannah.nongnu.org/releases/acl/acl-2.3.1.tar.xz",
+    ],
 )

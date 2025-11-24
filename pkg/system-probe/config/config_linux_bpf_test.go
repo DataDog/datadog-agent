@@ -76,6 +76,14 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	}
 }
 
+func TestHTTP2MonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	require.Equal(t, HTTP2MonitoringSupported(), cfg.GetBool("service_monitoring_config.http2.enabled"))
+}
+
 func TestNPMEnabled(t *testing.T) {
 	tests := []struct {
 		npm, usm, ccm, csm, csmNpm bool

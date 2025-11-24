@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	tifecs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	tifecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
 	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 )
