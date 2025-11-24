@@ -174,7 +174,7 @@ func (s *UnimplementedRemoteAgentServer) start() {
 		registrationBackoff.Reset()
 
 		// Start with immediate first registration attempt
-		ticker := time.NewTicker(registrationBackoff.NextBackOff())
+		ticker := time.NewTicker(time.Microsecond)
 		defer ticker.Stop()
 
 		for {
