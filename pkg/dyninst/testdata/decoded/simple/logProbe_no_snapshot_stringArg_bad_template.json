@@ -24,6 +24,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "x: {failed to resolve reference \"x\"}"
+    "message": "x: {error: failed to resolve reference \"x\"}"
   }
 ]
