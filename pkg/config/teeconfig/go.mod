@@ -5,7 +5,6 @@ go 1.24.0
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.64.0-devel
-	github.com/go-viper/mapstructure/v2 v2.4.0
 )
 
 require (
