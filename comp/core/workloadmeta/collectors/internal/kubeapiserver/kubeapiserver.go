@@ -275,6 +275,7 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 	featureGates, err := apiserverClient.GetClusterFeatureGates(ctx)
 	if err != nil {
 		log.Errorf("failed to get cluster feature gates: %v", err)
+		featureGates = make(map[string]apiserver.FeatureGate)
 	}
 
 	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)

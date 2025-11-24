@@ -9,12 +9,15 @@
 package apiserver
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,6 +79,9 @@ const (
 	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high nunber of `Update` requests)
 	controllerClientQPSLimit = 150
 	controllerClientQPSBurst = 300
+
+	// API Server metrics path
+	apiServerMetricsPath = "/metrics"
 )
 
 // APIClient provides authenticated access to the
@@ -749,4 +755,64 @@ func GetKubeSecret(namespace string, name string) (map[string][]byte, error) {
 	}
 
 	return secret.Data, nil
+}
+
+// FeatureGate represents a single Kubernetes feature gate
+type FeatureGate struct {
+	Name    string
+	Stage   string
+	Enabled bool
+}
+
+// parseFeatureGatesFromMetrics parses the metrics endpoint, extracting feature gate information
+// Expected format: kubernetes_feature_enabled{name="FeatureName",stage="STAGE"} 1
+func parseFeatureGatesFromMetrics(metricsData []byte) (map[string]FeatureGate, error) {
+	gates := make(map[string]FeatureGate)
+
+	// Regex to parse: kubernetes_feature_enabled{name="SomeFeature",stage="BETA"} 1
+	pattern := regexp.MustCompile(`kubernetes_feature_enabled\{name="([^"]+)",stage="([^"]*)"\}\s+(\d+)`)
+
+	scanner := bufio.NewScanner(strings.NewReader(string(metricsData)))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Skip comments and non-matching lines
+		if strings.HasPrefix(line, "#") || !strings.Contains(line, "kubernetes_feature_enabled") {
+			continue
+		}
+
+		matches := pattern.FindStringSubmatch(line)
+		if len(matches) == 4 {
+			name := matches[1]
+			stage := matches[2]
+			enabled := matches[3] == "1"
+
+			gates[name] = FeatureGate{
+				Name:    name,
+				Stage:   stage,
+				Enabled: enabled,
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning metrics: %v", err)
+	}
+
+	return gates, nil
+}
+
+// GetClusterFeatureGates queries the /metrics endpoint and returns feature gates
+func (c *APIClient) GetClusterFeatureGates(ctx context.Context) (map[string]FeatureGate, error) {
+	metricsData, err := c.Cl.Discovery().RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query /metrics endpoint: %v", err)
+	}
+
+	gates, err := parseFeatureGatesFromMetrics(metricsData)
+	if err != nil {
+		return nil, err
+	}
+
+	return gates, nil
 }
