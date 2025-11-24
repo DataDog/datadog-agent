@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"testing"
 
+	semconv1_12 "go.opentelemetry.io/otel/semconv/v1.12.0"
 	semconv1_17 "go.opentelemetry.io/otel/semconv/v1.17.0"
 	semconv127 "go.opentelemetry.io/otel/semconv/v1.27.0"
 
@@ -236,6 +237,246 @@ func TestOriginIDFromAttributes(t *testing.T) {
 		t.Run(testInstance.name, func(t *testing.T) {
 			originID := OriginIDFromAttributes(testInstance.attrs)
 			assert.Equal(t, testInstance.originID, originID)
+		})
+	}
+}
+
+func TestGetOperationName(t *testing.T) {
+	tests := []struct {
+		name     string
+		attrs    map[string]string
+		spanKind ptrace.SpanKind
+		expected string
+	}{
+		{
+			name:     "operation.name",
+			spanKind: ptrace.SpanKindInternal,
+			attrs: map[string]string{
+				"operation.name": "test-operation-name",
+			},
+			expected: "test-operation-name",
+		},
+		{
+			name:     "http.server.request",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				string(semconv127.HTTPRequestMethodKey): "GET",
+			},
+			expected: "http.server.request",
+		},
+		{
+			name:     "http.client.request",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv127.HTTPRequestMethodKey): "GET",
+			},
+			expected: "http.client.request",
+		},
+		{
+			name:     "db.query",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.DBSystemKey): "redis",
+			},
+			expected: "redis.query",
+		},
+		{
+			name:     "messaging.operation",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.MessagingSystemKey):    "kafka",
+				string(semconv1_12.MessagingOperationKey): "send",
+			},
+			expected: "kafka.send",
+		},
+		{
+			name:     "aws.client.request",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.RPCSystemKey): "aws-api",
+			},
+			expected: "aws.client.request",
+		},
+		{
+			name:     "aws.service.request",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.RPCSystemKey):  "aws-api",
+				string(semconv1_12.RPCServiceKey): "lambda",
+			},
+			expected: "aws.lambda.request",
+		},
+		{
+			name:     "grpc.client.request",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.RPCSystemKey): "grpc",
+			},
+			expected: "grpc.client.request",
+		},
+		{
+			name:     "grpc.server.request",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				string(semconv1_12.RPCSystemKey): "grpc",
+			},
+			expected: "grpc.server.request",
+		},
+		{
+			name:     "faas.client.request",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.FaaSInvokedProviderKey): "gcp",
+				string(semconv1_12.FaaSInvokedNameKey):     "foo",
+			},
+			expected: "gcp.foo.invoke",
+		},
+		{
+			name:     "faas.server.request",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				string(semconv1_12.FaaSTriggerKey): "timer",
+			},
+			expected: "timer.invoke",
+		},
+		{
+			name:     "graphql.server.request",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				"graphql.operation.type": "query",
+			},
+			expected: "graphql.server.request",
+		},
+		{
+			name:     "network.protocol.name - server",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				"network.protocol.name": "http",
+			},
+			expected: "http.server.request",
+		},
+		{
+			name:     "network.protocol.name - client",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				"network.protocol.name": "http",
+			},
+			expected: "http.client.request",
+		},
+		{
+			name:     "default - specified span kind",
+			spanKind: ptrace.SpanKindServer,
+			expected: "server",
+		},
+		{
+			name:     "default",
+			spanKind: ptrace.SpanKindInternal,
+			expected: "internal",
+		},
+	}
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			for k, v := range testInstance.attrs {
+				attrs.PutStr(k, v)
+			}
+		})
+	}
+}
+
+func TestGetResourceName(t *testing.T) {
+	tests := []struct {
+		name     string
+		spanKind ptrace.SpanKind
+		attrs    map[string]string
+		fallback string
+		expected string
+	}{
+		{
+			name:     "resource.name",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				"resource.name": "test-resource-name",
+			},
+			expected: "test-resource-name",
+		},
+		{
+			name:     "http - use HTTP route for server spans",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				string(semconv127.HTTPRequestMethodKey): "GET",
+				string(semconv127.HTTPRouteKey):         "/",
+			},
+			expected: "GET /",
+		},
+		{
+			name:     "http - use HTTP template for client spans",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv127.HTTPRequestMethodKey): "GET",
+				string(semconv127.URLTemplateKey):       "http://example.com/path?query=value",
+			},
+			expected: "GET http://example.com/path?query=value",
+		},
+		{
+			name:     "messaging operation",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.MessagingOperationKey):   "send",
+				string(semconv1_12.MessagingDestinationKey): "example.com",
+			},
+			expected: "send example.com",
+		}, {
+			name:     "rpc",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.RPCMethodKey):  "get",
+				string(semconv1_12.RPCServiceKey): "example.com",
+			},
+			expected: "get example.com",
+		},
+		{
+			name:     "graphql",
+			spanKind: ptrace.SpanKindServer,
+			attrs: map[string]string{
+				string(semconv1_17.GraphqlOperationTypeKey): "query",
+				string(semconv1_17.GraphqlOperationNameKey): "myQuery",
+			},
+			expected: "query myQuery",
+		},
+		{
+			name:     "db statement (old convention)",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.DBSystemKey):    "redis",
+				string(semconv1_12.DBStatementKey): "SELECT * FROM resource",
+			},
+			expected: "SELECT * FROM resource",
+		},
+		{
+			name:     "db query",
+			spanKind: ptrace.SpanKindClient,
+			attrs: map[string]string{
+				string(semconv1_12.DBSystemKey):   "redis",
+				string(semconv127.DBQueryTextKey): "SELECT * FROM resource",
+			},
+			expected: "SELECT * FROM resource",
+		},
+		{
+			name:     "fallback name",
+			spanKind: ptrace.SpanKindClient,
+			fallback: "fallback-name",
+			expected: "fallback-name",
+		},
+	}
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			for k, v := range testInstance.attrs {
+				attrs.PutStr(k, v)
+			}
+			resourceName := GetResourceName(attrs, testInstance.spanKind, testInstance.fallback)
+			assert.Equal(t, testInstance.expected, resourceName)
 		})
 	}
 }
@@ -476,10 +717,10 @@ func TestGetSpecifiedKeysFromOTelAttributes(t *testing.T) {
 		},
 		{
 			name:         "signal takes precedence over resource",
-			sattrs:       map[string]string{"test-key": "signal-value"},
-			rattrs:       map[string]string{"test-key": "resource-value"},
-			keysToReturn: map[string]struct{}{"test-key": {}},
-			expected:     []string{"test-key:signal-value"},
+			sattrs:       map[string]string{"test-key": "signal-value", "only-in-signal": "signal-value"},
+			rattrs:       map[string]string{"test-key": "resource-value", "only-in-resource": "resource-value"},
+			keysToReturn: map[string]struct{}{"test-key": {}, "only-in-signal": {}, "only-in-resource": {}},
+			expected:     []string{"test-key:signal-value", "only-in-signal:signal-value", "only-in-resource:resource-value"},
 		},
 	}
 	for _, testInstance := range tests {
@@ -492,8 +733,8 @@ func TestGetSpecifiedKeysFromOTelAttributes(t *testing.T) {
 			for k, v := range testInstance.rattrs {
 				resourceAttrs.PutStr(k, v)
 			}
-			actual := GetSpecifiedKeysFromOTelAttributes(signalAttrs, resourceAttrs, testInstance.keysToReturn)
-			assert.Equal(t, testInstance.expected, actual)
+			got := GetSpecifiedKeysFromOTelAttributes(signalAttrs, resourceAttrs, testInstance.keysToReturn)
+			assert.ElementsMatch(t, testInstance.expected, got)
 		})
 	}
 }
