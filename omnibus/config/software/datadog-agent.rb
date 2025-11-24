@@ -333,8 +333,9 @@ build do
   end
 
   block do
+    # The windows version of pkg_install has some problems w.r.t. relative or absolute
+    # paths. Setting BUILD_WORKSPACE_DIRECTORY is a hack around that.
     env["BUILD_WORKSPACE_DIRECTORY"] = "."
-    # TODO: pkg_install is still buggy on Windows. Fix it and use that.
     mkdir "#{install_dir}/sources"
     command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir=#{install_dir}"
   end
