@@ -865,6 +865,16 @@ type ChunkConvertedFields struct {
 	GitCommitShaRef uint32
 }
 
+// applyPromotedFields applies chunk promoted fields to the tracer payload
+func (tp *InternalTracerPayload) applyPromotedFields(convertedFields *ChunkConvertedFields) {
+	tp.envRef = convertedFields.EnvRef
+	tp.hostnameRef = convertedFields.HostnameRef
+	tp.appVersionRef = convertedFields.AppVersionRef
+	if convertedFields.GitCommitShaRef != 0 {
+		tp.setStringRefAttribute("_dd.git.commit.sha", convertedFields.GitCommitShaRef)
+	}
+}
+
 // UnmarshalMsgConverted unmarshals a list of list(sic) v4 spans directly into an InternalTracerPayload for efficiency
 func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, err error) {
 	if tp.Attributes == nil {
@@ -893,14 +903,32 @@ func (tp *InternalTracerPayload) UnmarshalMsgConverted(bts []byte) (o []byte, er
 			return
 		}
 	}
-	tp.envRef = chunkConvertedFields.EnvRef
-	tp.hostnameRef = chunkConvertedFields.HostnameRef
-	tp.appVersionRef = chunkConvertedFields.AppVersionRef
-	if chunkConvertedFields.GitCommitShaRef != 0 {
-		tp.setStringRefAttribute("_dd.git.commit.sha", chunkConvertedFields.GitCommitShaRef)
-	}
+	tp.applyPromotedFields(&chunkConvertedFields)
 	o = bts
 	return
+}
+
+// applyPromotedFields applies span promoted fields to the chunk, copying chunk promoted fields to chunkConvertedFields
+func (c *InternalTraceChunk) applyPromotedFields(convertedFields *SpanConvertedFields, chunkConvertedFields *ChunkConvertedFields) {
+	tid := make([]byte, 16)
+	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDLower)
+	binary.BigEndian.PutUint64(tid[:8], convertedFields.TraceIDUpper)
+	c.TraceID = tid
+	c.samplingMechanism = convertedFields.SamplingMechanism
+	c.Priority = int32(convertedFields.SamplingPriority)
+	c.originRef = convertedFields.OriginRef
+	if convertedFields.EnvRef != 0 {
+		chunkConvertedFields.EnvRef = convertedFields.EnvRef
+	}
+	if convertedFields.HostnameRef != 0 {
+		chunkConvertedFields.HostnameRef = convertedFields.HostnameRef
+	}
+	if convertedFields.AppVersionRef != 0 {
+		chunkConvertedFields.AppVersionRef = convertedFields.AppVersionRef
+	}
+	if convertedFields.GitCommitShaRef != 0 {
+		chunkConvertedFields.GitCommitShaRef = convertedFields.GitCommitShaRef
+	}
 }
 
 // UnmarshalMsgConverted unmarshals a list of v4 spans directly into an InternalTraceChunk for efficiency
@@ -934,25 +962,7 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 			}
 		}
 	}
-	tid := make([]byte, 16)
-	binary.BigEndian.PutUint64(tid[8:], convertedFields.TraceIDLower)
-	binary.BigEndian.PutUint64(tid[:8], convertedFields.TraceIDUpper)
-	c.TraceID = tid
-	c.samplingMechanism = convertedFields.SamplingMechanism
-	c.Priority = int32(convertedFields.SamplingPriority)
-	c.originRef = convertedFields.OriginRef
-	if convertedFields.EnvRef != 0 {
-		chunkConvertedFields.EnvRef = convertedFields.EnvRef
-	}
-	if convertedFields.HostnameRef != 0 {
-		chunkConvertedFields.HostnameRef = convertedFields.HostnameRef
-	}
-	if convertedFields.AppVersionRef != 0 {
-		chunkConvertedFields.AppVersionRef = convertedFields.AppVersionRef
-	}
-	if convertedFields.GitCommitShaRef != 0 {
-		chunkConvertedFields.GitCommitShaRef = convertedFields.GitCommitShaRef
-	}
+	c.applyPromotedFields(&convertedFields, chunkConvertedFields)
 	o = bts
 	return
 }
@@ -982,7 +992,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.ServiceRef = 0
 				break
 			}
-			s.span.ServiceRef, bts, err = parseStringBytes(s.Strings, bts)
+			s.span.ServiceRef, bts, err = parseStringBytesRef(s.Strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
@@ -993,7 +1003,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.NameRef = 0
 				break
 			}
-			s.span.NameRef, bts, err = parseStringBytes(s.Strings, bts)
+			s.span.NameRef, bts, err = parseStringBytesRef(s.Strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
@@ -1004,7 +1014,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.ResourceRef = 0
 				break
 			}
-			s.span.ResourceRef, bts, err = parseStringBytes(s.Strings, bts)
+			s.span.ResourceRef, bts, err = parseStringBytesRef(s.Strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Service")
 				return
@@ -1102,12 +1112,12 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				var metaVal uint32
 				numMetaFields--
 				var metaKey uint32
-				metaKey, bts, err = parseStringBytes(s.Strings, bts)
+				metaKey, bts, err = parseStringBytesRef(s.Strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Meta")
 					return
 				}
-				metaVal, bts, err = parseStringBytes(s.Strings, bts)
+				metaVal, bts, err = parseStringBytesRef(s.Strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Meta", metaKey)
 					return
@@ -1137,7 +1147,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				var value float64
 				numMetricsFields--
 				var key uint32
-				key, bts, err = parseStringBytes(s.Strings, bts)
+				key, bts, err = parseStringBytesRef(s.Strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Metrics")
 					return
@@ -1147,9 +1157,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 					err = msgp.WrapError(err, "Metrics", key)
 					return
 				}
-				if s.Strings.Get(key) == "_sampling_priority_v1" {
-					convertedFields.SamplingPriority = uint32(value)
-				}
+				s.handlePromotedMetricsFields(key, value, convertedFields)
 				s.span.Attributes[key] = &AnyValue{
 					Value: &AnyValue_DoubleValue{
 						DoubleValue: value,
@@ -1162,7 +1170,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				s.span.TypeRef = 0
 				break
 			}
-			s.span.TypeRef, bts, err = parseStringBytes(s.Strings, bts)
+			s.span.TypeRef, bts, err = parseStringBytesRef(s.Strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Type")
 				return
@@ -1181,7 +1189,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 				var value []byte
 				numMetaStructFields--
 				var key uint32
-				key, bts, err = parseStringBytes(s.Strings, bts)
+				key, bts, err = parseStringBytesRef(s.Strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "MetaStruct")
 					return
@@ -1299,7 +1307,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				bts, err = msgp.ReadNilBytes(bts)
 				break
 			}
-			x.NameRef, bts, err = parseStringBytes(strings, bts)
+			x.NameRef, bts, err = parseStringBytesRef(strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Name")
 				return
@@ -1318,7 +1326,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				var value *AnyValue
 				numAttributes--
 				var keyRef uint32
-				keyRef, bts, err = parseStringBytes(strings, bts)
+				keyRef, bts, err = parseStringBytesRef(strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Attributes")
 					return
@@ -1384,7 +1392,7 @@ func (x *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []
 				}
 			}
 		case "string_value":
-			strValueRef, bts, err = parseStringBytes(strings, bts)
+			strValueRef, bts, err = parseStringBytesRef(strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "StringValue")
 				return
@@ -1571,12 +1579,12 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				var valueRef uint32
 				numAttributes--
 				var keyRef uint32
-				keyRef, bts, err = parseStringBytes(strings, bts)
+				keyRef, bts, err = parseStringBytesRef(strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Attributes")
 					return
 				}
-				valueRef, bts, err = parseStringBytes(strings, bts)
+				valueRef, bts, err = parseStringBytesRef(strings, bts)
 				if err != nil {
 					err = msgp.WrapError(err, "Attributes", keyRef)
 					return
@@ -1588,7 +1596,7 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				}
 			}
 		case "tracestate":
-			sl.TracestateRef, bts, err = parseStringBytes(strings, bts)
+			sl.TracestateRef, bts, err = parseStringBytesRef(strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Tracestate")
 				return
@@ -1613,6 +1621,14 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 	sl.TraceID = tid
 	o = bts
 	return
+}
+
+// handlePromotedMetricsFields processes promoted metrics fields that have dedicated span fields
+// If we fail to parse a value we don't use the promoted value, but the original string will still be in the span attributes
+func (s *InternalSpan) handlePromotedMetricsFields(key uint32, val float64, convertedFields *SpanConvertedFields) {
+	if s.Strings.Get(key) == "_sampling_priority_v1" {
+		convertedFields.SamplingPriority = uint32(val)
+	}
 }
 
 // handlePromotedMetaFields processes promoted meta fields that have dedicated span fields
@@ -1670,10 +1686,20 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 
 // parseStringBytes reads the next type in the msgpack payload and
 // converts the BinType or the StrType in a valid string returning the index of the string in the string table
-func parseStringBytes(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
+func parseStringBytesRef(stringTable *StringTable, bts []byte) (uint32, []byte, error) {
+	ref, bts, err := parseStringBytes(bts)
+	if err != nil {
+		return 0, bts, err
+	}
+	return stringTable.Add(ref), bts, nil
+}
+
+// parseStringBytesRef reads the next type in the msgpack payload and
+// converts the BinType or the StrType in a valid string returning the string itself
+func parseStringBytes(bts []byte) (string, []byte, error) {
 	if msgp.IsNil(bts) {
 		bts, err := msgp.ReadNilBytes(bts)
-		return 0, bts, err
+		return "", bts, err
 	}
 	// read the generic representation type without decoding
 	t := msgp.NextType(bts)
@@ -1688,15 +1714,15 @@ func parseStringBytes(stringTable *StringTable, bts []byte) (uint32, []byte, err
 	case msgp.StrType:
 		i, bts, err = msgp.ReadStringZC(bts)
 	default:
-		return 0, bts, msgp.TypeError{Encoded: t, Method: msgp.StrType}
+		return "", bts, msgp.TypeError{Encoded: t, Method: msgp.StrType}
 	}
 	if err != nil {
-		return 0, bts, err
+		return "", bts, err
 	}
 	if utf8.Valid(i) {
-		return stringTable.Add(string(i)), bts, nil
+		return string(i), bts, nil
 	}
-	return stringTable.Add(repairUTF8(msgp.UnsafeString(i))), bts, nil
+	return repairUTF8(msgp.UnsafeString(i)), bts, nil
 }
 
 // repairUTF8 ensures all characters in s are UTF-8 by replacing non-UTF-8 characters
