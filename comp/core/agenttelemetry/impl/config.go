@@ -216,19 +216,19 @@ var defaultProfiles = `
   - name: network-check
     metric:
       metrics:
-        - name: net.connections.diff
+        - name: net.connections_diff
           aggregate_tags:
             - protocol
             - state
-        - name: net.recv_q.diff
+        - name: net.recv_q_diff
           aggregate_tags:
             - protocol
             - state
-        - name: net.send_q.diff
+        - name: net.send_q_diff
           aggregate_tags:
             - protocol
             - state
-        - name: net.conntrack.diff
+        - name: net.conntrack_diff
           aggregate_tags:
             - cpu
             - field
