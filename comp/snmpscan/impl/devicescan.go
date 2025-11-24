@@ -61,7 +61,8 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 				snmp.LocalAddr, snmp.Port, errors.Join(errs...)),
 		)
 	}
-	err = s.runDeviceScan(ctx, snmp, namespace, deviceID, scanParams.CallInterval)
+	err = s.runDeviceScan(ctx, snmp, namespace, deviceID,
+		scanParams.CallInterval, scanParams.MaxCallCount)
 	if err != nil {
 		errs := []error{err}
 
@@ -96,9 +97,16 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 	return nil
 }
 
-func (s snmpScannerImpl) runDeviceScan(ctx context.Context, snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string, callInterval time.Duration) error {
+func (s snmpScannerImpl) runDeviceScan(
+	ctx context.Context,
+	snmpConnection *gosnmp.GoSNMP,
+	deviceNamespace string,
+	deviceID string,
+	callInterval time.Duration,
+	maxCallCount int,
+) error {
 	// execute the scan
-	pdus, err := gatherPDUs(ctx, snmpConnection, callInterval)
+	pdus, err := gatherPDUs(ctx, snmpConnection, callInterval, maxCallCount)
 	if err != nil {
 		return err
 	}
@@ -126,12 +134,19 @@ func (s snmpScannerImpl) runDeviceScan(ctx context.Context, snmpConnection *gosn
 
 // gatherPDUs returns PDUs from the given SNMP device that should cover ever
 // scalar value and at least one row of every table.
-func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Duration) ([]*gosnmp.SnmpPDU, error) {
+func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Duration, maxCallCount int) ([]*gosnmp.SnmpPDU, error) {
 	var pdus []*gosnmp.SnmpPDU
-	err := gosnmplib.ConditionalWalk(ctx, snmp, "", false, callInterval, func(dataUnit gosnmp.SnmpPDU) (string, error) {
-		pdus = append(pdus, &dataUnit)
-		return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil
-	})
+	err := gosnmplib.ConditionalWalk(
+		ctx,
+		snmp,
+		"",
+		false,
+		callInterval,
+		maxCallCount,
+		func(dataUnit gosnmp.SnmpPDU) (string, error) {
+			pdus = append(pdus, &dataUnit)
+			return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil
+		})
 	if err != nil {
 		return nil, err
 	}
