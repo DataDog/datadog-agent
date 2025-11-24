@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
 	"github.com/DataDog/test-infra-definitions/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -70,6 +71,9 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		assertProcessCollectedNew(c, payloads, false, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
+			"stress-ng": agentmodel.ContainerState_running,
+		})
 		assertFargateHostname(t, payloads)
 	}, 5*time.Minute, 10*time.Second)
 }
@@ -103,6 +107,9 @@ func (s *ECSFargateCoreAgentSuite) TestProcessCheckInCoreAgent() {
 		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
 		requireProcessNotCollected(c, payloads, "process-agent")
 		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
+			"stress-ng": agentmodel.ContainerState_running,
+		})
 		assertFargateHostname(t, payloads)
 	}, 5*time.Minute, 10*time.Second)
 }
