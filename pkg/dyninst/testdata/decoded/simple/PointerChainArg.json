@@ -52,7 +52,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "ptr: {pointer: not captured at 0x[addr]}"

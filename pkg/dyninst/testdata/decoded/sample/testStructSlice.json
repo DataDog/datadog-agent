@@ -89,7 +89,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "[{aUint8: 42, aBool: true}, {aUint8: 24, aBool: true}], 3"

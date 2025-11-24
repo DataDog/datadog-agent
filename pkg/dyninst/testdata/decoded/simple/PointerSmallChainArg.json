@@ -53,7 +53,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]"
   }

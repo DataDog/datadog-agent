@@ -99,7 +99,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "map[foo: [one, two], bar: [three, four]]"

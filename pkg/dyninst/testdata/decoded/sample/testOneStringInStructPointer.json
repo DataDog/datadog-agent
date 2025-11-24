@@ -63,7 +63,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "{a: omg}"

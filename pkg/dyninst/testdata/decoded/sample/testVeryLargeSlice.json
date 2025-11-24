@@ -316,7 +316,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "[0, 1, 2, ...]"
