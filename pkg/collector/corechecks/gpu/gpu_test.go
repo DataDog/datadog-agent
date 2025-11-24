@@ -170,7 +170,7 @@ func TestRunDoesNotError(t *testing.T) {
 	ddnvml.WithMockNVML(t,
 		testutil.GetBasicNvmlMockWithOptions(
 			testutil.WithMockAllFunctions(),
-			testutil.WithProcessInfoCallback(func(uuid string) ([]nvml.ProcessInfo, nvml.Return) {
+			testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 				return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
 			}),
 		),
@@ -226,7 +226,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	// mock up device count so that we can check when check collectors are created/destroyed
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMockAllFunctions(),
-		testutil.WithProcessInfoCallback(func(uuid string) ([]nvml.ProcessInfo, nvml.Return) {
+		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
 		}),
 	)

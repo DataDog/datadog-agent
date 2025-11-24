@@ -53,7 +53,6 @@ type workloadTagCacheTelemetry struct {
 	buildErrors      telemetry.Counter
 	staleEntriesUsed telemetry.Counter
 	cacheEvictions   telemetry.Counter
-	cacheEntries     telemetry.Gauge
 	cacheSize        telemetry.Gauge
 }
 
@@ -293,6 +292,6 @@ func (c *WorkloadTagCache) getContainerID(pid int32) string {
 	return containerID
 }
 
-func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, entry *workloadTagCacheEntry) {
+func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *workloadTagCacheEntry) {
 	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
 }
