@@ -18,7 +18,8 @@ var (
 )
 
 func init() {
-	InitTelemetry(nil)
+    // We default to a noop implementation, but override this for the trace agent binary in cmd/trace-agent/subcommands/run/command.go
+    InitTelemetry(nil)
 }
 
 // InitTelemetry wires the COAT counters using the provided telemetry component.
