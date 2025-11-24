@@ -17,19 +17,20 @@ build do
 
   # Process manager is only available on Linux
   if linux_target?
-    # Build the Rust binary
+    # Build the Rust binaries (daemon + CLI)
     env = {
       'PATH' => "#{ENV['HOME']}/.cargo/bin:#{ENV['PATH']}",
     }
 
-    # Build the process manager binary using cargo
-    command "cargo build --release --manifest-path=process_manager/daemon/Cargo.toml", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # Build both the daemon and CLI binaries using cargo workspace
+    command "cd process_manager && cargo build --release --bins", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
     # Create necessary directories
     mkdir "#{install_dir}/bin"
 
-    # Copy the binary to the install directory
-    copy 'process_manager/daemon/target/release/dd-procmgrd', "#{install_dir}/bin/dd-procmgrd"
+    # Copy both binaries to the install directory
+    copy 'process_manager/target/release/dd-procmgrd', "#{install_dir}/bin/dd-procmgrd"
+    copy 'process_manager/target/release/dd-procmgr', "#{install_dir}/bin/dd-procmgr"
   end
 end
 
