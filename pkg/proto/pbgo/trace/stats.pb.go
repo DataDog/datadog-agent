@@ -7,11 +7,12 @@
 package trace
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -480,13 +481,14 @@ type ClientGroupedStats struct {
 	SpanKind       string                 `protobuf:"bytes,15,opt,name=span_kind,json=spanKind,proto3" json:"span_kind,omitempty"` // value of the span.kind tag on the span
 	// peer_tags are supplementary tags that further describe a peer entity
 	// E.g., `grpc.target` to describe the name of a gRPC peer, or `db.hostname` to describe the name of peer DB
-	PeerTags       []string `protobuf:"bytes,16,rep,name=peer_tags,json=peerTags,proto3" json:"peer_tags,omitempty"`
-	IsTraceRoot    Trilean  `protobuf:"varint,17,opt,name=is_trace_root,json=isTraceRoot,proto3,enum=datadog.trace.Trilean" json:"is_trace_root,omitempty"` // this field's value is equal to span's ParentID == 0.
-	GRPCStatusCode string   `protobuf:"bytes,18,opt,name=GRPC_status_code,json=GRPCStatusCode,proto3" json:"GRPC_status_code,omitempty"`
-	HTTPMethod     string   `protobuf:"bytes,19,opt,name=HTTP_method,json=HTTPMethod,proto3" json:"HTTP_method,omitempty"`       // HTTP method of the request
-	HTTPEndpoint   string   `protobuf:"bytes,20,opt,name=HTTP_endpoint,json=HTTPEndpoint,proto3" json:"HTTP_endpoint,omitempty"` // Http route or quantized/simplified URL path
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	PeerTags               []string `protobuf:"bytes,16,rep,name=peer_tags,json=peerTags,proto3" json:"peer_tags,omitempty"`
+	IsTraceRoot            Trilean  `protobuf:"varint,17,opt,name=is_trace_root,json=isTraceRoot,proto3,enum=datadog.trace.Trilean" json:"is_trace_root,omitempty"` // this field's value is equal to span's ParentID == 0.
+	GRPCStatusCode         string   `protobuf:"bytes,18,opt,name=GRPC_status_code,json=GRPCStatusCode,proto3" json:"GRPC_status_code,omitempty"`
+	HTTPMethod             string   `protobuf:"bytes,19,opt,name=HTTP_method,json=HTTPMethod,proto3" json:"HTTP_method,omitempty"`       // HTTP method of the request
+	HTTPEndpoint           string   `protobuf:"bytes,20,opt,name=HTTP_endpoint,json=HTTPEndpoint,proto3" json:"HTTP_endpoint,omitempty"` // Http route or quantized/simplified URL path
+	SpanDerivedPrimaryTags []string `protobuf:"bytes,21,rep,name=span_derived_primary_tags,json=spanDerivedPrimaryTags,proto3" json:"span_derived_primary_tags,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ClientGroupedStats) Reset() {
@@ -650,6 +652,13 @@ func (x *ClientGroupedStats) GetHTTPEndpoint() string {
 		return x.HTTPEndpoint
 	}
 	return ""
+}
+
+func (x *ClientGroupedStats) GetSpanDerivedPrimaryTags() []string {
+	if x != nil {
+		return x.SpanDerivedPrimaryTags
+	}
+	return nil
 }
 
 var File_datadog_trace_stats_proto protoreflect.FileDescriptor
