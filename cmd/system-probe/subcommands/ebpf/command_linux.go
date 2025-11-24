@@ -321,6 +321,16 @@ func dumpMapJSON(m *ebpf.Map, info *ebpf.MapInfo, w io.Writer, pretty bool) erro
 	return dumpRegularMapJSON(iter, keyBuf, valueBuf, useBTF, dumper, keyType, valueType, w, pretty)
 }
 
+// writePrettyJSON formats and writes the entries as pretty-printed JSON
+func writePrettyJSON(w io.Writer, entries interface{}) error {
+	output, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal entries: %w", err)
+	}
+	fmt.Fprintf(w, "%s\n", output)
+	return nil
+}
+
 func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, useBTF bool, dumper *BTFDumper, keyType, valueType btf.Type, w io.Writer, pretty bool) error {
 	var entries []mapEntry
 
@@ -360,12 +370,7 @@ func dumpRegularMapJSON(iter *ebpf.MapIterator, keyBuf, valueBuf []byte, useBTF 
 
 	// Use pretty-printing if requested
 	if pretty {
-		output, err := json.MarshalIndent(entries, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal entries: %w", err)
-		}
-		fmt.Fprintf(w, "%s\n", output)
-		return nil
+		return writePrettyJSON(w, entries)
 	}
 
 	// Custom JSON formatting to match bpftool: compact arrays, indented objects
@@ -464,12 +469,7 @@ func dumpPerCPUMapJSON(iter *ebpf.MapIterator, keyBuf []byte, valueSize uint32, 
 
 	// Use pretty-printing if requested
 	if pretty {
-		output, err := json.MarshalIndent(entries, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal entries: %w", err)
-		}
-		fmt.Fprintf(w, "%s\n", output)
-		return nil
+		return writePrettyJSON(w, entries)
 	}
 
 	// Custom JSON formatting to match bpftool
