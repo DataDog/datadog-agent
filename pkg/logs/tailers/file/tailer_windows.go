@@ -84,7 +84,8 @@ func (t *Tailer) readAvailable() (int, error) {
 				return bytes, io.EOF
 			}
 
-			if t.fingerprint != nil {
+			// Only perform fingerprint checks when fingerprinting is enabled and a valid fingerprint exists.
+			if t.fingerprint != nil && t.fingerprint.ValidFingerprint() {
 				currentFingerprint, err := t.fingerprinter.ComputeFingerprintFromHandle(f, t.fingerprint.Config)
 				if err != nil {
 					return bytes, err

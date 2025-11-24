@@ -6,7 +6,7 @@
 package client
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 )

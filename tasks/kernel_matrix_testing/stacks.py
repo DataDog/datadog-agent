@@ -407,7 +407,7 @@ def destroy_stack_force(ctx: Context, stack: str):
     pulumi_stack_name = cast(
         'Result',
         ctx.run(
-            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ../test-infra-definitions 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
+            f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack ls -a -C ./test/e2e-framework 2> /dev/null | grep {stack} | cut -d ' ' -f 1",
             warn=True,
             hide=True,
         ),
@@ -417,12 +417,12 @@ def destroy_stack_force(ctx: Context, stack: str):
         return
 
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi cancel -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )
     ctx.run(
-        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ../test-infra-definitions -s {pulumi_stack_name}",
+        f"PULUMI_CONFIG_PASSPHRASE=1234 pulumi stack rm --force -y -C ./test/e2e-framework -s {pulumi_stack_name}",
         warn=True,
         hide=True,
     )
