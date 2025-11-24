@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/otel
 
-go 1.24.0
+go 1.24.9
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
@@ -58,9 +58,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
@@ -335,9 +340,14 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton => ../../pkg/logs/patterns/automaton
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../pkg/logs/patterns/clustering
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../pkg/logs/patterns/clustering/merging
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../pkg/logs/patterns/token
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils

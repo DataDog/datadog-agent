@@ -974,7 +974,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/serializer v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.0.0-00010101000000-000000000000
@@ -1206,6 +1206,14 @@ replace (
 	k8s.io/kms => k8s.io/kms v0.34.1
 )
 
+require (
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
+)
+
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
 replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 
@@ -1337,9 +1345,14 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ./pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton => ./pkg/logs/patterns/automaton
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ./pkg/logs/patterns/clustering
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ./pkg/logs/patterns/clustering/merging
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ./pkg/logs/patterns/token
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ./pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ./pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ./pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ./pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils
