@@ -90,16 +90,16 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 		} else {
 			tp.Chunks[i].Spans = make([]*InternalSpan, sz)
 		}
-		convertedFields := SpanConvertedFields{}
+		convertedFields := NewSpanConvertedFields()
 		for j := range tp.Chunks[i].Spans {
 			if tp.Chunks[i].Spans[j] == nil {
 				tp.Chunks[i].Spans[j] = NewInternalSpan(stringTable, &Span{})
 			}
-			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, &convertedFields, newZeroRef); err != nil {
+			if bts, err = tp.Chunks[i].Spans[j].UnmarshalMsgDictionaryConverted(bts, convertedFields, newZeroRef); err != nil {
 				return err
 			}
 		}
-		tp.Chunks[i].applyPromotedFields(&convertedFields, &chunkConvertedFields)
+		tp.Chunks[i].applyPromotedFields(convertedFields, &chunkConvertedFields)
 	}
 	tp.applyPromotedFields(&chunkConvertedFields)
 	return nil

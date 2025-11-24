@@ -845,6 +845,7 @@ func (s *SerializedStrings) AppendStreamingString(str string, strTableIndex uint
 }
 
 // SpanConvertedFields is used to collect fields from v4 spans that have been promoted to the chunk level
+// Use NewSpanConvertedFields to create a new SpanConvertedFields object with the correct initial values
 type SpanConvertedFields struct {
 	TraceIDLower      uint64 // the lower 64 bits of the trace ID
 	TraceIDUpper      uint64 // the upper 64 bits of the trace ID
@@ -853,8 +854,15 @@ type SpanConvertedFields struct {
 	GitCommitShaRef   uint32 // the git commit sha reference
 	SamplingMechanism uint32 // the sampling mechanism
 	HostnameRef       uint32 // the hostname reference
-	SamplingPriority  uint32 // the sampling priority
+	SamplingPriority  int32  // the sampling priority, initialized to sampler.PriorityNone (math.MinInt8)
 	OriginRef         uint32 // the origin reference
+}
+
+// NewSpanConvertedFields creates a new SpanConvertedFields object used to collect fields from v4 spans that have been promoted to the chunk level
+func NewSpanConvertedFields() *SpanConvertedFields {
+	return &SpanConvertedFields{
+		SamplingPriority: math.MinInt8,
+	}
 }
 
 // ChunkConvertedFields is used to collect fields from v4 chunks that have been promoted to the tracer payload level
@@ -945,7 +953,7 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 	} else {
 		c.Spans = make([]*InternalSpan, numSpans)
 	}
-	convertedFields := SpanConvertedFields{}
+	convertedFields := NewSpanConvertedFields()
 	for i := range c.Spans {
 		if msgp.IsNil(bts) {
 			bts, err = msgp.ReadNilBytes(bts)
@@ -955,14 +963,14 @@ func (c *InternalTraceChunk) UnmarshalMsgConverted(bts []byte, chunkConvertedFie
 			c.Spans[i] = nil
 		} else {
 			c.Spans[i] = NewInternalSpan(c.Strings, &Span{})
-			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, &convertedFields)
+			bts, err = c.Spans[i].UnmarshalMsgConverted(bts, convertedFields)
 			if err != nil {
 				err = msgp.WrapError(err, i)
 				return
 			}
 		}
 	}
-	c.applyPromotedFields(&convertedFields, chunkConvertedFields)
+	c.applyPromotedFields(convertedFields, chunkConvertedFields)
 	o = bts
 	return
 }
@@ -1627,7 +1635,7 @@ func (sl *SpanLink) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 // If we fail to parse a value we don't use the promoted value, but the original string will still be in the span attributes
 func (s *InternalSpan) handlePromotedMetricsFields(key uint32, val float64, convertedFields *SpanConvertedFields) {
 	if s.Strings.Get(key) == "_sampling_priority_v1" {
-		convertedFields.SamplingPriority = uint32(val)
+		convertedFields.SamplingPriority = int32(val)
 	}
 }
 

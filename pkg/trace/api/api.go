@@ -518,18 +518,16 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 		if _, err = r.copyRequestBody(buf, req); err != nil {
 			return nil, err
 		}
-		var traces pb.Traces
-		if err = traces.UnmarshalMsgDictionary(buf.Bytes()); err != nil {
+		tp := &idx.InternalTracerPayload{}
+		err = tp.UnmarshalMsgDictionary(buf.Bytes())
+		if err != nil {
 			return nil, err
 		}
-		oldPayload := &pb.TracerPayload{
-			LanguageName:    lang,
-			LanguageVersion: langVersion,
-			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
-			TracerVersion:   tracerVersion,
-		}
-		return ConvertToIdx(oldPayload), err // TODO: write a custom deserializer for v0.5 payloads
+		tp.SetLanguageName(lang)
+		tp.SetLanguageVersion(langVersion)
+		tp.SetContainerID(cIDProvider.GetContainerID(req.Context(), req.Header))
+		tp.SetTracerVersion(tracerVersion)
+		return tp, nil
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)

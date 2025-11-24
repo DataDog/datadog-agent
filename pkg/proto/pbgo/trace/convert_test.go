@@ -82,7 +82,7 @@ func TestConvertedSpan(t *testing.T) {
 	assert.Equal(t, "abc123def456", idxSpan.Strings.Get(convertedFields.GitCommitShaRef))
 	assert.Equal(t, uint32(1), convertedFields.SamplingMechanism)
 	assert.Equal(t, "my-hostname", idxSpan.Strings.Get(convertedFields.HostnameRef))
-	assert.Equal(t, uint32(2), convertedFields.SamplingPriority)
+	assert.Equal(t, int32(2), convertedFields.SamplingPriority)
 }
 
 func TestConvertedSpanLinks(t *testing.T) {
