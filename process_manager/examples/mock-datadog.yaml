@@ -1,0 +1,82 @@
+# Mock Datadog Agent Services Configuration
+# This simulates a real Datadog Agent deployment for testing the process manager
+
+processes:
+  datadog-agent:
+    command: /workspace/docker/mock-datadog/datadog-agent
+    process_type: simple
+    restart: always
+    restart_sec: 2
+    start_limit_burst: 3
+    start_limit_interval: 60
+    stdout: inherit  # Show output in daemon terminal
+    stderr: inherit  # Show errors in daemon terminal
+    # NEW FEATURE: Load environment from file (systemd EnvironmentFile=)
+    # environment_file: -/tmp/dd-agent.env  # Prefix with '-' to ignore if file doesn't exist
+    # NEW FEATURE: Write PID to file (systemd PIDFile=)
+    pidfile: /tmp/datadog-agent.pid
+    env:
+      DD_API_KEY: test-api-key-12345
+      DD_SITE: datadoghq.com
+      DD_HOSTNAME: test-host
+
+  trace-agent:
+    command: /workspace/docker/mock-datadog/trace-agent
+    args:
+      - /etc/datadog-agent/datadog.yaml
+      - /opt/datadog-agent/run/trace-agent.pid
+    process_type: simple
+    restart: on-failure
+    restart_sec: 2
+    start_limit_burst: 5
+    start_limit_interval: 60
+    stdout: inherit  # Show output in daemon terminal
+    stderr: inherit  # Show errors in daemon terminal
+    # NEW FEATURE: Write PID to file (systemd PIDFile=)
+    pidfile: /tmp/trace-agent.pid
+    # Hard dependency: must have main agent running
+    requires:
+      - datadog-agent
+    # Start after main agent
+    after:
+      - datadog-agent
+    env:
+      DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
+      DD_APM_ENABLED: "true"
+
+  process-agent:
+    command: /workspace/docker/mock-datadog/process-agent
+    process_type: simple
+    restart: on-failure
+    restart_sec: 2
+    start_limit_burst: 5
+    start_limit_interval: 60
+    stdout: inherit  # Show output in daemon terminal
+    stderr: inherit  # Show errors in daemon terminal
+    # NEW FEATURE: Write PID to file (systemd PIDFile=)
+    pidfile: /tmp/process-agent.pid
+    # Soft dependency: nice to have, but not required
+    wants:
+      - datadog-agent
+    # Start after main agent if it's starting
+    after:
+      - datadog-agent
+    env:
+      DD_PROCESS_AGENT_ENABLED: "true"
+      MOCK_CRASH_ENABLED: "false"
+
+  security-agent:
+    command: /workspace/docker/mock-datadog/security-agent
+    process_type: simple
+    restart: on-failure
+    restart_sec: 3
+    stdout: inherit  # Show output in daemon terminal
+    stderr: inherit  # Show errors in daemon terminal
+    # NEW FEATURE: Write PID to file (systemd PIDFile=)
+    pidfile: /tmp/security-agent.pid
+    # Only ordering, no auto-start
+    after:
+      - datadog-agent
+    env:
+      DD_RUNTIME_SECURITY_ENABLED: "false"
+      DD_COMPLIANCE_CONFIG_ENABLED: "false"

@@ -1,0 +1,100 @@
+# Resource Limits Example (K8s-style)
+#
+# This demonstrates how to configure CPU, memory, and PID limits for processes.
+# Requires cgroup v2 for full functionality.
+
+processes:
+  # High-priority web server with guaranteed resources
+  nginx:
+    command: nginx
+    args: ["-g", "daemon off;"]
+    restart: always
+    # Resource configuration
+    resources:
+      requests:
+        cpu: 500      # Request 0.5 CPU cores (guaranteed minimum, affects scheduling priority)
+        memory: 256M  # Request 256MB (soft limit, throttling threshold)
+      limits:
+        cpu: 2000     # Limit to 2 CPU cores maximum (hard quota)
+        memory: 512M  # Limit to 512MB maximum (OOM if exceeded)
+        pids: 100     # Maximum 100 processes/threads
+      oom_score_adj: -500  # Lower = less likely to be killed by OOM killer (-1000 to 1000)
+
+  # Background worker with lower priority
+  worker:
+    command: python3
+    args: ["worker.py"]
+    restart: on-failure
+    resources:
+      requests:
+        cpu: 200      # Lower priority (0.2 cores requested)
+        memory: 128M
+      limits:
+        cpu: 1000     # Can burst up to 1 core
+        memory: 256M
+        pids: 50
+      oom_score_adj: 100  # Higher = more likely to be killed first
+
+  # Memory-intensive batch job
+  batch-processor:
+    command: ./batch-process
+    restart: never
+    resources:
+      limits:
+        memory: 2048M  # 2GB memory limit
+        cpu: 4000      # 4 cores max
+        pids: 200
+
+  # Lightweight utility (no limits)
+  log-rotator:
+    command: logrotate
+    args: ["/etc/logrotate.conf"]
+    restart: never
+    # No resources specified = no limits applied
+
+# Resource Units:
+#
+# CPU (millicores):
+#   - 1000 = 1 full CPU core
+#   - 500 = 0.5 cores (50% of one core)
+#   - 2000 = 2 cores
+#   - CPU request sets scheduling weight/priority
+#   - CPU limit sets hard quota (throttled when exceeded)
+#
+# Memory (bytes, with units):
+#   - 256M = 256 megabytes
+#   - 512M = 512 megabytes
+#   - 1G = 1 gigabyte
+#   - 2048M = 2 gigabytes
+#   - Memory request sets soft limit (memory.high - throttling)
+#   - Memory limit sets hard limit (memory.max - OOM if exceeded)
+#
+# PIDs (count):
+#   - Maximum number of processes/threads the process can create
+#   - Prevents fork bombs
+#
+# OOM Score Adjustment:
+#   - Range: -1000 (never kill) to 1000 (kill first)
+#   - Default: 0
+#   - Lower values = higher priority to survive
+#   - System processes often have negative values
+
+# Implementation Notes:
+#
+# 1. Requires cgroup v2:
+#    - Check with: mount | grep cgroup2
+#    - Kernel 4.5+ with unified hierarchy
+#    - Most modern Linux distributions
+#
+# 2. Creates cgroups under:
+#    /sys/fs/cgroup/pm-processes/<process-name>/
+#
+# 3. Graceful fallback:
+#    - If cgroups unavailable, logs warning and continues
+#    - Consider implementing rlimit fallback for basic limits
+#
+# 4. QoS Classes (similar to Kubernetes):
+#    - Guaranteed: requests == limits (highest priority)
+#    - Burstable: requests < limits (can use more when available)
+#    - BestEffort: no requests/limits (lowest priority)
+

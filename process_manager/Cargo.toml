@@ -1,0 +1,14 @@
+[workspace]
+members = ["engine", "cli", "tests"]
+resolver = "2"
+
+[profile.release]
+opt-level = "z"   # Optimize for size (instead of speed)
+lto = true        # Full LTO for maximum size reduction
+codegen-units = 1 # Single codegen unit for better optimization
+strip = true      # Automatically strip symbols
+
+[profile.dev]
+# Faster compilation in development
+opt-level = 0
+debug = true

@@ -1,7 +1,0 @@
-[package]
-name = "dd-procmgrd"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-

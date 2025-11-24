@@ -1,0 +1,107 @@
+[package]
+name = "pm-e2e-tests"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pm_e2e_tests"
+path = "common.rs"
+
+[[test]]
+name = "e2e_basic"
+path = "e2e_basic.rs"
+
+[[test]]
+name = "e2e_restart"
+path = "e2e_restart.rs"
+
+[[test]]
+name = "e2e_dependencies"
+path = "e2e_dependencies.rs"
+
+[[test]]
+name = "e2e_process_types"
+path = "e2e_process_types.rs"
+
+[[test]]
+name = "e2e_environment_pidfile"
+path = "e2e_environment_pidfile.rs"
+
+[[test]]
+name = "e2e_health_checks"
+path = "e2e_health_checks.rs"
+
+[[test]]
+name = "e2e_unique_names"
+path = "e2e_unique_names.rs"
+
+[[test]]
+name = "e2e_auto_start"
+path = "e2e_auto_start.rs"
+
+[[test]]
+name = "e2e_socket_activation"
+path = "e2e_socket_activation.rs"
+
+[[test]]
+name = "e2e_resource_limits"
+path = "e2e_resource_limits.rs"
+
+[[test]]
+name = "e2e_cli_resources"
+path = "e2e_cli_resources.rs"
+
+[[test]]
+name = "e2e_health_check_restart"
+path = "e2e_health_check_restart.rs"
+
+[[test]]
+name = "e2e_socket_reactivation"
+path = "e2e_socket_reactivation.rs"
+
+[[test]]
+name = "e2e_orphan_processes"
+path = "e2e_orphan_processes.rs"
+
+[[test]]
+name = "e2e_condition_path_exists"
+path = "e2e_condition_path_exists.rs"
+
+[[test]]
+name = "e2e_binds_to"
+path = "e2e_binds_to.rs"
+
+[[test]]
+name = "e2e_conflicts"
+path = "e2e_conflicts.rs"
+
+[[test]]
+name = "e2e_runtime_directory"
+path = "e2e_runtime_directory.rs"
+
+[[test]]
+name = "e2e_ambient_capabilities"
+path = "e2e_ambient_capabilities.rs"
+
+[[test]]
+name = "e2e_config_loading"
+path = "e2e_config_loading.rs"
+harness = true
+
+[[test]]
+name = "e2e_daemon_port"
+path = "e2e_daemon_port.rs"
+
+[[test]]
+name = "e2e_update"
+path = "e2e_update.rs"
+
+[[test]]
+name = "e2e_startup"
+path = "e2e_startup.rs"
+
+[dependencies]
+pm_engine = { path = "../engine" }
+tempfile = "3"
+serial_test = "3"
+ctor = "0.2"

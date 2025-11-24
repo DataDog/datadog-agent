@@ -1,0 +1,124 @@
+---
+# Process Manager Rust Tests
+# Runs unit tests and e2e tests for the process manager component
+
+.process_manager_tests_base:
+  stage: source_test
+  needs: ["go_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+    - changes:
+        - process_manager/**/*
+        - .gitlab/source_test/process_manager.yml
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
+  before_script:
+    # Install Rust toolchain if not present
+    - |
+      if ! command -v cargo &> /dev/null; then
+        echo "Installing Rust toolchain..."
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source $HOME/.cargo/env
+      fi
+    - rustc --version
+    - cargo --version
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - process_manager/target/debug/junit-*.xml
+    reports:
+      junit: process_manager/target/debug/junit-*.xml
+
+# Unit tests for process manager engine
+process_manager_unit_tests:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  script:
+    - cd process_manager
+    - echo "Running process manager unit tests..."
+    - cargo test --lib --workspace --verbose
+    - echo "Running engine integration tests..."
+    - cargo test -p pm_engine --verbose
+
+# E2E tests for process manager (non-Linux-specific)
+process_manager_e2e_tests:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  script:
+    - cd process_manager
+    - echo "Building process manager binaries..."
+    - cargo build --release --bins
+    - echo "Running e2e tests..."
+    # Run most e2e tests, excluding Linux-specific ones like ambient capabilities
+    - |
+      cargo test -p pm-e2e-tests \
+        --test e2e_basic \
+        --test e2e_auto_start \
+        --test e2e_config_loading \
+        --test e2e_daemon_port \
+        --test e2e_dependencies \
+        --test e2e_environment_pidfile \
+        --test e2e_health_checks \
+        --test e2e_health_check_restart \
+        --test e2e_process_types \
+        --test e2e_restart \
+        --test e2e_startup \
+        --test e2e_unique_names \
+        --test e2e_update \
+        --test e2e_conflicts \
+        --test e2e_binds_to \
+        --verbose -- --test-threads=1
+  timeout: 30m
+
+# E2E tests for Linux-specific features (capabilities, cgroups, etc.)
+process_manager_e2e_tests_linux:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/'
+    - changes:
+        - process_manager/**/*
+        - .gitlab/source_test/process_manager.yml
+  script:
+    - cd process_manager
+    - echo "Building process manager binaries..."
+    - cargo build --release --bins
+    - echo "Running Linux-specific e2e tests..."
+    - |
+      cargo test -p pm-e2e-tests \
+        --test e2e_ambient_capabilities \
+        --test e2e_resource_limits \
+        --test e2e_runtime_directory \
+        --test e2e_orphan_processes \
+        --test e2e_socket_activation \
+        --test e2e_socket_reactivation \
+        --test e2e_condition_path_exists \
+        --test e2e_cli_resources \
+        --verbose -- --test-threads=1
+  timeout: 30m
+
+# Quick smoke test for fast feedback
+process_manager_smoke_test:
+  extends:
+    - .process_manager_tests_base
+    - .linux_x64
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - if: '$FAST_TESTS == "true"'
+    - changes:
+        - process_manager/**/*
+  script:
+    - cd process_manager
+    - echo "Running quick smoke tests..."
+    - cargo test --test e2e_startup --test e2e_basic --verbose
+  timeout: 5m
+

@@ -357,6 +357,7 @@ modules:
     used_by_otel: true
   pkg/version:
     used_by_otel: true
+  process_manager/go-client: default
   tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
   test/e2e-framework:
