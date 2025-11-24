@@ -258,12 +258,10 @@ fn start_daemon_internal(mut cmd: Command, description: &str, _sleep_secs: u64) 
     }
 
     let daemon = cmd
-        .arg("--tcp") // New daemon defaults to Unix socket, need --tcp flag
-        .arg("--grpc-port")
-        .arg(port.to_string())
-        .arg("--grpc-socket")
-        .arg(unique_socket_path(port))
-        .env("DD_PM_DAEMON_PORT", port.to_string())
+        // Configure daemon via environment variables (no CLI args)
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_PORT", port.to_string())
+        .env("DD_PM_GRPC_SOCKET", unique_socket_path(port))
         .stdout(Stdio::from(stdout_file))
         .stderr(Stdio::from(stderr_file))
         .spawn()
@@ -615,14 +613,11 @@ pub fn setup_temp_dir() -> tempfile::TempDir {
 )]
 pub fn setup_daemon_with_port_and_config(port: u16, config_path: &str) -> std::process::Child {
     let mut cmd = Command::new(get_daemon_binary());
-    cmd.arg("--config-file")
-        .arg(config_path)
-        .arg("--tcp") // New daemon defaults to Unix socket, need --tcp flag
-        .arg("--grpc-port")
-        .arg(port.to_string())
-        .arg("--grpc-socket")
-        .arg(unique_socket_path(port))
-        .env("DD_PM_DAEMON_PORT", port.to_string())
+    // Configure daemon via environment variables (no CLI args)
+    cmd.env("DD_PM_CONFIG_FILE", config_path)
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_PORT", port.to_string())
+        .env("DD_PM_GRPC_SOCKET", unique_socket_path(port))
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 

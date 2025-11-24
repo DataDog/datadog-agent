@@ -7,13 +7,11 @@ use std::time::Duration;
 fn test_daemon_respects_custom_port() {
     let custom_port = 55123;
 
-    // Start daemon with explicit port
+    // Start daemon with explicit port via env var
     let mut daemon = Command::new(get_daemon_binary())
-        .arg("--tcp") // New daemon defaults to Unix socket
-        .arg("--grpc-port")
-        .arg(custom_port.to_string())
-        .arg("--grpc-socket")
-        .arg(unique_socket_path(custom_port))
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_PORT", custom_port.to_string())
+        .env("DD_PM_GRPC_SOCKET", unique_socket_path(custom_port))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -47,11 +45,10 @@ fn test_daemon_respects_custom_port() {
 
 #[test]
 fn test_daemon_default_port() {
-    // Start daemon without --grpc-port flag (should use default 50051)
+    // Start daemon without DD_PM_GRPC_PORT env var (should use default 50051)
     let mut daemon = Command::new(get_daemon_binary())
-        .arg("--tcp") // Must use TCP mode to test port
-        .arg("--grpc-socket")
-        .arg(unique_socket_path(50051))
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_SOCKET", unique_socket_path(50051))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -77,11 +74,10 @@ fn test_daemon_default_port() {
 fn test_daemon_port_via_env_var() {
     let custom_port = 55124;
 
-    // Start daemon with port from env var
+    // Start daemon with port from env var (backward compat: DD_PM_DAEMON_PORT)
     let mut daemon = Command::new(get_daemon_binary())
-        .arg("--tcp") // Must use TCP mode to test port
-        .arg("--grpc-socket")
-        .arg(unique_socket_path(custom_port))
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_SOCKET", unique_socket_path(custom_port))
         .env("DD_PM_DAEMON_PORT", custom_port.to_string())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -105,18 +101,16 @@ fn test_daemon_port_via_env_var() {
 }
 
 #[test]
-fn test_daemon_cli_port_overrides_env_var() {
-    let cli_port = 55125;
-    let env_port = 55126;
+fn test_daemon_grpc_port_overrides_daemon_port() {
+    let grpc_port = 55125;
+    let daemon_port = 55126;
 
-    // Start daemon with both CLI arg and env var (CLI should win)
+    // Start daemon with both DD_PM_GRPC_PORT and DD_PM_DAEMON_PORT (GRPC_PORT should win)
     let mut daemon = Command::new(get_daemon_binary())
-        .arg("--tcp") // Must use TCP mode to test port
-        .arg("--grpc-port")
-        .arg(cli_port.to_string())
-        .arg("--grpc-socket")
-        .arg(unique_socket_path(cli_port))
-        .env("DD_PM_DAEMON_PORT", env_port.to_string())
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_PORT", grpc_port.to_string())
+        .env("DD_PM_GRPC_SOCKET", unique_socket_path(grpc_port))
+        .env("DD_PM_DAEMON_PORT", daemon_port.to_string())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -124,17 +118,17 @@ fn test_daemon_cli_port_overrides_env_var() {
 
     thread::sleep(Duration::from_secs(1));
 
-    // Verify it's listening on CLI port (not env var port)
-    let (stdout, _, code) = run_cli_port(&["list"], cli_port);
-    assert_eq!(code, 0, "Should connect to CLI port");
+    // Verify it's listening on DD_PM_GRPC_PORT (not DD_PM_DAEMON_PORT)
+    let (stdout, _, code) = run_cli_port(&["list"], grpc_port);
+    assert_eq!(code, 0, "Should connect to DD_PM_GRPC_PORT");
     assert!(
         stdout.contains("NAME") || stdout.contains("No processes"),
         "Should get valid list output"
     );
 
-    // Env var port should NOT work
-    let (_, _, code) = run_cli_port(&["list"], env_port);
-    assert_ne!(code, 0, "Should NOT connect to env var port");
+    // DD_PM_DAEMON_PORT should NOT work
+    let (_, _, code) = run_cli_port(&["list"], daemon_port);
+    assert_ne!(code, 0, "Should NOT connect to DD_PM_DAEMON_PORT");
 
     // Cleanup
     let _ = daemon.kill();

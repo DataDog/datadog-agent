@@ -33,7 +33,6 @@ axum = "0.6"
 tokio-stream = { version = "0.1", features = ["net"] }
 http = "0.2"
 hyper = "0.14"
-clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # Linux capabilities support (optional, Linux-only)

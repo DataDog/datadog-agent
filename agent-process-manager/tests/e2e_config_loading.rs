@@ -1,11 +1,10 @@
 //! E2E tests for configuration loading precedence and directory support
 //!
 //! Tests all configuration loading scenarios:
-//! 1. --config-file (explicit file)
-//! 2. --config-dir (explicit directory)
-//! 3. Both flags together (error case)
-//! 4. DD_PM_CONFIG_PATH environment variable
-//! 5. Directory with multiple files (load order)
+//! 1. DD_PM_CONFIG_FILE (explicit file)
+//! 2. DD_PM_CONFIG_DIR (explicit directory)
+//! 3. Both env vars together (error case)
+//! 4. Directory with multiple files (load order)
 
 use pm_e2e_tests::{
     get_daemon_binary, run_cli_full, setup_daemon_with_config_dir, setup_daemon_with_config_file,
@@ -88,14 +87,12 @@ fn test_both_flags_error() {
     fs::write(&config_file, "processes: {}").expect("Failed to write config");
     fs::create_dir(&config_dir).expect("Failed to create dir");
 
-    // Try to start daemon with both flags (should fail)
+    // Try to start daemon with both env vars (should fail)
     let result = Command::new(get_daemon_binary())
-        .arg("--config-file")
-        .arg(config_file.to_str().unwrap())
-        .arg("--config-dir")
-        .arg(config_dir.to_str().unwrap())
-        .arg("--port")
-        .arg("59999")
+        .env("DD_PM_CONFIG_FILE", config_file.to_str().unwrap())
+        .env("DD_PM_CONFIG_DIR", config_dir.to_str().unwrap())
+        .env("DD_PM_TRANSPORT_MODE", "tcp")
+        .env("DD_PM_GRPC_PORT", "59999")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn();
