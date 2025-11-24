@@ -506,7 +506,7 @@ type sslProgram struct {
 	bioNewSocketArgsMapCleaner *ddebpf.MapCleaner[uint64, uint32]
 
 	sslCtxByPIDTGIDMapCleaner *ddebpf.MapCleaner[uint64, uint64]
-	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[uint64, http.SslSock]
+	sslSockByCtxMapCleaner    *ddebpf.MapCleaner[http.SSLCtxPidTGID, http.SslSock]
 	sslCtxByTupleMapCleaner   *ddebpf.MapCleaner[http.ConnTuple, uint64]
 }
 
@@ -641,7 +641,7 @@ func (o *sslProgram) initAllMapCleaners() error {
 		return err
 	}
 
-	o.sslSockByCtxMapCleaner, err = initMapCleaner[uint64, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
+	o.sslSockByCtxMapCleaner, err = initMapCleaner[http.SSLCtxPidTGID, http.SslSock](o.ebpfManager, sslSockByCtxMap, UsmTLSAttacherName)
 	if err != nil {
 		return err
 	}
@@ -674,10 +674,10 @@ func (o *sslProgram) Stop() {
 // DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
-	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
-		io.WriteString(w, "Map: '"+mapName+"', key: 'uintptr // C.void *', value: 'C.ssl_sock_t'\n")
+	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key C.ssl_ctx_pid_tgid_t, value C.ssl_sock_t
+		io.WriteString(w, "Map: '"+mapName+"', key: 'C.ssl_ctx_pid_tgid_t', value: 'C.ssl_sock_t'\n")
 		iter := currentMap.Iterate()
-		var key uintptr // C.void *
+		var key http.SSLCtxPidTGID
 		var value http.SslSock
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			spew.Fdump(w, key, value)
@@ -851,7 +851,7 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 	// These are contexts belonging to dead PIDs
 	sslCtxToClean := make(map[uint64]struct{})
 
-	// First pass: Clean ssl_ctx_by_pid_tgid map and collect dead SSL contexts
+	// First pass: Clean ssl_ctx_by_pid_tgid, ssl_sock_by_ctx map and collect dead SSL contexts
 	o.sslCtxByPIDTGIDMapCleaner.Clean(nil, nil, func(_ int64, pidTgid uint64, sslCtx uint64) bool {
 		pid := uint32(pidTgid >> 32)
 		if _, isAlive := alivePIDs[pid]; !isAlive {
@@ -861,10 +861,14 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 		return false
 	})
 
-	// Second pass: Clean ssl_sock_by_ctx map using collected SSL contexts
-	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, sslCtx uint64, _ http.SslSock) bool {
-		_, shouldClean := sslCtxToClean[sslCtx]
-		return shouldClean
+	// Second pass: Clean ssl_sock_by_ctx map and add more dead SSL contexts
+	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key http.SSLCtxPidTGID, _ http.SslSock) bool {
+		pid := uint32(key.Tgid >> 32)
+		if _, isAlive := alivePIDs[pid]; !isAlive {
+			sslCtxToClean[key.Ctx] = struct{}{}
+			return true
+		}
+		return false
 	})
 
 	// Third pass: Clean ssl_ctx_by_tuple map using collected SSL contexts
