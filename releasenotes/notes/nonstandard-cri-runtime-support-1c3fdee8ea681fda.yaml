@@ -8,5 +8,5 @@
 ---
 enhancements:
   - |
-    Add support for any CRI compliant runtime specified in
-    the `cri_socket_path` configuration value.
+    Add container metric support for any CRI compliant runtime specified in
+    the `cri_socket_path` configuration.
