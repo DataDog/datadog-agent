@@ -81,7 +81,10 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 		case ir.InvalidSegment:
 			// Check limits for invalid segment.
 			limits.maxBytes = maxLogLineBytes - result.Len()
+			limits.consume(2)
+			result.WriteRune('{')
 			writeBoundedString(&result, limits, seg.Error)
+			result.WriteRune('}')
 
 		default:
 			return fmt.Errorf(
