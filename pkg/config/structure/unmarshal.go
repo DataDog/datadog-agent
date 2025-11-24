@@ -19,6 +19,7 @@ import (
 	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cast"
 
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 )
@@ -124,44 +125,6 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 	return cfg.UnmarshalKey(key, target, decodeHooks...)
 }
 
-// buildTreeFromConfigSettings creates a map of values by merging settings from each config source
-func buildTreeFromConfigSettings(cfg model.Reader, key string) (interface{}, error) {
-	rawval := cfg.Get(key)
-	if nodetreemodel.IsNilValue(rawval) {
-		// NOTE: This returns a nil-valued-interface, which is needed to handle edge
-		// cases in the same way viper does
-		var ret map[string]interface{}
-		return ret, nil
-	}
-
-	mapval, ok := rawval.(map[string]interface{})
-	if !ok {
-		return rawval, nil
-	}
-	tree := make(map[string]interface{})
-	for k, v := range mapval {
-		tree[k] = v
-	}
-
-	fields := cfg.GetSubfields(key)
-	for _, f := range fields {
-		setting := strings.Join([]string{key, f}, ".")
-		inner, _ := buildTreeFromConfigSettings(cfg, setting)
-		if inner == nil {
-			continue
-		}
-		if nodetreemodel.IsNilValue(inner) {
-			// NOTE: This returns a nil-valued-interface, which is needed to handle edge
-			// cases in the same way viper does
-			var ret map[string]interface{}
-			inner = ret
-		}
-		tree[f] = inner
-	}
-
-	return tree, nil
-}
-
 func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, opts ...UnmarshalKeyOption) error {
 	fs := &featureSet{}
 	for _, o := range opts {
@@ -190,11 +153,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 		}
 		inputNode = node
 	} else {
-		settingval, err := buildTreeFromConfigSettings(cfg, key)
-		if err != nil {
-			return err
-		}
-
+		settingval := helper.GetViperCombine(cfg, key)
 		node, err := nodetreemodel.NewNodeTree(settingval, cfg.GetSource(key))
 		if err != nil {
 			return err
@@ -347,7 +306,7 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 
 	if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 		leafValue := leaf.Get()
-		if nodetreemodel.IsNilValue(leafValue) {
+		if helper.IsNilValue(leafValue) {
 			return nil
 		}
 		if fs.convertArrayToMap {
@@ -544,7 +503,7 @@ func copyAny(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 	} else if target.Kind() == reflect.Slice {
 		if leaf, ok := input.(nodetreemodel.LeafNode); ok {
 			leafValue := leaf.Get()
-			if nodetreemodel.IsNilValue(leafValue) {
+			if helper.IsNilValue(leafValue) {
 				return nil
 			}
 

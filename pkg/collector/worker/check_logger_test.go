@@ -27,7 +27,6 @@ type stubCheck struct {
 }
 
 func (c *stubCheck) ID() checkid.ID { return checkid.ID(c.id) }
-func (c *stubCheck) RunOnce() bool  { return false }
 func (c *stubCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 
 func newTestCheck(id string) *stubCheck {
