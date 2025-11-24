@@ -117,7 +117,7 @@ func TestSecretManagerBackend(t *testing.T) {
 		},
 		{
 			name:   "secret with explicit version",
-			secret: "secretY;latest;",
+			secret: "secretY;;latest",
 			value:  "valueY",
 			fail:   false,
 		},
@@ -176,17 +176,17 @@ func TestSecretManagerBackendVersioning(t *testing.T) {
 		},
 		{
 			name:   "explicit latest version",
-			secret: "secret;latest;",
+			secret: "secret;;latest",
 			value:  "value-latest",
 		},
 		{
 			name:   "version 1",
-			secret: "secret;1;",
+			secret: "secret;;1",
 			value:  "value-v1",
 		},
 		{
 			name:   "version 2",
-			secret: "secret;2;",
+			secret: "secret;;2",
 			value:  "value-v2",
 		},
 	}
@@ -289,22 +289,21 @@ func TestSecretManagerBackendJSONSupport(t *testing.T) {
 			secret: "secretP;any-key",
 			fail:   true,
 		},
-		// this will typically never be used
 		{
 			name:   "JSON with version but no key returns whole JSON",
-			secret: "secretJ;1;",
+			secret: "secretJ;;1",
 			value:  `{"key-1":"val-1-v1"}`,
 			fail:   false,
 		},
 		{
 			name:   "JSON with version and key",
-			secret: "secretJ;latest;key-1",
+			secret: "secretJ;key-1;latest",
 			value:  "val-1",
 			fail:   false,
 		},
 		{
 			name:   "JSON with specific version and key",
-			secret: "secretJ;1;key-1",
+			secret: "secretJ;key-1;1",
 			value:  "val-1-v1",
 			fail:   false,
 		},

@@ -75,13 +75,14 @@ func NewSecretManagerBackend(bc map[string]interface{}) (*SecretManagerBackend, 
 
 // GetSecretOutput retrieves a secret from GCP Secret Manager
 func (b *SecretManagerBackend) GetSecretOutput(ctx context.Context, secretString string) secret.Output {
-	// parse: secret[;key] or secret;version;[key]
+	// parse: secret[;key[;version]]
+	// ex: secret, secret;key, secret;key;version, secret;;version
 
 	parts := strings.Split(secretString, ";")
 	secretName, secretVersion, jsonKey := parts[0], "latest", ""
 	switch {
 	case len(parts) >= 3:
-		secretVersion, jsonKey = parts[1], parts[2]
+		jsonKey, secretVersion = parts[1], parts[2]
 		if secretVersion == "" {
 			secretVersion = "latest"
 		}
