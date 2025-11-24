@@ -20,6 +20,7 @@ exporters:
     profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
     headers:
       dd-api-key: ${env:DD_API_KEY}
+      dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 service:
   extensions: [hpflare/default]
   pipelines:

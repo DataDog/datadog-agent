@@ -10,6 +10,7 @@ package receiver
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/dd-otel-host-profiler/config"
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"go.opentelemetry.io/collector/component"
@@ -76,7 +77,7 @@ func defaultConfig() component.Config {
 				DryRun:               config.DefaultUploadSymbolsDryRun,
 				SymbolEndpoints:      nil,
 			},
-			Version:                        "0.0.0",
+			Version:                        version.AgentVersion,
 			DisableDebugSectionCompression: false,
 		},
 
