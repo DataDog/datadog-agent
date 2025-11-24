@@ -526,6 +526,16 @@ func TestStartConfiguration(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			description: "only GPU monitoring enabled",
+			configOverrides: map[string]interface{}{
+				"gpu.enabled": true,
+			},
+			sysConfigOverrides: map[string]interface{}{
+				"discovery.enabled": false,
+			},
+			expectedError: nil,
+		},
+		{
 			description: "process collection and service discovery not enabled",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
