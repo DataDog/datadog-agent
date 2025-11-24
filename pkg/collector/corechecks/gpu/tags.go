@@ -51,6 +51,7 @@ type workloadTagCacheTelemetry struct {
 	cacheMisses      telemetry.Counter
 	buildErrors      telemetry.Counter
 	staleEntriesUsed telemetry.Counter
+	processFallbacks telemetry.Counter
 	cacheEvictions   telemetry.Counter
 	cacheSize        telemetry.Gauge
 }
@@ -63,6 +64,7 @@ func newWorkloadTagCacheTelemetry(tm telemetry.Component) *workloadTagCacheTelem
 		staleEntriesUsed: tm.NewCounter(workloadTagCacheTelemetrySubsystem, "stale_entries_used", []string{"entity_kind"}, "Number of stale cache used"),
 		cacheSize:        tm.NewGauge(workloadTagCacheTelemetrySubsystem, "size", []string{}, "Cache size"),
 		buildErrors:      tm.NewCounter(workloadTagCacheTelemetrySubsystem, "build_errors", []string{"entity_kind"}, "Number of errors building workload tags"),
+		processFallbacks: tm.NewCounter(workloadTagCacheTelemetrySubsystem, "process_fallbacks", []string{}, "Counter with the number of times we had to fall back to getting process data directly, instead of through workloadmeta"),
 	}
 }
 
@@ -219,6 +221,9 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 			// The process does not exist anymore, so return a "NotFound" error so that we can return stale data.
 			return tags, agenterrors.NewNotFound(pid)
 		}
+
+		// Mark here and not before, to avoid incrementing the counter if the process does not exist anymore.
+		c.telemetry.processFallbacks.Inc()
 	}
 
 	if nspid == 0 {
