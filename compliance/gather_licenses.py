@@ -10,7 +10,7 @@ Sample:
    core,cloud.google.com/go/auth,Apache-2.0,Copyright 2019 Google LLC
    core,@@+_repo_rules+libffi//:license,@rules_license+//licenses/spdx:GPL-2.0,libffi - Copyright (c) 1996-2024  Anthony Green, R
    core,@@+_repo_rules+xz//:license,@rules_license+//licenses/spdx:0BSD,Permission to use, copy, modify, and/or distribute
-   ccore,@@+_repo_rules+zlib//:license,@rules_license+//licenses/spdx:Zlib,Copyright notice:
+   core,@@+_repo_rules+zlib//:license,@rules_license+//licenses/spdx:Zlib,Copyright notice:
 
 STATUS: In progress
 
