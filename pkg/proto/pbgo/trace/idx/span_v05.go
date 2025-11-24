@@ -123,7 +123,7 @@ func readV05StringRef(newZeroRef uint32, bts []byte) (uint32, []byte, error) {
 	return parsedRef, bts, nil
 }
 
-// UnmarshalMsgDictionary decodes a v05 span directly into an InternalSpan, for details, see the documentation for endpoint v0.5
+// UnmarshalMsgDictionaryConverted decodes a v05 span directly into an InternalSpan, for details, see the documentation for endpoint v0.5
 // in pkg/trace/api/version.go
 // The provided InternalSpan must have a pre-populated Strings field
 // newZeroRef is the new location for string ref `0` (0 if unchanged) see buildStringTable for more details

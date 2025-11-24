@@ -46,9 +46,6 @@ const (
 	tagInstallType = "_dd.install.type"
 	tagInstallTime = "_dd.install.time"
 
-	// tagContainersTags specifies the name of the tag which holds key/value
-	tagContainersTags = "_dd.tags.container"
-
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling   = "-4"
 	manualSamplingV1 = 4
