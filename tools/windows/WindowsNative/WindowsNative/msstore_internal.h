@@ -23,7 +23,7 @@ struct MSStoreInternal : MSStore {
     std::vector<winrt::hstring> strings;
 };
 
-int ListStoreEntries(MSStoreInternal** out);
-void FreeStoreEntries(MSStoreInternal* store);
+int ListStoreEntries(MSStoreInternal **out);
+void FreeStoreEntries(MSStoreInternal *store);
 
 #endif
