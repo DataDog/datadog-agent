@@ -58,6 +58,11 @@ use std::sync::Once;
 use std::thread;
 use std::time::Duration;
 
+/// Test port allocation constants (previously from pm_engine::constants::test)
+pub const BASE_PORT: u16 = 50000;
+pub const PORT_RANGE: u16 = 10000;
+pub const DEFAULT_PORT: u16 = 50051;
+
 // Install panic hook globally when this library is loaded
 // This ensures ALL E2E tests get automatic daemon log printing on failure
 //
@@ -202,8 +207,6 @@ impl Drop for DaemonGuard {
 /// Get a unique port for this test
 /// Uses an atomic counter to ensure each call gets a different port
 fn get_unique_port() -> u16 {
-    use pm_engine::constants::test::{BASE_PORT, PORT_RANGE};
-
     // Check if this thread already has a port assigned
     TEST_PORT.with(|port| {
         let mut port_ref = port.borrow_mut();
@@ -223,7 +226,6 @@ fn get_unique_port() -> u16 {
 /// Returns the port if one was assigned, otherwise returns default
 #[allow(dead_code)]
 pub fn get_test_port() -> u16 {
-    use pm_engine::constants::test::DEFAULT_PORT;
     TEST_PORT.with(|p| p.borrow().unwrap_or(DEFAULT_PORT))
 }
 
@@ -888,7 +890,6 @@ pub fn run_cli(args: &[&str]) -> String {
 /// Execute CLI command and return (stdout, stderr, exit_code)
 /// Automatically uses the port assigned to the current test thread
 pub fn run_cli_full(args: &[&str]) -> (String, String, i32) {
-    use pm_engine::constants::test::DEFAULT_PORT;
     let port = TEST_PORT.with(|p| p.borrow().unwrap_or(DEFAULT_PORT));
 
     let output = Command::new(get_cli_binary())

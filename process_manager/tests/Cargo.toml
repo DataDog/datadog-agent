@@ -101,7 +101,6 @@ name = "e2e_startup"
 path = "e2e_startup.rs"
 
 [dependencies]
-pm_engine = { path = "../engine" }
 tempfile = "3"
 serial_test = "3"
 ctor = "0.2"

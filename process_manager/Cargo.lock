@@ -950,7 +950,6 @@ name = "pm-e2e-tests"
 version = "0.1.0"
 dependencies = [
  "ctor",
- "pm_engine",
  "serial_test",
  "tempfile",
 ]
