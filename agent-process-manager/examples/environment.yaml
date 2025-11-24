@@ -1,0 +1,27 @@
+# Environment variables example
+# Demonstrates: Setting env vars and working directory
+
+processes:
+  nodejs-app:
+    command: node
+    args: ["server.js"]
+    working_dir: /opt/myapp
+    env:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://localhost/mydb
+      API_KEY: secret-key-here
+      LOG_LEVEL: info
+    restart: always
+    stdout: /var/log/nodejs-app.log
+
+  python-worker:
+    command: python3
+    args: ["worker.py"]
+    working_dir: /opt/worker
+    env:
+      PYTHONUNBUFFERED: "1"
+      WORKER_THREADS: "4"
+      REDIS_URL: redis://localhost:6379
+    restart: on-failure
+

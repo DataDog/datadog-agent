@@ -1,0 +1,124 @@
+# Process Manager Daemon - Maximum Security (Root with Hardening)
+#
+# This service runs the daemon as root with maximum systemd security hardening.
+# Use this for high-security production deployments where you need root
+# privileges for user switching but want maximum protection.
+#
+# Installation:
+#   sudo cp dd-procmgrd-secure.service /etc/systemd/system/dd-procmgrd.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable dd-procmgrd
+#   sudo systemctl start dd-procmgrd
+
+[Unit]
+Description=Process Manager Daemon (Hardened)
+Documentation=https://github.com/yourusername/process-manager
+After=network.target auditd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dd-procmgrd
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Configuration
+Environment="PM_CONFIG_PATH=/etc/dd-procmgrd/processes.yaml"
+WorkingDirectory=/var/lib/dd-procmgrd
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dd-procmgrd
+
+# === SECURITY HARDENING ===
+
+# Filesystem Protection
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/dd-procmgrd
+ReadWritePaths=/var/log/dd-procmgrd
+ReadWritePaths=/run/dd-procmgrd
+# If managed processes need /tmp access:
+# ReadWritePaths=/tmp
+
+# Read-only paths for security
+# InaccessiblePaths=/root
+# InaccessiblePaths=/boot
+# InaccessiblePaths=/etc/shadow
+
+# Kernel Protection
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectProc=invisible
+ProcSubset=pid
+
+# Process Restrictions
+NoNewPrivileges=no              # Must be 'no' for user switching
+RestrictSUIDSGID=no             # Must be 'no' for user switching
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+PrivateUsers=no                 # Must be 'no' for user switching
+
+# Capabilities (running as root, but drop unused capabilities)
+# CapabilityBoundingSet restricts which capabilities can be used
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_KILL CAP_NET_BIND_SERVICE CAP_DAC_OVERRIDE
+# Remove dangerous capabilities
+CapabilityBoundingSet=~CAP_SYS_ADMIN CAP_SYS_MODULE CAP_SYS_RAWIO
+
+# System Call Filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @obsolete @resources @debug @mount @swap @reboot @module @raw-io
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+
+# Network Hardening
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+IPAddressAllow=127.0.0.0/8
+IPAddressAllow=::1/128
+SocketBindDeny=any
+SocketBindAllow=tcp:50051        # gRPC port
+
+# Device Access
+PrivateDevices=yes
+DevicePolicy=closed
+
+# Memory Protection
+MemoryDenyWriteExecute=yes
+
+# Resource Limits
+LimitNOFILE=65536
+LimitNPROC=1024
+LimitCORE=0
+LimitMEMLOCK=0
+TasksMax=512
+
+# CPU and Memory Limits
+CPUQuota=200%                    # Max 2 cores
+MemoryMax=2G
+MemoryHigh=1.5G
+
+# Umask for created files
+UMask=0027
+
+# Notification watchdog (optional)
+# WatchdogSec=30s
+
+[Install]
+WantedBy=multi-user.target
+

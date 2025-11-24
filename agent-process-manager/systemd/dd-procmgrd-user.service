@@ -1,0 +1,59 @@
+# Process Manager Daemon - User Service (Development/Single-User)
+#
+# This service runs the daemon as the current user without privilege
+# switching. All managed processes run as the same user.
+#
+# Installation:
+#   mkdir -p ~/.config/systemd/user/
+#   cp dd-procmgrd-user.service ~/.config/systemd/user/dd-procmgrd.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable dd-procmgrd
+#   systemctl --user start dd-procmgrd
+#
+# Note: This is a user service (not system service)
+# - Starts when you log in
+# - Stops when you log out (unless lingering enabled)
+# - No privilege switching capability
+
+[Unit]
+Description=Process Manager Daemon (User Service)
+Documentation=https://github.com/yourusername/process-manager
+After=network.target
+
+[Service]
+Type=simple
+
+# Use local binary or installed version
+ExecStart=%h/.local/bin/dd-procmgrd
+# Alternative: ExecStart=/usr/bin/dd-procmgrd
+
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Configuration
+Environment="PM_CONFIG_PATH=%h/.config/dd-procmgrd/processes.yaml"
+WorkingDirectory=%h/.local/share/dd-procmgrd
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dd-procmgrd
+
+# Create directories on startup
+ExecStartPre=/bin/mkdir -p %h/.local/share/dd-procmgrd
+ExecStartPre=/bin/mkdir -p %h/.config/dd-procmgrd
+ExecStartPre=/bin/mkdir -p %h/.local/share/dd-procmgrd/logs
+
+# Resource limits (user limits are typically lower)
+LimitNOFILE=4096
+LimitNPROC=256
+
+[Install]
+WantedBy=default.target
+

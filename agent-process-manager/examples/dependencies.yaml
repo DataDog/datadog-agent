@@ -1,0 +1,68 @@
+# Test configuration for dependency resolution
+# This demonstrates systemd-like dependency management
+
+processes:
+  # Database should start first (no dependencies)
+  database:
+    command: bash
+    args:
+      - "-c"
+      - "echo '[DB] Starting database...'; sleep 2; echo '[DB] Database ready'; sleep 1000"
+    auto_start: false
+    stdout: /tmp/db.log
+
+  # Cache depends on database
+  cache:
+    command: bash
+    args:
+      - "-c"
+      - "echo '[CACHE] Starting cache...'; sleep 1; echo '[CACHE] Cache ready'; sleep 1000"
+    auto_start: false
+    after: [database]
+    requires: [database]
+    stdout: /tmp/cache.log
+
+  # API depends on both database and cache
+  api:
+    command: bash
+    args:
+      - "-c"
+      - "echo '[API] Starting API server...'; sleep 1; echo '[API] API ready'; sleep 1000"
+    auto_start: false
+    after: [database, cache]
+    requires: [database, cache]
+    stdout: /tmp/api.log
+
+  # Worker wants cache (soft dependency) but requires database
+  worker:
+    command: bash
+    args:
+      - "-c"
+      - "echo '[WORKER] Starting worker...'; sleep 1; echo '[WORKER] Worker ready'; sleep 1000"
+    auto_start: false
+    after: [database, cache]
+    requires: [database]
+    wants: [cache]
+    stdout: /tmp/worker.log
+
+  # Web frontend depends on API
+  frontend:
+    command: bash
+    args:
+      - "-c"
+      - "echo '[FRONTEND] Starting web server...'; sleep 1; echo '[FRONTEND] Frontend ready'; sleep 1000"
+    auto_start: false
+    after: [api]
+    requires: [api]
+    stdout: /tmp/frontend.log
+
+  # Monitor is independent
+  monitor:
+    command: bash
+    args:
+      - "-c"
+      - "echo '[MONITOR] Starting monitor...'; sleep 0.5; echo '[MONITOR] Monitor ready'; sleep 1000"
+    auto_start: false
+    stdout: /tmp/monitor.log
+
+
