@@ -51,7 +51,6 @@ func TestContextCancellationStopsRefresh(t *testing.T) {
 	}
 }
 
-
 func TestBackgroundRefreshContextHandling(t *testing.T) {
 	// This test verifies that the background refresh goroutine properly
 	// handles context cancellation at different points in its lifecycle

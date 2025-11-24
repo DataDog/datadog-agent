@@ -135,25 +135,41 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 
 // GetAPIKey returns the current API key or fetches one if it has not yet been fetched
 func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
-	creds, _, err := d.RefreshAndGetAPIKey(ctx)
+	creds, _, err := d.refreshAndGetAPIKey(ctx, false)
 	return creds, err
 }
 
 // RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue
 func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
-	_, _, err := d.RefreshAndGetAPIKey(ctx)
+	_, _, err := d.refreshAndGetAPIKey(ctx, true)
 	return err
 }
 
 // RefreshAndGetAPIKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
-func (d *delegatedAuthComponent) RefreshAndGetAPIKey(_ context.Context) (*string, bool, error) {
-	d.mu.RLock()
-	apiKey := d.apiKey
-	defer d.mu.RUnlock()
+func (d *delegatedAuthComponent) RefreshAndGetAPIKey(ctx context.Context) (*string, bool, error) {
+	return d.refreshAndGetAPIKey(ctx, true)
+}
 
-	// Double-check pattern - another goroutine might have refreshed while we were waiting
-	if apiKey != nil {
-		return apiKey, false, nil
+// refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
+func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, forceRefresh bool) (*string, bool, error) {
+	// If not forcing refresh, check if we already have a cached key
+	if !forceRefresh {
+		d.mu.RLock()
+		apiKey := d.apiKey
+		d.mu.RUnlock()
+
+		if apiKey != nil {
+			return apiKey, false, nil
+		}
+	}
+
+	// Need to fetch a new key - acquire write lock
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Double-check pattern - another goroutine might have refreshed while we were waiting for the write lock
+	if !forceRefresh && d.apiKey != nil {
+		return d.apiKey, false, nil
 	}
 
 	d.log.Info("Fetching delegated API key")
