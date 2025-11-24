@@ -45,6 +45,8 @@ var ErrNotInstalled = errors.New("agent: trace-agent not found in $PATH")
 // SecretBackendBinary secret binary name
 var SecretBackendBinary = "secret-script.test"
 
+var sharedBinPath string = filepath.Join(os.TempDir(), "trace-agent")
+
 type grpcServer struct {
 	pb.UnimplementedAgentSecureServer
 }
@@ -72,15 +74,75 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 	if verbose {
 		log.Printf("agent: installing in %s...", binpath)
 	}
-	// TODO(gbbr): find a way to re-use the same binary within a whole run
-	// instead of creating new ones on each test creating a new runner.
-	o, err := exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").CombinedOutput()
-	if err != nil {
+
+	// If the file at sharedBinPath exists copy it into bindir
+	// Otherwise build a new one and then copy it into bindir
+	if _, err := os.Stat(sharedBinPath); err == nil {
+		// Shared binary exists, copy it
 		if verbose {
-			log.Printf("error installing trace-agent: %v", err)
-			log.Print(string(o))
+			log.Printf("agent: copying existing binary from %s", sharedBinPath)
 		}
-		return nil, ErrNotInstalled
+		src, err := os.Open(sharedBinPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open shared binary: %w", err)
+		}
+		defer src.Close()
+
+		dst, err := os.Create(binpath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create binary: %w", err)
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			return nil, fmt.Errorf("failed to copy binary: %w", err)
+		}
+
+		if err := os.Chmod(binpath, 0755); err != nil {
+			return nil, fmt.Errorf("failed to chmod binary: %w", err)
+		}
+	} else {
+		// Build a new binary and copy it to sharedBinPath for future reuse
+		if verbose {
+			log.Printf("agent: building new binary")
+		}
+		o, err := exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").CombinedOutput()
+		if err != nil {
+			if verbose {
+				log.Printf("error installing trace-agent: %v", err)
+				log.Print(string(o))
+			}
+			return nil, ErrNotInstalled
+		}
+
+		// Copy the newly built binary to sharedBinPath for reuse
+		src, err := os.Open(binpath)
+		if err != nil {
+			// Non-fatal: just log and continue
+			if verbose {
+				log.Printf("warning: failed to open binary for copying to shared location: %v", err)
+			}
+		} else {
+			defer src.Close()
+			dst, err := os.Create(sharedBinPath)
+			if err != nil {
+				if verbose {
+					log.Printf("warning: failed to create shared binary: %v", err)
+				}
+			} else {
+				defer dst.Close()
+				if _, err := io.Copy(dst, src); err != nil {
+					if verbose {
+						log.Printf("warning: failed to copy to shared binary: %v", err)
+					}
+				}
+				if err := os.Chmod(sharedBinPath, 0755); err != nil {
+					if verbose {
+						log.Printf("warning: failed to chmod shared binary: %v", err)
+					}
+				}
+			}
+		}
 	}
 
 	if buildSecretBackend {
