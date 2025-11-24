@@ -29,13 +29,13 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 		LegacyFields: legacyFields,
 	}
 
-	variables := map[string]StaticVariable{
-		"pid": NewStaticVariable[int](func(_ *Context) int {
-			return os.Getpid()
-		}),
-		"str": NewStaticVariable[string](func(_ *Context) string {
-			return "aaa"
-		}),
+	variables := map[string]SECLVariable{
+		"pid": NewScopedIntVariable(func(_ *Context) (int, bool) {
+			return os.Getpid(), true
+		}, nil),
+		"str": NewScopedStringVariable(func(_ *Context) (string, bool) {
+			return "aaa", true
+		}, nil),
 	}
 
 	return opts.WithVariables(variables).WithMacroStore(&MacroStore{})
@@ -500,10 +500,15 @@ func TestPartial(t *testing.T) {
 		},
 	}
 
-	variables := make(map[string]StaticVariable)
-	variables["var"] = NewStaticVariable[bool](func(_ *Context) bool {
-		return false
-	})
+	variables := make(map[string]SECLVariable)
+	variables["var"] = NewScopedBoolVariable(
+		func(_ *Context) (bool, bool) {
+			return false, true
+		},
+		func(_ *Context, _ interface{}) error {
+			return nil
+		},
+	)
 
 	tests := []struct {
 		Expr        string

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -64,8 +65,9 @@ type Requires struct {
 
 // Provides defines the output of the snmpscanmanager component
 type Provides struct {
-	Comp   snmpscanmanager.Component
-	Status status.InformationProvider
+	Comp          snmpscanmanager.Component
+	Status        status.InformationProvider
+	FlareProvider flare.Provider
 }
 
 // NewComponent creates a new snmpscanmanager component
@@ -101,8 +103,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	})
 
 	return Provides{
-		Comp:   scanManager,
-		Status: status.NewInformationProvider(scanManager),
+		Comp:          scanManager,
+		Status:        status.NewInformationProvider(scanManager),
+		FlareProvider: flare.NewProvider(scanManager.fillFlare),
 	}, nil
 }
 
