@@ -23,7 +23,7 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 // LinuxLogsFolderPath is the folder where log files will be stored for Linux tests

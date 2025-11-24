@@ -6,19 +6,20 @@
 package serializer
 
 import (
+	"maps"
+	"slices"
 	"testing"
-
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
-
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestBuildPipelines(t *testing.T) {
@@ -356,4 +357,58 @@ func TestPipelinesWithAdditionalEndpointsV3(t *testing.T) {
 			t.Fatal("unknown destination address")
 		}
 	}
+}
+
+func TestPipelinesWithV3Validate(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetWithoutSource("dd_url", "http://example.test")
+	config.SetWithoutSource("api_key", "test_key")
+	config.SetWithoutSource("additional_endpoints", map[string][]string{
+		"http://another.test": {"alt_key"},
+	})
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.validate", true)
+
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger)
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelines(metricsKindSeries)
+
+	testutil.ElementsMatchFn(t, maps.All(pipelines),
+		// v3 pipeline has one destination...
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.True(t, conf.V3, "V3")
+			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			testutil.ElementsMatchFn(t, slices.All(ctx.Destinations),
+				// ... to the default domain with validation headers
+				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
+					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
+					require.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
+					require.True(t, dest.AddValidationHeaders)
+				})
+		},
+		// v2 pipeline has two destinations...
+		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
+			require.False(t, conf.V3, "V3")
+			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			testutil.ElementsMatchFn(t, slices.All(ctx.Destinations),
+				// ... to the default domain with validation headers
+				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
+					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
+					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+					require.True(t, dest.AddValidationHeaders)
+				},
+				// ... to the alternative domain without validation headers
+				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
+					require.Equal(t, "http://another.test", dest.Resolver.GetConfigName())
+					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+					require.False(t, dest.AddValidationHeaders)
+				},
+			)
+		},
+	)
 }
