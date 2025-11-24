@@ -52,7 +52,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
 	parentCmd := &cobra.Command{
-		Use:   "workloadfilterlist",
+		Use:   "workloadfilter",
 		Short: "Print the workload filter status of a running agent",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
