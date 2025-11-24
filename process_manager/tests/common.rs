@@ -152,7 +152,7 @@ pub fn get_cli_binary() -> &'static str {
     if let Ok(binary) = std::env::var("PM_CLI_BINARY") {
         Box::leak(binary.into_boxed_str())
     } else {
-        "../target/release/dd-procmgr"
+        "../target/debug/dd-procmgr"
     }
 }
 
