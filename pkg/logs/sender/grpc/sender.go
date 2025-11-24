@@ -24,8 +24,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 
 	"go.uber.org/atomic"
 )
@@ -55,6 +58,12 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 	if h.endpoint.Origin != "" {
 		headers["dd-evp-origin"] = string(h.endpoint.Origin)
 		headers["dd-evp-origin-version"] = version.AgentVersion
+	}
+
+	if h.endpoint.UseCompression {
+		headers["dd-content-encoding"] = h.endpoint.CompressionKind
+	} else {
+		headers["dd-content-encoding"] = "identity"
 	}
 
 	return headers, nil
@@ -99,6 +108,7 @@ func NewSender(
 	sink sender.Sink,
 	endpoints *config.Endpoints,
 	destinationsCtx *client.DestinationsContext,
+	compressor logscompression.Component,
 ) *Sender {
 
 	// For now, use the first reliable endpoint
@@ -116,6 +126,13 @@ func NewSender(
 
 	// Get stream lifetime from config
 	streamLifetime := config.StreamLifetime(cfg)
+
+	// Create compressor for snapshot compression based on endpoint config
+	var comp compression.Compressor
+	comp = compressor.NewCompressor(compression.NoneKind, 0)
+	if endpoint.UseCompression {
+		comp = compressor.NewCompressor(endpoint.CompressionKind, endpoint.CompressionLevel)
+	}
 
 	sender := &Sender{
 		endpoint:            endpoint,
@@ -154,6 +171,7 @@ func NewSender(
 			sender.sink,
 			endpoint,
 			streamLifetime,
+			comp,
 		)
 
 		sender.workers = append(sender.workers, worker)

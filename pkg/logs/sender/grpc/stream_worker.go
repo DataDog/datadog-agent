@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -138,6 +139,9 @@ type streamWorker struct {
 	backoffPolicy backoff.Policy
 	nbErrors      int
 
+	// Compression for snapshot state
+	compression compression.Compressor
+
 	// Control
 	stopChan chan struct{}
 	done     chan struct{}
@@ -154,9 +158,10 @@ func newStreamWorker(
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
+	compressor compression.Compressor,
 ) *streamWorker {
 	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
-		endpoint, streamLifetime, clock.New(), nil)
+		endpoint, streamLifetime, compressor, clock.New(), nil)
 }
 
 // newStreamWorkerWithClock creates a new gRPC stream worker with injectable clock for testing
@@ -169,6 +174,7 @@ func newStreamWorkerWithClock(
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
+	compressor compression.Compressor,
 	clock clock.Clock,
 	inflightTracker *inflightTracker,
 ) *streamWorker {
@@ -201,6 +207,7 @@ func newStreamWorkerWithClock(
 		inflight:            inflightTracker,
 		backoffPolicy:       backoffPolicy,
 		nbErrors:            0,
+		compression:         compressor,
 		stopChan:            make(chan struct{}),
 		done:                make(chan struct{}),
 		clock:               clock,
@@ -510,9 +517,15 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 	// Send snapshot state first (batch 0)
 	serialized := s.inflight.getSnapshot()
 	if serialized != nil {
-		// Send snapshot to sender goroutine via channel
-		// This call won't block because it's buffered channel's first write
-		s.batchToSendCh <- createBatch(serialized, 0)
+		// Compress snapshot like regular batches
+		compressed, err := s.compression.Compress(serialized)
+		if err != nil {
+			log.Errorf("Worker %s: Failed to compress snapshot: %v", s.workerID, err)
+		} else {
+			// Send compressed snapshot to sender goroutine via channel
+			// This call won't block because it's buffered channel's first write
+			s.batchToSendCh <- createBatch(compressed, 0)
+		}
 	}
 }
 
