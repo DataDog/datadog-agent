@@ -414,16 +414,16 @@ func TestDeviceScansAreRequested(t *testing.T) {
 
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "192.168.0.0",
-	}).Once()
+	}, false).Once()
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "192.168.0.1",
-	}).Once()
+	}, false).Once()
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "192.168.0.2",
-	}).Once()
+	}, false).Once()
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "192.168.0.3",
-	}).Once()
+	}, false).Once()
 
 	discovery := NewDiscovery(checkConfig, sessionFactory, config, scanManager)
 	discovery.Start()

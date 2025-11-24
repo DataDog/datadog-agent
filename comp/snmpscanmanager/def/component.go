@@ -10,7 +10,7 @@ package snmpscanmanager
 
 // Component is the component type
 type Component interface {
-	RequestScan(req ScanRequest)
+	RequestScan(req ScanRequest, forceQueue bool)
 }
 
 // ScanRequest represents a device scan request
