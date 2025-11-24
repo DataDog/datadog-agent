@@ -21,11 +21,12 @@ import (
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 
 	// "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
-	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
 type myEKSSuite struct {
@@ -42,7 +43,7 @@ func TestMyEKSSuite(t *testing.T) {
 				tifeks.WithLinuxARMNodeGroup(),
 			),
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
+				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", 80, "", false, nil)
 			}),
 		)))
 }

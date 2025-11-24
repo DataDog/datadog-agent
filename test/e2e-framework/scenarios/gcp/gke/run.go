@@ -115,7 +115,7 @@ func Run(ctx *pulumi.Context) error {
 	// Deploy testing workload
 	if env.TestingWorkloadDeploy() {
 
-		if _, err := nginx.K8sAppDefinition(&env, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+		if _, err := nginx.K8sAppDefinition(&env, cluster.KubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 			return err
 		}
 

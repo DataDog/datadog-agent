@@ -25,7 +25,7 @@ func runtimeClassToPulumi(runtimeClass string) pulumi.StringInput {
 }
 
 // NewNginxDeploymentManifest creates a new deployment manifest for Nginx server
-func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
+func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...DeploymentModifier) (*appsv1.DeploymentArgs, error) {
 	manifest := &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),
@@ -85,23 +85,28 @@ func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),
-									ContainerPort: pulumi.Int(80),
+									ContainerPort: pulumi.Int(nginxPort),
 									Protocol:      pulumi.String("TCP"),
 								},
 							},
 							LivenessProbe: &corev1.ProbeArgs{
 								HttpGet: &corev1.HTTPGetActionArgs{
-									Port: pulumi.Int(80),
+									Port: pulumi.Int(nginxPort),
 								},
 								TimeoutSeconds: pulumi.Int(5),
 							},
 							ReadinessProbe: &corev1.ProbeArgs{
 								HttpGet: &corev1.HTTPGetActionArgs{
-									Port: pulumi.Int(80),
+									Port: pulumi.Int(nginxPort),
 								},
 								TimeoutSeconds: pulumi.Int(5),
 							},
 							VolumeMounts: &corev1.VolumeMountArray{
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("conf"),
+									MountPath: pulumi.String("/etc/nginx/nginx.conf"),
+									SubPath:   pulumi.String("nginx.conf"),
+								},
 								&corev1.VolumeMountArgs{
 									Name:      pulumi.String("cache"),
 									MountPath: pulumi.String("/var/cache/nginx"),
@@ -114,6 +119,12 @@ func NewNginxDeploymentManifest(namespace string, mods ...DeploymentModifier) (*
 						},
 					},
 					Volumes: corev1.VolumeArray{
+						&corev1.VolumeArgs{
+							Name: pulumi.String("conf"),
+							ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
+								Name: pulumi.String("nginx"),
+							},
+						},
 						&corev1.VolumeArgs{
 							Name:     pulumi.String("cache"),
 							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},

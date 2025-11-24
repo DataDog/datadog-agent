@@ -123,11 +123,11 @@ providers:
 
 	// Deploy testing workload
 	if env.TestingWorkloadDeploy() {
-		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */); err != nil {
+		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */); err != nil {
 			return err
 		}
 
-		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx-kata", kataRuntimeClass, true, dependsOnDDAgent /* for DDM */); err != nil {
+		if _, err := nginx.K8sAppDefinition(&env, aksCluster.KubeProvider, "workload-nginx-kata", 80, kataRuntimeClass, true, dependsOnDDAgent /* for DDM */); err != nil {
 			return err
 		}
 
