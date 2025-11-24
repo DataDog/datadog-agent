@@ -19,30 +19,5 @@ relative_path "libpcap-#{version}"
 source url: "https://www.tcpdump.org/release/libpcap-#{version}.tar.xz"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  configure_options = [
-    "--disable-largefile",
-    "--disable-instrument-functions",
-    "--disable-remote",
-    "--disable-usb",
-    "--disable-netmap",
-    "--disable-bluetooth",
-    "--disable-dbus",
-    "--disable-rdma",
-    "--without-dag",
-    "--without-dpdk",
-    "--without-libnl",
-    "--without-septel",
-    "--without-snf",
-    "--without-turbocap",
-  ]
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "install", env: env
-
-  delete "#{install_dir}/embedded/bin/pcap-config"
-  delete "#{install_dir}/embedded/lib/libpcap.a"
-
+  command_on_repo_root "bazelisk run -- @libpcap//:install --destdir='#{install_dir}/embedded'"
 end
