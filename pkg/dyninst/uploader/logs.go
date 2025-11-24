@@ -23,11 +23,14 @@ import (
 
 // LogsUploaderFactory is a factory for creating and managing log uploaders for different tags.
 type LogsUploaderFactory struct {
+	// The URL to send logs to (with or without snapshots).
+	logsURL *url.URL
+	cfg     config
+	metrics *Metrics
+
 	mu            sync.Mutex
 	uploaders     map[LogsUploaderMetadata]*refCountedUploader
 	maxUploaderID uint64
-	cfg           config
-	metrics       *Metrics
 }
 
 // LogsUploaderMetadata is the metadata applied to the requests sent by an
@@ -50,9 +53,9 @@ type refCountedUploader struct {
 	refCount int
 }
 
-// LogsUploader is an uploader for sending log-like batches with a specific set
-// of tags. It wraps a batcher and provides a Close() method to remove itself
-// from the parent LogsUploaderFactory.
+// LogsUploader uploads logs and snapshots in batches, adding headers
+// corresponding to a set of tags. It wraps logs batchers and provides a Close()
+// method to remove itself from the parent LogsUploaderFactory.
 type LogsUploader struct {
 	batcher *batcher
 	// onClose is called when the uploader is closed to decrement its refcount
@@ -61,11 +64,12 @@ type LogsUploader struct {
 }
 
 // NewLogsUploaderFactory creates a new uploader factory.
-func NewLogsUploaderFactory(opts ...Option) *LogsUploaderFactory {
+func NewLogsUploaderFactory(logsURL *url.URL, opts ...Option) *LogsUploaderFactory {
 	lu := &LogsUploaderFactory{
 		uploaders: make(map[LogsUploaderMetadata]*refCountedUploader),
 		cfg:       defaultConfig(),
 		metrics:   &Metrics{},
+		logsURL:   logsURL,
 	}
 	for _, opt := range opts {
 		opt(&lu.cfg)
@@ -111,29 +115,20 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 	for _, keyVal := range u.cfg.headers {
 		addHeader(keyVal[0], keyVal[1])
 	}
-	var logsURL, name string
-	if metadata.Tags == "" {
-		logsURL = u.cfg.url.String()
-	} else {
-		query, _ := url.ParseQuery(u.cfg.url.RawQuery)
-		// If we failed to parse the query, we'll use an empty query.
-		query.Set("ddtags", metadata.Tags)
-		tagURL := *u.cfg.url
-		tagURL.RawQuery = query.Encode()
-		logsURL = tagURL.String()
-	}
+
+	logsURL := makeIntakeURL(u.logsURL, metadata.Tags)
+
 	if metadata.EntityID != "" {
 		addHeader(ddHeaderEntityID, metadata.EntityID)
 	}
 	if metadata.ContainerID != "" {
 		addHeader(ddHeaderContainerID, metadata.ContainerID)
 	}
-	name = fmt.Sprintf("logs:%d", uploaderID)
+	name := fmt.Sprintf("logs:%d", uploaderID)
 	log.Debugf("creating uploader %s with metadata %v", name, metadata)
 
-	sender := newLogSender(u.cfg.client, logsURL, headers, u.cfg.sendTimeout)
 	taggedUploader := &LogsUploader{
-		batcher: newBatcher(name, sender, u.cfg.batcherConfig, u.metrics),
+		batcher: newBatcher(name, newLogSender(u.cfg.client, logsURL, headers, u.cfg.sendTimeout), u.cfg.batcherConfig, u.metrics),
 		onClose: func() {
 			u.closeUploader(metadata)
 		},
@@ -145,6 +140,18 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 	}
 
 	return taggedUploader
+}
+
+func makeIntakeURL(baseURL *url.URL, tags string) string {
+	if tags == "" {
+		return baseURL.String()
+	}
+	query, _ := url.ParseQuery(baseURL.RawQuery)
+	// If we failed to parse the query, we'll use an empty query.
+	query.Set("ddtags", tags)
+	tagURL := *baseURL
+	tagURL.RawQuery = query.Encode()
+	return tagURL.String()
 }
 
 // Enqueue adds a message to the uploader's queue.

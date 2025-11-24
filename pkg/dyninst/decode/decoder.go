@@ -310,6 +310,11 @@ func (s *message) init(
 	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
+
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindLog {
+		s.Debugger.Type = payloadTypeSnapshot
+	}
+
 	header, err := event.EntryOrLine.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
