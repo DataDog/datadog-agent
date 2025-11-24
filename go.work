@@ -108,10 +108,15 @@ use (
 	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/metrics
+	pkg/logs/patterns/automaton
+	pkg/logs/patterns/clustering
+	pkg/logs/patterns/clustering/merging
+	pkg/logs/patterns/token
 	pkg/logs/pipeline
 	pkg/logs/processor
 	pkg/logs/sds
 	pkg/logs/sender
+	pkg/logs/sender/grpc
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
