@@ -849,12 +849,19 @@ func (f *fakeLogsUploaderFactory) GetUploader(
 	return ul
 }
 
+// fakeLogsUploader implements module.LogsUploader.
+var _ module.LogsUploader = (*fakeLogsUploader)(nil)
+
 type fakeLogsUploader struct {
 	messages []json.RawMessage
 	closed   bool
 }
 
-func (f *fakeLogsUploader) Enqueue(data json.RawMessage) {
+func (f *fakeLogsUploader) EnqueueLog(data json.RawMessage) {
+	f.messages = append(f.messages, data)
+}
+
+func (f *fakeLogsUploader) EnqueueSnapshot(data json.RawMessage) {
 	f.messages = append(f.messages, data)
 }
 

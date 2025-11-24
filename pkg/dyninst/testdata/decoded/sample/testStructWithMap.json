@@ -75,14 +75,9 @@
           }
         }
       },
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{m: map[1: 1]} {error: not available: function has no body}"
+    "message": "{m: map[1: 1]} {error: @duration is not available}"
   }
 ]

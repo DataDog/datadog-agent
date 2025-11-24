@@ -16,6 +16,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"time"
 )
 
@@ -103,12 +104,12 @@ type DiagnosticsUploader struct {
 }
 
 // NewDiagnosticsUploader creates a new uploader for sending diagnostics batches.
-func NewDiagnosticsUploader(opts ...Option) *DiagnosticsUploader {
+func NewDiagnosticsUploader(url *url.URL, opts ...Option) *DiagnosticsUploader {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	sender := newDiagnosticsSender(cfg.client, cfg.url.String())
+	sender := newDiagnosticsSender(cfg.client, url.String())
 	return &DiagnosticsUploader{
 		batcher: newBatcher("diagnostics", sender, cfg.batcherConfig),
 	}

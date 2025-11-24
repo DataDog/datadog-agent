@@ -64,7 +64,8 @@
             "67": {}
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "testInlinedBCB"
