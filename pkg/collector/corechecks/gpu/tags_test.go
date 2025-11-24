@@ -28,6 +28,7 @@ import (
 	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
+	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -487,15 +488,23 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
 	mockTagger := taggerfxmock.SetupFakeTagger(t)
 	mockWmeta := testutil.GetWorkloadMetaMock(t)
-	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, nil, testutil.GetTelemetryMock(t), defaultCacheSize)
+	mockContainerProvider := mock_containers.NewMockContainerProvider(gomock.NewController(t))
+	cache, err := NewWorkloadTagCache(mockTagger, mockWmeta, mockContainerProvider, testutil.GetTelemetryMock(t), defaultCacheSize)
 	require.NoError(t, err)
 
 	pid := int32(4321)
+
+	mockContainerProvider.EXPECT().
+		GetPidToCid(time.Duration(0)).
+		Return(map[int]string{})
 
 	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
 		{Pid: uint32(pid), NsPid: 0},
 	})
 	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	// Ensure the process exists in the fake procfs
+	require.True(t, kernel.ProcessExists(int(pid)))
 
 	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
 	require.NoError(t, err)
@@ -529,6 +538,12 @@ func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	mockContainerProvider.EXPECT().
 		GetPidToCid(time.Duration(0)).
 		Return(map[int]string{int(pid): containerID})
+
+	// FAke procfs but with no NSPid field
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: uint32(pid), NsPid: 0},
+	})
+	kernel.WithFakeProcFS(t, fakeProcFS)
 
 	setWorkloadInWorkloadMeta(t, mockWmeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
 	setWorkloadTags(t, mockTagger, newContainerWorkloadID(containerID), containerTags, nil, nil)
@@ -675,7 +690,8 @@ func TestGetContainerIDFirstCall(t *testing.T) {
 		GetPidToCid(time.Duration(0)).
 		Return(map[int]string{int(pid): containerID})
 
-	result := cache.getContainerID(pid)
+	result, err := cache.getContainerID(pid)
+	require.NoError(t, err)
 	assert.Equal(t, containerID, result)
 
 	// Verify pidToCid is now populated
@@ -701,7 +717,8 @@ func TestGetContainerIDSubsequentCall(t *testing.T) {
 	// Should not call GetPidToCid since pidToCid is already populated
 	// (no EXPECT call)
 
-	result := cache.getContainerID(pid)
+	result, err := cache.getContainerID(pid)
+	require.NoError(t, err)
 	assert.Equal(t, "container-123", result)
 }
 
@@ -719,7 +736,9 @@ func TestGetContainerIDPIDNotFound(t *testing.T) {
 		GetPidToCid(time.Duration(0)).
 		Return(map[int]string{1234: "container-123"})
 
-	result := cache.getContainerID(pid)
+	result, err := cache.getContainerID(pid)
+	require.Error(t, err)
+	require.True(t, agenterrors.IsNotFound(err))
 	assert.Equal(t, "", result)
 }
 
@@ -733,7 +752,7 @@ func TestGetNsPIDNotFoundError(t *testing.T) {
 
 	nspid, err := getNsPID(pid)
 	assert.Error(t, err)
-	assert.True(t, agenterrors.IsNotFound(err))
+	require.ErrorIs(t, err, secutils.ErrNoNSPid)
 	assert.Equal(t, int32(0), nspid)
 }
 

@@ -201,7 +201,8 @@ func (c *Check) Cancel() {
 	c.CheckBase.Cancel()
 }
 
-// Run executes the check
+// Run executes the check. Configure must have been called before and returned no errors, otherwise
+// we will panic here as we assume certain components have been initialized.
 func (c *Check) Run() error {
 	currentExecutionTime := time.Now()
 
@@ -252,7 +253,7 @@ func (c *Check) Run() error {
 	}
 
 	// Make sure workload tag resolution attempts retrieving the most up to date values.
-	// Invalidated cache entries (from previous runs) might still be used as a fallback.
+	// Stale cache entries (from previous runs) might still be used as a fallback.
 	c.workloadTagCache.MarkStale()
 
 	// build the mapping of GPU devices -> containers to allow tagging device

@@ -21,7 +21,6 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	agenterrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -43,6 +42,10 @@ func Getpid() uint32 {
 }
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
+
+// ErrNoNSPid is returned when no NSpid field is found in the status file, useful to distinguish between
+// errors reading the file and the case where the field is not present, common for non-containerized processes.
+var ErrNoNSPid = errors.New("no NSpid field found")
 
 // NetNSPath represents a network namespace path
 type NetNSPath struct {
@@ -455,7 +458,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			return nspids, nil
 		}
 	}
-	return nil, agenterrors.NewNotFound("NSpid field")
+	return nil, ErrNoNSPid
 }
 
 // GetPidTasks returns the task IDs of a process

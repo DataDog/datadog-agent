@@ -10,7 +10,6 @@ package gpu
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -204,22 +203,20 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 	} else if agenterrors.IsNotFound(err) {
 		// If workloadmeta does not have the process data, we fall back to
 		// retrieving the data directly.
-		containerID = c.getContainerID(pid)
-		nspid, err = getNsPID(pid)
-		if err != nil && !agenterrors.IsNotFound(err) && !os.IsNotExist(err) {
-			// A non-containerized process might not have a nspid, or the process might not exist anymore, so ignore "NotFound" errors
-			multiErr = errors.Join(multiErr, fmt.Errorf("error getting nspid for process %d: %w", pid, err))
+		var contErr, nspidErr error
+		containerID, contErr = c.getContainerID(pid)
+		if contErr != nil && !agenterrors.IsNotFound(contErr) {
+			multiErr = errors.Join(multiErr, fmt.Errorf("error getting container ID for process %d: %w", pid, contErr))
 		}
 
-		if err != nil && containerID == "" {
-			// We could not get any data for the process. If that's because the process does not exist,
-			// we want to return a "NotFound" error so that we can return stale data.
-			if !kernel.ProcessExists(int(pid)) {
-				return tags, agenterrors.NewNotFound("process not found")
-			}
+		nspid, nspidErr = getNsPID(pid)
+		if nspidErr != nil && !errors.Is(nspidErr, secutils.ErrNoNSPid) {
+			multiErr = errors.Join(multiErr, fmt.Errorf("error getting nspid for process %d: %w", pid, nspidErr))
+		}
 
-			// Some other error happened, return it so it can be reported correctly.
-			return tags, multiErr
+		if contErr != nil && nspidErr != nil && !kernel.ProcessExists(int(pid)) {
+			// The process does not exist anymore, so return a "NotFound" error so that we can return stale data.
+			return tags, agenterrors.NewNotFound(pid)
 		}
 	}
 
@@ -255,7 +252,7 @@ func getNsPID(pid int32) (int32, error) {
 		return 0, fmt.Errorf("could not get nspid for pid %d: %w", pid, err)
 	}
 	if len(nspids) == 0 {
-		return 0, agenterrors.NewNotFound("nspid field")
+		return 0, secutils.ErrNoNSPid
 	}
 
 	return int32(nspids[len(nspids)-1]), nil
@@ -269,13 +266,13 @@ func getNsPID(pid int32) (int32, error) {
 // we won't be able to get the tags anyway even if we got the container ID from another place
 // that didn't depend at all on workloadmeta.
 // Returns an empty string if the container ID is not found.
-func (c *WorkloadTagCache) getContainerID(pid int32) string {
+func (c *WorkloadTagCache) getContainerID(pid int32) (string, error) {
 	if c.pidToCid == nil {
 		if c.containerProvider == nil {
 			// with no container provider, we cannot get the container ID, so return an empty string.
 			// this might happen in tests that use the WorkloadTagCache without a container provider, where this logic is not needed
 			// or under test but might cause panics if we don't have this check.
-			return ""
+			return "", fmt.Errorf("no container provider available")
 		}
 
 		// Get the PID -> CID mapping from the container provider with no cache validity, as we have already failed to hit the
@@ -286,10 +283,10 @@ func (c *WorkloadTagCache) getContainerID(pid int32) string {
 
 	containerID, exists := c.pidToCid[int(pid)]
 	if !exists {
-		return ""
+		return "", agenterrors.NewNotFound(pid)
 	}
 
-	return containerID
+	return containerID, nil
 }
 
 func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *workloadTagCacheEntry) {
