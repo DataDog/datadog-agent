@@ -78,7 +78,7 @@ func TestBundleDependencies(t *testing.T) {
 func TestBundleOneShot(t *testing.T) {
 	runCmd := func(r runner.Component) {
 		checks := r.GetProvidedChecks()
-		require.Len(t, checks, 6)
+		require.Len(t, checks, 5)
 
 		var names []string
 		for _, c := range checks {
@@ -89,7 +89,6 @@ func TestBundleOneShot(t *testing.T) {
 			"process",
 			"container",
 			"rtcontainer",
-			"process_events",
 			"connections",
 			"process_discovery",
 		}, names)

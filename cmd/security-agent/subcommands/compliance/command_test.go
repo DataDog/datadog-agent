@@ -57,15 +57,15 @@ func TestLoadSubcommand(t *testing.T) {
 	tests := []struct {
 		name     string
 		cliInput []string
-		check    func(cliParams *loadCliParams, params core.BundleParams)
+		check    func(cliParams *cli.LoadParams, params core.BundleParams)
 	}{
 		{
 			name:     "compliance load",
 			cliInput: []string{"compliance", "load", "k8s"},
-			check: func(cliParams *loadCliParams, params core.BundleParams) {
+			check: func(cliParams *cli.LoadParams, params core.BundleParams) {
 				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
 				require.Equal(t, "info", params.LogLevelFn(nil), "params.LogLevelFn not matching")
-				require.Equal(t, "k8s", cliParams.confType)
+				require.Equal(t, "k8s", cliParams.ConfType)
 			},
 		},
 	}
@@ -74,7 +74,7 @@ func TestLoadSubcommand(t *testing.T) {
 		fxutil.TestOneShotSubcommand(t,
 			Commands(&command.GlobalParams{}),
 			test.cliInput,
-			loadRun,
+			cli.RunLoad,
 			test.check,
 		)
 	}

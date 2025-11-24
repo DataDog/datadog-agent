@@ -2282,6 +2282,9 @@ api_key:
 #     - '*token'
 #     - 'sql*'
 #     - '*pass*d*'
+#
+#   custom_sensitive_regexps:
+#     - 'gh-[a-zA-Z0-9]+'
 
 #   # @param envs_with_value - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional

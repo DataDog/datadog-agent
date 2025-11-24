@@ -41,7 +41,6 @@ type dependencies struct {
 }
 
 type forwardersComp struct {
-	eventForwarder       defaultforwarder.Component
 	processForwarder     defaultforwarder.Component
 	rtProcessForwarder   defaultforwarder.Component
 	connectionsForwarder connectionsforwarder.Component
@@ -55,16 +54,6 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
-	eventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
-	if err != nil {
-		return nil, err
-	}
-
-	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
-	if err != nil {
-		return nil, err
-	}
-
 	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
@@ -76,7 +65,6 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	}
 
 	return &forwardersComp{
-		eventForwarder:       createForwarder(deps, eventForwarderOpts),
 		processForwarder:     createForwarder(deps, processForwarderOpts),
 		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
 		connectionsForwarder: deps.ConnectionsForwarders,
@@ -97,10 +85,6 @@ func createParams(config config.Component, log log.Component, queueBytes int, en
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts, nil
-}
-
-func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {
-	return f.eventForwarder
 }
 
 func (f *forwardersComp) GetProcessForwarder() defaultforwarder.Component {
