@@ -30,7 +30,6 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    environ,
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
