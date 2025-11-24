@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_library(
+    name = "token",
+    srcs = [
+        "signature.go",
+        "token.go",
+        "tokenlist.go",
+        "tokentype_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/token",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "token_test",
+    srcs = [
+        "signature_test.go",
+        "token_test.go",
+        "tokenlist_test.go",
+    ],
+    embed = [":token"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+go_stringer(
+    name = "tokentype_string",
+    src = "token.go",
+    output = "tokentype_string.go",
+    trimprefix = "Token",
+    types = ["TokenType"],
+)
