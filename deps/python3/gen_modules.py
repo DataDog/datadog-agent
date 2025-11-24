@@ -28,10 +28,16 @@ def postprocess(modules):
     del modules["_tkinter"]
     modules["_ctypes"]["deps"] = ["@libffi//:libffi"]
     modules["_ctypes"]["dynamic_deps"] = ["@libffi//:ffi"]
-    modules["_hashlib"]["deps"] = ["@openssl//:openssl"]
-    # modules["_hashlib"]["dynamic_deps"] = ["@openssl//:openssl"]
-    modules["_ssl"]["deps"] = ["@openssl//:openssl"]
-    # modules["_ssl"]["dynamic_deps"] = ["@openssl//:openssl"]
+    for m in ["_hashlib", "_ssl"]:
+        modules[m]["deps"] = ["@openssl//:openssl"]
+        # Work around for macOS x86_64 where /usr/local/include is part of the
+        # default headers locations which causes bazel to explicitly add "-I/usr/local/include"
+        # to the command line.
+        # By passing our openssl headers through copts it gets prepended and ensures our
+        # openssl version takes precedence
+        modules[m]["extra_copts"] = [
+            "-Ibazel-out/darwin_arm64-fastbuild/bin/external/+_repo_rules+openssl/openssl/include"
+        ]
     modules["_ssl"]["textual_hdrs"] = ["Modules/_ssl/debughelpers.c", "Modules/_ssl/misc.c", "Modules/_ssl/cert.c"]
     del modules["_curses"]
     del modules["_curses_panel"]

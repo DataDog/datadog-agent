@@ -545,7 +545,7 @@ cc_binary(
         includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
         local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
         deps = [":mimalloc", ":libpython"] + info.get('deps', []),
-        copts = COMMON_COPTS,
+        copts = COMMON_COPTS + info.get('extra_copts', []),
         textual_hdrs = info.get('textual_hdrs', []),
     )
     for name, info in PYTHON_MODULES.items()
