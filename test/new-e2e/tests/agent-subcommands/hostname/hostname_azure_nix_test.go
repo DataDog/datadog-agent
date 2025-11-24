@@ -11,15 +11,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/linux"
 )
+
+const azureMetadataAPIVersion = "2021-02-01"
 
 type linuxAzureHostnameSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -44,7 +46,7 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	hostname := v.Env().RemoteHost.MustExecute("hostname")
 	hostname = strings.TrimSpace(hostname)
 
-	metadataStr := v.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?api-version=%s", azure.GetMetadataAPIVersion()))
+	metadataStr := v.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?api-version=%s", azureMetadataAPIVersion))
 
 	var metadata struct {
 		VMID              string
