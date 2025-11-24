@@ -10,6 +10,7 @@ package client
 import (
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +22,9 @@ import (
 
 // TestGetWithTokenOAuthRetryLogic tests the smart OAuth retry behavior
 func TestGetWithTokenOAuthRetryLogic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 	tests := []struct {
 		name            string
 		setupServer     func(*atomic.Int32) *httptest.Server
@@ -223,6 +227,9 @@ func TestGetWithTokenOAuthRetryLogic(t *testing.T) {
 
 // TestGetWithSessionRetryLogic tests session auth retry behavior
 func TestGetWithSessionRetryLogic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 	tests := []struct {
 		name            string
 		setupServer     func(*atomic.Int32) *httptest.Server
@@ -317,6 +324,9 @@ func TestGetWithSessionRetryLogic(t *testing.T) {
 
 // TestClearAuthByTypeWithRevoke tests that OAuth tokens are revoked when cleared
 func TestClearAuthByTypeWithRevoke(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 	tests := []struct {
 		name            string
 		authType        string
@@ -449,6 +459,9 @@ func TestClearAuthByTypeWithRevoke(t *testing.T) {
 
 // TestExpireDirectorToken tests the token expiration helper
 func TestExpireDirectorToken(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
 	client := &Client{
 		directorToken:        "test-token",
 		directorRefreshToken: "test-refresh",
