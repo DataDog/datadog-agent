@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	noopimpl "github.com/DataDog/datadog-agent/pkg/util/compression/impl-noop"
 )
 
 const (
@@ -289,6 +290,7 @@ func (f *testFixture) createWorkerWithInflight(inflight *inflightTracker) *strea
 		f.mockSink,
 		f.endpoint,
 		f.streamLifetime,
+		noopimpl.New(), // Use noop compressor for tests
 		f.mockClock,
 		inflight,
 	)
