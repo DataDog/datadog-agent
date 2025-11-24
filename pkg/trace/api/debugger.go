@@ -44,8 +44,10 @@ func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
 	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
 }
 
-// debuggerV2IntakeProxyHandler returns an http.Handler proxying Dynamic Instrumentation messages
-// to the debugger intake (DEBUGGER track, not logs track).
+// debuggerV2IntakeProxyHandler returns an http.Handler proxying Dynamic
+// Instrumentation messages to the debugger intake (DEBUGGER track, as opposed
+// to the debuggerLogsProxyHandler above which proxies to the logs track for old
+// tracers).
 func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
 	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
 }
