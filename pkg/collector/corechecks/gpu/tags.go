@@ -29,7 +29,7 @@ const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__worklo
 
 type workloadTagCacheEntry struct {
 	tags  []string
-	valid bool
+	stale bool
 }
 
 // WorkloadTagCache encapsulates the logic for retrieving and caching workload
@@ -86,6 +86,7 @@ func NewWorkloadTagCache(tagger tagger.Component, wmeta workloadmeta.Component, 
 	return c, nil
 }
 
+// Size returns the number of entries in the cache
 func (c *WorkloadTagCache) Size() int {
 	return c.cache.Len()
 }
@@ -96,7 +97,7 @@ func (c *WorkloadTagCache) Size() int {
 // that happened when getting them.
 func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
 	cacheEntry, cacheEntryExists := c.cache.Get(workloadID)
-	if cacheEntryExists && cacheEntry.valid {
+	if cacheEntryExists && !cacheEntry.stale {
 		c.telemetry.cacheHits.Inc(string(workloadID.Kind))
 		return cacheEntry.tags, nil
 	}
@@ -132,20 +133,22 @@ func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]
 		c.telemetry.buildErrors.Inc(string(workloadID.Kind))
 	}
 
-	// Now we always mark the cache entry as valid. This is obvious in the case of no error, but
+	// Now we always mark the cache entry as not stale. This is obvious in the case of no error, but
 	// for the error case it's also useful to avoid re-trying an operation that already failed.
-	// If the error was temporary, it will be retried after the next invalidation.
-	cacheEntry.valid = true
+	// If the error was temporary, it will be retried after the next run.
+	cacheEntry.stale = false
 
 	return tags, err
 }
 
-func (c *WorkloadTagCache) Invalidate() {
+// MarkStale marks all entries in the cache as stale. That way, on the next calls to GetWorkloadTags, we will
+// try to rebuild them, anf if we can't we will return stale data.
+func (c *WorkloadTagCache) MarkStale() {
 	for entry := range c.cache.ValuesIter() {
-		// Mark entries as invalid, so that they are rebuilt on the next run, but can still
-		// be used if we cannot find the entity later.
-		entry.valid = false
+		entry.stale = true
 	}
+
+	//
 	c.pidToCid = nil
 
 	// Update the telemetry metrics after invalidation

@@ -36,10 +36,10 @@ const defaultCacheSize = 1024
 
 // some helper functions to set up the mock data
 
-func setCacheEntry(cache *WorkloadTagCache, workloadID workloadmeta.EntityID, tags []string, valid bool) {
+func setCacheEntry(cache *WorkloadTagCache, workloadID workloadmeta.EntityID, tags []string, stale bool) {
 	cache.cache.Add(workloadID, &workloadTagCacheEntry{
 		tags:  tags,
-		valid: valid,
+		stale: stale,
 	})
 }
 
@@ -229,7 +229,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			name: "cache hit returns stored tags",
 			cacheEntry: &workloadTagCacheEntry{
 				tags:  expectedTags,
-				valid: true,
+				stale: false,
 			},
 			expected: expectedTags,
 		},
@@ -243,7 +243,7 @@ func TestGetWorkloadTags(t *testing.T) {
 				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Equal(t, expectedTags, cacheEntry.tags)
-				assert.True(t, cacheEntry.valid)
+				assert.False(t, cacheEntry.stale)
 			},
 		},
 		{
@@ -251,7 +251,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			workloadID: containerWorkloadID,
 			cacheEntry: &workloadTagCacheEntry{
 				tags:  errorCacheTags,
-				valid: false,
+				stale: true,
 			},
 			setInWorkloadMeta: true,
 			setTaggerTags:     expectedTags,
@@ -260,7 +260,7 @@ func TestGetWorkloadTags(t *testing.T) {
 				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Equal(t, expectedTags, cacheEntry.tags)
-				assert.True(t, cacheEntry.valid)
+				assert.False(t, cacheEntry.stale)
 			},
 		},
 		{
@@ -268,7 +268,7 @@ func TestGetWorkloadTags(t *testing.T) {
 			workloadID: containerWorkloadID,
 			cacheEntry: &workloadTagCacheEntry{
 				tags:  errorCacheTags,
-				valid: false,
+				stale: true,
 			},
 			expected:  errorCacheTags,
 			expectErr: true,
@@ -276,7 +276,7 @@ func TestGetWorkloadTags(t *testing.T) {
 				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Equal(t, errorCacheTags, cacheEntry.tags)
-				assert.True(t, cacheEntry.valid)
+				assert.False(t, cacheEntry.stale)
 			},
 		},
 		{
@@ -288,7 +288,7 @@ func TestGetWorkloadTags(t *testing.T) {
 				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 				require.True(t, exists)
 				assert.Nil(t, cacheEntry.tags)
-				assert.True(t, cacheEntry.valid)
+				assert.False(t, cacheEntry.stale)
 			},
 		},
 	}
@@ -303,7 +303,7 @@ func TestGetWorkloadTags(t *testing.T) {
 					require.NoError(tt, err)
 
 					if testCase.cacheEntry != nil {
-						setCacheEntry(cache, testCase.workloadID, testCase.cacheEntry.tags, testCase.cacheEntry.valid)
+						setCacheEntry(cache, testCase.workloadID, testCase.cacheEntry.tags, testCase.cacheEntry.stale)
 					}
 
 					if testCase.setInWorkloadMeta {
@@ -354,17 +354,17 @@ func TestInvalidate(t *testing.T) {
 	setCacheEntry(cache, workloadID1, tags1, true)
 	setCacheEntry(cache, workloadID2, tags2, true)
 
-	cache.Invalidate()
+	cache.MarkStale()
 
 	// Verify all entries are marked as invalid and that the tags are still present for fallback
 	cacheEntry1, exists := cache.cache.Get(workloadID1)
 	require.True(t, exists)
-	assert.False(t, cacheEntry1.valid)
+	assert.True(t, cacheEntry1.stale)
 	assert.Equal(t, tags1, cacheEntry1.tags)
 
 	cacheEntry2, exists := cache.cache.Get(workloadID2)
 	require.True(t, exists)
-	assert.False(t, cacheEntry2.valid)
+	assert.True(t, cacheEntry2.stale)
 	assert.Equal(t, tags2, cacheEntry2.tags)
 	// Verify pidToCid is cleared
 	assert.Nil(t, cache.pidToCid)
@@ -787,19 +787,19 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	// Verify both are cached
 	cacheEntry, exists := cache.cache.Get(containerWorkloadID)
 	require.True(t, exists)
-	assert.True(t, cacheEntry.valid)
+	assert.False(t, cacheEntry.stale)
 	cacheEntry, exists = cache.cache.Get(processWorkloadID)
 	require.True(t, exists)
-	assert.True(t, cacheEntry.valid)
+	assert.False(t, cacheEntry.stale)
 
 	// Test invalidation
-	cache.Invalidate()
+	cache.MarkStale()
 	cacheEntry, exists = cache.cache.Get(containerWorkloadID)
 	require.True(t, exists)
-	assert.False(t, cacheEntry.valid)
+	assert.True(t, cacheEntry.stale)
 	cacheEntry, exists = cache.cache.Get(processWorkloadID)
 	require.True(t, exists)
-	assert.False(t, cacheEntry.valid)
+	assert.True(t, cacheEntry.stale)
 
 	// Test that after invalidation, we rebuild tags
 	newContainerTags := []string{"service:new-service", "env:staging"}
@@ -810,7 +810,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	assert.ElementsMatch(t, newContainerTags, tags)
 	cacheEntry, exists = cache.cache.Get(containerWorkloadID)
 	require.True(t, exists)
-	assert.True(t, cacheEntry.valid)
+	assert.False(t, cacheEntry.stale)
 
 	// tags for the process owned by the container should also be rebuilt
 	tags, err = cache.GetWorkloadTags(processWorkloadID)
@@ -819,7 +819,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	assert.ElementsMatch(t, expectedProcessTags, tags)
 	cacheEntry, exists = cache.cache.Get(processWorkloadID)
 	require.True(t, exists)
-	assert.True(t, cacheEntry.valid)
+	assert.False(t, cacheEntry.stale)
 }
 
 func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
@@ -895,11 +895,11 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	// Cache entry should be marked as valid to avoid retrying
 	cacheEntry, exists := cache.cache.Get(workloadID)
 	require.True(t, exists)
-	assert.True(t, cacheEntry.valid)
+	assert.False(t, cacheEntry.stale)
 
 	// Invalidate cache
-	cache.Invalidate()
-	assert.False(t, cacheEntry.valid)
+	cache.MarkStale()
+	assert.True(t, cacheEntry.stale)
 
 	// Now add the container to workloadmeta
 	expectedTags := []string{"service:my-service", "env:prod"}
@@ -990,7 +990,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 		// In order to have deterministic results for the telemetry, mark all entries as valid
 		// so that we know the following loop will always hit the cache
 		for entry := range cache.cache.ValuesIter() {
-			entry.valid = true
+			entry.stale = false
 		}
 
 		for range queryExistingWorkloads {
@@ -1017,7 +1017,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 			require.Equal(t, workload.tags, actualTags)
 		}
 
-		cache.Invalidate()
+		cache.MarkStale()
 
 		// Remove some random workloads from workloadmeta
 		removeCount := int(float64(len(createdWorkloads)) * removeRatio)

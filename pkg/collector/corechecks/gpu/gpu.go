@@ -253,7 +253,7 @@ func (c *Check) Run() error {
 
 	// Make sure workload tag resolution attempts retrieving the most up to date values.
 	// Invalidated cache entries (from previous runs) might still be used as a fallback.
-	c.workloadTagCache.Invalidate()
+	c.workloadTagCache.MarkStale()
 
 	// build the mapping of GPU devices -> containers to allow tagging device
 	// metrics with the tags of containers that are using them
