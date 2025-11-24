@@ -102,6 +102,9 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.VariableRole) error {
 			return enc.WriteToken(jsontext.String(v.String()))
 		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, _ *ir.DurationSegment) error {
+			return enc.WriteToken(jsontext.String("@duration"))
+		}),
 	)
 	probeMarshalers := json.JoinMarshalers(
 		basicMarshalers,

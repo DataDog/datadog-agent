@@ -73,6 +73,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "failed to resolve reference \"nonexistentVariable\""
+    "message": "{error: failed to resolve reference \"nonexistentVariable\"}"
   }
 ]

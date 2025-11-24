@@ -405,6 +405,9 @@ func (s *message) init(
 			_return:     &decoder._return,
 			template:    probe.Template,
 		}
+		if s.Duration != 0 {
+			s.Message.duration = &s.Duration
+		}
 	}
 
 	return probe, nil

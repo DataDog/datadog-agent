@@ -16,6 +16,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -49,6 +50,8 @@ type DatadogStatsWriter struct {
 	statsLastMinute *info.StatsWriterInfo // aggregated stats over the last minute. Shared with info package
 	conf            *config.AgentConfig
 
+	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer
+
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
 	payloads  []*pb.StatsPayload // payloads buffered for sync mode
@@ -66,17 +69,19 @@ func NewStatsWriter(
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
+	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer,
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
-		stats:           &info.StatsWriterInfo{},
-		statsLastMinute: &info.StatsWriterInfo{},
-		stop:            make(chan struct{}),
-		flushChan:       make(chan chan struct{}),
-		syncMode:        cfg.SynchronousFlushing,
-		easylog:         log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
-		conf:            cfg,
-		statsd:          statsd,
-		timing:          timing,
+		stats:               &info.StatsWriterInfo{},
+		statsLastMinute:     &info.StatsWriterInfo{},
+		stop:                make(chan struct{}),
+		flushChan:           make(chan chan struct{}),
+		containerTagsBuffer: containerTagsBuffer,
+		syncMode:            cfg.SynchronousFlushing,
+		easylog:             log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
+		conf:                cfg,
+		statsd:              statsd,
+		timing:              timing,
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
@@ -154,10 +159,78 @@ func (w *DatadogStatsWriter) Stop() {
 
 // Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
 func (w *DatadogStatsWriter) Write(sp *pb.StatsPayload) {
+	if w.containerTagsBuffer.IsEnabled() && statsPayloadHasCtags(sp) {
+		w.writeAsyncForCtags(sp)
+		return
+	}
+	w.write(sp)
+}
+
+func (w *DatadogStatsWriter) write(sp *pb.StatsPayload) {
 	w.addStats(sp)
 	if !w.syncMode {
 		w.sendPayloads()
 	}
+}
+
+// statsPayloadHasCtags verifies that at least one containerID is present
+func statsPayloadHasCtags(sp *pb.StatsPayload) bool {
+	for _, s := range sp.Stats {
+		if s.ContainerID != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func enrichStatsWithCtags(s *pb.ClientStatsPayload, ctags []string, err error) {
+	if err != nil {
+		log.Tracef("Error resolving container tags post buffer for %q: %v", s.ContainerID, err)
+		s.ContainerID = ""
+		s.Tags = nil
+		return
+	}
+	s.Tags = ctags
+}
+
+func sizeEstimate(s *pb.ClientStatsPayload) int64 {
+	if len(s.Stats) == 0 {
+		return bytesPerEntry
+	}
+	return int64(len(s.Stats)*len(s.Stats[0].Stats)) * bytesPerEntry
+}
+
+// writeAsyncForCtags enriches all ClientStatPayloads with the tags buffer
+func (w *DatadogStatsWriter) writeAsyncForCtags(sp *pb.StatsPayload) {
+	// use WaitGroup to ensure that all ClientStatsPayloads are enriched before writing
+	var wg sync.WaitGroup
+	wg.Add(len(sp.Stats))
+
+	// pending tracks if at least one ClientStatsPayload is accepted in the tag buffer
+	var pending bool
+	for _, s := range sp.Stats {
+
+		// callback called by the buffer
+		fn := func(cTags []string, err error) {
+			enrichStatsWithCtags(s, cTags, err)
+			wg.Done()
+		}
+		payloadPending := w.containerTagsBuffer.AsyncEnrichment(s.ContainerID, fn, sizeEstimate(s))
+		if payloadPending {
+			pending = true
+		}
+	}
+	// no ClientStatsPayload was admitted in the buffer, write synchronously and exit
+	if !pending {
+		w.write(sp)
+		return
+	}
+
+	// wait in the background for enrichment
+	go func(statsPayload *pb.StatsPayload) {
+		wg.Wait()
+		w.write(statsPayload)
+	}(sp)
 }
 
 func (w *DatadogStatsWriter) addStats(sp *pb.StatsPayload) {

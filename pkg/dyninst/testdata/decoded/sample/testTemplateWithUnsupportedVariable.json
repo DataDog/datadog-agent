@@ -73,6 +73,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "Executed main.testMultipleNamedReturn, it took failed to resolve reference \"@duration\"ms"
+    "message": "Executed main.testMultipleNamedReturn, it took [duration]ms"
   }
 ]
