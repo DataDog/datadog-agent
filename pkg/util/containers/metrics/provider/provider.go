@@ -73,6 +73,8 @@ var (
 		RuntimeNameECSManagedInstances,
 		RuntimeNameCRINonstandard,
 	}
+
+	NonstandardMetadata = NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
 )
 
 // RuntimeFlavor is a typed string for supported container runtime flavors
@@ -148,18 +150,20 @@ func newProvider(wmeta option.Option[workloadmeta.Component]) *GenericProvider {
 // The best collector may change depending on other collectors availability.
 // You should not cache the result from this function.
 func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
+	// we can't return mp.collectors[runtime] directly because it will return a typed nil
+	if runtime, found := mp.collectors[r]; found {
+		return runtime
+	}
+
 	// if the nonstandard runtime feature is present that means
 	// the user supplied a runtime socket that does not map to any of our known
 	// runtimes: containerd, cri-o
 	if env.IsFeaturePresent(env.NonstandardCRIRuntime) {
-		nonstandard := NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
-		log.Debugf("Overriding collector runtime from %s to %s", r.String(), nonstandard.String())
-		r = nonstandard
-	}
+		log.Debugf("Overriding collector runtime from %s to %s", r.String(), NonstandardMetadata.String())
 
-	// we can't return mp.collectors[runtime] directly because it will return a typed nil
-	if runtime, found := mp.collectors[r]; found {
-		return runtime
+		if runtime, found := mp.collectors[NonstandardMetadata]; found {
+			return runtime
+		}
 	}
 
 	return nil
