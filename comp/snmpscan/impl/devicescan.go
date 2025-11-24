@@ -6,6 +6,7 @@
 package snmpscanimpl
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 )
 
-func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig, namespace string, scanParams snmpscan.ScanParams) error {
+func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *snmpparse.SNMPConfig, namespace string, scanParams snmpscan.ScanParams) error {
 	// Establish connection
 	snmp, err := snmpparse.NewSNMP(connParams, s.log)
 	if err != nil {
@@ -54,7 +55,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		}
 		return fmt.Errorf("unable to connect to SNMP agent on %s:%d: %w", snmp.LocalAddr, snmp.Port, err)
 	}
-	err = s.runDeviceScan(snmp, namespace, deviceID, scanParams.CallInterval)
+	err = s.runDeviceScan(ctx, snmp, namespace, deviceID, scanParams.CallInterval)
 	if err != nil {
 		// Send an error status if we can't scan the device
 		errorStatusPayload := metadata.NetworkDevicesMetadata{
@@ -69,7 +70,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 		if sendErr := s.sendPayload(errorStatusPayload); sendErr != nil {
 			return fmt.Errorf("unable to send error status: %v", sendErr)
 		}
-		return fmt.Errorf("unable to perform device scan: %v", err)
+		return fmt.Errorf("unable to perform device scan: %w", err)
 	}
 	// Send a completed status if the scan was successful
 	completedStatusPayload := metadata.NetworkDevicesMetadata{
@@ -87,9 +88,9 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(connParams *snmpparse.SNMPConfig,
 	return nil
 }
 
-func (s snmpScannerImpl) runDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string, callInterval time.Duration) error {
+func (s snmpScannerImpl) runDeviceScan(ctx context.Context, snmpConnection *gosnmp.GoSNMP, deviceNamespace string, deviceID string, callInterval time.Duration) error {
 	// execute the scan
-	pdus, err := gatherPDUs(snmpConnection, callInterval)
+	pdus, err := gatherPDUs(ctx, snmpConnection, callInterval)
 	if err != nil {
 		return err
 	}
@@ -117,9 +118,9 @@ func (s snmpScannerImpl) runDeviceScan(snmpConnection *gosnmp.GoSNMP, deviceName
 
 // gatherPDUs returns PDUs from the given SNMP device that should cover ever
 // scalar value and at least one row of every table.
-func gatherPDUs(snmp *gosnmp.GoSNMP, callInterval time.Duration) ([]*gosnmp.SnmpPDU, error) {
+func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Duration) ([]*gosnmp.SnmpPDU, error) {
 	var pdus []*gosnmp.SnmpPDU
-	err := gosnmplib.ConditionalWalk(snmp, "", false, callInterval, func(dataUnit gosnmp.SnmpPDU) (string, error) {
+	err := gosnmplib.ConditionalWalk(ctx, snmp, "", false, callInterval, func(dataUnit gosnmp.SnmpPDU) (string, error) {
 		pdus = append(pdus, &dataUnit)
 		return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil
 	})
