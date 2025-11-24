@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 // BoundPort represents a port that is bound to a process

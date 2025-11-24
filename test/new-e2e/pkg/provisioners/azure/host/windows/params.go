@@ -11,10 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/compute"
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/fakeintake"
 )
 
 // ProvisionerParams is a set of parameters for the Provisioner.

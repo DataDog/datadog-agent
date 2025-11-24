@@ -9,7 +9,7 @@ package npm
 import (
 	_ "embed"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

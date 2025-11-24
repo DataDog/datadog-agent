@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -638,7 +638,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -675,7 +675,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:`,
@@ -712,7 +712,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -748,7 +748,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^container_name:stress-ng$`,
 				`^display_container_name:stress-ng`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`,
+				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`,
 				`^image_id:ghcr\.io/datadog/apps-stress-ng@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-stress-ng$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -821,7 +821,7 @@ func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment st
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
 				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
-				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`, // org.opencontainers.image.source   docker image label
 				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
 				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -1355,7 +1355,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^container_name:` + kubeDeployment + `$`),
 				regexp.MustCompile(`^display_container_name:` + kubeDeployment + `_` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^git.commit.sha:`),
-				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`),
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/datadog-agent/test/e2e-framework$`),
 				regexp.MustCompile(`^image_id:`), // field is inconsistent. it can be a hash or an image + hash
 				regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-tracegen$`),
 				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),

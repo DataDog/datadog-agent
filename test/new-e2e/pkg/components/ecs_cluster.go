@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 )
 
 // ECSCluster is an ECS Cluster

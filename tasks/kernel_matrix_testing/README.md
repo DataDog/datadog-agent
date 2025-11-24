@@ -25,7 +25,7 @@ A `stack` may be:
 
 1. Review and run `tasks/kernel_matrix_testing/env-setup.sh`
 
-2. Download [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) repository.
+2. Download [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) repository.
    From within the repository execute the following commands:
 
 ```bash
@@ -215,7 +215,7 @@ The `vmsets` file contains the list of one or more sets of VMs to launch. A set 
 - arm64 distribution on remote arm64 machine.
 - local distribution with architecutre corresponding to the local machine.
 
-Sample VMSet file can be found [here](https://github.com/DataDog/test-infra-definitions/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
+Sample VMSet file can be found [here](https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
 
 The file can be generated for a particular `stack` with the `gen-config` task.
 This task takes as parameters

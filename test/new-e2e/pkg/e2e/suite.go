@@ -92,7 +92,7 @@
 //		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 //		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 //		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
-//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 //	)
 //
 //	type subTestSuite struct {
@@ -150,8 +150,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"

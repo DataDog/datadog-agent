@@ -10,8 +10,8 @@ import (
 	_ "embed"
 
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 )
 
 //go:embed fixtures/secret-resolver.py

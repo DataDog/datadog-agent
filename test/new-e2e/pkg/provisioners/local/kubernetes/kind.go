@@ -14,14 +14,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
-	"github.com/DataDog/test-infra-definitions/resources/local"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 
-	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
