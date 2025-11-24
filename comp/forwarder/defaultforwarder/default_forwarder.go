@@ -292,7 +292,6 @@ type DefaultForwarder struct {
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
 	retryQueueDurationCapacityMutex sync.Mutex
-	secrets                         secrets.Component
 }
 
 // NewDefaultForwarder returns a new DefaultForwarder.
@@ -302,7 +301,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	f := &DefaultForwarder{
 		config:           config,
 		log:              log,
-		secrets:          options.Secrets,
 		NumberOfWorkers:  options.NumberOfWorkers,
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
