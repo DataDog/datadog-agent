@@ -26,13 +26,16 @@ def _visual_studio_impl(ctx):
 
     # Get identifying properties to use for reproducibility metatada
     # We stick to just the version for now
-    vs_version = _get_vs_property(ctx, vs_path, "installationVersion")
+    vs_version_full = _get_vs_property(ctx, vs_path, "installationVersion")
 
-    if not vs_version:
+    if not vs_version_full:
         fail(
             "Version couldn't be detected for '%s'. This probably means there is no VS installation for the provided path." %
             vs_path,
         )
+
+    # It's not possible to pin the Visual Studio version beyond the minor segment
+    vs_version = ".".join(vs_version_full.split(".")[:2])
 
     if ctx.attr.version and ctx.attr.version != vs_version:
         fail("Version '%s' doesn't match expected version '%s'" % (vs_version, ctx.attr.version))
