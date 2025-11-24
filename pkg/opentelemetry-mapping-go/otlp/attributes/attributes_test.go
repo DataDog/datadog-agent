@@ -365,13 +365,13 @@ func TestGetOperationName(t *testing.T) {
 		},
 		{
 			name:     "default - specified span kind",
-			spanKind: ptrace.SpanKindServer,
-			expected: "server",
+			spanKind: ptrace.SpanKindProducer,
+			expected: "Producer",
 		},
 		{
 			name:     "default",
 			spanKind: ptrace.SpanKindInternal,
-			expected: "internal",
+			expected: "Internal",
 		},
 	}
 	for _, testInstance := range tests {
@@ -380,6 +380,8 @@ func TestGetOperationName(t *testing.T) {
 			for k, v := range testInstance.attrs {
 				attrs.PutStr(k, v)
 			}
+			operationName := GetOperationName(attrs, testInstance.spanKind)
+			assert.Equal(t, testInstance.expected, operationName)
 		})
 	}
 }
