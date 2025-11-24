@@ -42,28 +42,32 @@ var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
-	collectors         []nvidia.Collector               // collectors for NVML metrics
-	tagger             tagger.Component                 // Tagger instance to add tags to outgoing metrics
-	telemetry          *checkTelemetry                  // Internal telemetry metrics for the check
-	telemetryComponent telemetry.Component              // Telemetry component
-	wmeta              workloadmeta.Component           // Workloadmeta store to get the list of containers
-	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
-	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
-	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
-	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
-	nvmlStateTelemetry *ddnvml.NvmlStateTelemetry       // nvmlStateTelemetry tracks the state of the NVML library
-	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
-	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	collectors        []nvidia.Collector               // collectors for NVML metrics
+	tagger            tagger.Component                 // Tagger instance to add tags to outgoing metrics
+	telemetry         *checkTelemetry                  // Internal telemetry metrics for the check
+	wmeta             workloadmeta.Component           // Workloadmeta store to get the list of containers
+	deviceTags        map[string][]string              // deviceTags is a map of device UUID to tags
+	deviceCache       ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
+	spCache           *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	deviceEvtGatherer *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
+	workloadTagCache  *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
+	containerProvider proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
 }
 
 type checkTelemetry struct {
+	collectorTelemetry *nvidia.CollectorTelemetry // collectorTelemetry holds specific telemetry for the collectors, it will also be passed to the collector dependencies
+	metrics            *checkTelemetryMetrics     // metrics holds the metrics for the check
+	component          telemetry.Component        // telemetry component, used to create the telemetry metrics
+	nvmlState          *ddnvml.NvmlStateTelemetry // nvmlState tracks the state of the NVML library
+}
+
+type checkTelemetryMetrics struct {
 	metricsSent                  telemetry.Counter
 	duplicateMetrics             telemetry.Counter
 	activeMetrics                telemetry.Gauge
 	missingContainerGpuMapping   telemetry.Counter
 	multipleContainersGpuMapping telemetry.Counter
-	collectorTelemetry           *nvidia.CollectorTelemetry // collectorTelemetry holds specific telemetry for the collectors, it will also be passed to the collector dependencies
-	deviceCount                  telemetry.Gauge            // emitted as a telemetry metric too in order to send it through COAT
+	deviceCount                  telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
 // Factory creates a new check factory
@@ -75,25 +79,31 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:          core.NewCheckBase(CheckName),
-		tagger:             tagger,
-		telemetry:          newCheckTelemetry(telemetry),
-		wmeta:              wmeta,
-		deviceTags:         make(map[string][]string),
-		deviceCache:        ddnvml.NewDeviceCache(),
-		nvmlStateTelemetry: ddnvml.NewNvmlStateTelemetry(telemetry),
-		telemetryComponent: telemetry,
+		CheckBase:   core.NewCheckBase(CheckName),
+		tagger:      tagger,
+		telemetry:   newCheckTelemetry(telemetry),
+		wmeta:       wmeta,
+		deviceTags:  make(map[string][]string),
+		deviceCache: ddnvml.NewDeviceCache(),
 	}
 }
 
 func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 	return &checkTelemetry{
+		metrics:            newCheckTelemetryMetrics(tm),
+		component:          tm,
+		nvmlState:          ddnvml.NewNvmlStateTelemetry(tm),
+		collectorTelemetry: nvidia.NewCollectorTelemetry(tm),
+	}
+}
+
+func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
+	return &checkTelemetryMetrics{
 		metricsSent:                  tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
 		activeMetrics:                tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
 		duplicateMetrics:             tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
 		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
 		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
-		collectorTelemetry:           nvidia.NewCollectorTelemetry(tm),
 		deviceCount:                  tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
 	}
 }
@@ -120,7 +130,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	workloadTagCacheSize := pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size")
-	workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, c.telemetryComponent, workloadTagCacheSize)
+	workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, c.telemetry.component, workloadTagCacheSize)
 	if err != nil {
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
@@ -214,7 +224,7 @@ func (c *Check) Run() error {
 	defer snd.Commit()
 
 	// Check the state of the NVML library for telemetry
-	c.nvmlStateTelemetry.Check()
+	c.telemetry.nvmlState.Check()
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
@@ -227,7 +237,7 @@ func (c *Check) Run() error {
 		}
 		deviceCount = 0
 	}
-	c.telemetry.deviceCount.Set(float64(deviceCount))
+	c.telemetry.metrics.deviceCount.Set(float64(deviceCount))
 
 	// Refresh SP cache before collecting metrics, if it is available
 	if c.spCache != nil {
@@ -280,7 +290,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
-			c.telemetry.missingContainerGpuMapping.Inc(container.Name)
+			c.telemetry.metrics.missingContainerGpuMapping.Inc(container.Name)
 		}
 
 		// despite an error, we still might have some devices assigned to the container
@@ -289,7 +299,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 			deviceID := device.GetDeviceInfo().UUID
 			// the device was assigned to multiple containers concurrently, we don't support this case, but we update internal telemetry
 			if _, exists := gpuToContainers[deviceID]; exists {
-				c.telemetry.multipleContainersGpuMapping.Inc(deviceID)
+				c.telemetry.metrics.multipleContainersGpuMapping.Inc(deviceID)
 			} else {
 				gpuToContainers[deviceID] = container
 			}
@@ -337,14 +347,14 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 			perDeviceMetrics[deviceUUID].totalCount += len(metrics)
 		}
 
-		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
+		c.telemetry.metrics.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
 	//iterate through devices to emit its metrics
 	for deviceUUID, deviceData := range perDeviceMetrics {
 		//filter out same metric with lower priority
 		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(deviceData.collectorMetrics)
-		c.telemetry.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
+		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
 
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
