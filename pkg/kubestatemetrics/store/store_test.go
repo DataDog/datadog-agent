@@ -332,13 +332,7 @@ func TestPush(t *testing.T) {
 						},
 					},
 				},
-				"kube_pod_info": {
-					{
-						Name:        "kube_pod_info",
-						Type:        "*v1.Pods",
-						ListMetrics: []DDMetric{},
-					},
-				},
+				// kube_pod_info is no longer included, all metrics are filtered out
 			},
 		},
 		{

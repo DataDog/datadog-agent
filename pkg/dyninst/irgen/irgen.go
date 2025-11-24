@@ -499,12 +499,14 @@ func processProbeExpressions(
 		default:
 			continue
 		}
-		exprs = append(exprs, probeExpression{
-			def:              &exprlang.RefExpr{Ref: v.Name},
-			relevantVariable: v,
-			eventKind:        evKind,
-			exprKind:         exprKind,
-		})
+		if probe.GetKind() == ir.ProbeKindSnapshot {
+			exprs = append(exprs, probeExpression{
+				def:              &exprlang.RefExpr{Ref: v.Name},
+				relevantVariable: v,
+				eventKind:        evKind,
+				exprKind:         exprKind,
+			})
+		}
 
 		// Note: there's no risk of picking the wrong variable due to shadowing,
 		// but there should be! In materializePending we ensure that we only
@@ -3269,6 +3271,19 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	}
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
+		switch probe.GetKind() {
+		case ir.ProbeKindSnapshot:
+		case ir.ProbeKindLog:
+		default:
+			issues = append(issues, ir.ProbeIssue{
+				ProbeDefinition: probe,
+				Issue: ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("probe kind %v is not supported", probe.GetKind()),
+				},
+			})
+			continue
+		}
 		switch where := probe.GetWhere().(type) {
 		case ir.FunctionWhere:
 			methodName := where.Location()

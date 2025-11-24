@@ -26,5 +26,10 @@ func RedisMonitoringSupported() bool {
 	return false
 }
 
+// HTTP2MonitoringSupported returns false on linux without BPF
+func HTTP2MonitoringSupported() bool {
+	return false
+}
+
 func allowPrebuiltEbpfFallback(_ model.Config) {
 }
