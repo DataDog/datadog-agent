@@ -178,7 +178,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.140.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.140.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.140.1 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
@@ -229,6 +231,7 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.140.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.140.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.46.0 // indirect
+	go.opentelemetry.io/collector/processor/processortest v0.140.0 // indirect
 	go.opentelemetry.io/collector/receiver v1.46.0 // indirect
 	go.opentelemetry.io/collector/receiver/receivertest v0.140.0 // indirect
 	go.opentelemetry.io/collector/receiver/xreceiver v0.140.0 // indirect

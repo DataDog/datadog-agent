@@ -12,7 +12,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
@@ -20,7 +19,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.140.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/stretchr/testify v1.11.1
-	github.com/twmb/murmur3 v1.1.8
 	go.opentelemetry.io/collector/component v1.46.0
 	go.opentelemetry.io/collector/config/configretry v1.46.0
 	go.opentelemetry.io/collector/exporter v1.46.0
@@ -52,6 +50,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.5 // indirect
@@ -111,6 +110,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.140.1 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
@@ -126,6 +126,7 @@ require (
 	github.com/tinylib/msgp v1.5.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
+	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/collector/client v1.46.0 // indirect

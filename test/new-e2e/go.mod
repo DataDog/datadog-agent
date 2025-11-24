@@ -20,7 +20,6 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.49.0
 	github.com/DataDog/test-infra-definitions v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/aws/aws-sdk-go-v2 v1.39.6
-	github.com/aws/aws-sdk-go-v2/config v1.31.20
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.266.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
@@ -68,22 +67,12 @@ require (
 	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.24 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.13 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.67.3
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.30.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.40.2 // indirect
 	github.com/aws/smithy-go v1.23.2 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -208,8 +197,6 @@ require (
 	golang.org/x/text v0.31.0
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
-	google.golang.org/grpc v1.77.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
@@ -236,6 +223,7 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/orchestrion v1.4.0
 	github.com/avast/retry-go/v4 v4.6.1
+	github.com/aws/aws-sdk-go-v2/config v1.31.20
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.2
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
@@ -262,6 +250,16 @@ require (
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.24 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.13 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.13 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.30.3 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sts v1.40.2 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -337,6 +335,8 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251022142026-3a174f9686a8 // indirect
+	google.golang.org/grpc v1.77.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	pgregory.net/rapid v1.2.0 // indirect

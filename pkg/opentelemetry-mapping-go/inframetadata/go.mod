@@ -20,6 +20,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.opentelemetry.io/collector/component v1.46.0 // indirect
+	go.opentelemetry.io/collector/component/componenttest v0.140.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.46.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect

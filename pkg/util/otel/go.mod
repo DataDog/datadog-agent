@@ -5,18 +5,13 @@ go 1.24.0
 require github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
 
 require (
+	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-)
-
-require (
-	github.com/hashicorp/go-version v1.7.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.46.0 // indirect
-)
-
-require (
 	go.opentelemetry.io/collector/component v1.46.0 // indirect
+	go.opentelemetry.io/collector/component/componenttest v0.140.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.46.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.46.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect

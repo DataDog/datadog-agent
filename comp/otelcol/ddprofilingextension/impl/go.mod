@@ -158,6 +158,8 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.140.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.140.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders v0.140.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.140.1 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.140.1 // indirect
 	github.com/openshift/api v3.9.0+incompatible // indirect
 	github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
@@ -212,6 +214,7 @@ require (
 	go.opentelemetry.io/collector/pdata/pprofile v0.140.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.140.0 // indirect
 	go.opentelemetry.io/collector/pipeline v1.46.0 // indirect
+	go.opentelemetry.io/collector/processor/processortest v0.140.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect

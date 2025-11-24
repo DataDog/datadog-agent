@@ -15,8 +15,6 @@ require (
 	go.uber.org/zap v1.27.0
 )
 
-require github.com/gobwas/glob v0.2.3 // indirect
-
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.61.0 // indirect
@@ -58,6 +56,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
