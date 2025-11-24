@@ -15,7 +15,7 @@ def is_enabled(ctx: Context, feature: str, verbose: bool = False) -> bool:
     verbose = verbose or os.getenv("VERBOSE_FEATURE_FLAGS")
 
     try:
-        res = ctx.run(f'dda self feature {feature}')
+        res = ctx.run(f'dda self feature {feature}', hide=True)
         enabled = res.stdout.strip() == 'True'
     except Exception:
         if verbose:
