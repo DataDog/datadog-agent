@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -29,6 +30,10 @@ const (
 
 	snmpCallsPerSecond = 8
 	snmpCallInterval   = time.Second / snmpCallsPerSecond
+
+	scanSchedulerCheckInterval = 10 * time.Minute
+	scanRefreshInterval        = 182 * 24 * time.Hour   // 6 months
+	scanRefreshJitter          = 2 * 7 * 24 * time.Hour // 2 weeks
 
 	cacheKey = "snmp_scanned_devices"
 )
@@ -58,9 +63,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 		httpClient:  reqs.HTTPClient,
 
 		snmpConfigProvider: newSnmpConfigProvider(),
+		scanScheduler:      newScanScheduler(),
 
-		scanQueue:   make(chan snmpscanmanager.ScanRequest, scanQueueSize),
-		deviceScans: make(deviceScansByIP),
+		scanQueue:       make(chan snmpscanmanager.ScanRequest, scanQueueSize),
+		allRequestedIPs: make(ipSet),
+		deviceScans:     make(deviceScansByIP),
 
 		ctx:        ctx,
 		cancelFunc: cancelFunc,
@@ -90,9 +97,11 @@ type snmpScanManagerImpl struct {
 	httpClient  ipc.HTTPClient
 
 	snmpConfigProvider snmpConfigProvider
+	scanScheduler      scanScheduler
 
-	scanQueue   chan snmpscanmanager.ScanRequest
-	deviceScans deviceScansByIP
+	scanQueue       chan snmpscanmanager.ScanRequest
+	allRequestedIPs ipSet
+	deviceScans     deviceScansByIP
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -101,6 +110,9 @@ type snmpScanManagerImpl struct {
 }
 
 func (m *snmpScanManagerImpl) start() {
+	m.wg.Add(1)
+	go m.scanSchedulerWorker()
+
 	for i := 0; i < scanWorkers; i++ {
 		m.wg.Add(1)
 		go m.scanWorker()
@@ -114,8 +126,9 @@ func (m *snmpScanManagerImpl) stop() {
 	m.wg.Wait()
 }
 
-// RequestScan queues a new scan request when the device has not been already scanned
-func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
+// RequestScan queues a new scan request when the device has not already been scanned.
+// When forceQueue is true, the request is always added to the queue.
+func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest, forceQueue bool) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -129,17 +142,13 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest) {
 		return
 	}
 
-	_, exists := m.deviceScans[req.DeviceIP]
-	if exists {
+	if !forceQueue && m.allRequestedIPs.contains(req.DeviceIP) {
 		return
 	}
 
 	select {
 	case m.scanQueue <- req:
-		m.deviceScans[req.DeviceIP] = deviceScan{
-			DeviceIP:   req.DeviceIP,
-			ScanStatus: pendingStatus,
-		}
+		m.allRequestedIPs.add(req.DeviceIP)
 		m.log.Infof("Queued default scan request for device %s", req.DeviceIP)
 	default:
 		m.log.Warnf("Dropping default scan request for device %s, scan queue is full", req.DeviceIP)
@@ -173,7 +182,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 		m.setDeviceScan(deviceScan{
 			DeviceIP:   req.DeviceIP,
 			ScanStatus: failedStatus,
-			ScanEndTs:  &now,
+			ScanEndTs:  now,
 		})
 		m.writeCache()
 		return err
@@ -193,7 +202,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 		m.setDeviceScan(deviceScan{
 			DeviceIP:   req.DeviceIP,
 			ScanStatus: failedStatus,
-			ScanEndTs:  &now,
+			ScanEndTs:  now,
 		})
 		m.writeCache()
 		return err
@@ -203,9 +212,11 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 	m.setDeviceScan(deviceScan{
 		DeviceIP:   req.DeviceIP,
 		ScanStatus: successStatus,
-		ScanEndTs:  &now,
+		ScanEndTs:  now,
 	})
 	m.writeCache()
+
+	m.scheduleScanRefresh(req, now)
 
 	m.log.Infof("Successfully processed default scan request for device '%s'", req.DeviceIP)
 
@@ -233,7 +244,14 @@ func (m *snmpScanManagerImpl) loadCache() {
 	}
 
 	for _, scan := range deviceScans {
+		m.allRequestedIPs.add(scan.DeviceIP)
 		m.deviceScans[scan.DeviceIP] = scan
+
+		if scan.isSuccess() {
+			m.scheduleScanRefresh(snmpscanmanager.ScanRequest{
+				DeviceIP: scan.DeviceIP,
+			}, scan.ScanEndTs)
+		}
 	}
 }
 
@@ -243,9 +261,7 @@ func (m *snmpScanManagerImpl) writeCache() {
 
 	deviceScans := make([]deviceScan, 0)
 	for _, scan := range m.deviceScans {
-		if scan.isCacheable() {
-			deviceScans = append(deviceScans, scan)
-		}
+		deviceScans = append(deviceScans, scan)
 	}
 
 	cacheValue, err := json.Marshal(deviceScans)
@@ -258,6 +274,38 @@ func (m *snmpScanManagerImpl) writeCache() {
 	if err != nil {
 		m.log.Errorf("Error writing scanned devices cache: %v", err)
 	}
+}
+
+func (m *snmpScanManagerImpl) scanSchedulerWorker() {
+	defer m.wg.Done()
+
+	timeTicker := time.NewTicker(scanSchedulerCheckInterval)
+	defer timeTicker.Stop()
+
+	for {
+		select {
+		case <-m.ctx.Done():
+			return
+		case <-timeTicker.C:
+			m.queueDueScans()
+		}
+	}
+}
+
+func (m *snmpScanManagerImpl) queueDueScans() {
+	now := time.Now()
+	scanReqs := m.scanScheduler.PopDueScans(now)
+	for _, scanReq := range scanReqs {
+		m.RequestScan(scanReq, true)
+	}
+}
+
+func (m *snmpScanManagerImpl) scheduleScanRefresh(req snmpscanmanager.ScanRequest, lastScanTs time.Time) {
+	refreshJitter := time.Duration(rand.Int63n(int64(2*scanRefreshJitter))) - scanRefreshJitter
+	m.scanScheduler.QueueScanTask(scanTask{
+		req:        req,
+		nextScanTs: lastScanTs.Add(scanRefreshInterval).Add(refreshJitter),
+	})
 }
 
 func (m *snmpScanManagerImpl) setDeviceScan(deviceScan deviceScan) {
