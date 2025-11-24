@@ -121,11 +121,6 @@ func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPa
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
-// SubmitProcessEventChecks sends process events checks
-func (f *SyncForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
-}
-
 // SubmitRTProcessChecks sends real time process checks
 func (f *SyncForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)

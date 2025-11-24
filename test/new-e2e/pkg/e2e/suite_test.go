@@ -11,7 +11,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
