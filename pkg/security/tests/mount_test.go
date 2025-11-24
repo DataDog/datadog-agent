@@ -350,7 +350,10 @@ func testMountSnapshot(t *testing.T) {
 	mountResolver := p.Resolvers.MountResolver
 	pid := utils.Getpid()
 
+	fmt.Println("Will parse the mount info file")
 	mounts, err := kernel.ParseMountInfoFile(int32(pid))
+	fmt.Println("File parsed. Number of entries = ", len(mounts))
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -385,6 +388,7 @@ func testMountSnapshot(t *testing.T) {
 
 	mntResolved := 0
 	for _, mntInfo := range mounts {
+		fmt.Println("Processing a mount with the mountpoint", mntInfo.Mountpoint)
 		if strings.HasSuffix(mntInfo.Mountpoint, "rootA/tmpfs-mount") {
 			mntResolved |= 1
 			checkSnapshotAndModelMatch(mntInfo)
