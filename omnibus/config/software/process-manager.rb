@@ -31,6 +31,11 @@ build do
     # Copy both binaries to the install directory
     copy 'process_manager/target/release/dd-procmgrd', "#{install_dir}/bin/dd-procmgrd"
     copy 'process_manager/target/release/dd-procmgr', "#{install_dir}/bin/dd-procmgr"
+
+    # Create process manager config directory and copy config file
+    etc_dir = "/etc/pm"
+    mkdir "#{etc_dir}/processes.d"
+    copy 'process_manager/examples/datadog-agent.yaml', "#{etc_dir}/processes.d/datadog-agent.yaml"
   end
 end
 

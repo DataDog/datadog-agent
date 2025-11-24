@@ -1,0 +1,63 @@
+# Datadog Agent - Process Manager Configuration
+# Equivalent to the systemd datadog-agent.service unit
+#
+# This configuration is used by dd-procmgrd to supervise the main Datadog Agent process.
+# Place this file at: /etc/pm/processes.d/datadog-agent.yaml
+# The process name is derived from the filename (datadog-agent)
+
+command: /opt/datadog-agent/bin/agent
+args:
+  - run
+  - -c
+  - /etc/datadog-agent/datadog.yaml
+process_type: simple
+auto_start: true
+user: dd-agent
+
+# Restart policy (systemd Restart=on-failure)
+restart: on-failure
+
+# Start limits (systemd StartLimitInterval=10, StartLimitBurst=5)
+start_limit_interval: 10
+start_limit_burst: 5
+
+# PID file (systemd PIDFile=)
+pidfile: /opt/datadog-agent/run/agent.pid
+
+# Environment file (systemd EnvironmentFile=-)
+# Prefix with '-' to ignore if file doesn't exist
+environment_file: -/etc/datadog-agent/environment
+
+# Environment variables (systemd Environment=)
+env:
+  DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
+
+# Runtime directory (systemd RuntimeDirectory=datadog)
+# Creates /run/datadog with proper permissions
+runtime_directory:
+  - datadog
+
+# Linux capabilities (systemd AmbientCapabilities=)
+ambient_capabilities:
+  - CAP_NET_BIND_SERVICE
+
+# Mutual exclusion (systemd Conflicts=datadog-agent-exp.service)
+# Only one variant can run at a time - stable OR experimental
+conflicts:
+  - datadog-agent-exp
+
+# Soft dependencies (systemd Wants=)
+# Auto-starts these processes if they are defined, but continues if they fail
+wants:
+  - datadog-agent-installer
+  - datadog-agent-trace
+  - datadog-agent-process
+  - datadog-agent-sysprobe
+  - datadog-agent-security
+  - datadog-agent-data-plane
+  - datadog-agent-ddot
+
+# Output handling
+stdout: inherit
+stderr: inherit
+
