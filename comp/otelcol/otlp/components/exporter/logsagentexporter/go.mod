@@ -14,7 +14,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-devel.0.20251030121902-cd89eab046d6
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.5
@@ -36,7 +36,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.73.0-rc.5 // indirect
@@ -125,7 +125,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.2 // indirect
-	github.com/prometheus/procfs v0.19.1 // indirect
+	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.10 // indirect
 	github.com/spf13/cast v1.10.0 // indirect

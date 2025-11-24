@@ -33,7 +33,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/api v0.73.0-rc.5 // indirect
@@ -174,7 +174,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.2 // indirect
-	github.com/prometheus/procfs v0.19.1 // indirect
+	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
