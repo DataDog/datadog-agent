@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 
-	commonconfig "github.com/DataDog/test-infra-definitions/common/config"
-	infraaws "github.com/DataDog/test-infra-definitions/resources/aws"
-	infraazure "github.com/DataDog/test-infra-definitions/resources/azure"
-	infragcp "github.com/DataDog/test-infra-definitions/resources/gcp"
-	infralocal "github.com/DataDog/test-infra-definitions/resources/local"
+	commonconfig "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	infraaws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	infraazure "github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
+	infragcp "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
+	infralocal "github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 

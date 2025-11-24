@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -19,18 +19,20 @@ import (
 )
 
 const (
-	agentUnit      = "datadog-agent.service"
-	agentUnitXP    = "datadog-agent-exp.service"
-	ddotUnit       = "datadog-agent-ddot.service"
-	ddotUnitXP     = "datadog-agent-ddot-exp.service"
-	traceUnit      = "datadog-agent-trace.service"
-	traceUnitXP    = "datadog-agent-trace-exp.service"
-	processUnit    = "datadog-agent-process.service"
-	processUnitXP  = "datadog-agent-process-exp.service"
-	probeUnit      = "datadog-agent-sysprobe.service"
-	probeUnitXP    = "datadog-agent-sysprobe-exp.service"
-	securityUnit   = "datadog-agent-security.service"
-	securityUnitXP = "datadog-agent-security-exp.service"
+	agentUnit       = "datadog-agent.service"
+	agentUnitXP     = "datadog-agent-exp.service"
+	ddotUnit        = "datadog-agent-ddot.service"
+	ddotUnitXP      = "datadog-agent-ddot-exp.service"
+	traceUnit       = "datadog-agent-trace.service"
+	traceUnitXP     = "datadog-agent-trace-exp.service"
+	processUnit     = "datadog-agent-process.service"
+	processUnitXP   = "datadog-agent-process-exp.service"
+	probeUnit       = "datadog-agent-sysprobe.service"
+	probeUnitXP     = "datadog-agent-sysprobe-exp.service"
+	securityUnit    = "datadog-agent-security.service"
+	securityUnitXP  = "datadog-agent-security-exp.service"
+	dataPlaneUnit   = "datadog-agent-data-plane.service"
+	dataPlaneUnitXP = "datadog-agent-data-plane-exp.service"
 )
 
 type packageAgentSuite struct {
@@ -48,6 +50,7 @@ func (s *packageAgentSuite) TestInstall() {
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
 	state := s.host.State()
 	s.assertUnits(state, true)
@@ -75,9 +78,12 @@ func (s *packageAgentSuite) TestInstall() {
 }
 
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
+	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit)
 	state.AssertUnitsEnabled(agentUnit)
-	state.AssertUnitsRunning(agentUnit, traceUnit) //cannot assert process-agent because it may be running or dead based on timing
+
+	// we cannot assert here on process-agent/agent-data-plane being either running or dead due to timing issues,
+	// so it has to be checked prior (i.e., using WaitForUnitExited)
+	state.AssertUnitsRunning(agentUnit, traceUnit)
 	state.AssertUnitsDead(probeUnit, securityUnit)
 
 	systemdPath := "/etc/systemd/system"
@@ -98,7 +104,7 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		}
 	}
 
-	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
+	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit} {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }
@@ -107,7 +113,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	s.host.SetupFakeAgentExp().
 		SetStopWithSigtermExit0("core-agent").
@@ -157,7 +163,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	s.host.SetupFakeAgentExp().
 		SetStopWithSigkill("core-agent").
@@ -222,7 +228,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	xpAgent := s.host.SetupFakeAgentExp()
 
@@ -275,7 +281,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	s.host.SetupFakeAgentExp()
 
