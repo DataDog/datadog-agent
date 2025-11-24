@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCircuitBreaker(t *testing.T) {
@@ -60,6 +61,7 @@ func testCircuitBreaker(
 		AllProbesCPULimit: 0.5,
 		InterruptOverhead: 5 * time.Microsecond,
 	}
+	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
 	var sendUpdate fakeProcessSubscriber
 	cfg.TestingKnobs.ProcessSubscriberOverride = func(
 		real module.ProcessSubscriber,
