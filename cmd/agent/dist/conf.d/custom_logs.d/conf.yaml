@@ -1,0 +1,8 @@
+logs:
+  - type: file
+    path: /var/log/custom_logs/custom.log
+    service: custom-app
+    source: custom
+    # Set to true if log lines include a date; false lets Datadog append ingestion time.
+    # Set to false by default for simple demos.
+    timestamp_detection: false
