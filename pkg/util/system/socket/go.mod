@@ -4,13 +4,7 @@ go 1.24.0
 
 require github.com/Microsoft/go-winio v0.6.2
 
-require (
-	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/mdlayher/socket v0.5.1 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-)
+require golang.org/x/sys v0.38.0 // indirect
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
