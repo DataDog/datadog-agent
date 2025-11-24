@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -220,15 +221,15 @@ func TestIsCreatedByDatadog(t *testing.T) {
 		{
 			name: "created label is present",
 			labels: map[string]string{
-				datadogCreatedLabelKey: "true",
+				model.DatadogCreatedLabelKey: "true",
 			},
 			expected: true,
 		},
 		{
 			name: "created and other label is present",
 			labels: map[string]string{
-				datadogCreatedLabelKey: "true",
-				"otherLabel":           "otherValue",
+				model.DatadogCreatedLabelKey: "true",
+				"otherLabel":                 "otherValue",
 			},
 			expected: true,
 		},

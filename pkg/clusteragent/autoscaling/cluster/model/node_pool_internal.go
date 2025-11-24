@@ -9,14 +9,16 @@ package model
 
 import (
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
 const (
-	DatadogCreatedLabelKey  = "datadoghq.com/cluster-autoscaler.created"
-	datadogModifiedLabelKey = "datadoghq.com/cluster-autoscaler.modified"
+	// For use on NodePools
+	DatadogCreatedLabelKey  = "autoscaling.datadoghq.com/created"
+	datadogModifiedLabelKey = "autoscaling.datadoghq.com/modified"
 )
 
 type NodePoolInternal struct {
@@ -135,6 +137,11 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 
 	return karpenterv1.NodePoolSpec{
 		Template: karpenterv1.NodeClaimTemplate{
+			ObjectMeta: karpenterv1.ObjectMeta{
+				Labels: map[string]string{
+					kubernetes.AutoscalingLabelKey: "true",
+				},
+			},
 			Spec: karpenterv1.NodeClaimTemplateSpec{
 				// Include taints
 				Taints:       n.taints,
@@ -186,6 +193,11 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 		},
 		"spec": map[string]interface{}{
 			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]string{
+						kubernetes.AutoscalingLabelKey: "true",
+					},
+				},
 				"spec": map[string]interface{}{
 					"requirements": updatedRequirements,
 				},

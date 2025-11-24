@@ -97,7 +97,8 @@ func (k KubeNodeTagsProvider) getNodeLabelsAsTags() map[string]string {
 
 func getDefaultLabelsToTags() map[string]string {
 	return map[string]string{
-		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
+		NormalizedRoleLabel:            kubernetes.KubeNodeRoleTagName,
+		kubernetes.AutoscalingLabelKey: kubernetes.AutoscalingTagName,
 	}
 }
 
