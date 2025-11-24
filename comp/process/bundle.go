@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
-	"github.com/DataDog/datadog-agent/comp/process/processeventscheck/processeventscheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/profiler/profilerimpl"
 	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
@@ -47,7 +46,6 @@ func Bundle() fxutil.BundleOptions {
 		connectionscheckimpl.Module(),
 		containercheckimpl.Module(),
 		processcheckimpl.Module(),
-		processeventscheckimpl.Module(),
 		rtcontainercheckimpl.Module(),
 		processdiscoverycheckimpl.Module(),
 

@@ -82,6 +82,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{a: {a: {a: {interface: unknown type *main.deepPtr1}}}}"
   }
 ]

@@ -10,6 +10,12 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.stringArg
+  template: "s: {s}"
+  segments:
+    - str: "s: "
+    - json:
+        ref: "s"
+      dsl: "s"
 - id: intSliceArg
   type: LOG_PROBE
   captureSnapshot: true
@@ -48,11 +54,23 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.mapArg
+  template: "m: {m}"
+  segments:
+    - str: "m: "
+    - json:
+        ref: "m"
+      dsl: "m"
 - id: bigMapArg
   type: LOG_PROBE
   captureSnapshot: true
   where:
     methodName: main.bigMapArg
+  template: "m: {m}"
+  segments:
+    - str: "m: "
+    - json:
+        ref: "m"
+      dsl: "m"
 - id: PointerChainArg
   type: LOG_PROBE
   captureSnapshot: true
@@ -60,6 +78,12 @@ probes:
     methodName: main.PointerChainArg
   capture:
     maxReferenceDepth: 3
+  template: "ptr: {ptr}"
+  segments:
+    - str: "ptr: "
+    - json:
+        ref: "ptr"
+      dsl: "ptr"
 - id: PointerSmallChainArg
   type: LOG_PROBE
   captureSnapshot: true
@@ -77,3 +101,30 @@ probes:
   captureSnapshot: true
   where:
     methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+- id: logProbe_no_snapshot_stringArg
+  type: LOG_PROBE
+  where:
+    methodName: main.stringArg
+  template: "s: {s}"
+  segments:
+    - str: "s: "
+    - json:
+        ref: "s"
+      dsl: "s"
+- id: logProbe_no_snapshot_stringArg_bad_template
+  type: LOG_PROBE
+  where:
+    methodName: main.stringArg
+  template: "x: {x}"
+  segments:
+    - str: "x: "
+    - json:
+        ref: "x"
+      dsl: "x"
+- id: spanProbe
+  type: SPAN_PROBE
+  where:
+    methodName: main.usesMapsOfMapsThatDoNotAppearAsArguments
+  evaluateAt: "exit"
+  tags:
+  - "issue:UnsupportedFeature"
