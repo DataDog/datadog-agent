@@ -43,37 +43,49 @@ type PerFlushFilter struct {
 func (p *PerFlushFilter) Filter(ctx common.FlushContext, flows []*common.Flow) []*common.Flow {
 	start := time.Now()
 
-	flowsToFlush, flowsToDrop := p.applyFilters(ctx, flows)
+	filteredFlows := p.applyFilters(ctx, flows)
 
 	var bytesInDroppedFlows uint64
 	var packetsInDroppedFlows uint64
-	for _, flow := range flowsToDrop {
+	for _, flow := range filteredFlows.toDrop {
 		bytesInDroppedFlows += flow.Bytes
 		packetsInDroppedFlows += flow.Packets
 	}
 
 	p.metrics.Histogram("datadog.netflow.flow_truncation.runtime_ms", float64(time.Since(start).Milliseconds()), "", nil)
 	p.metrics.Count("datadog.netflow.flow_truncation.flows_total", float64(len(flows)), "", nil)
-	p.metrics.Count("datadog.netflow.flow_truncation.flows_kept", float64(len(flowsToFlush)), "", nil)
-	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.count", float64(len(flowsToDrop)), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_kept", float64(len(filteredFlows.toPublish)), "", nil)
+	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.count", float64(len(filteredFlows.toDrop)), "", nil)
 	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.bytes", float64(bytesInDroppedFlows), "", nil)
 	p.metrics.Count("datadog.netflow.flow_truncation.flows_dropped.packets", float64(packetsInDroppedFlows), "", nil)
 	p.metrics.Gauge("datadog.netflow.flow_truncation.threshold_value", float64(p.n), "", nil)
 
-	return flowsToFlush
+	return filteredFlows.toPublish
 }
 
-func (p *PerFlushFilter) applyFilters(ctx common.FlushContext, flows []*common.Flow) ([]*common.Flow, []*common.Flow) {
+func (p *PerFlushFilter) applyFilters(ctx common.FlushContext, flows []*common.Flow) filterResult {
 	numFlowsToPublish := p.throttler.GetNumRowsToFlushFor(ctx)
 	if numFlowsToPublish == 0 {
-		return flows, nil
+		return filterResult{
+			toPublish: flows,
+		}
 	}
 
 	if len(flows) <= numFlowsToPublish {
-		return flows, nil
+		return filterResult{
+			toPublish: flows,
+		}
 	}
 
 	slices.SortFunc(flows, reversed(compareByBytesAscending))
 
-	return flows[:numFlowsToPublish], flows[numFlowsToPublish:]
+	return filterResult{
+		toPublish: flows[:numFlowsToPublish],
+		toDrop:    flows[numFlowsToPublish:],
+	}
+}
+
+type filterResult struct {
+	toPublish []*common.Flow
+	toDrop    []*common.Flow
 }

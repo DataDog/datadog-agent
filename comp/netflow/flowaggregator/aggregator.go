@@ -261,11 +261,9 @@ func (agg *FlowAggregator) flushLoop() {
 				// add one millisecond to account for small variations in the time.Ticker
 				timeSinceLast := flushStartTime.Sub(lastFlushTime) + time.Millisecond
 
-				// if we know it will be at least ≥ 1, calculate it. We do not want this to not default to 0 for small
-				// time deltas.
-				if timeSinceLast > agg.FlushConfig.FlushTickFrequency {
-					expectedFlushes = int64(timeSinceLast / agg.FlushConfig.FlushTickFrequency)
-				}
+				// We do not want this to default to 0 for small time deltas or if time.Tick fires a little early.
+				// Make the expected flushes either 1 or the result of calculation
+				expectedFlushes = max(1, int64(timeSinceLast/agg.FlushConfig.FlushTickFrequency))
 			}
 			flushCtx := common.FlushContext{
 				FlushTime:     flushStartTime,
