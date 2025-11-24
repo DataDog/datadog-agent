@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
@@ -65,24 +64,12 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
 
-	var out string
-	if v.descriptor.Family() == os.WindowsFamily {
-		svcManager := svcmanager.NewWindows(v.Env().RemoteHost)
-		out, err = svcManager.Restart("datadogagent")
-	} else {
-		svcManager := svcmanager.NewSystemctl(v.Env().RemoteHost)
-		out, err = svcManager.Restart("datadog-agent")
-	}
-
-	v.T().Log(out)
-	require.NoError(v.T(), err)
-
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
-		// forwarder should be unhealthy because the key is invalid
+		// forwarder should become unhealthy when next checking because the fakeintake will return 403
 		_, err = v.Env().Agent.Client.Health()
 		assert.ErrorContains(collect, err, "Agent health: FAIL")
 		assert.ErrorContains(collect, err, "=== 1 unhealthy components ===\nforwarder")
-	}, time.Second*30, time.Second)
+	}, 2*time.Minute, 10*time.Second)
 
 	// the fakeintake now says that the api key is valid
 	override.StatusCode = 200
