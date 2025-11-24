@@ -7,7 +7,6 @@
 
 package windowsnative
 
-
 import (
 	"fmt"
 	"syscall"

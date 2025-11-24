@@ -20,7 +20,7 @@ static uint8_t is64(ProcessorArchitecture a) {
     return 0;
 }
 
-static int64_t dtToUnixEpochMs(const DateTime& dt) {
+static int64_t dtToUnixEpochMs(const DateTime &dt) {
     int64_t ticks = dt.time_since_epoch().count();
     // Convert ticks to milliseconds
     int64_t millisSince1601 = ticks / 10000; // 10,000 * 100ns = 1ms
@@ -28,20 +28,19 @@ static int64_t dtToUnixEpochMs(const DateTime& dt) {
     return unixMillis;
 }
 
-static const wchar_t* copyHStr(MSStoreInternal* msStore, winrt::hstring hstr) {
+static const wchar_t *copyHStr(MSStoreInternal *msStore, winrt::hstring hstr) {
     // Add to msStore's string vector to keep hstring alive
     msStore->strings.push_back(hstr);
     return hstr.c_str();
 }
 
-static void addEntryToStore(MSStoreInternal* msStore, const Package& pkg, winrt::hstring displayName) {
+static void addEntryToStore(MSStoreInternal *msStore, const Package &pkg, winrt::hstring displayName) {
     auto id = pkg.Id();
     int64_t installDate = 0;
     // Not all packages have InstalledDate
     try {
         installDate = dtToUnixEpochMs(pkg.InstalledDate());
-    }
-    catch (...) {
+    } catch (...) {
     }
     PackageVersion version = id.Version();
 
@@ -59,12 +58,12 @@ static void addEntryToStore(MSStoreInternal* msStore, const Package& pkg, winrt:
     msStore->entriesVec.push_back(e);
 }
 
-int ListStoreEntries(MSStoreInternal** out) {
+int ListStoreEntries(MSStoreInternal **out) {
     if (!out) {
         return RESULT_INVALID_PARAMS;
     }
 
-    MSStoreInternal* msStore = new MSStoreInternal();
+    MSStoreInternal *msStore = new MSStoreInternal();
     msStore->count = 0;
     msStore->entries = nullptr;
 
@@ -109,6 +108,6 @@ int ListStoreEntries(MSStoreInternal** out) {
     }
 }
 
-void FreeStoreEntries(MSStoreInternal* msStore) {
+void FreeStoreEntries(MSStoreInternal *msStore) {
     delete msStore;
 }
