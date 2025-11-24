@@ -62,7 +62,7 @@ def run(
     Runs a command on a remote Windows development environment.
     """
 
-    with ctx.cd('../test-infra-definitions'):
+    with ctx.cd('./test/e2e-framework'):
         # find connection info for the VM
         result = ctx.run(f"dda inv -- aws.show-vm --stack-name={name}", hide=True)
         if result is None or not result:
@@ -84,20 +84,15 @@ def run(
 def _start_windows_dev_env(ctx, name: str = "windows-dev-env"):
     start_time = time.time()
 
-    # Ensure `test-infra-definitions` is cloned.
-    if not os.path.isdir('../test-infra-definitions'):
-        with ctx.cd('..'):
-            ctx.run("git clone git@github.com:DataDog/test-infra-definitions.git")
-            with ctx.cd('test-infra-definitions'):
-                # setup test-infra-definitions
-                ctx.run("dda inv -- setup")
+    with ctx.cd('./test/e2e-framework'):
+        ctx.run("dda inv -- setup")
     if shutil.which("rsync") is None:
         raise Exception(
             "rsync is not installed. Please install rsync by running `brew install rsync` on macOS and try again."
         )
     # Create the Windows development environment.
     host = ""
-    with ctx.cd('../test-infra-definitions'):
+    with ctx.cd('./test/e2e-framework'):
         result = ctx.run(
             f"dda inv -- aws.create-vm --ami-id={AMI_WINDOWS_DEV_2022} --os-family=windows --architecture=x86_64 --no-install-agent --stack-name={name} --no-interactive --instance-type=t3.xlarge"
         )
@@ -221,7 +216,7 @@ def _on_changed_path_run_command(ctx: Context, path: str, command: str):
 
 
 def _stop_windows_dev_env(ctx, name: str = "windows-dev-env"):
-    with ctx.cd('../test-infra-definitions'):
+    with ctx.cd('./test/e2e-framework'):
         ctx.run(f"dda inv -- aws.destroy-vm --stack-name={name}")
 
 
@@ -235,7 +230,7 @@ class RemoteHost:
 
 
 def _run_on_windows_dev_env(ctx: Context, name: str = "windows-dev-env", command: str = "") -> int:
-    with ctx.cd('../test-infra-definitions'):
+    with ctx.cd('./test/e2e-framework'):
         # find connection info for the VM
         result = ctx.run(f"dda inv -- aws.show-vm --stack-name={name}", hide=True)
         if result is None or not result:
