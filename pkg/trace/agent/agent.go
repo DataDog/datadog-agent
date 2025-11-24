@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -44,6 +45,9 @@ const (
 	tagInstallID   = "_dd.install.id"
 	tagInstallType = "_dd.install.type"
 	tagInstallTime = "_dd.install.time"
+
+	// tagContainersTags specifies the name of the tag which holds key/value
+	tagContainersTags = "_dd.tags.container"
 
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling   = "-4"
@@ -94,6 +98,7 @@ type Agent struct {
 	OTLPReceiver          *api.OTLPReceiver
 	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
+	ContainerTagsBuffer   containertagsbuffer.ContainerTagsBuffer
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
 	PrioritySampler       *sampler.PrioritySampler
@@ -168,9 +173,12 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		oconf.Statsd = statsd
 	}
 	timing := timing.New(statsd)
-	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
+
+	containerTagsBuffer := containertagsbuffer.NewContainerTagsBuffer(conf, statsd)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, containerTagsBuffer)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
+		ContainerTagsBuffer:   containerTagsBuffer,
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
@@ -205,6 +213,7 @@ func (a *Agent) Run() {
 	a.Timing.Start()
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
+		a.ContainerTagsBuffer,
 		a.Receiver,
 		a.Concentrator,
 		a.ClientStatsAggregator,
@@ -294,6 +303,9 @@ func (a *Agent) workV1() {
 func (a *Agent) loop() {
 	<-a.ctx.Done()
 	log.Info("Exiting...")
+
+	// stop container tags buffer first to release pending payloads
+	a.ContainerTagsBuffer.Stop()
 
 	a.OTLPReceiver.Stop() // Stop OTLPReceiver before Receiver to avoid sending to closed channel
 	// Stop the receiver first before other processing components

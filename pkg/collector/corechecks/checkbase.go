@@ -291,8 +291,3 @@ func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckBase) IsHASupported() bool {
 	return false
 }
-
-// RunOnce returns false by default (checks run repeatedly)
-func (c *CheckBase) RunOnce() bool {
-	return false
-}

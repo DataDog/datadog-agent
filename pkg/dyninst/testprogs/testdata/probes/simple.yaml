@@ -111,6 +111,16 @@ probes:
     - json:
         ref: "s"
       dsl: "s"
+- id: logProbe_no_snapshot_stringArg_bad_template
+  type: LOG_PROBE
+  where:
+    methodName: main.stringArg
+  template: "x: {x}"
+  segments:
+    - str: "x: "
+    - json:
+        ref: "x"
+      dsl: "x"
 - id: spanProbe
   type: SPAN_PROBE
   where:

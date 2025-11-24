@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -119,6 +120,23 @@ type mockTracerPayloadModifier struct {
 func (m *mockTracerPayloadModifier) Modify(tp *idx.InternalTracerPayload) {
 	m.modifyCalled = true
 	m.lastPayload = tp
+}
+
+type mockContainerTagsBuffer struct {
+	containertagsbuffer.NoOpTagsBuffer
+	enabled    bool
+	returnTags []string
+	returnErr  error
+	pending    bool
+}
+
+func (m *mockContainerTagsBuffer) IsEnabled() bool {
+	return m.enabled
+}
+
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), _ int64) bool {
+	cb(m.returnTags, m.returnErr)
+	return m.pending
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
