@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultCacheExpire = 1 * time.Second
+	defaultCacheExpire = 30 * time.Second
 	defaultCachePurge  = 2 * time.Minute
 )
 
