@@ -26,6 +26,7 @@ type remoteConfigClient interface {
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 	GetInstallerState() *pbgo.ClientUpdater
 	SetInstallerState(state *pbgo.ClientUpdater)
+	GetClientID() string
 }
 
 type remoteConfig struct {
@@ -277,6 +278,7 @@ type expectedState struct {
 	Experiment       string `json:"experiment"`
 	StableConfig     string `json:"stable_config"`
 	ExperimentConfig string `json:"experiment_config"`
+	ClientID         string `json:"client_id"`
 }
 
 type experimentTaskParams struct {

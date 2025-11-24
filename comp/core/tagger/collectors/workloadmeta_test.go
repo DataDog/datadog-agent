@@ -3122,6 +3122,12 @@ func TestHandleProcess(t *testing.T) {
 							ServiceEnv: "test",
 						},
 						{
+							// These will be skipped because they match the UST tags
+							ServiceName:    serviceNameFromDD,
+							ServiceEnv:     envFromDD,
+							ServiceVersion: versionFromDD,
+						},
+						{
 							ServiceName:    "second-tracer-service",
 							ServiceEnv:     envFromDD,
 							ServiceVersion: "2.0.0",
@@ -3137,6 +3143,12 @@ func TestHandleProcess(t *testing.T) {
 					fmt.Sprintf("env:%s", envFromDD),
 					"framework:express",
 					"runtime:nodejs",
+					"tracer_service_env:dev",
+					"tracer_service_env:test",
+					"tracer_service_name:first-tracer-service",
+					"tracer_service_name:second-tracer-service",
+					"tracer_service_version:1.0.0",
+					"tracer_service_version:2.0.0",
 					fmt.Sprintf("service:%s", serviceNameFromDD),
 					fmt.Sprintf("version:%s", versionFromDD),
 				},
@@ -3279,78 +3291,6 @@ func TestHandleProcess(t *testing.T) {
 				require.Len(t, result, 1)
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
-		})
-	}
-}
-
-func TestParseProcessTags(t *testing.T) {
-	tests := []struct {
-		name         string
-		processTags  string
-		expectedTags []string
-	}{
-		{
-			name:        "valid comma-separated tags",
-			processTags: "entrypoint.name:com.example.App,service.type:tomcat,service.framework:spring",
-			expectedTags: []string{
-				"entrypoint.name:com.example.App",
-				"service.framework:spring",
-				"service.type:tomcat",
-			},
-		},
-		{
-			name:        "single tag",
-			processTags: "entrypoint.workdir:app",
-			expectedTags: []string{
-				"entrypoint.workdir:app",
-			},
-		},
-		{
-			name:         "empty string",
-			processTags:  "",
-			expectedTags: []string{},
-		},
-		{
-			name:        "tags with spaces",
-			processTags: " service.runtime : java-17 , entrypoint.name : com.app.Main ",
-			expectedTags: []string{
-				"entrypoint.name:com.app.Main",
-				"service.runtime:java-17",
-			},
-		},
-		{
-			name:        "tag with colon in value",
-			processTags: "url:http://example.com:8080",
-			expectedTags: []string{
-				"url:http://example.com:8080",
-			},
-		},
-		{
-			name:         "malformed tag without colon",
-			processTags:  "invalid_tag,service.type:nginx",
-			expectedTags: []string{"service.type:nginx"},
-		},
-		{
-			name:         "tags with empty keys or values",
-			processTags:  ":value,key:,service.runtime:python3.9",
-			expectedTags: []string{"service.runtime:python3.9"},
-		},
-		{
-			name:         "empty tag entries",
-			processTags:  "service.framework:django,,entrypoint.name:manage.py,",
-			expectedTags: []string{"entrypoint.name:manage.py", "service.framework:django"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tagList := taglist.NewTagList()
-			parseProcessTags(tagList, tt.processTags)
-
-			low, _, _, _ := tagList.Compute()
-			sort.Strings(low)
-			sort.Strings(tt.expectedTags)
-			assert.Equal(t, tt.expectedTags, low)
 		})
 	}
 }

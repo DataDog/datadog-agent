@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -137,8 +138,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						return status.NewInformationProvider(nil), nil, err
 					}
 
+					var sysProbeClient compliance.SysProbeClient
+					if cfg := sysprobeconfig.SysProbeObject(); cfg != nil && cfg.SocketAddress != "" {
+						sysProbeClient = compliance.NewRemoteSysProbeClient(cfg.SocketAddress)
+					}
+
 					// start compliance security agent
-					complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc)
+					complianceAgent, err := compliance.StartCompliance(log, config, hostnameDetected, stopper, statsdClient, wmeta, compression, ipc, sysProbeClient)
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
 					}
@@ -171,6 +177,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
 				remoteagentfx.Module(),
+				fxinstrumentation.Module(),
 			)
 		},
 	}

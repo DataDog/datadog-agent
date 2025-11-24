@@ -92,7 +92,7 @@
 //		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 //		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 //		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
-//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 //	)
 //
 //	type subTestSuite struct {
@@ -156,8 +156,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -753,7 +753,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
 			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
+			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false,cancel_first=bool:true", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Logf("WARNING: Unable to destroy stack %s: %s", stackName, out)

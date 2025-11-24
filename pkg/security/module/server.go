@@ -464,7 +464,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		msg := &pendingMsg{
 			ruleID:          groupRuleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule),
+			eventSerializer: serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
 			extTagsCb:       extTagsCb,
 			service:         service,
 			timestamp:       timestamp,

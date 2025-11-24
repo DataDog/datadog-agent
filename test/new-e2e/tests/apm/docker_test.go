@@ -17,8 +17,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 )
 
 type DockerFakeintakeSuite struct {

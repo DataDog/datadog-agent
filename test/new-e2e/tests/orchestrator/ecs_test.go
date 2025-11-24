@@ -12,16 +12,16 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
-	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 )
 
 type ecsSuite struct {

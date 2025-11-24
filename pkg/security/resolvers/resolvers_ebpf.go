@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -75,7 +74,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err

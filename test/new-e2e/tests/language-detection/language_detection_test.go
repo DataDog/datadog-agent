@@ -16,7 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -39,13 +41,22 @@ type languageDetectionSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
+func getProvisionerOptions(agentParams []func(*agentparams.Params) error) []awshost.ProvisionerOption {
+	return []awshost.ProvisionerOption{
+		awshost.WithAgentOptions(agentParams...),
+		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+	}
+}
+
 func TestLanguageDetectionSuite(t *testing.T) {
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(processConfigStr),
 	}
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentParams...))),
+		e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+			getProvisionerOptions(agentParams)...,
+		)),
 	}
 
 	e2e.Run(t, &languageDetectionSuite{}, options...)

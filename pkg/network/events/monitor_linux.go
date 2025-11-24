@@ -32,6 +32,6 @@ func getProcessStartTime(ev *model.Event) time.Time {
 	return time.Time{}
 }
 
-func getAPMTags(_ map[string]struct{}, _ string) []*intern.Value {
+func getAPMTags(_ map[string]string, _ string) []*intern.Value {
 	return nil
 }
