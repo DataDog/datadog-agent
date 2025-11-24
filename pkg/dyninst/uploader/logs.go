@@ -27,7 +27,7 @@ type LogsUploaderFactory struct {
 	cfg           config
 }
 
-// LogsUploaderMetadata is the metadata applied to the requests sent by this
+// LogsUploaderMetadata is the metadata applied to the requests sent by an
 // uploader.
 type LogsUploaderMetadata struct {
 	Tags        string
@@ -47,11 +47,14 @@ type refCountedUploader struct {
 	refCount int
 }
 
-// LogsUploader is an uploader for sending log-like batches with a specific set of tags.
+// LogsUploader is an uploader for sending log-like batches with a specific set
+// of tags. It wraps a batcher and provides a Close() method to remove itself
+// from the parent LogsUploaderFactory.
 type LogsUploader struct {
 	*batcher
-	metadata LogsUploaderMetadata
-	factory  *LogsUploaderFactory
+	// onClose is called when the uploader is closed to decrement its refcount
+	// in the parent LogsUploaderFactory.
+	onClose func()
 }
 
 // NewLogsUploaderFactory creates a new uploader factory.
@@ -126,9 +129,10 @@ func (u *LogsUploaderFactory) GetUploader(metadata LogsUploaderMetadata) *LogsUp
 
 	sender := newLogSender(u.cfg.client, logsURL, headers)
 	taggedUploader := &LogsUploader{
-		batcher:  newBatcher(name, sender, u.cfg.batcherConfig),
-		metadata: metadata,
-		factory:  u,
+		batcher: newBatcher(name, sender, u.cfg.batcherConfig),
+		onClose: func() {
+			u.closeUploader(metadata)
+		},
 	}
 
 	u.uploaders[metadata] = &refCountedUploader{
@@ -147,22 +151,29 @@ func (u *LogsUploader) Enqueue(data json.RawMessage) {
 // Close decrements the reference count of the uploader. If the ref count reaches zero,
 // the uploader is stopped and removed from the factory.
 func (u *LogsUploader) Close() {
-	u.factory.mu.Lock()
-	defer u.factory.mu.Unlock()
+	u.onClose()
+}
 
-	rc, ok := u.factory.uploaders[u.metadata]
+// closeUploader decrements the reference count of the uploader with the given
+// metadata. If the ref count reaches zero, the uploader is stopped and removed
+// from the factory.
+func (u *LogsUploaderFactory) closeUploader(metadata LogsUploaderMetadata) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	rc, ok := u.uploaders[metadata]
 	if !ok {
 		log.Warnf(
-			"closing a tagged uploader (%s) that is not in the factory: metadata=%v",
-			u.name, u.metadata,
+			"closing a tagged uploader that is not in the factory: metadata=%v",
+			metadata,
 		)
 		return
 	}
 
 	rc.refCount--
 	if rc.refCount <= 0 {
-		log.Debugf("stopping uploader %s with metadata %v", u.name, u.metadata)
-		delete(u.factory.uploaders, u.metadata)
+		log.Debugf("stopping uploader with metadata %v", metadata)
+		delete(u.uploaders, metadata)
 		rc.LogsUploader.stop()
 	}
 }
