@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -54,6 +55,7 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
+	probeDefs = slices.DeleteFunc(probeDefs, testprogs.HasIssueTag)
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { _ = obj.Close() }()

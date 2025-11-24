@@ -283,6 +283,18 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
+def _build_msstoreapps(ctx, env, configuration, arch, vstudio_root):
+    msstoreapps_sln = os.path.join(os.getcwd(), "tools", "windows", "MSStoreApps", "MSStoreApps.sln")
+    cmd = _get_vs_build_command(
+        f'msbuild "{msstoreapps_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        vstudio_root,
+    )
+    print(f"Building MSStoreApps: {cmd}")
+    succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
+    if not succeeded:
+        raise Exit("Failed to build MSStoreApps.", code=1)
+
+
 def _msi_output_name(env):
     if _is_fips_mode(env):
         return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
@@ -314,6 +326,14 @@ def build(
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
+
+    # Build MSStoreApps.dll
+    _build_msstoreapps(ctx, env, configuration, arch, vstudio_root)
+    msstoreapps_output = os.path.join(
+        os.getcwd(), "tools", "windows", "MSStoreApps", arch, configuration, "MSStoreApps.dll"
+    )
+    shutil.copy2(msstoreapps_output, AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'MSStoreApps.dll'))
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
