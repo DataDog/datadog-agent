@@ -11,18 +11,18 @@ import (
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/cilium"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 )
 
 // ProvisionerParams contains all the parameters needed to create the environment

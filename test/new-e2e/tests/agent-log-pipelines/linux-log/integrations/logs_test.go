@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"

@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/avast/retry-go/v4"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"

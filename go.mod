@@ -33,7 +33,6 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.9.2
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.175
-	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -182,9 +181,7 @@ require (
 	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
 	github.com/DataDog/datadog-traceroute v0.1.30
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
-	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
 	github.com/DataDog/ebpf-manager v0.7.15
-	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
 	github.com/DataDog/go-sqllexer v0.1.10
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
@@ -500,7 +497,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.73.0-rc.5
 	github.com/DataDog/datadog-api-client-go/v2 v2.49.0 // indirect
-	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
@@ -579,7 +575,6 @@ require (
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/ebitengine/purego v0.9.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
@@ -1177,6 +1172,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ./pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ./test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ./test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel

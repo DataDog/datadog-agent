@@ -18,7 +18,6 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.49.0
-	github.com/DataDog/test-infra-definitions v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/aws/aws-sdk-go-v2 v1.39.6
 	github.com/aws/aws-sdk-go-v2/config v1.31.20
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.266.0
@@ -65,7 +64,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.3 // indirect
@@ -170,7 +168,6 @@ require (
 	github.com/pulumi/esc v0.17.0 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.0.1 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.9.0 // indirect
-	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.18.4 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.11.1 // indirect
 	github.com/pulumiverse/pulumi-time/sdk v0.1.0
@@ -282,6 +279,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -327,7 +325,6 @@ require (
 	github.com/nats-io/nkeys v0.4.10 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
-	github.com/onsi/gomega v1.36.3 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
@@ -340,6 +337,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.81.0 // indirect
 	github.com/pulumi/pulumi-eks/sdk/v3 v3.7.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v7 v7.38.0 // indirect
+	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
@@ -536,6 +534,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
 )

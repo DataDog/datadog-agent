@@ -49,7 +49,7 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str):
     """
     print(f"Updating test-infra-definitions to {commit_sha}")
     with ctx.cd("test/new-e2e"):
-        ctx.run(f"go get github.com/DataDog/test-infra-definitions@{commit_sha}")
+        ctx.run(f"go get github.com/DataDog/datadog-agent/test/e2e-framework@{commit_sha}")
         ctx.run("go mod tidy")
 
 

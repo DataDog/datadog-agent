@@ -13,18 +13,18 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	infraos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	infraos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
