@@ -18,10 +18,13 @@ bazel:build-deps:linux-arm64:
 bazel:build-deps:macos-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
   script: |
-    datadog-ci-start-section Build_C_deps
+    export START=$(date '+%s%N' | cut -b1-13)
     bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64
-    # How do I add `--tags platform:macos_x86_64`
-    datadog-ci-end-section Build_C_deps
+    datadog-ci trace span --name "build_c_deps" --start-time "$START" --end-time $(date '+%s%N' | cut -b1-13) --tags plaatform:macos_x86_64
+    echo # How do I add `--tags platform:macos_x86_64`
+    echo # datadog-ci-start-section Build_C_deps
+    echo # datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
+    echo # datadog-ci-end-section Build_C_deps
 
 bazel:build-deps:macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
