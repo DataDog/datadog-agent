@@ -65,14 +65,15 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
 
-	var svcManager svcmanager.ServiceManager
+	var out string
 	if v.descriptor.Family() == os.WindowsFamily {
-		svcManager = svcmanager.NewWindows(v.Env().RemoteHost)
+		svcManager := svcmanager.NewWindows(v.Env().RemoteHost)
+		out, err = svcManager.Restart("datadogagent")
 	} else {
-		svcManager = svcmanager.NewSystemctl(v.Env().RemoteHost)
+		svcManager := svcmanager.NewSystemctl(v.Env().RemoteHost)
+		out, err = svcManager.Restart("datadog-agent")
 	}
 
-	out, err := svcManager.Restart("datadog-agent")
 	v.T().Log(out)
 	require.NoError(v.T(), err)
 
