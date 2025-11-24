@@ -392,7 +392,6 @@ var defaultProfiles = `
         - name: runtime.ddot_otlp_metrics_events
         - name: runtime.ddot_otlp_traces_requests
         - name: runtime.ddot_otlp_traces_events
-
     schedule:
       start_after: 30
       iterations: 0
