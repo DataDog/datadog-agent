@@ -8,8 +8,7 @@ require './lib/ostools.rb'
 name 'process-manager'
 
 # Source from local agent-process-manager directory in the repository
-source path: '..'
-relative_path 'agent-process-manager'
+source path: '../agent-process-manager'
 
 # Always rebuild to ensure we have the latest version
 always_build true
