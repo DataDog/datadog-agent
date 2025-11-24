@@ -57,6 +57,12 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 		headers["dd-evp-origin-version"] = version.AgentVersion
 	}
 
+	if h.endpoint.UseCompression {
+		headers["dd-content-encoding"] = h.endpoint.CompressionKind
+	} else {
+		headers["dd-content-encoding"] = "identity"
+	}
+
 	return headers, nil
 }
 
