@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
@@ -131,7 +131,6 @@ func TestK8SCELFilteringSuite(t *testing.T) {
 	e2e.Run(t, &k8sCELFilteringSuite{}, e2e.WithProvisioner(
 		awskubernetes.KindProvisioner(
 			awskubernetes.WithAgentOptions(
-				kubernetesagentparams.WithAgentFullImagePath("public.ecr.aws/datadog/agent:7.73.0-rc.6"),
 				kubernetesagentparams.WithHelmValues(celContainerExcludeConfig),
 			),
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
