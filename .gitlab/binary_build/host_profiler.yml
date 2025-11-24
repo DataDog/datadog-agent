@@ -18,9 +18,9 @@
       - $CI_PROJECT_DIR/bin/full-host-profiler/full-host-profiler
 
 build_host_profiler_binary_x64:
-  extends: [.build_host_profiler_binary_common, .agent_base_flavor]
+  extends: [.build_host_profiler_binary_common]
   tags: ["arch:amd64", "specific:true"]
 
 build_host_profiler_binary_arm64:
-  extends: [.build_host_profiler_binary_common, .agent_base_flavor]
+  extends: [.build_host_profiler_binary_common]
   tags: ["arch:arm64", "specific:true"]
