@@ -51,7 +51,7 @@ func init() {
 	registerFeature(Podman)
 	registerFeature(PodResources)
 	registerFeature(NVML)
-	registerFeature(NonstandardRuntime)
+	registerFeature(NonstandardCRIRuntime)
 }
 
 // IsAnyContainerFeaturePresent checks if any of known container features is present
@@ -67,7 +67,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(EKSFargate) ||
 		IsFeaturePresent(CloudFoundry) ||
 		IsFeaturePresent(Podman) ||
-		IsFeaturePresent(NonstandardRuntime)
+		IsFeaturePresent(NonstandardCRIRuntime)
 }
 
 func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
@@ -147,7 +147,7 @@ func detectCriRuntimes(features FeatureMap, cfg model.Reader) {
 		} else if strings.Contains(criSocket, "crio") {
 			features[Crio] = struct{}{}
 		} else {
-			features[NonstandardRuntime] = struct{}{}
+			features[NonstandardCRIRuntime] = struct{}{}
 		}
 	}
 }

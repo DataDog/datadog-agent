@@ -32,7 +32,7 @@ const (
 	RuntimeNamePodman              Runtime = "podman"
 	RuntimeNameECSFargate          Runtime = "ecsfargate"
 	RuntimeNameECSManagedInstances Runtime = "ecsmanagedinstances"
-	RuntimeNameNonstandard         Runtime = "nonstandard"
+	RuntimeNameCRINonstandard      Runtime = "cri-nonstandard"
 )
 
 var (
@@ -61,7 +61,7 @@ var (
 		RuntimeNamePodman,
 		RuntimeNameECSFargate,
 		RuntimeNameECSManagedInstances,
-		RuntimeNameNonstandard,
+		RuntimeNameCRINonstandard,
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows
@@ -71,7 +71,7 @@ var (
 		RuntimeNameContainerd,
 		RuntimeNameECSFargate,
 		RuntimeNameECSManagedInstances,
-		RuntimeNameNonstandard,
+		RuntimeNameCRINonstandard,
 	}
 )
 
@@ -151,10 +151,10 @@ func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
 	// if the nonstandard runtime feature is present that means
 	// the user supplied a runtime socket that does not map to any of our known
 	// runtimes: containerd, docker, cri-o
-	if env.IsFeaturePresent(env.NonstandardRuntime) {
-		generic := NewRuntimeMetadata(string(RuntimeNameNonstandard), "")
-		log.Debugf("Overriding %s to %s because it is not a standard runtime", r, generic)
-		r = generic
+	if env.IsFeaturePresent(env.NonstandardCRIRuntime) {
+		nonstandard := NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
+		log.Debugf("Overriding collector runtime from %s to %s", r.String(), nonstandard.String())
+		r = nonstandard
 	}
 
 	// we can't return mp.collectors[runtime] directly because it will return a typed nil
