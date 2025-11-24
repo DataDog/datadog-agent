@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	metricscompressionimpl "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/impl"
@@ -371,7 +372,7 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 	config.SetWithoutSource("serializer_experimental_use_v3_api.series.endpoints", []string{"http://example.test"})
 	config.SetWithoutSource("serializer_experimental_use_v3_api.series.validate", true)
 
-	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger)
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, secretsnoop.NewComponent().Comp)
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
 	s := NewSerializer(f, nil, compressor, config, logger, "")
