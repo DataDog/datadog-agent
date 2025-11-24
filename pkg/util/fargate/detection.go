@@ -28,11 +28,6 @@ func IsSidecar() bool {
 	return env.IsECSSidecarMode(pkgconfigsetup.Datadog())
 }
 
-// IsFargateInstance is deprecated. Use IsSidecar instead.
-func IsFargateInstance() bool {
-	return IsSidecar()
-}
-
 // GetOrchestrator returns whether the Agent is running on ECS or EKS.
 func GetOrchestrator() OrchestratorName {
 	if env.IsFeaturePresent(env.EKSFargate) {
