@@ -76,7 +76,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 
 // Commands returns a slice of subcommands for the `check` command in the Process Agent
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery", "process_events"}
+	checkAllowlist := []string{"process", "rtprocess", "container", "rtcontainer", "connections", "process_discovery"}
 	return []*cobra.Command{processchecks.MakeCommand(func() *command.GlobalParams {
 		return &command.GlobalParams{
 			ConfFilePath:         globalParams.ConfFilePath,

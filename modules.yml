@@ -359,6 +359,8 @@ modules:
     used_by_otel: true
   tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
+  test/e2e-framework:
+    independent: false
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored
