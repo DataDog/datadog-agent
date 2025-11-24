@@ -11,8 +11,6 @@ import (
 	"io"
 	"strings"
 	"time"
-
-	mapstructure "github.com/go-viper/mapstructure/v2"
 )
 
 // ErrConfigFileNotFound is an error for when the config file is not found
@@ -177,9 +175,6 @@ type Reader interface {
 	// HasSection returns true if the key is for a non-leaf setting that is defined by the user
 	HasSection(key string) bool
 
-	// UnmarshalKey Unmarshal a configuration key into a struct
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
-
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
 
@@ -262,8 +257,6 @@ type Setup interface {
 // Compound is an interface for retrieving compound elements from the config, plus
 // some misc functions, that should likely be split into another interface
 type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
-
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
