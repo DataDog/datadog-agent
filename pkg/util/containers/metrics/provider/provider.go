@@ -150,7 +150,7 @@ func newProvider(wmeta option.Option[workloadmeta.Component]) *GenericProvider {
 func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
 	// if the nonstandard runtime feature is present that means
 	// the user supplied a runtime socket that does not map to any of our known
-	// runtimes: containerd, docker, cri-o
+	// runtimes: containerd, cri-o
 	if env.IsFeaturePresent(env.NonstandardCRIRuntime) {
 		nonstandard := NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
 		log.Debugf("Overriding collector runtime from %s to %s", r.String(), nonstandard.String())
