@@ -29,36 +29,35 @@ for f in "$@"; do
         exit 2
     fi
     case $f in
-        *.so)
-            ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
-            ;;
-        *.dylib)
-            install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
-            # Get the old install name/ID
-            dylib_name=$(basename "$f")
-            new_id="$PREFIX/lib/$dylib_name"
-            
-            # Change the dylib's own ID
-            install_name_tool -id "$new_id" "$f"
-            
-            # Update all dependency paths that point to sandbox locations
-            otool -L "$f" | tail -n +2 | awk '{print $1}' | while read -r dep; do
-                if [[ "$dep" == *"sandbox"* ]] || [[ "$dep" == *"bazel-out"* ]]; then
-                    dep_name=$(basename "$dep")
-                    new_dep="$PREFIX/lib/$dep_name"
-                    install_name_tool -change "$dep" "$new_dep" "$f" 2>/dev/null || true
-                    install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
-                fi
-            done
-            ;;
         *.pc)
             sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
             ;;
         *)
+            # We can't trust files extensions do determine if we're patching a .so or a .dylib
+            # Python's build generates all modules as .so including on macOS
             if file "$f" | grep -q ELF; then
                 ${PATCHELF} --set-rpath "$PREFIX"/lib "$f"
+            elif file "$f" | grep -q Mach-O; then
+                install_name_tool -add_rpath "$PREFIX/lib" "$f" 2>/dev/null || true
+                # Get the old install name/ID
+                dylib_name=$(basename "$f")
+                new_id="$PREFIX/lib/$dylib_name"
+
+                # Change the dylib's own ID
+                install_name_tool -id "$new_id" "$f"
+
+                # Update all dependency paths that point to sandbox locations
+                otool -L "$f" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+                    if [[ "$dep" == *"sandbox"* ]] || [[ "$dep" == *"bazel-out"* ]]; then
+                        dep_name=$(basename "$dep")
+                        new_dep="$PREFIX/lib/$dep_name"
+                        install_name_tool -change "$dep" "$new_dep" "$f" 2>/dev/null || true
+                        install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
+                    fi
+                done
             else
                 >&2 echo "Ignoring $f"
             fi
+            ;;
     esac
 done
