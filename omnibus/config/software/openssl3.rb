@@ -34,7 +34,7 @@ build do
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{installation_dir}"
     if windows?
       # shutil generates temporary files during run install that are not removed afterwards.
-      Dir.glob("#{install_dir}/embedded/include/openssl/tmp*").each do |tmp_file|
+      Dir.glob("#{installation_dir}/include/openssl/tmp*").each do |tmp_file|
         delete tmp_file
       end
     end
