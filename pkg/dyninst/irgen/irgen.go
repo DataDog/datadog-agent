@@ -1199,6 +1199,548 @@ func processDwarf(
 	}, nil
 }
 
+type rootVisitor struct {
+	pointerSize         uint8
+	interests           interests
+	dwarf               *dwarf.Data
+	subprogramIDAlloc   idAllocator[ir.SubprogramID]
+	subprograms         []*pendingSubprogram
+	abstractSubprograms map[dwarf.Offset]*abstractSubprogram
+
+	// Unit offsets are used to track the offsets of the top-level compile
+	// units nodes in dwarf.
+	//
+	// This is needed to properly construct DWARF readers in a way that avoids
+	// https://github.com/golang/go/issues/72778 in go 1.24 (where it is still
+	// present).
+	unitOffsets []dwarf.Offset
+
+	// Dwarf offsets of all out-of-line subprograms that contain inlined
+	// subprograms. These may either be non-inlined subprograms or out-of-line
+	// instances of inlined subprograms.
+	//
+	// This is used to find the root PC ranges for inlined instances of inlined
+	// subprograms.
+	outOfLineSubprogramOffsets []dwarf.Offset
+
+	// All concrete inlined subprogram instances. Note that there can be quite
+	// a large number of these, so we intentionally store just the offsets and
+	// the abstract origin.
+	//
+	// We need to store these because we may not yet have visited the abstract
+	// origin by the time we visit the concrete instance, and without visiting
+	// the abstract origin, we do not know the name, or whether we're interested
+	// in the instance.
+	inlineInstances []concreteSubprogramRef
+	// Similar to inlineInstances, but for out-of-line instances of inlined
+	// subprograms.
+	outOfLineInstances []concreteSubprogramRef
+
+	interestingTypes []dwarf.Offset
+	typeIndexBuilder goTypeToOffsetIndexBuilder
+
+	goRuntimeInformation ir.GoModuledataInfo
+
+	// This is used to avoid allocations of unitChildVisitor for each
+	// compile unit.
+	freeUnitChildVisitor *unitChildVisitor
+}
+
+// couldBeInteresting could possibly be interesting. If we've already visited
+// the abstract origin and we didn't put it in our map of abstract subprograms,
+// then we know this is not interesting and we don't need to index it.
+func (v *rootVisitor) couldBeInteresting(ref concreteSubprogramRef) bool {
+	return ref.abstractOrigin > ref.offset ||
+		mapContains(v.abstractSubprograms, ref.abstractOrigin)
+}
+
+func mapContains[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
+}
+
+// pendingSubprogram collects DWARF discovery for a subprogram without building
+// IR. It holds the DIEs and ranges needed for materialization.
+type pendingSubprogram struct {
+	unit              *dwarf.Entry
+	subprogramEntry   *dwarf.Entry
+	variables         []*dwarf.Entry
+	name              string
+	outOfLinePCRanges []ir.PCRange
+	inlinePCRanges    []ir.InlinePCRanges
+
+	// Inlined instances associated with this (abstract) subprogram.
+	inlined    []*inlinedSubprogram
+	abstract   bool
+	id         ir.SubprogramID
+	probesCfgs []ir.ProbeDefinition
+	issue      ir.Issue
+}
+
+func (v *rootVisitor) push(entry *dwarf.Entry) (childVisitor visitor, err error) {
+	if entry.Tag != dwarf.TagCompileUnit {
+		return nil, nil
+	}
+
+	language, ok, err := maybeGetAttr[int64](entry, dwarf.AttrLanguage)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get language for compile unit: %w", err)
+	}
+	if !ok || language != dwLangGo {
+		return nil, nil
+	}
+	return v.getUnitVisitor(entry), nil
+}
+
+func (v *rootVisitor) getUnitVisitor(entry *dwarf.Entry) (unitVisitor *unitChildVisitor) {
+	if v.freeUnitChildVisitor != nil {
+		unitVisitor, v.freeUnitChildVisitor = v.freeUnitChildVisitor, nil
+	} else {
+		unitVisitor = &unitChildVisitor{
+			root: v,
+		}
+	}
+	v.unitOffsets = append(v.unitOffsets, entry.Offset)
+	unitVisitor.unit = entry
+	return unitVisitor
+}
+
+func (v *rootVisitor) putUnitVisitor(unitVisitor *unitChildVisitor) {
+	if v.freeUnitChildVisitor == nil {
+		unitVisitor.unit = nil
+		v.freeUnitChildVisitor = unitVisitor
+	}
+}
+
+func (v *rootVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
+	switch t := childVisitor.(type) {
+	case *unitChildVisitor:
+		v.putUnitVisitor(t)
+	}
+	return nil
+}
+
+type unitChildVisitor struct {
+	root *rootVisitor
+	unit *dwarf.Entry
+
+	// TODO: Reuse the subprogramChildVisitor.
+}
+
+func (v *unitChildVisitor) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	// For now, we're going to skip types and just visit other parts of
+	// subprograms.
+	switch entry.Tag {
+	case dwarf.TagSubprogram:
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			// This is expected to be an out-of-line instance of an abstract program.
+			abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get abstract origin for out-of-line instance: %w", err)
+			}
+			if ref := (concreteSubprogramRef{
+				offset:         entry.Offset,
+				abstractOrigin: abstractOrigin,
+			}); v.root.couldBeInteresting(ref) {
+				v.root.outOfLineInstances = append(v.root.outOfLineInstances, ref)
+			}
+
+			return &inlinedSubroutineChildVisitor{
+				root:      v.root,
+				outOfLine: true,
+			}, nil
+		}
+		probesCfgs := v.root.interests.subprograms[name]
+		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
+		if err != nil {
+			return nil, err
+		}
+		if ok && inline == dwInlInlined {
+			if len(probesCfgs) > 0 {
+				abstractSubprogram := &abstractSubprogram{
+					unit:       v.unit,
+					probesCfgs: probesCfgs,
+					name:       name,
+					variables:  make(map[dwarf.Offset]*dwarf.Entry),
+				}
+				v.root.abstractSubprograms[entry.Offset] = abstractSubprogram
+				return &abstractSubprogramVisitor{
+					root:               v.root,
+					unit:               v.unit,
+					abstractSubprogram: abstractSubprogram,
+				}, nil
+			}
+			return nil, nil
+		}
+
+		return &subprogramChildVisitor{
+			root:            v.root,
+			subprogramEntry: entry,
+			unit:            v.unit,
+			probesCfgs:      probesCfgs,
+		}, nil
+
+	case dwarf.TagUnspecifiedType:
+		// Go defines one of these but doesn't use it. Skip it.
+		return nil, nil
+
+	case dwarf.TagPointerType,
+		dwarf.TagBaseType,
+		dwarf.TagArrayType,
+		dwarf.TagStructType,
+		dwarf.TagTypedef,
+		dwarf.TagSubroutineType:
+
+		// Use this as a heuristic to determine if this is a base type or a
+		// pointer to a base type. This is handy because these things are
+		// sometimes found underneath interfaces. Also, generally it's nice to
+		// have some types eagerly added.
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil || !ok {
+			return nil, err
+		}
+
+		goAttrs, err := getGoTypeAttributes(entry)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get go type attributes: %w", err)
+		}
+		if gt, ok := goAttrs.GetGoRuntimeType(); ok {
+			if err := v.root.typeIndexBuilder.addType(
+				gotype.TypeID(gt), entry.Offset,
+			); err != nil {
+				return nil, fmt.Errorf("failed to add type %q: %w", name, err)
+			}
+		}
+
+		interesting := false
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+			interesting = true
+		}
+		if !interesting {
+			nameWithoutStar := name
+			if entry.Tag == dwarf.TagPointerType {
+				nameWithoutStar = name[1:]
+			}
+			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
+		}
+		if interesting {
+			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
+		}
+		return nil, nil
+
+	case dwarf.TagVariable:
+		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
+		if err != nil {
+			return nil, err
+		}
+		if !ok || name != "runtime.firstmoduledata" {
+			return nil, nil
+		}
+
+		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
+		}
+
+		// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
+		byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
+		if err != nil {
+			return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
+		}
+		location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
+		}
+		instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
+		}
+		if len(instructions) != 1 {
+			return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
+		}
+		addr, ok := instructions[0].Op.(ir.Addr)
+		if !ok {
+			return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
+		}
+		v.root.goRuntimeInformation = ir.GoModuledataInfo{
+			FirstModuledataAddr: addr.Addr,
+			TypesOffset:         memberOffset,
+		}
+		return nil, nil
+
+	case dwarf.TagConstant:
+		// TODO: Handle constants.
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unexpected tag for unit child: %s", entry.Tag)
+	}
+}
+
+// primitiveTypeNameRegexp is a regex that matches the names of primitive types.
+// It doesn't match anything with a package or any of the odd internal types
+// used by the runtime like sudog<T>.
+var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
+
+// findStructMemberOffset finds the offset of a member in a struct type.
+func findStructSizeAndMemberOffset(
+	dwarfData *dwarf.Data,
+	typeOffset dwarf.Offset,
+	memberName string,
+) (size uint32, memberOffset uint32, retErr error) {
+	reader := dwarfData.Reader()
+	reader.Seek(typeOffset)
+	entry, err := reader.Next()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
+	}
+	if entry.Tag != dwarf.TagTypedef {
+		return 0, 0, fmt.Errorf("expected typedef type, got %s", entry.Tag)
+	}
+	underlyingOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+	if err != nil {
+		return 0, 0, fmt.Errorf("missing type for typedef: %w", err)
+	}
+	reader.Seek(underlyingOffset)
+	entry, err = reader.Next()
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
+	}
+	if entry.Tag != dwarf.TagStructType {
+		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
+	}
+	if !entry.Children {
+		return 0, 0, fmt.Errorf("struct type has no children")
+	}
+	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to get size for struct type: %w", err)
+	}
+	if structSize < 0 || structSize > math.MaxUint32 {
+		return 0, 0, fmt.Errorf("invalid struct size %d", structSize)
+	}
+	size = uint32(structSize)
+	for {
+		child, err := reader.Next()
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
+		}
+		if child == nil {
+			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
+		}
+		if child.Tag == 0 {
+			break
+		}
+		if child.Tag == dwarf.TagMember {
+			name, err := getAttr[string](child, dwarf.AttrName)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to get name for member: %w", err)
+			}
+			if name != memberName {
+				continue
+			}
+			offset, err := getAttr[int64](child, dwarf.AttrDataMemberLoc)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to get offset for member: %w", err)
+			}
+			if offset > math.MaxUint32 {
+				return 0, 0, fmt.Errorf("member offset is too large: %d", offset)
+			}
+			return size, uint32(offset), nil
+		}
+		if child.Children {
+			reader.SkipChildren()
+		}
+	}
+	return 0, 0, fmt.Errorf("member %q not found", memberName)
+}
+
+func (v *unitChildVisitor) pop(entry *dwarf.Entry, childVisitor visitor) error {
+	switch t := childVisitor.(type) {
+	case nil:
+		return nil
+	case *subprogramChildVisitor:
+		if t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, t.subprogramEntry.Offset)
+		}
+		if len(t.probesCfgs) > 0 {
+			var spName string
+			if n, ok, _ := maybeGetAttr[string](t.subprogramEntry, dwarf.AttrName); ok {
+				spName = n
+			}
+			ranges, err := v.root.dwarf.Ranges(t.subprogramEntry)
+			var issue ir.Issue
+			if err != nil {
+				issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: err.Error(),
+				}
+			} else {
+				slices.SortFunc(ranges, cmpRange)
+				if err := validateNonOverlappingPCRanges(
+					ranges, t.subprogramEntry.Offset, "subprogram",
+				); err != nil {
+					issue = ir.Issue{
+						Kind:    ir.IssueKindInvalidDWARF,
+						Message: err.Error(),
+					}
+				}
+			}
+			spID := v.root.subprogramIDAlloc.next()
+			v.root.subprograms = append(v.root.subprograms, &pendingSubprogram{
+				unit:              t.unit,
+				subprogramEntry:   t.subprogramEntry,
+				name:              spName,
+				outOfLinePCRanges: ranges,
+				variables:         t.variableEntries,
+				probesCfgs:        t.probesCfgs,
+				id:                spID,
+				issue:             issue,
+			})
+		}
+		return nil
+	case *inlinedSubroutineChildVisitor:
+		if t.outOfLine && t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, entry.Offset)
+		}
+		return nil
+	case *abstractSubprogramVisitor:
+		return nil
+	default:
+		return fmt.Errorf("unexpected visitor type for unit child: %T", t)
+	}
+}
+
+type subprogramChildVisitor struct {
+	root            *rootVisitor
+	unit            *dwarf.Entry
+	subprogramEntry *dwarf.Entry
+	probesCfgs      []ir.ProbeDefinition
+	// Discovery: collect variable DIEs for later materialization.
+	variableEntries       []*dwarf.Entry
+	hasInlinedSubprograms bool
+}
+
+func (v *subprogramChildVisitor) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	switch entry.Tag {
+	case dwarf.TagInlinedSubroutine:
+		v.hasInlinedSubprograms = true
+		v := &inlinedSubroutineChildVisitor{root: v.root}
+		return v.push(entry)
+	case dwarf.TagFormalParameter:
+		fallthrough
+	case dwarf.TagVariable:
+		// Collect variables only if this subprogram is interesting to us.
+		if len(v.probesCfgs) > 0 {
+			v.variableEntries = append(v.variableEntries, entry)
+		}
+		return nil, nil
+	case dwarf.TagTypedef:
+		// Typedefs occur for generic type parameters and carry their dictionary
+		// index.
+		return nil, nil
+	case dwarf.TagLexDwarfBlock:
+		return v, nil
+	default:
+		return nil, fmt.Errorf(
+			"unexpected tag for subprogram child: %s", entry.Tag,
+		)
+	}
+}
+
+func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return nil }
+
+type abstractSubprogram struct {
+	unit       *dwarf.Entry
+	probesCfgs []ir.ProbeDefinition
+	name       string
+	// Aggregated ranges from out-of-line and inlined instances.
+	outOfLinePCRanges []ir.PCRange
+	inlinePCRanges    []ir.InlinePCRanges
+	// Variables defined under the abstract DIE keyed by DIE offset.
+	variables map[dwarf.Offset]*dwarf.Entry
+	// Inlined instances discovered for this abstract subprogram.
+	inlined []*inlinedSubprogram
+	issue   ir.Issue
+}
+
+type abstractSubprogramVisitor struct {
+	root               *rootVisitor
+	unit               *dwarf.Entry
+	abstractSubprogram *abstractSubprogram
+}
+
+func (v *abstractSubprogramVisitor) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	switch entry.Tag {
+	case dwarf.TagFormalParameter:
+		fallthrough
+	case dwarf.TagVariable:
+		v.abstractSubprogram.variables[entry.Offset] = entry
+		return nil, nil
+	}
+	return nil, fmt.Errorf("unexpected tag for abstract subprogram child: %s", entry.Tag)
+}
+
+func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
+	return nil
+}
+
+type inlinedSubprogram struct {
+	abstractOrigin dwarf.Offset
+	// Exactly one of the following is non-nil. If this is an out-of-line instance,
+	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
+	outOfLinePCRanges []ir.PCRange
+	inlinedPCRanges   ir.InlinePCRanges
+	variables         []*dwarf.Entry
+}
+
+type inlinedSubroutineChildVisitor struct {
+	root                  *rootVisitor
+	outOfLine             bool
+	hasInlinedSubprograms bool
+}
+
+func (v *inlinedSubroutineChildVisitor) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	switch entry.Tag {
+	case dwarf.TagInlinedSubroutine:
+		v.hasInlinedSubprograms = true
+		abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
+		if err != nil {
+			return nil, err
+		}
+		if ref := (concreteSubprogramRef{
+			offset:         entry.Offset,
+			abstractOrigin: abstractOrigin,
+		}); v.root.couldBeInteresting(ref) {
+			v.root.inlineInstances = append(v.root.inlineInstances, ref)
+		}
+		fallthrough
+	case dwarf.TagLexDwarfBlock:
+		return v, nil
+	case dwarf.TagFormalParameter, dwarf.TagVariable, dwarf.TagTypedef, dwarf.TagLabel:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
+	}
+}
+
+func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
+	return nil
+}
+
 // convertAbstractSubprogramsToPending constructs the pending subprograms for the inlined
 // subprograms stored in the abstractSubprograms map.
 func convertAbstractSubprogramsToPending(
@@ -1692,58 +2234,6 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 	}
 }
 
-func field(tc *typeCatalog, st *ir.StructureType, name string) (*ir.Field, error) {
-	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
-		return f.Name == name
-	})
-	if offset == -1 {
-		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
-	}
-	f := &st.RawFields[offset]
-	f.Type = tc.typesByID[f.Type.GetID()]
-	return &st.RawFields[offset], nil
-}
-
-func fieldType[T ir.Type](tc *typeCatalog, st *ir.StructureType, name string) (T, error) {
-	f, err := field(tc, st, name)
-	if err != nil {
-		return *new(T), err
-	}
-	fieldType, ok := f.Type.(T)
-	if !ok {
-		ret := *new(T)
-		err := fmt.Errorf(
-			"field %q of type %q is not a %T, got %T",
-			name, st.Name, ret, f.Type,
-		)
-		return ret, err
-	}
-	return fieldType, nil
-}
-
-func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
-	ptrType, ok := t.(*ir.PointerType)
-	if !ok {
-		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
-	}
-	ptrType.Pointee = tc.typesByID[ptrType.Pointee.GetID()]
-	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
-		pointee, err := tc.addType(ppt.offset)
-		if err != nil {
-			return *new(T), err
-		}
-		ptrType.Pointee = pointee
-	}
-	pointee, ok := ptrType.Pointee.(T)
-	if !ok {
-		return *new(T), fmt.Errorf(
-			"pointee type %d %q of %d (%q) is not a %T, got %T",
-			ptrType.ID, ptrType.Pointee.GetName(), ptrType.ID, ptrType.Name, new(T), ptrType.Pointee,
-		)
-	}
-	return pointee, nil
-}
-
 func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
 	var tablePtrType *ir.PointerType
 	var groupReferenceType *ir.StructureType
@@ -1924,6 +2414,58 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	return nil
 }
 
+func field(tc *typeCatalog, st *ir.StructureType, name string) (*ir.Field, error) {
+	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
+		return f.Name == name
+	})
+	if offset == -1 {
+		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
+	}
+	f := &st.RawFields[offset]
+	f.Type = tc.typesByID[f.Type.GetID()]
+	return &st.RawFields[offset], nil
+}
+
+func fieldType[T ir.Type](tc *typeCatalog, st *ir.StructureType, name string) (T, error) {
+	f, err := field(tc, st, name)
+	if err != nil {
+		return *new(T), err
+	}
+	fieldType, ok := f.Type.(T)
+	if !ok {
+		ret := *new(T)
+		err := fmt.Errorf(
+			"field %q of type %q is not a %T, got %T",
+			name, st.Name, ret, f.Type,
+		)
+		return ret, err
+	}
+	return fieldType, nil
+}
+
+func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
+	ptrType, ok := t.(*ir.PointerType)
+	if !ok {
+		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
+	}
+	ptrType.Pointee = tc.typesByID[ptrType.Pointee.GetID()]
+	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
+		pointee, err := tc.addType(ppt.offset)
+		if err != nil {
+			return *new(T), err
+		}
+		ptrType.Pointee = pointee
+	}
+	pointee, ok := ptrType.Pointee.(T)
+	if !ok {
+		return *new(T), fmt.Errorf(
+			"pointee type %d %q of %d (%q) is not a %T, got %T",
+			ptrType.ID, ptrType.Pointee.GetName(), ptrType.ID, ptrType.Name, new(T), ptrType.Pointee,
+		)
+	}
+	return pointee, nil
+}
+
 func populateProbeEventsExpressions(
 	probes []*ir.Probe,
 	exprs [][]probeExpression,
@@ -2032,425 +2574,6 @@ func (c concreteSubprogramRef) cmpByOffset(b concreteSubprogramRef) int {
 		cmp.Compare(c.offset, b.offset),
 		cmp.Compare(c.abstractOrigin, b.abstractOrigin),
 	)
-}
-
-type rootVisitor struct {
-	pointerSize         uint8
-	interests           interests
-	dwarf               *dwarf.Data
-	subprogramIDAlloc   idAllocator[ir.SubprogramID]
-	subprograms         []*pendingSubprogram
-	abstractSubprograms map[dwarf.Offset]*abstractSubprogram
-
-	// Unit offsets are used to track the offsets of the top-level compile
-	// units nodes in dwarf.
-	//
-	// This is needed to properly construct DWARF readers in a way that avoids
-	// https://github.com/golang/go/issues/72778 in go 1.24 (where it is still
-	// present).
-	unitOffsets []dwarf.Offset
-
-	// Dwarf offsets of all out-of-line subprograms that contain inlined
-	// subprograms. These may either be non-inlined subprograms or out-of-line
-	// instances of inlined subprograms.
-	//
-	// This is used to find the root PC ranges for inlined instances of inlined
-	// subprograms.
-	outOfLineSubprogramOffsets []dwarf.Offset
-
-	// All concrete inlined subprogram instances. Note that there can be quite
-	// a large number of these, so we intentionally store just the offsets and
-	// the abstract origin.
-	//
-	// We need to store these because we may not yet have visited the abstract
-	// origin by the time we visit the concrete instance, and without visiting
-	// the abstract origin, we do not know the name, or whether we're interested
-	// in the instance.
-	inlineInstances []concreteSubprogramRef
-	// Similar to inlineInstances, but for out-of-line instances of inlined
-	// subprograms.
-	outOfLineInstances []concreteSubprogramRef
-
-	interestingTypes []dwarf.Offset
-	typeIndexBuilder goTypeToOffsetIndexBuilder
-
-	goRuntimeInformation ir.GoModuledataInfo
-
-	// This is used to avoid allocations of unitChildVisitor for each
-	// compile unit.
-	freeUnitChildVisitor *unitChildVisitor
-}
-
-// couldBeInteresting could possibly be interesting. If we've already visited
-// the abstract origin and we didn't put it in our map of abstract subprograms,
-// then we know this is not interesting and we don't need to index it.
-func (v *rootVisitor) couldBeInteresting(ref concreteSubprogramRef) bool {
-	return ref.abstractOrigin > ref.offset ||
-		mapContains(v.abstractSubprograms, ref.abstractOrigin)
-}
-
-// pendingSubprogram collects DWARF discovery for a subprogram without building
-// IR. It holds the DIEs and ranges needed for materialization.
-type pendingSubprogram struct {
-	unit              *dwarf.Entry
-	subprogramEntry   *dwarf.Entry
-	variables         []*dwarf.Entry
-	name              string
-	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
-
-	// Inlined instances associated with this (abstract) subprogram.
-	inlined    []*inlinedSubprogram
-	abstract   bool
-	id         ir.SubprogramID
-	probesCfgs []ir.ProbeDefinition
-	issue      ir.Issue
-}
-
-func (v *rootVisitor) push(entry *dwarf.Entry) (childVisitor visitor, err error) {
-	if entry.Tag != dwarf.TagCompileUnit {
-		return nil, nil
-	}
-
-	language, ok, err := maybeGetAttr[int64](entry, dwarf.AttrLanguage)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get language for compile unit: %w", err)
-	}
-	if !ok || language != dwLangGo {
-		return nil, nil
-	}
-	return v.getUnitVisitor(entry), nil
-}
-
-func (v *rootVisitor) getUnitVisitor(entry *dwarf.Entry) (unitVisitor *unitChildVisitor) {
-	if v.freeUnitChildVisitor != nil {
-		unitVisitor, v.freeUnitChildVisitor = v.freeUnitChildVisitor, nil
-	} else {
-		unitVisitor = &unitChildVisitor{
-			root: v,
-		}
-	}
-	v.unitOffsets = append(v.unitOffsets, entry.Offset)
-	unitVisitor.unit = entry
-	return unitVisitor
-}
-
-func (v *rootVisitor) putUnitVisitor(unitVisitor *unitChildVisitor) {
-	if v.freeUnitChildVisitor == nil {
-		unitVisitor.unit = nil
-		v.freeUnitChildVisitor = unitVisitor
-	}
-}
-
-func (v *rootVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
-	switch t := childVisitor.(type) {
-	case *unitChildVisitor:
-		v.putUnitVisitor(t)
-	}
-	return nil
-}
-
-type unitChildVisitor struct {
-	root *rootVisitor
-	unit *dwarf.Entry
-
-	// TODO: Reuse the subprogramChildVisitor.
-}
-
-func mapContains[K comparable, V any](m map[K]V, key K) bool {
-	_, ok := m[key]
-	return ok
-}
-
-func (v *unitChildVisitor) push(
-	entry *dwarf.Entry,
-) (childVisitor visitor, err error) {
-	// For now, we're going to skip types and just visit other parts of
-	// subprograms.
-	switch entry.Tag {
-	case dwarf.TagSubprogram:
-		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			// This is expected to be an out-of-line instance of an abstract program.
-			abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get abstract origin for out-of-line instance: %w", err)
-			}
-			if ref := (concreteSubprogramRef{
-				offset:         entry.Offset,
-				abstractOrigin: abstractOrigin,
-			}); v.root.couldBeInteresting(ref) {
-				v.root.outOfLineInstances = append(v.root.outOfLineInstances, ref)
-			}
-
-			return &inlinedSubroutineChildVisitor{
-				root:      v.root,
-				outOfLine: true,
-			}, nil
-		}
-		probesCfgs := v.root.interests.subprograms[name]
-		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
-		if err != nil {
-			return nil, err
-		}
-		if ok && inline == dwInlInlined {
-			if len(probesCfgs) > 0 {
-				abstractSubprogram := &abstractSubprogram{
-					unit:       v.unit,
-					probesCfgs: probesCfgs,
-					name:       name,
-					variables:  make(map[dwarf.Offset]*dwarf.Entry),
-				}
-				v.root.abstractSubprograms[entry.Offset] = abstractSubprogram
-				return &abstractSubprogramVisitor{
-					root:               v.root,
-					unit:               v.unit,
-					abstractSubprogram: abstractSubprogram,
-				}, nil
-			}
-			return nil, nil
-		}
-
-		return &subprogramChildVisitor{
-			root:            v.root,
-			subprogramEntry: entry,
-			unit:            v.unit,
-			probesCfgs:      probesCfgs,
-		}, nil
-
-	case dwarf.TagUnspecifiedType:
-		// Go defines one of these but doesn't use it. Skip it.
-		return nil, nil
-
-	case dwarf.TagPointerType,
-		dwarf.TagBaseType,
-		dwarf.TagArrayType,
-		dwarf.TagStructType,
-		dwarf.TagTypedef,
-		dwarf.TagSubroutineType:
-
-		// Use this as a heuristic to determine if this is a base type or a
-		// pointer to a base type. This is handy because these things are
-		// sometimes found underneath interfaces. Also, generally it's nice to
-		// have some types eagerly added.
-		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
-		if err != nil || !ok {
-			return nil, err
-		}
-
-		goAttrs, err := getGoTypeAttributes(entry)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get go type attributes: %w", err)
-		}
-		if gt, ok := goAttrs.GetGoRuntimeType(); ok {
-			if err := v.root.typeIndexBuilder.addType(
-				gotype.TypeID(gt), entry.Offset,
-			); err != nil {
-				return nil, fmt.Errorf("failed to add type %q: %w", name, err)
-			}
-		}
-
-		interesting := false
-		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
-			interesting = true
-		}
-		if !interesting {
-			nameWithoutStar := name
-			if entry.Tag == dwarf.TagPointerType {
-				nameWithoutStar = name[1:]
-			}
-			interesting = primitiveTypeNameRegexp.MatchString(nameWithoutStar)
-		}
-		if interesting {
-			v.root.interestingTypes = append(v.root.interestingTypes, entry.Offset)
-		}
-		return nil, nil
-
-	case dwarf.TagVariable:
-		name, ok, err := maybeGetAttr[string](entry, dwarf.AttrName)
-		if err != nil {
-			return nil, err
-		}
-		if !ok || name != "runtime.firstmoduledata" {
-			return nil, nil
-		}
-
-		typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get type for runtime.firstmoduledata: %w", err)
-		}
-
-		// See https://github.com/golang/go/blob/5a56d884/src/runtime/symtab.go#L414
-		byteSize, memberOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "types")
-		if err != nil {
-			return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
-		}
-		location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
-		}
-		instructions, err := loclist.ParseInstructions(location, v.root.pointerSize, byteSize)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse location for runtime.firstmoduledata: %w", err)
-		}
-		if len(instructions) != 1 {
-			return nil, fmt.Errorf("runtime.firstmoduledata has %d instructions, expected 1", len(instructions))
-		}
-		addr, ok := instructions[0].Op.(ir.Addr)
-		if !ok {
-			return nil, fmt.Errorf("runtime.firstmoduledata is not an address, got %T", instructions[0].Op)
-		}
-		v.root.goRuntimeInformation = ir.GoModuledataInfo{
-			FirstModuledataAddr: addr.Addr,
-			TypesOffset:         memberOffset,
-		}
-		return nil, nil
-
-	case dwarf.TagConstant:
-		// TODO: Handle constants.
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("unexpected tag for unit child: %s", entry.Tag)
-	}
-}
-
-// primitiveTypeNameRegexp is a regex that matches the names of primitive types.
-// It doesn't match anything with a package or any of the odd internal types
-// used by the runtime like sudog<T>.
-var primitiveTypeNameRegexp = regexp.MustCompile(`^[a-z]+[0-9]*$`)
-
-// findStructMemberOffset finds the offset of a member in a struct type.
-func findStructSizeAndMemberOffset(
-	dwarfData *dwarf.Data,
-	typeOffset dwarf.Offset,
-	memberName string,
-) (size uint32, memberOffset uint32, retErr error) {
-	reader := dwarfData.Reader()
-	reader.Seek(typeOffset)
-	entry, err := reader.Next()
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
-	}
-	if entry.Tag != dwarf.TagTypedef {
-		return 0, 0, fmt.Errorf("expected typedef type, got %s", entry.Tag)
-	}
-	underlyingOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
-	if err != nil {
-		return 0, 0, fmt.Errorf("missing type for typedef: %w", err)
-	}
-	reader.Seek(underlyingOffset)
-	entry, err = reader.Next()
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get entry: %w", err)
-	}
-	if entry.Tag != dwarf.TagStructType {
-		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
-	}
-	if !entry.Children {
-		return 0, 0, fmt.Errorf("struct type has no children")
-	}
-	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
-	if err != nil {
-		return 0, 0, fmt.Errorf("failed to get size for struct type: %w", err)
-	}
-	if structSize < 0 || structSize > math.MaxUint32 {
-		return 0, 0, fmt.Errorf("invalid struct size %d", structSize)
-	}
-	size = uint32(structSize)
-	for {
-		child, err := reader.Next()
-		if err != nil {
-			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
-		}
-		if child == nil {
-			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
-		}
-		if child.Tag == 0 {
-			break
-		}
-		if child.Tag == dwarf.TagMember {
-			name, err := getAttr[string](child, dwarf.AttrName)
-			if err != nil {
-				return 0, 0, fmt.Errorf("failed to get name for member: %w", err)
-			}
-			if name != memberName {
-				continue
-			}
-			offset, err := getAttr[int64](child, dwarf.AttrDataMemberLoc)
-			if err != nil {
-				return 0, 0, fmt.Errorf("failed to get offset for member: %w", err)
-			}
-			if offset > math.MaxUint32 {
-				return 0, 0, fmt.Errorf("member offset is too large: %d", offset)
-			}
-			return size, uint32(offset), nil
-		}
-		if child.Children {
-			reader.SkipChildren()
-		}
-	}
-	return 0, 0, fmt.Errorf("member %q not found", memberName)
-}
-
-func (v *unitChildVisitor) pop(entry *dwarf.Entry, childVisitor visitor) error {
-	switch t := childVisitor.(type) {
-	case nil:
-		return nil
-	case *subprogramChildVisitor:
-		if t.hasInlinedSubprograms {
-			v.root.outOfLineSubprogramOffsets = append(
-				v.root.outOfLineSubprogramOffsets, t.subprogramEntry.Offset)
-		}
-		if len(t.probesCfgs) > 0 {
-			var spName string
-			if n, ok, _ := maybeGetAttr[string](t.subprogramEntry, dwarf.AttrName); ok {
-				spName = n
-			}
-			ranges, err := v.root.dwarf.Ranges(t.subprogramEntry)
-			var issue ir.Issue
-			if err != nil {
-				issue = ir.Issue{
-					Kind:    ir.IssueKindInvalidDWARF,
-					Message: err.Error(),
-				}
-			} else {
-				slices.SortFunc(ranges, cmpRange)
-				if err := validateNonOverlappingPCRanges(
-					ranges, t.subprogramEntry.Offset, "subprogram",
-				); err != nil {
-					issue = ir.Issue{
-						Kind:    ir.IssueKindInvalidDWARF,
-						Message: err.Error(),
-					}
-				}
-			}
-			spID := v.root.subprogramIDAlloc.next()
-			v.root.subprograms = append(v.root.subprograms, &pendingSubprogram{
-				unit:              t.unit,
-				subprogramEntry:   t.subprogramEntry,
-				name:              spName,
-				outOfLinePCRanges: ranges,
-				variables:         t.variableEntries,
-				probesCfgs:        t.probesCfgs,
-				id:                spID,
-				issue:             issue,
-			})
-		}
-		return nil
-	case *inlinedSubroutineChildVisitor:
-		if t.outOfLine && t.hasInlinedSubprograms {
-			v.root.outOfLineSubprogramOffsets = append(
-				v.root.outOfLineSubprogramOffsets, entry.Offset)
-		}
-		return nil
-	case *abstractSubprogramVisitor:
-		return nil
-	default:
-		return fmt.Errorf("unexpected visitor type for unit child: %T", t)
-	}
 }
 
 func newProbe(
@@ -3015,47 +3138,6 @@ func collectLineDataForRange(
 	}
 }
 
-type subprogramChildVisitor struct {
-	root            *rootVisitor
-	unit            *dwarf.Entry
-	subprogramEntry *dwarf.Entry
-	probesCfgs      []ir.ProbeDefinition
-	// Discovery: collect variable DIEs for later materialization.
-	variableEntries       []*dwarf.Entry
-	hasInlinedSubprograms bool
-}
-
-func (v *subprogramChildVisitor) push(
-	entry *dwarf.Entry,
-) (childVisitor visitor, err error) {
-	switch entry.Tag {
-	case dwarf.TagInlinedSubroutine:
-		v.hasInlinedSubprograms = true
-		v := &inlinedSubroutineChildVisitor{root: v.root}
-		return v.push(entry)
-	case dwarf.TagFormalParameter:
-		fallthrough
-	case dwarf.TagVariable:
-		// Collect variables only if this subprogram is interesting to us.
-		if len(v.probesCfgs) > 0 {
-			v.variableEntries = append(v.variableEntries, entry)
-		}
-		return nil, nil
-	case dwarf.TagTypedef:
-		// Typedefs occur for generic type parameters and carry their dictionary
-		// index.
-		return nil, nil
-	case dwarf.TagLexDwarfBlock:
-		return v, nil
-	default:
-		return nil, fmt.Errorf(
-			"unexpected tag for subprogram child: %s", entry.Tag,
-		)
-	}
-}
-
-func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return nil }
-
 func processVariable(
 	unit, entry *dwarf.Entry,
 	parseLocations bool,
@@ -3115,88 +3197,6 @@ func processVariable(
 		Locations: locations,
 		Role:      role,
 	}, nil
-}
-
-type abstractSubprogram struct {
-	unit       *dwarf.Entry
-	probesCfgs []ir.ProbeDefinition
-	name       string
-	// Aggregated ranges from out-of-line and inlined instances.
-	outOfLinePCRanges []ir.PCRange
-	inlinePCRanges    []ir.InlinePCRanges
-	// Variables defined under the abstract DIE keyed by DIE offset.
-	variables map[dwarf.Offset]*dwarf.Entry
-	// Inlined instances discovered for this abstract subprogram.
-	inlined []*inlinedSubprogram
-	issue   ir.Issue
-}
-
-type abstractSubprogramVisitor struct {
-	root               *rootVisitor
-	unit               *dwarf.Entry
-	abstractSubprogram *abstractSubprogram
-}
-
-func (v *abstractSubprogramVisitor) push(
-	entry *dwarf.Entry,
-) (childVisitor visitor, err error) {
-	switch entry.Tag {
-	case dwarf.TagFormalParameter:
-		fallthrough
-	case dwarf.TagVariable:
-		v.abstractSubprogram.variables[entry.Offset] = entry
-		return nil, nil
-	}
-	return nil, fmt.Errorf("unexpected tag for abstract subprogram child: %s", entry.Tag)
-}
-
-func (v *abstractSubprogramVisitor) pop(_ *dwarf.Entry, _ visitor) error {
-	return nil
-}
-
-type inlinedSubprogram struct {
-	abstractOrigin dwarf.Offset
-	// Exactly one of the following is non-nil. If this is an out-of-line instance,
-	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
-	outOfLinePCRanges []ir.PCRange
-	inlinedPCRanges   ir.InlinePCRanges
-	variables         []*dwarf.Entry
-}
-
-type inlinedSubroutineChildVisitor struct {
-	root                  *rootVisitor
-	outOfLine             bool
-	hasInlinedSubprograms bool
-}
-
-func (v *inlinedSubroutineChildVisitor) push(
-	entry *dwarf.Entry,
-) (childVisitor visitor, err error) {
-	switch entry.Tag {
-	case dwarf.TagInlinedSubroutine:
-		v.hasInlinedSubprograms = true
-		abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
-		if err != nil {
-			return nil, err
-		}
-		if ref := (concreteSubprogramRef{
-			offset:         entry.Offset,
-			abstractOrigin: abstractOrigin,
-		}); v.root.couldBeInteresting(ref) {
-			v.root.inlineInstances = append(v.root.inlineInstances, ref)
-		}
-		fallthrough
-	case dwarf.TagLexDwarfBlock:
-		return v, nil
-	case dwarf.TagFormalParameter, dwarf.TagVariable, dwarf.TagTypedef, dwarf.TagLabel:
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
-	}
-}
-
-func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
-	return nil
 }
 
 func computeLocations(
