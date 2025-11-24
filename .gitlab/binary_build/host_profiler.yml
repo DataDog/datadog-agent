@@ -1,5 +1,5 @@
 ---
-.build_full_host_profiler_binary_common:
+.build_host_profiler_binary_common:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: binary_build
   rules:
@@ -17,10 +17,10 @@
     paths:
       - $CI_PROJECT_DIR/bin/full-host-profiler/full-host-profiler
 
-build_otel_agent_binary_x64:
-  extends: [.build_full_host_profiler_binary_common, .agent_base_flavor]
+build_host_profiler_binary_x64:
+  extends: [.build_host_profiler_binary_common, .agent_base_flavor]
   tags: ["arch:amd64", "specific:true"]
 
-build_otel_agent_binary_arm64:
-  extends: [.build_full_host_profiler_binary_common, .agent_base_flavor]
+build_host_profiler_binary_arm64:
+  extends: [.build_host_profiler_binary_common, .agent_base_flavor]
   tags: ["arch:arm64", "specific:true"]
