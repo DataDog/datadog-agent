@@ -95,7 +95,6 @@ type workloadTagCacheTestMocks struct {
 
 type workloadTagCacheTestConfig struct {
 	cacheSize int
-	telemetry telemetry.Mock
 }
 
 type workloadTagCacheTestOption func(*workloadTagCacheTestConfig)
@@ -103,12 +102,6 @@ type workloadTagCacheTestOption func(*workloadTagCacheTestConfig)
 func withCacheSize(size int) workloadTagCacheTestOption {
 	return func(cfg *workloadTagCacheTestConfig) {
 		cfg.cacheSize = size
-	}
-}
-
-func withTelemetryMock(tm telemetry.Mock) workloadTagCacheTestOption {
-	return func(cfg *workloadTagCacheTestConfig) {
-		cfg.telemetry = tm
 	}
 }
 
@@ -123,16 +116,11 @@ func setupWorkloadTagCache(t testing.TB, opts ...workloadTagCacheTestOption) (*W
 	}
 
 	ctrl := gomock.NewController(t)
-	telemetryMock := cfg.telemetry
-	if telemetryMock == nil {
-		telemetryMock = testutil.GetTelemetryMock(t)
-	}
-
 	mocks := workloadTagCacheTestMocks{
 		tagger:            taggerfxmock.SetupFakeTagger(t),
 		workloadMeta:      testutil.GetWorkloadMetaMock(t),
 		containerProvider: mock_containers.NewMockContainerProvider(ctrl),
-		telemetry:         telemetryMock,
+		telemetry:         testutil.GetTelemetryMock(t),
 	}
 
 	cache, err := NewWorkloadTagCache(mocks.tagger, mocks.workloadMeta, mocks.containerProvider, mocks.telemetry, cfg.cacheSize)
@@ -927,9 +915,8 @@ type expectedTelemetryMetrics struct {
 // TestWorkloadTagCacheSizeLimit tests that the cache size doesn't grow indefinitely
 // by creating many workloads, requesting tags, invalidating, and removing workloads.
 func TestWorkloadTagCacheSizeLimit(t *testing.T) {
-	telemetryMock := testutil.GetTelemetryMock(t)
 	cacheSize := 20 // Use a small cache size to make the test more effective
-	cache, mocks := setupWorkloadTagCache(t, withCacheSize(cacheSize), withTelemetryMock(telemetryMock))
+	cache, mocks := setupWorkloadTagCache(t, withCacheSize(cacheSize))
 
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -1057,7 +1044,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 		require.LessOrEqual(t, cacheSizeActual, cacheSize,
 			"Cache size (%d) exceeded limit (%d) at iteration %d", cacheSizeActual, cacheSize, i)
 
-		validateTelemetryMetrics(t, telemetryMock, cache, cacheSize, expectedTelemetryMetrics)
+		validateTelemetryMetrics(t, mocks.telemetry, cache, cacheSize, expectedTelemetryMetrics)
 	}
 }
 
