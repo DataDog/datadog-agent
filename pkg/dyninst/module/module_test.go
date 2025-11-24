@@ -156,7 +156,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	}}, metadata)
 
 	// Update first probe version and ensure diagnostics/log metadata follow.
-	processUpdate.Probes[0].(*rcjson.LogProbe).Version++
+	processUpdate.Probes[0].(*rcjson.SnapshotProbe).Version++
 	deps.sendUpdates(processUpdate)
 	updatedProbeVersions := map[string]int{"probe-1": 2, "probe-2": 1}
 	require.Equal(t, updatedProbeVersions, collectReceived())
@@ -954,7 +954,7 @@ func collectDiagnosticVersions(
 // Test data helpers.
 
 func createTestProbe(id string) ir.ProbeDefinition {
-	return &rcjson.LogProbe{
+	return &rcjson.SnapshotProbe{
 		LogProbeCommon: rcjson.LogProbeCommon{
 			ProbeCommon: rcjson.ProbeCommon{
 				ID:      id,
