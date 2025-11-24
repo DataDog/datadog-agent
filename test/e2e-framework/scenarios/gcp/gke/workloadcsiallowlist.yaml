@@ -1,0 +1,63 @@
+apiVersion: auto.gke.io/v1
+kind: WorkloadAllowlist
+metadata:
+  annotations:
+    autopilot.gke.io/no-connect: "true"
+  name: datadog-datadog-csi-driver-daemonset-exemption-v1.0.1
+exemptions:
+  - autogke-no-write-mode-hostpath
+  - autogke-no-host-port
+  - autogke-default-linux-capabilities
+  - autogke-disallow-privilege
+matchingCriteria:
+  containers:
+    - env:
+        - name: NODE_ID
+      envFrom:
+        - secretRef:
+            name: ^datadog-.*
+      image: ^.*$
+      name: csi-node-driver
+      securityContext:
+        privileged: true # privileged security context is needed to perform volume mounts on other pods.
+      args:
+        - --apm-host-socket-path=/var/run/datadog/apm.socket
+        - --dsd-host-socket-path=/var/run/datadog/dsd.socket
+      volumeMounts:
+        - name: plugin-dir # stores the socket on which CSI node server service is exposed. It is created by the node server and needs to be writeable.
+          mountPath: /csi
+        - name: apm-socket
+          mountPath: /var/run/datadog
+          readOnly: true
+        - mountPath: /var/lib/kubelet/pods # write mode is required to perform a volume mount. csi driver has to create a subdirectory under /var/lib/kubelet/pods/<pod-uid>/volumes/kubernetes.io~csi/datadog/mount.
+          name: mountpoint-dir
+    - name: csi-node-driver-registrar
+      image: ^.*$
+      args:
+        - "--csi-address=$(ADDRESS)"
+        - "--kubelet-registration-path=$(DRIVER_REG_SOCK_PATH)"
+      env:
+        - name: ADDRESS
+        - name: DRIVER_REG_SOCK_PATH
+      volumeMounts:
+        - name: plugin-dir
+          mountPath: /csi
+          readOnly: true
+        - name: registration-dir
+          mountPath: /registration # registration-dir needs to be writeable to store the registration information and register the driver with kubelet.
+  volumes:
+    - name: plugin-dir
+      hostPath:
+        path: /var/lib/kubelet/plugins/datadog.csi/driver
+    - name: registration-dir
+      hostPath:
+        path: /var/lib/kubelet/plugins_registry
+    - hostPath:
+        path: /var/lib/kubelet/pods
+      name: mountpoint-dir
+    - hostPath:
+        path: /var/run/datadog
+      name: apm-socket
+    - hostPath:
+        path: /var/run/datadog
+      name: dsd-socket

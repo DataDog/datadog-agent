@@ -1283,7 +1283,7 @@ def get_test_infra_def_version():
     try:
         with open(Path.cwd() / "test" / "new-e2e" / "go.mod") as go_mod_file:
             for line in go_mod_file:
-                if "github.com/DataDog/test-infra-definitions" in line and not line.strip().startswith("//"):
+                if "github.com/DataDog/datadog-agent/test/e2e-framework" in line and not line.strip().startswith("//"):
                     return line.split("-")[-1].strip()
     except Exception:
         return "main"
