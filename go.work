@@ -90,6 +90,7 @@ use (
 	pkg/collector/check/defaults
 	pkg/config/create
 	pkg/config/env
+	pkg/config/helper
 	pkg/config/mock
 	pkg/config/model
 	pkg/config/nodetreemodel
