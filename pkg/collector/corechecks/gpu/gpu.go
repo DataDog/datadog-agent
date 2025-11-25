@@ -125,7 +125,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		containerProvider, err := proccontainers.GetSharedContainerProvider()
 		if err != nil {
 			// Do not return an error here, as it would prevent the check from running in standalone mode (with `agent check run`)
-			log.Errorf("failed to get shared container provider: %w", err)
+			log.Errorf("failed to get shared container provider: %v", err)
 		}
 		c.containerProvider = containerProvider
 	}
