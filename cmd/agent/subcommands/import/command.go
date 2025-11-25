@@ -56,7 +56,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 func importCmd(cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
-		return fmt.Errorf("please provide all the required arguments")
+		return errors.New("please provide all the required arguments")
 	}
 
 	if cliParams.ConfFilePath != "" {

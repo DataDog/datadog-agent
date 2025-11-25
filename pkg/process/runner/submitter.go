@@ -421,7 +421,7 @@ func (s *CheckSubmitter) getRequestID(start time.Time, chunkIndex int) string {
 	// Next, we take up to 14 bits to represent the message index in the batch.
 	// It means that we support up to 16384 (2 ^ 14) different messages being sent on the same batch.
 	chunk := uint64(chunkIndex & chunkMask)
-	return fmt.Sprintf("%d", seconds+*s.requestIDCachedHash+chunk)
+	return strconv.FormatUint(seconds+*s.requestIDCachedHash+chunk, 10)
 }
 
 func (s *CheckSubmitter) shouldDropPayload(check string) bool {
@@ -431,8 +431,8 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
 	agentVersion, _ := version.Agent()
 	tags := []string{
-		fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
-		fmt.Sprintf("revision:%s", agentVersion.Commit),
+		"version:" + agentVersion.GetNumberAndPre(),
+		"revision:" + agentVersion.Commit,
 	}
 
 	for {

@@ -200,7 +200,7 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 	}
 	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
-		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
+		return tagset.HashedTags{}, errors.New("empty entity ID")
 	}
 
 	cachedTags := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
@@ -289,7 +289,7 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 // It triggers a tagger fetch if the no tags are found
 func (t *localTagger) Standard(entityID types.EntityID) ([]string, error) {
 	if entityID.Empty() {
-		return nil, fmt.Errorf("empty entity ID")
+		return nil, errors.New("empty entity ID")
 	}
 
 	return t.tagStore.LookupStandard(entityID)

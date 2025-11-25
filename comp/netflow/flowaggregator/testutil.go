@@ -21,7 +21,7 @@ func WaitForFlowsToBeFlushed(aggregator *FlowAggregator, timeoutDuration time.Du
 		select {
 		// Got a timeout! fail with a timeout error
 		case <-timeout:
-			return 0, fmt.Errorf("timeout error waiting for events")
+			return 0, errors.New("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
 			events := aggregator.flushedFlowCount.Load()

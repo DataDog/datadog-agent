@@ -176,7 +176,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 	}
 	fw, ok := f.(*defaultforwarder.DefaultForwarder)
 	if !ok {
-		return nil, nil, fmt.Errorf("failed to cast forwarder to defaultforwarder.DefaultForwarder")
+		return nil, nil, errors.New("failed to cast forwarder to defaultforwarder.DefaultForwarder")
 	}
 	return s, fw, nil
 }

@@ -107,7 +107,7 @@ func generateUnsetImageEvent(seenID workloadmeta.EntityID) *workloadmeta.Collect
 // The backend requires the image ID to be set as the SHA to correctly associate the SBOM with the image.
 func parseDigests(imageRefs []string) (string, error) {
 	if len(imageRefs) == 0 {
-		return "", fmt.Errorf("empty digests list")
+		return "", errors.New("empty digests list")
 	}
 	parts := strings.SplitN(imageRefs[0], "@", 2)
 	if len(parts) < 2 {

@@ -22,9 +22,9 @@ type PathAlreadyMounted struct {
 }
 
 func (e VolumeAlreadyAttached) Error() string {
-	return fmt.Sprintf("%s is already attached", e.volume)
+	return e.volume + " is already attached"
 }
 
 func (e PathAlreadyMounted) Error() string {
-	return fmt.Sprintf("there is already a volume mounted at %s", e.path)
+	return "there is already a volume mounted at " + e.path
 }

@@ -65,7 +65,7 @@ func BlockAllOutboundExceptProxy(host *components.RemoteHost, proxyIP string, po
 	// Ensure outbound is blocked (a generic external call should fail)
 	_, err = host.Execute(`curl.exe https://google.com`)
 	if err == nil {
-		return fmt.Errorf("outbound is not blocked")
+		return errors.New("outbound is not blocked")
 	}
 
 	return nil
@@ -85,7 +85,7 @@ func ResetOutboundPolicyAndRemoveProxyRules(host *components.RemoteHost) error {
 	// Ensure outbound is allowed
 	_, err = host.Execute(`curl.exe https://google.com`)
 	if err != nil {
-		return fmt.Errorf("outbound is not allowed")
+		return errors.New("outbound is not allowed")
 	}
 
 	return nil

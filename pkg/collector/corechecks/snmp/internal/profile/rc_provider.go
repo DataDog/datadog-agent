@@ -48,7 +48,7 @@ func buildAndSubscribeRCProvider(rcClient rcclient.Component) (*UpdatableProvide
 	// Load OOTB profiles from YAML
 	defaultProfiles := getYamlDefaultProfiles()
 	if defaultProfiles == nil {
-		return nil, fmt.Errorf("could not find OOTB profiles")
+		return nil, errors.New("could not find OOTB profiles")
 	}
 	userProfiles := make(ProfileConfigMap)
 

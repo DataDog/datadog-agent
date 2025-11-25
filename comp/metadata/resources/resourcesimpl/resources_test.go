@@ -118,7 +118,7 @@ func TestCollect(t *testing.T) {
 func TestCollectError(t *testing.T) {
 	defer func(f func() (interface{}, error)) { collectResources = f }(collectResources)
 	collectResources = func() (interface{}, error) {
-		return nil, fmt.Errorf("some error from gohai")
+		return nil, errors.New("some error from gohai")
 	}
 
 	s := serializermock.NewMetricSerializer(t)

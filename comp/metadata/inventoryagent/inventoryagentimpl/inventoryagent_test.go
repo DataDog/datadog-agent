@@ -88,7 +88,7 @@ func TestGetPayload(t *testing.T) {
 func TestInitDataErrorInstallInfo(t *testing.T) {
 	defer func() { installinfoGet = installinfo.Get }()
 	installinfoGet = func(config.Reader) (*installinfo.InstallInfo, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -361,7 +361,7 @@ func TestFetchSecurityAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -402,7 +402,7 @@ func TestFetchProcessAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -449,7 +449,7 @@ func TestFetchTraceAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	ia := getTestInventoryPayload(t, nil, nil)
@@ -496,7 +496,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			"wrong configuration received for security-agent fetcher",
 		)
 
-		return "", fmt.Errorf("some error")
+		return "", errors.New("some error")
 	}
 
 	isPrebuiltDeprecated := prebuilt.IsDeprecated()

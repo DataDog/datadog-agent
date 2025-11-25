@@ -23,7 +23,7 @@ func CreateTestFile(tempDir string) *os.File {
 	}
 
 	// Specify the exact file name
-	filePath := fmt.Sprintf("%s/config.yaml", tempDir)
+	filePath := tempDir + "/config.yaml"
 
 	// Create the file with the specified name
 	tempFile, err := os.Create(filePath)

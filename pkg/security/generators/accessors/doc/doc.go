@@ -325,7 +325,7 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 	}
 
 	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-		return nil, fmt.Errorf("couldn't parse constant file")
+		return nil, errors.New("couldn't parse constant file")
 	}
 
 	pkg := pkgs[0]

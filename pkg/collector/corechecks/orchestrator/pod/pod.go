@@ -195,7 +195,7 @@ func (c *Check) Run() error {
 
 	processResult, listed, processed := c.processor.Process(ctx, podList)
 	if processed == -1 {
-		return fmt.Errorf("unable to process pods: a panic occurred")
+		return errors.New("unable to process pods: a panic occurred")
 	}
 
 	orchestrator.SetCacheStats(listed, processed, ctx.NodeType)

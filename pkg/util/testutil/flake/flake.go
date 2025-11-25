@@ -58,7 +58,7 @@ func getPackageName() (string, error) {
 	}
 
 	if fullPackageName == "" {
-		return "", fmt.Errorf("failed to fetch e2e test function information")
+		return "", errors.New("failed to fetch e2e test function information")
 	}
 
 	prefix := filepath.FromSlash("github.com/DataDog/datadog-agent/")

@@ -138,7 +138,7 @@ func (s *sqlStore) SetLastAPIKey(_ string) {
 }
 
 func (s *sqlStore) GetLastAPIKey() (string, error) {
-	return "", fmt.Errorf("sqlstore does not track last APIKey")
+	return "", errors.New("sqlstore does not track last APIKey")
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store

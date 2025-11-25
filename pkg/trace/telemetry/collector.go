@@ -70,7 +70,7 @@ type OnboardingEventTags struct {
 	Env           string `json:"env,omitempty"`
 }
 
-var errReceivedUnsuccessfulStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
+var errReceivedUnsuccessfulStatusCode = errors.New("received a 4XX or 5xx error code while submitting telemetry data")
 
 // OnboardingEventError ...
 type OnboardingEventError struct {

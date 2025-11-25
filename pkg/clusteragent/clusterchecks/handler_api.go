@@ -105,7 +105,7 @@ func (h *Handler) GetAllEndpointsCheckConfigs() (types.ConfigResponse, error) {
 // RebalanceClusterChecks triggers an attempt to rebalance cluster checks
 func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse, error) {
 	if !h.dispatcher.advancedDispatching.Load() {
-		return nil, fmt.Errorf("no checks to rebalance: advanced dispatching is not enabled")
+		return nil, errors.New("no checks to rebalance: advanced dispatching is not enabled")
 	}
 
 	rebalancingDecisions := h.dispatcher.rebalance(force)

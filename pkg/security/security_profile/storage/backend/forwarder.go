@@ -157,7 +157,7 @@ func (backend *ActivityDumpRemoteBackend) HandleActivityDump(imageName string, i
 // SendTelemetry sends telemetry for the current storage
 func (backend *ActivityDumpRemoteBackend) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
-	tags := []string{fmt.Sprintf("format:%s", protobufFormat), fmt.Sprintf("compression:%v", true)}
+	tags := []string{"format:" + protobufFormat, fmt.Sprintf("compression:%v", true)}
 	_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(backend.tooLargeEntities.Load()), tags, 1.0)
 }
 

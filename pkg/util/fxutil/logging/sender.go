@@ -89,6 +89,6 @@ func createRequest(agentURL string, data []byte, traceCount int) (*http.Request,
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Datadog-Meta-Lang", "go")
 	req.Header.Set("Datadog-Meta-Lang-Version", strings.TrimPrefix(runtime.Version(), "go"))
-	req.Header.Set("X-Datadog-Trace-Count", fmt.Sprintf("%d", traceCount))
+	req.Header.Set("X-Datadog-Trace-Count", strconv.Itoa(traceCount))
 	return req, nil
 }

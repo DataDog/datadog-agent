@@ -335,7 +335,7 @@ func Diagnose() []diagnose.Diagnosis {
 		}
 
 		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
-		name := fmt.Sprintf("Connectivity to %s", url)
+		name := "Connectivity to " + url
 		if err == nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:    diagnose.DiagnosisSuccess,
@@ -473,7 +473,7 @@ func newHTTPPassthroughPipeline(
 		return nil, err
 	}
 	if !endpoints.UseHTTP {
-		return nil, fmt.Errorf("endpoints must be http")
+		return nil, errors.New("endpoints must be http")
 	}
 	// epforwarder pipelines apply their own defaults on top of the hardcoded logs defaults
 	if endpoints.BatchMaxConcurrentSend <= 0 {

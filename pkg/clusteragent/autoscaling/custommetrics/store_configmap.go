@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	errNotInitialized = fmt.Errorf("configmap not initialized")
+	errNotInitialized = errors.New("configmap not initialized")
 )
 
 // configMapStore provides persistent storage of custom and external metrics using a configmap.

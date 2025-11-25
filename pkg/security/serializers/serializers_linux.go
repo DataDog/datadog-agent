@@ -996,7 +996,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 	}
 
 	return &UserSessionContextSerializer{
-		ID:            fmt.Sprintf("%x", ctx.ID),
+		ID:            strconv.FormatUint(ctx.ID, 16),
 		SessionType:   model.UserSessionTypeStrings[usersession.Type(ctx.SessionType)],
 		K8SUsername:   ctx.K8SUsername,
 		K8SUID:        ctx.K8SUID,
@@ -1374,7 +1374,7 @@ type DDContextSerializer struct {
 func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 	s := &DDContextSerializer{}
 	if e.SpanContext.SpanID != 0 && (e.SpanContext.TraceID.Hi != 0 || e.SpanContext.TraceID.Lo != 0) {
-		s.SpanID = fmt.Sprint(e.SpanContext.SpanID)
+		s.SpanID = strconv.FormatUint(e.SpanContext.SpanID, 10)
 		s.TraceID = fmt.Sprintf("%x%x", e.SpanContext.TraceID.Hi, e.SpanContext.TraceID.Lo)
 		return s
 	}
@@ -1387,7 +1387,7 @@ func newDDContextSerializer(e *model.Event) *DDContextSerializer {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
 		if pce.SpanID != 0 && (pce.TraceID.Hi != 0 || pce.TraceID.Lo != 0) {
-			s.SpanID = fmt.Sprint(pce.SpanID)
+			s.SpanID = strconv.FormatUint(pce.SpanID, 10)
 			s.TraceID = fmt.Sprintf("%x%x", pce.TraceID.Hi, pce.TraceID.Lo)
 			break
 		}
@@ -1444,7 +1444,7 @@ func newSetSockOptEventSerializer(e *model.Event) *SetSockOptEventSerializer {
 	case syscall.SOL_IPV6:
 		SetSockOptEventSerializer.OptName = model.SetSockOptOptNameIPv6(e.SetSockOpt.OptName).String()
 	default:
-		SetSockOptEventSerializer.OptName = fmt.Sprintf("%d", e.SetSockOpt.OptName)
+		SetSockOptEventSerializer.OptName = strconv.FormatUint(uint64(e.SetSockOpt.OptName), 10)
 	}
 	return &SetSockOptEventSerializer
 }

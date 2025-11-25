@@ -71,7 +71,7 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
 			err := windowsCommon.ExportEventLog(vm, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
@@ -106,7 +106,7 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 		windowsAgent.WithValidAPIKey(),
 	}
 	installOpts = append(installOpts, installOptions...)
-	if !s.Run(fmt.Sprintf("install %s", agentPackage.AgentVersion()), func() {
+	if !s.Run("install "+agentPackage.AgentVersion(), func() {
 		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
 		s.Require().NoError(err, "should install agent %s", agentPackage.AgentVersion())
 	}) {
@@ -281,11 +281,11 @@ func Run[Env any](t *testing.T, s e2e.Suite[Env]) {
 		// if running locally and not in dev mode, run tests in parallel
 		t.Parallel()
 		// use a UUID to generate a unique name for the stack
-		opts = append(opts, e2e.WithStackName(fmt.Sprintf("windows-msi-test-%s", uuid.NewString())))
+		opts = append(opts, e2e.WithStackName("windows-msi-test-"+uuid.NewString()))
 	}
 
 	// Include the agent major version in the test name so junit reports will differentiate the tests
-	t.Run(fmt.Sprintf("Agent v%s", majorVersion), func(t *testing.T) {
+	t.Run("Agent v"+majorVersion, func(t *testing.T) {
 		e2e.Run(t, s, opts...)
 	})
 }

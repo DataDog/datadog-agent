@@ -20,5 +20,5 @@ func newSCMReader() *scmReader {
 }
 
 func (s *scmReader) getServiceInfo(_ uint64) (*WindowsServiceInfo, error) {
-	return nil, fmt.Errorf("scm service info is only available on windows")
+	return nil, errors.New("scm service info is only available on windows")
 }

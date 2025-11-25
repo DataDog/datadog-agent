@@ -86,7 +86,7 @@ func GetCrossNodeClientTLSConfig() (*tls.Config, error) {
 	defer tokenLock.RUnlock()
 
 	if crossNodeClientTLSConfig == nil {
-		return nil, fmt.Errorf("cross-node client TLS configuration is not set")
+		return nil, errors.New("cross-node client TLS configuration is not set")
 	}
 
 	if crossNodeClientTLSConfig.InsecureSkipVerify {
@@ -104,7 +104,7 @@ func TokenValidator(tokenGetter func() string) func(w http.ResponseWriter, r *ht
 		auth := r.Header.Get("Authorization")
 		if auth == "" {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="Datadog Agent"`)
-			err = fmt.Errorf("no session token provided")
+			err = errors.New("no session token provided")
 			http.Error(w, err.Error(), 401)
 			return err
 		}
@@ -119,7 +119,7 @@ func TokenValidator(tokenGetter func() string) func(w http.ResponseWriter, r *ht
 
 		// The following comparison must be evaluated in constant time
 		if len(tok) != 2 || !constantCompareStrings(tok[1], tokenGetter()) {
-			err = fmt.Errorf("invalid session token")
+			err = errors.New("invalid session token")
 			http.Error(w, err.Error(), 403)
 		}
 

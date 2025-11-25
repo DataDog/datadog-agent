@@ -144,7 +144,7 @@ func encodeInterfaceSliceToStringMap(c model.Reader, key string) ([]map[string]s
 	}
 	values, ok := value.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("key does not host a slice of interfaces")
+		return nil, errors.New("key does not host a slice of interfaces")
 	}
 
 	return util.GetSliceOfStringMap(values)

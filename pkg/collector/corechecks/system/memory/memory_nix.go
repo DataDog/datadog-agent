@@ -74,7 +74,7 @@ func (c *Check) Run() error {
 	}
 
 	if errVirt != nil && errSwap != nil {
-		return fmt.Errorf("failed to gather any memory information")
+		return errors.New("failed to gather any memory information")
 	}
 
 	sender.Commit()

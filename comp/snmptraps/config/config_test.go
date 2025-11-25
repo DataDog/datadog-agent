@@ -104,7 +104,7 @@ func buildDDConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string
 		err := mapstructure.Decode(trapConfig, &rawTrapConfig)
 		require.NoError(t, err)
 		for k, v := range rawTrapConfig {
-			k = fmt.Sprintf("network_devices.snmp_traps.%s", k)
+			k = "network_devices.snmp_traps." + k
 			ddcfg.SetWithoutSource(k, v)
 		}
 	}

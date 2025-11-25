@@ -101,7 +101,7 @@ func Test_getConfigSetting(t *testing.T) {
 				c.SetWithoutSource(tt.configSetting, tt.configValue)
 			}
 
-			path := fmt.Sprintf("/getConfig/%s", tt.configSetting)
+			path := "/getConfig/" + tt.configSetting
 			req, err := http.NewRequest("GET", path, nil)
 			require.NoError(t, err)
 

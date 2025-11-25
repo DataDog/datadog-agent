@@ -355,7 +355,7 @@ func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, err
 	}
 
 	if !c.isDCAEnabled() {
-		return nil, fmt.Errorf("cluster agent should be enabled in order to allow fetching namespace metadata")
+		return nil, errors.New("cluster agent should be enabled in order to allow fetching namespace metadata")
 	}
 	return c.dcaClient.GetNamespaceMetadata(ns)
 }

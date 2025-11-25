@@ -31,7 +31,7 @@ var (
 // In case it's not, the returned error contains the details of the failure.
 func ValidHostname(hostname string) error {
 	if hostname == "" {
-		return fmt.Errorf("hostname is empty")
+		return errors.New("hostname is empty")
 	} else if isLocal(hostname) {
 		return fmt.Errorf("%s is a local hostname", hostname)
 	} else if len(hostname) > maxLength {

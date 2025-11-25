@@ -132,7 +132,7 @@ func (c *DCAClient) init() error {
 	}
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
-	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+authToken)
 	podIP := pkgconfigsetup.Datadog().GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
@@ -384,7 +384,7 @@ func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
 	var result map[string]string
 
-	base := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
+	base := "api/v1/annotations/node/" + nodeName
 	path, err := buildQueryList(base, "filter", filter)
 	if err != nil {
 		return result, err

@@ -204,7 +204,7 @@ func TestMaxClosedConnectionsBuffered(t *testing.T) {
 
 	t.Run("value set", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_CLOSED_CONNECTIONS_BUFFERED", strconv.FormatUint(uint64(maxTrackedConnections-1), 10))
 		cfg := New()
 
 		require.Equal(t, maxTrackedConnections-1, cfg.MaxClosedConnectionsBuffered)
@@ -223,7 +223,7 @@ func TestMaxFailedConnectionsBuffered(t *testing.T) {
 
 	t.Run("value set", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_NETWORK_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", fmt.Sprintf("%d", maxTrackedConnections-1))
+		t.Setenv("DD_NETWORK_CONFIG_MAX_FAILED_CONNECTIONS_BUFFERED", strconv.FormatUint(uint64(maxTrackedConnections-1), 10))
 		cfg := New()
 
 		require.Equal(t, maxTrackedConnections-1, cfg.MaxFailedConnectionsBuffered)

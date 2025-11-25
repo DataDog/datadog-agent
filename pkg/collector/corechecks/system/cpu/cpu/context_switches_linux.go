@@ -44,5 +44,5 @@ func GetContextSwitches() (ctxSwitches int64, err error) {
 			return ctxSwitches, nil
 		}
 	}
-	return 0, fmt.Errorf("could not find the context switches in stat file")
+	return 0, errors.New("could not find the context switches in stat file")
 }

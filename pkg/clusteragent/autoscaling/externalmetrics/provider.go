@@ -51,7 +51,7 @@ var (
 // NewDatadogMetricProvider configures and returns a new datadogMetricProvider
 func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, datadogClient datadogclient.Component) (provider.ExternalMetricsProvider, error) {
 	if apiCl == nil {
-		return nil, fmt.Errorf("Impossible to create DatadogMetricProvider without valid APIClient")
+		return nil, errors.New("Impossible to create DatadogMetricProvider without valid APIClient")
 	}
 
 	le, err := leaderelection.GetLeaderEngine()

@@ -34,7 +34,7 @@ func New(version, commit string) (Version, error) {
 	toks := versionRx.FindStringSubmatch(version)
 	if len(toks) == 0 || toks[0] != version {
 		// if regex didn't match or partially matched, raise an error
-		return Version{}, fmt.Errorf("Version string has wrong format")
+		return Version{}, errors.New("Version string has wrong format")
 	}
 
 	// split version info (group 1 in regexp)

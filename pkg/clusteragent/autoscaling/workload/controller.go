@@ -168,7 +168,7 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 	case err != nil:
 		return autoscaling.Requeue, fmt.Errorf("Unable to retrieve DatadogPodAutoscaler: %w", err)
 	case podAutoscalerCachedObj == nil:
-		return autoscaling.Requeue, fmt.Errorf("Could not parse empty DatadogPodAutoscaler from local cache")
+		return autoscaling.Requeue, errors.New("Could not parse empty DatadogPodAutoscaler from local cache")
 	}
 
 	// No error path, check what to do with this event
@@ -489,7 +489,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	clusterAgentNs := common.GetMyNamespace()
 
 	if podAutoscalerInternal.Namespace() == clusterAgentNs && podAutoscalerInternal.Spec().TargetRef.Name == resourceName {
-		return fmt.Errorf("Autoscaling target cannot be set to the cluster agent")
+		return errors.New("Autoscaling target cannot be set to the cluster agent")
 	}
 	if err := validateAutoscalerObjectives(podAutoscalerInternal.Spec()); err != nil {
 		return err
@@ -501,7 +501,7 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 	if spec.Fallback != nil && len(spec.Fallback.Horizontal.Objectives) > 0 {
 		for _, objective := range spec.Fallback.Horizontal.Objectives {
 			if objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
-				return fmt.Errorf("Autoscaler fallback cannot be based on custom query objective")
+				return errors.New("Autoscaler fallback cannot be based on custom query objective")
 			}
 		}
 	}
@@ -510,7 +510,7 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 		switch objective.Type {
 		case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
 			if objective.CustomQueryObjective == nil {
-				return fmt.Errorf("Autoscaler objective type is custom query but customQueryObjective is nil")
+				return errors.New("Autoscaler objective type is custom query but customQueryObjective is nil")
 			}
 		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:
 			if objective.PodResource == nil {

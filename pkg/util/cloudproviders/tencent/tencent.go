@@ -81,7 +81,7 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, maxLengt
 
 func getMetadataItem(ctx context.Context, endpoint string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		return "", errors.New("cloud provider is disabled by configuration")
 	}
 
 	res, err := httputils.Get(ctx, endpoint, nil, timeout, pkgconfigsetup.Datadog())

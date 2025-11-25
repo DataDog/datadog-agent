@@ -74,7 +74,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
-		id := fmt.Sprintf("%d", i)
+		id := strconv.Itoa(i)
 		go func() {
 			defer func() { done <- struct{}{} }()
 			<-sync

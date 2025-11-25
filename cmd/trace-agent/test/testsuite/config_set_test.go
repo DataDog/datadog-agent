@@ -36,7 +36,7 @@ func TestConfigSetHandlerUnauthenticated(t *testing.T) {
 	assert.NotContains(t, logstr, "| DEBUG |")
 	assert.Contains(t, logstr, "| INFO |")
 
-	resp, err := r.DoReq(fmt.Sprintf("config/set?log_level=%s", log.WarnStr), http.MethodPost, nil)
+	resp, err := r.DoReq("config/set?log_level="+log.WarnStr, http.MethodPost, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -172,7 +172,7 @@ func getTestAtel(t *testing.T,
 
 	atel := createAtel(cfg, log, tel, sndr, runner)
 	if atel == nil {
-		err = fmt.Errorf("failed to create atel")
+		err = errors.New("failed to create atel")
 	}
 	assert.NoError(t, err)
 
@@ -195,12 +195,12 @@ func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error
 	var metricsItfPayload map[string]interface{}
 	metricsItfPayload, ok = itfPayload["payload"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("payload not found")
+		return errors.New("payload not found")
 	}
 	var metricsItf map[string]interface{}
 	metricsItf, ok = metricsItfPayload["metrics"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("metrics not found")
+		return errors.New("metrics not found")
 	}
 
 	var err error
@@ -238,7 +238,7 @@ func (p *Payload) UnmarshalAgentMetrics(itfPayload map[string]interface{}) error
 func (p *Payload) UnmarshalMessageBatch(itfPayload map[string]interface{}) error {
 	payloadsRaw, ok := itfPayload["payload"].([]interface{})
 	if !ok {
-		return fmt.Errorf("payload not found")
+		return errors.New("payload not found")
 	}
 
 	// ensure all payloads which should be agent-metrics
@@ -246,20 +246,20 @@ func (p *Payload) UnmarshalMessageBatch(itfPayload map[string]interface{}) error
 	for _, payloadRaw := range payloadsRaw {
 		itfChildPayload, ok := payloadRaw.(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("invalid payload item type")
+			return errors.New("invalid payload item type")
 		}
 
 		requestTypeRaw, ok := itfChildPayload["request_type"]
 		if !ok {
-			return fmt.Errorf("request_type not found")
+			return errors.New("request_type not found")
 		}
 		requestType, ok := requestTypeRaw.(string)
 		if !ok {
-			return fmt.Errorf("request_type type is invalid")
+			return errors.New("request_type type is invalid")
 		}
 
 		if requestType != "agent-metrics" {
-			return fmt.Errorf("request_type should be agent-metrics")
+			return errors.New("request_type should be agent-metrics")
 		}
 
 		var payload Payload
@@ -284,11 +284,11 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 
 	requestTypeRaw, ok := itfPayload["request_type"]
 	if !ok {
-		return fmt.Errorf("request_type not found")
+		return errors.New("request_type not found")
 	}
 	requestType, ok := requestTypeRaw.(string)
 	if !ok {
-		return fmt.Errorf("request_type type is invalid")
+		return errors.New("request_type type is invalid")
 	}
 
 	if requestType == "agent-metrics" {
@@ -299,7 +299,7 @@ func (p *Payload) UnmarshalJSON(b []byte) (err error) {
 		return p.UnmarshalMessageBatch(itfPayload)
 	}
 
-	return fmt.Errorf("request_type should be either agent-metrics or message-batch")
+	return errors.New("request_type should be either agent-metrics or message-batch")
 }
 
 func getPayload(a *atel) (*Payload, error) {

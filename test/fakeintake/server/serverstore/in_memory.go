@@ -49,7 +49,7 @@ func (s *inMemoryStore) GetLastAPIKey() (string, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if s.lastAPIKey == "" {
-		return "", fmt.Errorf("no apiKey sent")
+		return "", errors.New("no apiKey sent")
 	}
 	return s.lastAPIKey, nil
 }

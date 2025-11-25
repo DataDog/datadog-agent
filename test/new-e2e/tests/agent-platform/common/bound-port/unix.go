@@ -28,5 +28,5 @@ func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
 		return FromSs(out)
 	}
 
-	return nil, fmt.Errorf("no ss found")
+	return nil, errors.New("no ss found")
 }

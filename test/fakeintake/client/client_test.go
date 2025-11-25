@@ -83,7 +83,7 @@ func TestClient(t *testing.T) {
 					Data: []byte(r.URL.Path),
 				},
 				{
-					Data: []byte(fmt.Sprintf("%d", len(routes))),
+					Data: []byte(strconv.Itoa(len(routes))),
 				},
 				{
 					Data: []byte(routes[0]),

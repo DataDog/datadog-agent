@@ -52,7 +52,7 @@ func (p *taskDB) SetTaskState(task requestState) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketTasks)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		rawTask, err := json.Marshal(&task)
 		if err != nil {
@@ -72,7 +72,7 @@ func (p *taskDB) GetTasksState() (map[string]requestState, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketTasks)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		err := b.ForEach(func(k, v []byte) error {
 			var task requestState

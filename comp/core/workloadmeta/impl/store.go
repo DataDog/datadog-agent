@@ -581,7 +581,7 @@ func (w *workloadmeta) IsInitialized() bool {
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
 	for _, event := range events {
 		if event.Type != wmdef.EventTypeSet && event.Type != wmdef.EventTypeUnset {
-			return fmt.Errorf("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
+			return errors.New("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
 		}
 	}
 	return nil
@@ -629,7 +629,7 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 			return nil
 		}
 
-		return fmt.Errorf("some collectors failed to start. Will retry")
+		return errors.New("some collectors failed to start. Will retry")
 	}, expBackoff)
 }
 

@@ -126,7 +126,7 @@ func parseStorageStatsFromInfo(info system.Info) ([]*StorageStats, error) {
 func parseDiskQuantity(text string) (uint64, error) {
 	match := diskBytesRe.FindStringSubmatch(text)
 	if match == nil {
-		return 0, fmt.Errorf("parsing error: invalid format")
+		return 0, errors.New("parsing error: invalid format")
 	}
 	multi, found := diskUnits[strings.ToLower(match[2])]
 	if !found {

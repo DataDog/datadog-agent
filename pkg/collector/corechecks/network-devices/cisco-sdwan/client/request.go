@@ -114,7 +114,7 @@ func getMoreEntries[T Content](client *Client, endpoint string, pageInfo PageInf
 	for page := 0; currentPageInfo.MoreEntries || currentPageInfo.HasMoreData; page++ {
 		// Error if max number of pages is reached
 		if page >= client.maxPages {
-			return nil, fmt.Errorf("max number of page reached, increase API count or max number of pages")
+			return nil, errors.New("max number of page reached, increase API count or max number of pages")
 		}
 
 		log.Tracef("Getting page %d from endpoint %s", page+1+1, endpoint)
@@ -151,7 +151,7 @@ func getNextPaginationParams(info PageInfo, count string) (map[string]string, er
 		newParams["scrollId"] = info.ScrollID
 		return newParams, nil
 	}
-	return nil, fmt.Errorf("could not build next page params")
+	return nil, errors.New("could not build next page params")
 }
 
 // getAllEntries gets all entries from paginated endpoints

@@ -47,7 +47,7 @@ func queryAccountID(ctx context.Context) (string, string, error) {
 		}
 	}
 
-	return "", "", fmt.Errorf("no cloud provider detected")
+	return "", "", errors.New("no cloud provider detected")
 }
 
 var accountIDTagCache struct {

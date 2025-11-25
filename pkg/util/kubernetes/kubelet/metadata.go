@@ -40,7 +40,7 @@ func GetMetadata() (map[string]string, error) {
 	re := regexp.MustCompile("(?:gitVersion|git_version)=\"(.*?)\"")
 	matches := re.FindStringSubmatch(metric)
 	if len(matches) < 1 {
-		return nil, fmt.Errorf("couldn't find kubelet git version")
+		return nil, errors.New("couldn't find kubelet git version")
 	}
 	return map[string]string{
 		"kubelet_version": matches[1],

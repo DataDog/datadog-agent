@@ -67,7 +67,7 @@ Datadog Security Agent takes care of running compliance and security checks.`,
 			}
 
 			if len(globalParams.ConfigFilePaths) == 1 && globalParams.ConfigFilePaths[0] == "" {
-				return fmt.Errorf("no Security Agent config files to load, exiting")
+				return errors.New("no Security Agent config files to load, exiting")
 			}
 			return nil
 		},

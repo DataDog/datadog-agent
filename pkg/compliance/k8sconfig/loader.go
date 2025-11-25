@@ -440,11 +440,11 @@ func (l *loader) extractCertData(certData []byte) *K8sCertFileMeta {
 	const CertificateBlockType = "CERTIFICATE"
 	certPemBlock, _ := pem.Decode(certData)
 	if certPemBlock == nil {
-		l.pushError(fmt.Errorf("could not PEM decode certificate data"))
+		l.pushError(errors.New("could not PEM decode certificate data"))
 		return nil
 	}
 	if certPemBlock.Type != CertificateBlockType {
-		l.pushError(fmt.Errorf("decoded PEM does not start with correct block type"))
+		l.pushError(errors.New("decoded PEM does not start with correct block type"))
 		return nil
 	}
 	c, err := x509.ParseCertificate(certPemBlock.Bytes)
@@ -564,7 +564,7 @@ func (l *loader) loadKubeconfigMeta(name string) (*K8sKubeconfigMeta, bool) {
 
 // in OpenSSH >= 2.6, a fingerprint is now displayed as base64 SHA256.
 func printSHA256Fingerprint(f []byte) string {
-	return fmt.Sprintf("SHA256:%s", strings.TrimSuffix(base64.StdEncoding.EncodeToString(f), "="))
+	return "SHA256:" + strings.TrimSuffix(base64.StdEncoding.EncodeToString(f), "=")
 }
 
 func printColumnSeparatedHex(d []byte) string {

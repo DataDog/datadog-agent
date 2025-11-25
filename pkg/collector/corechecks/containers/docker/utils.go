@@ -35,10 +35,10 @@ func getImageTags(imageName string) ([]string, error) {
 	}
 
 	return []string{
-		fmt.Sprintf("docker_image:%s", imageName),
-		fmt.Sprintf("image_name:%s", long),
-		fmt.Sprintf("image_tag:%s", tag),
-		fmt.Sprintf("short_image:%s", short),
+		"docker_image:" + imageName,
+		"image_name:" + long,
+		"image_tag:" + tag,
+		"short_image:" + short,
 	}, nil
 }
 

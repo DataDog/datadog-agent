@@ -75,7 +75,7 @@ func TestZapBasicLogging(t *testing.T) {
 		},
 		{
 			desc:    "Error (fields)",
-			log:     func(l *zap.Logger) { l.Error("Fields", zap.Error(fmt.Errorf("an error"))) },
+			log:     func(l *zap.Logger) { l.Error("Fields", zap.Error(errors.New("an error"))) },
 			level:   "debug",
 			message: "[ERROR] | zapcore_test.go | error:an error | Fields",
 		},

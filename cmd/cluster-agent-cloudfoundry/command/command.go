@@ -47,7 +47,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	agentCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Cluster Agent for Cloud Foundry at your service.",
 		Long: `
 Datadog Cluster Agent for Cloud Foundry takes care of running checks that need to run only

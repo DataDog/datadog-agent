@@ -78,7 +78,7 @@ end`
 
 func TestSSHClient_RetrieveConfig_SessionCreationFailure(t *testing.T) {
 	client := &MockSSHClient{
-		sessionError: fmt.Errorf("failed to create SSH session"),
+		sessionError: errors.New("failed to create SSH session"),
 	}
 
 	_, err := client.RetrieveRunningConfig()
@@ -89,7 +89,7 @@ func TestSSHClient_RetrieveConfig_SessionCreationFailure(t *testing.T) {
 
 func TestSSHClient_RetrieveConfig_CommandExecutionFailure(t *testing.T) {
 	session := &mockSSHSession{
-		err: fmt.Errorf("command execution failed"),
+		err: errors.New("command execution failed"),
 	}
 
 	client := &MockSSHClient{
@@ -181,7 +181,7 @@ func TestBuildHostKeyCallback(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprint(tt.name), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			// initialize capturing logging
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)

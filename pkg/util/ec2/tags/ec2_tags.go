@@ -52,7 +52,7 @@ func isTagExcluded(tag string) bool {
 // integration in Datadog backend allowing customer to collect those information without having to enable the crawler.
 func GetInstanceInfo(ctx context.Context) ([]string, error) {
 	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+		return nil, errors.New("cloud provider is disabled by configuration")
 	}
 
 	if !pkgconfigsetup.Datadog().GetBool("collect_ec2_instance_info") {
@@ -77,7 +77,7 @@ func GetInstanceInfo(ctx context.Context) ([]string, error) {
 		if val, ok := info[infoName]; ok {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagName, val))
 		} else {
-			tags = append(tags, fmt.Sprintf("%s:unavailable", tagName))
+			tags = append(tags, tagName+":unavailable")
 		}
 	}
 
@@ -220,7 +220,7 @@ var fetchTags = fetchEc2Tags
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+		return nil, errors.New("cloud provider is disabled by configuration")
 	}
 
 	tags, err := fetchTags(ctx)

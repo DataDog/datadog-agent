@@ -82,12 +82,12 @@ func (l *LocalService) Init(_ interface{}) error {
 
 // Shutdown emits the shutdown metric for LocalService
 func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix), 1.0, l.GetSource(), agent)
+	metric.Add(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), agent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", defaultPrefix)
+	return defaultPrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

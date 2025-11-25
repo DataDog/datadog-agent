@@ -17,7 +17,7 @@ import (
 func NewSNMP(conf *SNMPConfig, logger log.Component) (*gosnmp.GoSNMP, error) {
 	// Communication options check
 	if conf.Timeout == 0 {
-		return nil, fmt.Errorf("timeout cannot be 0")
+		return nil, errors.New("timeout cannot be 0")
 	}
 	var version gosnmp.SnmpVersion
 	var ok bool
@@ -39,7 +39,7 @@ func NewSNMP(conf *SNMPConfig, logger log.Component) (*gosnmp.GoSNMP, error) {
 
 	// Authentication check
 	if version == gosnmp.Version3 && conf.Username == "" {
-		return nil, fmt.Errorf("username is required for snmp v3")
+		return nil, errors.New("username is required for snmp v3")
 	}
 
 	port := conf.Port

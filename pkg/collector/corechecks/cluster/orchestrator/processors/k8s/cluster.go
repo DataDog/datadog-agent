@@ -216,7 +216,7 @@ func fillClusterResourceVersion(c *model.Cluster) error {
 	}
 
 	version := murmur3.Sum64(jsonClustermodel)
-	c.ResourceVersion = fmt.Sprint(version)
+	c.ResourceVersion = strconv.FormatUint(version, 10)
 
 	return nil
 }

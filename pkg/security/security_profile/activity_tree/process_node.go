@@ -146,7 +146,7 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 		})
 
 		for _, f := range sortedFiles {
-			f.debug(w, fmt.Sprintf("%s    -", prefix))
+			f.debug(w, prefix+"    -")
 		}
 	}
 	if len(pn.DNSNames) > 0 {

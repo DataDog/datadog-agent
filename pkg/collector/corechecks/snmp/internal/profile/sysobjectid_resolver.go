@@ -16,7 +16,7 @@ func getMostSpecificOid(oids []string) (string, error) {
 	var mostSpecificOid string
 
 	if len(oids) == 0 {
-		return "", fmt.Errorf("cannot get most specific oid from empty list of oids")
+		return "", errors.New("cannot get most specific oid from empty list of oids")
 	}
 
 	for _, oid := range oids {

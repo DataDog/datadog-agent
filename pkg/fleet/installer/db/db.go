@@ -20,7 +20,7 @@ var (
 
 var (
 	// ErrPackageNotFound is returned when a package is not found
-	ErrPackageNotFound = fmt.Errorf("package not found")
+	ErrPackageNotFound = errors.New("package not found")
 )
 
 // Package represents a package
@@ -85,7 +85,7 @@ func (p *PackagesDB) SetPackage(pkg Package) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		rawPkg, err := json.Marshal(&pkg)
 		if err != nil {
@@ -104,7 +104,7 @@ func (p *PackagesDB) DeletePackage(name string) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		return b.Delete([]byte(name))
 	})
@@ -120,7 +120,7 @@ func (p *PackagesDB) HasPackage(name string) (bool, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		v := b.Get([]byte(name))
 		hasPackage = len(v) > 0
@@ -138,7 +138,7 @@ func (p *PackagesDB) GetPackage(name string) (Package, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		v := b.Get([]byte(name))
 		if len(v) == 0 {
@@ -162,7 +162,7 @@ func (p *PackagesDB) ListPackages() ([]Package, error) {
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		return b.ForEach(func(k, v []byte) error {
 			// support v0.0.7

@@ -47,7 +47,7 @@ func NewSystemProbeCache() *SystemProbeCache {
 // Returns error if the refresh fails, nil on success.
 func (c *SystemProbeCache) Refresh() error {
 	if c.client == nil {
-		return fmt.Errorf("system-probe client is nil")
+		return errors.New("system-probe client is nil")
 	}
 
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.client, sysconfig.GPUMonitoringModule)
@@ -92,7 +92,7 @@ type ebpfCollector struct {
 // newEbpfCollector creates a new eBPF-based collector for the given device.
 func newEbpfCollector(device ddnvml.Device, nsPidCache *NsPidCache, cache *SystemProbeCache) (*ebpfCollector, error) {
 	if cache == nil {
-		return nil, fmt.Errorf("system-probe cache cannot be nil")
+		return nil, errors.New("system-probe cache cannot be nil")
 	}
 
 	return &ebpfCollector{

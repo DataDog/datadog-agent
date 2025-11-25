@@ -173,7 +173,7 @@ func pemBlockForKey(privateKey interface{}) (*pem.Block, error) {
 		return &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(k)}, nil
 
 	default:
-		return nil, fmt.Errorf("unrecognized format for privateKey")
+		return nil, errors.New("unrecognized format for privateKey")
 	}
 }
 

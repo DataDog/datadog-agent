@@ -41,7 +41,7 @@ func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 	}
 
 	if len(profiles) > 1 {
-		return nil, fmt.Errorf("only 1 profile is supported")
+		return nil, errors.New("only 1 profile is supported")
 	}
 
 	return profiles, nil
@@ -51,11 +51,11 @@ func loadSidecarProfiles(profilesJSON string) ([]ProfileOverride, error) {
 // returns a boolean that indicates if the container was mutated
 func applyProfileOverrides(container *corev1.Container, profiles []ProfileOverride) (bool, error) {
 	if container == nil {
-		return false, fmt.Errorf("can't apply profile overrides to nil containers")
+		return false, errors.New("can't apply profile overrides to nil containers")
 	}
 
 	if profiles == nil {
-		return false, fmt.Errorf("can't apply nil profiles")
+		return false, errors.New("can't apply nil profiles")
 	}
 
 	if len(profiles) == 0 {

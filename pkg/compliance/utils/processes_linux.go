@@ -64,5 +64,5 @@ func GetContainerOverlayPath(pid int32) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("could not find overlay mountpoint")
+	return "", errors.New("could not find overlay mountpoint")
 }

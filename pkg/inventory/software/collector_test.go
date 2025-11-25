@@ -78,7 +78,7 @@ func TestCollectorOrchestration(t *testing.T) {
 			name: "Collector error handling - continues with other collectors",
 			collectors: []Collector{
 				&MockCollector{
-					err: fmt.Errorf("registry access denied"),
+					err: errors.New("registry access denied"),
 				},
 				&MockCollector{
 					entries: map[string]*Entry{
@@ -93,12 +93,12 @@ func TestCollectorOrchestration(t *testing.T) {
 			name: "Collector error handling - multiple errors",
 			collectors: []Collector{
 				&MockCollector{
-					err: fmt.Errorf("msi error"),
+					err: errors.New("msi error"),
 					entries: map[string]*Entry{
 						"app1": {DisplayName: "MSI App", Version: "1.0", Source: "desktop"},
 					},
 				},
-				&MockCollector{err: fmt.Errorf("registry error")},
+				&MockCollector{err: errors.New("registry error")},
 			},
 			expectedEntryCount: 0, // No entries returned on error because the collector was skipped
 			expectError:        true,

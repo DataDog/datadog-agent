@@ -39,7 +39,7 @@ func TestCloudProviderAliases(t *testing.T) {
 			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector2Called = true
-				return nil, fmt.Errorf("error from detector2")
+				return nil, errors.New("error from detector2")
 			},
 		},
 		{

@@ -172,7 +172,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 			name: "clusterAgentEnabled not enable, APIserver return error",
 			args: args{
 				getPodMetaDataFromAPIServerFunc: func(string, string, string) ([]string, error) {
-					return nil, fmt.Errorf("fake error")
+					return nil, errors.New("fake error")
 				},
 				po: &kubelet.Pod{},
 			},
@@ -231,7 +231,7 @@ func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 				clusterAgentEnabled: true,
 				dcaClient: &FakeDCAClient{
 					LocalVersion:               version.Version{Major: 1, Minor: 2},
-					KubernetesMetadataNamesErr: fmt.Errorf("fake error"),
+					KubernetesMetadataNamesErr: errors.New("fake error"),
 				},
 			},
 			want:    nil,

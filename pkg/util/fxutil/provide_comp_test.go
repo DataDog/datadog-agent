@@ -454,7 +454,7 @@ func TestFxReturnAnError(t *testing.T) {
 	NewAgentComponent := func(reqs requires1) (provides2, error) {
 		return provides2{
 			Second: &secondImpl{First: reqs.First},
-		}, fmt.Errorf("fail construction")
+		}, errors.New("fail construction")
 	}
 	// define an entry point that uses the component
 	start := func(_ SecondComp) {

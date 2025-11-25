@@ -81,7 +81,7 @@ func (c ContainersLanguages) ToAnnotations() map[string]string {
 	for container, langSet := range c {
 		containerName := container.Name
 		if container.Init {
-			containerName = fmt.Sprintf("init.%s", containerName)
+			containerName = "init." + containerName
 		}
 		annotationKey := GetLanguageAnnotationKey(containerName)
 

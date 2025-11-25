@@ -76,7 +76,7 @@ func GetGVR(namespacedOwnerRef *NamespacedOwnerReference) (schema.GroupVersionRe
 		return schema.GroupVersionResource{}, err
 	}
 
-	gvr := gv.WithResource(fmt.Sprintf("%ss", strings.ToLower(namespacedOwnerRef.Kind)))
+	gvr := gv.WithResource(strings.ToLower(namespacedOwnerRef.Kind) + "s")
 
 	return gvr, nil
 }

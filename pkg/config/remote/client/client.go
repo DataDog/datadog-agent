@@ -198,7 +198,7 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsConfig *tls.Config
 // ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", g.authToken)},
+		"authorization": []string{"Bearer " + g.authToken},
 	}
 
 	ctx = metadata.NewOutgoingContext(ctx, md)

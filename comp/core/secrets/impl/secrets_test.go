@@ -243,7 +243,7 @@ func TestResolveNoCommand(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	// since we didn't set any command this should return without any error
@@ -258,7 +258,7 @@ func TestResolveSecretError(t *testing.T) {
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	_, err := resolver.Resolve(testConf, "test", "", "")

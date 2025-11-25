@@ -252,7 +252,7 @@ func (p *ProcessKiller) isKillAllowed(kcs []killContext) (bool, error) {
 	p.Lock()
 	if !p.enabled {
 		p.Unlock()
-		return false, fmt.Errorf("the enforcement capability is disabled")
+		return false, errors.New("the enforcement capability is disabled")
 	}
 	p.Unlock()
 

@@ -357,7 +357,7 @@ func (d *DirectorStatus) IPAddress() (string, error) {
 		return d.HAConfig.MyAddress, nil
 	}
 	if len(d.HAConfig.MyVnfManagementIPs) == 0 {
-		return "", fmt.Errorf("no management IPs found for director")
+		return "", errors.New("no management IPs found for director")
 	}
 	return d.HAConfig.MyVnfManagementIPs[0], nil
 }

@@ -49,7 +49,7 @@ func convertDockerImage(ctx context.Context, client client.ImageAPIClient, imgMe
 
 	f, err := os.CreateTemp("", "fanal-docker-*")
 	if err != nil {
-		return nil, cleanup, fmt.Errorf("failed to create a temporary file")
+		return nil, cleanup, errors.New("failed to create a temporary file")
 	}
 
 	cleanup = func() {

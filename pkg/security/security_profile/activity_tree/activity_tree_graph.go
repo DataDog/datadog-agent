@@ -309,7 +309,7 @@ func (at *ActivityTree) prepareIMDSNode(n *IMDSNode, data *utils.Graph, processI
 		label += "<TR><TD>Host</TD><TD>" + n.Event.Host + "</TD></TR>"
 	}
 	if n.Event.CloudProvider == model.IMDSAWSCloudProvider {
-		label += "<TR><TD>IMDSv2</TD><TD>" + fmt.Sprintf("%v", n.Event.AWS.IsIMDSv2) + "</TD></TR>"
+		label += "<TR><TD>IMDSv2</TD><TD>" + strconv.FormatBool(n.Event.AWS.IsIMDSv2) + "</TD></TR>"
 		if len(n.Event.AWS.SecurityCredentials.AccessKeyID) > 0 {
 			label += "<TR><TD> AccessKeyID </TD><TD>" + n.Event.AWS.SecurityCredentials.AccessKeyID + "</TD></TR>"
 		}

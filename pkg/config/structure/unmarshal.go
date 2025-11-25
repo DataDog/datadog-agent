@@ -193,7 +193,7 @@ func unmarshalKeyReflection(cfg model.Reader, key string, target interface{}, op
 			if fs.convertEmptyStrNil {
 				return nil
 			}
-			return fmt.Errorf("treating empty string as a nil slice not allowed for UnmarshalKey without ConvertEmptyStrNil option")
+			return errors.New("treating empty string as a nil slice not allowed for UnmarshalKey without ConvertEmptyStrNil option")
 		}
 		return fmt.Errorf("can not UnmarshalKey to a slice from a non-list input: %T", inputNode)
 	default:
@@ -255,7 +255,7 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 		nextPath := append(currPath, fieldKey)
 		if _, ok := specifiers["squash"]; ok {
 			if !fs.allowSquash {
-				return fmt.Errorf("feature 'squash' not allowed for UnmarshalKey without EnableSquash option")
+				return errors.New("feature 'squash' not allowed for UnmarshalKey without EnableSquash option")
 			}
 
 			err := copyAny(target.FieldByName(f.Name), input, nextPath, fs)
@@ -282,7 +282,7 @@ func copyStruct(target reflect.Value, input nodetreemodel.Node, currPath []strin
 	if fs.errorUnused {
 		inner, ok := input.(nodetreemodel.InnerNode)
 		if !ok {
-			return fmt.Errorf("input is not an inner node")
+			return errors.New("input is not an inner node")
 		}
 		var unusedKeys []string
 		for _, key := range inner.ChildrenKeys() {
@@ -373,7 +373,7 @@ func copyMap(target reflect.Value, input nodetreemodel.Node, currPath []string, 
 
 func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet) error {
 	if input == nil {
-		return fmt.Errorf("input value is not a scalar")
+		return errors.New("input value is not a scalar")
 	}
 
 	// If types already match, just copy directly
@@ -449,7 +449,7 @@ func copyLeaf(target reflect.Value, input nodetreemodel.LeafNode, _ *featureSet)
 
 func copyList(target reflect.Value, inputList []nodetreemodel.Node, currPath []string, fs *featureSet) error {
 	if inputList == nil {
-		return fmt.Errorf("input value is not a list")
+		return errors.New("input value is not a list")
 	}
 	elemType := target.Type()
 	elemType = elemType.Elem()
@@ -459,7 +459,7 @@ func copyList(target reflect.Value, inputList []nodetreemodel.Node, currPath []s
 		elemSource := inputList[k]
 		ptrOut := reflect.New(elemType)
 		outTarget := ptrOut.Elem()
-		nextPath := append(currPath, fmt.Sprintf("%d", k))
+		nextPath := append(currPath, strconv.Itoa(k))
 		err := copyAny(outTarget, elemSource, nextPath, fs)
 		if err != nil {
 			return err

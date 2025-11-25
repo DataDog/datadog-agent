@@ -300,7 +300,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
-	connectionError := fmt.Errorf("connection refused")
+	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
 
@@ -322,7 +322,7 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{
-		ConfigError: fmt.Errorf("command execution failed"),
+		ConfigError: errors.New("command execution failed"),
 	}
 	check.remoteClient = mockClient
 
@@ -433,7 +433,7 @@ func getRunningScrubber() *scrubber.Scrubber {
 	sc := scrubber.New()
 	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-		Repl:  []byte(fmt.Sprintf(`$1 %s`, "<redacted secret>")),
+		Repl:  []byte("$1 " + "<redacted secret>"),
 	})
 	return sc
 }

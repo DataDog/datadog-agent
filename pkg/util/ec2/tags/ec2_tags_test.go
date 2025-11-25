@@ -124,7 +124,7 @@ func mockFetchTagsSuccess(_ context.Context) ([]string, error) {
 }
 
 func mockFetchTagsFailure(_ context.Context) ([]string, error) {
-	return nil, fmt.Errorf("could not fetch tags")
+	return nil, errors.New("could not fetch tags")
 }
 
 func TestGetTags(t *testing.T) {
@@ -147,7 +147,7 @@ func TestGetTagsErrorEmptyCache(t *testing.T) {
 
 	tags, err := GetTags(ctx)
 	assert.Nil(t, tags)
-	assert.Equal(t, fmt.Errorf("unable to get tags from aws and cache is empty: could not fetch tags"), err)
+	assert.Equal(t, errors.New("unable to get tags from aws and cache is empty: could not fetch tags"), err)
 }
 
 func TestGetTagsErrorFullCache(t *testing.T) {

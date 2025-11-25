@@ -43,7 +43,7 @@ func (n *structNodeImpl) HasChild(name string) bool {
 }
 
 func (n *structNodeImpl) Merge(InnerNode) (InnerNode, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
@@ -64,7 +64,7 @@ func (n *structNodeImpl) ChildrenKeys() []string {
 
 // SetAt is not implemented for a struct node
 func (n *structNodeImpl) SetAt([]string, interface{}, model.Source) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 // InsertChildNode is not implemented for a struct node
@@ -90,7 +90,7 @@ func (n *structNodeImpl) Get() interface{} {
 
 // SetWithSource assigns a value in the config, for the given source
 func (n *structNodeImpl) SetWithSource(interface{}, model.Source) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 // Source returns the source for this leaf

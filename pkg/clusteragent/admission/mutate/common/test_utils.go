@@ -337,7 +337,7 @@ type MockMutator struct {
 func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	m.Called = true
 	if m.ShoudErr {
-		return false, fmt.Errorf("error")
+		return false, errors.New("error")
 	}
 
 	return m.ShouldMutate, nil

@@ -178,7 +178,7 @@ func (c *Check) Run() error {
 		return errors.New("kubelet config not found in workloadmeta store")
 	}
 
-	rv := fmt.Sprint(murmur3.Sum64(rawKubeletConfig))
+	rv := strconv.FormatUint(murmur3.Sum64(rawKubeletConfig), 10)
 
 	tags := []string{}
 

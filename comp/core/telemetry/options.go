@@ -39,7 +39,7 @@ func (opts *Options) NameWithSeparator(subsystem, name string) string {
 		// Prefix metrics with a _, prometheus will add a second _
 		// It will create metrics with a custom separator and
 		// will let us replace it to a dot later in the process.
-		return fmt.Sprintf("_%s", name)
+		return "_" + name
 	}
 
 	return name

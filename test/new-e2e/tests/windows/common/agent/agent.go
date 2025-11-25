@@ -69,11 +69,11 @@ func InstallAgent(host *components.RemoteHost, options ...InstallAgentOption) (s
 	}
 
 	if p.Package == nil {
-		return "", fmt.Errorf("missing agent package to install")
+		return "", errors.New("missing agent package to install")
 	}
 	if p.InstallLogFile != "" {
 		// InstallMSI always used a temporary file path
-		return "", fmt.Errorf("Setting the remote MSI log file path is not supported")
+		return "", errors.New("Setting the remote MSI log file path is not supported")
 	}
 
 	if p.LocalInstallLogFile == "" {

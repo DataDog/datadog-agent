@@ -226,7 +226,7 @@ func parseHorizontalScalingData(timestamp time.Time, data *kubeAutoscaling.Workl
 	if data.Replicas != nil {
 		horizontalValues.Replicas = *data.Replicas
 	} else {
-		return nil, fmt.Errorf("horizontal replicas value are missing")
+		return nil, errors.New("horizontal replicas value are missing")
 	}
 
 	return horizontalValues, nil

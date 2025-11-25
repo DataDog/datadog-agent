@@ -233,7 +233,7 @@ func filterSpan(span *pb.Span) bool {
 	// Filters out TCP spans to internal infrastructure
 	if tcpHost, ok := span.Meta[tcpRemoteHostMetaKey]; ok {
 		if tcpPort, ok := span.Meta[tcpRemotePortMetaKey]; ok {
-			tcpURLPrefix := fmt.Sprint("http://" + tcpHost + ":" + tcpPort)
+			tcpURLPrefix := "http://" + tcpHost + ":" + tcpPort
 			if strings.HasPrefix(tcpURLPrefix, agentURLPrefix) {
 				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
 				return true

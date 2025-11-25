@@ -847,7 +847,7 @@ func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
+	return errors.New("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
 }
 
 // MergeConfig merges in another config
@@ -856,7 +856,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	defer c.Unlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+		return errors.New("attempt to MergeConfig before config is constructed")
 	}
 
 	content, err := io.ReadAll(in)

@@ -179,11 +179,11 @@ var networkIDFetcher = cachedfetch.Fetcher{
 
 		switch len(vpcIDs) {
 		case 0:
-			return "", fmt.Errorf("zero network interfaces detected")
+			return "", errors.New("zero network interfaces detected")
 		case 1:
 			return vpcIDs.GetAll()[0], nil
 		default:
-			return "", fmt.Errorf("more than one network interface detected, cannot get network ID")
+			return "", errors.New("more than one network interface detected, cannot get network ID")
 		}
 	},
 }
@@ -272,7 +272,7 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 
 func getResponse(ctx context.Context, url string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		return "", errors.New("cloud provider is disabled by configuration")
 	}
 
 	res, err := httputils.Get(ctx, url, map[string]string{"Metadata-Flavor": "Google"}, pkgconfigsetup.Datadog().GetDuration("gce_metadata_timeout")*time.Millisecond, pkgconfigsetup.Datadog())
@@ -282,7 +282,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 
 	// Some cloud platforms will respond with an empty body, causing the agent to assume a faulty hostname
 	if len(res) <= 0 {
-		return "", fmt.Errorf("empty response body")
+		return "", errors.New("empty response body")
 	}
 
 	return res, nil

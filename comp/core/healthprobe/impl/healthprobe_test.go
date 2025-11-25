@@ -135,7 +135,7 @@ func TestHealthHandlerFails(t *testing.T) {
 	responseRecorder := httptest.NewRecorder()
 
 	healthHandler(false, logComponent, func() (health.Status, error) {
-		return health.Status{}, fmt.Errorf("fail to extract status")
+		return health.Status{}, errors.New("fail to extract status")
 	}, responseRecorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, responseRecorder.Code)

@@ -201,10 +201,10 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 	family, cmdSocketPath := socket.GetSocketAddress(cmdSocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		cmdSocketPath = fmt.Sprintf("unix://%s", cmdSocketPath)
+		cmdSocketPath = "unix://" + cmdSocketPath
 	}
 
 	conn, err := grpc.NewClient(
@@ -239,10 +239,10 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	family := socket.GetFamilyAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		socketPath = fmt.Sprintf("unix://%s", socketPath)
+		socketPath = "unix://" + socketPath
 	}
 
 	opts := []grpc.DialOption{

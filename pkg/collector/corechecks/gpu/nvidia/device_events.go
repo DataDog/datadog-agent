@@ -55,7 +55,7 @@ func newDeviceEventsCollector(device ddnvml.Device, deps *CollectorDependencies)
 // used internally for testing
 func newDeviceEventsCollectorWithCache(device ddnvml.Device, cache deviceEventsCollectorCache) (c Collector, err error) {
 	if cache == nil {
-		return nil, fmt.Errorf("device events gatherer cannot be nil")
+		return nil, errors.New("device events gatherer cannot be nil")
 	}
 
 	if supported, err := cache.SupportsDevice(device); err != nil {
@@ -305,7 +305,7 @@ func (c *DeviceEventsGatherer) RegisterDevice(device ddnvml.Device) error {
 	c.evtSetMtx.Lock()
 	defer c.evtSetMtx.Unlock()
 	if c.evtSet == nil {
-		return fmt.Errorf("failed registering device events on stopped gatherer")
+		return errors.New("failed registering device events on stopped gatherer")
 	}
 	if err := device.RegisterEvents(evtTypes&eventSetMask, c.evtSet); err != nil {
 		return fmt.Errorf("failed registering device events: %w", err)

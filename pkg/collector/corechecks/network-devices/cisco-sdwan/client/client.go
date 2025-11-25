@@ -98,13 +98,13 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 
 func validateParams(endpoint, username, password string) error {
 	if endpoint == "" {
-		return fmt.Errorf("invalid endpoint")
+		return errors.New("invalid endpoint")
 	}
 	if username == "" {
-		return fmt.Errorf("invalid username")
+		return errors.New("invalid username")
 	}
 	if password == "" {
-		return fmt.Errorf("invalid password")
+		return errors.New("invalid password")
 	}
 	return nil
 }
@@ -150,7 +150,7 @@ func WithMaxAttempts(maxAttempts int) ClientOptions {
 // WithMaxCount is a functional option to set the client max count
 func WithMaxCount(maxCount int) ClientOptions {
 	return func(c *Client) {
-		c.maxCount = fmt.Sprintf("%d", maxCount)
+		c.maxCount = strconv.Itoa(maxCount)
 	}
 }
 

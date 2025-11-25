@@ -16,5 +16,5 @@ import (
 // BuildVerifierStats accepts a list of eBPF object files and generates a
 // map of all programs and their Statistics
 func BuildVerifierStats(_ *StatsOptions) (*StatsResult, map[string]struct{}, error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	return nil, nil, errors.New("not implemented")
 }

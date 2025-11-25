@@ -154,7 +154,7 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 			PrivacyPassphrase:        config.PrivKey,
 		}
 	} else {
-		return nil, fmt.Errorf("an authentication method needs to be provided")
+		return nil, errors.New("an authentication method needs to be provided")
 	}
 
 	s.gosnmpInst.Target = config.IPAddress

@@ -144,7 +144,7 @@ func (r *HTTPReceiver) makeInfoHandler() (hash string, handler http.HandlerFunc)
 		panic(fmt.Errorf("Error making /info handler: %v", err))
 	}
 	h := sha256.Sum256(txt)
-	return fmt.Sprintf("%x", h), func(w http.ResponseWriter, req *http.Request) {
+	return hex.EncodeToString(h[:]), func(w http.ResponseWriter, req *http.Request) {
 		containerID := r.containerIDProvider.GetContainerID(req.Context(), req.Header)
 		if containerTags, err := r.conf.ContainerTags(containerID); err == nil {
 			hash := computeContainerTagsHash(containerTags)

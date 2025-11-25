@@ -158,7 +158,7 @@ func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 
 	dockerIsInstalled := isDockerInstalled(ctx)
 	if mustInstrumentDocker(a.Env) && !dockerIsInstalled {
-		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
+		return errors.New("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
 	}
 	if shouldInstrumentDocker(a.Env) && dockerIsInstalled {
 		// Set up defaults for agent sockets -- requires an agent restart

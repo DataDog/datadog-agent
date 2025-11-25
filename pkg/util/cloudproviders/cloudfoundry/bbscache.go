@@ -122,7 +122,7 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 // GetGlobalBBSCache returns the global instance of BBSCache (or error if the instance is not configured yet)
 func GetGlobalBBSCache() (*BBSCache, error) {
 	if !globalBBSCache.configured {
-		return nil, fmt.Errorf("global BBS Cache not configured")
+		return nil, errors.New("global BBS Cache not configured")
 	}
 	return globalBBSCache, nil
 }

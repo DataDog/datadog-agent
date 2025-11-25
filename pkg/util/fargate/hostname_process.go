@@ -51,7 +51,7 @@ func getECSHost(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
+	return "fargate_task:" + taskMeta.TaskARN, nil
 }
 
 func getEKSHost(context.Context) (string, error) {
@@ -70,5 +70,5 @@ func getECSManagedInstancesHost(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("sidecar_host:%s", taskMeta.TaskARN), nil
+	return "sidecar_host:" + taskMeta.TaskARN, nil
 }

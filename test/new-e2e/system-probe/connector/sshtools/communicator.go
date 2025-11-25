@@ -68,7 +68,7 @@ func (c *Communicator) Connect(ctx context.Context) (err error) {
 
 	c.reset()
 
-	client, err := c.dial(ctx, "tcp", net.JoinHostPort(c.host, fmt.Sprint(c.config.Port)), &c.config.ClientConfig)
+	client, err := c.dial(ctx, "tcp", net.JoinHostPort(c.host, strconv.Itoa(c.config.Port)), &c.config.ClientConfig)
 	if err != nil {
 		return fmt.Errorf("ssh: dial failed: %w", err)
 	}

@@ -43,7 +43,7 @@ func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Dumping EKS cluster state:\n%s", dumpResult), nil
+	return "Dumping EKS cluster state:\n" + dumpResult, nil
 }
 
 // EKSProvisioner creates a new provisioner

@@ -255,7 +255,7 @@ func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers st
 	}
 
 	if bootstrapServers == "" {
-		return out, nil, fmt.Errorf("kafka_consumer integration not found on this node")
+		return out, nil, errors.New("kafka_consumer integration not found on this node")
 	}
 	return out, nil, fmt.Errorf("kafka_consumer integration with bootstrap_servers=%s not found", bootstrapServers)
 }

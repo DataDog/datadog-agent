@@ -42,7 +42,7 @@ func TestCiliumLBConntracker(t *testing.T) {
 	// TODO: find a way to update this list dynamically
 	versionsToTest := []string{"1.15.17", "1.16.10", "1.17.4"}
 	for _, v := range versionsToTest {
-		t.Run(fmt.Sprintf("version %s", v), func(_t *testing.T) {
+		t.Run("version "+v, func(_t *testing.T) {
 			_t.Parallel()
 
 			testCiliumLBConntracker(t, v)
@@ -79,9 +79,9 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 		},
 	}
 
-	name := strings.ReplaceAll(fmt.Sprintf("cilium-lb-%s", ciliumVersion), ".", "-")
+	name := strings.ReplaceAll("cilium-lb-"+ciliumVersion, ".", "-")
 	e2e.Run(t, suite,
-		e2e.WithStackName(fmt.Sprintf("stack-%s", name)),
+		e2e.WithStackName("stack-"+name),
 		e2e.WithProvisioner(
 			awskubernetes.KindProvisioner(
 				awskubernetes.WithName(name),

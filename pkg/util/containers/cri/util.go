@@ -57,7 +57,7 @@ type CRIUtil struct {
 // This is not exposed as public API but is called by the retrier embed.
 func (c *CRIUtil) init() error {
 	if c.socketPath == "" {
-		return fmt.Errorf("no cri_socket_path was set")
+		return errors.New("no cri_socket_path was set")
 	}
 
 	var protocol string

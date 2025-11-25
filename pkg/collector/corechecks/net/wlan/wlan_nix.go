@@ -11,5 +11,5 @@ package wlan
 import "fmt"
 
 func GetWiFiInfo() (wifiInfo, error) {
-	return wifiInfo{}, fmt.Errorf("wifi info only supported on macOS and Windows")
+	return wifiInfo{}, errors.New("wifi info only supported on macOS and Windows")
 }

@@ -305,7 +305,7 @@ func (fi *Server) IsRunning() bool {
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
 	if !fi.IsRunning() {
-		return fmt.Errorf("server not running")
+		return errors.New("server not running")
 	}
 	defer close(fi.shutdown)
 	defer fi.store.Close()
@@ -545,7 +545,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
+		writeHTTPResponse(w, buildErrorResponse(errors.New("invalid route parameter")))
 		return
 	}
 

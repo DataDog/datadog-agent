@@ -103,7 +103,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	// hostname validation is done by the datadog-traceroute library but an empty hostname results in querying system-probe with an invalid URL
 	if instance.DestHostname == "" {
-		return nil, fmt.Errorf("invalid instance config, hostname must be provided")
+		return nil, errors.New("invalid instance config, hostname must be provided")
 	}
 
 	c := &CheckConfig{}
@@ -123,7 +123,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		defaultCheckInterval,
 	)
 	if c.MinCollectionInterval <= 0 {
-		return nil, fmt.Errorf("min collection interval must be > 0")
+		return nil, errors.New("min collection interval must be > 0")
 	}
 
 	c.Timeout = firstNonZero(
@@ -132,7 +132,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		setup.DefaultNetworkPathTimeout*time.Millisecond,
 	)
 	if c.Timeout <= 0 {
-		return nil, fmt.Errorf("timeout must be > 0")
+		return nil, errors.New("timeout must be > 0")
 	}
 
 	c.MaxTTL = firstNonZero(

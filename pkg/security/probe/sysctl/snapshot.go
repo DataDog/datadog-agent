@@ -264,7 +264,7 @@ func (s *Snapshot) getKernelConfigPath() (string, error) {
 	if _, err := os.Stat(procConfigGZ); err == nil {
 		return procConfigGZ, nil
 	}
-	return "", fmt.Errorf("kernel config not found")
+	return "", errors.New("kernel config not found")
 }
 
 func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[string]uint8) error {

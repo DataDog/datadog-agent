@@ -612,7 +612,7 @@ profiles:
 	sender.AssertMetric(t, "Gauge", deviceUnreachableMetric, 0., "", snmpTags)
 
 	sender.ResetCalls()
-	sess.ConnectErr = fmt.Errorf("some error")
+	sess.ConnectErr = errors.New("some error")
 	err = deviceCk.Run(time.Now())
 
 	assert.Error(t, err, "some error")
@@ -624,7 +624,7 @@ profiles:
 func TestRun_sessionCloseError(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
-	sess.CloseErr = fmt.Errorf("close error")
+	sess.CloseErr = errors.New("close error")
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}

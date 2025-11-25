@@ -68,7 +68,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 	})
 	t.Run("computeBySpanKind config", func(t *testing.T) {
 		for _, spanKindEnabled := range []bool{true, false} {
-			t.Run(fmt.Sprintf("%t", spanKindEnabled), func(t *testing.T) {
+			t.Run(strconv.FormatBool(spanKindEnabled), func(t *testing.T) {
 				assert := assert.New(t)
 				sci := NewSpanConcentrator(&SpanConcentratorConfig{
 					ComputeStatsBySpanKind: spanKindEnabled,

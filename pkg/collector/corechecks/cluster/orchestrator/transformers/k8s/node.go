@@ -148,7 +148,7 @@ func convertNodeStatusToTags(nodeStatus string) []string {
 			tags = append(tags, "node_schedulable:false")
 			continue
 		}
-		tags = append(tags, fmt.Sprintf("node_status:%s", strings.ToLower(status)))
+		tags = append(tags, "node_status:"+strings.ToLower(status))
 	}
 	if !unschedulable {
 		tags = append(tags, "node_schedulable:true")

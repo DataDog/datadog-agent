@@ -29,13 +29,13 @@ func getProcessorFilter(containerFilter workloadfilter.FilterBundle, store workl
 func getImageTags(imageName string) []string {
 	long, _, short, tag, err := pkgcontainersimage.SplitImageName(imageName)
 	if err != nil {
-		return []string{fmt.Sprintf("image:%s", imageName)}
+		return []string{"image:" + imageName}
 	}
 
 	return []string{
-		fmt.Sprintf("image:%s", imageName),
-		fmt.Sprintf("image_name:%s", long),
-		fmt.Sprintf("image_tag:%s", tag),
-		fmt.Sprintf("short_image:%s", short),
+		"image:" + imageName,
+		"image_name:" + long,
+		"image_tag:" + tag,
+		"short_image:" + short,
 	}
 }

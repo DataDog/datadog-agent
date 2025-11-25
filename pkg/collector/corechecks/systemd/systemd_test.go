@@ -206,7 +206,7 @@ private_socket: /tmp/foo/private_socket
 
 func TestPrivateSocketConnectionErrorCase(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), errors.New("some error"))
 
 	rawInstanceConfig := []byte(`
 unit_names:
@@ -226,7 +226,7 @@ private_socket: /tmp/foo/private_socket
 
 func TestDefaultPrivateSocketConnection(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), errors.New("some error"))
 	stats.On("PrivateSocketConnection", mock.Anything).Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
@@ -287,7 +287,7 @@ unit_names:
 func TestDefaultDockerAgentSystemBusSocketConnectionNotCalled(t *testing.T) {
 	t.Setenv("DOCKER_DD_AGENT", "true")
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), errors.New("some error"))
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
 
 	rawInstanceConfig := []byte(`
@@ -307,8 +307,8 @@ unit_names:
 
 func TestDbusConnectionErr(t *testing.T) {
 	stats := &mockSystemdStats{}
-	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
-	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), fmt.Errorf("some error"))
+	stats.On("PrivateSocketConnection", mock.Anything).Return((*dbus.Conn)(nil), errors.New("some error"))
+	stats.On("SystemBusSocketConnection").Return((*dbus.Conn)(nil), errors.New("some error"))
 
 	check := SystemdCheck{stats: stats}
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -327,7 +327,7 @@ func TestDbusConnectionErr(t *testing.T) {
 func TestSystemStateCallFailGracefully(t *testing.T) {
 	stats := &mockSystemdStats{}
 	stats.On("SystemBusSocketConnection").Return(&dbus.Conn{}, nil)
-	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), fmt.Errorf("some error"))
+	stats.On("SystemState", mock.Anything).Return((*dbus.Property)(nil), errors.New("some error"))
 	stats.On("ListUnits", mock.Anything).Return([]dbus.UnitStatus{}, nil)
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
@@ -348,7 +348,7 @@ func TestSystemStateCallFailGracefully(t *testing.T) {
 
 func TestListUnitErr(t *testing.T) {
 	stats := createDefaultMockSystemdStats()
-	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), fmt.Errorf("some error"))
+	stats.On("ListUnits", mock.Anything).Return(([]dbus.UnitStatus)(nil), errors.New("some error"))
 	stats.On("GetVersion", mock.Anything).Return(systemdVersion)
 
 	check := SystemdCheck{stats: stats}
@@ -774,7 +774,7 @@ unit_regexes: [%s]
 			// Then
 			mockSender.AssertCalled(t, "ServiceCheck", canConnectServiceCheck, servicecheck.ServiceCheckOK, "", []string(nil), mock.Anything)
 			for unitName, metrics := range unitsToMetrics {
-				tags := []string{fmt.Sprintf("unit:%s", unitName)}
+				tags := []string{"unit:" + unitName}
 				assertSenderCall := mockSender.AssertNotCalled
 				if slices.Contains(test.monitoredUnits, unitName) {
 					assertSenderCall = mockSender.AssertCalled
@@ -1100,9 +1100,9 @@ func TestGetPropertyUint64(t *testing.T) {
 		"prop_uint property retrieved": {"prop_uint", 3, nil},
 		"uint32 property retrieved":    {"prop_uint32", 5, nil},
 		"uint64 property retrieved":    {"prop_uint64", 10, nil},
-		"error int64 not valid":        {"prop_int64", 0, fmt.Errorf("property prop_int64 (int64) cannot be converted to uint64")},
-		"error string not valid":       {"prop_string", 0, fmt.Errorf("property prop_string (string) cannot be converted to uint64")},
-		"error prop not exist":         {"prop_not_exist", 0, fmt.Errorf("property prop_not_exist not found")},
+		"error int64 not valid":        {"prop_int64", 0, errors.New("property prop_int64 (int64) cannot be converted to uint64")},
+		"error string not valid":       {"prop_string", 0, errors.New("property prop_string (string) cannot be converted to uint64")},
+		"error prop not exist":         {"prop_not_exist", 0, errors.New("property prop_not_exist not found")},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
@@ -1125,8 +1125,8 @@ func TestGetPropertyString(t *testing.T) {
 		expectedError  error
 	}{
 		"valid string":         {"prop_string", "foo bar", nil},
-		"prop_uint not valid":  {"prop_uint", "", fmt.Errorf("property prop_uint (uint) cannot be converted to string")},
-		"error prop not exist": {"prop_not_exist", "", fmt.Errorf("property prop_not_exist not found")},
+		"prop_uint not valid":  {"prop_uint", "", errors.New("property prop_uint (uint) cannot be converted to string")},
+		"error prop not exist": {"prop_not_exist", "", errors.New("property prop_not_exist not found")},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
@@ -1151,8 +1151,8 @@ func TestGetPropertyBool(t *testing.T) {
 	}{
 		"valid bool true":      {"prop_bool_true", true, nil},
 		"valid bool false":     {"prop_bool_false", false, nil},
-		"prop_uint not valid":  {"prop_uint", false, fmt.Errorf("property prop_uint (uint) cannot be converted to bool")},
-		"error prop not exist": {"prop_not_exist", false, fmt.Errorf("property prop_not_exist not found")},
+		"prop_uint not valid":  {"prop_uint", false, errors.New("property prop_uint (uint) cannot be converted to bool")},
+		"error prop not exist": {"prop_not_exist", false, errors.New("property prop_not_exist not found")},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {

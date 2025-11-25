@@ -91,7 +91,7 @@ func (d *ProcessDiscoveryCheck) ShouldSaveLastRun() bool { return true }
 // It is a runtime error to call Run without first having called Init.
 func (d *ProcessDiscoveryCheck) Run(nextGroupID func() int32, options *RunOptions) (RunResult, error) {
 	if !d.initCalled {
-		return nil, fmt.Errorf("ProcessDiscoveryCheck.Run called before Init")
+		return nil, errors.New("ProcessDiscoveryCheck.Run called before Init")
 	}
 
 	// Does not need to collect process stats, only metadata

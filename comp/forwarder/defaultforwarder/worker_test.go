@@ -101,7 +101,7 @@ func TestWorkerRetry(t *testing.T) {
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, 1, mockConfig))
 
 	mock := newTestTransaction()
-	mock.On("Process", w.Client.GetClient()).Return(fmt.Errorf("some kind of error")).Times(1)
+	mock.On("Process", w.Client.GetClient()).Return(errors.New("some kind of error")).Times(1)
 	mock.On("GetTarget").Return("error_url").Times(1)
 
 	w.Start()
@@ -220,7 +220,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 		Run(func(_args tmock.Arguments) {
 			processedwg.Done()
 		}).
-		Return(fmt.Errorf("Cancelled")).Times(1)
+		Return(errors.New("Cancelled")).Times(1)
 
 	mockTransaction.On("GetTarget").Return("").Times(1)
 
@@ -287,7 +287,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 				Run(func(_args tmock.Arguments) {
 					processedwg.Done()
 				}).
-				Return(fmt.Errorf("Cancelled")).Times(1)
+				Return(errors.New("Cancelled")).Times(1)
 		} else {
 			// The other transactions succeed.
 			mockTransaction.On("Process", w.Client.GetClient()).Return(nil).Times(1)

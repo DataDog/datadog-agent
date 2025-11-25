@@ -67,7 +67,7 @@ func parseDatadogConfigPath(path string) (ConfigPath, error) {
 	}
 	rawProduct := matchedGroups[2]
 	if len(rawProduct) == 0 {
-		return ConfigPath{}, fmt.Errorf("product is empty")
+		return ConfigPath{}, errors.New("product is empty")
 	}
 	return ConfigPath{
 		Source:   SourceDatadog,
@@ -85,7 +85,7 @@ func parseEmployeeConfigPath(path string) (ConfigPath, error) {
 	}
 	rawProduct := matchedGroups[1]
 	if len(rawProduct) == 0 {
-		return ConfigPath{}, fmt.Errorf("product is empty")
+		return ConfigPath{}, errors.New("product is empty")
 	}
 	return ConfigPath{
 		Source:   SourceEmployee,

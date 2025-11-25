@@ -106,7 +106,7 @@ func outputsToFile(output auto.OutputMap) error {
 		}
 		switch v := value.Value.(type) {
 		case string:
-			if _, err := f.WriteString(fmt.Sprintf("%s\n", v)); err != nil {
+			if _, err := f.WriteString(v + "\n"); err != nil {
 				return fmt.Errorf("failed to write string to file %q: %v", stackOutputs, err)
 			}
 		default:
@@ -175,7 +175,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 
 	apiKey := getEnv("DD_API_KEY", "")
 	if opts.RunAgent && apiKey == "" {
-		return nil, fmt.Errorf("No API Key for datadog-agent provided")
+		return nil, errors.New("No API Key for datadog-agent provided")
 	}
 
 	ciJob := getEnv("CI_JOB_ID", "")
@@ -310,22 +310,22 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 						"source:pulumi",
 						"repository:datadog/datadog-agent",
 						"team:ebpf-platform",
-						fmt.Sprintf("vm.name:%s", pulumiError.vmName),
-						fmt.Sprintf("vm.arch:%s", pulumiError.arch),
-						fmt.Sprintf("vm.command:%s", pulumiError.vmCommand),
+						"vm.name:" + pulumiError.vmName,
+						"vm.arch:" + pulumiError.arch,
+						"vm.command:" + pulumiError.vmCommand,
 					},
 				}
 
 				if ciJob != "" {
-					event.Tags = append(event.Tags, fmt.Sprintf("ci.job.id:%s", ciJob))
+					event.Tags = append(event.Tags, "ci.job.id:"+ciJob)
 				}
 
 				if ciPipeline != "" {
-					event.Tags = append(event.Tags, fmt.Sprintf("ci.pipeline.id:%s", ciPipeline))
+					event.Tags = append(event.Tags, "ci.pipeline.id:"+ciPipeline)
 				}
 
 				if ciBranch != "" {
-					event.Tags = append(event.Tags, fmt.Sprintf("ci.branch:%s", ciBranch))
+					event.Tags = append(event.Tags, "ci.branch:"+ciBranch)
 				}
 
 				if err = metric.SubmitExecutionEvent(event); err != nil {

@@ -42,7 +42,7 @@ func (temperatureMetricsSender *temperatureMetricsSender) SendMetrics(sender sen
 		if err != nil {
 			return err
 		}
-		temperatureZoneTags := []string{fmt.Sprintf("zone:%s", temperatureFields[i][regexSubexpIndex(r, "tempZone")])}
+		temperatureZoneTags := []string{"zone:" + temperatureFields[i][regexSubexpIndex(r, "tempZone")]}
 		sender.Gauge("nvidia.jetson.temp", tempValue, "", temperatureZoneTags)
 	}
 

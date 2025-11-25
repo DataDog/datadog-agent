@@ -67,7 +67,7 @@ func oidToNumbers(oid string) ([]int, error) {
 
 func (o *OIDTrie) getNode(oid string) (*OIDTrie, error) {
 	if oid == "" {
-		return nil, fmt.Errorf("invalid empty OID")
+		return nil, errors.New("invalid empty OID")
 	}
 	current := o
 	oid = strings.TrimLeft(oid, ".")

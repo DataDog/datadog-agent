@@ -125,7 +125,7 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 
 func getResponse(ctx context.Context, url string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		return "", errors.New("cloud provider is disabled by configuration")
 	}
 
 	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("azure_metadata_timeout")) * time.Millisecond
@@ -153,7 +153,7 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 	style := config.GetString(hostnameStyleSetting)
 
 	if style == "os" {
-		return "", fmt.Errorf("azure_hostname_style is set to 'os'")
+		return "", errors.New("azure_hostname_style is set to 'os'")
 	}
 
 	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)

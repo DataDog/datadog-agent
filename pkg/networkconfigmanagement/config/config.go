@@ -248,7 +248,7 @@ func (ic *InitConfig) Validate() error {
 	ic.Namespace = namespace
 
 	if ic.MinCollectionInterval <= 0 {
-		return fmt.Errorf("min_collection_interval must be greater than zero")
+		return errors.New("min_collection_interval must be greater than zero")
 	}
 
 	// if SSH configs exist, ensure they're valid
@@ -307,7 +307,7 @@ func (di *DeviceInstance) applyDefaults() {
 func (di *DeviceInstance) hasRequiredFields() error {
 	// check for missing fields that are required for a device instance
 	if di.IPAddress == "" {
-		return fmt.Errorf("ip_address is required")
+		return errors.New("ip_address is required")
 	}
 	authBaseString := "auth is required: missing %s for device %s"
 	if di.Auth.Username == "" {
@@ -336,7 +336,7 @@ func (sc *SSHConfig) validate() error {
 func (sc *SSHConfig) hasRequiredFields() error {
 	// must have at least a known paths specified or skip verification (insecure, only for development/testing purposes)
 	if sc.KnownHostsPath == "" && !sc.InsecureSkipVerify {
-		return fmt.Errorf("no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify")
+		return errors.New("no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify")
 	}
 	return nil
 }

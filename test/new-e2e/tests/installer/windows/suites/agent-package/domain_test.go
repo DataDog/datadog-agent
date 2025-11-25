@@ -53,8 +53,8 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeMSI() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME="+TestUser),
+		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -90,8 +90,8 @@ func (s *testAgentUpgradeOnDCSuite) TestUpgradeAgentPackage() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME="+TestUser),
+		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD="+TestPassword),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -159,8 +159,8 @@ func (s *testUpgradeWithMissingPasswordSuite) TestUpgradeWithMissingPassword() {
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestUser)),
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_PASSWORD=%s", TestPassword)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestUser),
+		installerwindows.WithMSIArg("DDAGENTUSER_PASSWORD=" + TestPassword),
 	}
 	s.Require().NoError(s.Installer().Install(options...))
 	s.Require().Host(s.Env().RemoteHost).

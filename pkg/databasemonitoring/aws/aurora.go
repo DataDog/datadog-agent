@@ -35,7 +35,7 @@ const (
 // requires the dbClusterIdentifier for the cluster
 func (c *Client) GetAuroraClusterEndpoints(ctx context.Context, dbClusterIdentifiers []string, dbmTag string) (map[string]*AuroraCluster, error) {
 	if len(dbClusterIdentifiers) == 0 {
-		return nil, fmt.Errorf("at least one database cluster identifier is required")
+		return nil, errors.New("at least one database cluster identifier is required")
 	}
 	clusters := make(map[string]*AuroraCluster, 0)
 	for _, clusterID := range dbClusterIdentifiers {
@@ -141,12 +141,12 @@ func containsTags(clusterTags []types.Tag, providedTags []string) bool {
 func (c *Instance) Digest(checkType, clusterID string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
-	h.Write([]byte(checkType))                       //nolint:errcheck
-	h.Write([]byte(clusterID))                       //nolint:errcheck
-	h.Write([]byte(c.Endpoint))                      //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%d", c.Port)))       //nolint:errcheck
-	h.Write([]byte(c.Engine))                        //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%t", c.IamEnabled))) //nolint:errcheck
+	h.Write([]byte(checkType))                        //nolint:errcheck
+	h.Write([]byte(clusterID))                        //nolint:errcheck
+	h.Write([]byte(c.Endpoint))                       //nolint:errcheck
+	h.Write([]byte(strconv.Itoa(int(c.Port))))        //nolint:errcheck
+	h.Write([]byte(c.Engine))                         //nolint:errcheck
+	h.Write([]byte(strconv.FormatBool(c.IamEnabled))) //nolint:errcheck
 
 	return strconv.FormatUint(h.Sum64(), 16)
 }

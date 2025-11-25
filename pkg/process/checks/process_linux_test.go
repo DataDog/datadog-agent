@@ -435,7 +435,7 @@ func TestFormatServiceDiscovery(t *testing.T) {
 func wlmProcessWithCreateTime(pid int32, spaceSeparatedCmdline string, creationTime int64) *wmdef.Process {
 	return &wmdef.Process{
 		EntityID: wmdef.EntityID{
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.Itoa(int(pid)),
 			Kind: wmdef.KindProcess,
 		},
 		Pid:          pid,

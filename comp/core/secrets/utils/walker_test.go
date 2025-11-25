@@ -52,7 +52,7 @@ func TestWalkerError(t *testing.T) {
 
 	w := Walker{
 		Resolver: func([]string, string) (string, error) {
-			return "", fmt.Errorf("some error")
+			return "", errors.New("some error")
 		},
 	}
 

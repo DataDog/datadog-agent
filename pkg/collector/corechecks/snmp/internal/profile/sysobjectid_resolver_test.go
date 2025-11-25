@@ -28,13 +28,13 @@ func Test_getMostSpecificOid(t *testing.T) {
 			"error on empty oids",
 			[]string{},
 			"",
-			fmt.Errorf("cannot get most specific oid from empty list of oids"),
+			errors.New("cannot get most specific oid from empty list of oids"),
 		},
 		{
 			"error on parsing",
 			[]string{"a.1.2.3"},
 			"",
-			fmt.Errorf("error parsing part `a` for pattern `a.1.2.3`: strconv.Atoi: parsing \"a\": invalid syntax"),
+			errors.New("error parsing part `a` for pattern `a.1.2.3`: strconv.Atoi: parsing \"a\": invalid syntax"),
 		},
 		{
 			"most lengthy",

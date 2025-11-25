@@ -169,10 +169,10 @@ func (p *testPayload) DescribeItem(i int) string { return "description" }
 type testErrorPayload struct{}
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Errorf("some error") }
+func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, errors.New("some error") }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, fmt.Errorf("some error") }
+func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, errors.New("some error") }
 
 func (p *testErrorPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
@@ -186,7 +186,7 @@ func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
-	return fmt.Errorf("some error")
+	return errors.New("some error")
 }
 func (p *testErrorPayload) Len() int { return 1 }
 
@@ -487,7 +487,7 @@ func TestSendMetadata(t *testing.T) {
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 
-			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
+			f.On("SubmitMetadata", jsonPayloads, s.jsonExtraHeadersWithCompression).Return(errors.New("some error")).Times(1)
 			err = s.SendMetadata(payload)
 			require.NotNil(t, err)
 			f.AssertExpectations(t)
@@ -523,7 +523,7 @@ func TestSendProcessesMetadata(t *testing.T) {
 			require.Nil(t, err)
 			f.AssertExpectations(t)
 
-			f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(fmt.Errorf("some error")).Times(1)
+			f.On("SubmitV1Intake", payloads, s.jsonExtraHeadersWithCompression).Return(errors.New("some error")).Times(1)
 			err = s.SendProcessesMetadata("test")
 			require.NotNil(t, err)
 			f.AssertExpectations(t)

@@ -453,7 +453,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			return nspids, nil
 		}
 	}
-	return nil, fmt.Errorf("NSpid field not found")
+	return nil, errors.New("NSpid field not found")
 }
 
 // GetPidTasks returns the task IDs of a process
@@ -534,7 +534,7 @@ func GetTracerPid(pid uint32) (uint32, error) {
 			return uint32(tracerPid), nil
 		}
 	}
-	return 0, fmt.Errorf("TracerPid field not found")
+	return 0, errors.New("TracerPid field not found")
 }
 
 // FindTraceesByTracerPid returns the process list being trced by the given tracer host PID

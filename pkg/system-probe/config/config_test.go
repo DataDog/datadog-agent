@@ -38,7 +38,7 @@ func TestEventMonitor(t *testing.T) {
 		{cws: false, fim: false, networkEvents: false, gpu: true, enabled: true},
 		{usmEvents: true, enabled: true},
 	} {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			t.Logf("%+v\n", tc)
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_ENABLED", strconv.FormatBool(tc.cws))
 			t.Setenv("DD_RUNTIME_SECURITY_CONFIG_FIM_ENABLED", strconv.FormatBool(tc.fim))

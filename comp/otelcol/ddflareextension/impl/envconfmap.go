@@ -34,7 +34,7 @@ func newEnvConfMap(ctx context.Context, configProviderSettings otelcol.ConfigPro
 		return f.Create(providersSettings).Scheme() == schemeName
 	})
 	if envProviderIndex == -1 {
-		return nil, fmt.Errorf("env provider not found")
+		return nil, errors.New("env provider not found")
 	}
 	envProvider := providerFactories[envProviderIndex]
 	uuids := make(map[string]string)

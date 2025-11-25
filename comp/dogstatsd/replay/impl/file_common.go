@@ -12,7 +12,7 @@ var (
 	// 00 to terminate header
 	datadogHeader = []byte{0xD4, 0x74, 0xD0, 0x60, 0xF0, 0xFF, 0x00, 0x00}
 	//nolint:revive // TODO(AML) Fix revive linter
-	ErrHeaderWrite = fmt.Errorf("capture file header could not be fully written to buffer")
+	ErrHeaderWrite = errors.New("capture file header could not be fully written to buffer")
 )
 
 const (

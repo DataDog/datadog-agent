@@ -161,7 +161,7 @@ func copyFile(src, dst string) (err error) {
 	var ok bool
 	stat, ok = srcInfo.Sys().(*syscall.Stat_t)
 	if !ok || stat == nil {
-		return fmt.Errorf("could not get file stat")
+		return errors.New("could not get file stat")
 	}
 
 	// create dst file with same permissions

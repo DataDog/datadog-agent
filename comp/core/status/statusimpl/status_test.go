@@ -48,7 +48,7 @@ func (m mockProvider) Section() string {
 
 func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
-		return fmt.Errorf("JSON error")
+		return errors.New("JSON error")
 	}
 
 	maps.Copy(stats, m.data)
@@ -58,7 +58,7 @@ func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("Text error")
+		return errors.New("Text error")
 	}
 
 	_, err := buffer.Write([]byte(m.text))
@@ -67,7 +67,7 @@ func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 
 func (m mockProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("HTML error")
+		return errors.New("HTML error")
 	}
 
 	_, err := buffer.Write([]byte(m.html))
@@ -93,7 +93,7 @@ func (m mockHeaderProvider) Name() string {
 
 func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
-		return fmt.Errorf("JSON error")
+		return errors.New("JSON error")
 	}
 
 	maps.Copy(stats, m.data)
@@ -103,7 +103,7 @@ func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("Text error")
+		return errors.New("Text error")
 	}
 
 	_, err := buffer.Write([]byte(m.text))
@@ -112,7 +112,7 @@ func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 
 func (m mockHeaderProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("HTML error")
+		return errors.New("HTML error")
 	}
 
 	_, err := buffer.Write([]byte(m.html))

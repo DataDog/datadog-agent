@@ -63,7 +63,7 @@ func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregat
 		return nil, err
 	}
 	if nps == nil {
-		return nil, fmt.Errorf("GetLatestNetpathEvents() returned nil netpaths")
+		return nil, errors.New("GetLatestNetpathEvents() returned nil netpaths")
 	}
 
 	var match *aggregator.Netpath

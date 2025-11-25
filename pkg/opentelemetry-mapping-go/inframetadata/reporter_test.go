@@ -81,7 +81,7 @@ type pusher struct {
 func (p *pusher) Push(_ context.Context, md payload.HostMetadata) error {
 	p.md = md
 	close(p.ch)
-	return fmt.Errorf("network error")
+	return errors.New("network error")
 }
 
 func TestRun(t *testing.T) {

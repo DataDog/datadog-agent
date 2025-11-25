@@ -42,7 +42,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				IPAddress: "1.2.3.4",
 				Port:      uint16(1234),
 			},
-			expectedError: fmt.Errorf("an authentication method needs to be provided"),
+			expectedError: errors.New("an authentication method needs to be provided"),
 		},
 		{
 			name: "valid v1 config",
@@ -228,7 +228,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				AuthProtocol: "invalid",
 			},
 			expectedVersion:            gosnmp.Version1, // default, not configured
-			expectedError:              fmt.Errorf("unsupported authentication protocol: invalid"),
+			expectedError:              errors.New("unsupported authentication protocol: invalid"),
 			expectedSecurityParameters: nil, // default, not configured
 		},
 		{
@@ -245,7 +245,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				PrivProtocol: "invalid",
 			},
 			expectedVersion:            gosnmp.Version1, // default, not configured
-			expectedError:              fmt.Errorf("unsupported privacy protocol: invalid"),
+			expectedError:              errors.New("unsupported privacy protocol: invalid"),
 			expectedSecurityParameters: nil, // default, not configured
 		},
 		{
@@ -259,7 +259,7 @@ func Test_snmpSession_Configure(t *testing.T) {
 				OidBatchSize:    100,
 			},
 			expectedVersion: gosnmp.Version1,
-			expectedError:   fmt.Errorf("config oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
+			expectedError:   errors.New("config oidBatchSize (100) cannot be higher than gosnmp.MaxOids: 60"),
 		},
 	}
 	for _, tt := range tests {

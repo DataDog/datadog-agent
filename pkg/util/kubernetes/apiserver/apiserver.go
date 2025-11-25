@@ -194,13 +194,13 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 		case retry.OK:
 			return globalAPIClient, nil
 		case retry.PermaFail:
-			return nil, fmt.Errorf("Permanent failure while waiting for Kubernetes APIServer")
+			return nil, errors.New("Permanent failure while waiting for Kubernetes APIServer")
 		default:
 			sleepFor := globalAPIClient.initRetry.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
 			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
 			select {
 			case <-ctx.Done():
-				return nil, fmt.Errorf("Context deadline reached while waiting for Kubernetes APIServer")
+				return nil, errors.New("Context deadline reached while waiting for Kubernetes APIServer")
 			case <-time.After(sleepFor):
 			}
 		}
@@ -413,7 +413,7 @@ func (c *APIClient) connect() error {
 	// Try to get apiserver version to confim connectivity
 	APIversion := c.Cl.Discovery().RESTClient().APIVersion()
 	if APIversion.Empty() {
-		return fmt.Errorf("cannot retrieve the version of the API server at the moment")
+		return errors.New("cannot retrieve the version of the API server at the moment")
 	}
 	log.Debugf("Connected to kubernetes apiserver, version %s", APIversion.Version)
 
@@ -557,7 +557,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 
 	nodes, err := getNodeList(cl)
 	if err != nil {
-		stats.Errors = fmt.Sprintf("Failed to get nodes from the API server: %s", err.Error())
+		stats.Errors = "Failed to get nodes from the API server: " + err.Error()
 		return stats, err
 	}
 
@@ -605,7 +605,7 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 	log.Tracef("found %d services for the pod %s on the node %s", len(serviceList), podName, nodeName)
 	var metaList []string
 	for _, s := range serviceList {
-		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
+		metaList = append(metaList, "kube_service:"+s)
 	}
 	return metaList, nil
 }
@@ -676,7 +676,7 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	}
 
 	if len(nodeList.Items) == 0 {
-		return "", fmt.Errorf("No node found")
+		return "", errors.New("No node found")
 	}
 
 	return nodeList.Items[0].Name, nil

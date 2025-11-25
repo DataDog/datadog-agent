@@ -149,7 +149,7 @@ func (f *fingerprinterImpl) ComputeFingerprintFromHandle(osFile afero.File, fing
 	}
 
 	if osFile == nil {
-		return newInvalidFingerprint(nil), fmt.Errorf("osFile cannot be nil")
+		return newInvalidFingerprint(nil), errors.New("osFile cannot be nil")
 	}
 
 	// Get file path for logging purposes
@@ -320,13 +320,13 @@ func (f *FingerprintConfigInfo) Info() []string {
 
 	if f.config.FingerprintStrategy == types.FingerprintStrategyDisabled {
 		return []string{
-			fmt.Sprintf("Source: %s", source),
+			"Source: " + source,
 			"Strategy: disabled",
 		}
 	}
 
 	info := []string{
-		fmt.Sprintf("Source: %s", source),
+		"Source: " + source,
 		fmt.Sprintf("Strategy: %s", f.config.FingerprintStrategy),
 	}
 

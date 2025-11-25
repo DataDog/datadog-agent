@@ -19,7 +19,7 @@ var accountIDFetcher = cachedfetch.Fetcher{
 	Name: "AWS Account ID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return "", fmt.Errorf("cloud provider is disabled by configuration")
+			return "", errors.New("cloud provider is disabled by configuration")
 		}
 
 		ec2id, err := GetInstanceIdentity(ctx)

@@ -37,7 +37,7 @@ type jsonServerlessInitPayload struct {
 // Encode encodes a message into a JSON byte array.
 func (j *jsonServerlessInitEncoder) Encode(msg *message.Message, hostname string) error {
 	if msg.State != message.StateRendered {
-		return fmt.Errorf("message passed to encoder isn't rendered")
+		return errors.New("message passed to encoder isn't rendered")
 	}
 
 	ts := time.Now().UTC()

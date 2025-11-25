@@ -254,7 +254,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 
 	// session configuration error
 	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	err = discovery.checkDevice(job)
@@ -264,7 +264,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 
 	// Test session.Connect() error
 	checkDeviceOnce()
-	sess.ConnectErr = fmt.Errorf("connection error")
+	sess.ConnectErr = errors.New("connection error")
 	err = discovery.checkDevice(job)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(discovery.discoveredDevices))
@@ -276,7 +276,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 		return sess, nil
 	}
 	var nilPacket *gosnmp.SnmpPacket
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("get error"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, errors.New("get error"))
 	err = discovery.checkDevice(job) // check device with Get error
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(discovery.discoveredDevices))

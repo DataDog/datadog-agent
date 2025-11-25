@@ -47,7 +47,7 @@ type leaderNotifier func() (<-chan struct{}, func() bool)
 // Start initializes and starts the proxy injector
 func Start(ctx context.Context, logger log.Component, datadogConfig config.Component, leaderSub leaderNotifier) error {
 	if injector != nil {
-		return fmt.Errorf("can't start proxy injection twice")
+		return errors.New("can't start proxy injection twice")
 	}
 
 	injectorStartOnce.Do(func() {

@@ -131,7 +131,7 @@ type retryHandler struct {
 
 func errorMetric(errType string) datadogV2.MetricPayload {
 	tags := []string{
-		fmt.Sprintf("error:%s", errType),
+		"error:" + errType,
 	}
 	return datadogV2.MetricPayload{
 		Series: []datadogV2.MetricSeries{
@@ -219,7 +219,7 @@ func storeNumberOfRetriesForCITags(retries int) error {
 	}
 	defer f.Close()
 
-	_, err = f.WriteString(fmt.Sprintf("%d", retries))
+	_, err = f.WriteString(strconv.Itoa(retries))
 	return err
 }
 

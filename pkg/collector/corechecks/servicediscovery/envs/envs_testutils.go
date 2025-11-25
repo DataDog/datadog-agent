@@ -27,7 +27,7 @@ func GetExpectedEnvs() []string {
 	expectedEnvs := make([]string, 0, len(targets))
 
 	for env := range targets {
-		expectedEnvs = append(expectedEnvs, fmt.Sprintf("%s=true", env))
+		expectedEnvs = append(expectedEnvs, env+"=true")
 	}
 	return expectedEnvs
 }

@@ -544,7 +544,7 @@ func (m *Manager) startDumpWithConfig(containerID containerutils.ContainerID, cg
 			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
 			Arch:              utils.RuntimeArch(),
 
-			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+			Name:              "activity-dump-" + utils.RandString(10),
 			ProtobufVersion:   profile.ProtobufVersion,
 			DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
 			ContainerID:       containerID,

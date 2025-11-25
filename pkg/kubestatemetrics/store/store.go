@@ -123,7 +123,7 @@ func (s *MetricsStore) Add(obj interface{}) error {
 
 func buildTags(metrics *metric.Metric) (map[string]string, error) {
 	if len(metrics.LabelKeys) != len(metrics.LabelValues) {
-		return nil, fmt.Errorf("LabelKeys and LabelValues not same size")
+		return nil, errors.New("LabelKeys and LabelValues not same size")
 	}
 	tags := make(map[string]string, len(metrics.LabelValues))
 	for i, key := range metrics.LabelKeys {

@@ -65,11 +65,11 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 }
 
 var getValidatingWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
-	return nil, fmt.Errorf("admission controller not started")
+	return nil, errors.New("admission controller not started")
 }
 
 var getMutatingWebhookStatus = func(string, kubernetes.Interface) (map[string]interface{}, error) {
-	return nil, fmt.Errorf("admission controller not started")
+	return nil, errors.New("admission controller not started")
 }
 
 func getValidatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[string]interface{}, error) {
@@ -93,7 +93,7 @@ func getValidatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			validatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
@@ -130,7 +130,7 @@ func getValidatingWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) 
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			validatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
@@ -167,7 +167,7 @@ func getMutatingWebhookStatusV1(name string, apiCl kubernetes.Interface) (map[st
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			mutatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}
@@ -203,7 +203,7 @@ func getMutatingWebhookStatusV1beta1(name string, apiCl kubernetes.Interface) (m
 				port = fmt.Sprintf("Port: %d", *svc.Port)
 			}
 			if svc.Path != nil {
-				path = fmt.Sprintf("Path: %s", *svc.Path)
+				path = "Path: " + *svc.Path
 			}
 			mutatingWebhooksConfig[w.Name]["Service"] = fmt.Sprintf("%s/%s - %s - %s", svc.Namespace, svc.Name, port, path)
 		}

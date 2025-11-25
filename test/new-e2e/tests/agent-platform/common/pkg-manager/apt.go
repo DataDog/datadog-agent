@@ -25,5 +25,5 @@ func NewApt(host *components.RemoteHost) *Apt {
 
 // Remove call remove from apt
 func (s *Apt) Remove(pkg string) (string, error) {
-	return s.host.Execute(fmt.Sprintf("sudo apt remove -q -y %s", pkg))
+	return s.host.Execute("sudo apt remove -q -y " + pkg)
 }

@@ -115,7 +115,7 @@ func getNetflowRulesToCheck(config config.Component) []ruleToCheck {
 		rulesToCheck = append(rulesToCheck, ruleToCheck{
 			firewallRule: firewallRule{
 				protocol: "UDP",
-				destPort: fmt.Sprintf("%d", destPort),
+				destPort: strconv.FormatUint(uint64(destPort), 10),
 			},
 			source: fmt.Sprintf("netflow (%s)", flowTypeDetail.Name()),
 		})

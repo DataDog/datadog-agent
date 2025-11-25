@@ -180,7 +180,7 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
 	require.NoError(s.T(), err)
 
-	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("docker restart %s", s.Env().Agent.ContainerName))
+	_, err = s.Env().RemoteHost.Execute("docker restart " + s.Env().Agent.ContainerName)
 	require.NoError(s.T(), err)
 
 	err = fakeintake.FlushServerAndResetAggregators()

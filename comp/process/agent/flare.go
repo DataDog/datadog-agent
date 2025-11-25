@@ -32,7 +32,7 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 		}
 
 		checkName := check.Name()
-		filename := fmt.Sprintf("%s_check_output.json", checkName)
+		filename := checkName + "_check_output.json"
 		fb.AddFileFromFunc(filename, func() ([]byte, error) { //nolint:errcheck
 			checkOutput, ok := checks.GetCheckOutput(checkName)
 			if !ok {
@@ -40,7 +40,7 @@ func (fh *FlareHelper) FillFlare(fb flaretypes.FlareBuilder) error {
 			}
 			checkJSON, err := json.MarshalIndent(checkOutput, "", "  ")
 			if err != nil {
-				return []byte(fmt.Sprintf("error: %s", err.Error())), err
+				return []byte("error: " + err.Error()), err
 			}
 			return checkJSON, nil
 		})

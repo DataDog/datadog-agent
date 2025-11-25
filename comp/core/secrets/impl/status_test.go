@@ -118,7 +118,7 @@ func TestSecretStatusWithPermissions(t *testing.T) {
 	require.Contains(t, stats, "executablePermissions")
 	assert.Equal(t, "OK, the executable has the correct permissions", stats["executablePermissions"])
 
-	checkRightsFunc = func(_ string, _ bool) error { return fmt.Errorf("some error") }
+	checkRightsFunc = func(_ string, _ bool) error { return errors.New("some error") }
 
 	stats = make(map[string]interface{})
 	err = resolver.JSON(false, stats)

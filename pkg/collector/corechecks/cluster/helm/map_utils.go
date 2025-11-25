@@ -33,7 +33,7 @@ import (
 // "agents.image" is not.
 func getValue(m map[string]interface{}, dotSeparatedKey string) (string, error) {
 	if dotSeparatedKey == "" {
-		return "", fmt.Errorf("not found")
+		return "", errors.New("not found")
 	}
 
 	keys := strings.Split(dotSeparatedKey, ".")
@@ -41,7 +41,7 @@ func getValue(m map[string]interface{}, dotSeparatedKey string) (string, error) 
 
 	for _, key := range keys {
 		if obj == nil || reflect.TypeOf(obj).Kind() != reflect.Map {
-			return "", fmt.Errorf("not found")
+			return "", errors.New("not found")
 		}
 
 		mapValue := reflect.ValueOf(obj)
@@ -49,14 +49,14 @@ func getValue(m map[string]interface{}, dotSeparatedKey string) (string, error) 
 		objValue := mapValue.MapIndex(reflect.ValueOf(key))
 
 		if !objValue.IsValid() {
-			return "", fmt.Errorf("not found")
+			return "", errors.New("not found")
 		}
 
 		obj = objValue.Interface()
 	}
 
 	if obj == nil || reflect.TypeOf(obj).Kind() == reflect.Map {
-		return "", fmt.Errorf("not found")
+		return "", errors.New("not found")
 	}
 
 	return fmt.Sprintf("%v", reflect.ValueOf(obj)), nil

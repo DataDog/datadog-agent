@@ -31,7 +31,7 @@ func NewSystemdConnection(privateSocket string) (*dbus.Conn, error) {
 	return dbus.NewConnection(func() (*godbus.Conn, error) {
 		// We skip Hello when talking directly to systemd.
 		return dbusAuthConnection(func() (*godbus.Conn, error) {
-			return godbus.Dial(fmt.Sprintf("unix:path=%s", privateSocket))
+			return godbus.Dial("unix:path=" + privateSocket)
 		})
 	})
 }

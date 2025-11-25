@@ -62,7 +62,7 @@ func TestTraceWriter(t *testing.T) {
 		{zstd.NewComponent()},
 	}
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
+		t.Run("encoding:"+tc.compressor.Encoding(), func(t *testing.T) {
 			srv := newTestServer()
 			defer srv.Close()
 			cfg := &config.AgentConfig{

@@ -151,12 +151,12 @@ func (c *ContainerApp) Init(_ interface{}) error {
 
 // Shutdown emits the shutdown metric for ContainerApp
 func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", containerAppPrefix), 1.0, c.GetSource(), metricAgent)
+	metric.Add(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *ContainerApp) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", containerAppPrefix)
+	return containerAppPrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

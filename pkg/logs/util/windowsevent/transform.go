@@ -254,7 +254,7 @@ func formatEventBinaryData(mv mxj.Map) error {
 // utf16decode converts ut16le bytes to utf8 bytes
 func convertUTF16ToUTF8(b []byte) ([]byte, error) {
 	if len(b)%2 != 0 {
-		return nil, fmt.Errorf("length must be an even number")
+		return nil, errors.New("length must be an even number")
 	}
 	// UTF-16 little-endian (UTF-16LE) is the encoding standard in the Windows operating system.
 	// https://learn.microsoft.com/en-us/globalization/encoding/transformations-of-unicode-code-points

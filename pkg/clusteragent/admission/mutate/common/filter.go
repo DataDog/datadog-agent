@@ -98,7 +98,7 @@ func (f *DefaultFilter) IsNamespaceEligible(ns string) bool {
 //   - Enabled and disabled namespaces: return error.
 func makeNamespaceFilter(enabledNamespaces, disabledNamespaces []string) (*containers.Filter, error) {
 	if len(enabledNamespaces) > 0 && len(disabledNamespaces) > 0 {
-		return nil, fmt.Errorf("enabled_namespaces and disabled_namespaces configuration cannot be set together")
+		return nil, errors.New("enabled_namespaces and disabled_namespaces configuration cannot be set together")
 	}
 
 	// Prefix the namespaces as needed by the containers.Filter.

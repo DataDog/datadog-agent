@@ -28,7 +28,7 @@ func TestLazySectionReader(t *testing.T) {
 	require.NoError(t, err)
 
 	libdir := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
-	lib := filepath.Join(libdir, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+	lib := filepath.Join(libdir, "libssl.so."+runtime.GOARCH)
 
 	f, err := os.Open(lib)
 	require.NoError(t, err)

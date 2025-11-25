@@ -71,7 +71,7 @@ func (store *fakeWorkloadmetaStore) GetContainer(id string) (*workloadmeta.Conta
 	if id == "938f6d263c464aa5985dc67ab7f38a7e-1714341084" {
 		return container2(store.EnableV4), nil
 	}
-	return nil, fmt.Errorf("container not found")
+	return nil, errors.New("container not found")
 }
 
 type fakeSender struct {
@@ -190,10 +190,10 @@ func task(v4 bool, id string) *workloadmeta.ECSTask {
 	ecsTask := &workloadmeta.ECSTask{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindECSTask,
-			ID:   fmt.Sprintf("arn:aws:ecs:us-east-1:123456789012:task/%s", id),
+			ID:   "arn:aws:ecs:us-east-1:123456789012:task/" + id,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: fmt.Sprintf("12345678-1234-1234-1234-123456789%s", id),
+			Name: "12345678-1234-1234-1234-123456789" + id,
 		},
 		ClusterName: "ecs-cluster",
 		LaunchType:  workloadmeta.ECSLaunchTypeEC2,
@@ -310,7 +310,7 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		}
 
 		newTask := &process.ECSTask{
-			Arn:        fmt.Sprintf("arn:aws:ecs:us-east-1:123456789012:task/%s", id),
+			Arn:        "arn:aws:ecs:us-east-1:123456789012:task/" + id,
 			LaunchType: "ec2",
 			Family:     "redis",
 			Version:    "1",

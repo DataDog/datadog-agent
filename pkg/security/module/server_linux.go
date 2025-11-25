@@ -37,7 +37,7 @@ func (a *APIServer) DumpDiscarders(_ context.Context, _ *api.DumpDiscardersParam
 func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	var (
@@ -84,7 +84,7 @@ func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessC
 func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	if manager := p.GetProfileManager(); manager != nil {
@@ -95,14 +95,14 @@ func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpPara
 		return msg, nil
 	}
 
-	return nil, fmt.Errorf("monitor not configured")
+	return nil, errors.New("monitor not configured")
 }
 
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	if manager := p.GetProfileManager(); manager != nil {
@@ -113,14 +113,14 @@ func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDum
 		return msg, nil
 	}
 
-	return nil, fmt.Errorf("monitor not configured")
+	return nil, errors.New("monitor not configured")
 }
 
 // StopActivityDump stops an active activity dump if it exists
 func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	if manager := p.GetProfileManager(); manager != nil {
@@ -131,14 +131,14 @@ func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDump
 		return msg, nil
 	}
 
-	return nil, fmt.Errorf("monitor not configured")
+	return nil, errors.New("monitor not configured")
 }
 
 // TranscodingRequest encodes an activity dump following the requested parameters
 func (a *APIServer) TranscodingRequest(_ context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	if manager := p.GetProfileManager(); manager != nil {
@@ -149,14 +149,14 @@ func (a *APIServer) TranscodingRequest(_ context.Context, params *api.Transcodin
 		return msg, nil
 	}
 
-	return nil, fmt.Errorf("monitor not configured")
+	return nil, errors.New("monitor not configured")
 }
 
 // ListSecurityProfiles returns the list of security profiles
 func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	if manager := p.GetProfileManager(); manager != nil {
@@ -167,14 +167,14 @@ func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.Security
 		return msg, nil
 	}
 
-	return nil, fmt.Errorf("monitor not configured")
+	return nil, errors.New("monitor not configured")
 }
 
 // SaveSecurityProfile saves the requested security profile to disk
 func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	if manager := p.GetProfileManager(); manager != nil {
@@ -185,7 +185,7 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 		return msg, nil
 	}
 
-	return nil, fmt.Errorf("monitor not configured")
+	return nil, errors.New("monitor not configured")
 }
 
 func (a *APIServer) fillStatusPlatform(apiStatus *api.Status) error {
@@ -228,7 +228,7 @@ func (a *APIServer) fillStatusPlatform(apiStatus *api.Status) error {
 func (a *APIServer) DumpNetworkNamespace(_ context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
-		return nil, fmt.Errorf("not supported")
+		return nil, errors.New("not supported")
 	}
 
 	return p.Resolvers.NamespaceResolver.DumpNetworkNamespaces(params), nil
@@ -284,7 +284,7 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 			}
 			// Create the user session context serializer
 			userSessionCtx := &serializers.UserSessionContextSerializer{
-				ID:          fmt.Sprintf("%x", ev.ProcessContext.UserSession.ID),
+				ID:          strconv.FormatUint(ev.ProcessContext.UserSession.ID, 16),
 				SessionType: model.UserSessionTypeStrings[usersession.Type(ev.ProcessContext.UserSession.SessionType)],
 				SSHPort:     ev.ProcessContext.UserSession.SSHPort,
 				SSHClientIP: ev.ProcessContext.UserSession.SSHClientIP.IP.String(),

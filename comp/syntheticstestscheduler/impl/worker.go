@@ -169,7 +169,7 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 				s.log.Debugf("[worker%d] error sending result: %s, publicID %s", workerID, err, syntheticsTestCtx.cfg.PublicID)
 				s.statsdClient.Incr(syntheticsMetricPrefix+"evp.send_result_failure", []string{"reason:error_sending_result", fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 			}
-			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{fmt.Sprintf("status:%s", status), fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
+			s.statsdClient.Incr(syntheticsMetricPrefix+"checks_processed", []string{"status:" + status, fmt.Sprintf("org_id:%d", syntheticsTestCtx.cfg.OrgID), fmt.Sprintf("subtype:%s", syntheticsTestCtx.cfg.Config.Request.GetSubType())}, 1) //nolint:errcheck
 		}
 	}
 }
@@ -219,7 +219,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	case common.UDPConfigRequest:
 		req, ok := c.Config.Request.(common.UDPConfigRequest)
 		if !ok {
-			return config.Config{}, fmt.Errorf("invalid UDP request type")
+			return config.Config{}, errors.New("invalid UDP request type")
 		}
 		cfg.Protocol = payload.ProtocolUDP
 		cfg.DestHostname = req.Host
@@ -231,7 +231,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	case common.TCPConfigRequest:
 		req, ok := c.Config.Request.(common.TCPConfigRequest)
 		if !ok {
-			return config.Config{}, fmt.Errorf("invalid TCP request type")
+			return config.Config{}, errors.New("invalid TCP request type")
 		}
 		cfg.Protocol = payload.ProtocolTCP
 		cfg.DestHostname = req.Host
@@ -243,7 +243,7 @@ func toNetpathConfig(c common.SyntheticsTestConfig) (config.Config, error) {
 	case common.ICMPConfigRequest:
 		req, ok := c.Config.Request.(common.ICMPConfigRequest)
 		if !ok {
-			return config.Config{}, fmt.Errorf("invalid ICMP request type")
+			return config.Config{}, errors.New("invalid ICMP request type")
 		}
 		cfg.Protocol = payload.ProtocolICMP
 		cfg.DestHostname = req.Host
@@ -392,7 +392,7 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	return &common.TestResult{
 		Location: struct {
 			ID string `json:"id"`
-		}{ID: fmt.Sprintf("agent:%s", w.hostname)},
+		}{ID: "agent:" + w.hostname},
 		DD:     make(map[string]interface{}),
 		Result: result,
 		Test:   t,

@@ -79,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// PreRunE is used to validate duration before stream-logs is run.
 	cmd.PreRunE = func(_ *cobra.Command, _ []string) error {
 		if cliParams.Duration < 0 {
-			return fmt.Errorf("duration must be a positive value")
+			return errors.New("duration must be a positive value")
 		}
 		return nil
 	}

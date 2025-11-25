@@ -66,7 +66,7 @@ type DatadogMetricController struct {
 // NewDatadogMetricController returns a new AutoscalersController
 func NewDatadogMetricController(client dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool, store *DatadogMetricsInternalStore) (*DatadogMetricController, error) {
 	if store == nil {
-		return nil, fmt.Errorf("Store must be initialized")
+		return nil, errors.New("Store must be initialized")
 	}
 
 	datadogMetricsInformer := informer.ForResource(gvrDDM)

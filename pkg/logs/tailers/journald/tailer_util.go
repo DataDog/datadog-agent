@@ -61,5 +61,5 @@ func getDockerImageShortName(containerID string, tags []string) (string, bool) {
 }
 
 func getImageCacheKey(containerID string) string {
-	return fmt.Sprintf("logger.tailer.imagefor.%s", containerID)
+	return "logger.tailer.imagefor." + containerID
 }

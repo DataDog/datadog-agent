@@ -18,15 +18,15 @@ import (
 
 // ExecJMXCommandConsole is not supported when the 'jmx' build tag isn't included
 func ExecJMXCommandConsole(_ string, _ []string, _ string, _ []integration.Config, _ internalAPI.Component, _ jmxlogger.Component, _ ipc.Component) error {
-	return fmt.Errorf("not supported: the Agent is compiled without the 'jmx' build tag")
+	return errors.New("not supported: the Agent is compiled without the 'jmx' build tag")
 }
 
 // ExecJmxListWithMetricsJSON is not supported when the 'jmx' build tag isn't included
 func ExecJmxListWithMetricsJSON(_ []string, _ string, _ []integration.Config, _ internalAPI.Component, _ jmxlogger.Component, _ ipc.Component) error {
-	return fmt.Errorf("not supported: the Agent is compiled without the 'jmx' build tag")
+	return errors.New("not supported: the Agent is compiled without the 'jmx' build tag")
 }
 
 // ExecJmxListWithRateMetricsJSON is not supported when the 'jmx' build tag isn't included
 func ExecJmxListWithRateMetricsJSON(_ []string, _ string, _ []integration.Config, _ internalAPI.Component, _ jmxlogger.Component, _ ipc.Component) error {
-	return fmt.Errorf("not supported: the Agent is compiled without the 'jmx' build tag")
+	return errors.New("not supported: the Agent is compiled without the 'jmx' build tag")
 }

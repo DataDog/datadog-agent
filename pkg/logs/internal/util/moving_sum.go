@@ -99,6 +99,6 @@ func (ms *MovingSum) Info() []string {
 	MovingSum := ms.MovingSum()
 
 	return []string{
-		fmt.Sprintf("%d", MovingSum),
+		strconv.FormatInt(MovingSum, 10),
 	}
 }

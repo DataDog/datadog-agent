@@ -68,7 +68,7 @@ func TestGetTags(t *testing.T) {
 				}
 				// Create multiple dummy GPU entries
 				for i := 0; i < 2; i++ {
-					if err := os.WriteFile(filepath.Join(nvidiaPath, fmt.Sprintf("%d", i)), []byte("dummy"), 0644); err != nil {
+					if err := os.WriteFile(filepath.Join(nvidiaPath, strconv.Itoa(i)), []byte("dummy"), 0644); err != nil {
 						return err
 					}
 				}

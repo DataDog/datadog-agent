@@ -31,9 +31,9 @@ func buildRawSample(tagCount int, multipleValues bool) []byte {
 	}
 
 	if multipleValues {
-		return []byte(fmt.Sprintf("daemon:666:777|h|@0.5|#%s", tags))
+		return []byte("daemon:666:777|h|@0.5|#" + tags)
 	}
-	return []byte(fmt.Sprintf("daemon:666|h|@0.5|#%s", tags))
+	return []byte("daemon:666|h|@0.5|#" + tags)
 }
 
 // used to store the result and avoid optimizations

@@ -266,7 +266,7 @@ func (h *Host) FileExists(path string) (bool, error) {
 func (h *Host) EnsureFileIsReadable(path string) error {
 	// ensure the file is readable on the remote host
 	if h.osFamily != oscomp.WindowsFamily {
-		_, err := h.Execute(fmt.Sprintf("sudo chmod +r %s", path))
+		_, err := h.Execute("sudo chmod +r " + path)
 		if err != nil {
 			return fmt.Errorf("failed to make file readable: %w", err)
 		}
@@ -378,13 +378,13 @@ func (h *Host) FindFiles(name string) ([]string, error) {
 	h.context.T().Logf("Finding files with name %s", name)
 	switch h.osFamily {
 	case oscomp.WindowsFamily:
-		out, err := h.Execute(fmt.Sprintf("Get-ChildItem -Path C:\\ -Filter %s", name))
+		out, err := h.Execute("Get-ChildItem -Path C:\\ -Filter " + name)
 		if err != nil {
 			return nil, err
 		}
 		return strings.Split(out, "\n"), nil
 	case oscomp.LinuxFamily:
-		out, err := h.Execute(fmt.Sprintf("sudo find / -name %s", name))
+		out, err := h.Execute("sudo find / -name " + name)
 		if err != nil {
 			return nil, err
 		}
@@ -481,7 +481,7 @@ func (h *Host) GetAgentConfigFolder() (string, error) {
 		if err != nil {
 			return out, err
 		}
-		return fmt.Sprintf("%s\\Datadog", strings.TrimSpace(out)), nil
+		return strings.TrimSpace(out) + "\\Datadog", nil
 	case oscomp.LinuxFamily:
 		return "/etc/datadog-agent", nil
 	case oscomp.MacOSFamily:

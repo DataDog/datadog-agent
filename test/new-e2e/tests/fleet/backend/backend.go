@@ -266,7 +266,7 @@ func (b *Backend) Catalog() *Catalog {
 func (b *Backend) getCatalog() (*Catalog, error) {
 	var catalog Catalog
 
-	urls := []string{fmt.Sprintf("installtesting.datad0g.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))}
+	urls := []string{"installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")}
 	var prodTags []string
 	err := retry.Do(func() error {
 		var err error
@@ -277,7 +277,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 		return nil, err
 	}
 	for _, tag := range prodTags {
-		urls = append(urls, fmt.Sprintf("install.datadoghq.com/agent-package:%s", tag))
+		urls = append(urls, "install.datadoghq.com/agent-package:"+tag)
 	}
 	for _, url := range urls {
 		var version string
@@ -303,7 +303,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 		catalog.packages = append(catalog.packages, catalogEntry{
 			Package: "datadog-agent",
 			Version: version,
-			URL:     fmt.Sprintf("oci://%s", url),
+			URL:     "oci://" + url,
 			branch:  branch,
 		})
 	}
@@ -351,7 +351,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	case e2eos.LinuxFamily:
 		sanitizeCharacter = `\"`
 		baseCommand = "sudo datadog-installer daemon"
-		_, err := b.host.RemoteHost.Execute(fmt.Sprintf("%s --help", baseCommand))
+		_, err := b.host.RemoteHost.Execute(baseCommand + " --help")
 		if err != nil {
 			if !strings.Contains(err.Error(), "unknown command") {
 				return "", err
@@ -366,7 +366,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	}
 
 	err := retry.Do(func() error {
-		_, err := b.host.RemoteHost.Execute(fmt.Sprintf("%s rc-status", baseCommand))
+		_, err := b.host.RemoteHost.Execute(baseCommand + " rc-status")
 		return err
 	})
 	if err != nil {
@@ -413,7 +413,7 @@ func (b *Backend) getDaemonPID() (int, error) {
 		return 0, err
 	}
 	if pid == "0" {
-		return 0, fmt.Errorf("daemon PID is 0")
+		return 0, errors.New("daemon PID is 0")
 	}
 	return strconv.Atoi(pid)
 }

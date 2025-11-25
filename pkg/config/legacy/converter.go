@@ -244,7 +244,7 @@ func extractTraceAgentConfig(agentConfig Config, converter *ConfigConverter) err
 
 func isAffirmative(value string) (bool, error) {
 	if value == "" {
-		return false, fmt.Errorf("value is empty")
+		return false, errors.New("value is empty")
 	}
 
 	v := strings.ToLower(value)
@@ -256,7 +256,7 @@ func extractURLAPIKeys(agentConfig Config, converter *ConfigConverter) error {
 	keys := strings.Split(agentConfig["api_key"], ",")
 
 	if len(urls) != len(keys) {
-		return fmt.Errorf("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
+		return errors.New("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
 	}
 
 	if urls[0] != "https://app.datadoghq.com" {
@@ -275,7 +275,7 @@ func extractURLAPIKeys(agentConfig Config, converter *ConfigConverter) error {
 	additionalEndpoints := map[string][]string{}
 	for idx, url := range urls {
 		if url == "" || keys[idx] == "" {
-			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
+			return errors.New("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
 		keys[idx] = configUtils.SanitizeAPIKey(keys[idx])
 		additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])

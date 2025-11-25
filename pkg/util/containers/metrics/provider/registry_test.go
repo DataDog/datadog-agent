@@ -57,7 +57,7 @@ func TestCollectorRegistry(t *testing.T) {
 			Constructor: func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error) {
 				if dummy3Retries < 2 {
 					dummy3Retries++
-					return CollectorMetadata{}, fmt.Errorf("not yet okay")
+					return CollectorMetadata{}, errors.New("not yet okay")
 				}
 
 				collector := dummyCollector{

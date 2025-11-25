@@ -489,7 +489,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 		{
 			name: "Error retrieving image metadata",
 			mockGetContainerImg: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
-				return nil, fmt.Errorf("failed to retrieve image metadata")
+				return nil, errors.New("failed to retrieve image metadata")
 			},
 			container: &v1.Container{
 				Id:           "container1",

@@ -143,7 +143,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=9"),
+			expectedError:  errors.New("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=9"),
 			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
@@ -167,7 +167,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHCInOctets` metric, skipping this row. fullIndex=9"),
+			expectedError:  errors.New("bandwidth usage: missing `ifHCInOctets` metric, skipping this row. fullIndex=9"),
 			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
@@ -191,7 +191,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHCOutOctets` metric, skipping this row. fullIndex=9"),
+			expectedError:  errors.New("bandwidth usage: missing `ifHCOutOctets` metric, skipping this row. fullIndex=9"),
 		},
 		{
 			name:      "missing ifHCInOctets value",
@@ -220,7 +220,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("bandwidth usage: missing value for `ifHCInOctets` metric, skipping this row. fullIndex=9"),
+			expectedError:  errors.New("bandwidth usage: missing value for `ifHCInOctets` metric, skipping this row. fullIndex=9"),
 		},
 		{
 			name:      "missing ifHighSpeed value",
@@ -249,7 +249,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=9"),
+			expectedError:  errors.New("bandwidth usage: missing value for `ifHighSpeed`, skipping this row. fullIndex=9"),
 		},
 		{
 			name:      "cannot convert ifHighSpeed to float",
@@ -278,7 +278,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
+			expectedError:  errors.New("failed to convert ifHighSpeedValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
 		},
 		{
 			name:      "cannot convert ifHCInOctets to float",
@@ -307,7 +307,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{},
-			expectedError:  fmt.Errorf("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
+			expectedError:  errors.New("failed to convert octetsValue to float64: failed to parse `abc`: strconv.ParseFloat: parsing \"abc\": invalid syntax"),
 		},
 		{
 			name: "[custom speed] snmp.ifBandwidthIn/OutUsage.rate with custom interface speed matched by name",

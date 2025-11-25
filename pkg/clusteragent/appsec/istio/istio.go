@@ -88,7 +88,7 @@ func (i *istioInjectionPattern) Added(ctx context.Context, obj *unstructured.Uns
 	controllerName, found, err := unstructured.NestedString(obj.UnstructuredContent(), "spec", "controllerName")
 	if err != nil || !found {
 		if err == nil {
-			err = fmt.Errorf("controllerName not found in gateway spec")
+			err = errors.New("controllerName not found in gateway spec")
 		}
 		return fmt.Errorf("could not get gateway controller name: %w", err)
 	}
@@ -123,7 +123,7 @@ func (i *istioInjectionPattern) Deleted(ctx context.Context, obj *unstructured.U
 	controllerName, found, err := unstructured.NestedString(obj.UnstructuredContent(), "spec", "controllerName")
 	if err != nil || !found {
 		if err == nil {
-			err = fmt.Errorf("controllerName not found in gateway spec")
+			err = errors.New("controllerName not found in gateway spec")
 		}
 		return fmt.Errorf("could not get gateway controller name: %w", err)
 	}

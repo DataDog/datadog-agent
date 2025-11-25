@@ -32,7 +32,7 @@ func GetBool(v interface{}) (bool, error) {
 	}
 	b, ok := v.(bool)
 	if !ok {
-		return false, fmt.Errorf("GetBool: bad parameter value provided")
+		return false, errors.New("GetBool: bad parameter value provided")
 	}
 	return b, nil
 }

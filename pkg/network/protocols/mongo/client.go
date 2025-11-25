@@ -41,7 +41,7 @@ type Client struct {
 
 // NewClient creates a new mongo client
 func NewClient(opts Options) (*Client, error) {
-	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", opts.ServerAddress))
+	clientOptions := options.Client().ApplyURI("mongodb://" + opts.ServerAddress)
 	if opts.Username == "" {
 		opts.Username = User
 	}

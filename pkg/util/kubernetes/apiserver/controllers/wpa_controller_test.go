@@ -555,7 +555,7 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 			caseName:    "obj corrupted",
 			obj:         map[string]interface{}{},
 			expectedWpa: nil,
-			error:       fmt.Errorf("could not cast Unstructured object: map[]"),
+			error:       errors.New("could not cast Unstructured object: map[]"),
 		},
 		{
 			caseName: "All good",
@@ -601,7 +601,7 @@ func TestWPACRDCheck(t *testing.T) {
 		Group:    "datadoghq.com",
 		Resource: "watermarkpodautoscalers",
 	}, "")
-	nonRetryableError := fmt.Errorf("unexpectedError")
+	nonRetryableError := errors.New("unexpectedError")
 	testCases := []struct {
 		caseName      string
 		checkError    error

@@ -357,7 +357,7 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
-						Name:  fmt.Sprintf("clock.throttle_reasons.%s", reasonName),
+						Name:  "clock.throttle_reasons." + reasonName,
 						Value: value,
 						Type:  metrics.GaugeType,
 					})

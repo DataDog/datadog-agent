@@ -104,7 +104,7 @@ func (s *StringInterner) mapKeys() (keys []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for k := range s.valMap {
-		keys = append(keys, fmt.Sprint(k))
+		keys = append(keys, k)
 	}
 	return keys
 }

@@ -97,7 +97,7 @@ func TestFlareProviderOutputDisabled(t *testing.T) {
 func TestFlareProviderOutputFailed(t *testing.T) {
 	f := newFixtureWithData(t, true, []software.Entry{{DisplayName: "TestApp"}})
 	f.sysProbeClient = &mockSysProbeClient{}
-	f.sysProbeClient.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, fmt.Errorf("error"))
+	f.sysProbeClient.On("GetCheck", sysconfig.SoftwareInventoryModule).Return(nil, errors.New("error"))
 	is := f.sut()
 
 	flareProvider := is.FlareProvider()

@@ -374,7 +374,7 @@ func TestParseCustomConfigurationAnnotation(t *testing.T) {
 				CustomRecommenderAnnotationKey: "{\"endpoint: \"localhost:8080/test\",}",
 			},
 			expected: nil,
-			err:      fmt.Errorf("Failed to parse annotations for custom recommender configuration: invalid character 'l' after object key"),
+			err:      errors.New("Failed to parse annotations for custom recommender configuration: invalid character 'l' after object key"),
 		},
 	}
 
