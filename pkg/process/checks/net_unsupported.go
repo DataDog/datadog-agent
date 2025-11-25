@@ -9,7 +9,7 @@ package checks
 
 import (
 	"errors"
-	"http"
+	"net/http"
 )
 
 // getNetworkID fetches network_id
