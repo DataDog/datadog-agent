@@ -47,12 +47,12 @@ func buildStringTable(v05Strings []string) (*StringTable, uint32) {
 // For details, see the documentation for endpoint v0.5 in pkg/trace/api/version.go
 func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 	var err error
-	if _, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
+	if _, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes); err != nil {
 		return err
 	}
 	// read dictionary
 	var sz uint32
-	if sz, bts, err = msgp.ReadArrayHeaderBytes(bts); err != nil {
+	if sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes); err != nil {
 		return err
 	}
 	dict := make([]string, sz)
@@ -67,7 +67,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 	stringTable, newZeroRef := buildStringTable(dict)
 	tp.Strings = stringTable
 	// read num chunks
-	sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 	}
 	chunkConvertedFields := ChunkConvertedFields{}
 	for i := range tp.Chunks {
-		sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
+		sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 		if err != nil {
 			return err
 		}
@@ -132,7 +132,7 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		sz  uint32
 		err error
 	)
-	sz, bts, err = msgp.ReadArrayHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
 	if err != nil {
 		return bts, err
 	}
@@ -191,7 +191,7 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		return bts, err
 	}
 	// Meta (9)
-	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		return bts, err
 	}
@@ -217,7 +217,7 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		}
 	}
 	// Metrics (10)
-	sz, bts, err = msgp.ReadMapHeaderBytes(bts)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
 	if err != nil {
 		return bts, err
 	}
@@ -251,4 +251,18 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		return bts, err
 	}
 	return bts, nil
+}
+
+// safeReadHeaderBytes wraps msgp header readers (typically ReadArrayHeaderBytes and ReadMapHeaderBytes).
+// It enforces the dictionary max size of 25MB and protects the caller from making unbounded allocations through `make(any, sz)`.
+func safeReadHeaderBytes(b []byte, read func([]byte) (uint32, []byte, error)) (uint32, []byte, error) {
+	sz, bts, err := read(b)
+	if err != nil {
+		return 0, nil, err
+	}
+	if sz > 25*1e6 {
+		// Dictionary can't be larger than 25 MB
+		return 0, nil, errors.New("too long payload")
+	}
+	return sz, bts, err
 }
