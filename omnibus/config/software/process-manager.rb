@@ -38,6 +38,11 @@ build do
     copy 'process_manager/examples/datadog-agent.yaml', "#{etc_dir}/processes.d/datadog-agent.yaml"
     copy 'process_manager/examples/datadog-agent-trace.yaml', "#{etc_dir}/processes.d/datadog-agent-trace.yaml"
     copy 'process_manager/examples/datadog-agent-trace.socket.yaml', "#{etc_dir}/processes.d/datadog-agent-trace.socket.yaml"
+
+    # Register files outside install_dir for inclusion in the package
+    project.extra_package_file "#{etc_dir}/processes.d/datadog-agent.yaml"
+    project.extra_package_file "#{etc_dir}/processes.d/datadog-agent-trace.yaml"
+    project.extra_package_file "#{etc_dir}/processes.d/datadog-agent-trace.socket.yaml"
   end
 end
 
