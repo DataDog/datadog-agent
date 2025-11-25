@@ -15,10 +15,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 const (
 	tcpCloseEventStreamName = "tcp_close"
+
+	// TCP connection close event maps
+	tcpCloseBatchStateMap  = "tcp_close_batch_state"
+	tcpCloseBatchEventsMap = "tcp_close_batch_events"
+	tcpCloseBatchesMap     = "tcp_close_batches"
+
+	// TCP connection close event flush probes
+	tcpCloseNetifProbe414 = "netif_receive_skb_core_tcp_close_4_14"
+	tcpCloseNetifProbe    = "tracepoint__net__netif_receive_skb_tcp_close"
 )
 
 // ConnectionCloseCallback is the function signature for connection close event handlers
@@ -151,6 +162,54 @@ func (m *ConnectionTerminationManager) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"registered_callbacks": len(m.callbacks),
 	}
+}
+
+// GetMaps returns the eBPF maps required by the connection termination manager
+func (m *ConnectionTerminationManager) GetMaps() []*manager.Map {
+	return []*manager.Map{
+		{Name: tcpCloseBatchStateMap},
+		{Name: tcpCloseBatchEventsMap},
+		{Name: tcpCloseBatchesMap},
+	}
+}
+
+// GetProbes returns the eBPF probes required by the connection termination manager
+func (m *ConnectionTerminationManager) GetProbes() []*manager.Probe {
+	return []*manager.Probe{
+		{
+			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tcpCloseNetifProbe414,
+				UID:          tcpCloseEventStreamName,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tcpCloseNetifProbe,
+				UID:          tcpCloseEventStreamName,
+			},
+		},
+	}
+}
+
+// ConfigureOptions configures the manager options for the connection termination manager
+// This should be called during eBPF program initialization
+func (m *ConnectionTerminationManager) ConfigureOptions(opts *manager.Options) {
+	// Determine which netif probe to activate based on kernel version
+	tcpCloseNetifProbeID := manager.ProbeIdentificationPair{
+		EBPFFuncName: tcpCloseNetifProbe,
+		UID:          tcpCloseEventStreamName,
+	}
+	if usmconfig.ShouldUseNetifReceiveSKBCoreKprobe() {
+		tcpCloseNetifProbeID.EBPFFuncName = tcpCloseNetifProbe414
+	}
+	opts.ActivatedProbes = append(opts.ActivatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: tcpCloseNetifProbeID})
+
+	// Configure the event stream (perf/ring buffers)
+	events.Configure(m.cfg, tcpCloseEventStreamName, m.mgr, opts)
+
+	// Enable tcp_close monitoring in eBPF
+	utils.EnableOption(opts, "tcp_close_monitoring_enabled")
 }
 
 // Helper filter functions for common use cases
