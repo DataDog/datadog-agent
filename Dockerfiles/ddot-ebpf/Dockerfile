@@ -27,8 +27,7 @@ COPY host-profiler* /workspace
 RUN \
         mkdir -p /workspace/datadog-agent/bin/full-host-profiler/dist && \
         cp /workspace/full-host-profiler /workspace/datadog-agent/bin/full-host-profiler/ && \
-        cp /workspace/host-profiler-config.yaml /workspace/datadog-agent/bin/full-host-profiler/dist/host-profiler-config.yaml; \
-    fi
+        cp /workspace/host-profiler-config.yaml /workspace/datadog-agent/bin/full-host-profiler/dist/host-profiler-config.yaml
 
 # ------------------------------
 # Inject the full host profiler in the base image
