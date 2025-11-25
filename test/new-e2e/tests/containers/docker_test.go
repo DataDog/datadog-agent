@@ -11,10 +11,10 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
 )
 
 type DockerSuite struct {

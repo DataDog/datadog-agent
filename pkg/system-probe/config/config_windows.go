@@ -54,5 +54,10 @@ func RedisMonitoringSupported() bool {
 	return false
 }
 
+// HTTP2MonitoringSupported returns false on windows as eBPF is not supported
+func HTTP2MonitoringSupported() bool {
+	return false
+}
+
 func allowPrebuiltEbpfFallback(_ model.Config) {
 }
