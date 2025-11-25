@@ -27,5 +27,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		usmCmd.AddCommand(sysinfoCmd)
 	}
 
+	// Add check-maps command if available on this platform
+	if checkMapsCmd := makeCheckMapsCommand(globalParams); checkMapsCmd != nil {
+		usmCmd.AddCommand(checkMapsCmd)
+	}
+
 	return []*cobra.Command{usmCmd}
 }
