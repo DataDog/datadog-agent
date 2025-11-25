@@ -23,6 +23,9 @@ def is_enabled(ctx: Context, feature: str, verbose: bool = False) -> bool:
         enabled = False
 
     if enabled or verbose:
-        print(f'[{color_message('Feature', Color.BLUE)}] {color_message(feature, Color.BOLD)} is {color_message("enabled", Color.GREEN) if enabled else color_message("disabled", Color.RED)}', file=sys.stderr)
+        print(
+            f'[{color_message('Feature', Color.BLUE)}] {color_message(feature, Color.BOLD)} is {color_message("enabled", Color.GREEN) if enabled else color_message("disabled", Color.RED)}',
+            file=sys.stderr,
+        )
 
     return enabled
