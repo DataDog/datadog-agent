@@ -404,6 +404,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
+
+	cfg.BindEnvAndSetDefault(join(netNS, "direct_send"), false)
 }
 
 func join(pieces ...string) string {

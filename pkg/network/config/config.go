@@ -206,6 +206,10 @@ type Config struct {
 
 	// CertCollectionMapCleanerInterval is the interval between eBPF map cleaning for TLS cert collection
 	CertCollectionMapCleanerInterval time.Duration
+
+	// DirectSend controls whether we send payloads directly from system-probe or they are queried from process-agent.
+	// Not supported on Windows
+	DirectSend bool
 }
 
 // New creates a config for the network tracer
@@ -287,6 +291,8 @@ func New() *Config {
 
 		EnableCertCollection:             cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
 		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
+
+		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
 	}
 
 	if !c.CollectTCPv4Conns {
