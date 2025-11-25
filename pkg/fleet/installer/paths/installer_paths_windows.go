@@ -326,6 +326,14 @@ func createDirectoryWithSDDL(path string, sddl string) error {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
+	// CreateDirectory creates the directory with the Owner,Group,DACL,
+	// but does not apply the AI (SeDaclAutoInherit) flag, so we reapply the SDDL
+	// here to ensure the AI flag is set.
+	err = setNamedSecurityInfoFromSecurityDescriptor(path, sd)
+	if err != nil {
+		return fmt.Errorf("failed to set named security info: %w", err)
+	}
+
 	return nil
 }
 

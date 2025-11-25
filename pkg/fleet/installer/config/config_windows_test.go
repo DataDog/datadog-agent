@@ -205,8 +205,7 @@ func TestSecureCreateTargetDirectoryWithSourcePermissions(t *testing.T) {
 	sourcePath := filepath.Join(t.TempDir(), "source")
 	targetPath := filepath.Join(t.TempDir(), "target")
 	// Set the source path to a directory with known SDDL
-	// TODO: We want to have the AI flag here, but there might be a bug in CreateDirectory winapi, need to check.
-	sddl := "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;FA;;;WD)"
+	sddl := "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;FA;;;WD)"
 	assert.NoError(t, paths.SecureCreateDirectory(sourcePath, sddl))
 
 	// Create the target directory with the same permissions as the source directory

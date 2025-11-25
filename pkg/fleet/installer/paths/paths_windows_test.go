@@ -33,6 +33,10 @@ func TestSecureCreateDirectory(t *testing.T) {
 		sd, err := getSecurityDescriptor(subdir)
 		require.NoError(t, err)
 		assertDACLProtected(t, sd)
+		assertDACLAutoInherit(t, sd)
+		sd, err = windows.GetNamedSecurityInfo(subdir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+		require.NoError(t, err)
+		assert.Equal(t, sddl, sd.String())
 	})
 
 	t.Run("directory exists", func(t *testing.T) {
@@ -63,6 +67,7 @@ func TestSecureCreateDirectory(t *testing.T) {
 			sd, err := getSecurityDescriptor(subdir)
 			require.NoError(t, err)
 			assertDACLProtected(t, sd)
+			assert.Equal(t, sddl, sd.String())
 		})
 	})
 }
@@ -89,11 +94,20 @@ func getSecurityDescriptor(path string) (*windows.SECURITY_DESCRIPTOR, error) {
 	return windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 }
 
+// assertDACLProtected asserts that the DACL is protected, which ensure it does not inherit ACEs from parents
 func assertDACLProtected(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
 	t.Helper()
 	control, _, err := sd.Control()
 	require.NoError(t, err)
 	assert.NotZero(t, control&windows.SE_DACL_PROTECTED)
+}
+
+// assertDACLAutoInherit asserts that the DACL is auto inherited, which ensures it propagates ACEs to children
+func assertDACLAutoInherit(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
+	t.Helper()
+	control, _, err := sd.Control()
+	require.NoError(t, err)
+	assert.NotZero(t, control&windows.SE_DACL_AUTO_INHERITED)
 }
 
 func TestCreateDirIfNotExists(t *testing.T) {

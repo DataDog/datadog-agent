@@ -130,7 +130,9 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return nil
 	}
 	// target path must already exist, caller must ensure it has the correct permissions.
-	// this function is reused for the restore operation, too, so this is just a safety to ensure
+	// We must not allow robocopy to create the target directory, as it may not safely create the directory,
+	// see paths.SecureCreateDirectory for more details.
+	// This function is reused for the restore operation, too, so this is also a safety to ensure
 	// we don't modify the original directory.
 	if _, err := os.Stat(targetPath); err != nil {
 		return fmt.Errorf("failed to open target directory: %w", err)
