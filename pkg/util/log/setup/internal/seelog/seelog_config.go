@@ -42,10 +42,12 @@ type Config struct {
 	loggerName            string
 	format                string
 	syslogRFC             bool
-	jsonFormat            string
-	jsonFormatter         func(ctx context.Context, r stdslog.Record) string
-	commonFormat          string
-	commonFormatter       func(ctx context.Context, r stdslog.Record) string
+	// seelog format strings
+	jsonFormat   string
+	commonFormat string
+	// slog formatters, should produce the same output as the seelog format strings
+	jsonFormatter   func(ctx context.Context, r stdslog.Record) string
+	commonFormatter func(ctx context.Context, r stdslog.Record) string
 }
 
 const seelogConfigurationTemplate = `
@@ -98,13 +100,20 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		return nil, errors.New("no logging configuration provided")
 	}
 
+	// the logger:
+	// - writes to stdout if consoleLoggingEnabled is true
+	// - writes to the logfile if logfile is not empty
+	// - writes to syslog if syslogURI is not empty
+
 	var closeFuncs []func()
 
+	// console writer
 	var writers []io.Writer
 	if c.consoleLoggingEnabled {
 		writers = append(writers, os.Stdout)
 	}
 
+	// file writer
 	if c.logfile != "" {
 		fw, err := filewriter.NewRollingFileWriterSize(c.logfile, int64(c.maxsize), int(c.maxrolls), filewriter.RollingNameModePostfix)
 		if err != nil {
@@ -114,6 +123,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		closeFuncs = append(closeFuncs, func() { fw.Close() })
 	}
 
+	// main formatter using the writers
 	var handlerList []stdslog.Handler
 	if len(writers) > 0 {
 		formatter := c.commonFormatter
@@ -123,6 +133,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		handlerList = append(handlerList, handlers.NewFormat(formatter, io.MultiWriter(writers...)))
 	}
 
+	// syslog handler (formatter + writer)
 	if c.syslogURI != "" {
 		syslogReceiver := syslog.Receiver{}
 		err := syslogReceiver.AfterParse(seelog.CustomReceiverInitArgs{
@@ -141,6 +152,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		closeFuncs = append(closeFuncs, func() { syslogReceiver.Close() })
 	}
 
+	// level handler -> async handler -> multi handler
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
 	closeFuncs = append(closeFuncs, asyncHandler.Close)
@@ -162,6 +174,10 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 	return logger, nil
 }
 
+// commonSyslogFormatter formats the syslog message in the common format
+//
+// It is equivalent to the seelog format string
+// %CustomSyslogHeader(20,<syslog-rfc>) <logger-name> | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n
 func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) string {
 	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
 	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
@@ -175,6 +191,10 @@ func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) stri
 	return fmt.Sprintf("%s %s | %s | (%s:%d in %s) | %s%s\n", syslogHeader, c.loggerName, level, shortFilePath, frame.Line, funcShort, extraContext, r.Message)
 }
 
+// jsonSyslogFormatter formats the syslog message in the JSON format
+//
+// It is equivalent to the seelog format string
+// %CustomSyslogHeader(20,<syslog-rfc>) {"agent":"<lowercase-logger-name>","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n
 func (c *Config) jsonSyslogFormatter(_ context.Context, r stdslog.Record) string {
 	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
 	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
