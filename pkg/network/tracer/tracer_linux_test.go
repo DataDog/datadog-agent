@@ -3275,6 +3275,9 @@ func (s *TracerSuite) TestTLSCertParsing() {
 func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	t := s.T()
 	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("skipping retransmit sync test on prebuilt")
+	}
 	// We need eBPF to test this kernel-side fix
 	skipOnEbpflessNotSupported(t, cfg)
 
