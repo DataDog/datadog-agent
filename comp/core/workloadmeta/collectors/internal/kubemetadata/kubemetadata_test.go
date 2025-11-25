@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -429,9 +430,11 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 	// Cache never expires because the unit tests below are not covering the case
 	// of cache miss. They are only testing parsePods behaves correctly depending
 	// on the cluster agent version and the agent configuration.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Cache is disabled by default. Enable it.
 	cache.Cache.Set("KubeletPodListCacheKey", podsCache, -1)
 
-	kubeUtilFake := &kubelet.KubeUtil{}
+	kubeUtilFake := kubelet.NewKubeUtil()
 
 	type fields struct {
 		kubeUtil                    *kubelet.KubeUtil

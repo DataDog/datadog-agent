@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/pathutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -35,7 +34,7 @@ type Resolver struct {
 	sync.RWMutex
 	processes    map[Pid]*model.ProcessCacheEntry
 	opts         ResolverOpts
-	scrubber     *utils.Scrubber
+	scrubber     *procutil.DataScrubber
 	statsdClient statsd.ClientInterface
 
 	// stats
@@ -47,7 +46,8 @@ type Resolver struct {
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, opts ResolverOpts) (*Resolver, error) {
+func NewResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts ResolverOpts) (*Resolver, error) {
+
 	p := &Resolver{
 		processes:    make(map[Pid]*model.ProcessCacheEntry),
 		opts:         opts,
@@ -195,7 +195,7 @@ func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
 
 	if p.scrubber != nil && len(pr.CmdLine) > 0 {
 		// replace with the scrubbed version
-		scrubbed := p.scrubber.ScrubCommand([]string{pr.CmdLine})
+		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
 		if len(scrubbed) > 0 {
 			pr.CmdLineScrubbed = strings.Join(scrubbed, " ")
 		}
