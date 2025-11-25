@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -36,10 +37,10 @@ type dependencies struct {
 	Logger                log.Component
 	ConnectionsForwarders connectionsforwarder.Component
 	Lc                    compdef.Lifecycle
+	Secrets               secrets.Component
 }
 
 type forwardersComp struct {
-	eventForwarder       defaultforwarder.Component
 	processForwarder     defaultforwarder.Component
 	rtProcessForwarder   defaultforwarder.Component
 	connectionsForwarder connectionsforwarder.Component
@@ -53,16 +54,6 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
 	}
 
-	eventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
-	if err != nil {
-		return nil, err
-	}
-
-	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
-	if err != nil {
-		return nil, err
-	}
-
 	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
 	if err != nil {
 		return nil, err
@@ -74,7 +65,6 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	}
 
 	return &forwardersComp{
-		eventForwarder:       createForwarder(deps, eventForwarderOpts),
 		processForwarder:     createForwarder(deps, processForwarderOpts),
 		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
 		connectionsForwarder: deps.ConnectionsForwarders,
@@ -82,6 +72,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 }
 
 func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
+	options.Secrets = deps.Secrets
 	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
 }
 
@@ -94,10 +85,6 @@ func createParams(config config.Component, log log.Component, queueBytes int, en
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes // Allow more in-flight requests than the default
 	return forwarderOpts, nil
-}
-
-func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {
-	return f.eventForwarder
 }
 
 func (f *forwardersComp) GetProcessForwarder() defaultforwarder.Component {

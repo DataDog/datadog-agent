@@ -241,7 +241,6 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	modCfg.LogUploaderURL = ts.backendServer.URL + "/logs"
 	modCfg.DiagsUploaderURL = ts.backendServer.URL + "/diags"
 	modCfg.SymDBUploaderURL = ts.symdbURL
-	modCfg.ProcessSyncDisabled = true
 
 	started := make(chan struct{})
 	symdbProcStates := make(map[process.ID]bool)
@@ -888,7 +887,6 @@ func TestWaitOnTombstone(t *testing.T) {
 
 	modCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
-	modCfg.ProcessSyncDisabled = true
 
 	started := make(chan struct{})
 	modCfg.TestingKnobs.ProcessSubscriberOverride = func(
