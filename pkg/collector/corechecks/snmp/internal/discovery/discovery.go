@@ -275,7 +275,7 @@ func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 	} else {
 		d.scanManager.RequestScan(snmpscanmanager.ScanRequest{
 			DeviceIP: deviceIP,
-		})
+		}, false)
 	}
 }
 

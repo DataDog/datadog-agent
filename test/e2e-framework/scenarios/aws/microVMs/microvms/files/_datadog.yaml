@@ -1,0 +1,7 @@
+use_dogstatsd: true
+dogstatsd_port: 8125
+process_config:
+  process_collection:
+    enabled: true
+telemetry:
+  enabled: true

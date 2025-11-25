@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "message": "some text"
+    },
+    {
+      "message": "c29tZSB0ZXh0",
+      "encoded": true
+    },
+    {
+      "message": "some text",
+      "output": "stderr"
+    }
+  ]
+}
