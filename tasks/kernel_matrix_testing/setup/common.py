@@ -128,11 +128,9 @@ class PulumiPlugin(Requirement):
     dependencies: list[type[Requirement]] = [Pulumi, TestInfraDefinitionsRepo]
 
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        test_infra_repo = TestInfraDefinitionsRepo.get_repo_path()
-        if test_infra_repo is None:
-            return RequirementState(Status.FAIL, "test-infra-definitions repository not found.")
+        test_infra_repo_run = os.path.join(TestInfraDefinitionsRepo.get_repo_path(), "run")
 
-        with ctx.cd(test_infra_repo):
+        with ctx.cd(test_infra_repo_run):
             res = ctx.run("pulumi --non-interactive plugin ls", warn=True)
             # If there are more than 3 lines, then there are plugins installed. The other lines are headers/footers.
             if res is not None and res.ok and len(res.stdout.splitlines()) > 3:
