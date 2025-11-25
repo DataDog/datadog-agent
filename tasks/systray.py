@@ -13,7 +13,7 @@ from tasks.libs.releasing.version import get_version_numeric_only
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
-AGENT_TAG = "datadog/agent:master"
+AGENT_TAG = "registry.datad0g.com/agent:master"
 
 
 @task

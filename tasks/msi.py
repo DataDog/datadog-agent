@@ -31,7 +31,7 @@ except ImportError:
 
 # constants
 OUTPUT_PATH = os.path.join(os.getcwd(), "omnibus", "pkg")
-AGENT_TAG = "datadog/agent:master"
+AGENT_TAG = "registry.datad0g.com/agent:master"
 SOURCE_ROOT_DIR = os.path.join(os.getcwd(), "tools", "windows", "DatadogAgentInstaller")
 BUILD_ROOT_DIR = os.path.join('C:\\', "dev", "msi", "DatadogAgentInstaller")
 BUILD_SOURCE_DIR = os.path.join(BUILD_ROOT_DIR, "src")

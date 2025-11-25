@@ -44,7 +44,7 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 # constants
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
-AGENT_TAG = "datadog/agent:master"
+AGENT_TAG = "registry.datad0g.com/agent:master"
 
 if sys.platform == "win32":
     # Our `ridk enable` toolchain puts Ruby's bin dir at the front of the PATH
@@ -473,7 +473,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
+        tags = requests.get("https://registry.datad0g.com/v2/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -482,7 +482,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+        base_image = f"registry.datad0g.com/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:

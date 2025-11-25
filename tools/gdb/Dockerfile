@@ -1,5 +1,5 @@
 ARG AGENT_VERSION=7
-FROM datadog/agent:${AGENT_VERSION}
+FROM registry.datad0g.com/agent:${AGENT_VERSION}
 
 RUN apt-get update
 RUN rm -vf /etc/ssl/openssl.cnf

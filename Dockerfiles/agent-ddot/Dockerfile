@@ -1,5 +1,5 @@
 ARG BASE_IMAGE_DD_VERSION=latest
-FROM gcr.io/datadoghq/agent:$BASE_IMAGE_DD_VERSION AS baseimage
+FROM registry.datad0g.com/agent:$BASE_IMAGE_DD_VERSION AS baseimage
 
 FROM baseimage
 

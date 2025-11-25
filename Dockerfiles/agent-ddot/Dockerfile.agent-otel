@@ -1,4 +1,4 @@
-ARG AGENT_REPO=datadog/agent-dev
+ARG AGENT_REPO=registry.datad0g.com/agent-dev
 ARG AGENT_VERSION=nightly-full-main-jmx
 ARG AGENT_BRANCH=main
 ARG UBUNTU_VERSION=24.04

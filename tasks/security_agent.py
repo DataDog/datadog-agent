@@ -127,13 +127,15 @@ def render_config(ctx, env, skip_assets=False):
 
 
 @task
-def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
+def build_dev_image(
+    ctx, image=None, push=False, base_image="registry.datad0g.com/agent:latest", include_agent_binary=False
+):
     """
     Build a dev image of the security-agent based off an existing datadog-agent image
 
     image: the image name used to tag the image
     push: if true, run a docker push on the image
-    base_image: base the docker image off this already build image (default: datadog/agent:latest)
+    base_image: base the docker image off this already build image (default: registry.datad0g.com/agent:latest)
     include_agent_binary: if true, use the agent binary in bin/agent/agent as opposite to the base image's binary
     """
     if image is None:
