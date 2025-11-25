@@ -695,7 +695,8 @@ def t(ctx):
     appkey = base64.b64decode(appkey).decode('ascii')
 
     auth = Auth.AppAuth(appid, appkey).get_installation_auth(installid)
-    Github(auth=auth)
+    g = Github(auth=auth)
+    repo = g.get_repo("DataDog/datadog-agent")
 
     new_branch = 'celian/test-github-create-commit'
     ctx.run(f"git checkout -b {new_branch}", hide=True)
@@ -709,4 +710,12 @@ def t(ctx):
     ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
     ctx.run("git add hello.md", hide=True)
     ctx.run("git commit -m 'Init push'", hide=True)
-    ctx.run(f"git push origin {new_branch}")
+    ctx.run(f"git push origin {new_branch} --force")
+
+    pr = repo.create_pull(
+        title='[test] Celian test PR',
+        body='Please ignore me, beep bop I\'m a bot',
+        head=new_branch,
+        base="main"
+    )
+    print(f'Created PR #{pr.number}: {pr.html_url}')
