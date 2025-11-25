@@ -557,17 +557,32 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	return finalConfig, nil
 }
 
-// allowlistPaths restricts what config settings may be updated. Any secrets linked to a settings containing any of the
-// following strings will be refreshed.
+// This section restricts which secrets will trigger a notification when refreshed. We want to notify for secret in all
+// integrations but only for a subset in Agent configuration files (datadog.yaml, system-probe.yaml or
+// security-agent.yaml).
+// The reason being that we can restart an integration as a whole while we can't restart part of the Agent. This means
+// that the code base need to react to any change from the Agent configuration. Right now, only API and APP key refresh
+// is supported. So we only notify when a secret from Agent configuration is linked to an API or APP key (we want to
+// keep the in memory configuration in sync with the code).
 //
-// For example, allowing "additional_endpoints" will trigger notifications for:
-//   - "additional_endpoints"
-//   - "logs_config.additional_endpoints"
-//   - "logs_config.additional_endpoints.url"
-//   - ...
-//
-// NOTE: Related feature to `authorizedConfigPathsCore` in `comp/api/api/def/component.go`
+// To be noted: we send one notification per secret+origin unique pair.
 var (
+	// A list of origin for which we check the allowlistPaths. Any origin different from the following list will
+	// create notifications.
+	allowListOrigin = []string{
+		"datadog.yaml",
+		"system-probe.yaml",
+	}
+	// allowlistPaths restricts what config settings may be updated. Any secrets linked to a settings containing any of the
+	// following strings will be refreshed.
+	//
+	// For example, allowing "additional_endpoints" will trigger notifications for:
+	//   - "additional_endpoints"
+	//   - "logs_config.additional_endpoints"
+	//   - "logs_config.additional_endpoints.url"
+	//   - ...
+	//
+	// NOTE: Related feature to `AuthorizedConfigPathsCore` in `comp/api/api/def/component.go`
 	allowlistPaths = []string{
 		"api_key",
 		"app_key",
@@ -578,27 +593,16 @@ var (
 		"debugger_diagnostics_additional_endpoints",
 		"symdb_additional_endpoints",
 	}
-	// tests override this to test refresh logic
-	allowlistEnabled = true
-	allowlistMutex   sync.RWMutex
 )
 
-func isAllowlistEnabled() bool {
-	allowlistMutex.RLock()
-	defer allowlistMutex.RUnlock()
-	return allowlistEnabled
-}
-
-func setAllowlistEnabled(value bool) {
-	allowlistMutex.Lock()
-	defer allowlistMutex.Unlock()
-	allowlistEnabled = value
-}
-
 func secretMatchesAllowlist(secretCtx secretContext) bool {
-	if !isAllowlistEnabled() {
+	// We allow refresh for all secrets found in integrations (ie: not datadog.yaml)
+	// We currently only resolve secrets from datadog.yaml. We still check for system-probe.yaml since at some point
+	// it will support secret too.
+	if !slices.Contains(allowListOrigin, secretCtx.origin) {
 		return true
 	}
+
 	for _, allowedKey := range allowlistPaths {
 		if slices.Contains(secretCtx.path, allowedKey) {
 			return true
@@ -610,10 +614,6 @@ func secretMatchesAllowlist(secretCtx secretContext) bool {
 // matchesAllowlist returns whether the handle is allowed, by matching all setting paths that
 // handle appears at against the allowlist
 func (r *secretResolver) matchesAllowlist(handle string) bool {
-	// if allowlist is disabled, consider every handle a match
-	if !isAllowlistEnabled() {
-		return true
-	}
 	return slices.ContainsFunc(r.origin[handle], secretMatchesAllowlist)
 }
 
@@ -631,7 +631,6 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 			continue
 		}
 
-		// if allowlist is enabled and the config setting path is not contained in it, skip it
 		if useAllowlist && !r.matchesAllowlist(handle) {
 			continue
 		}
@@ -686,15 +685,13 @@ func (r *secretResolver) performRefresh() (string, error) {
 
 	// get handles from the cache that match the allowlist
 	newHandles := maps.Keys(r.cache)
-	if isAllowlistEnabled() {
-		filteredHandles := make([]string, 0, len(newHandles))
-		for _, handle := range newHandles {
-			if r.matchesAllowlist(handle) {
-				filteredHandles = append(filteredHandles, handle)
-			}
+	filteredHandles := make([]string, 0, len(newHandles))
+	for _, handle := range newHandles {
+		if r.matchesAllowlist(handle) {
+			filteredHandles = append(filteredHandles, handle)
 		}
-		newHandles = filteredHandles
 	}
+	newHandles = filteredHandles
 	if len(newHandles) == 0 {
 		return "", nil
 	}

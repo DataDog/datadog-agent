@@ -549,13 +549,6 @@ func TestResolveCached(t *testing.T) {
 }
 
 func TestResolveThenRefresh(t *testing.T) {
-	// disable the allowlist for the test, let any secret changes happen
-	originalValue := isAllowlistEnabled()
-	setAllowlistEnabled(false)
-	defer func() {
-		setAllowlistEnabled(originalValue)
-	}()
-
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
@@ -639,7 +632,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	resolver.origin = handleToContext{
 		"handle": []secretContext{
 			{
-				origin: "test",
+				origin: "datadog.yaml",
 				path:   []string{"another", "config", "setting"},
 			},
 		},
@@ -675,6 +668,60 @@ func TestRefreshAllowlist(t *testing.T) {
 	assert.Equal(t, changes, []string{"second_value"})
 }
 
+// Check that the allowListOrigin works well
+func TestRefreshAllowlistFromContainer(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{
+		"handle1": "init_value1",
+		"handle2": "init_value2",
+	}
+	resolver.origin = handleToContext{
+		"handle1": []secretContext{
+			{
+				origin: "datadog.yaml",
+				path:   []string{"another", "config", "setting"},
+			},
+			{
+				origin: "datadog.yaml",
+				path:   []string{"something", "additional_endpoints"},
+			},
+			{
+				origin: "postgres:1234",
+				path:   []string{"db_password"},
+			},
+		},
+		"handle2": []secretContext{
+			{
+				origin: "postgres:1234",
+				path:   []string{"db_password_2"},
+			},
+		},
+	}
+
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		return map[string]string{
+			"handle1": "updated_value1",
+			"handle2": "updated_value2",
+		}, nil
+	}
+	changes := []string{}
+	resolver.SubscribeToChanges(func(handle, origin string, path []string, _, _ any) {
+		changes = append(changes, fmt.Sprintf("%s/%s/%v", handle, origin, path))
+	})
+
+	// Refresh means nothing changes because allowlist doesn't allow it
+	_, err := resolver.Refresh(true)
+	require.NoError(t, err)
+	slices.Sort(changes)
+	assert.Equal(t, changes, []string{
+		"handle1/datadog.yaml/[something additional_endpoints]",
+		"handle1/postgres:1234/[db_password]",
+		"handle2/postgres:1234/[db_password_2]",
+	})
+}
+
 // test that only setting paths that match the allowlist will get notifications
 // about changed secret values from a Refresh
 func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
@@ -689,7 +736,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// test configuration resolves, the secret appears at two setting paths
-	resolved, err := resolver.Resolve(testMultiUsageConf, "test", "", "")
+	resolved, err := resolver.Resolve(testMultiUsageConf, "datadog.yaml", "", "")
 	require.NoError(t, err)
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 
@@ -857,11 +904,6 @@ func TestStartRefreshRoutineWithScatter(t *testing.T) {
 
 			resolver := newEnabledSecretResolver(tel)
 			mockClock := resolver.clk.(*clock.Mock)
-			originalValue := isAllowlistEnabled()
-			setAllowlistEnabled(false)
-			defer func() {
-				setAllowlistEnabled(originalValue)
-			}()
 
 			resolver.refreshInterval = 10 * time.Second
 			resolver.refreshIntervalScatter = tc.scatter
@@ -956,11 +998,6 @@ func (s *alwaysZeroSource) Seed(int64) {}
 func TestScatterWithSmallRandomValue(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	originalValue := isAllowlistEnabled()
-	setAllowlistEnabled(false)
-	defer func() {
-		setAllowlistEnabled(originalValue)
-	}()
 
 	resolver.refreshInterval = 1 * time.Second
 	resolver.refreshIntervalScatter = true
