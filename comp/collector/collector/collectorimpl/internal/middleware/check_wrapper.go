@@ -7,7 +7,6 @@
 package middleware
 
 import (
-	"fmt"
 	"sync"
 	"time"
 

@@ -6,7 +6,7 @@
 package cloudservice
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
 	"testing"
 	"time"

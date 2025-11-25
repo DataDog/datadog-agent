@@ -8,9 +8,9 @@ package oidresolverimpl
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/fs"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 

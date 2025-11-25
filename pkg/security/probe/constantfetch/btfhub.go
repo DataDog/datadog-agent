@@ -11,6 +11,7 @@ package constantfetch
 import (
 	_ "embed" // for go:embed
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"

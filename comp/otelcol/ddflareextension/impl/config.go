@@ -8,7 +8,6 @@ package ddflareextensionimpl
 
 import (
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"

@@ -6,6 +6,7 @@
 package legacy
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"

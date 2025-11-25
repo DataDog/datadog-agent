@@ -7,6 +7,7 @@ package workloadmetaimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -17,7 +18,7 @@ import (
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -246,7 +247,7 @@ func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wm
 		}
 	}
 
-	return nil, errors.NewNotFound(podName)
+	return nil, pkgerrors.NewNotFound(podName)
 }
 
 // ListKubernetesPods implements Store#ListKubernetesPods
@@ -319,27 +320,27 @@ func (w *workloadmeta) GetContainerForProcess(processID string) (*wmdef.Containe
 
 	processEntities, ok := w.store[wmdef.KindProcess]
 	if !ok {
-		return nil, errors.NewNotFound(string(wmdef.KindProcess))
+		return nil, pkgerrors.NewNotFound(string(wmdef.KindProcess))
 	}
 
 	processEntity, ok := processEntities[processID]
 	if !ok {
-		return nil, errors.NewNotFound(processID)
+		return nil, pkgerrors.NewNotFound(processID)
 	}
 
 	process := processEntity.cached.(*wmdef.Process)
 	if process.Owner == nil || process.Owner.Kind != wmdef.KindContainer {
-		return nil, errors.NewNotFound(processID)
+		return nil, pkgerrors.NewNotFound(processID)
 	}
 
 	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
-		return nil, errors.NewNotFound(process.Owner.ID)
+		return nil, pkgerrors.NewNotFound(process.Owner.ID)
 	}
 
 	container, ok := containerEntities[process.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(process.Owner.ID)
+		return nil, pkgerrors.NewNotFound(process.Owner.ID)
 	}
 
 	return container.cached.(*wmdef.Container), nil
@@ -352,27 +353,27 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 
 	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	containerEntity, ok := containerEntities[containerID]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	container := containerEntity.cached.(*wmdef.Container)
 	if container.Owner == nil || container.Owner.Kind != wmdef.KindKubernetesPod {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	podEntities, ok := w.store[wmdef.KindKubernetesPod]
 	if !ok {
-		return nil, errors.NewNotFound(container.Owner.ID)
+		return nil, pkgerrors.NewNotFound(container.Owner.ID)
 	}
 
 	pod, ok := podEntities[container.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(container.Owner.ID)
+		return nil, pkgerrors.NewNotFound(container.Owner.ID)
 	}
 
 	return pod.cached.(*wmdef.KubernetesPod), nil
@@ -869,12 +870,12 @@ func (w *workloadmeta) getEntityByKind(kind wmdef.Kind, id string) (wmdef.Entity
 
 	entitiesOfKind, ok := w.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil, pkgerrors.NewNotFound(string(kind))
 	}
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {
-		return nil, errors.NewNotFound(id)
+		return nil, pkgerrors.NewNotFound(id)
 	}
 
 	return entity.cached, nil

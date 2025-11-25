@@ -7,7 +7,7 @@
 package info
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/spf13/cobra"

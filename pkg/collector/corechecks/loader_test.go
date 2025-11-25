@@ -7,7 +7,6 @@ package corechecks
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

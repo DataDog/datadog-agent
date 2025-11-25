@@ -6,7 +6,6 @@
 package sampler
 
 import (
-	"fmt"
 	"math/rand"
 	"strconv"
 	"testing"

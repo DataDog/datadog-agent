@@ -10,7 +10,7 @@ package testutil
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"net/http"

@@ -11,7 +11,6 @@
 package cuda
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"

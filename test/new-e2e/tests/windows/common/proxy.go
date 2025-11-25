@@ -6,6 +6,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"

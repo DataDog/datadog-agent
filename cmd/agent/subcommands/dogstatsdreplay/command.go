@@ -8,6 +8,7 @@ package dogstatsdreplay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"

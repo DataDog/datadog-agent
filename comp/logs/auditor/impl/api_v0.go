@@ -7,7 +7,6 @@ package auditorimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 )

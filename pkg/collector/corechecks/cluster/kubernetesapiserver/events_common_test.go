@@ -8,7 +8,6 @@
 package kubernetesapiserver
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 

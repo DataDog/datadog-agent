@@ -7,7 +7,7 @@ package inframetadata
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 

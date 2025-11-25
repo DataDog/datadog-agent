@@ -9,6 +9,7 @@ package rdnsquerierimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"

@@ -8,6 +8,7 @@
 package agentsidecar
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 

@@ -8,7 +8,6 @@
 package local
 
 import (
-	"fmt"
 	"sync"
 
 	autoscalingv2 "k8s.io/api/autoscaling/v2"

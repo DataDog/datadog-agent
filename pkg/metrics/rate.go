@@ -6,7 +6,7 @@
 package metrics
 
 import (
-	"fmt"
+	"errors"
 )
 
 // Rate tracks the rate of a metric over 2 successive flushes

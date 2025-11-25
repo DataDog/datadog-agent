@@ -6,6 +6,8 @@
 package ec2
 
 import (
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 

@@ -11,6 +11,7 @@ package storage
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"

@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"

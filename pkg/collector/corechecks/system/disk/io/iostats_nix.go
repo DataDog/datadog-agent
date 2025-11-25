@@ -8,7 +8,6 @@
 package io
 
 import (
-	"fmt"
 	"math"
 	"regexp"
 	"time"

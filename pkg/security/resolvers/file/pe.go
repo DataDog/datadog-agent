@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"debug/pe"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"os"
 	"strings"
 

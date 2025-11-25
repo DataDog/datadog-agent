@@ -8,6 +8,7 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"

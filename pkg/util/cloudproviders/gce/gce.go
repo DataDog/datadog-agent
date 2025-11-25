@@ -7,6 +7,7 @@ package gce
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"

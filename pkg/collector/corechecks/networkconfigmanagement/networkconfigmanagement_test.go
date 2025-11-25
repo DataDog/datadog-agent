@@ -9,6 +9,7 @@ package networkconfigmanagement
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"testing"

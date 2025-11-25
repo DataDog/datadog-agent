@@ -7,6 +7,7 @@ package httphelpers
 
 import (
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"

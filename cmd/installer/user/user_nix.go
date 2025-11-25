@@ -10,6 +10,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"syscall"
 

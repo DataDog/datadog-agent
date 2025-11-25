@@ -9,7 +9,6 @@ package awskubernetes
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"

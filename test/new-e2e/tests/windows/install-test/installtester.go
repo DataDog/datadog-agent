@@ -6,7 +6,7 @@
 package installtest
 
 import (
-	"fmt"
+	"errors"
 	"io/fs"
 	"path/filepath"
 	"slices"

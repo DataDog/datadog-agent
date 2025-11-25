@@ -7,6 +7,7 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"

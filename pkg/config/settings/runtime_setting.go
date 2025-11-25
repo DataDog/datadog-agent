@@ -7,6 +7,7 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 )

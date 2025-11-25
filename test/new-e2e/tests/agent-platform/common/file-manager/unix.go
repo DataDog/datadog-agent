@@ -6,6 +6,7 @@
 package filemanager
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"strings"

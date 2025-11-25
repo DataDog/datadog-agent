@@ -7,7 +7,7 @@ package decoder
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"

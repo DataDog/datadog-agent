@@ -9,7 +9,7 @@ package netlink
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"io"
 	"net/netip"
 	"os"

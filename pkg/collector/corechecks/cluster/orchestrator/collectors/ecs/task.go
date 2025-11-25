@@ -9,7 +9,7 @@
 package ecs
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/benbjohnson/clock"
 

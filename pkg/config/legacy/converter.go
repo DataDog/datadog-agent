@@ -8,6 +8,7 @@ package legacy
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"

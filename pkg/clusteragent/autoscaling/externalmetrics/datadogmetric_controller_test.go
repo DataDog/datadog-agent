@@ -8,7 +8,7 @@
 package externalmetrics
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 

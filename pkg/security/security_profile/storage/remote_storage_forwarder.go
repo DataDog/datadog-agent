@@ -11,7 +11,7 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"

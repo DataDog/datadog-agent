@@ -8,7 +8,7 @@
 package guiimpl
 
 import (
-	"fmt"
+	"errors"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 )

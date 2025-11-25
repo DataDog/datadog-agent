@@ -12,6 +12,7 @@ package leaderelection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"

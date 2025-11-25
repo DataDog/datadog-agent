@@ -8,7 +8,6 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"html"
 	"io"
 	"net/http"

@@ -9,6 +9,7 @@ package networkpathintegration
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"

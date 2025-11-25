@@ -9,6 +9,7 @@ package bininspect
 
 import (
 	"debug/dwarf"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"

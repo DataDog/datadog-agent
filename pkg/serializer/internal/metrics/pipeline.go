@@ -6,10 +6,10 @@
 package metrics
 
 import (
-	"fmt"
 	"maps"
 	"net/http"
 	"slices"
+	"strconv"
 
 	"github.com/google/uuid"
 

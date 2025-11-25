@@ -8,8 +8,6 @@
 package external
 
 import (
-	"fmt"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )

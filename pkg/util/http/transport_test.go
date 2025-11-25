@@ -7,7 +7,6 @@ package http
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"

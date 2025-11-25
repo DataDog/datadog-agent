@@ -9,7 +9,6 @@ package api
 
 import (
 	"crypto/tls"
-	"fmt"
 	stdLog "log"
 	"net"
 	"net/http"

@@ -7,6 +7,7 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 

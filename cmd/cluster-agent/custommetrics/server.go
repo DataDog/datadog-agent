@@ -10,6 +10,7 @@ package custommetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/pflag"

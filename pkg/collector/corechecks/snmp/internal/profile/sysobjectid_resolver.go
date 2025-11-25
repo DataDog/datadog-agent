@@ -6,6 +6,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"

@@ -7,6 +7,7 @@ package statusimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"

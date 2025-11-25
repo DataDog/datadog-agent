@@ -8,7 +8,7 @@
 package parser
 
 import (
-	"fmt"
+	"errors"
 )
 
 type scmReader struct{}

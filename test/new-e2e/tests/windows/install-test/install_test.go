@@ -6,8 +6,8 @@
 package installtest
 
 import (
-	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 

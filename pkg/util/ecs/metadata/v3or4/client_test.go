@@ -9,7 +9,7 @@ package v3or4
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 	"time"

@@ -7,8 +7,8 @@ package installinfo
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"

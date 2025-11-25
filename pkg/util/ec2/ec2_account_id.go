@@ -7,7 +7,7 @@ package ec2
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"

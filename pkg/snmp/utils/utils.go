@@ -8,7 +8,7 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 )
 
 // NormalizeNamespace applies policy according to hostname rule

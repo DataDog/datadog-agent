@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"

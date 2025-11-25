@@ -22,6 +22,7 @@
 package ecs
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 

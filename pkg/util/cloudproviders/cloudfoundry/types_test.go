@@ -8,7 +8,6 @@
 package cloudfoundry
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 

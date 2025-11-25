@@ -7,7 +7,8 @@ package goflowlib
 
 import (
 	"context"
-	"fmt"
+	"errors"
+
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"

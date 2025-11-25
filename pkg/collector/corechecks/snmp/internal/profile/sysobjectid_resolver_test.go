@@ -6,9 +6,10 @@
 package profile
 
 import (
-	"fmt"
-	"github.com/stretchr/testify/assert"
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_getMostSpecificOid(t *testing.T) {

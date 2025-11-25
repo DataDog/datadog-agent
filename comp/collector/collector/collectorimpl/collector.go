@@ -8,6 +8,7 @@ package collectorimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"

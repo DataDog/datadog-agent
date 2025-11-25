@@ -7,7 +7,6 @@ package compliance
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 

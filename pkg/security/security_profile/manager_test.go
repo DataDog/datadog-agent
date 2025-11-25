@@ -10,8 +10,8 @@ package securityprofile
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 	"unsafe"

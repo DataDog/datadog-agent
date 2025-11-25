@@ -6,7 +6,6 @@
 package installtest
 
 import (
-	"fmt"
 	"path/filepath"
 	"time"
 

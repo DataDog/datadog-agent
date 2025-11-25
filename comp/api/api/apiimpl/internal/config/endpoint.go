@@ -7,6 +7,7 @@
 package config
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"html"

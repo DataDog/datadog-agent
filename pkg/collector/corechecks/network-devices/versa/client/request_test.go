@@ -8,6 +8,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"

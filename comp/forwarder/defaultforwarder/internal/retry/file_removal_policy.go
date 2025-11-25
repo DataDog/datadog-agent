@@ -7,7 +7,7 @@ package retry
 
 import (
 	"crypto/md5"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"os"
 	"path"

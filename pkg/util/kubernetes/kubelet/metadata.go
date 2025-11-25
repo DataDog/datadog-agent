@@ -10,7 +10,6 @@ package kubelet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"

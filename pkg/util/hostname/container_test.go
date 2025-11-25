@@ -9,7 +9,7 @@ package hostname
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"

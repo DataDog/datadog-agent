@@ -9,10 +9,11 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -162,7 +163,7 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 	}
 
 	switch {
-	case errors.IsNotFound(err):
+	case k8serrors.IsNotFound(err):
 		// We ignore not found here as we may need to create a DatadogPodAutoscaler later
 		podAutoscaler = nil
 	case err != nil:
@@ -243,7 +244,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			log.Infof("Remote owned PodAutoscaler with Deleted flag, deleting object: %s", key)
 			err := c.deletePodAutoscaler(ns, name)
 			// In case of not found, it means the object is gone but informer cache is not updated yet, we can safely delete it from our store
-			if err != nil && errors.IsNotFound(err) {
+			if err != nil && k8serrors.IsNotFound(err) {
 				log.Debugf("Object %s not found in Kubernetes during deletion, clearing internal store", key)
 				c.store.UnlockDelete(key, c.ID)
 				return autoscaling.NoRequeue, nil

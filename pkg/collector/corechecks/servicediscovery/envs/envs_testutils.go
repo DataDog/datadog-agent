@@ -7,8 +7,6 @@
 
 package envs
 
-import "fmt"
-
 // NewVariables returns a new [Variables]
 // for unit tests to verify that the input map has only target variables.
 func NewVariables(vars map[string]string) Variables {

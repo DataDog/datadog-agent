@@ -5,8 +5,6 @@
 
 package telemetry
 
-import "fmt"
-
 // Options for telemetry metrics.
 // Creating an Options struct without specifying any of its fields should be the
 // equivalent of using the DefaultOptions var.

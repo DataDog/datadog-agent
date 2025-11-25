@@ -8,7 +8,6 @@ package marshaler
 
 import (
 	"errors"
-	"fmt"
 
 	jsoniter "github.com/json-iterator/go"
 )

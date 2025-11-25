@@ -8,7 +8,6 @@ package checks
 import (
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"math"
 	"net/http"
 	"regexp"

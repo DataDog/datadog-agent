@@ -6,8 +6,8 @@
 package timing
 
 import (
-	"fmt"
 	"math/rand"
+	"strconv"
 	"sync"
 	"testing"
 	"time"

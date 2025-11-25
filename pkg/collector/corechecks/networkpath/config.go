@@ -6,6 +6,7 @@
 package networkpath
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"

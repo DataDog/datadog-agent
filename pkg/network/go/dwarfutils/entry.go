@@ -7,6 +7,7 @@ package dwarfutils
 
 import (
 	"debug/dwarf"
+	"errors"
 	"fmt"
 )
 

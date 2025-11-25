@@ -9,7 +9,6 @@ package nvidia
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 

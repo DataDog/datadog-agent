@@ -6,6 +6,7 @@
 package corechecks
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"

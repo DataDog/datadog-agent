@@ -7,6 +7,7 @@ package tencent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 

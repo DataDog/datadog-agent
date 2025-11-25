@@ -6,9 +6,11 @@
 package common
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )

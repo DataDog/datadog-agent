@@ -14,7 +14,6 @@
 package systemd
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 

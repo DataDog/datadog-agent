@@ -9,6 +9,7 @@ package custommetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"

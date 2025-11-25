@@ -6,9 +6,9 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"

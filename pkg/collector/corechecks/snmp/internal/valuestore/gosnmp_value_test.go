@@ -6,7 +6,7 @@
 package valuestore
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"

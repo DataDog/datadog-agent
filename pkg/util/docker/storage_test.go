@@ -8,7 +8,7 @@
 package docker
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"testing"
 

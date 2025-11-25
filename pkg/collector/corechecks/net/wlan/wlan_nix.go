@@ -8,7 +8,7 @@
 //nolint:revive // TODO(PLINT) Fix revive linter
 package wlan
 
-import "fmt"
+import "errors"
 
 func GetWiFiInfo() (wifiInfo, error) {
 	return wifiInfo{}, errors.New("wifi info only supported on macOS and Windows")

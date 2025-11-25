@@ -7,7 +7,6 @@ package writer
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/url"
 	"testing"

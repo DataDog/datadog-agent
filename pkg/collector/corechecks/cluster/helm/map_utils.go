@@ -8,6 +8,7 @@
 package helm
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"

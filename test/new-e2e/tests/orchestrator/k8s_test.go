@@ -8,7 +8,6 @@ package orchestrator
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"strings"
 	"testing"
 	"time"

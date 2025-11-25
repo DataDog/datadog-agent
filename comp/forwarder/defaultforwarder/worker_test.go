@@ -8,7 +8,7 @@
 package defaultforwarder
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
 	"sync"

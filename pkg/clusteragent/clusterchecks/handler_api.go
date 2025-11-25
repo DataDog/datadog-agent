@@ -9,7 +9,6 @@ package clusterchecks
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"

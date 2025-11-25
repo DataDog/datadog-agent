@@ -10,7 +10,6 @@ package pod
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/benbjohnson/clock"
 	"go.uber.org/atomic"

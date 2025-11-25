@@ -9,6 +9,7 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"

@@ -6,6 +6,7 @@
 package version
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"

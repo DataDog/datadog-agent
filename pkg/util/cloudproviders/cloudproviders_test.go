@@ -7,7 +7,7 @@ package cloudproviders
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 

@@ -8,7 +8,7 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"google.golang.org/grpc/codes"

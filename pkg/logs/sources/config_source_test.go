@@ -6,7 +6,6 @@
 package sources
 
 import (
-	"fmt"
 	"os"
 	"testing"
 

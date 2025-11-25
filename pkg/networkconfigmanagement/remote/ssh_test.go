@@ -14,6 +14,7 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"

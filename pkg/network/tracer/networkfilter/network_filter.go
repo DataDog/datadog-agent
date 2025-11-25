@@ -7,6 +7,7 @@
 package networkfilter
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"strconv"

@@ -7,6 +7,7 @@ package client
 
 import (
 	_ "embed"
+	"strconv"
 	"time"
 
 	"encoding/base64"

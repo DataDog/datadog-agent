@@ -9,6 +9,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"time"
 

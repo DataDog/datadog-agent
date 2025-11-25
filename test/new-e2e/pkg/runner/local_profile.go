@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"

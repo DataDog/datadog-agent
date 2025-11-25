@@ -7,8 +7,6 @@
 
 package agentsidecar
 
-import "fmt"
-
 // VolumeAlreadyAttached indicates that a give volume has
 // already been attached to a Pod's spec
 type VolumeAlreadyAttached struct {

@@ -10,8 +10,8 @@
 package flake
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"

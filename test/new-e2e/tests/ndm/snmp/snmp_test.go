@@ -8,7 +8,6 @@ package snmp
 
 import (
 	"embed"
-	"fmt"
 	"path"
 	"testing"
 	"time"

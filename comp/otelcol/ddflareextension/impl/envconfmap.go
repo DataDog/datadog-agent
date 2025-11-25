@@ -7,6 +7,7 @@ package ddflareextensionimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 

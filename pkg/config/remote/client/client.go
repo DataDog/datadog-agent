@@ -12,7 +12,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/hex"
-	"fmt"
 	"slices"
 	"sync"
 	"time"

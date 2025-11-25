@@ -7,6 +7,7 @@
 package launchgui
 
 import (
+	"errors"
 	"fmt"
 	"net"
 

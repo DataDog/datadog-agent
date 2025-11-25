@@ -8,6 +8,7 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"os"

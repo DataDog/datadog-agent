@@ -6,8 +6,8 @@
 package status
 
 import (
-	"fmt"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 

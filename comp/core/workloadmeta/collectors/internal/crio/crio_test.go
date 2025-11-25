@@ -10,7 +10,6 @@ package crio
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 

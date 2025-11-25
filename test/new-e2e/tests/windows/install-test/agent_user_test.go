@@ -6,14 +6,13 @@
 package installtest
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
-	"github.com/stretchr/testify/suite"
 	"testing"
+
+	"github.com/stretchr/testify/suite"
 )
 
 type agentUserTestCase interface {

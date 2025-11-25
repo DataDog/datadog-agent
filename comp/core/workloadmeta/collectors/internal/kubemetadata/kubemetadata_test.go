@@ -10,7 +10,6 @@ package kubemetadata
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"

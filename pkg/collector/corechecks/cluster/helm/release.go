@@ -12,8 +12,10 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"strconv"
 )
 
 // The "release" struct and the related ones, are a simplified version of the

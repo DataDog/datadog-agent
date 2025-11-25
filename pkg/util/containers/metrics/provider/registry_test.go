@@ -6,7 +6,7 @@
 package provider
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

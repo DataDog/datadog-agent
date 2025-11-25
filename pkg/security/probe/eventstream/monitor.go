@@ -10,6 +10,7 @@ package eventstream
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"

@@ -7,7 +7,6 @@ package connectivity
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"

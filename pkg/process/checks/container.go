@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"sync"

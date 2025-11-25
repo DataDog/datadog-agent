@@ -7,7 +7,7 @@ package hostname
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 

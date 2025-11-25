@@ -7,7 +7,7 @@ package inventoryagentimpl
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"runtime"
 	"sort"
 	"testing"

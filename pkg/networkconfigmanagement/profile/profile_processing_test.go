@@ -10,7 +10,7 @@ package profile
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 

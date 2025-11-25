@@ -9,7 +9,7 @@ package providers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/samuel/go-zookeeper/zk"

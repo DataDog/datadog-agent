@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"

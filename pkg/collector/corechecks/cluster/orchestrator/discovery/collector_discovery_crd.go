@@ -8,6 +8,7 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 

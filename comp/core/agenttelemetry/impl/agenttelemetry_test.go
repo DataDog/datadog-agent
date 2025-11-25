@@ -8,6 +8,7 @@ package agenttelemetryimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"

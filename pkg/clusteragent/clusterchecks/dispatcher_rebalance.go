@@ -9,6 +9,7 @@ package clusterchecks
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"

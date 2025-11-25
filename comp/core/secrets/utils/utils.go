@@ -8,7 +8,7 @@
 package utils
 
 import (
-	"fmt"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"

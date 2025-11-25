@@ -9,7 +9,7 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"

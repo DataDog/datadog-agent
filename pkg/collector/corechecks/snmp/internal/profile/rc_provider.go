@@ -7,6 +7,7 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"

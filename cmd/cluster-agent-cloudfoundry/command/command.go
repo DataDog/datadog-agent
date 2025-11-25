@@ -9,7 +9,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/fatih/color"

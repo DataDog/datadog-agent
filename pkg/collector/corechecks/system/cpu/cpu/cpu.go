@@ -8,7 +8,7 @@
 package cpu
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"gopkg.in/yaml.v2"

@@ -7,6 +7,7 @@ package cachedfetch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 

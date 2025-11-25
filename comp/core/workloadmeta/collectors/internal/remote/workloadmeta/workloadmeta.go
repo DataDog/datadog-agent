@@ -8,7 +8,7 @@ package workloadmeta
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"slices"
 
 	"go.uber.org/fx"

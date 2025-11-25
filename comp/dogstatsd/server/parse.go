@@ -7,6 +7,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"

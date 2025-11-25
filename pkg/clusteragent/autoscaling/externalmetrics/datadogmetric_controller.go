@@ -9,6 +9,7 @@ package externalmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/dynamic"
@@ -200,7 +201,7 @@ func (c *DatadogMetricController) processDatadogMetric(workerID int, key interfa
 	}
 
 	switch {
-	case errors.IsNotFound(err):
+	case k8serrors.IsNotFound(err):
 		// We ignore not found here as we may need to create a DatadogMetric later
 		datadogMetricCached = nil
 	case err != nil:

@@ -7,7 +7,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 	"slices"
 	"strings"

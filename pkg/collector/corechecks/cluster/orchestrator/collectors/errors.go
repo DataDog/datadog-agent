@@ -8,8 +8,6 @@
 package collectors
 
 import (
-	"fmt"
-
 	"github.com/pkg/errors"
 )
 

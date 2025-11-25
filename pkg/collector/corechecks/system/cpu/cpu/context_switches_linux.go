@@ -9,12 +9,14 @@ package cpu
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"strconv"
 	"strings"
+
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetContextSwitches retrieves the number of context switches for the current process.

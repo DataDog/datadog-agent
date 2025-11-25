@@ -9,6 +9,7 @@ package dockerfile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"

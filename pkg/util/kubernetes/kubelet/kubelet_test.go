@@ -12,6 +12,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 )
@@ -326,7 +327,7 @@ func (suite *KubeletTestSuite) TestGetLocalPodListWithBrokenKubelet() {
 	pods, err := kubeutil.GetLocalPodList(ctx)
 	require.NotNil(suite.T(), err)
 	require.Len(suite.T(), pods, 0)
-	require.True(suite.T(), errors.IsRetriable(err))
+	require.True(suite.T(), pkgerrors.IsRetriable(err))
 }
 
 func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {

@@ -8,7 +8,7 @@
 package common
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

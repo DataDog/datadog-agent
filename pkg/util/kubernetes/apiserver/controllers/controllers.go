@@ -11,7 +11,6 @@ package controllers
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"

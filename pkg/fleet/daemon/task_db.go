@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"go.etcd.io/bbolt"

@@ -10,6 +10,7 @@ package cloudfoundry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sync"

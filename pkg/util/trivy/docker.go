@@ -9,6 +9,7 @@ package trivy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"

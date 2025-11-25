@@ -6,7 +6,6 @@
 package trace
 
 import (
-	fmt "fmt"
 	reflect "reflect"
 	"testing"
 )

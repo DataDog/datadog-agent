@@ -8,6 +8,7 @@ package replayimpl
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"

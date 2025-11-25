@@ -6,7 +6,7 @@
 // Package client implements a Versa API client
 package client
 
-import "fmt"
+import "errors"
 
 // Content encapsulates the content types of the Versa API
 type Content interface {

@@ -8,7 +8,7 @@
 package memory
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/mem"

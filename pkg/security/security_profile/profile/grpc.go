@@ -9,6 +9,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"time"

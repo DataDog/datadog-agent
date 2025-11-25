@@ -10,7 +10,6 @@ package selftests
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 

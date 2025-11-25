@@ -8,6 +8,7 @@ package tags
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"

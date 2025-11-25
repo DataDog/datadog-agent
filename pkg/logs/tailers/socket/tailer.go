@@ -7,7 +7,6 @@
 package socket
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"strings"

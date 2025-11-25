@@ -8,7 +8,7 @@ package status
 
 import (
 	"expvar"
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 

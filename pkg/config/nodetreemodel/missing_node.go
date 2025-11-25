@@ -6,7 +6,7 @@
 package nodetreemodel
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )

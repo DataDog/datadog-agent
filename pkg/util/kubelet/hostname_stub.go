@@ -9,7 +9,7 @@ package kubelet
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 // GetHostname builds a hostname from the kubernetes nodename and an optional cluster-name

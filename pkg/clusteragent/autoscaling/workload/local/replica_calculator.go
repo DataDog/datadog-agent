@@ -9,6 +9,7 @@
 package local
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"

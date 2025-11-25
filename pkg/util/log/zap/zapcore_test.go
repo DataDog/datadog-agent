@@ -8,7 +8,7 @@ package log
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/cihub/seelog"

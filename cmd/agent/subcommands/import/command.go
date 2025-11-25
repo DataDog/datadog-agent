@@ -7,6 +7,7 @@
 package cmdimport
 
 import (
+	"errors"
 	"fmt"
 	"os"
 

@@ -6,9 +6,10 @@
 package software
 
 import (
-	"fmt"
-	"github.com/stretchr/testify/assert"
+	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // MockCollector implements Collector for testing

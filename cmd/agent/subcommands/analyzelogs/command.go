@@ -9,6 +9,7 @@ package analyzelogs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"

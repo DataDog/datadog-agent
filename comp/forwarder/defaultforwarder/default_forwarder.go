@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"

@@ -6,6 +6,7 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 

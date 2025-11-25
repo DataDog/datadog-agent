@@ -9,6 +9,7 @@ package externalmetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"

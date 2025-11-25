@@ -10,7 +10,6 @@ package testutil
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"

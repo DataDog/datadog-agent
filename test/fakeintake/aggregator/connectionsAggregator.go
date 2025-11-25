@@ -6,7 +6,7 @@
 package aggregator
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"

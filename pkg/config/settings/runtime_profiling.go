@@ -7,6 +7,7 @@ package settings
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/fatih/color"
 )

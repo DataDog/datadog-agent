@@ -7,7 +7,7 @@ package syntheticstestschedulerimpl
 
 import (
 	"crypto/rand"
-	"fmt"
+	"errors"
 	"io"
 	"math"
 	"math/big"

@@ -10,7 +10,7 @@ package containerd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"

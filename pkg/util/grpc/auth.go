@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
-	"fmt"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc/codes"

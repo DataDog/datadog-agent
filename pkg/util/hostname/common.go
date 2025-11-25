@@ -8,6 +8,7 @@ package hostname
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"

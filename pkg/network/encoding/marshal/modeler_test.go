@@ -6,7 +6,7 @@
 package marshal
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"

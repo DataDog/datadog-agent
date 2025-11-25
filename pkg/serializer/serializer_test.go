@@ -8,6 +8,7 @@
 package serializer
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"

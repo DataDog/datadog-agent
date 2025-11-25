@@ -6,7 +6,7 @@
 package serverstore
 
 import (
-	"fmt"
+	"errors"
 	"log"
 	"sync"
 	"time"

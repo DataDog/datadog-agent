@@ -6,6 +6,7 @@
 package worker
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"sync"

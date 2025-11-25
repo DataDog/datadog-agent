@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"

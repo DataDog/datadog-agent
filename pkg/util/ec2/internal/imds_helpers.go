@@ -7,6 +7,7 @@ package ec2internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 

@@ -10,6 +10,7 @@ package containerd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/containerd/containerd"

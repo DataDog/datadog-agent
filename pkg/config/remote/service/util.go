@@ -8,7 +8,7 @@ package service
 import (
 	"encoding/base32"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"

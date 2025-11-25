@@ -8,7 +8,7 @@
 package trace
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 	"testing"

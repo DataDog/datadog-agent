@@ -7,6 +7,7 @@
 package validate
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"

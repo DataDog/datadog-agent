@@ -8,8 +8,6 @@
 package docker
 
 import (
-	"fmt"
-
 	"github.com/docker/docker/api/types/events"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

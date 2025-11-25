@@ -9,7 +9,6 @@ package expvarserverimpl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"go.uber.org/fx"

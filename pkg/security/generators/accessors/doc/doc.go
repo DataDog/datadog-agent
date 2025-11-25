@@ -8,6 +8,7 @@ package doc
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"os"

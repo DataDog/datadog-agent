@@ -10,6 +10,7 @@ package cwsinstrumentation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"

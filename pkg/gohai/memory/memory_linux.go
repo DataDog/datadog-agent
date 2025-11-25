@@ -7,6 +7,7 @@ package memory
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"

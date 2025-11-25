@@ -9,8 +9,10 @@ package oracle
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

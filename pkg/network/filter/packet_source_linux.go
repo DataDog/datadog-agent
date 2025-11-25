@@ -9,6 +9,7 @@
 package filter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"

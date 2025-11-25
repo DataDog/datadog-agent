@@ -8,7 +8,7 @@
 package integrations
 
 import (
-	"fmt"
+	"errors"
 	"os"
 )
 

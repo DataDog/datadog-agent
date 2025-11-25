@@ -9,6 +9,7 @@ package workload
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"

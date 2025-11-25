@@ -10,6 +10,7 @@ package diskv2
 import (
 	"bufio"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"

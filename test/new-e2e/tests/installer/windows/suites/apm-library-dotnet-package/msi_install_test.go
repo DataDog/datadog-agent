@@ -7,7 +7,6 @@ package dotnettests
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"

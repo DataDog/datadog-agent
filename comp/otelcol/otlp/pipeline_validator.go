@@ -8,7 +8,7 @@
 package otlp
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"

@@ -8,6 +8,7 @@ package datadogexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"

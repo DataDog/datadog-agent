@@ -7,7 +7,6 @@
 package runner
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"net/http"

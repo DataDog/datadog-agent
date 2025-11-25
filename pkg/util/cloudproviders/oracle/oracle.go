@@ -7,6 +7,7 @@ package oracle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 

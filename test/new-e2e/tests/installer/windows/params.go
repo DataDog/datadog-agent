@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"fmt"
 	"os"
 	"strings"
 

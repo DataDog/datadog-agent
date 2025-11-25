@@ -9,7 +9,7 @@
 package mock
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"

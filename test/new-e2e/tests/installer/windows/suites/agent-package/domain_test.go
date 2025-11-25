@@ -6,7 +6,6 @@
 package agenttests
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"

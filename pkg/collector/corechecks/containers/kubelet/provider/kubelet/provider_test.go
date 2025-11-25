@@ -8,7 +8,7 @@
 package kubelet
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"testing"
 

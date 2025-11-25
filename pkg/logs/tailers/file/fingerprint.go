@@ -7,6 +7,7 @@ package file
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"hash/crc64"
 	"io"

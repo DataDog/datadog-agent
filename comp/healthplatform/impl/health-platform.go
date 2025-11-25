@@ -8,6 +8,7 @@ package healthplatformimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"

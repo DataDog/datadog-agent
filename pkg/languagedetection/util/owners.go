@@ -6,11 +6,11 @@
 package util
 
 import (
-	"fmt"
+	"strings"
+
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"strings"
 )
 
 const (

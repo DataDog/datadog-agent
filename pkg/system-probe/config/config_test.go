@@ -8,7 +8,6 @@
 package config
 
 import (
-	"fmt"
 	"runtime"
 	"strconv"
 	"testing"

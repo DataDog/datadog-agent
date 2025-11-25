@@ -9,7 +9,6 @@ package ecs
 
 import (
 	"context"
-	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"

@@ -8,6 +8,7 @@ package eval
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"

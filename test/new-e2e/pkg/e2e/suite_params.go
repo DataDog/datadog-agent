@@ -6,8 +6,6 @@
 package e2e
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"

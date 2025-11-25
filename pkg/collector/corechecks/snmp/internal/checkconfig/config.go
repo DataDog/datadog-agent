@@ -8,6 +8,7 @@ package checkconfig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net"

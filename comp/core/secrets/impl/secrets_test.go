@@ -6,6 +6,7 @@
 package secretsimpl
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"

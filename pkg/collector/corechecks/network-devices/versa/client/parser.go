@@ -7,6 +7,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 )
 

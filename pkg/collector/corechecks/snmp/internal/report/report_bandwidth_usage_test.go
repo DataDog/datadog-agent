@@ -6,9 +6,10 @@
 package report
 
 import (
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"errors"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

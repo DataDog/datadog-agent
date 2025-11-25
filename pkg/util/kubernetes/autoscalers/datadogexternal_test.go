@@ -8,7 +8,7 @@
 package autoscalers
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 

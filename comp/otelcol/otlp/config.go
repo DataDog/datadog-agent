@@ -9,6 +9,7 @@ package otlp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 

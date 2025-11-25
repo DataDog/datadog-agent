@@ -8,6 +8,7 @@ package apiimpl
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"net"

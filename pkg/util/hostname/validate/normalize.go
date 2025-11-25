@@ -7,7 +7,7 @@ package validate
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"regexp"
 )
 

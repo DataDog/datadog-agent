@@ -9,7 +9,7 @@ package tags
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 // getContainerInstanceARN is a stub used when the `docker` build tag is not enabled.

@@ -9,6 +9,7 @@
 package testutil
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"

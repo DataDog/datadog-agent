@@ -6,7 +6,6 @@
 package metrics
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"testing"

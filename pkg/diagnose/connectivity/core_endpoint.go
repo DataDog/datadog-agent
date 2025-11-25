@@ -10,6 +10,7 @@ package connectivity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"

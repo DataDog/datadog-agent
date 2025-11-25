@@ -7,7 +7,7 @@ package utils
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"runtime"
 	"testing"
 

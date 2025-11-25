@@ -9,6 +9,7 @@ package windowsevent
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 

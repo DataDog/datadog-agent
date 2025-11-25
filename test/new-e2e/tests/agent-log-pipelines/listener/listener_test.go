@@ -7,11 +7,11 @@ package listener
 
 import (
 	_ "embed"
-	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 

@@ -8,7 +8,6 @@
 package journald
 
 import (
-	"fmt"
 	"math/rand"
 	"strings"
 	"time"

@@ -8,6 +8,7 @@
 package docker
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/docker/docker/api/types/filters"

@@ -8,8 +8,8 @@
 package checks
 
 import (
-	"fmt"
 	"math/rand/v2"
+	"strconv"
 	"strings"
 	"testing"
 	"time"

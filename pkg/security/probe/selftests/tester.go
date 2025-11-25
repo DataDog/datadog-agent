@@ -8,7 +8,7 @@ package selftests
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"sync"
 	"time"

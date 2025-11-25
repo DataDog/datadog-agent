@@ -11,6 +11,7 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"expvar"
 	"fmt"
 	"hash/fnv"

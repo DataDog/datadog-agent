@@ -7,6 +7,7 @@ package idx
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"maps"
 	"strconv"

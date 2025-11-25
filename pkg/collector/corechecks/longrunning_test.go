@@ -8,7 +8,7 @@
 package corechecks
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 

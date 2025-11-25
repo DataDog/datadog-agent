@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 

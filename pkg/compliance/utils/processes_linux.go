@@ -10,7 +10,8 @@ package utils
 import (
 	// We wrap pkg/security/utils here only for compat reason to be able to
 	// still compile pkg/compliance on !linux.
-	"fmt"
+
+	"errors"
 
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 

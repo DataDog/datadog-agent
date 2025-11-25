@@ -9,7 +9,7 @@ package appsec
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"maps"
 	"slices"
 	"strconv"

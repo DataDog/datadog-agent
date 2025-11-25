@@ -6,6 +6,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"

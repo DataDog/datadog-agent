@@ -7,7 +7,7 @@
 // results.
 package scap
 
-import "fmt"
+import "errors"
 
 // SystemCharacteristics contains the internal charasteristics of an OVAL
 // evaluation.

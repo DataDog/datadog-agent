@@ -7,7 +7,6 @@ package configutils
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 

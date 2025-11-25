@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"

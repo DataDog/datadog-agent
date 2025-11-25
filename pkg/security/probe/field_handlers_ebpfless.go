@@ -10,6 +10,7 @@ package probe
 
 import (
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"slices"

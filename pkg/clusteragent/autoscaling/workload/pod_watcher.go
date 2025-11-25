@@ -9,7 +9,7 @@ package workload
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"

@@ -10,6 +10,7 @@ package admission
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"

@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"

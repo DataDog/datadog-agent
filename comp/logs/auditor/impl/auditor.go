@@ -8,7 +8,7 @@ package auditorimpl
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"

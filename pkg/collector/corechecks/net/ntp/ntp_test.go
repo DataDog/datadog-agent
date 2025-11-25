@@ -7,6 +7,7 @@ package ntp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"

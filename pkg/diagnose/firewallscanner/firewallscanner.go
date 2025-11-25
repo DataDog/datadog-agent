@@ -10,6 +10,7 @@ package firewallscanner
 import (
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"

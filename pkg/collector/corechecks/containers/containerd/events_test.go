@@ -9,7 +9,7 @@ package containerd
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 

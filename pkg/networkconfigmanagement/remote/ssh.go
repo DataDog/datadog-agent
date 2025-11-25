@@ -8,6 +8,7 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"

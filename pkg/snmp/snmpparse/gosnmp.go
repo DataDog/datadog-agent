@@ -6,11 +6,13 @@
 package snmpparse
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/log/def"
+	"time"
+
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/snmplog"
 	"github.com/gosnmp/gosnmp"
-	"time"
 )
 
 // NewSNMP validates an SNMPConfig and builds a GoSNMP from it.

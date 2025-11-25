@@ -7,7 +7,7 @@
 package command
 
 import (
-	"fmt"
+	"errors"
 	"path"
 
 	"github.com/fatih/color"

@@ -10,6 +10,7 @@ package softwareinventoryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"

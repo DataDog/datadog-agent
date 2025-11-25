@@ -9,7 +9,6 @@ package ddprofilingextensionimpl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"runtime/debug"
 	"strings"

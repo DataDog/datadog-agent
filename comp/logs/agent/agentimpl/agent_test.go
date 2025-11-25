@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"expvar"
-	"fmt"
 	"os"
 	"strings"
 	"testing"

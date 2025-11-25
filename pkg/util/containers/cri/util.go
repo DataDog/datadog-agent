@@ -10,6 +10,7 @@ package cri
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"

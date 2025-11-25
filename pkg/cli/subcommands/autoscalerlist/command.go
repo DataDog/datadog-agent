@@ -8,6 +8,7 @@ package autoscalerlist
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 

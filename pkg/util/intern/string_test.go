@@ -35,7 +35,6 @@
 package intern
 
 import (
-	"fmt"
 	"runtime"
 	"testing"
 )

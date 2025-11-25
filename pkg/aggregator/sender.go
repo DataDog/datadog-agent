@@ -6,7 +6,7 @@
 package aggregator
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 

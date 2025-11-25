@@ -7,7 +7,6 @@ package listeners
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"syscall"
 	"time"

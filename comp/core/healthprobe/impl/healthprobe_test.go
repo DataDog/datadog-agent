@@ -8,7 +8,7 @@ package healthprobeimpl
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"

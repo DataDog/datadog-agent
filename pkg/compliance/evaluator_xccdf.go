@@ -10,6 +10,7 @@ package compliance
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"

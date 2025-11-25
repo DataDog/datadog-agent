@@ -8,6 +8,7 @@ package snmp
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"

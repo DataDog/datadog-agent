@@ -9,7 +9,7 @@ package kubelet
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 // GetHostAliases uses the "kubelet" hostname provider to fetch the kubernetes alias

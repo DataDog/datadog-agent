@@ -7,7 +7,7 @@ package defaultforwarder
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"sync"

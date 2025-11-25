@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"testing"

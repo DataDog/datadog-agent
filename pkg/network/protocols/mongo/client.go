@@ -10,7 +10,6 @@ package mongo
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 

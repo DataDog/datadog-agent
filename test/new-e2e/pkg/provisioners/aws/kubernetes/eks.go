@@ -8,7 +8,6 @@ package awskubernetes
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"

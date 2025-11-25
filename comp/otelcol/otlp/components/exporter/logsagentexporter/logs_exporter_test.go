@@ -10,7 +10,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"

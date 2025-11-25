@@ -8,7 +8,6 @@ package agent
 
 import (
 	"encoding/json"
-	"fmt"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"

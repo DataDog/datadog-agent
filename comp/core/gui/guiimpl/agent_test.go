@@ -6,7 +6,6 @@
 package guiimpl
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"

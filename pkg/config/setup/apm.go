@@ -8,7 +8,7 @@ package setup
 import (
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"runtime"
 	"strconv"
 	"strings"

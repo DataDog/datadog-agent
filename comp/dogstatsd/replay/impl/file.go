@@ -6,7 +6,7 @@
 package replayimpl
 
 import (
-	"fmt"
+	"errors"
 	"io"
 
 	"github.com/h2non/filetype"

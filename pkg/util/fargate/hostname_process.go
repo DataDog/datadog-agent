@@ -10,7 +10,6 @@ package fargate
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

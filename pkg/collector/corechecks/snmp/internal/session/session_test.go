@@ -8,7 +8,7 @@ package session
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	stdlog "log"
 	"testing"

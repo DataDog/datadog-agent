@@ -9,8 +9,8 @@ package hostname
 
 import (
 	"context"
+	"errors"
 	"expvar"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

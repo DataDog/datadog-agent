@@ -8,6 +8,7 @@ package eventplatformimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"

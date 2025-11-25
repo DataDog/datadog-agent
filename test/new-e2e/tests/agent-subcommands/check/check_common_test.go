@@ -8,7 +8,7 @@ package check
 
 import (
 	_ "embed"
-	"fmt"
+	"strconv"
 
 	"github.com/stretchr/testify/assert"
 

@@ -6,6 +6,7 @@
 package payload
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"

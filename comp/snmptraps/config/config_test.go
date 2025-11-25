@@ -7,7 +7,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 

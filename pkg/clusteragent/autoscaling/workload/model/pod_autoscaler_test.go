@@ -9,7 +9,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 

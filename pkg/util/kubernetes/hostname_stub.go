@@ -9,7 +9,7 @@ package kubernetes
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
 // GetKubeAPIServerHostname returns the hostname from kubeapiserver

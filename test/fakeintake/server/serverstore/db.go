@@ -7,7 +7,7 @@ package serverstore
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 	"log"
 	"os"
 	"time"

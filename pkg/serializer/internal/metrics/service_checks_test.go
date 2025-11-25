@@ -8,7 +8,7 @@
 package metrics
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

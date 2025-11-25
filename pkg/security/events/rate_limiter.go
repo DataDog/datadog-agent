@@ -7,7 +7,6 @@
 package events
 
 import (
-	"fmt"
 	"sync"
 	"time"
 

@@ -6,7 +6,7 @@
 package flowaggregator
 
 import (
-	"fmt"
+	"errors"
 	"time"
 )
 

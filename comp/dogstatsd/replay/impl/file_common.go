@@ -5,7 +5,7 @@
 
 package replayimpl
 
-import "fmt"
+import "errors"
 
 var (
 	// DATADOG0F1FF0000 in HEX (D474D060F1FF0000); (F0 | datadogFileVersion) for different file versions support

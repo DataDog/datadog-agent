@@ -7,7 +7,7 @@ package serializerexporter
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"

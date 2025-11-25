@@ -8,9 +8,9 @@
 package tags
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"

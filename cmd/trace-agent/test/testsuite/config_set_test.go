@@ -6,7 +6,6 @@
 package testsuite
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 	"time"

@@ -7,6 +7,7 @@ package autoexitimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"

@@ -8,7 +8,6 @@
 package k8s
 
 import (
-	"fmt"
 	"testing"
 	"time"
 

@@ -7,7 +7,6 @@
 package cloudservice
 
 import (
-	"fmt"
 	"maps"
 	"os"
 

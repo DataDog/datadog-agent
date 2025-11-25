@@ -8,7 +8,7 @@ package replayimpl
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"path"
 	"sync"
 	"time"

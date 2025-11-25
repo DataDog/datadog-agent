@@ -6,6 +6,7 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 	stdlog "log"
 	"strings"

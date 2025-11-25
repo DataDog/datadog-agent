@@ -6,7 +6,6 @@
 package apm
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"

@@ -7,7 +7,6 @@
 package installtest
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"

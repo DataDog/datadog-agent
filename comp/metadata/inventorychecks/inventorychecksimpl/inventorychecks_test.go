@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"testing"

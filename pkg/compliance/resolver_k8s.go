@@ -9,6 +9,7 @@ package compliance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

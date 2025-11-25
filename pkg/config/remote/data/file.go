@@ -7,6 +7,7 @@
 package data
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"

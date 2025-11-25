@@ -6,7 +6,7 @@
 package file
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"

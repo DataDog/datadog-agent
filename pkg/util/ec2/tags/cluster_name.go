@@ -8,7 +8,6 @@ package tags
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"

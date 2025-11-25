@@ -10,7 +10,7 @@
 package store
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -6,7 +6,7 @@
 package nodetreemodel
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
