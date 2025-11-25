@@ -3293,8 +3293,10 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	require.NoError(t, err)
 
 	// Establish connection first
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
+	// We don't send "ping" here to keep the baseline segs_out low (SYN + ACK = 2 segments).
+	// Then we write "data" (3rd segment).
+	// Stale SentPackets = 3.
+	// We need retransmits > 3 to fail the test without the fix.
 
 	// Drop packets now to induce retransmits
 	iptablesWrapper(t, func() {
@@ -3303,8 +3305,10 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 		require.NoError(t, err)
 
 		// Wait for retransmits. Linux TCP RTO min is often 200ms.
-		// Wait enough time for multiple retransmits.
-		time.Sleep(2 * time.Second)
+		// Backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms...
+		// In 4 seconds we expect ~4 retransmits.
+		// 4 (retransmits) > 3 (stale sent packets) -> Test should fail without fix.
+		time.Sleep(4 * time.Second)
 	})
 
 	// Close connection. This should trigger the sync in the BPF program.
