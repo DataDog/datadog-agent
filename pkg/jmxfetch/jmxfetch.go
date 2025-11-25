@@ -524,13 +524,9 @@ func (j *JMXFetch) ConfigureFromInstance(instance integration.Data) error {
 
 func (j *JMXFetch) getDSDStatus() DSDStatus {
 	// Three possible states: DSD is running in the Core Agent, DSD is running via ADP, or the DSD status is unknown.
-	//
-	// We detect these through the `use_dogstatsd` configuration and the `DD_ADP_ENABLED` environment variable, and we
-	// detect whether or not we're listening on UDS or UDP via the configuration settings that define their listening
-	// address.
 	dsdEnabledInternally := pkgconfigsetup.Datadog().GetBool("use_dogstatsd")
-	adpEnabled := os.Getenv("DD_ADP_ENABLED") == "true"
-	dsdEnabled := dsdEnabledInternally || adpEnabled
+	dsdEnabledDataPlane := isDsdEnabledViaDataPlane()
+	dsdEnabled := dsdEnabledInternally || dsdEnabledDataPlane
 	udsEnabled := pkgconfigsetup.Datadog().GetString("dogstatsd_socket") != ""
 	udpEnabled := pkgconfigsetup.Datadog().GetInt("dogstatsd_port") != 0
 
@@ -541,4 +537,17 @@ func (j *JMXFetch) getDSDStatus() DSDStatus {
 	} else {
 		return DSDStatusUnknown
 	}
+}
+
+func isDsdEnabledViaDataPlane() bool {
+	// `DD_ADP_ENABLED` is a deprecated environment variable for signaling that Agent Data Plane is running _and_ that
+	// it's handling DogStatsD traffic.
+	//
+	// This is now split into two separate settings: `data_plane.enabled` and `data_plane.dogstatsd.enabled`, which
+	// indicate whether ADP is enabled at all and whether it's handling DogStatsD traffic, respectively.
+	adpDsdEnabledOldStyle := os.Getenv("DD_ADP_ENABLED") == "true"
+	adpEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.enabled")
+	adpDsdEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.dogstatsd.enabled")
+
+	return adpDsdEnabledOldStyle || (adpEnabled && adpDsdEnabled)
 }

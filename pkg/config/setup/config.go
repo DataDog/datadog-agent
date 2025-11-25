@@ -384,6 +384,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_on_api_key_failure_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
@@ -813,6 +814,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
+	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1298,6 +1300,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("health_platform.enabled", false)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
@@ -1565,6 +1568,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -2257,7 +2261,7 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		// these variables are used by source code integration
 		"DD_GIT_COMMIT_SHA":     {},
 		"DD_GIT_REPOSITORY_URL": {},
-		// signals whether or not ADP is enabled
+		// signals whether or not ADP is enabled (deprecated)
 		"DD_ADP_ENABLED": {},
 		// trace-loader socket file descriptors
 		"DD_APM_NET_RECEIVER_FD":  {},
@@ -2530,21 +2534,22 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                        config.GetString("secret_backend_type"),
-		Config:                      config.GetStringMap("secret_backend_config"),
-		Command:                     config.GetString("secret_backend_command"),
-		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                     config.GetInt("secret_backend_timeout"),
-		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:             config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                     config.GetString("run_path"),
-		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
-		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
-		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
-		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
+		Type:                         config.GetString("secret_backend_type"),
+		Config:                       config.GetStringMap("secret_backend_config"),
+		Command:                      config.GetString("secret_backend_command"),
+		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                      config.GetInt("secret_backend_timeout"),
+		MaxSize:                      config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:              config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:       config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:                config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:              config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                      config.GetString("run_path"),
+		AuditFileMaxSize:             config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace:  config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:             config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:                config.GetStringMapStringSlice("secret_image_to_handle"),
+		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {

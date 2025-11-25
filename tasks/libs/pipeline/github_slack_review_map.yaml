@@ -29,7 +29,7 @@
 '@datadog/asm-go': '#k9-library-go'
 '@datadog/cloud-network-monitoring': '#cloud-network-monitoring'
 '@datadog/container-autoscaling': '#container-autoscaling'
-'@datadog/container-experiences': '#process-agent-ops'
+'@datadog/container-experiences': '#container-experiences'
 '@datadog/container-integrations': '#container-integrations'
 '@datadog/container-platform': '#container-platform'
 '@datadog/data-jobs-monitoring': '#data-jobs-monitoring'

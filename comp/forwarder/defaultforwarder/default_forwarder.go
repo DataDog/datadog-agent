@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -72,7 +73,6 @@ type Forwarder interface {
 	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
@@ -115,6 +115,7 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
+	Secrets                        secrets.Component
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -306,6 +307,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
+			secrets:               options.Secrets,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
@@ -385,6 +387,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			fwd := newDomainForwarder(
 				config,
 				log,
+				options.Secrets,
 				domain,
 				resolver.IsMRF(),
 				resolver.IsLocal(),
@@ -692,11 +695,6 @@ func (f *DefaultForwarder) SubmitProcessChecks(payload transaction.BytesPayloads
 // SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
-}
-
-// SubmitProcessEventChecks sends process events checks
-func (f *DefaultForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
