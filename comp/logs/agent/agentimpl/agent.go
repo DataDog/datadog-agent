@@ -273,10 +273,14 @@ func (a *logAgent) httpRetryLoop() {
 				// we commit to HTTP and keep retrying if upgrade fails.
 				if err := a.restartWithHTTPUpgrade(ctx); err != nil {
 					a.log.Errorf("HTTP upgrade failed: %v - will retry", err)
+					// Publish retry failure metric
+					metrics.TlmHTTPConnectivityRetryAttempt.Inc("failure")
 					// Continue retrying - HTTP is available, we want to use it
 					continue
 				}
 
+				// Publish retry success metric
+				metrics.TlmHTTPConnectivityRetryAttempt.Inc("success")
 				a.log.Info("Successfully upgraded to HTTP transport")
 				return
 			}

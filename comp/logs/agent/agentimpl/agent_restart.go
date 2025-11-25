@@ -14,22 +14,37 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	logsmetrics "github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-// restart conducts a partial restart of the logs-agent pipeline.
-// This is used to switch between transport protocols
-// without disrupting the entire agent.
-func (a *logAgent) restart(context.Context) error {
+const (
+	// Transport types for telemetry
+	transportTCP  = "tcp"
+	transportHTTP = "http"
+
+	// Restart status for telemetry
+	restartStatusSuccess = "success"
+	restartStatusFailure = "failure"
+)
+
+// restart conducts a partial restart of the logs-agent pipeline with the provided endpoints.
+// This is used to switch between transport protocols without disrupting the entire agent.
+func (a *logAgent) restart(_ context.Context, newEndpoints *config.Endpoints) error {
 	a.log.Info("Attempting to restart logs-agent pipeline")
 
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()
 
-	// Store current endpoints for rollback if HTTP restart fails
+	// Store current endpoints for rollback if restart fails
 	previousEndpoints := a.endpoints
+
+	// Determine transport type for metrics
+	targetTransport := transportTCP
+	if newEndpoints.UseHTTP {
+		targetTransport = transportHTTP
+	}
 
 	a.log.Info("Gracefully stopping logs-agent")
 
@@ -43,38 +58,41 @@ func (a *logAgent) restart(context.Context) error {
 
 	a.log.Info("Re-starting logs-agent...")
 
-	// Build HTTP endpoints directly since we already verified HTTP connectivity
-	// before triggering this restart (no need to recheck)
-	endpoints, err := buildHTTPEndpointsForRestart(a.config)
-	if err != nil {
-		message := fmt.Sprintf("Invalid endpoints: %v", err)
-		status.AddGlobalError(invalidEndpoints, message)
-		a.log.Errorf("Failed to build HTTP endpoints, attempting rollback to previous transport: %v", err)
-		return a.rollbackToPreviousTransport(previousEndpoints)
-	}
+	a.endpoints = newEndpoints
 
-	a.endpoints = endpoints
-
-	err = a.setupAgentForRestart()
+	err := a.setupAgentForRestart()
 	if err != nil {
 		message := fmt.Sprintf("Could not re-start logs-agent: %v", err)
 		a.log.Error(message)
 		a.log.Error("Attempting rollback to previous transport")
+		logsmetrics.TlmRestartAttempt.Inc(restartStatusFailure, targetTransport)
 		return a.rollbackToPreviousTransport(previousEndpoints)
 	}
 
 	a.restartPipeline()
+	logsmetrics.TlmRestartAttempt.Inc(restartStatusSuccess, targetTransport)
 	return nil
 }
 
 // restartWithHTTPUpgrade upgrades the logs-agent pipeline to HTTP transport.
+// This is called by the smart HTTP restart mechanism after HTTP connectivity has been verified.
 //
 // Since HTTP connectivity was verified before calling this function, we commit to HTTP
 // and will keep retrying HTTP even if the upgrade fails. If restart fails, the base
 // restart() function will rollback to TCP temporarily, but this function returns an
 // error to trigger retry - ensuring we eventually upgrade to HTTP since connectivity exists.
 func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
-	err := a.restart(ctx)
+	// Build HTTP endpoints since we already verified HTTP connectivity
+	endpoints, err := buildHTTPEndpointsForRestart(a.config)
+	if err != nil {
+		message := fmt.Sprintf("Failed to build HTTP endpoints: %v", err)
+		status.AddGlobalError(invalidEndpoints, message)
+		a.log.Error(message)
+		logsmetrics.TlmRestartAttempt.Inc(restartStatusFailure, transportHTTP)
+		return errors.New(message)
+	}
+
+	err = a.restart(ctx, endpoints)
 	if err != nil {
 		// Restart failed (may have rolled back to TCP to keep agent functional)
 		// Since we verified HTTP connectivity, return error to trigger retry
@@ -124,7 +142,7 @@ func (a *logAgent) setupAgentForRestart() error {
 // Unlike startPipeline, this only starts the transient components (destinations, pipeline, launchers)
 // since persistent components (auditor, schedulers, diagnosticMessageReceiver) remain running.
 func (a *logAgent) restartPipeline() {
-	status.Init(a.started, a.endpoints, a.sources, a.tracker, metrics.LogsExpvars)
+	status.Init(a.started, a.endpoints, a.sources, a.tracker, logsmetrics.LogsExpvars)
 
 	starter := startstop.NewStarter(a.destinationsCtx, a.pipelineProvider, a.launchers)
 	starter.Start()

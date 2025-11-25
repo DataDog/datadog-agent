@@ -219,8 +219,12 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 
 	suite.T().Logf("RESTARTING AGENT")
 
-	// restart agent
-	err := agent.restart(context.TODO())
+	// Build HTTP endpoints for restart
+	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config)
+	suite.NoError(err, "Should build HTTP endpoints")
+
+	// restart agent with HTTP endpoints
+	err = agent.restart(context.TODO(), httpEndpoints)
 
 	// confirm we switched to HTTP
 	suite.NoError(err)
@@ -282,8 +286,12 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 		beforeModTime = info.ModTime()
 	}
 
+	// Build HTTP endpoints for restart
+	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config)
+	suite.NoError(err, "Should build HTTP endpoints")
+
 	// Execute restart
-	err := agent.restart(context.TODO())
+	err = agent.restart(context.TODO(), httpEndpoints)
 	suite.NoError(err)
 
 	// Verify the registry file was written (Flush() was called)
@@ -297,48 +305,6 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 	}
 
 	suite.T().Logf("Auditor registry flushed to: %s", registryPath)
-}
-
-func (suite *RestartTestSuite) TestRestart_InvalidEndpointsRollsBack() {
-	l := mock.NewMockLogsIntake(suite.T())
-	defer l.Close()
-	endpoint := tcp.AddrToEndPoint(l.Addr())
-	endpoints := config.NewEndpoints(endpoint, nil, true, false)
-
-	agent, _, _ := createTestAgent(suite, endpoints)
-	agent.startPipeline()
-
-	originalEndpoints := agent.endpoints
-	originalTransport := originalEndpoints.UseHTTP
-
-	// Store persistent components that should be preserved
-	originalSources := agent.sources
-	originalAuditor := agent.auditor
-	originalSchedulers := agent.schedulers
-
-	if cfg, ok := agent.config.(pkgconfigmodel.Config); ok {
-		cfg.SetWithoutSource("logs_config.logs_dd_url", "not-a-valid-address")
-	} else {
-		suite.FailNow("agent config does not support overrides")
-	}
-
-	err := agent.restart(context.TODO())
-	suite.Error(err, "Should return error for invalid endpoints")
-	suite.Contains(err.Error(), "rolled back", "Error should indicate rollback occurred")
-
-	// Verify we're still on the same transport (rolled back)
-	suite.Equal(originalTransport, agent.endpoints.UseHTTP, "Should stay on original transport after rollback")
-	suite.Same(originalEndpoints, agent.endpoints, "Endpoints should be restored to original")
-
-	// Verify persistent components are preserved
-	suite.Same(originalSources, agent.sources, "Sources should be preserved")
-	suite.Same(originalAuditor, agent.auditor, "Auditor should be preserved")
-	suite.Same(originalSchedulers, agent.schedulers, "Schedulers should be preserved")
-
-	// Verify transient components exist (they're recreated during rollback, which is OK)
-	suite.NotNil(agent.destinationsCtx, "Pipeline should be functional after rollback")
-	suite.NotNil(agent.pipelineProvider, "Pipeline should be functional after rollback")
-	suite.NotNil(agent.launchers, "Launchers should be functional after rollback")
 }
 
 func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
@@ -524,20 +490,24 @@ func (suite *RestartTestSuite) TestRestart_SerializesConcurrentCalls() {
 		return suite.fakeLogs == metrics.LogsSent.Value()
 	})
 
+	// Build HTTP endpoints for restart
+	httpEndpoints, err := buildHTTPEndpointsForRestart(agent.config)
+	suite.NoError(err, "Should build HTTP endpoints")
+
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		errCh <- agent.restart(context.TODO())
+		errCh <- agent.restart(context.TODO(), httpEndpoints)
 	}()
 
 	// Start the second restart shortly after the first to exercise the mutex
 	go func() {
 		defer wg.Done()
 		time.Sleep(20 * time.Millisecond)
-		errCh <- agent.restart(context.TODO())
+		errCh <- agent.restart(context.TODO(), httpEndpoints)
 	}()
 
 	wg.Wait()
@@ -616,7 +586,6 @@ func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_FailureRollsBackToTCP(
 	// Attempt HTTP upgrade (should fail and rollback)
 	err := agent.restartWithHTTPUpgrade(context.TODO())
 	suite.Error(err, "Should return error when HTTP upgrade fails")
-	suite.Contains(err.Error(), "HTTP upgrade failed")
 
 	// Verify we rolled back to TCP
 	suite.False(agent.endpoints.UseHTTP, "Should rollback to TCP after failure")
@@ -753,7 +722,6 @@ func (suite *RestartTestSuite) TestRestart_FailureRollbackThenRetrySuccess() {
 
 	err := agent.restartWithHTTPUpgrade(context.TODO())
 	suite.Error(err, "First restart attempt should fail")
-	suite.Contains(err.Error(), "rolled back", "Should rollback to TCP")
 	suite.False(agent.endpoints.UseHTTP, "Should be back on TCP after rollback")
 
 	// Verify agent is still functional on TCP

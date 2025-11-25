@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -61,6 +62,14 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
+
+	// Publish HTTP connectivity check metric
+	if httpConnectivity == config.HTTPConnectivitySuccess {
+		metrics.TlmHTTPConnectivityCheck.Inc("success")
+	} else {
+		metrics.TlmHTTPConnectivityCheck.Inc("failure")
+	}
+
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
