@@ -26,11 +26,8 @@ dependency "cacerts"
 default_version "3.5.4"
 
 build do
-  if (windows? && ENV["AGENT_FLAVOR"] != "fips") || (!windows? && ENV["AGENT_FLAVOR"] != "fips")
-    installation_dir = "#{install_dir}/embedded"
-    if windows?
-      installation_dir = "#{python_3_embedded}"
-    end
+  if !fips_mode?
+    installation_dir = windows? ? python_3_embedded : "#{install_dir}/embedded
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{installation_dir}"
     if windows?
       # shutil generates temporary files during run install that are not removed afterwards.
