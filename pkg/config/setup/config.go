@@ -513,7 +513,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "70m") // with 30min interval, 70m will allow running a test 3 times
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "70m") // with 30min interval, 70m will allow running a test 3 times (t0, t30, t60)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "30m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_per_minute", 150)
