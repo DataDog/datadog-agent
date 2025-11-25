@@ -26,6 +26,7 @@ const (
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envOTelCollectorEnabled  = "DD_OTELCOLLECTOR_ENABLED"
+	envInstallOnly           = "DD_INSTALL_ONLY"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -79,6 +80,7 @@ var defaultEnv = Env{
 	Site:                 "datadoghq.com",
 	RemoteUpdates:        false,
 	OTelCollectorEnabled: false,
+	InstallOnly:          false,
 	Mirror:               "",
 
 	RegistryOverride:            "",
@@ -157,6 +159,7 @@ type Env struct {
 	Site                 string
 	RemoteUpdates        bool
 	OTelCollectorEnabled bool
+	InstallOnly          bool
 
 	Mirror                      string
 	RegistryOverride            string
@@ -231,6 +234,7 @@ func FromEnv() *Env {
 		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
 		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
 		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
+		InstallOnly:          strings.ToLower(os.Getenv(envInstallOnly)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -335,6 +339,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.OTelCollectorEnabled {
 		env = append(env, envOTelCollectorEnabled+"=true")
+	}
+	if e.InstallOnly {
+		env = append(env, envInstallOnly+"=true")
 	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
