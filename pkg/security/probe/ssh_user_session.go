@@ -41,14 +41,14 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 	ppid := event.ProcessContext.Process.PPid
 	parent := p.Resolvers.ProcessResolver.Resolve(ppid, ppid, 0, false, nil)
 
-	envp := p.fieldHandlers.ResolveProcessEnvp(event, &event.ProcessContext.Process)
-	sshClientVar := getEnvVar(envp, "SSH_CLIENT")
-
-	// If the parent is a sshd process and the SSH_CLIENT environment variable is set, we consider it's a new ssh session
-	if parent != nil && parent.Comm == "sshd" && sshClientVar != "" {
+	// If the parent is a sshd process, we consider it's a new ssh session
+	if parent != nil && parent.Comm == "sshd" {
 		sshSessionID := rand.Uint64()
 		event.ProcessContext.UserSession.SSHSessionID = sshSessionID
 		event.ProcessContext.UserSession.SessionType = int(usersession.UserSessionTypeSSH)
+		// Try to extract the SSH client IP and port
+		envp := p.fieldHandlers.ResolveProcessEnvp(event, &event.ProcessContext.Process)
+		sshClientVar := getEnvVar(envp, "SSH_CLIENT")
 		parts := strings.Fields(sshClientVar)
 		if len(parts) >= 2 {
 			event.ProcessContext.UserSession.SSHClientIP = getIPfromEnv(parts[0])
