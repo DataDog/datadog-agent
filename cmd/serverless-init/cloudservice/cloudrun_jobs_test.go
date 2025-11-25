@@ -157,6 +157,46 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 	}
 }
 
+func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+			// No "service" tag
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "my-job-name")
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(nil)
+
+	// Verify span falls back to job name for service name
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Service)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource)
+}
+
+func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+			// No "service" tag
+		}
+	}
+
+	// No CLOUD_RUN_JOB environment variable
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(nil)
+
+	// Verify span falls back to default "gcp.run.job"
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Service)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Resource)
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
