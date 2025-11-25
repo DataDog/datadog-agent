@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package logging provides a logging adapter that bridges to the original source code logging system
 package logging
 
 import (
@@ -38,7 +39,7 @@ type loggerAdapter struct {
 }
 
 // FromContext returns a logger from context (in this adapter, just returns a new logger)
-func FromContext(ctx context.Context) Logger {
+func FromContext(_ context.Context) Logger {
 	return &loggerAdapter{
 		contextFields: []Field{},
 	}
