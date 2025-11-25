@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -54,7 +55,8 @@ func TestProcess(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -69,7 +71,8 @@ func TestProcessInvalidDomain(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -84,7 +87,8 @@ func TestProcessNetworkError(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 }
 
@@ -106,21 +110,22 @@ func TestProcessHTTPError(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(context.Background(), mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
 
 	errorCode = http.StatusBadRequest
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 
 	errorCode = http.StatusRequestEntityTooLarge
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 
 	errorCode = http.StatusForbidden
-	err = transaction.Process(context.Background(), mockConfig, log, client)
+	err = transaction.Process(context.Background(), mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 	assert.Equal(t, transaction.ErrorCount, 1)
 }
@@ -138,7 +143,8 @@ func TestProcessCancel(t *testing.T) {
 
 	mockConfig := configmock.New(t)
 	log := logmock.New(t)
-	err := transaction.Process(ctx, mockConfig, log, client)
+	secrets := secretsmock.New(t)
+	err := transaction.Process(ctx, mockConfig, log, secrets, client)
 	assert.NoError(t, err)
 }
 
@@ -181,4 +187,36 @@ func Test_truncateBodyForLog(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTransaction403TriggersSecretRefresh(t *testing.T) {
+	triggered := false
+
+	secrets := secretsmock.New(t)
+	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
+		if !updateNow {
+			triggered = true
+		}
+		return "", nil
+	})
+
+	// test server that returns 403 for all reequests
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts.Close()
+
+	transaction := NewHTTPTransaction()
+	transaction.Domain = ts.URL
+	transaction.Endpoint.Route = "/endpoint/test"
+	transaction.Payload = NewBytesPayloadWithoutMetaData([]byte("test payload"))
+
+	client := &http.Client{}
+	mockConfig := configmock.New(t)
+	log := logmock.New(t)
+
+	err := transaction.Process(context.Background(), mockConfig, log, secrets, client)
+	assert.NoError(t, err)
+
+	assert.True(t, triggered, "secrets.Refresh(false) should be called when transaction receives 403")
 }
