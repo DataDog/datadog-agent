@@ -287,9 +287,7 @@ build do
   end
 
   # Allows the agent to be installed in a custom location
-  if linux_target?
-    command "touch #{install_dir}/.install_root"
-  end
+  command "touch #{install_dir}/.install_root"
 
   # TODO: move this to omnibus-ruby::health-check.rb
   # check that linux binaries contains OpenSSL symbols when building to support FIPS
