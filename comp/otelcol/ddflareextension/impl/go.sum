@@ -578,8 +578,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumul
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.140.1/go.mod h1:HRIaREk1wmELjjFqA17ALS0EpRudtmL85J+G5vGICpo=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.140.1 h1:eV+ogmxqGFfPDz7n0JLcEnJAqlRDAwRikGaM41Ho8Tw=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.140.1/go.mod h1:os51v799F5dj0YN1g/xUr/WrsYrwDbVbSlVL4sLGCmU=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.140.1 h1:zVIQm9UFqwZ6xQnZjdKXKmRMD3+iY8sy1eJ9kjJ27FY=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.140.1/go.mod h1:e/ZVSkLhZ8qQJC1oi/runS0zG0HzG1MmrYss2gJq9KM=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.140.1 h1:BfzDWrF6jIjSyiEYpO3U84FH7Pes+cepJy4jiKfk55Q=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.140.1/go.mod h1:dJWHfMFUzwWtdRVA91YvKyCexo7nM86UNEveCoF9ki0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.140.1 h1:JnMoU0u3T/zK/pOkRusYuBF5kspdYvaUKDsRl4smUE8=
@@ -824,8 +822,6 @@ go.opentelemetry.io/collector/consumer/xconsumer v0.140.0 h1:VTTybtJLbGN6aGw1bB7
 go.opentelemetry.io/collector/consumer/xconsumer v0.140.0/go.mod h1:CtwSgAXVisCEJ+ElKeDa0yDo/Oie7l1vWAx1elFyWZc=
 go.opentelemetry.io/collector/exporter v1.46.0 h1:wCNH6dyG/PFtN40Q4ZCPWXgPuoX44cT9U4TuNVcLUvw=
 go.opentelemetry.io/collector/exporter v1.46.0/go.mod h1:EiNU4i+iG0n1FQBkWkwS7Nzd+vjlKsefy1bLHj913EU=
-go.opentelemetry.io/collector/exporter/debugexporter v0.140.0 h1:HQKp5FoUIVAPMHGx42zYuVP8jN3ZWUeMIsGBXZrTlto=
-go.opentelemetry.io/collector/exporter/debugexporter v0.140.0/go.mod h1:qlKig6kWTr0EvbcOKbe0ueeUxfNeTbNf2pCORzyJRVw=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.140.0 h1:Euh2mfLhZoPgccNY++PfX0H3aFwthVFjR38x4RllXcM=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.140.0/go.mod h1:0WQCcouhn/efm75++yuzhNj51Q+8kR3HrGDLGjoUrso=
 go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.140.0 h1:jyw54m867IaPktvM5tU7T2vA3TY8/9M1de81mvJYa2A=
@@ -868,8 +864,6 @@ go.opentelemetry.io/collector/internal/testutil v0.140.0 h1:OgvGiltSMMzFg3I48quB
 go.opentelemetry.io/collector/internal/testutil v0.140.0/go.mod h1:YAD9EAkwh/l5asZNbEBEUCqEjoL1OKMjAMoPjPqH76c=
 go.opentelemetry.io/collector/otelcol v0.140.0 h1:vFrqrxA7MeGsc09WTZGzePwMh05dNKUmZkGH4lGYr/U=
 go.opentelemetry.io/collector/otelcol v0.140.0/go.mod h1:2t7Nd4gau1WBLqgdDKvGwRxmGl5R0xDxKv8iPVXpLFg=
-go.opentelemetry.io/collector/otelcol/otelcoltest v0.140.0 h1:aqqx7oW6ZcBajSxYzuoiZ1gF96S5u8NxyGQOFbUNUG4=
-go.opentelemetry.io/collector/otelcol/otelcoltest v0.140.0/go.mod h1:s+10HJ9sbdSKFgImN7iv2T4Wp5OhvaHSyFLHabJYeRs=
 go.opentelemetry.io/collector/pdata v1.46.0 h1:XzhnIWNtc/gbOyFiewRvybR4s3phKHrWxL3yc/wVLDo=
 go.opentelemetry.io/collector/pdata v1.46.0/go.mod h1:D2e3BWCUC/bUg29WNzCDVN7Ab0Gzk7hGXZL2pnrDOn0=
 go.opentelemetry.io/collector/pdata/pprofile v0.140.0 h1:b9TZ6UnyzsT/ERQw2VKGi/NYLtKSmjG7cgQuc9wZt5s=

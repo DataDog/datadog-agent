@@ -482,7 +482,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.73.0-rc.5 // indirect
