@@ -4,9 +4,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// --------- MS Store API (module) ----------
-
 typedef struct MSStoreEntry {
     const wchar_t *display_name;
 
@@ -27,10 +24,14 @@ typedef struct MSStore {
     MSStoreEntry *entries;
 } MSStore;
 
-__declspec(dllexport) int MSStore_ListEntries(MSStore **out);
+__declspec(dllexport) int GetStore(MSStore **out);
 
-__declspec(dllexport) void MSStore_FreeEntries(MSStore *store);
+__declspec(dllexport) int FreeStore(MSStore *store);
 
 #ifdef __cplusplus
 }
+struct MSStoreInternal : MSStore {
+    std::vector<MSStoreEntry> entriesVec;
+    std::vector<winrt::hstring> strings;
+};
 #endif

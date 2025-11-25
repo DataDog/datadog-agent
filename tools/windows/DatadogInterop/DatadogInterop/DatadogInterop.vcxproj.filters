@@ -13,33 +13,15 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Header Files\public">
-      <UniqueIdentifier>{46de825e-3747-405b-a0dc-784ef69b26b1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\internal">
-      <UniqueIdentifier>{60a556db-301e-43be-8dce-73020548a2cd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\msstore">
-      <UniqueIdentifier>{aed81366-fd24-4a21-8fb6-87b3c8346219}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="windows_native_msstore.h">
-      <Filter>Header Files\public</Filter>
-    </ClInclude>
-    <ClInclude Include="windows_native.h">
-      <Filter>Header Files\public</Filter>
-    </ClInclude>
-    <ClInclude Include="msstore_internal.h">
-      <Filter>Header Files\internal</Filter>
+    <ClInclude Include="msstoreapps.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="msstore_impl.cpp">
-      <Filter>Source Files\msstore</Filter>
-    </ClCompile>
-    <ClCompile Include="msstore_exports.cpp">
-      <Filter>Source Files\msstore</Filter>
+    <ClCompile Include="msstoreapps.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

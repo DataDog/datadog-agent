@@ -5,7 +5,8 @@
 
 //go:build windows
 
-package windowsnative
+// Package msstoreapps provides the API for MS Store apps from the Datadog Interop DLL, libdatadog-interop.dll.
+package msstoreapps
 
 import (
 	"fmt"
@@ -73,20 +74,23 @@ type cStore struct {
 }
 
 var (
-	mod      = syscall.NewLazyDLL("WindowsNative.dll")
-	procList = mod.NewProc("MSStore_ListEntries")
-	procFree = mod.NewProc("MSStore_FreeEntries")
+	mod      = syscall.NewLazyDLL("libdatadog-interop.dll")
+	procList = mod.NewProc("GetStore")
+	procFree = mod.NewProc("FreeStore")
 )
 
-func MSStore_ListEntries() (*cStore, error) {
+// GetStore returns a pointer to a cStore struct containing the list of MS Store apps.
+// The caller is responsible for freeing the memory allocated for the cStore struct using FreeStore.
+func GetStore() (*cStore, error) {
 	var out *cStore
 	r1, _, _ := procList.Call(uintptr(unsafe.Pointer(&out)))
 	if r1 != 0 {
-		return nil, fmt.Errorf("MSStore_ListEntries: %d", r1)
+		return nil, fmt.Errorf("GetStore: %d", r1)
 	}
 	return out, nil
 }
 
-func MSStore_FreeEntries(store *cStore) {
-	procFree.Call(uintptr(unsafe.Pointer(store)))
+// FreeStore frees the memory allocated for the cStore struct.
+func FreeStore(store *cStore) {
+	_, _, _ = procFree.Call(uintptr(unsafe.Pointer(store)))
 }
