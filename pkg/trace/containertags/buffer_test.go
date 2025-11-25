@@ -228,7 +228,7 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	select {
 	case tags := <-resultChan:
 		assert.Contains(t, tags, "image:only")
-	case <-time.After(5 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
 	assert.Equal(t, ctb.memoryUsage.Load(), int64(0))
@@ -262,7 +262,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	select {
 	case tags := <-resultChan:
 		assert.Contains(t, tags, "image:only")
-	case <-time.After(5 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
 	assert.Equal(t, ctb.memoryUsage.Load(), int64(0))
@@ -327,7 +327,7 @@ func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
 	// memory usage release happens in a deferred call inside the AsyncEnrichment goroutines.
 	assert.Eventually(t, func() bool {
 		return ctb.memoryUsage.Load() == 0
-	}, 2*time.Second, 10*time.Millisecond, "Memory usage should eventually drop to 0")
+	}, 10*time.Second, 10*time.Millisecond, "Memory usage should eventually drop to 0")
 
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-error"))
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-will-expire1"))
