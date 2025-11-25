@@ -686,11 +686,13 @@ def check_permissions(
 
 @task
 def t(ctx):
+    import base64
     from github import Auth, Github, GithubIntegration
 
     appid = os.environ['GITHUB_APP_ID']
     installid = int(os.environ['GITHUB_INSTALLATION_ID'])
-    appkey = os.environ['GITHUB_PRIVATE_KEY'].strip() # TODO os.environ['GITHUB_KEY_B64']
+    appkey = os.environ['GITHUB_KEY_B64']
+    appkey = base64.b64decode(appkey).decode('ascii')
 
     auth = Auth.AppAuth(appid, appkey).get_installation_auth(installid)
     Github(auth=auth)
