@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -116,7 +116,7 @@ type Probe struct {
 	cancelFnc func()
 	wg        sync.WaitGroup
 	startTime time.Time
-	scrubber  *utils.Scrubber
+	scrubber  *procutil.DataScrubber
 
 	// Events section
 	consumers           []*EventConsumer
@@ -129,19 +129,14 @@ type Probe struct {
 	ruleActionStats     map[actionStatsTags]*atomic.Int64
 }
 
-func newProbe(config *config.Config, opts Opts) (*Probe, error) {
-	scrubber, err := utils.NewScrubber(config.Probe.CustomSensitiveWords, config.Probe.CustomSensitiveRegexps)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create event scrubber: %w", err)
-	}
-
+func newProbe(config *config.Config, opts Opts) *Probe {
 	return &Probe{
 		Opts:            opts,
 		Config:          config,
 		StatsdClient:    opts.StatsdClient,
-		scrubber:        scrubber,
+		scrubber:        newProcScrubber(config.Probe.CustomSensitiveWords),
 		ruleActionStats: make(map[actionStatsTags]*atomic.Int64),
-	}, nil
+	}
 }
 
 // Init initializes the probe
@@ -338,17 +333,12 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func (p *Probe) logTraceEvent(eventType model.EventType, event interface{}) {
+func logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event, Scrubber: p.scrubber})
-}
-
-// GetScrubber returns the event scrubber
-func (p *Probe) GetScrubber() *utils.Scrubber {
-	return p.scrubber
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -358,7 +348,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	p.logTraceEvent(event.GetEventType(), event)
+	logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {

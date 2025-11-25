@@ -864,7 +864,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) 
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
-	p.probe.logTraceEvent(event.GetEventType(), event)
+	logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
 	p.profileManager.LookupEventInProfiles(event)
@@ -911,7 +911,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		p.profileManager.ProcessEvent(event)
 	}
-	p.monitors.ProcessEvent(event, p.probe.scrubber)
+	p.monitors.ProcessEvent(event)
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -945,7 +945,7 @@ func (p *EBPFProbe) GetMonitors() *EBPFMonitors {
 // EventMarshallerCtor returns the event marshaller ctor
 func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
-		return serializers.NewEventSerializer(event, nil, p.probe.scrubber)
+		return serializers.NewEventSerializer(event, nil)
 	}
 }
 
@@ -3390,7 +3390,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil, p.probe.scrubber))
+				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
 				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 
