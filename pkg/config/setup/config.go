@@ -120,6 +120,9 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
+	// DefaultHTTPConnectivityRetryIntervalMax is the default maximum interval for HTTP connectivity retry attempts in seconds
+	DefaultHTTPConnectivityRetryIntervalMax = 3600
+
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -142,9 +145,6 @@ const (
 
 	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
 	DefaultNetworkPathStaticPathE2eQueries = 50
-
-	// DefaultHttpConnectivityRetryIntervalMax defines the default maximum interval for HTTP connectivity retry
-	DefaultHttpConnectivityRetryIntervalMax = 3600
 )
 
 var (

@@ -299,7 +299,7 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 	suite.T().Logf("Auditor registry flushed to: %s", registryPath)
 }
 
-func (suite *RestartTestSuite) TestRestart_InvalidEndpointsLeavesStateIntact() {
+func (suite *RestartTestSuite) TestRestart_InvalidEndpointsRollsBack() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 	endpoint := tcp.AddrToEndPoint(l.Addr())
@@ -309,9 +309,12 @@ func (suite *RestartTestSuite) TestRestart_InvalidEndpointsLeavesStateIntact() {
 	agent.startPipeline()
 
 	originalEndpoints := agent.endpoints
-	originalDestinations := agent.destinationsCtx
-	originalPipeline := agent.pipelineProvider
-	originalLaunchers := agent.launchers
+	originalTransport := originalEndpoints.UseHTTP
+
+	// Store persistent components that should be preserved
+	originalSources := agent.sources
+	originalAuditor := agent.auditor
+	originalSchedulers := agent.schedulers
 
 	if cfg, ok := agent.config.(pkgconfigmodel.Config); ok {
 		cfg.SetWithoutSource("logs_config.logs_dd_url", "not-a-valid-address")
@@ -320,14 +323,22 @@ func (suite *RestartTestSuite) TestRestart_InvalidEndpointsLeavesStateIntact() {
 	}
 
 	err := agent.restart(context.TODO())
-	suite.Error(err)
-	suite.Contains(err.Error(), "Invalid endpoints")
+	suite.Error(err, "Should return error for invalid endpoints")
+	suite.Contains(err.Error(), "rolled back", "Error should indicate rollback occurred")
 
-	// Nothing should have been changed when endpoint validation fails
-	suite.Same(originalEndpoints, agent.endpoints)
-	suite.Same(originalDestinations, agent.destinationsCtx)
-	suite.Same(originalPipeline, agent.pipelineProvider)
-	suite.Same(originalLaunchers, agent.launchers)
+	// Verify we're still on the same transport (rolled back)
+	suite.Equal(originalTransport, agent.endpoints.UseHTTP, "Should stay on original transport after rollback")
+	suite.Same(originalEndpoints, agent.endpoints, "Endpoints should be restored to original")
+
+	// Verify persistent components are preserved
+	suite.Same(originalSources, agent.sources, "Sources should be preserved")
+	suite.Same(originalAuditor, agent.auditor, "Auditor should be preserved")
+	suite.Same(originalSchedulers, agent.schedulers, "Schedulers should be preserved")
+
+	// Verify transient components exist (they're recreated during rollback, which is OK)
+	suite.NotNil(agent.destinationsCtx, "Pipeline should be functional after rollback")
+	suite.NotNil(agent.pipelineProvider, "Pipeline should be functional after rollback")
+	suite.NotNil(agent.launchers, "Launchers should be functional after rollback")
 }
 
 func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
@@ -540,6 +551,235 @@ func (suite *RestartTestSuite) TestRestart_SerializesConcurrentCalls() {
 	suite.NotNil(agent.destinationsCtx)
 	suite.NotNil(agent.pipelineProvider)
 	suite.NotNil(agent.launchers)
+}
+
+func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_Success() {
+	// Start with TCP
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, sources, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
+
+	// Wait for initial logs
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
+
+	// Set up HTTP server
+	cfg := configmock.New(suite.T())
+	httpServer := http.NewTestServer(200, cfg)
+	defer httpServer.Stop()
+
+	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
+	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
+		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+	}
+
+	// Execute HTTP upgrade
+	err := agent.restartWithHTTPUpgrade(context.TODO())
+	suite.NoError(err)
+
+	// Verify we're on HTTP now
+	suite.True(agent.endpoints.UseHTTP, "Should be using HTTP after upgrade")
+	suite.Equal(logsStatus.TransportHTTP, logsStatus.GetCurrentTransport())
+}
+
+func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_FailureRollsBackToTCP() {
+	// Start with TCP
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, sources, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
+
+	// Wait for initial logs
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
+
+	// Store original TCP endpoints
+	originalEndpoints := agent.endpoints
+	suite.False(originalEndpoints.UseHTTP, "Should start on TCP")
+
+	// Set invalid HTTP URL to trigger failure
+	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
+		c.SetWithoutSource("logs_config.logs_dd_url", "invalid-address-will-fail")
+	}
+
+	// Attempt HTTP upgrade (should fail and rollback)
+	err := agent.restartWithHTTPUpgrade(context.TODO())
+	suite.Error(err, "Should return error when HTTP upgrade fails")
+	suite.Contains(err.Error(), "HTTP upgrade failed")
+
+	// Verify we rolled back to TCP
+	suite.False(agent.endpoints.UseHTTP, "Should rollback to TCP after failure")
+	suite.NotNil(agent.destinationsCtx, "Pipeline should be running after rollback")
+	suite.NotNil(agent.pipelineProvider, "Pipeline should be running after rollback")
+}
+
+func (suite *RestartTestSuite) TestRestartWithHTTPUpgrade_PreservesComponentReferences() {
+	// Start with TCP
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, sources, _ := createTestAgent(suite, endpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
+
+	// Store references to persistent components
+	originalSources := agent.sources
+	originalAuditor := agent.auditor
+	originalSchedulers := agent.schedulers
+
+	// Set up HTTP server
+	cfg := configmock.New(suite.T())
+	httpServer := http.NewTestServer(200, cfg)
+	defer httpServer.Stop()
+
+	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
+	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
+		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+	}
+
+	// Execute HTTP upgrade
+	err := agent.restartWithHTTPUpgrade(context.TODO())
+	suite.NoError(err)
+
+	// Verify persistent components preserved
+	suite.Same(originalSources, agent.sources)
+	suite.Same(originalAuditor, agent.auditor)
+	suite.Same(originalSchedulers, agent.schedulers)
+}
+
+func (suite *RestartTestSuite) TestCalculateBackoffDuration() {
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createTestAgent(suite, endpoints)
+
+	maxDuration := 10 * time.Second
+
+	// Test exponential growth
+	duration0 := agent.calculateBackoffDuration(0, maxDuration)
+	duration1 := agent.calculateBackoffDuration(1, maxDuration)
+	duration2 := agent.calculateBackoffDuration(2, maxDuration)
+
+	// Durations should increase exponentially
+	suite.Greater(duration1, duration0, "Backoff should increase with attempts")
+	suite.Greater(duration2, duration1, "Backoff should increase with attempts")
+
+	// Test capping at maxDuration
+	duration20 := agent.calculateBackoffDuration(20, maxDuration)
+	suite.LessOrEqual(duration20, maxDuration, "Backoff should be capped at maxDuration")
+
+	// Test randomization (values should be within expected range)
+	suite.GreaterOrEqual(duration0, 1*time.Second, "Attempt 0: should be >= 2^0 seconds")
+	suite.Less(duration0, 2*time.Second, "Attempt 0: should be < 2^1 seconds")
+
+	suite.GreaterOrEqual(duration1, 2*time.Second, "Attempt 1: should be >= 2^1 seconds")
+	suite.Less(duration1, 4*time.Second, "Attempt 1: should be < 2^2 seconds")
+}
+
+func (suite *RestartTestSuite) TestRollbackToPreviousTransport() {
+	// Start with TCP
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	tcpEndpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, _, _ := createTestAgent(suite, tcpEndpoints)
+	agent.startPipeline()
+
+	originalEndpoints := agent.endpoints
+	suite.False(originalEndpoints.UseHTTP, "Should start on TCP")
+
+	// Simulate partial stop (what restart() does before trying HTTP)
+	err := agent.partialStop()
+	suite.NoError(err)
+
+	// Set up HTTP endpoints (simulating what restart() tries)
+	cfg := configmock.New(suite.T())
+	httpServer := http.NewTestServer(200, cfg)
+	defer httpServer.Stop()
+
+	httpEndpoints := config.NewEndpoints(httpServer.Endpoint, nil, false, true)
+	agent.endpoints = httpEndpoints
+
+	// Now rollback to TCP
+	err = agent.rollbackToPreviousTransport(originalEndpoints)
+	suite.Error(err, "rollbackToPreviousTransport should return error to signal failure")
+	suite.Contains(err.Error(), "rolled back")
+
+	// Verify we're back on TCP
+	suite.False(agent.endpoints.UseHTTP, "Should be back on TCP after rollback")
+	suite.NotNil(agent.destinationsCtx, "Pipeline should be restarted")
+	suite.NotNil(agent.pipelineProvider, "Pipeline should be restarted")
+}
+
+func (suite *RestartTestSuite) TestRestart_FailureRollbackThenRetrySuccess() {
+	// Start with TCP
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	tcpEndpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	agent, sources, _ := createTestAgent(suite, tcpEndpoints)
+	agent.startPipeline()
+	sources.AddSource(suite.source)
+
+	// Wait for initial logs
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return suite.fakeLogs == metrics.LogsSent.Value()
+	})
+
+	suite.False(agent.endpoints.UseHTTP, "Should start on TCP")
+
+	// ATTEMPT 1: Try to restart with invalid HTTP URL (should fail and rollback)
+	suite.T().Log("ATTEMPT 1: Restart with invalid HTTP URL")
+	if cfg, ok := agent.config.(pkgconfigmodel.Config); ok {
+		cfg.SetWithoutSource("logs_config.logs_dd_url", "invalid-address-will-fail")
+	}
+
+	err := agent.restartWithHTTPUpgrade(context.TODO())
+	suite.Error(err, "First restart attempt should fail")
+	suite.Contains(err.Error(), "rolled back", "Should rollback to TCP")
+	suite.False(agent.endpoints.UseHTTP, "Should be back on TCP after rollback")
+
+	// Verify agent is still functional on TCP
+	suite.NotNil(agent.destinationsCtx, "Agent should be functional after rollback")
+	suite.NotNil(agent.pipelineProvider, "Agent should be functional after rollback")
+
+	// ATTEMPT 2: Now retry with valid HTTP URL (should succeed)
+	suite.T().Log("ATTEMPT 2: Retry restart with valid HTTP URL")
+	cfg := configmock.New(suite.T())
+	httpServer := http.NewTestServer(200, cfg)
+	defer httpServer.Stop()
+
+	httpURL := fmt.Sprintf("http://%s:%d", httpServer.Endpoint.Host, httpServer.Endpoint.Port)
+	if c, ok := agent.config.(pkgconfigmodel.Config); ok {
+		c.SetWithoutSource("logs_config.logs_dd_url", httpURL)
+	}
+
+	err = agent.restartWithHTTPUpgrade(context.TODO())
+	suite.NoError(err, "Second restart attempt should succeed")
+	suite.True(agent.endpoints.UseHTTP, "Should now be on HTTP")
+	suite.Equal(logsStatus.TransportHTTP, logsStatus.GetCurrentTransport())
+
+	// Verify agent is functional on HTTP
+	suite.NotNil(agent.destinationsCtx, "Agent should be functional on HTTP")
+	suite.NotNil(agent.pipelineProvider, "Agent should be functional on HTTP")
+	suite.NotNil(agent.launchers, "Agent should be functional on HTTP")
 }
 
 func TestRestartTestSuite(t *testing.T) {
