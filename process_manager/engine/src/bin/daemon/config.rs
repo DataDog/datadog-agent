@@ -117,9 +117,15 @@ impl DaemonConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Mutex to serialize tests that modify environment variables
+    // This prevents race conditions when tests run in parallel
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_default_config() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // Clear env vars
         env::remove_var("DD_PM_TRANSPORT_MODE");
         env::remove_var("DD_PM_GRPC_PORT");
@@ -140,6 +146,7 @@ mod tests {
 
     #[test]
     fn test_tcp_mode() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         env::set_var("DD_PM_TRANSPORT_MODE", "tcp");
         let config = DaemonConfig::from_env();
         assert_eq!(config.transport_mode, TransportMode::Tcp);
@@ -148,6 +155,7 @@ mod tests {
 
     #[test]
     fn test_custom_ports() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         env::set_var("DD_PM_GRPC_PORT", "9999");
         env::set_var("DD_PM_REST_PORT", "8888");
         let config = DaemonConfig::from_env();
@@ -159,6 +167,7 @@ mod tests {
 
     #[test]
     fn test_backward_compat_daemon_port() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         env::set_var("DD_PM_DAEMON_PORT", "7777");
         let config = DaemonConfig::from_env();
         assert_eq!(config.grpc_port, 7777);
@@ -167,6 +176,7 @@ mod tests {
 
     #[test]
     fn test_bool_parsing() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         for val in &["true", "1", "yes", "on", "TRUE", "Yes"] {
             env::set_var("DD_PM_ENABLE_REST", val);
             let config = DaemonConfig::from_env();
@@ -184,6 +194,7 @@ mod tests {
 
     #[test]
     fn test_log_level_priority() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         // DD_PM_LOG_LEVEL takes priority
         env::set_var("DD_PM_LOG_LEVEL", "debug");
         env::set_var("RUST_LOG", "trace");
@@ -203,6 +214,7 @@ mod tests {
 
     #[test]
     fn test_validation() {
+        let _lock = ENV_MUTEX.lock().unwrap();
         let mut config = DaemonConfig::from_env();
         assert!(config.validate().is_ok());
 
