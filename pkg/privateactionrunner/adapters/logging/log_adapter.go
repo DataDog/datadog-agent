@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -72,6 +73,10 @@ func ErrorField(err error) Field {
 
 // Any creates a field with any value
 func Any(key string, value interface{}) Field {
+	return Field{Key: key, Value: value}
+}
+
+func Duration(key string, value time.Duration) Field {
 	return Field{Key: key, Value: value}
 }
 
