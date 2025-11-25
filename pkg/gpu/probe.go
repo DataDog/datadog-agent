@@ -61,6 +61,7 @@ const (
 	cudaEventsRingbuf      bpfMapName = "cuda_events"
 	cudaAllocCacheMap      bpfMapName = "cuda_alloc_cache"
 	cudaSyncCacheMap       bpfMapName = "cuda_sync_cache"
+	cuSyncCacheMap         bpfMapName = "cu_sync_cache"
 	cudaSetDeviceCacheMap  bpfMapName = "cuda_set_device_cache"
 	cudaEventStreamMap     bpfMapName = "cuda_event_to_stream"
 	cudaEventQueryCacheMap bpfMapName = "cuda_event_query_cache"
@@ -89,6 +90,8 @@ const (
 	cudaMemcpyProbe              probeFuncName = "uprobe__cudaMemcpy"
 	cudaMemcpyRetProbe           probeFuncName = "uretprobe__cudaMemcpy"
 	setenvProbe                  probeFuncName = "uprobe__setenv"
+	cuStreamSyncProbe            probeFuncName = "uprobe__cuStreamSynchronize"
+	cuStreamSyncRetProbe         probeFuncName = "uretprobe__cuStreamSynchronize"
 )
 
 const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
@@ -305,6 +308,7 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
 			{Name: cudaSyncCacheMap},
+			{Name: cuSyncCacheMap},
 			{Name: cudaSetDeviceCacheMap},
 			{Name: cudaEventStreamMap},
 			{Name: cudaEventQueryCacheMap},
@@ -426,10 +430,26 @@ func getLibcAttacherRule() *uprobes.AttachRule {
 	}
 }
 
+// getCuLibraryAttacherRule returns the attach rule for the CU driver libraries, which we only partially support
+func getCuLibraryAttacherRule() *uprobes.AttachRule {
+	return &uprobes.AttachRule{
+		LibraryNameRegex: regexp.MustCompile(`libcuda\.so`),
+		Targets:          uprobes.AttachToSharedLibraries | uprobes.AttachToExecutable,
+		ProbesSelector: []manager.ProbesSelector{
+			&manager.AllOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncRetProbe}},
+				},
+			},
+		},
+	}
+}
 func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 	return uprobes.AttacherConfig{
 		Rules: []*uprobes.AttachRule{
 			getCudaLibraryAttacherRule(),
+			getCuLibraryAttacherRule(),
 			getLibcAttacherRule(),
 		},
 		EbpfConfig:                     &cfg.Config,
