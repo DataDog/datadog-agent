@@ -7,16 +7,16 @@ go 1.24.0
 // for more details.
 
 require (
-	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.10
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/Microsoft/go-winio v0.6.2
@@ -47,10 +47,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/api v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.9
-	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/api v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.10
+	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.10
 	github.com/shirou/gopsutil/v4 v4.25.9
 	go.opentelemetry.io/collector/component/componenttest v0.138.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250929231259-57b25ae835d4
@@ -72,7 +72,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.10 // indirect
 	github.com/DataDog/go-sqllexer v0.1.9 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
