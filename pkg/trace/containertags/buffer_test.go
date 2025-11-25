@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Following directive won't be needed with Go 1.25+
+//go:build goexperiment.synctest
+
 // Package containertagsbuffer contains the logic to buffer payloads for container tags
 // enrichment
 package containertagsbuffer
@@ -15,6 +18,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -272,6 +276,12 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 }
 
 func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
+	synctest.Run(func() {
+		syncTestAsyncEnrichmentConcurrentMixedScenarios(t)
+	})
+}
+
+func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 	containerIDs := []string{"c-error", "c-to-resolve-1", "c-to-resolve-2", "c-will-expire1", "c-will-expire2"}
 
 	var shouldResolveContainers atomic.Bool
@@ -292,18 +302,9 @@ func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
 	}
 
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.bufferDuration = 500 * time.Millisecond
 	ctb.Start()
 
-	testDuration := 3 * time.Second
-	time.AfterFunc(testDuration/2, func() {
-		shouldResolveContainers.Store(true)
-		t.Log("--- SWITCHING STATE: Containers should now resolve with kube_ tags ---")
-	})
-
 	var wg sync.WaitGroup
-	start := time.Now()
-
 	var totalExecuted atomic.Int64
 	var totalAsyncCalls atomic.Int64
 
@@ -311,8 +312,7 @@ func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
-			for time.Since(start) < testDuration {
+			for j := 0; j < 1000; j++ {
 				cid := containerIDs[rand.Intn(len(containerIDs))]
 
 				totalAsyncCalls.Add(1)
@@ -321,13 +321,17 @@ func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
 		}()
 	}
 
+	time.Sleep(maxBufferDuration + time.Second) // advance time to allow ticker fires and container expiration
+	shouldResolveContainers.Store(true)
+	t.Log("--- SWITCHING STATE: Containers should now resolve with kube_ tags ---")
+	time.Sleep(2 * time.Second) // advance time to allow resolution of buffered containers
+
 	wg.Wait()
 	ctb.Stop()
+	synctest.Wait()
 
 	// memory usage release happens in a deferred call inside the AsyncEnrichment goroutines.
-	assert.Eventually(t, func() bool {
-		return ctb.memoryUsage.Load() == 0
-	}, 2*time.Second, 10*time.Millisecond, "Memory usage should eventually drop to 0")
+	assert.Zero(t, ctb.memoryUsage.Load(), "Memory usage should be 0")
 
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-error"))
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "c-will-expire1"))
