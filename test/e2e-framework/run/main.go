@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package e2eframework is the entry point for the e2e-framework.
-package e2eframework
+// Package main is the entry point for the e2e-framework.
+package main
 
 import (
 	"fmt"

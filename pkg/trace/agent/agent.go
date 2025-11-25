@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,6 +50,9 @@ const (
 	// manualSampling is the value for _dd.p.dm when user sets sampling priority directly in code.
 	manualSampling   = "-4"
 	manualSamplingV1 = 4
+
+	// tagContainersTags specifies the name of the tag which holds key/value
+	tagContainersTags = "_dd.tags.container"
 
 	// probabilitySampling is the value for _dd.p.dm when the agent is configured to use the ProbabilitySampler.
 	probabilitySampling   = "-9"
@@ -537,11 +541,38 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriterV1.WriteChunksV1(sampledChunks)
+		a.writeChunksV1(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.AddV1(statsInput)
 	}
+}
+
+func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
+	containerID := p.TracerPayload.ContainerID()
+	// fast path: no container ID or the buffering feature is disabled,
+	if containerID == "" || !a.ContainerTagsBuffer.IsEnabled() {
+		a.TraceWriterV1.WriteChunksV1(p)
+		return
+	}
+	// callback function to be executed once tags are resolved, or buffer times out
+	fn := func(cTags []string, err error) {
+		enrichTracesWithCtagsV1(p, cTags, err)
+		a.TraceWriterV1.WriteChunksV1(p)
+	}
+	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.Size))
+}
+
+// enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
+func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
+	if err != nil {
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		return
+	}
+	if len(ctags) == 0 {
+		return
+	}
+	p.TracerPayload.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
