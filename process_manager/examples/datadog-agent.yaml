@@ -53,9 +53,9 @@ conflicts:
 
 # Soft dependencies (systemd Wants=)
 # Auto-starts these processes if they are defined, but continues if they fail
+# Note: datadog-agent-trace is NOT here - it uses socket activation (starts on first connection)
 wants:
   - datadog-agent-installer
-  - datadog-agent-trace
   - datadog-agent-process
   - datadog-agent-sysprobe
   - datadog-agent-security

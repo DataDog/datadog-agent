@@ -61,19 +61,26 @@ impl StartProcess for StartProcessUseCase {
             });
         }
 
-        // 3. Get all processes for dependency and conflict resolution
+        // 3. Mark process as "starting" EARLY to prevent dependency cycles
+        // This is critical: if A wants B and B binds_to A, when we recursively
+        // start B, it will see A is already "starting" and won't try to start it again.
+        process.mark_starting()?;
+        self.repository.save(process.clone()).await?;
+
+        // 4. Get all processes for dependency and conflict resolution
         let all_processes_vec = self.repository.find_all().await?;
         let all_processes: HashMap<String, _> = all_processes_vec
             .into_iter()
             .map(|p| (p.name().to_string(), p))
             .collect();
 
-        // 4. Handle conflicts: Stop all conflicting processes (forward + bidirectional)
+        // 5. Handle conflicts: Stop all conflicting processes (forward + bidirectional)
         self.conflict_service
             .stop_conflicting_processes(&process, &all_processes)
             .await?;
 
         // Auto-start required dependencies (requires, binds_to, wants)
+        // binds_to is a startup dependency in systemd (like Requires, plus shutdown binding)
         let mut deps_to_start = Vec::new();
         deps_to_start.extend(process.requires().iter().cloned());
         deps_to_start.extend(process.binds_to().iter().cloned());
@@ -81,7 +88,10 @@ impl StartProcess for StartProcessUseCase {
 
         for dep_name in deps_to_start {
             if let Some(dep_process) = all_processes.get(&dep_name) {
-                if dep_process.state() != ProcessState::Running {
+                // Skip if already running OR starting (prevents cycles)
+                if dep_process.state() != ProcessState::Running
+                    && dep_process.state() != ProcessState::Starting
+                {
                     info!(
                         process = %process.name(),
                         dependency = %dep_name,
