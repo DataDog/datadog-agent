@@ -15,6 +15,9 @@ import (
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// loggerContextKey is the key used to store the logger in the context.
+var loggerContextKey = struct{}{}
+
 // Field represents a structured logging field
 type Field struct {
 	Key   string
@@ -39,16 +42,30 @@ type loggerAdapter struct {
 	contextFields []Field
 }
 
-// FromContext returns a logger from context (in this adapter, just returns a new logger)
-func FromContext(_ context.Context) Logger {
+// FromContext returns the logger from ctx, or a new logger if none exists.
+func FromContext(ctx context.Context) Logger {
+	if logger, ok := ctx.Value(loggerContextKey).(Logger); ok && logger != nil {
+		return logger
+	}
+
 	return &loggerAdapter{
 		contextFields: []Field{},
 	}
 }
 
+// ContextWithLogger returns a new context containing logger.
+func ContextWithLogger(ctx context.Context, logger Logger) context.Context {
+	return context.WithValue(ctx, loggerContextKey, logger)
+}
+
 // String creates a string field
 func String(key, value string) Field {
 	return Field{Key: key, Value: value}
+}
+
+// Strings creates a string slice field
+func Strings(key string, values []string) Field {
+	return Field{Key: key, Value: values}
 }
 
 // Int creates an int field
