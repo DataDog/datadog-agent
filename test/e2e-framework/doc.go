@@ -5,5 +5,3 @@
 
 // Package e2eframework is the entry point for the e2e-framework.
 package e2eframework
-
-// Needed to make sure we have at least one file in the package to avoid error when importing the module

@@ -122,9 +122,7 @@ def check_s3_image_exists(_, pipeline_id: str, deploy_job: str):
     response = s3.list_objects_v2(Bucket=bucket, Prefix=path)
     exists = "Contents" in response
 
-    assert exists, (
-        f"Latest job {deploy_job} is outdated, use `inv retry-job {pipeline_id} {deploy_job}` to run it again or use --no-verify to force deploy"
-    )
+    assert exists, f"Latest job {deploy_job} is outdated, use `inv retry-job {pipeline_id} {deploy_job}` to run it again or use --no-verify to force deploy"
 
 
 # creates a stack with the given stack_name if it doesn't already exists
@@ -140,7 +138,6 @@ def _create_stack(ctx: Context, stack_name: str, global_flags: str):
         if ls_stack_name == stack_name:
             return
 
-    print(f"pulumi {global_flags} stack init --no-select {stack_name}")
     ctx.run(f"pulumi {global_flags} stack init --no-select {stack_name}")
 
 
