@@ -39,7 +39,9 @@ func (a *logAgent) restart(context.Context) error {
 
 	a.log.Info("Re-starting logs-agent...")
 
-	endpoints, err := buildEndpoints(a.config)
+	// Build HTTP endpoints directly since we already verified HTTP connectivity
+	// before triggering this restart (no need to recheck)
+	endpoints, err := buildEndpointsForRestart(a.config)
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)

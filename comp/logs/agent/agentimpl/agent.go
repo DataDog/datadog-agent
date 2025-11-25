@@ -134,6 +134,10 @@ type logAgent struct {
 
 	// make restart thread safe
 	restartMutex sync.Mutex
+
+	// HTTP retry state for TCP fallback recovery
+	httpRetryStopChan chan struct{}
+	httpRetryMutex    sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -212,7 +216,121 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
+
+	// If we're currently sending over TCP, attempt restart over HTTP
+	if !endpoints.UseHTTP {
+		a.smartHttpRestart()
+	}
 	return nil
+}
+
+// smartHttpRestart initiates periodic HTTP connectivity checks with exponential backoff
+// to automatically upgrade from TCP to HTTP when connectivity is restored.
+// This only runs when TCP fallback occurred (not when [force_]use_tcp is configured).
+func (a *logAgent) smartHttpRestart() {
+	// Check if we're eligible for HTTP retry
+	if config.IsTCPRequired(a.config) {
+		return
+	}
+
+	a.httpRetryMutex.Lock()
+	a.httpRetryStopChan = make(chan struct{})
+	a.httpRetryMutex.Unlock()
+
+	a.log.Info("Starting HTTP connectivity retry with exponential backoff")
+
+	// Start background goroutine for periodic HTTP checks
+	go a.httpRetryLoop()
+}
+
+// httpRetryLoop runs periodic HTTP connectivity checks with exponential backoff
+// Uses a similar backoff strategy as the TCP connection manager:
+// exponential backoff with randomization [2^(n-1), 2^n) seconds, capped at configured max
+func (a *logAgent) httpRetryLoop() {
+	ctx := context.Background()
+	maxRetryInterval := time.Duration(config.HTTPConnectivityRetryIntervalMax(a.config)) * time.Second
+	if maxRetryInterval == 0 {
+		a.log.Warn("HTTP connectivity retry interval max set to 0 seconds, skipping HTTP connectivity retry")
+		return
+	}
+
+	attempt := uint(0)
+	for {
+		// Calculate backoff interval similar to connection_manager.go
+		backoffDuration := a.calculateBackoffDuration(attempt, maxRetryInterval)
+
+		a.log.Debugf("Next HTTP connectivity check in %v (attempt %d)", backoffDuration, attempt+1)
+
+		select {
+		case <-time.After(backoffDuration):
+			attempt++
+			a.log.Infof("Checking HTTP connectivity (attempt %d)", attempt)
+
+			if a.checkHTTPConnectivity() {
+				a.log.Info("HTTP connectivity restored - initiating graceful restart to upgrade to HTTP")
+
+				if err := a.restart(ctx); err != nil {
+					a.log.Errorf("Failed to restart with HTTP: %v", err)
+					return
+				}
+
+				a.log.Info("Successfully upgraded to HTTP transport")
+				return
+			}
+
+			a.log.Debug("HTTP connectivity check failed - will retry")
+
+		case <-a.httpRetryStopChan:
+			a.log.Debug("HTTP retry loop stopped")
+			return
+		}
+	}
+}
+
+// calculateBackoffDuration computes the backoff duration using exponential backoff with randomization
+func (a *logAgent) calculateBackoffDuration(attempt uint, maxDuration time.Duration) time.Duration {
+	// Cap the exponent to prevent overflow
+	const maxExpBackoffCount = 10 // ~17min max before capping
+	cappedAttempt := attempt
+	if cappedAttempt > maxExpBackoffCount {
+		cappedAttempt = maxExpBackoffCount
+	}
+
+	// Calculate exponential backoff with randomization: [2^n, 2^(n+1)) seconds
+	backoffMax := int64(1 << (cappedAttempt + 1))
+	backoffMin := int64(1 << cappedAttempt)
+	backoffSeconds := backoffMin + time.Now().UnixNano()%(backoffMax-backoffMin)
+	backoffDuration := time.Duration(backoffSeconds) * time.Second
+
+	// Cap at configured maximum
+	if backoffDuration > maxDuration {
+		backoffDuration = maxDuration
+	}
+
+	return backoffDuration
+}
+
+// checkHTTPConnectivity tests if HTTP endpoints are reachable
+func (a *logAgent) checkHTTPConnectivity() bool {
+	endpoints, err := buildHTTPEndpointsForConnectivityCheck(a.config)
+	if err != nil {
+		a.log.Debugf("Failed to build HTTP endpoints for connectivity check: %v", err)
+		return false
+	}
+
+	connectivity := checkHTTPConnectivityStatus(endpoints.Main, a.config)
+	return connectivity == config.HTTPConnectivitySuccess
+}
+
+// stopHTTPRetry stops the HTTP retry loop
+func (a *logAgent) stopHTTPRetry() {
+	a.httpRetryMutex.Lock()
+	defer a.httpRetryMutex.Unlock()
+
+	if a.httpRetryStopChan != nil {
+		close(a.httpRetryStopChan)
+		a.httpRetryStopChan = nil
+	}
 }
 
 // This is used to switch between transport protocols (TCP to HTTP)
@@ -301,6 +419,9 @@ func (a *logAgent) stop(context.Context) error {
 	defer a.restartMutex.Unlock()
 
 	a.log.Info("Stopping logs-agent")
+
+	// Stop HTTP retry loop if running
+	a.stopHTTPRetry()
 
 	status.Clear()
 

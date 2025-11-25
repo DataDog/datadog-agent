@@ -142,6 +142,9 @@ const (
 
 	// DefaultNetworkPathStaticPathE2eQueries defines the default number of end-to-end queries for static path
 	DefaultNetworkPathStaticPathE2eQueries = 50
+
+	// DefaultHttpConnectivityRetryIntervalMax defines the default maximum interval for HTTP connectivity retry
+	DefaultHttpConnectivityRetryIntervalMax = 3600
 )
 
 var (
@@ -1824,6 +1827,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
+	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", DefaultHTTPConnectivityRetryIntervalMax)
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
@@ -1850,6 +1854,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.dev_mode_use_proto", true)
 	config.BindEnvAndSetDefault("logs_config.dd_url_443", "agent-443-intake.logs.datadoghq.com")
 	config.BindEnvAndSetDefault("logs_config.stop_grace_period", 30)
+	// Maximum interval for HTTP connectivity retry checks with exponential backoff (in seconds)
+	// When TCP fallback occurs, the agent will retry HTTP connectivity at increasing intervals
+	// up to this ceiling, then continue checking at this interval. Default: 3600 seconds (1 hour)
+	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", 3600)
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
 	config.BindEnvAndSetDefault("logs_config.payload_channel_size", 10)
 
