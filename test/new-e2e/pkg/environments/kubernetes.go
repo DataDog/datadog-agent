@@ -230,10 +230,11 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	outStr := []string{"===== Coverage ====="}
 
 	// Process Linux pods
-	linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+	if e.Agent.LinuxNodeAgent.LabelSelectors == nil {
+		outStr = append(outStr, "LinuxNodeAgent not initialized, skipping Linux pod coverage")
+	} else if linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-	})
-	if err != nil {
+	}); err != nil {
 		outStr = append(outStr, fmt.Sprintf("Failed to list linux pods: %s", err.Error()))
 	} else {
 		if len(linuxPods.Items) >= 1 {
@@ -250,10 +251,11 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	}
 
 	// Process Windows pods
-	windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+	if e.Agent.WindowsNodeAgent.LabelSelectors == nil {
+		outStr = append(outStr, "WindowsNodeAgent not initialized, skipping Windows pod coverage")
+	} else if windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
-	})
-	if err != nil {
+	}); err != nil {
 		outStr = append(outStr, fmt.Sprintf("Failed to list windows pods: %s", err.Error()))
 	} else {
 		if len(windowsPods.Items) >= 1 {
@@ -269,10 +271,11 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	}
 
 	// Process Cluster Agent pods
-	clusterAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+	if e.Agent.LinuxClusterAgent.LabelSelectors == nil {
+		outStr = append(outStr, "LinuxClusterAgent not initialized, skipping Cluster Agent pod coverage")
+	} else if clusterAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-	})
-	if err != nil {
+	}); err != nil {
 		outStr = append(outStr, fmt.Sprintf("Failed to list cluster agent pods: %s", err.Error()))
 	} else {
 		if len(clusterAgentPods.Items) >= 1 {

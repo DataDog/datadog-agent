@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -120,7 +121,7 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 			// This works around a bug where the return event may need the PCs
 			// but doesn't have them.
 			if stackPCs, err := msgEvent.StackPCs(); err == nil {
-				s.decoder.ReportStackPCs(evHeader.Stack_hash, stackPCs)
+				s.decoder.ReportStackPCs(evHeader.Stack_hash, slices.Clone(stackPCs))
 			}
 			msg = dispatcher.Message{} // prevent release
 			return nil
