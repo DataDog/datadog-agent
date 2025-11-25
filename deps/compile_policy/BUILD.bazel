@@ -26,9 +26,19 @@ pkg_files(
     prefix = "embedded/bin",
 )
 
+pkg_files(
+    name = "license_file",
+    srcs = [":LICENSE"],
+    prefix = "LICENSES",
+    renames = {
+        "LICENSE": "dd-compile-policy-LICENSE",
+    },
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":bin_files",
+        ":license_file",
     ],
 )
