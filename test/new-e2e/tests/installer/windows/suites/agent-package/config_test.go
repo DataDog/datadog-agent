@@ -46,6 +46,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", true)
 
+	// collect permissions snapshot before config experiment
+	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	configSDDLBeforeExperiment := perms.SDDL
+
 	// Act
 	config := installerwindows.ConfigExperiment{
 		ID: "config-1",
@@ -70,7 +75,13 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
-		WithValueEqual("log_to_console", false)
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess()
+
+	// assert that the config dir permissions have not changed
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
 
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
@@ -85,6 +96,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_level", "debug")
+
+	// collect permissions snapshot before config experiment
+	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	configSDDLBeforeExperiment := perms.SDDL
 
 	// Act
 	config := installerwindows.ConfigExperiment{
@@ -126,6 +142,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 		s.Require().NoError(err, "daemon should stop cleanly")
 		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+
+	// assert that the config dir permissions have not changed
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
 
 // TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe

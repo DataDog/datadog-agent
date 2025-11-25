@@ -28,7 +28,7 @@ func TestSecureCreateDirectory(t *testing.T) {
 		root := t.TempDir()
 		subdir := filepath.Join(root, "A")
 		sddl := "D:PAI(A;OICI;FA;;;AU)"
-		err := secureCreateDirectory(subdir, sddl)
+		err := SecureCreateDirectory(subdir, sddl)
 		require.NoError(t, err)
 		sd, err := getSecurityDescriptor(subdir)
 		require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestSecureCreateDirectory(t *testing.T) {
 			err := os.Mkdir(subdir, 0)
 			require.NoError(t, err)
 			sddl := "O:BAG:BAD:PAI(A;OICI;FA;;;AU)"
-			err = secureCreateDirectory(subdir, sddl)
+			err = SecureCreateDirectory(subdir, sddl)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "installer data directory has unexpected owner")
 		})
@@ -58,7 +58,7 @@ func TestSecureCreateDirectory(t *testing.T) {
 			})
 			require.NoError(t, err)
 			sddl = "O:BAG:BAD:PAI(A;OICI;FA;;;AU)"
-			err = secureCreateDirectory(subdir, sddl)
+			err = SecureCreateDirectory(subdir, sddl)
 			require.NoError(t, err)
 			sd, err := getSecurityDescriptor(subdir)
 			require.NoError(t, err)
