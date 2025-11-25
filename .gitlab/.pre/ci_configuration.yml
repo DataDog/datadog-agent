@@ -10,6 +10,16 @@ test_and_lint_gitlab_configuration:
     - dda inv -- -e linter.full-gitlab-ci --configs-or-diff-file artifacts/after.gitlab-ci.yml
     - dda inv -- -e linter.ssm-parameters
 
+celian:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64"]
+  needs: []
+  script:
+    - !reference [.setup_agent_github_app]
+    - dda self dep sync -f legacy-tasks
+    - dda inv -- github.t
+
 test_gitlab_compare_to:
   stage: .pre
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

@@ -682,3 +682,30 @@ def check_permissions(
     MAX_BLOCKS = 50
     for idx in range(0, len(blocks), MAX_BLOCKS):
         client.chat_postMessage(channel=channel, blocks=blocks[idx : idx + MAX_BLOCKS], text=message)
+
+
+@task
+def t(ctx):
+    from github import Auth, Github, GithubIntegration
+
+    appid = os.environ['GITHUB_APP_ID']
+    installid = int(os.environ['GITHUB_INSTALLATION_ID'])
+    appkey = os.environ['GITHUB_PRIVATE_KEY'].strip() # TODO os.environ['GITHUB_KEY_B64']
+
+    auth = Auth.AppAuth(appid, appkey).get_installation_auth(installid)
+    Github(auth=auth)
+
+    new_branch = 'celian/test-github-create-commit'
+    ctx.run(f"git checkout -b {new_branch}", hide=True)
+    with open("hello.md", "w") as f:
+        f.write("Hello, world!")
+    ctx.run(
+        f"git remote set-url origin https://x-access-token:{auth.token}@github.com/DataDog/datadog-agent.git",
+        hide=True,
+    )
+    ctx.run("git config --global user.name 'celian-bot'", hide=True)
+    ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
+    ctx.run("git add hello.md", hide=True)
+    ctx.run("git commit -m 'Init push", hide=True)
+    ctx.run(f"git push origin {new_branch}")
+
