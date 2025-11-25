@@ -128,6 +128,7 @@
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-build
+/.gitlab/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
 
@@ -352,7 +353,7 @@
 /comp/forwarder/connectionsforwarder @DataDog/container-experiences
 /comp/forwarder/eventplatform @DataDog/agent-log-pipelines
 /comp/forwarder/eventplatformreceiver @DataDog/agent-log-pipelines
-/comp/forwarder/orchestrator @DataDog/container-app
+/comp/forwarder/orchestrator @DataDog/kubernetes-experiences
 /comp/metadata/clusteragent @DataDog/container-platform
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
@@ -368,6 +369,7 @@
 /comp/etw @DataDog/windows-products
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
+/comp/healthplatform @DataDog/agent-health
 /comp/languagedetection/client @DataDog/container-platform
 /comp/networkdeviceconfig @DataDog/network-device-monitoring
 /comp/notableevents @DataDog/windows-products
@@ -377,6 +379,7 @@
 /comp/serializer/logscompression @DataDog/agent-log-pipelines
 /comp/serializer/metricscompression @DataDog/agent-metric-pipelines
 /comp/snmpscan @DataDog/ndm-core
+/comp/snmpscanmanager @DataDog/ndm-core
 /comp/softwareinventory @DataDog/windows-products
 /comp/syntheticstestscheduler @DataDog/synthetics-executing
 /comp/workloadselection @DataDog/injection-platform
@@ -454,11 +457,11 @@
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @Datadog/agent-security
 /pkg/clusteragent/appsec/               @DataDog/asm-go @DataDog/container-platform
-/pkg/clusteragent/orchestrator/         @DataDog/container-app
+/pkg/clusteragent/orchestrator/         @DataDog/kubernetes-experiences
 /pkg/clusteragent/telemetry/            @DataDog/apm-trace-storage
 /pkg/collector/                         @DataDog/agent-runtimes
 /pkg/collector/corechecks/cluster/      @DataDog/container-integrations
-/pkg/collector/corechecks/cluster/orchestrator  @DataDog/container-app
+/pkg/collector/corechecks/cluster/orchestrator  @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/containers/   @DataDog/container-integrations
 /pkg/collector/corechecks/containerimage/       @DataDog/container-integrations
 /pkg/collector/corechecks/containerlifecycle/   @DataDog/container-integrations
@@ -473,7 +476,7 @@
 /pkg/collector/corechecks/gpu/                     @DataDog/ebpf-platform
 /pkg/collector/corechecks/networkconfigmanagement/ @DataDog/network-device-monitoring
 /pkg/collector/corechecks/network-devices/         @DataDog/ndm-integrations
-/pkg/collector/corechecks/orchestrator/   @DataDog/container-app
+/pkg/collector/corechecks/orchestrator/   @DataDog/kubernetes-experiences
 /pkg/collector/corechecks/net/          @DataDog/agent-runtimes
 /pkg/collector/corechecks/net/wlan/     @DataDog/windows-products
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
@@ -555,7 +558,7 @@
 /pkg/util/safeelf/                      @DataDog/ebpf-platform
 /pkg/util/slices/                       @DataDog/ebpf-platform
 /pkg/util/ktime                         @DataDog/agent-security
-/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/container-app
+/pkg/util/kubernetes/                   @DataDog/container-integrations @DataDog/container-platform @DataDog/kubernetes-experiences
 /pkg/util/podman/                       @DataDog/container-integrations
 /pkg/util/port/                         @DataDog/agent-runtimes
 /pkg/util/port/portlist/*windows*.go    @DataDog/windows-products
@@ -594,7 +597,6 @@
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring
-/pkg/process/events/consumer/           @DataDog/agent-security
 /pkg/process/metadata/parser/           @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/cloud-network-monitoring
 /pkg/process/metadata/parser/*windows*  @DataDog/universal-service-monitoring @DataDog/container-experiences @DataDog/cloud-network-monitoring @DataDog/windows-products
 /pkg/process/monitor/                   @DataDog/universal-service-monitoring
@@ -612,7 +614,7 @@
 /pkg/proto/pbgo/core/workloadmeta.pb.go       @DataDog/container-platform
 /pkg/proto/pbgo/mocks/core              @DataDog/agent-runtimes
 /pkg/proto/pbgo/privateactionrunner     @DataDog/action-platform
-/pkg/orchestrator/                      @DataDog/container-app
+/pkg/orchestrator/                      @DataDog/kubernetes-experiences
 /pkg/network/                           @DataDog/cloud-network-monitoring
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-products
@@ -733,6 +735,7 @@
 /test/new-e2e/pkg/testcommon/check            @DataDog/agent-runtimes
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
+/test/new-e2e/system-probe/config/vmconfig-security-agent.json @DataDog/ebpf-platform @Datadog/agent-security
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-platform            @DataDog/agent-onboarding @DataDog/agent-devx
 /test/new-e2e/tests/agent-platform/common/agent_integration.go @DataDog/agent-integrations
@@ -760,7 +763,7 @@
 /test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/cloud-network-monitoring @DataDog/windows-products
-/test/new-e2e/tests/orchestrator              @DataDog/container-app
+/test/new-e2e/tests/orchestrator              @DataDog/kubernetes-experiences
 /test/new-e2e/tests/otel                      @DataDog/opentelemetry-agent
 /test/new-e2e/tests/process                   @DataDog/container-experiences
 /test/new-e2e/tests/sysprobe-functional     @DataDog/windows-products

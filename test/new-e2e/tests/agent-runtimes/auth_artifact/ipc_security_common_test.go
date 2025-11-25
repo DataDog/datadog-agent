@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	osComp "github.com/DataDog/test-infra-definitions/components/os"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
