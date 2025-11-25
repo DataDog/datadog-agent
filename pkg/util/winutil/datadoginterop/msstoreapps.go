@@ -43,7 +43,7 @@ import (
 // sizeof = 48
 
 type cStoreEntry struct {
-	displayName     *uint16
+	DisplayName     *uint16
 	VersionMajor    uint16
 	VersionMinor    uint16
 	VersionBuild    uint16
@@ -75,22 +75,28 @@ type cStore struct {
 
 var (
 	mod      = syscall.NewLazyDLL("libdatadog-interop.dll")
-	procList = mod.NewProc("GetStore")
-	procFree = mod.NewProc("FreeStore")
+	procGetStore = mod.NewProc("GetStore")
+	procFreeStore = mod.NewProc("FreeStore")
 )
+
+var resultCodes = map[int]string{
+	0: "SUCCESS",
+	1: "INVALID_PARAMS",
+	2: "EXCEPTION",
+}
 
 // GetStore returns a pointer to a cStore struct containing the list of MS Store apps.
 // The caller is responsible for freeing the memory allocated for the cStore struct using FreeStore.
 func GetStore() (*cStore, error) {
 	var out *cStore
-	r1, _, _ := procList.Call(uintptr(unsafe.Pointer(&out)))
+	r1, _, _ := procGetStore.Call(uintptr(unsafe.Pointer(&out)))
 	if r1 != 0 {
-		return nil, fmt.Errorf("GetStore: %d", r1)
+		return nil, fmt.Errorf("GetStore failed: %s", resultCodes[r1])
 	}
 	return out, nil
 }
 
 // FreeStore frees the memory allocated for the cStore struct.
 func FreeStore(store *cStore) {
-	_, _, _ = procFree.Call(uintptr(unsafe.Pointer(store)))
+	_, _, _ = procFreeStore.Call(uintptr(unsafe.Pointer(store)))
 }

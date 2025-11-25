@@ -8,61 +8,50 @@
 package software
 
 import (
-	"fmt"
-	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+
+	msstoreapps "github.com/DataDog/datadog-agent/pkg/util/winutil/datadoginterop"
 )
 
-// msStoreEntry matches the MSStoreEntry struct from msstoreapps.h
-type msStoreEntry struct {
-	displayName *byte
-	version     *byte
-	installDate *byte
-	is64bit     uint8
-	_           [7]byte // padding to keep 8-byte alignment
-	publisher   *byte
-	productCode *byte
-}
-
-var (
-	mod              = syscall.NewLazyDLL("MSStoreApps.dll")
-	listStoreEntries = mod.NewProc("ListStoreEntries")
-	freeStoreEntries = mod.NewProc("FreeStoreEntries")
-)
-
-// MSStoreAppsCollector implements Collector for Windows Store apps
 type msStoreAppsCollector struct{}
 
-// Collect retrieves Windows Store apps from MSStoreApps.dll
 func (c *msStoreAppsCollector) Collect() ([]*Entry, []*Warning, error) {
 	var entries []*Entry
 	var warnings []*Warning
-	var outArray *msStoreEntry
-	var outCount int32
 
-	r1, _, _ := listStoreEntries.Call(
-		uintptr(unsafe.Pointer(&outArray)),
-		uintptr(unsafe.Pointer(&outCount)),
-	)
-	if r1 != 0 {
-		return nil, warnings, fmt.Errorf("ListStoreEntries failed with code %d", r1)
+	store, err := msstoreapps.GetStore()
+	if err != nil {
+		return nil, warnings, err
 	}
-	defer freeStoreEntries.Call(uintptr(unsafe.Pointer(outArray)), uintptr(outCount))
+	defer msstoreapps.FreeStore(store)
 
-	raw := unsafe.Slice(outArray, int(outCount))
+	if store.Count == 0 {
+		return entries, warnings, nil
+	}
+
+	raw := unsafe.Slice(store.Entries, int(store.Count))
 	for _, e := range raw {
+		version := fmt.Sprintf("%d.%d.%d.%d", e.VersionMajor, e.VersionMinor, e.VersionBuild, e.VersionRevision)
+
+		var installDate string
+		if e.InstallDate > 0 {
+			t := time.Unix(0, e.InstallDate*int64(time.Millisecond))
+			installDate = t.UTC().Format(time.RFC3339)
+		}
+
 		entries = append(entries, &Entry{
-			DisplayName: windows.BytePtrToString(e.displayName),
-			Version:     windows.BytePtrToString(e.version),
-			InstallDate: windows.BytePtrToString(e.installDate),
-			Source:      "msstore",
+			DisplayName: windows.UTF16PtrToString(e.DisplayName),
+			Version:     version,
+			InstallDate: installDate,
+			Source:      softwareTypeMSStore,
 			UserSID:     "",
-			Is64Bit:     e.is64bit == 1,
-			Publisher:   windows.BytePtrToString(e.publisher),
+			Is64Bit:     e.Is64Bit == 1,
+			Publisher:   windows.UTF16PtrToString(e.Publisher),
 			Status:      "installed",
-			ProductCode: windows.BytePtrToString(e.productCode),
+			ProductCode: windows.UTF16PtrToString(e.ProductCode),
 		})
 	}
 

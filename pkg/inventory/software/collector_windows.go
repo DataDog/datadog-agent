@@ -18,6 +18,8 @@ func defaultCollectors() []Collector {
 	return []Collector{
 		// desktopAppCollector aggregates MSI and Registry collectors
 		&desktopAppCollector{},
+		// msStoreAppsCollector collects Windows Store apps
+		&msStoreAppsCollector{},
 	}
 }
 
@@ -25,7 +27,6 @@ func defaultCollectors() []Collector {
 // It collects from the following sources:
 // - Windows Registry (installed desktop applications)
 // - MSI database (Windows Installer database)
-// - Windows Store (Microsoft Store apps via MSStoreApps.dll)
 // It will flag apps that are in broken states by comparing them between multiple sources.
 // I.e. if an application is present in the MSI database and not in the registry.
 type desktopAppCollector struct{}
@@ -82,15 +83,6 @@ func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
 			}
 		}
 	}
-
-	// Collect from Windows Store
-	msStoreCollector := &msStoreAppsCollector{}
-	storeEntries, storeWarnings, err := msStoreCollector.Collect()
-	allWarnings = append(allWarnings, storeWarnings...)
-	if err != nil {
-		return nil, allWarnings, err
-	}
-	regEntries = append(regEntries, storeEntries...)
 
 	return regEntries, allWarnings, nil
 }
