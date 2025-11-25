@@ -374,6 +374,7 @@ type Process struct {
 
 	// cache version
 	ScrubbedArgvResolved bool `field:"-"`
+	EnvsFilteredResolved bool `field:"-"`
 
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`

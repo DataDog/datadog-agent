@@ -1031,6 +1031,9 @@ func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
 func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
+	p.Lock()
+	defer p.Unlock()
+
 	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
@@ -1071,13 +1074,17 @@ func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 
 // GetProcessEnvs returns the envs of the event
 func (p *EBPFResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
-	if pr.EnvsEntry == nil {
+	p.Lock()
+	defer p.Unlock()
+
+	if pr.EnvsEntry == nil || pr.EnvsFilteredResolved {
 		return pr.Envs, pr.EnvsTruncated
 	}
 
 	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
 	pr.Envs = keys
 	pr.EnvsTruncated = pr.EnvsTruncated || truncated
+	pr.EnvsFilteredResolved = true
 	return pr.Envs, pr.EnvsTruncated
 }
 
