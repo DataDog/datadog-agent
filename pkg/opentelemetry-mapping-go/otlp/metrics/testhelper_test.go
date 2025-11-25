@@ -24,13 +24,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 )
 
-func NewTestTranslator(t testing.TB, options ...TranslatorOption) *Translator {
+func NewTestTranslator(t testing.TB, options ...TranslatorOption) *DefaultTranslator {
 	t.Helper()
 	set := componenttest.NewNopTelemetrySettings()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
-	translator, err := NewTranslator(set, attributesTranslator, options...)
+	mt, err := NewTranslator(set, attributesTranslator, options...)
 	require.NoError(t, err)
+	translator, ok := mt.(*DefaultTranslator)
+	require.True(t, ok, "expected *DefaultTranslator, got %T", mt)
 	return translator
 }
 
@@ -92,7 +94,7 @@ type TestingT interface {
 //
 // To generate OTLP data to be used on this assert, use the pmetric.JSONMarshaler and json.Indent.
 // If the Datadog data does not match, a file ending in .actual will be generated containing the actual translator output.
-func AssertTranslatorMap(t TestingT, translator *Translator, otlpfilename string, datadogfilename string) bool {
+func AssertTranslatorMap(t TestingT, translator MetricsTranslator, otlpfilename string, datadogfilename string) bool {
 	// Check that the filenames follow conventions.
 	prefix := strings.TrimSuffix(filepath.Base(otlpfilename), ".json")
 	if !strings.HasPrefix(filepath.Base(datadogfilename), prefix) {

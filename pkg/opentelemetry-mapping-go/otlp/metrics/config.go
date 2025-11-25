@@ -50,6 +50,14 @@ type translatorConfig struct {
 	fallbackSourceProvider source.Provider
 	// statsOut is the channel where the translator will send its APM statsPayload bytes
 	statsOut chan<- []byte
+
+	// customMapper allows overriding the default metric mapping behavior.
+	// If nil, the Translator uses itself as the mapper.
+	customMapper Mapper
+
+	// customTranslator allows providing a completely custom MetricsTranslator implementation.
+	// If set, NewTranslator returns this translator instead of creating a DefaultTranslator.
+	customTranslator MetricsTranslator
 }
 
 // TranslatorOption is a translator creation option.
@@ -239,6 +247,25 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithMapper sets a custom Mapper implementation to override the default metric mapping behavior.
+// This allows for different mapping strategies to be injected into the translator.
+func WithMapper(mapper Mapper) TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.customMapper = mapper
+		return nil
+	}
+}
+
+// WithTranslator sets a custom MetricsTranslator implementation.
+// When provided, NewTranslator returns this translator instead of creating a DefaultTranslator.
+// This allows for complete customization of the metrics translation behavior.
+func WithTranslator(translator MetricsTranslator) TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.customTranslator = translator
 		return nil
 	}
 }

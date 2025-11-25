@@ -100,7 +100,7 @@ func (t testProvider) Source(context.Context) (source.Source, error) {
 	}, nil
 }
 
-func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *Translator {
+func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *DefaultTranslator {
 	options := []TranslatorOption{
 		WithFallbackSourceProvider(testProvider(fallbackHostname)),
 		WithHistogramMode(HistogramModeDistributions),
@@ -114,17 +114,19 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
-	tr, err := NewTranslator(
+	mt, err := NewTranslator(
 		set,
 		attributesTranslator,
 		options...,
 	)
 
 	require.NoError(t, err)
+	tr, ok := mt.(*DefaultTranslator)
+	require.True(t, ok, "expected *DefaultTranslator, got %T", mt)
 	return tr
 }
 
-func newTranslator(t *testing.T, logger *zap.Logger) *Translator {
+func newTranslator(t *testing.T, logger *zap.Logger) *DefaultTranslator {
 	return newTranslatorWithStatsChannel(t, logger, nil)
 }
 
@@ -209,7 +211,7 @@ func TestMapIntMetrics(t *testing.T) {
 
 	consumer := &mockTimeSeriesConsumer{}
 	dims := newDims("int64.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.Mapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), 17)},
@@ -217,7 +219,7 @@ func TestMapIntMetrics(t *testing.T) {
 
 	consumer = &mockTimeSeriesConsumer{}
 	dims = newDims("int64.delta.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Count, slice)
+	tr.Mapper().MapNumberMetrics(ctx, consumer, dims, Count, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newCount(dims, uint64(ts), 17)},
@@ -226,7 +228,7 @@ func TestMapIntMetrics(t *testing.T) {
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "int64.test", tags: []string{"attribute_tag:attribute_value"}}
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.Mapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), 17)},
@@ -244,7 +246,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 
 	consumer := &mockTimeSeriesConsumer{}
 	dims := newDims("float64.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.Mapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), math.Pi)},
@@ -252,7 +254,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 
 	consumer = &mockTimeSeriesConsumer{}
 	dims = newDims("float64.delta.test")
-	tr.mapNumberMetrics(ctx, consumer, dims, Count, slice)
+	tr.Mapper().MapNumberMetrics(ctx, consumer, dims, Count, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newCount(dims, uint64(ts), math.Pi)},
@@ -261,7 +263,7 @@ func TestMapDoubleMetrics(t *testing.T) {
 	// With attribute tags
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "float64.test", tags: []string{"attribute_tag:attribute_value"}}
-	tr.mapNumberMetrics(ctx, consumer, dims, Gauge, slice)
+	tr.Mapper().MapNumberMetrics(ctx, consumer, dims, Gauge, slice)
 	assert.ElementsMatch(t,
 		consumer.metrics,
 		[]metric{newGauge(dims, uint64(ts), math.Pi)},
@@ -2089,7 +2091,8 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointOne.SetTimestamp(seconds(0))
 	consumer := &mockTimeSeriesConsumer{}
 	dims := &Dimensions{name: "test.histogram.one", tags: tags}
-	tr.getLegacyBuckets(ctx, consumer, dims, pointOne, true)
+	mapper := tr.Mapper().(*DefaultMapper)
+	mapper.getLegacyBuckets(ctx, consumer, dims, pointOne, true)
 	seriesOne := consumer.metrics
 
 	pointTwo := pmetric.NewHistogramDataPoint()
@@ -2098,7 +2101,7 @@ func TestLegacyBucketsTags(t *testing.T) {
 	pointTwo.SetTimestamp(seconds(0))
 	consumer = &mockTimeSeriesConsumer{}
 	dims = &Dimensions{name: "test.histogram.two", tags: tags}
-	tr.getLegacyBuckets(ctx, consumer, dims, pointTwo, true)
+	mapper.getLegacyBuckets(ctx, consumer, dims, pointTwo, true)
 	seriesTwo := consumer.metrics
 
 	assert.ElementsMatch(t, seriesOne[0].tags, []string{"lower_bound:-inf", "upper_bound:0"})
