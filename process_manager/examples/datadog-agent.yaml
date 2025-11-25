@@ -43,9 +43,8 @@ env:
 runtime_directory:
   - datadog
 
-# Linux capabilities (systemd AmbientCapabilities=)
-ambient_capabilities:
-  - CAP_NET_BIND_SERVICE
+# Note: ambient_capabilities removed - causes "Invalid argument" error on some systems
+# If you need CAP_NET_BIND_SERVICE, set it on the dd-procmgrd process instead
 
 # Mutual exclusion (systemd Conflicts=datadog-agent-exp.service)
 # Only one variant can run at a time - stable OR experimental

@@ -17,8 +17,8 @@ command: /opt/datadog-agent/embedded/bin/trace-agent
 args:
   - --config
   - /etc/datadog-agent/datadog.yaml
-  - --pidfile
-  - /opt/datadog-agent/run/trace-agent.pid
+# Note: --pidfile removed to avoid race condition with socket activation
+# The process manager tracks PIDs internally
 process_type: simple
 auto_start: false  # Socket activation starts this on-demand
 
@@ -29,9 +29,6 @@ user: dd-agent
 # Restart policy - socket re-activation handles restarts
 restart: never
 
-# PID file (systemd PIDFile=)
-pidfile: /opt/datadog-agent/run/trace-agent.pid
-
 # Environment file (systemd EnvironmentFile=-)
 # Prefix with '-' to ignore if file doesn't exist
 environment_file: -/etc/datadog-agent/environment
@@ -40,9 +37,7 @@ environment_file: -/etc/datadog-agent/environment
 env:
   DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
 
-# Linux capabilities (systemd AmbientCapabilities=)
-ambient_capabilities:
-  - CAP_NET_BIND_SERVICE
+# Note: ambient_capabilities removed - causes "Invalid argument" error on some systems
 
 # Ordering (systemd After=)
 # This process starts after the main agent
