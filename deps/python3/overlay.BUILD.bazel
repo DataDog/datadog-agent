@@ -555,6 +555,11 @@ cc_binary(
                 "@@//:macos_x86_64": ["-Ibazel-out/darwin_x86_64-fastbuild/bin/external/+_repo_rules+openssl/openssl/include"],
                 "//conditions:default": [""],
             }) if name in ["_ssl", "_hashlib"] else []),
+        linkopts =
+            (select({
+                "@@//:macos_x86_64": ["-Lbazel-out/darwin_x86_64-fastbuild/bin/external/+_repo_rules+openssl/openssl/lib"],
+                "//conditions:default": [""],
+            }) if name in ["_ssl", "_hashlib"] else []),
         textual_hdrs = info.get('textual_hdrs', []),
     )
     for name, info in PYTHON_MODULES.items()
