@@ -545,7 +545,16 @@ cc_binary(
         includes = _COMMON_INCLUDE_DIRS + info.get('includes', []),
         local_defines = COMMON_DEFINES + PY_BUILTIN_MODULE_DEFINES + info.get('local_defines', []),
         deps = [":mimalloc", ":libpython"] + info.get('deps', []),
-        copts = COMMON_COPTS + info.get('extra_copts', []),
+        copts = COMMON_COPTS + info.get('extra_copts', []) +
+            # Work around for macOS x86_64 where /usr/local/include is part of the
+            # default headers locations which causes bazel to explicitly add "-I/usr/local/include"
+            # to the command line.
+            # By passing our openssl headers through copts it gets prepended and ensures our
+            # openssl version takes precedence
+            select({
+                "@@//:macos_x86_64": ["-Ibazel-out/darwin_x86_64-fastbuild/bin/external/+_repo_rules+openssl/openssl/include"],
+                "//conditions:default": [""],
+            }) if name in ["_ssl", "_hashlib"] else [],
         textual_hdrs = info.get('textual_hdrs', []),
     )
     for name, info in PYTHON_MODULES.items()

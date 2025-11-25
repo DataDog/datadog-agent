@@ -386,9 +386,6 @@ PYTHON_MODULES = {
         "deps": [
             "@openssl//:openssl"
         ],
-        "extra_copts": [
-            "-Ibazel-out/darwin_arm64-fastbuild/bin/external/+_repo_rules+openssl/openssl/include"
-        ],
         "textual_hdrs": [
             "Modules/_ssl/debughelpers.c",
             "Modules/_ssl/misc.c",
@@ -401,9 +398,6 @@ PYTHON_MODULES = {
         ],
         "deps": [
             "@openssl//:openssl"
-        ],
-        "extra_copts": [
-            "-Ibazel-out/darwin_arm64-fastbuild/bin/external/+_repo_rules+openssl/openssl/include"
         ]
     },
     "xxsubtype": {
