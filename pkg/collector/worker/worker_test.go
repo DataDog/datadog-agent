@@ -48,7 +48,6 @@ type testCheck struct {
 func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
 func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
-func (c *testCheck) RunOnce() bool  { return false }
 
 func (c *testCheck) Interval() time.Duration {
 	if c.longRunning {

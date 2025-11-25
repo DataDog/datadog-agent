@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"time"
 
@@ -231,6 +232,38 @@ type message struct {
 	Message   messageData      `json:"message,omitempty"`
 }
 
+// populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
+// from the given event if the stack hash is not already present.
+func populateStackPCsIfMissing(
+	probe *ir.Probe,
+	decoder *Decoder,
+	stackHash uint64,
+	event output.Event,
+	eventType string,
+) {
+	if _, ok := decoder.stackPCs[stackHash]; ok {
+		return
+	}
+	stackPCs, err := event.StackPCs()
+	if err != nil {
+		if symbolicateErrorLogLimiter.Allow() {
+			log.Errorf(
+				"error getting stack pcs from %s event for probe %s: %v",
+				eventType, probe.GetID(), err,
+			)
+		} else {
+			log.Tracef(
+				"error getting stack pcs from %s event for probe %s: %v",
+				eventType, probe.GetID(), err,
+			)
+		}
+		return
+	}
+	if len(stackPCs) > 0 {
+		decoder.stackPCs[stackHash] = slices.Clone(stackPCs)
+	}
+}
+
 func (s *message) init(
 	decoder *Decoder,
 	event Event,
@@ -320,36 +353,28 @@ func (s *message) init(
 	).UnixMilli())
 	s.Timestamp = s.Debugger.Snapshot.Timestamp
 
+	// Unconditionally populate stackPCs map for any event with stack PCs.
+	populateStackPCsIfMissing(
+		probe, decoder, header.Stack_hash, event.EntryOrLine, "entry",
+	)
+	if returnHeader != nil {
+		populateStackPCsIfMissing(
+			probe, decoder, returnHeader.Stack_hash, event.Return, "return",
+		)
+	}
+
 	if probe.GetKind() == ir.ProbeKindSnapshot {
-		stackHeader, stackEvent := header, event.EntryOrLine
+		stackHeader := header
 		if returnHeader != nil {
-			stackHeader, stackEvent = returnHeader, event.Return
+			stackHeader = returnHeader
 		}
 		stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
 		if !ok {
-			stackPCs, err = stackEvent.StackPCs()
-			if err != nil {
-				if symbolicateErrorLogLimiter.Allow() {
-					log.Errorf("error getting stack pcs: %v", err)
-				} else {
-					log.Tracef("error getting stack pcs: %v", err)
-				}
-				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
-					evaluationError{
-						Expression: "Stacktrace",
-						Message:    fmt.Errorf("error getting stack pcs: %w", err).Error(),
-					},
-				)
-			} else if len(stackPCs) == 0 {
-				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
-					evaluationError{
-						Expression: "Stacktrace",
-						Message:    "no stack pcs found",
-					},
-				)
-			} else {
-				decoder.stackPCs[stackHeader.Stack_hash] = stackPCs
-			}
+			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				evaluationError{
+					Expression: "Stacktrace",
+					Message:    "no stack pcs found",
+				})
 		}
 		var stackFrames []symbol.StackFrame
 		if len(stackPCs) > 0 {
@@ -404,6 +429,9 @@ func (s *message) init(
 			entryOrLine: &decoder.entryOrLine,
 			_return:     &decoder._return,
 			template:    probe.Template,
+		}
+		if s.Duration != 0 {
+			s.Message.duration = &s.Duration
 		}
 	}
 

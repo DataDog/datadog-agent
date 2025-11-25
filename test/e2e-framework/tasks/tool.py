@@ -224,7 +224,7 @@ def notify_windows():
 # ensure we run pulumi from a directory with a Pulumi.yaml file
 # defaults to the project root directory
 def get_pulumi_dir_flag():
-    root_path = _get_root_path()
+    root_path = os.path.join(_get_root_path(), "run")
     current_path = os.getcwd()
     if not os.path.isfile(os.path.join(current_path, "Pulumi.yaml")):
         return f"-C {root_path}"
