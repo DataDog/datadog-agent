@@ -155,7 +155,7 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 }
 
 // ToManifestPayload creates a CollectorManifest payload from a list of manifests.
-func ToManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string, logger *zap.Logger) *agentmodel.CollectorManifest {
+func ToManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, clusterID string) *agentmodel.CollectorManifest {
 	return &agentmodel.CollectorManifest{
 		ClusterName:     clusterName,
 		ClusterId:       clusterID,

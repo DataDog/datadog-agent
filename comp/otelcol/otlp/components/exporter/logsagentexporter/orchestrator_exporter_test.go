@@ -595,7 +595,7 @@ func TestToManifestPayload(t *testing.T) {
 		},
 	}
 
-	payload := logsmapping.ToManifestPayload(manifests, hostName, clusterName, clusterID, nil)
+	payload := logsmapping.ToManifestPayload(manifests, hostName, clusterName, clusterID)
 
 	require.NotNil(t, payload)
 	assert.Equal(t, clusterName, payload.ClusterName)

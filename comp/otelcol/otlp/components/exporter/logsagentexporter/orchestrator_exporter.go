@@ -233,7 +233,7 @@ func (e *Exporter) consumeK8sObjects(ctx context.Context, ld plog.Logs) (err err
 			zap.Int("chunk_index", i),
 			zap.Int("chunk_size", len(chunk)))
 
-		payload := logsmapping.ToManifestPayload(chunk, hostname, clusterName, clusterID, e.set.Logger)
+		payload := logsmapping.ToManifestPayload(chunk, hostname, clusterName, clusterID)
 
 		if err := sendManifestPayload(ctx, e.orchestratorConfig.Endpoint, e.orchestratorConfig.Key, payload, hostname, clusterID, e.set.Logger); err != nil {
 			e.set.Logger.Error("Failed to send collector manifest chunk",
