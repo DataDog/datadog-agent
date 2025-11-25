@@ -1074,14 +1074,13 @@ func (p *EBPFResolver) SetProcessEnvs(pce *model.ProcessCacheEntry) {
 
 // GetProcessEnvs returns the envs of the event
 func (p *EBPFResolver) GetProcessEnvs(pr *model.Process) ([]string, bool) {
-	if pr.EnvsEntry == nil || pr.EnvsEntry.FilteredResolved {
+	if pr.EnvsEntry == nil {
 		return pr.Envs, pr.EnvsTruncated
 	}
 
 	keys, truncated := pr.EnvsEntry.FilterEnvs(p.opts.envsWithValue)
 	pr.Envs = keys
 	pr.EnvsTruncated = pr.EnvsTruncated || truncated
-	pr.EnvsEntry.FilteredResolved = true
 	return pr.Envs, pr.EnvsTruncated
 }
 

@@ -43,9 +43,8 @@ func (p *ArgsEntry) Equals(o *ArgsEntry) bool {
 
 // EnvsEntry defines a args cache entry
 type EnvsEntry struct {
-	Values           []string
-	Truncated        bool
-	FilteredResolved bool
+	Values    []string
+	Truncated bool
 
 	filteredEnvs []string
 	kv           map[string]string
