@@ -68,7 +68,7 @@ func TestSubmitSpanWithNilSpan(t *testing.T) {
 	assert.False(t, mockAgent.processCalled)
 }
 
-func TestSubmitSpanWithNilTraceAgent(t *testing.T) {
+func TestSubmitSpanWithNilTraceAgent(_ *testing.T) {
 	span := InitSpan("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
 
 	// Should not panic
@@ -97,7 +97,7 @@ func TestSubmitSpanWithValidProcessor(t *testing.T) {
 	assert.Equal(t, span, chunk.Spans[0])
 }
 
-func TestSubmitSpanWithNonProcessor(t *testing.T) {
+func TestSubmitSpanWithNonProcessor(_ *testing.T) {
 	span := InitSpan("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
 
 	// Pass something that doesn't implement Processor interface
