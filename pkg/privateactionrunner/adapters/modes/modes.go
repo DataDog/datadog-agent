@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package modes provides an adapter that bridges to the original source code
 package modes
 
 // Mode is a runner operation mode (e.g., pull).
