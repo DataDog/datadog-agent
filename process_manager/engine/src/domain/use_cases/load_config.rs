@@ -2,10 +2,10 @@
 //!
 //! Loads process definitions from YAML configuration files
 
-use crate::domain::services::{
-    ConfigParsingService, ProcessCreationService, ProcessLifecycleService,
-};
-use crate::domain::{DomainError, LoadConfigCommand, LoadConfigResponse};
+use crate::domain::services::ConfigParsingService;
+use crate::domain::services::ProcessCreationService;
+use crate::domain::use_cases::StartProcess;
+use crate::domain::{DomainError, LoadConfigCommand, LoadConfigResponse, StartProcessCommand};
 use crate::infrastructure::load_config_from_path;
 use async_trait::async_trait;
 use std::sync::Arc;
@@ -20,17 +20,17 @@ pub trait LoadConfig: Send + Sync {
 /// LoadConfig use case implementation
 pub struct LoadConfigUseCase {
     creation_service: Arc<ProcessCreationService>,
-    lifecycle_service: Arc<ProcessLifecycleService>,
+    start_process: Arc<dyn StartProcess>,
 }
 
 impl LoadConfigUseCase {
     pub fn new(
         creation_service: Arc<ProcessCreationService>,
-        lifecycle_service: Arc<ProcessLifecycleService>,
+        start_process: Arc<dyn StartProcess>,
     ) -> Self {
         Self {
             creation_service,
-            lifecycle_service,
+            start_process,
         }
     }
 }
@@ -62,7 +62,14 @@ impl LoadConfig for LoadConfigUseCase {
         let mut started_count = 0;
         let mut errors = Vec::new();
 
-        // Create each process
+        // Two-pass approach:
+        // 1. First pass: Create ALL processes (so wants: dependencies exist)
+        // 2. Second pass: Auto-start processes (StartProcess handles wants: dependencies)
+
+        // Track which processes should be auto-started
+        let mut to_auto_start: Vec<String> = Vec::new();
+
+        // First pass: Create all processes
         for (name, config) in configs {
             info!(name = %name, command = %config.command, "Creating process from config");
 
@@ -81,34 +88,36 @@ impl LoadConfig for LoadConfigUseCase {
 
             // Create the process
             match self.creation_service.create_from_command(create_cmd).await {
-                Ok((id, _name)) => {
+                Ok((_id, created_name)) => {
                     created_count += 1;
                     info!(name = %name, "Process created successfully");
 
-                    // Auto-start if configured
+                    // Track for auto-start in second pass
                     if should_auto_start {
-                        info!(name = %name, "Auto-starting process from config");
-
-                        // Delegate to lifecycle service (handles hooks + spawn + register)
-                        match self
-                            .lifecycle_service
-                            .spawn_and_register(&id, vec![], 0)
-                            .await
-                        {
-                            Ok(()) => {
-                                started_count += 1;
-                                info!(name = %name, "Process auto-started successfully");
-                            }
-                            Err(e) => {
-                                let msg = format!("Failed to auto-start '{}': {}", name, e);
-                                warn!("{}", msg);
-                                errors.push(msg);
-                            }
-                        }
+                        to_auto_start.push(created_name);
                     }
                 }
                 Err(e) => {
                     let msg = format!("Failed to create process '{}': {}", name, e);
+                    warn!("{}", msg);
+                    errors.push(msg);
+                }
+            }
+        }
+
+        // Second pass: Auto-start processes using StartProcess use case
+        // This properly handles wants: dependencies (auto-starts them too)
+        for name in to_auto_start {
+            info!(name = %name, "Auto-starting process from config");
+
+            let start_cmd = StartProcessCommand::from_name(name.clone());
+            match self.start_process.execute(start_cmd).await {
+                Ok(_) => {
+                    started_count += 1;
+                    info!(name = %name, "Process auto-started successfully");
+                }
+                Err(e) => {
+                    let msg = format!("Failed to auto-start '{}': {}", name, e);
                     warn!("{}", msg);
                     errors.push(msg);
                 }

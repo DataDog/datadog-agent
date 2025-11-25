@@ -129,7 +129,7 @@ impl UseCaseRegistry {
 
         let load_config = Arc::new(LoadConfigUseCase::new(
             creation_service.clone(),
-            lifecycle_service.clone(),
+            start_process.clone(),
         ));
 
         // Wire up domain services (exposed for infrastructure layer)
