@@ -59,9 +59,9 @@ const (
 	columnValueSint64
 	columnValueFloat32
 	columnValueFloat64
-	columnSketchNBins
+	columnSketchNumBins
 	columnSketchBinKeys
-	columnSketchBinCounts
+	columnSketchBinCnts
 	columnSourceTypeNameRef
 	columnOriginRef
 	numberOfColumns
