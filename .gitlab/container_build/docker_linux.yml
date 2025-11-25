@@ -250,8 +250,8 @@ docker_build_base_image_arm64:
 .docker_build_host_profiler_standalone:
   extends: .docker_build_job_definition
   before_script:
-    - cp /bin/full-host-profiler/full-host-profiler $BUILD_CONTEXT/
-    - cp /cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
+    - cp bin/full-host-profiler/full-host-profiler $BUILD_CONTEXT/
+    - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
     - ls -l $BUILD_CONTEXT/
   rules:
     - !reference [.except_mergequeue]
