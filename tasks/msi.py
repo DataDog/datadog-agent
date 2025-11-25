@@ -283,16 +283,16 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
-def _build_windows_native(ctx, env, configuration, arch, vstudio_root):
-    windows_native_sln = os.path.join(os.getcwd(), "tools", "windows", "WindowsNative", "WindowsNative.sln")
+def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
+    datadog_interop_sln = os.path.join(os.getcwd(), "tools", "windows", "DatadogInterop", "DatadogInterop.sln")
     cmd = _get_vs_build_command(
-        f'msbuild "{windows_native_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        f'msbuild "{datadog_interop_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
         vstudio_root,
     )
-    print(f"Building WindowsNative: {cmd}")
+    print(f"Building DatadogInterop: {cmd}")
     succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
     if not succeeded:
-        raise Exit("Failed to build WindowsNative.", code=1)
+        raise Exit("Failed to build DatadogInterop.", code=1)
 
 
 def _msi_output_name(env):
@@ -327,13 +327,13 @@ def build(
         vstudio_root=vstudio_root,
     )
 
-    # Build WindowsNative.dll
-    _build_windows_native(ctx, env, configuration, arch, vstudio_root)
-    windows_native_output = os.path.join(
-        os.getcwd(), "tools", "windows", "WindowsNative", arch, configuration, "WindowsNative.dll"
+    # Build libdatadog-interop.dll
+    _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
+    datadog_interop_output = os.path.join(
+        os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
     )
-    shutil.copy2(windows_native_output, AGENT_BIN_SOURCE_DIR)
-    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'WindowsNative.dll'))
+    shutil.copy2(datadog_interop_output, AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'libdatadog-interop.dll'))
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))

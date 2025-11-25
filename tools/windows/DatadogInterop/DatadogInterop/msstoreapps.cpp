@@ -1,4 +1,8 @@
-#include "msstore_internal.h"
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.ApplicationModel.Core.h>
+#include <winrt/Windows.Management.Deployment.h>
+
+#include "msstoreapps.h"
 
 using namespace winrt::Windows::Foundation;
 using namespace winrt::Windows::ApplicationModel;
@@ -6,9 +10,11 @@ using namespace winrt::Windows::Management::Deployment;
 using namespace winrt::Windows::System;
 
 // Return codes
-constexpr int RESULT_SUCCESS = 0;
-constexpr int RESULT_INVALID_PARAMS = 1;
-constexpr int RESULT_EXCEPTION = 2;
+enum Result {
+    SUCCESS,
+    INVALID_PARAMS,
+    EXCEPTION
+};
 
 // Offset between 1601-01-01 and 1970-01-01 in milliseconds
 constexpr int64_t EPOCH_DIFF_MILLIS = 11644473600000LL;
@@ -58,9 +64,9 @@ static void addEntryToStore(MSStoreInternal *msStore, const Package &pkg, winrt:
     msStore->entriesVec.push_back(e);
 }
 
-int ListStoreEntries(MSStoreInternal **out) {
+extern "C" __declspec(dllexport) int GetStore(MSStore **out) {
     if (!out) {
-        return RESULT_INVALID_PARAMS;
+        return Result::INVALID_PARAMS;
     }
 
     MSStoreInternal *msStore = new MSStoreInternal();
@@ -102,12 +108,16 @@ int ListStoreEntries(MSStoreInternal **out) {
         }
 
         *out = msStore;
-        return RESULT_SUCCESS;
+        return Result::SUCCESS;
     } catch (...) {
-        return RESULT_EXCEPTION;
+        return Result::EXCEPTION;
     }
 }
 
-void FreeStoreEntries(MSStoreInternal *msStore) {
-    delete msStore;
+extern "C" __declspec(dllexport) int FreeStore(MSStore *msStore) {
+    if (!msStore) {
+        return Result::INVALID_PARAMS;
+    }
+    delete reinterpret_cast<MSStoreInternal *>(msStore);
+    return Result::SUCCESS;
 }
