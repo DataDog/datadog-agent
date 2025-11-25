@@ -54,10 +54,10 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		return err
 	}
 	if logger, ok := loggerInterface.(seelog.LoggerInterface); ok {
-		loggerInterface.Info("using seelog logger")
+		loggerInterface.Infof("%s: using seelog logger", loggerName)
 		_ = seelog.ReplaceLogger(logger)
 	} else {
-		loggerInterface.Info("using slog logger")
+		loggerInterface.Infof("%s: using slog logger", loggerName)
 	}
 	log.SetupLogger(loggerInterface, seelogLogLevel.String())
 
@@ -99,9 +99,9 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 		return nil, err
 	}
 	if _, ok := logger.(seelog.LoggerInterface); ok {
-		logger.Info("using seelog logger")
+		logger.Info("jmx: using seelog logger")
 	} else {
-		logger.Info("using slog logger")
+		logger.Info("jmx: using slog logger")
 	}
 	return logger, nil
 }
@@ -114,9 +114,9 @@ func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.Logger
 		return nil, err
 	}
 	if _, ok := logger.(seelog.LoggerInterface); ok {
-		logger.Info("using seelog logger")
+		logger.Info("dogstatsd: using seelog logger")
 	} else {
-		logger.Info("using slog logger")
+		logger.Info("dogstatsd: using slog logger")
 	}
 	return logger, nil
 }
