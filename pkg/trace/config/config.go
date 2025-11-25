@@ -667,7 +667,7 @@ func computeGlobalTags() map[string]string {
 
 	tags := make(map[string]string)
 	if inECSManagedInstancesSidecar() {
-		tags["origin"] = "ecs_managed_instances"
+		tags["_dd.origin"] = "ecs_managed_instances"
 	}
 	return tags
 }
