@@ -6,7 +6,7 @@ _SPECS = [
     struct(os = "windows", prefix = "bin/", format = "{}.dll"),
 ]
 
-def _gen_targets(base_name, src, libname, version, spec):
+def _gen_targets(base_name, src, libname, version, prefix, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
 
@@ -23,10 +23,11 @@ def _gen_targets(base_name, src, libname, version, spec):
     # Unix: create symlink chain with versioning
     target = spec.format.format(libname, ".{}".format(version))
     targets = ["{}_real_name".format(name)]
+    dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
     pkg_files(
         name = targets[-1],
         srcs = [src],
-        prefix = spec.prefix,
+        prefix = dest_prefix,
         renames = {src: target},
         target_compatible_with = [platform],
     )
@@ -39,7 +40,7 @@ def _gen_targets(base_name, src, libname, version, spec):
         targets.append("{}_{}".format(name, link_name))
         pkg_mklink(
             name = targets[-1],
-            link_name = "{}{}".format(spec.prefix, link),
+            link_name = "{}{}".format(dest_prefix, link),
             target = target,
             target_compatible_with = [platform],
         )
@@ -48,8 +49,8 @@ def _gen_targets(base_name, src, libname, version, spec):
     pkg_filegroup(name = name, srcs = targets, target_compatible_with = [platform])
     return platform, ":{}".format(name)
 
-def so_symlink(name, src, libname, version):
-    """Creates shared library packaging appropriate for each platform.
+def so_symlink(name, src, libname = None, version = None, prefix = ""):
+    """Creates shared library symlink chain following Unix conventions.
 
     Unix (Linux/macOS): Generates the common multilevel symlink hierarchy for shared libraries:
     - `real name`: actual file with full version (e.g., libreadline.so.3.0 / libreadline.3.0.dylib)
@@ -64,9 +65,10 @@ def so_symlink(name, src, libname, version):
         name: Name of the generated pkg_filegroup
         src: Label of the cc_shared_library to package
         libname: Library name without extension (e.g., "libreadline")
+        prefix: Installation directory prefix (default: "")
         version: Full version string (e.g., "3.0", ignored on Windows)
     """
     native.alias(
         name = name,
-        actual = select(dict([_gen_targets(name, src, libname, version, spec) for spec in _SPECS])),
+        actual = select(dict([_gen_targets(name, src, libname, version, prefix, spec) for spec in _SPECS])),
     )
