@@ -315,7 +315,6 @@ core,golang.org/x/crypto/curve25519,BSD-3-Clause,Copyright (c) 2009 The Go Autho
 core,golang.org/x/crypto/hkdf,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/internal/alias,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/internal/poly1305,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
-core,golang.org/x/crypto/pbkdf2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/pkcs12,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/pkcs12/internal/rc2,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
