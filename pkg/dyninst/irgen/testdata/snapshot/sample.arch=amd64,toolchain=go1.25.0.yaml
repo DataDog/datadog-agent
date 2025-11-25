@@ -3794,8 +3794,7 @@ Probes:
         TemplateString: Executed main.testMultipleNamedReturn, it took {@duration}ms
         Segments:
             - 'Executed main.testMultipleNamedReturn, it took '
-            - Error: failed to resolve reference "@duration"
-              DSL: '@duration'
+            - '@duration'
             - ms
     - id: testThreeStrings
       version: 0
