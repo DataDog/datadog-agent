@@ -23,7 +23,6 @@
 BPF_RINGBUF_MAP(cuda_events, 1); // Ring buffer size will be set by userspace
 BPF_LRU_MAP(cuda_alloc_cache, __u64, cuda_alloc_request_args_t, 1024)
 BPF_LRU_MAP(cuda_sync_cache, __u64, __u64, 1024)
-BPF_LRU_MAP(cu_sync_cache, __u64, __u64, 1024)
 BPF_LRU_MAP(cuda_set_device_cache, __u64, int, 1024)
 BPF_LRU_MAP(cuda_event_query_cache, __u64, __u64, 1024) // maps PID/TGID -> event
 BPF_LRU_MAP(cuda_memcpy_cache, __u64, __u64, 1024) // maps PID/TGID -> stream
@@ -161,16 +160,16 @@ static inline void emit_stream_sync_event(__u64 stream) {
     bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
 }
 
-static inline int _stream_sync_entry(__u64 stream, void* cache_map) {
+static inline int _stream_sync_entry(__u64 stream) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
-    bpf_map_update_with_telemetry(cache_map, &pid_tgid, &stream, BPF_ANY);
+    bpf_map_update_with_telemetry(cuda_sync_cache, &pid_tgid, &stream, BPF_ANY);
     return 0;
 }
 
-static inline int _stream_sync_exit(void* cache_map) {
+static inline int _stream_sync_exit() {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u64 *stream = NULL;
-    stream = bpf_map_lookup_elem(cache_map, &pid_tgid);
+    stream = bpf_map_lookup_elem(&cuda_sync_cache, &pid_tgid);
     if (!stream) {
         return 0;
     }
@@ -184,32 +183,32 @@ static inline int _stream_sync_exit(void* cache_map) {
         emit_stream_sync_event(*stream);
     }
 
-    bpf_map_delete_elem(cache_map, &pid_tgid);
+    bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
     return 0;
 }
 
 SEC("uprobe/cudaStreamSynchronize")
 int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
     log_debug("cudaStreamSynchronize: pid=%llu, stream=%llu", bpf_get_current_pid_tgid(), stream);
-    return _stream_sync_entry(stream, &cuda_sync_cache);
+    return _stream_sync_entry(stream);
 }
 
 SEC("uretprobe/cudaStreamSynchronize")
 int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
     log_debug("cudaStreamSyncronize[ret]: pid=%llx\n", bpf_get_current_pid_tgid());
-    return _stream_sync_exit(&cuda_sync_cache);
+    return _stream_sync_exit();
 }
 
 SEC("uprobe/cuStreamSynchronize")
 int BPF_UPROBE(uprobe__cuStreamSynchronize, __u64 stream) {
     log_debug("cuStreamSynchronize: pid=%llu, stream=%llu", bpf_get_current_pid_tgid(), stream);
-    return _stream_sync_entry(stream, &cu_sync_cache);
+    return _stream_sync_entry(stream);
 }
 
 SEC("uretprobe/cuStreamSynchronize")
 int BPF_URETPROBE(uretprobe__cuStreamSynchronize) {
     log_debug("cuStreamSynchronize[ret]: pid=%llx\n", bpf_get_current_pid_tgid());
-    return _stream_sync_exit(&cu_sync_cache);
+    return _stream_sync_exit();
 }
 
 SEC("uretprobe/cudaDeviceSynchronize")

@@ -61,7 +61,6 @@ const (
 	cudaEventsRingbuf      bpfMapName = "cuda_events"
 	cudaAllocCacheMap      bpfMapName = "cuda_alloc_cache"
 	cudaSyncCacheMap       bpfMapName = "cuda_sync_cache"
-	cuSyncCacheMap         bpfMapName = "cu_sync_cache"
 	cudaSetDeviceCacheMap  bpfMapName = "cuda_set_device_cache"
 	cudaEventStreamMap     bpfMapName = "cuda_event_to_stream"
 	cudaEventQueryCacheMap bpfMapName = "cuda_event_query_cache"
@@ -308,7 +307,6 @@ func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {
 		Maps: []*manager.Map{
 			{Name: cudaAllocCacheMap},
 			{Name: cudaSyncCacheMap},
-			{Name: cuSyncCacheMap},
 			{Name: cudaSetDeviceCacheMap},
 			{Name: cudaEventStreamMap},
 			{Name: cudaEventQueryCacheMap},
