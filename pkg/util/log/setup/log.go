@@ -98,11 +98,6 @@ func BuildJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonForm
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := logger.(seelog.LoggerInterface); ok {
-		logger.Info("jmx: using seelog logger")
-	} else {
-		logger.Info("jmx: using slog logger")
-	}
 	return logger, nil
 }
 
