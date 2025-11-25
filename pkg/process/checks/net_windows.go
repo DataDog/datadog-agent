@@ -7,7 +7,7 @@ package checks
 
 import (
 	"context"
-	"http"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 )
