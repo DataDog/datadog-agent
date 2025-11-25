@@ -397,11 +397,12 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
 	var err error
+	metricTimestamp := float64(currentExecutionTime.UnixNano()) / float64(time.Second)
 	switch metric.Type {
 	case ddmetrics.CountType:
-		err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
+		err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, metricTimestamp)
 	case ddmetrics.GaugeType:
-		err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
+		err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, metricTimestamp)
 	default:
 		err = fmt.Errorf("unsupported metric type %s", metric.Type)
 	}
