@@ -567,6 +567,10 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 			} else {
 				switch expr := expr.(type) {
 				case *exprlang.RefExpr:
+					if expr.Ref == "@duration" {
+						addSegment(&ir.DurationSegment{})
+						continue
+					}
 					addSegment(&ir.JSONSegment{
 						DSL:  segment.GetDSL(),
 						JSON: expr,
