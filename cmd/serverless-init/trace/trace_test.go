@@ -10,7 +10,20 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 )
+
+// mockProcessor is a mock implementation of the Processor interface for testing
+type mockProcessor struct {
+	processCalled bool
+	lastPayload   *api.Payload
+}
+
+func (m *mockProcessor) Process(p *api.Payload) {
+	m.processCalled = true
+	m.lastPayload = p
+}
 
 func TestInitSpan(t *testing.T) {
 	startTime := time.Now().UnixNano()
@@ -44,4 +57,52 @@ func TestInitSpanGeneratesUniqueIDs(t *testing.T) {
 	// TraceIDs and SpanIDs should be different
 	assert.NotEqual(t, span1.TraceID, span2.TraceID)
 	assert.NotEqual(t, span1.SpanID, span2.SpanID)
+}
+
+func TestSubmitSpanWithNilSpan(t *testing.T) {
+	mockAgent := &mockProcessor{}
+
+	// Should not panic and should not call Process
+	SubmitSpan(nil, "test-origin", mockAgent)
+
+	assert.False(t, mockAgent.processCalled)
+}
+
+func TestSubmitSpanWithNilTraceAgent(t *testing.T) {
+	span := InitSpan("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
+
+	// Should not panic
+	SubmitSpan(span, "test-origin", nil)
+}
+
+func TestSubmitSpanWithValidProcessor(t *testing.T) {
+	startTime := time.Now().UnixNano()
+	tags := map[string]string{"env": "test"}
+	span := InitSpan("test-service", "test.operation", "test-resource", "web", startTime, tags)
+	span.Duration = 1000000 // 1ms
+
+	mockAgent := &mockProcessor{}
+
+	SubmitSpan(span, "test-origin", mockAgent)
+
+	assert.True(t, mockAgent.processCalled)
+	assert.NotNil(t, mockAgent.lastPayload)
+	assert.NotNil(t, mockAgent.lastPayload.TracerPayload)
+	assert.Len(t, mockAgent.lastPayload.TracerPayload.Chunks, 1)
+
+	chunk := mockAgent.lastPayload.TracerPayload.Chunks[0]
+	assert.Equal(t, "test-origin", chunk.Origin)
+	assert.Equal(t, int32(1), chunk.Priority)
+	assert.Len(t, chunk.Spans, 1)
+	assert.Equal(t, span, chunk.Spans[0])
+}
+
+func TestSubmitSpanWithNonProcessor(t *testing.T) {
+	span := InitSpan("test-service", "test.operation", "test-resource", "web", time.Now().UnixNano(), nil)
+
+	// Pass something that doesn't implement Processor interface
+	nonProcessor := "not a processor"
+
+	// Should not panic and should log warning
+	SubmitSpan(span, "test-origin", nonProcessor)
 }
