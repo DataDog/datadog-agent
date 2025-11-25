@@ -16,7 +16,7 @@ end
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
 if linux_target? and !heroku_target?
-  block do
+  build do
     command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir='#{install_dir}'"
   end
 end
