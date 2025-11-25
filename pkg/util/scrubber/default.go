@@ -466,6 +466,10 @@ func ScrubDataObj(data *interface{}) {
 // for the last 5 characters. If the key is an unrecognized length, replace
 // all of it with the default string of "*"s instead.
 func HideKeyExceptLastFiveChars(key string) string {
+	if len(key) == 0 {
+		return "<empty>"
+	}
+
 	if len(key) != 32 && len(key) != 40 {
 		return defaultReplacement
 	}
