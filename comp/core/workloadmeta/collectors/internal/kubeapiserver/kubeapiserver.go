@@ -272,10 +272,10 @@ func (c *collector) GetID() string {
 }
 
 func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient) workloadmeta.Event {
-	featureGates, err := apiserverClient.GetClusterFeatureGates(ctx)
+	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery())
 	if err != nil {
 		log.Errorf("failed to get cluster feature gates: %v", err)
-		featureGates = make(map[string]apiserver.FeatureGate)
+		featureGates = make(map[string]common.FeatureGate)
 	}
 
 	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
