@@ -160,3 +160,8 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
 }
+
+// RunOnce returns true if the inner check should run only once
+func (c *CheckWrapper) RunOnce() bool {
+	return c.inner.RunOnce()
+}

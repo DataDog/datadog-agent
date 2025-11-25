@@ -275,3 +275,84 @@ func (m *mockCollector) Name() nvidia.CollectorName {
 func (m *mockCollector) DeviceUUID() string {
 	return m.deviceUUID
 }
+
+func TestTagsChangeBetweenRuns(t *testing.T) {
+	// Create a mock sender
+	mockSender := mocksender.NewMockSender("gpu")
+	mockSender.SetupAcceptAll()
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	// Create check instance using mocks
+	checkGeneric := newCheck(
+		fakeTagger,
+		testutil.GetTelemetryMock(t),
+		testutil.GetWorkloadMetaMock(t),
+	)
+	check, ok := checkGeneric.(*Check)
+	require.True(t, ok)
+
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	// Create mock collector
+	deviceUUID := testutil.GPUUUIDs[0]
+	check.collectors = append(check.collectors, &mockCollector{
+		name:       "device",
+		deviceUUID: deviceUUID,
+		metrics: []nvidia.Metric{
+			{Name: "test_metric", Value: 42.0, Type: ddmetrics.GaugeType, Priority: 0},
+		},
+	})
+
+	require.NoError(t, check.deviceCache.Refresh())
+
+	// First run: minimal GPU tags (just uuid fallback)
+	metricTime1 := time.Now()
+	metricTimestamp1 := float64(metricTime1.UnixNano()) / float64(time.Second)
+	require.NoError(t, check.emitMetrics(mockSender, map[string]*workloadmeta.Container{}, metricTime1))
+
+	expectedTags1 := []string{"gpu_uuid:" + deviceUUID}
+	slices.Sort(expectedTags1)
+	matchTagsFunc1 := func(tags []string) bool {
+		slices.Sort(tags)
+		return slices.Equal(tags, expectedTags1)
+	}
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mock.MatchedBy(matchTagsFunc1), metricTimestamp1)
+
+	// Reset mock to verify new calls
+	mockSender.ResetCalls()
+
+	// Second run: add GPU tags via tagger
+	gpuTags1 := []string{"gpu_uuid:" + deviceUUID, "gpu_model:Tesla_T4", "pci_bus_id:0000:00:1e.0"}
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, deviceUUID), "foo", gpuTags1, nil, nil, nil)
+
+	metricTime2 := time.Now()
+	metricTimestamp2 := float64(metricTime2.UnixNano()) / float64(time.Second)
+	require.NoError(t, check.emitMetrics(mockSender, map[string]*workloadmeta.Container{}, metricTime2))
+
+	slices.Sort(gpuTags1)
+	matchTagsFunc2 := func(tags []string) bool {
+		slices.Sort(tags)
+		return slices.Equal(tags, gpuTags1)
+	}
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mock.MatchedBy(matchTagsFunc2), metricTimestamp2)
+
+	// Reset mock for third run
+	mockSender.ResetCalls()
+
+	// Third run: change GPU tags to different values
+	gpuTags2 := []string{"gpu_uuid:" + deviceUUID, "gpu_model:A100", "pci_bus_id:0000:00:1f.0", "datacenter:us-west-1"}
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, deviceUUID), "foo", gpuTags2, nil, nil, nil)
+
+	metricTime3 := time.Now()
+	metricTimestamp3 := float64(metricTime3.UnixNano()) / float64(time.Second)
+	require.NoError(t, check.emitMetrics(mockSender, map[string]*workloadmeta.Container{}, metricTime3))
+
+	slices.Sort(gpuTags2)
+	matchTagsFunc3 := func(tags []string) bool {
+		slices.Sort(tags)
+		return slices.Equal(tags, gpuTags2)
+	}
+	mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.test_metric", 42.0, "", mock.MatchedBy(matchTagsFunc3), metricTimestamp3)
+}

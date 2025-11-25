@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -198,7 +199,12 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			return err
 		}
 
-		if _, err := etcd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(cluster)); err != nil {
+		// Get CoreDNS Deployment to use as dependency for etcd which needs DNS
+		coreDNS, err := appsv1.GetDeployment(ctx, "coredns", pulumi.ID("kube-system/coredns"), nil, pulumi.Provider(cluster.KubeProvider))
+		if err != nil {
+			return err
+		}
+		if _, err := etcd.K8sAppDefinition(&awsEnv, cluster.KubeProvider, utils.PulumiDependsOn(coreDNS)); err != nil {
 			return err
 		}
 

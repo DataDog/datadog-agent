@@ -51,11 +51,11 @@
           "location": {
             "method": "main.testInlinedBC"
           }
-        },
-        "captures": {}
+        }
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "testInlinedBC"
   }
 ]

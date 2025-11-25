@@ -1,0 +1,21 @@
+bazel:mod-deps:
+  extends: [ .bazel:defs, .bazel:runner:linux-amd64 ]
+  stage: lint
+  script:
+    - bazel mod deps --lockfile_mode=error || true
+  after_script:
+    - |-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 bazel mod deps"
+      fi
+
+bazel:run-buildifier-test:
+  extends: [ .bazel:defs, .bazel:runner:linux-amd64 ]
+  stage: lint
+  script:
+    - bazel run //bazel/buildifier:test
+  after_script:
+    - |-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 bazel run //bazel/buildifier"
+      fi

@@ -6,4 +6,5 @@ py_binary(
     name = "gather_licenses",
     srcs = ["gather_licenses.py"],
     visibility = ["//visibility:private"],
+    deps = ["//tasks:licenses"],
 )

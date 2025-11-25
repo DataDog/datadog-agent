@@ -97,7 +97,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.24.1
+    SMP_VERSION: 0.25.1
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]

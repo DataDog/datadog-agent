@@ -9,10 +9,7 @@
 package compliance
 
 import (
-	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"time"
 
@@ -21,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -35,13 +31,13 @@ import (
 // and checks.
 func StartCompliance(log log.Component,
 	config config.Component,
-	sysprobeconfig sysprobeconfig.Component,
 	hostname string,
 	stopper startstop.Stopper,
 	statsdClient ddgostatsd.ClientInterface,
 	wmeta workloadmeta.Component,
 	compression compression.Component,
 	ipc ipc.Component,
+	sysProbeClient SysProbeClient,
 ) (*Agent, error) {
 
 	enabled := config.GetBool("compliance_config.enabled")
@@ -68,11 +64,6 @@ func StartCompliance(log log.Component,
 
 	if metricsEnabled {
 		resolverOptions.StatsdClient = statsdClient
-	}
-
-	var sysProbeClient *http.Client
-	if config := sysprobeconfig.SysProbeObject(); config != nil && config.SocketAddress != "" {
-		sysProbeClient = newSysProbeClient(config.SocketAddress)
 	}
 
 	enabledConfigurationsExporters := []ConfigurationExporter{
@@ -124,20 +115,4 @@ func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName stri
 	}()
 
 	return heartbeat
-}
-
-func newSysProbeClient(address string) *http.Client {
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:    2,
-			IdleConnTimeout: 30 * time.Second,
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", address)
-			},
-			TLSHandshakeTimeout:   1 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 50 * time.Millisecond,
-		},
-	}
 }

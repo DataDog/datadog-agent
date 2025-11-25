@@ -10,14 +10,12 @@ package log
 import (
 	"io"
 
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 )
 
 // Default returns a default logger
 func Default() LoggerInterface {
-	return seelog.Default
+	return slog.Default()
 }
 
 // loggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level and a format.

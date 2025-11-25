@@ -49,9 +49,7 @@ var (
 		},
 		"datadog.bar": {configUtils.NewAPIKeys("path", "api-key-3")},
 	}
-	validKeysPerDomain = map[string][]configUtils.APIKeys{
-		testVersionDomain: {configUtils.NewAPIKeys("path", "api-key-1", "api-key-2")},
-	}
+	validKeys = []string{"api-key-1", "api-key-2"}
 )
 
 func TestNewDefaultForwarder(t *testing.T) {
@@ -64,13 +62,17 @@ func TestNewDefaultForwarder(t *testing.T) {
 	assert.NotNil(t, forwarder)
 	assert.Equal(t, 1, forwarder.NumberOfWorkers)
 	require.Len(t, forwarder.domainForwarders, 1) // only one domain has keys
-	r, err = resolver.NewSingleDomainResolvers(validKeysPerDomain)
-	require.NoError(t, err)
-	assert.Equal(t, r, forwarder.domainResolvers)
-	assert.Len(t, forwarder.domainForwarders, 1) // datadog.bar should have been dropped
+	assert.Equal(t, testVersionDomain, forwarder.domainResolvers[testVersionDomain].GetBaseDomain())
+	assert.Equal(t, testDomain, forwarder.domainResolvers[testVersionDomain].GetConfigName())
+	assert.Equal(t, validKeys, forwarder.domainResolvers[testVersionDomain].GetAPIKeys())
 
 	assert.Equal(t, forwarder.internalState.Load(), Stopped)
 	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
+}
+
+func TestNewDefaultForwarderWithAutoscaling(t *testing.T) {
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
 
 	mockConfig.SetWithoutSource("autoscaling.failover.enabled", true)
 	mockConfig.SetWithoutSource("cluster_agent.enabled", true)
@@ -78,17 +80,25 @@ func TestNewDefaultForwarder(t *testing.T) {
 	localAuth := "tokenABCD12345678910109876543210"
 	mockConfig.SetWithoutSource("cluster_agent.url", localDomain)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", localAuth)
-	r, err = resolver.NewSingleDomainResolvers(keysPerDomains)
+
+	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	forwarder2 := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
-	assert.NotNil(t, forwarder2)
-	assert.Equal(t, 1, forwarder2.NumberOfWorkers)
-	require.Len(t, forwarder2.domainForwarders, 2) // 1 remote domain, 1 dca domain
-	domainResolver, _ := resolver.NewSingleDomainResolvers(validKeysPerDomain)
-	domainResolver[localDomain] = resolver.NewLocalDomainResolver(localDomain, localAuth)
-	assert.Equal(t, domainResolver, forwarder2.domainResolvers)
-	assert.Equal(t, forwarder2.internalState.Load(), Stopped)
-	assert.Equal(t, forwarder2.State(), forwarder2.internalState.Load())
+	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, r))
+	assert.NotNil(t, forwarder)
+	assert.Equal(t, 1, forwarder.NumberOfWorkers)
+	require.Len(t, forwarder.domainForwarders, 2) // 1 remote domain, 1 dca domain
+
+	assert.Equal(t, testVersionDomain, forwarder.domainResolvers[testVersionDomain].GetBaseDomain())
+	assert.Equal(t, testDomain, forwarder.domainResolvers[testVersionDomain].GetConfigName())
+	assert.Equal(t, validKeys, forwarder.domainResolvers[testVersionDomain].GetAPIKeys())
+
+	assert.Equal(t, localDomain, forwarder.domainResolvers[localDomain].GetBaseDomain())
+	assert.Equal(t, localDomain, forwarder.domainResolvers[localDomain].GetConfigName())
+	assert.Len(t, forwarder.domainResolvers[localDomain].GetAPIKeys(), 0)
+	assert.True(t, forwarder.domainResolvers[localDomain].IsLocal())
+
+	assert.Equal(t, forwarder.internalState.Load(), Stopped)
+	assert.Equal(t, forwarder.State(), forwarder.internalState.Load())
 }
 
 func TestFeature(t *testing.T) {

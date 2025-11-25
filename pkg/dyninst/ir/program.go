@@ -174,7 +174,7 @@ type JSONSegment struct {
 	EventExpressionIndex int
 }
 
-func (s JSONSegment) templateSegment() {}
+func (s *JSONSegment) templateSegment() {}
 
 // InvalidSegment is a segment that represents an issue with the template.
 type InvalidSegment struct {

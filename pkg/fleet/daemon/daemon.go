@@ -42,6 +42,8 @@ const (
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
 	refreshStateInterval = 30 * time.Second
+	// disableClientIDCheck is the magic string to disable the client ID check.
+	disableClientIDCheck = "disable-client-id-check"
 )
 
 var (
@@ -94,6 +96,7 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
+	clientID        string
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -148,6 +151,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
+		clientID:        rc.client.GetClientID(),
 		rc:              rc,
 		installer:       installer,
 		requests:        make(chan remoteAPIRequest, 32),
@@ -671,11 +675,11 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
 	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
-
-	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+	clientIDEqual := d.clientID == request.ExpectedState.ClientID || request.ExpectedState.ClientID == disableClientIDCheck
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual || !clientIDEqual) {
 		log.Infof(
-			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
-			request.ID, request.ExpectedState, s, c,
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v, client id: %s",
+			request.ID, request.ExpectedState, s, c, d.clientID,
 		)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)

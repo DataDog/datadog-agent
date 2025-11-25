@@ -51,6 +51,7 @@ type InstallAgentParams struct {
 	APMEnabled              string `installer_arg:"APM_ENABLED"`
 	RemoteUpdates           string `installer_arg:"DD_REMOTE_UPDATES"`
 	InfrastructureMode      string `installer_arg:"DD_INFRASTRUCTURE_MODE"`
+	InstallOnly             string `installer_arg:"DD_INSTALL_ONLY"`
 }
 
 // InstallAgentOption is an optional function parameter type for InstallAgentParams options
@@ -342,6 +343,15 @@ func WithRemoteUpdates(remoteUpdates string) InstallAgentOption {
 func WithInfrastructureMode(infrastructureMode string) InstallAgentOption {
 	return func(i *InstallAgentParams) error {
 		i.InfrastructureMode = infrastructureMode
+		return nil
+	}
+}
+
+// WithInstallOnly specifies the DD_INSTALL_ONLY parameter.
+// When set to "1", the MSI will skip starting the Agent services.
+func WithInstallOnly(installOnly string) InstallAgentOption {
+	return func(i *InstallAgentParams) error {
+		i.InstallOnly = installOnly
 		return nil
 	}
 }

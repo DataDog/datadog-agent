@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -283,18 +284,24 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 
 	// Add Unified Service Tagging tags if present in the service metadata
 	if process.Service != nil {
-		if process.Service.UST.Service != "" {
-			tagList.AddStandard(tags.Service, process.Service.UST.Service)
-		}
-		if process.Service.UST.Env != "" {
-			tagList.AddStandard(tags.Env, process.Service.UST.Env)
-		}
-		if process.Service.UST.Version != "" {
-			tagList.AddStandard(tags.Version, process.Service.UST.Version)
-		}
+		ustService := process.Service.UST.Service
+		ustEnv := process.Service.UST.Env
+		ustVersion := process.Service.UST.Version
+
+		tagList.AddStandard(tags.Service, ustService)
+		tagList.AddStandard(tags.Env, ustEnv)
+		tagList.AddStandard(tags.Version, ustVersion)
 
 		for _, tracerMeta := range process.Service.TracerMetadata {
-			parseProcessTags(tagList, tracerMeta.ProcessTags)
+			for key, value := range tracerMeta.Tags() {
+				if tracermetadata.ShouldSkipServiceTagKV(key, value, ustService, ustEnv, ustVersion) {
+					continue
+				}
+
+				// Add as low cardinality tag since these are application-level
+				// metadata
+				tagList.AddLow(key, value)
+			}
 		}
 	}
 
@@ -1012,38 +1019,5 @@ func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 			continue
 		}
 		tags.AddHigh(tagParts[0], tagParts[1])
-	}
-}
-
-// parseProcessTags parses comma-separated process tags from TracerMetadata
-// and adds them to the provided tagList as low cardinality tags
-func parseProcessTags(tags *taglist.TagList, processTags string) {
-	if processTags == "" {
-		return
-	}
-
-	for tag := range strings.SplitSeq(processTags, ",") {
-		tag = strings.TrimSpace(tag)
-		if tag == "" {
-			continue
-		}
-
-		// Split each tag into key:value format
-		key, value, ok := strings.Cut(tag, ":")
-		if !ok {
-			log.Debugf("Process tag %q is not in k:v format, skipping", tag)
-			continue
-		}
-
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-
-		if key == "" || value == "" {
-			log.Debugf("Process tag %q has empty key or value, skipping", tag)
-			continue
-		}
-
-		// Add as low cardinality tag since these are application-level metadata
-		tags.AddLow(key, value)
 	}
 }

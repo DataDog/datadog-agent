@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,122 @@ func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 			t.Logf("Finished generating %s log, log file's content is now: \n '%s' \n", osStr, output)
 		}
 	}, WaitFor, Tick)
+}
+
+// TailerState represents the state of a log tailer
+type TailerState string
+
+const (
+	// TailerStateOK indicates the tailer is running without errors
+	TailerStateOK TailerState = "OK"
+	// TailerStateError indicates the tailer is in an error state
+	TailerStateError TailerState = "Error"
+)
+
+// AgentStatus represents the agent status JSON structure
+type AgentStatus struct {
+	LogsStats LogsStats `json:"logsStats"`
+}
+
+// LogsStats represents the logs statistics section
+type LogsStats struct {
+	Integrations []Integration `json:"integrations"`
+}
+
+// Integration represents a log integration
+type Integration struct {
+	Name    string   `json:"name"`
+	Sources []Source `json:"sources"`
+}
+
+// Source represents a log source
+type Source struct {
+	Type          string                 `json:"type"`
+	Configuration map[string]interface{} `json:"configuration"`
+	Status        string                 `json:"status"`
+	Inputs        []string               `json:"inputs"`
+}
+
+// getTailerStatus extracts the tailer status for a given log file from the agent status JSON.
+// Returns the status string and whether the tailer was found.
+func getTailerStatus(statusJSON, logFileName string) (string, bool) {
+	var status AgentStatus
+	if err := json.Unmarshal([]byte(statusJSON), &status); err != nil {
+		return "", false
+	}
+
+	for _, integration := range status.LogsStats.Integrations {
+		for _, source := range integration.Sources {
+			if source.Type != "file" {
+				continue
+			}
+			if path, ok := source.Configuration["Path"].(string); ok {
+				if strings.Contains(path, logFileName) {
+					return source.Status, true
+				}
+			}
+		}
+	}
+
+	return "", false
+}
+
+// AssertAgentTailerState asserts that a tailer for the given log file is in the expected state.
+// expectedState can be TailerStateOK or TailerStateError.
+func AssertAgentTailerState(ls LogsTestSuite, logFileName string, expectedState TailerState) {
+	t := ls.T()
+	t.Helper()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		statusObj, err := ls.Env().Agent.Client.StatusWithError(agentclient.WithArgs([]string{"--json"}))
+		if !assert.NoErrorf(c, err, "Failed to get agent status: %v", err) {
+			return
+		}
+
+		statusContent := statusObj.Content
+		status, found := getTailerStatus(statusContent, logFileName)
+
+		if !assert.Truef(c, found, "Tailer for log file %s not found in agent status", logFileName) {
+			return
+		}
+
+		switch expectedState {
+		case TailerStateOK:
+			assert.Equalf(c, "OK", status, "Expected tailer for %s to be in OK state, but got: %s", logFileName, status)
+		case TailerStateError:
+			assert.Truef(c, strings.HasPrefix(status, "Error"), "Expected tailer for %s to be in Error state, but got: %s", logFileName, status)
+		}
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// AssertAgentTailerStarted asserts that a tailer for the given log file exists in the agent status.
+func AssertAgentTailerStarted(ls LogsTestSuite, logFileName string) {
+	t := ls.T()
+	t.Helper()
+
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		statusObj, err := ls.Env().Agent.Client.StatusWithError(agentclient.WithArgs([]string{"--json"}))
+		if !assert.NoErrorf(c, err, "Failed to get agent status: %v", err) {
+			return
+		}
+
+		statusContent := statusObj.Content
+		status, found := getTailerStatus(statusContent, logFileName)
+
+		if assert.Truef(c, found, "Tailer for log file %s not found in agent status", logFileName) {
+			t.Logf("Tailer for %s found with status: %s", logFileName, status)
+		}
+	}, 2*time.Minute, 5*time.Second)
+}
+
+// AssertAgentTailerOK asserts that a tailer for the given log file is in OK state.
+func AssertAgentTailerOK(ls LogsTestSuite, logFileName string) {
+	AssertAgentTailerState(ls, logFileName, TailerStateOK)
+}
+
+// AssertAgentTailerError asserts that a tailer for the given log file is in Error state.
+func AssertAgentTailerError(ls LogsTestSuite, logFileName string) {
+	AssertAgentTailerState(ls, logFileName, TailerStateError)
 }
 
 // CheckLogFilePresence verifies the presence or absence of a log file path

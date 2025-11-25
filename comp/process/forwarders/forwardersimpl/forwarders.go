@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
@@ -30,16 +32,16 @@ func Module() fxutil.Module {
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-	Logger log.Component
-	Lc     fx.Lifecycle
+	Config                config.Component
+	Logger                log.Component
+	ConnectionsForwarders connectionsforwarder.Component
+	Lc                    compdef.Lifecycle
 }
 
 type forwardersComp struct {
-	eventForwarder       defaultforwarder.Component
 	processForwarder     defaultforwarder.Component
 	rtProcessForwarder   defaultforwarder.Component
-	connectionsForwarder defaultforwarder.Component
+	connectionsForwarder connectionsforwarder.Component
 }
 
 func newForwarders(deps dependencies) (forwarders.Component, error) {
@@ -48,16 +50,6 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	if queueBytes <= 0 {
 		deps.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
 		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
-	}
-
-	eventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
-	if err != nil {
-		return nil, err
-	}
-
-	eventForwarderOpts, err := createParams(deps.Config, deps.Logger, queueBytes, eventsAPIEndpoints)
-	if err != nil {
-		return nil, err
 	}
 
 	processAPIEndpoints, err := endpoint.GetAPIEndpoints(config)
@@ -71,10 +63,9 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 	}
 
 	return &forwardersComp{
-		eventForwarder:       createForwarder(deps, eventForwarderOpts),
 		processForwarder:     createForwarder(deps, processForwarderOpts),
 		rtProcessForwarder:   createForwarder(deps, processForwarderOpts),
-		connectionsForwarder: createForwarder(deps, processForwarderOpts),
+		connectionsForwarder: deps.ConnectionsForwarders,
 	}, nil
 }
 
@@ -93,10 +84,6 @@ func createParams(config config.Component, log log.Component, queueBytes int, en
 	return forwarderOpts, nil
 }
 
-func (f *forwardersComp) GetEventForwarder() defaultforwarder.Component {
-	return f.eventForwarder
-}
-
 func (f *forwardersComp) GetProcessForwarder() defaultforwarder.Component {
 	return f.processForwarder
 }
@@ -105,6 +92,6 @@ func (f *forwardersComp) GetRTProcessForwarder() defaultforwarder.Component {
 	return f.rtProcessForwarder
 }
 
-func (f *forwardersComp) GetConnectionsForwarder() defaultforwarder.Component {
+func (f *forwardersComp) GetConnectionsForwarder() connectionsforwarder.Component {
 	return f.connectionsForwarder
 }
