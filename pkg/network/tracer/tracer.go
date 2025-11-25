@@ -202,6 +202,9 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 	}
 
+	if !cfg.EnableProcessEventMonitoring && cfg.EnableContainerStore {
+		log.Warnf("not starting resolv.conf container store, because it depends on process event monitoring which is disabled")
+	}
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
