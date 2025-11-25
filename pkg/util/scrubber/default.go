@@ -471,7 +471,10 @@ func HideKeyExceptLastFiveChars(key string) string {
 	}
 
 	if len(key) != 32 && len(key) != 40 {
-		return defaultReplacement
+		if strings.HasPrefix(key, "ENC") {
+			return key // TODO: REMOVE THIS !!!!
+		}
+		return fmt.Sprintf("%s(len=%d)", defaultReplacement, len(key))
 	}
 	return strings.Repeat("*", len(key)-5) + key[len(key)-5:]
 }
