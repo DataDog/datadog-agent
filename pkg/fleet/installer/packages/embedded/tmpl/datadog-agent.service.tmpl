@@ -16,7 +16,8 @@ Before=datadog-agent.service
 [Service]
 Type=simple
 PIDFile={{.InstallDir}}/run/agent.pid
-User=dd-agent
+# dd-procmgrd runs as root to handle user switching for child processes
+# Child processes (agent, trace-agent, etc.) run as dd-agent via YAML config
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}

@@ -8,8 +8,8 @@ use std::env;
 // Default configuration values
 const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_REST_PORT: u16 = 3000;
-const DEFAULT_GRPC_SOCKET: &str = "/var/run/process-manager.sock";
-const DEFAULT_REST_SOCKET: &str = "/var/run/process-manager-api.sock";
+const DEFAULT_GRPC_SOCKET: &str = "/var/run/datadog/process-manager.sock";
+const DEFAULT_REST_SOCKET: &str = "/var/run/datadog/process-manager-api.sock";
 const DEFAULT_ENABLE_REST: bool = false;
 const DEFAULT_LOG_LEVEL: &str = "info";
 
@@ -123,6 +123,8 @@ mod tests {
         // Clear env vars
         env::remove_var("DD_PM_TRANSPORT_MODE");
         env::remove_var("DD_PM_GRPC_PORT");
+        env::remove_var("DD_PM_GRPC_SOCKET");
+        env::remove_var("DD_PM_REST_SOCKET");
         env::remove_var("DD_PM_LOG_LEVEL");
         env::remove_var("RUST_LOG");
 
@@ -130,8 +132,8 @@ mod tests {
         assert_eq!(config.transport_mode, TransportMode::Unix);
         assert_eq!(config.grpc_port, DEFAULT_GRPC_PORT);
         assert_eq!(config.rest_port, DEFAULT_REST_PORT);
-        assert_eq!(config.grpc_socket, DEFAULT_GRPC_SOCKET);
-        assert_eq!(config.rest_socket, DEFAULT_REST_SOCKET);
+        assert_eq!(config.grpc_socket, "/var/run/datadog/process-manager.sock");
+        assert_eq!(config.rest_socket, "/var/run/datadog/process-manager-api.sock");
         assert_eq!(config.enable_rest, DEFAULT_ENABLE_REST);
         assert_eq!(config.log_level, DEFAULT_LOG_LEVEL);
     }

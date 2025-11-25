@@ -7,7 +7,8 @@ Wants=datadog-agent-installer.service datadog-agent-trace.service datadog-agent-
 [Service]
 Type=simple
 PIDFile=/opt/datadog-agent/run/agent.pid
-User=dd-agent
+# dd-procmgrd runs as root to handle user switching for child processes
+# Child processes (agent, trace-agent, etc.) run as dd-agent via YAML config
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
 RuntimeDirectory=datadog

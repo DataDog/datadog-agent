@@ -9,7 +9,8 @@ Before=datadog-agent.service
 [Service]
 Type=simple
 PIDFile=/opt/datadog-agent/run/agent.pid
-User=dd-agent
+# dd-procmgrd runs as root to handle user switching for child processes
+# Child processes (agent, trace-agent, etc.) run as dd-agent via YAML config
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"

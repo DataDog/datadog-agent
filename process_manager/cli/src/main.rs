@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Determine connection type: Unix socket (default) or TCP
     let socket_path = env::var("DD_PM_GRPC_SOCKET")
         .or_else(|_| env::var("DD_PM_SOCKET")) // Backward compat
-        .unwrap_or_else(|_| "/var/run/process-manager.sock".to_string());
+        .unwrap_or_else(|_| "/var/run/datadog/process-manager.sock".to_string());
     let use_tcp = env::var("DD_PM_USE_TCP").is_ok();
 
     let channel = if use_tcp {
@@ -108,7 +108,7 @@ fn print_usage() {
     eprintln!("  status                             Show detailed daemon status");
     eprintln!();
     eprintln!("Environment Variables:");
-    eprintln!("  DD_PM_SOCKET        Unix socket path (default: /var/run/process-manager.sock)");
+    eprintln!("  DD_PM_SOCKET        Unix socket path (default: /var/run/datadog/process-manager.sock)");
     eprintln!("  DD_PM_USE_TCP       Set to use TCP instead of Unix socket");
     eprintln!("  DD_PM_DAEMON_PORT   TCP port when using TCP (default: 50051)");
 }

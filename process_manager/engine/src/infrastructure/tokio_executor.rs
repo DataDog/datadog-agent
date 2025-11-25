@@ -85,13 +85,34 @@ impl Default for TokioProcessExecutor {
 impl TokioProcessExecutor {
     /// Load environment variables from a file
     /// Format: KEY=VALUE, one per line, # for comments
+    ///
+    /// Supports systemd-style optional prefix:
+    /// - If path starts with '-', the file is optional (no error if missing)
     fn load_env_file(path: &str) -> Result<HashMap<String, String>, DomainError> {
-        let file = File::open(path).map_err(|e| {
-            DomainError::InvalidCommand(format!(
-                "Failed to open environment file '{}': {}",
-                path, e
-            ))
-        })?;
+        // Handle optional file prefix (systemd-style: -/path/to/file)
+        let (actual_path, optional) = if let Some(stripped) = path.strip_prefix('-') {
+            (stripped, true)
+        } else {
+            (path, false)
+        };
+
+        let file = match File::open(actual_path) {
+            Ok(f) => f,
+            Err(e) => {
+                if optional {
+                    // Optional file doesn't exist - return empty env vars
+                    debug!(
+                        file = actual_path,
+                        "Optional environment file not found, continuing without it"
+                    );
+                    return Ok(HashMap::new());
+                }
+                return Err(DomainError::InvalidCommand(format!(
+                    "Failed to open environment file '{}': {}",
+                    actual_path, e
+                )));
+            }
+        };
 
         let reader = BufReader::new(file);
         let mut env_vars = HashMap::new();
@@ -100,7 +121,7 @@ impl TokioProcessExecutor {
             let line = line.map_err(|e| {
                 DomainError::InvalidCommand(format!(
                     "Failed to read environment file '{}': {}",
-                    path, e
+                    actual_path, e
                 ))
             })?;
 
@@ -116,7 +137,7 @@ impl TokioProcessExecutor {
                 env_vars.insert(key.trim().to_string(), value.trim().to_string());
             } else {
                 warn!(
-                    file = path,
+                    file = actual_path,
                     line = line_num + 1,
                     content = line,
                     "Invalid line in environment file (expected KEY=VALUE format)"
@@ -125,7 +146,7 @@ impl TokioProcessExecutor {
         }
 
         debug!(
-            file = path,
+            file = actual_path,
             count = env_vars.len(),
             "Loaded environment variables from file"
         );
