@@ -298,6 +298,66 @@ func (c *safeConfig) IsConfigured(key string) bool {
 	return c.Viper.IsConfigured(key)
 }
 
+func (c *safeConfig) HasSection(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, src := range model.Sources {
+		if src == model.SourceDefault {
+			continue
+		}
+		if src == model.SourceEnvVar {
+			if c.hasEnvVarSection(key) {
+				return true
+			}
+		} else if c.configSources[src].HasSection(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *safeConfig) hasEnvVarSection(key string) bool {
+	// Env var layer doesn't work the same because Viper doesn't store them
+	// Instead use our own cache in envVarTree
+	currTree := c.envVarTree
+	parts := strings.Split(key, ".")
+	for _, part := range parts {
+		if elem, found := currTree[part].(map[string]interface{}); found {
+			currTree = elem
+		} else {
+			currTree = nil
+			break
+		}
+	}
+	if currTree != nil {
+		// If the env var corresponds to a non-nil leaf setting, it is configured, not a section
+		fromEnvVar := c.configSources[model.SourceEnvVar].Get(key)
+		if fromEnvVar != nil && fromEnvVar != "" {
+			return false
+		}
+		return c.anyEnvVarsDefined(key, currTree)
+	}
+	return false
+}
+
+func (c *safeConfig) anyEnvVarsDefined(key string, tree interface{}) bool {
+	fromEnvVar := c.configSources[model.SourceEnvVar].Get(key)
+	if fromEnvVar != nil && fromEnvVar != "" {
+		return true
+	}
+	m, ok := tree.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for k, v := range m {
+		if c.anyEnvVarsDefined(strings.Join([]string{key, ".", k}, ""), v) {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *safeConfig) AllKeysLowercased() []string {
 	c.Lock()
 	defer c.Unlock()

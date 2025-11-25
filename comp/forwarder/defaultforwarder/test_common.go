@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
@@ -57,7 +58,7 @@ func (t *testTransaction) GetCreatedAt() time.Time {
 	return t.Called().Get(0).(time.Time)
 }
 
-func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, client *http.Client) error {
+func (t *testTransaction) Process(ctx context.Context, _ config.Component, _ log.Component, _ secrets.Component, client *http.Client) error {
 	defer func() { t.processed <- true }()
 
 	var ret error
@@ -217,8 +218,8 @@ func (tf *MockedForwarder) SubmitTransaction(t *transaction.HTTPTransaction) err
 }
 
 // NewTestForwarder creates an instance of the component based on config, but without using fx or starting it.
-func NewTestForwarder(params Params, config config.Component, log log.Component) (Forwarder, error) {
-	opts, err := createOptions(params, config, log)
+func NewTestForwarder(params Params, config config.Component, log log.Component, secrets secrets.Component) (Forwarder, error) {
+	opts, err := createOptions(params, config, log, secrets)
 	if err != nil {
 		return nil, err
 	}

@@ -256,7 +256,6 @@ type cancelledCheck struct {
 	demux demultiplexer.FakeSamplerMock
 }
 
-func (c *cancelledCheck) RunOnce() bool { return false }
 func (c *cancelledCheck) Run() error {
 	c.flip <- struct{}{}
 

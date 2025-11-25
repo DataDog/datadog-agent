@@ -253,11 +253,6 @@ func (c *ProcessAgentCheck) IsHASupported() bool {
 	return false
 }
 
-// RunOnce returns false
-func (c *ProcessAgentCheck) RunOnce() bool {
-	return false
-}
-
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)
