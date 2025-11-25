@@ -15,10 +15,9 @@
 #
 
 name "dd-compile-policy"
-default_version "0.1.0"
 
 build do
-  license "BSD-3-Clause"
+  license "Apache-2.0"
   license_file "https://raw.githubusercontent.com/DataDog/dd-policy-engine/master/LICENSE"
 
   command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir='#{install_dir}'"
