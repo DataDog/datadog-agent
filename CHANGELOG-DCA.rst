@@ -21,7 +21,7 @@ Pinned to datadog-agent v7.72.3: `CHANGELOG <https://github.com/DataDog/datadog-
 Bug Fixes
 ---------
 
-- Remove unused `trace-loader` binary from the heroku build to avoid package size increase
+- Fix a memory leak in the orchestrator check when the Cluster Agent is deployed with multiple replicas and leader-election enabled.
 
 
 .. _Release Notes_7.72.2:
