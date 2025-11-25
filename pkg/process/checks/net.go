@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -27,13 +26,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
-	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -620,21 +617,4 @@ func retryGetNetworkID(sysProbeClient *http.Client) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("failed to get network ID after %d attempts: %w", maxRetries, err)
-}
-
-// getNetworkID fetches network_id from the current netNS or from the system probe if necessary, where the root netNS is used
-func getNetworkID(sysProbeClient *http.Client) (string, error) {
-	networkID, err := network.GetNetworkID(context.Background())
-	if err != nil {
-		if sysProbeClient == nil {
-			return "", fmt.Errorf("no network ID detected and system-probe client not available: %w", err)
-		}
-		log.Debugf("no network ID detected. retrying via system-probe: %s", err)
-		networkID, err = net.GetNetworkID(sysProbeClient)
-		if err != nil {
-			log.Debugf("failed to get network ID from system-probe: %s", err)
-			return "", fmt.Errorf("failed to get network ID from system-probe: %w", err)
-		}
-	}
-	return networkID, err
 }

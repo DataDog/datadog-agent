@@ -3,11 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package net
+//go:build !linux && !windows
 
-import "net/http"
+package checks
 
-// GetNetworkID is not implemented on windows
-func GetNetworkID(_ *http.Client) (string, error) {
-	return "", nil
+import (
+	"errors"
+	"http"
+)
+
+// getNetworkID fetches network_id
+func getNetworkID(_ *http.Client) (string, error) {
+	return "", errors.New("unsupported on this platform")
 }
