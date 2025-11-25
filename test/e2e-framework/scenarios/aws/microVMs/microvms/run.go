@@ -59,10 +59,10 @@ const (
 	libvirtSSHPrivateKeyArm = "libvirt_rsa-arm"
 )
 
-//go:embed files/_datadog.yaml
+//go:embed files/datadog.yaml
 var datadogAgentConfig string
 
-//go:embed files/_system-probe.yaml
+//go:embed files/system-probe.yaml
 var systemProbeConfig string
 
 //go:embed files/oom_kill.yaml
@@ -370,7 +370,7 @@ func run(e commonConfig.CommonEnvironment) (*ScenarioDone, error) {
 			return nil, err
 		}
 
-		if _, err := provisionLocalMicroVMs(vmCollections, e); err != nil {
+		if _, err := provisionLocalMicroVMs(vmCollections); err != nil {
 			return nil, err
 		}
 	}
