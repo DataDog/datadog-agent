@@ -10,8 +10,10 @@ package model
 import (
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	_ "github.com/aws/karpenter-provider-aws/pkg/apis/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 )
 
@@ -111,19 +113,43 @@ func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
 	return output
 }
 
+var deprecatedLabels = sets.New[string]("beta.kubernetes.io/arch", "beta.kubernetes.io/os")
+
 // buildNodePoolSpec is used for creating new NodePools
 func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.NodePoolSpec {
+
+	wellKnownLabels := karpenterv1.WellKnownLabels
+
+	metadataLabels := map[string]string{}
 
 	// Convert domain labels into requirements
 	reqs := []karpenterv1.NodeSelectorRequirementWithMinValues{}
 	for k, v := range n.labels {
-		reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
-			NodeSelectorRequirement: corev1.NodeSelectorRequirement{
-				Key:      k,
-				Operator: corev1.NodeSelectorOpIn,
-				Values:   []string{v},
-			},
-		})
+
+		// Don't include long-deprecated labels
+		if deprecatedLabels.Has(k) {
+			continue
+		}
+
+		// If it is a well-known label, use Operator In
+		if wellKnownLabels.Has(k) {
+			reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
+				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+					Key:      k,
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   []string{v},
+				},
+			})
+			// If it is not a well-known label, use Operator Exists and include the label in the metadata
+		} else {
+			reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
+				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+					Key:      k,
+					Operator: corev1.NodeSelectorOpExists,
+				},
+			})
+			metadataLabels[k] = v
+		}
 	}
 
 	// Convert instance types into a requirement
@@ -135,12 +161,13 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 		},
 	})
 
+	// Add autoscaling label
+	metadataLabels[kubernetes.AutoscalingLabelKey] = "true"
+
 	return karpenterv1.NodePoolSpec{
 		Template: karpenterv1.NodeClaimTemplate{
 			ObjectMeta: karpenterv1.ObjectMeta{
-				Labels: map[string]string{
-					kubernetes.AutoscalingLabelKey: "true",
-				},
+				Labels: metadataLabels,
 			},
 			Spec: karpenterv1.NodeClaimTemplateSpec{
 				// Include taints

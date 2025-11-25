@@ -979,12 +979,18 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
 )
 
-require go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
+require (
+	github.com/aws/karpenter-provider-aws v1.8.2
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
+)
 
 require (
 	github.com/awslabs/operatorpkg v0.0.0-20250909182303-e8e550b6f339 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
+	k8s.io/cloud-provider v0.34.1 // indirect
+	k8s.io/component-helpers v0.34.1 // indirect
+	k8s.io/csi-translation-lib v0.34.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
