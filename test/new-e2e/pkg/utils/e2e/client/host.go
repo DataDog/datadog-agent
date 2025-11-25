@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	oscomp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"

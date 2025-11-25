@@ -29,5 +29,5 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bo
         update_test_infra_def(".gitlab-ci.yml", commit_sha[:12])
 
     os.chdir("test/new-e2e")
-    ctx.run(f"go get github.com/DataDog/test-infra-definitions@{commit_sha}")
+    ctx.run(f"go get github.com/DataDog/datadog-agent/test/e2e-framework@{commit_sha}")
     ctx.run("go mod tidy")

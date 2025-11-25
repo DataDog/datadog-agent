@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
-	compos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 type ec2VMSELinuxSuite struct {

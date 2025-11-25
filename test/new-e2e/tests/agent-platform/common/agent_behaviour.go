@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"

@@ -21,7 +21,7 @@ import (
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"

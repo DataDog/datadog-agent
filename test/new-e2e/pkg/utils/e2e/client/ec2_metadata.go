@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 // EC2Metadata contains a pointer to a VM and its AWS token

@@ -10,7 +10,7 @@ import (
 	_ "embed"
 	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 // Content of the platforms.json file

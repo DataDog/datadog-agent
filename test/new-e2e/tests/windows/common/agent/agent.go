@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
+	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -6,7 +6,7 @@
 package environments
 
 import (
-	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"

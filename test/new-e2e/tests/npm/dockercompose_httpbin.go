@@ -8,7 +8,7 @@ package npm
 import (
 	_ "embed"
 
-	"github.com/DataDog/test-infra-definitions/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
