@@ -1,5 +1,14 @@
 # CHANGELOG - datadog-secret-backend
 
+## 1.4.1 / 2025-11-25
+
+* Rework GCP delimiter parsing
+* Bump github.com/aws/aws-sdk-go-v2/service/ssm from 1.67.2 to 1.67.3
+* Bump github.com/aws/aws-sdk-go-v2/credentials from 1.18.24 to 1.19.0
+* Bump github.com/aws/aws-sdk-go-v2/service/secretsmanager from 1.39.13 to 1.40.1
+* Bump github.com/aws/aws-sdk-go-v2/config from 1.31.20 to 1.32.1
+* Bump github.com/hashicorp/vault from 1.21.0 to 1.21.1
+
 ## 1.4.0 / 2025-11-18
 
 * Add support for GCP as a backend type
