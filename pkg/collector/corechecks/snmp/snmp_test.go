@@ -2629,10 +2629,10 @@ namespace: namespace
 
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "1.1.1.1",
-	}).Once()
+	}, false).Once()
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "2.2.2.2",
-	}).Once()
+	}, false).Once()
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")

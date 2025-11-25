@@ -43,6 +43,7 @@ build do
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
   patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
+  patch source: "probes-no-procfs.patch", env: env # handle systems with no procfs available
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 

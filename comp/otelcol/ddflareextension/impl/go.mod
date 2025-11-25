@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl
 
-go 1.24.0
+go 1.24.10
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
@@ -51,6 +51,7 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.73.0-rc.5 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.266.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.49.1 // indirect
@@ -183,7 +184,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
-	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
+	github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -582,6 +583,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../pkg/config/nodetreemodel
@@ -672,6 +674,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../../test/otel

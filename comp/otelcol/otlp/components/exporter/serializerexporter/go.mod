@@ -50,6 +50,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
@@ -60,8 +61,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.5 // indirect
@@ -105,7 +106,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.5 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
-	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
+	github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -294,6 +295,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../../../pkg/config/nodetreemodel
@@ -384,6 +386,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../../../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../../../../test/otel

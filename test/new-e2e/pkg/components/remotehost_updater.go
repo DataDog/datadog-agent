@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 )
 
 // RemoteHostUpdater represents an Updater running directly on a Host

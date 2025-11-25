@@ -12,34 +12,35 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
-	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
+	csidriver "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/csi-driver"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
-	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
-	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/cilium"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
+	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
+	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -283,7 +284,12 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			return err
 		}
 
-		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
+		// Get CoreDNS Deployment to use as dependency for etcd which needs DNS
+		coreDNS, err := appsv1.GetDeployment(ctx, "coredns", pulumi.ID("kube-system/coredns"), nil, pulumi.Provider(kubeProvider))
+		if err != nil {
+			return err
+		}
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider, utils.PulumiDependsOn(coreDNS)); err != nil {
 			return err
 		}
 

@@ -14,9 +14,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/Microsoft/go-winio v0.6.2
@@ -49,6 +49,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.62.0-rc.7
 	github.com/DataDog/datadog-agent/pkg/api v0.70.0
+	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/shirou/gopsutil/v4 v4.25.10
@@ -69,7 +70,12 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/version v0.64.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
 	github.com/DataDog/go-sqllexer v0.1.10 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
@@ -79,9 +85,14 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
+	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
+	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
+	github.com/mdlayher/socket v0.5.1 // indirect
+	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.140.1 // indirect
@@ -110,6 +121,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -192,6 +204,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel
@@ -281,6 +294,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../test/otel
