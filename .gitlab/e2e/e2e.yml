@@ -990,6 +990,7 @@ all-artifacts: # This job is used to collect all artifacts needed in the flake f
   artifacts:
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
     expire_in: 1 day
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

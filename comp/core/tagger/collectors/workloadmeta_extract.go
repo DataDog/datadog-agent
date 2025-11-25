@@ -591,9 +591,9 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 	// For Fargate and Managed Instances in sidecar mode, add task-level tags to global entity
 	// These deployments don't report a hostname (task is the unit of identity)
-	// IsFargateInstance() returns true for both ECS Fargate and managed instances in sidecar mode
+	// IsSidecar() returns true for both ECS Fargate and managed instances in sidecar mode
 	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate ||
-		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsFargateInstance()) {
+		(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && fargate.IsSidecar()) {
 		low, orch, high, standard := taskTags.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			Source:               taskSource,
@@ -611,7 +611,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		// Add global cluster tags for EC2 and Managed Instances in daemon mode
 		// In daemon mode, the hostname is the EC2 instance, so we only add cluster tags (not task-specific tags)
 		if task.LaunchType == workloadmeta.ECSLaunchTypeEC2 ||
-			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsFargateInstance()) {
+			(task.LaunchType == workloadmeta.ECSLaunchTypeManagedInstances && !fargate.IsSidecar()) {
 			tagInfos = append(tagInfos, &types.TagInfo{
 				Source:               taskSource,
 				EntityID:             types.GetGlobalEntityID(),

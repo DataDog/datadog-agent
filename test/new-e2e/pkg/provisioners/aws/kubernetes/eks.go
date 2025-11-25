@@ -146,6 +146,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
 
+		// Explicitly set cluster name to avoid autodiscovery race conditions
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithClusterName(cluster.ClusterName)}
+		params.agentOptions = append(newOpts, params.agentOptions...)
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
