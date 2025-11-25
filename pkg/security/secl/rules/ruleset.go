@@ -300,7 +300,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 	errFieldNotFound := &eval.ErrFieldNotFound{}
 
 	for field := range rs.opts.SupportedDiscarders {
-		eventType, _, _, err := event.GetFieldMetadata(field)
+		eventType, _, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			return nil, err
 		}
@@ -392,7 +392,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						actionDef.Set.Value = variableValue
 					}
 				} else if actionDef.Set.Field != "" {
-					_, kind, goType, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					_, kind, goType, _, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
 						continue
@@ -610,7 +610,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				fieldEventType, _, _, err := ev.GetFieldMetadata(field)
+				fieldEventType, _, _, _, err := ev.GetFieldMetadata(field)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", field, err)
 				}
