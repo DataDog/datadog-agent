@@ -56,6 +56,10 @@ process_manager_e2e_tests:
     - cargo build --release --bins
     - echo "Running e2e tests..."
     # Run most e2e tests, excluding Linux-specific ones like ambient capabilities
+    # Set binary paths to use release builds (CI builds with --release)
+    # Paths are relative to tests/ directory (where test binaries run from)
+    - export PM_DAEMON_BINARY="../target/release/dd-procmgrd"
+    - export PM_CLI_BINARY="../target/release/dd-procmgr"
     - |
       cargo test -p pm-e2e-tests \
         --test e2e_basic \
@@ -93,6 +97,10 @@ process_manager_e2e_tests_linux:
     - echo "Building process manager binaries..."
     - cargo build --release --bins
     - echo "Running Linux-specific e2e tests..."
+    # Set binary paths to use release builds (CI builds with --release)
+    # Paths are relative to tests/ directory (where test binaries run from)
+    - export PM_DAEMON_BINARY="../target/release/dd-procmgrd"
+    - export PM_CLI_BINARY="../target/release/dd-procmgr"
     - |
       cargo test -p pm-e2e-tests \
         --test e2e_ambient_capabilities \
@@ -118,6 +126,8 @@ process_manager_smoke_test:
         - process_manager/**/*
   script:
     - cd process_manager
+    - echo "Building process manager binaries..."
+    - cargo build --bins
     - echo "Running quick smoke tests..."
     - cargo test --test e2e_startup --test e2e_basic --verbose
   timeout: 5m
