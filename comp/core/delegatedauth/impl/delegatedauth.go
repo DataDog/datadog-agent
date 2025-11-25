@@ -46,10 +46,10 @@ type dependencies struct {
 }
 
 // NewDelegatedAuth creates a new delegated auth Component based on the current configuration
-func NewDelegatedAuth(deps dependencies) option.Option[def.Component] {
+func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] {
 	if !deps.Config.GetBool("delegated_auth.enabled") {
 		deps.Log.Info("Delegated authentication is disabled")
-		return option.None[def.Component]()
+		return option.None[delegatedauth.Component]()
 	}
 
 	provider := deps.Config.GetString("delegated_auth.provider")
@@ -64,7 +64,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[def.Component] {
 
 	if orgUUID == "" {
 		deps.Log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
-		return option.None[def.Component]()
+		return option.None[delegatedauth.Component]()
 	}
 
 	var tokenProvider delegatedauthpkg.Provider
@@ -75,7 +75,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[def.Component] {
 		}
 	default:
 		deps.Log.Errorf("unsupported delegated auth provider: %s", provider)
-		return option.None[def.Component]()
+		return option.None[delegatedauth.Component]()
 	}
 
 	authConfig := &delegatedauthpkg.AuthConfig{
@@ -130,7 +130,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[def.Component] {
 		},
 	})
 
-	return option.New[def.Component](comp)
+	return option.New[delegatedauth.Component](comp)
 }
 
 // GetAPIKey returns the current API key or fetches one if it has not yet been fetched
