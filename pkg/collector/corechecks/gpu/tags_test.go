@@ -348,7 +348,7 @@ func TestGetWorkloadTags(t *testing.T) {
 						setWorkloadTags(tt, mocks.tagger, testCase.workloadID, testCase.setTaggerTags, nil, nil)
 					}
 
-					tags, err := cache.GetWorkloadTags(testCase.workloadID)
+					tags, err := cache.GetOrCreateWorkloadTags(testCase.workloadID)
 
 					if testCase.expectErr {
 						assert.Error(tt, err)
@@ -755,7 +755,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, containerWorkloadID, workloadmeta.ContainerRuntimeDocker)
 	setWorkloadTags(t, mocks.tagger, containerWorkloadID, nil, nil, containerTags)
 
-	tags, err := cache.GetWorkloadTags(containerWorkloadID)
+	tags, err := cache.GetOrCreateWorkloadTags(containerWorkloadID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, containerTags, tags)
 
@@ -773,7 +773,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	}
 	mocks.workloadMeta.Set(process)
 
-	tags, err = cache.GetWorkloadTags(processWorkloadID)
+	tags, err = cache.GetOrCreateWorkloadTags(processWorkloadID)
 	require.NoError(t, err)
 
 	baseProcessTags := []string{
@@ -805,7 +805,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	newContainerTags := []string{"service:new-service", "env:staging"}
 	setWorkloadTags(t, mocks.tagger, containerWorkloadID, nil, nil, newContainerTags)
 
-	tags, err = cache.GetWorkloadTags(containerWorkloadID)
+	tags, err = cache.GetOrCreateWorkloadTags(containerWorkloadID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, newContainerTags, tags)
 	cacheEntry, exists = cache.cache.Get(containerWorkloadID)
@@ -813,7 +813,7 @@ func TestGetWorkloadTagsMultipleRuns(t *testing.T) {
 	assert.False(t, cacheEntry.stale)
 
 	// tags for the process owned by the container should also be rebuilt
-	tags, err = cache.GetWorkloadTags(processWorkloadID)
+	tags, err = cache.GetOrCreateWorkloadTags(processWorkloadID)
 	require.NoError(t, err)
 	expectedProcessTags = append(baseProcessTags, newContainerTags...)
 	assert.ElementsMatch(t, expectedProcessTags, tags)
@@ -877,7 +877,7 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	}
 
 	// First call - container not in workloadmeta, should error
-	tags, err := cache.GetWorkloadTags(workloadID)
+	tags, err := cache.GetOrCreateWorkloadTags(workloadID)
 	assert.Error(t, err)
 	assert.Nil(t, tags)
 
@@ -896,7 +896,7 @@ func TestGetWorkloadTagsRecoversFromInitialError(t *testing.T) {
 	setWorkloadTags(t, mocks.tagger, newContainerWorkloadID(containerID), expectedTags, nil, nil)
 
 	// Second call after invalidation - should succeed
-	tags, err = cache.GetWorkloadTags(workloadID)
+	tags, err = cache.GetOrCreateWorkloadTags(workloadID)
 	require.NoError(t, err)
 	assert.Equal(t, expectedTags, tags)
 }
@@ -973,7 +973,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 
 			// Request tags to populate the cache
 			expectedTelemetryMetrics.queriesNewWorkloads++
-			actualTags, err := cache.GetWorkloadTags(workloadID)
+			actualTags, err := cache.GetOrCreateWorkloadTags(workloadID)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tags, actualTags)
 		}
@@ -1003,7 +1003,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 			require.NoError(t, err, "workload %+v is not in workloadmeta. Possible test logic error, this should not happen.", workload.workloadID)
 
 			expectedTelemetryMetrics.queriesExistingWorkloads++
-			actualTags, err := cache.GetWorkloadTags(workload.workloadID)
+			actualTags, err := cache.GetOrCreateWorkloadTags(workload.workloadID)
 			require.NoError(t, err)
 			require.Equal(t, workload.tags, actualTags)
 		}
@@ -1034,7 +1034,7 @@ func TestWorkloadTagCacheSizeLimit(t *testing.T) {
 				// Query it to ensure we get a stale entry, all entries have been invalidated before
 				// Ignore the tags because the entry might have been evicted before and we won't have stale data
 				expectedTelemetryMetrics.queriesRemovedWorkloads++
-				_, err := cache.GetWorkloadTags(workload.workloadID)
+				_, err := cache.GetOrCreateWorkloadTags(workload.workloadID)
 				require.Error(t, err, "stale entries should return an error")
 				require.True(t, agenterrors.IsNotFound(err), "stale entries should return a NotFound error, got %v", err)
 			}

@@ -382,7 +382,7 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 
 	metricTags := []string{}
 	for _, workloadID := range metricWorkloads {
-		tags, err := c.workloadTagCache.GetWorkloadTags(workloadID)
+		tags, err := c.workloadTagCache.GetOrCreateWorkloadTags(workloadID)
 		if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
 			multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
 		}

@@ -91,11 +91,11 @@ func (c *WorkloadTagCache) Size() int {
 	return c.cache.Len()
 }
 
-// GetWorkloadTags retrieves the tags for a workload from the cache or builds them if they are not in the cache.
+// GetOrCreateWorkloadTags retrieves the tags for a workload from the cache or builds them if they are not in the cache.
 // Returns an error if the workload kind is unsupported. If we cannot find the entity, we return "ErrNotFound".
 // If an error happens, this function will return the previously cached tags if they exist, along with the error
 // that happened when getting them.
-func (c *WorkloadTagCache) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
+func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
 	cacheEntry, cacheEntryExists := c.cache.Get(workloadID)
 	if cacheEntryExists && !cacheEntry.stale {
 		c.telemetry.cacheHits.Inc(string(workloadID.Kind))
@@ -238,7 +238,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 			ID:   containerID,
 		}
 		// Use GetWorkloadTags so that we hit the cache, buildContainerTags would re-create the tags every time
-		containerTags, err := c.GetWorkloadTags(entityID)
+		containerTags, err := c.GetOrCreateWorkloadTags(entityID)
 		if err != nil && !agenterrors.IsNotFound(err) {
 			multiErr = errors.Join(multiErr, fmt.Errorf("error building container tags for process %d and container %s: %w", pid, containerID, err))
 		}
