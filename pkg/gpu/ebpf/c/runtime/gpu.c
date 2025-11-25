@@ -157,11 +157,23 @@ int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
     return 0;
 }
 
+static inline void emit_global_device_sync_event() {
+    cuda_sync_device_event_t event = { 0 };
+
+    fill_header(&event.header, 0, cuda_sync_device);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
+}
+
+static inline void emit_stream_sync_event(__u64 stream) {
+    cuda_sync_t event = { 0 };
+    fill_header(&event.header, stream, cuda_sync);
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
+}
+
 SEC("uretprobe/cudaStreamSynchronize")
 int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u64 *stream = NULL;
-    cuda_sync_t event = { 0 };
 
     log_debug("cudaStreamSyncronize[ret]: pid=%llx\n", pid_tgid);
 
@@ -171,11 +183,16 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
         return 0;
     }
 
-    fill_header(&event.header, *stream, cuda_sync);
+    // The default stream, by default, synchronizes with all other streams, so
+    // we can emit this as a global device sync event. See https://datadoghq.atlassian.net/browse/EBPF-825
+    // for the task tracking a more precise approach to this.
+    if (*stream == 0) {
+        emit_global_device_sync_event();
+    } else {
+        emit_stream_sync_event(*stream);
+    }
 
-    log_debug("cudaStreamSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", event.header.pid_tgid, event.header.stream_id);
-
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
+    log_debug("cudaStreamSynchronize[ret]: EMIT cudaSync pid_tgid=%llu, stream_id=%llu", pid_tgid, *stream);
     bpf_map_delete_elem(&cuda_sync_cache, &pid_tgid);
 
     return 0;
@@ -183,13 +200,10 @@ int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
 
 SEC("uretprobe/cudaDeviceSynchronize")
 int BPF_URETPROBE(uretprobe__cudaDeviceSynchronize) {
-    cuda_sync_device_event_t event = { 0 };
 
-    fill_header(&event.header, 0, cuda_sync_device);
+    emit_global_device_sync_event();
+    log_debug("cudaDeviceSynchronize[ret]: EMIT cudaSync pid_tgid=%llu", bpf_get_current_pid_tgid());
 
-    log_debug("cudaDeviceSynchronize[ret]: EMIT cudaSync pid_tgid=%llu", event.header.pid_tgid);
-
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), 0);
     return 0;
 }
 
@@ -365,7 +379,6 @@ SEC("uretprobe/cudaMemcpy")
 int BPF_URETPROBE(uretprobe__cudaMemcpy) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();
     __u64 *count = NULL;
-    cuda_sync_t event = { 0 };
 
     log_debug("cudaMemcpy[ret]: pid_tgid=%llu\n", pid_tgid);
 
@@ -375,15 +388,13 @@ int BPF_URETPROBE(uretprobe__cudaMemcpy) {
         return 0;
     }
 
-    fill_header(&event.header, 0, cuda_sync);
-
-    // According to https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#concurrent-execution-between-host-and-device
-    // most memory transfers force a synchronization on the global stream. Note that other streams might or might not sync,
-    // but for now we don't have fine-grained synchronization data for streams.
-
-    log_debug("cudaMemcpy[ret]: EMIT cudaSync pid_tgid=%llu", event.header.pid_tgid);
-
-    bpf_ringbuf_output_with_telemetry(&cuda_events, &event, sizeof(event), get_ringbuf_flags(sizeof(event)));
+    // According to
+    // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#concurrent-execution-between-host-and-device
+    // most memory transfers force a synchronization on the global stream, which
+    // we can emit as a global device sync event because it synchronizes with
+    // all other streams by default.
+    log_debug("cudaMemcpy[ret]: EMIT cudaSync pid_tgid=%llu", pid_tgid);
+    emit_global_device_sync_event();
     bpf_map_delete_elem(&cuda_memcpy_cache, &pid_tgid);
 
     return 0;
