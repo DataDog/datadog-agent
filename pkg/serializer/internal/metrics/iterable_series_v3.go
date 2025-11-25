@@ -384,27 +384,51 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 	}
 }
 
-func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
-	pb.txn.Reset()
-	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(serie.Name)))
-	pb.txn.Sint64(columnTagsRef, pb.deltaTagsRef.encode(pb.dict.internTags(serie.Tags)))
-	pb.txn.Sint64(columnInterval, pb.deltaInterval.encode(serie.Interval))
+func (pb *payloadsBuilderV3) writeMetricCommon(
+	name string,
+	tags tagset.CompositeTags,
+	interval int64,
+	sourceTypeName string,
+	source metrics.MetricSource,
+	numPoints int,
+) {
+	pb.txn.Sint64(columnNameRef, pb.deltaNameRef.encode(pb.dict.internName(name)))
+	pb.txn.Sint64(columnTagsRef, pb.deltaTagsRef.encode(pb.dict.internTags(tags)))
+	pb.txn.Sint64(columnInterval, pb.deltaInterval.encode(interval))
 
-	pb.renderResources(serie)
 	pb.txn.Sint64(columnResourcesRef,
 		pb.deltaResourcesRef.encode(pb.dict.internResources(pb.resourcesBuf)))
 
 	pb.txn.Sint64(columnSourceTypeNameRef,
-		pb.deltaSourceTypeNameRef.encode(pb.dict.internSourceTypeName(serie.SourceTypeName)))
+		pb.deltaSourceTypeNameRef.encode(pb.dict.internSourceTypeName(sourceTypeName)))
 
 	pb.txn.Sint64(columnOriginRef, pb.deltaOriginRef.encode(
 		pb.dict.internOriginInfo(originInfo{
-			product:  metricSourceToOriginProduct(serie.Source),
-			category: metricSourceToOriginCategory(serie.Source),
-			service:  metricSourceToOriginService(serie.Source),
+			product:  metricSourceToOriginProduct(source),
+			category: metricSourceToOriginCategory(source),
+			service:  metricSourceToOriginService(source),
 		})))
 
-	pb.txn.Int64(columnNumPoints, int64(len(serie.Points)))
+	pb.txn.Int64(columnNumPoints, int64(numPoints))
+}
+
+func (pb *payloadsBuilderV3) writePointCommon(timestamp int64) {
+	pb.txn.Sint64(columnTimestamp, pb.deltaTimestamp.encode(timestamp))
+}
+
+func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
+	pb.txn.Reset()
+
+	pb.renderResources(serie)
+
+	pb.writeMetricCommon(
+		serie.Name,
+		serie.Tags,
+		serie.Interval,
+		serie.SourceTypeName,
+		serie.Source,
+		len(serie.Points),
+	)
 
 	valueType := valueZero
 	for _, pnt := range serie.Points {
@@ -422,7 +446,7 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	pb.txn.Int64(columnType, typeValue)
 
 	for _, pnt := range serie.Points {
-		pb.txn.Sint64(columnTimestamp, pb.deltaTimestamp.encode(int64(pnt.Ts)))
+		pb.writePointCommon(int64(pnt.Ts))
 		switch valueType {
 		case valueZero:
 			pb.stats.valuesZero++
