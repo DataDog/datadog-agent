@@ -36,6 +36,15 @@ var (
 		commonOpts,
 	)
 
+	// SBOMSent tracks sbom successfully sent.
+	SBOMSent = telemetry.NewCounterWithOpts(
+		Subsystem,
+		"sent_total",
+		[]string{"source_type"},
+		"Number of successfully sent sboms by (source, type)",
+		commonOpts,
+	)
+
 	// SBOMGenerationDuration measures the time that it takes to generate SBOMs
 	// in seconds.
 	SBOMGenerationDuration = telemetry.NewHistogramWithOpts(
