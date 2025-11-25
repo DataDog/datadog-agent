@@ -48,12 +48,12 @@ func ToManifest(logRecord plog.LogRecord) (*agentmodel.Manifest, bool, error) {
 	// Check if this is a watch log (body contains "object" field)
 	if objectField, hasObject := bodyMap["object"]; hasObject {
 		// Watch log: body has structure like {"object": {...}, "type": "ADDED"}
-		manifest, err := watchLogToManifest(objectField, bodyMap, logRecord)
+		manifest, err := watchLogToManifest(objectField, bodyMap)
 		return manifest, true, err
 	}
 
 	// Pull log: body directly contains the k8s object
-	manifest, err := pullLogToManifestFromMap(bodyMap, logRecord)
+	manifest, err := pullLogToManifestFromMap(bodyMap)
 	return manifest, false, err
 }
 
@@ -64,7 +64,7 @@ func ToManifest(logRecord plog.LogRecord) (*agentmodel.Manifest, bool, error) {
 //	  "object": {...k8s resource...},
 //	  "type": "ADDED" | "MODIFIED" | "DELETED"
 //	}
-func watchLogToManifest(objectField interface{}, bodyMap map[string]interface{}, logRecord plog.LogRecord) (*agentmodel.Manifest, error) {
+func watchLogToManifest(objectField interface{}, bodyMap map[string]interface{}) (*agentmodel.Manifest, error) {
 	// Convert the object field to a k8s resource map
 	k8sResource, ok := objectField.(map[string]interface{})
 	if !ok {
@@ -90,7 +90,7 @@ func watchLogToManifest(objectField interface{}, bodyMap map[string]interface{},
 // Structure of pull mode logs:
 //   - Body: JSON string containing the k8s resource directly (e.g., {"apiVersion":"v1","kind":"Pod",...})
 //   - Attributes: May contain additional metadata from the receiver
-func pullLogToManifestFromMap(k8sResource map[string]interface{}, logRecord plog.LogRecord) (*agentmodel.Manifest, error) {
+func pullLogToManifestFromMap(k8sResource map[string]interface{}) (*agentmodel.Manifest, error) {
 	// Body is already parsed, just pass it to common logic
 	// Not a delete event in pull mode, not from watch
 	return BuildManifestFromK8sResource(k8sResource, false)
