@@ -1,39 +1,59 @@
 """Helper tool for gathering third party license information.
 
-NOTE: This is just a shell of the tool to deal with licenses. The behaviors
-      and conditions will be documented later as we learn the requirements.
+This gathers package metadata annotations and emits packages them the
+way we need for the DataDog Agent. That includes several things.
 
-The goal is to turn license data into the format for LICENSES.csv.
+1.  Create a section for LICENSES-3rdparty.csv.
 Sample:
    Component,Origin,License,Copyright
    core,cel.dev/expr,Apache-2.0,TristonianJones <tswadell@google.com>
    core,cloud.google.com/go/auth,Apache-2.0,Copyright 2019 Google LLC
+   core,@@+_repo_rules+libffi//:license,@rules_license+//licenses/spdx:GPL-2.0,libffi - Copyright (c) 1996-2024  Anthony Green, R
+   core,@@+_repo_rules+xz//:license,@rules_license+//licenses/spdx:0BSD,Permission to use, copy, modify, and/or distribute
+   core,@@+_repo_rules+zlib//:license,@rules_license+//licenses/spdx:Zlib,Copyright notice:
 
-This change refactors the original helper for correctness.
-It now emits something close.
-
-  core,@@+_repo_rules+libffi//:license,@rules_license+//licenses/spdx:GPL-2.0,libffi - Copyright (c) 1996-2024  Anthony Green, R
-  core,@@+_repo_rules+xz//:license,@rules_license+//licenses/spdx:0BSD,Permission to use, copy, modify, and/or distribute
-  core,@@+_repo_rules+zlib//:license,@rules_license+//licenses/spdx:Zlib,Copyright notice:
+STATUS: In progress
 
 Next steps for licenses.csv:
 - replace @@+_repo_rules+libffi with the purl of the rule
 - remove @rules_license+//licenses in a generic way.
 - use the license parser to extact the copyright.
 
-TODO:
-- We can recognize ship_source_offer, but don't do anything with it yet.
-- figure out how we will merge into the workflow in tasks/license.py
-- See if we can have this produce a unified output that could be untarred
-  in /opt/datadog/LICENSES so that we don't need pkg_install from each
-  library.
+
+2. Produce "offer to ship source" files.
+
+E.g. /opt/datadog-agent/sources/libxcrypt/offer.txt
+Content:
+   This package ships libxcrypt.
+   Contact Datadog Support (http://docs.datadoghq.com/help/) to request the sources of this software."
+
+We can do better by putting them all a single file.
+
+
+3. Copy license files to /opt/datadog-agent/LICENSES
+
+Format:  <package_name>-<license_file_name>
+
+STATUS: Not started
+
+4. Produce stanzas for /opt/datadog-agent/LICENSE
+
+These are appended to our overall license text.
+
+Sample:
+  This product bundles the third-party transitive dependency sigs.k8s.io/yaml/goyaml.v3,
+  which is available under a "MIT" License.
+
+It currently looks like we skip a lot of C code, so this is a chance to fix that.
+
+STATUS: Not started
 """
 
 import argparse
 import csv
 import json
 
-_DEBUG = 0
+_DEBUG = 1
 
 from tasks.licenses import find_copyright_in_text
 
@@ -42,6 +62,7 @@ class AttrUsage:
     def __init__(self):
         self.licenses = {}
         self.attribute_kinds = {}
+        self.offers = []
 
     def set_kinds(self, attribute_kinds):
         self.attribute_kinds = attribute_kinds
@@ -52,10 +73,10 @@ class AttrUsage:
             raise ValueError(f"Got file path that has no kind: '{file}'")
         with open(file) as attr_inp:
             if kind == "build.bazel.rules_license.license":
-                self.process_license(json.load(attr_inp))
+                self.process_license(attr=json.load(attr_inp))
             else:
                 # TODO: When we start writing other types than JSON, we have to be more careful about this
-                self.process_attribute_json(file, json.load(attr_inp))
+                self.process_attribute_json(file, attr=json.load(attr_inp))
 
     def process_attribute_json(self, file, attr):
         """Process a standalone attributes file."""
@@ -66,7 +87,10 @@ class AttrUsage:
             raise ValueError(f"Badly formated attribute file: {file}\n{attr}")
 
         if kind == "bazel-contrib.supply-chain.attribute.license":
-            self.process_license(attr)
+            self.process_license(attr=attr)
+            return
+        if kind == "datadog.agent.attribute.ship_source_offer":
+            # safe to ignore, we get it via process_package_metadata.
             return
         # For now, log unknown things. In the future we can just gracefully ignore them.
         print(f"Warning: Unhandled attribute type: {kind}")
@@ -84,17 +108,19 @@ class AttrUsage:
                 for attr_type, file in mx["attributes"].items():
                     if attr_type == "build.bazel.rules_license.license":
                         with open(file) as attr_inp:
-                            self.process_license(json.load(attr_inp), origin=purl)
+                            self.process_license(purl=purl, attr=json.load(attr_inp))
+                    elif attr_type == "datadog.agent.attribute.ship_source_offer":
+                        self.process_source_offer(purl=purl)
                     else:
-                        print("    ", attr_type, file)
+                        print(f"Warning: Unhandled attribute type: {attr_type}, file: {file}")
 
-    def process_license(self, attr, origin=None):
+    def process_license(self, purl=None, attr=None):
         # Sample attr dict:
         #  'kind': 'bazel-contrib.supply-chain.attribute.license',
         #  'label': '@@+_repo_rules+zlib//:license',
         #  'license_kinds': [{'identifier': '@rules_license//licenses/spdx:Zlib', 'name': 'zlib License'}],
         #  'text': 'external/+_repo_rules+zlib/LICENSE'}
-        origin = origin or attr["label"]
+        origin = purl or attr["label"]
         with open(attr["text"]) as license_text:
             text = license_text.read()
             # TODO: We should use the identifier for more precision, but we can't do that until we
@@ -102,11 +128,18 @@ class AttrUsage:
             kinds = "+".join([k["identifier"] for k in attr.get("license_kinds", [])])
             self.licenses[origin] = (kinds, text[:50])
 
+    def process_source_offer(self, purl=None):
+        package = (purl.split("?")[0]).split("/")[-1]
+        self.offers.append(
+            f"This package ships {package}\nContact Datadog Support (http://docs.datadoghq.com/help/) to request the sources of this software.\n"
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Helper for gathering third party license information.")
     parser.add_argument("--target", help="The target we are processing.")
-    parser.add_argument("--output", required=True, help="The output file, mandatory")
+    parser.add_argument("--csv_out", help="The CSV style output file.")
+    parser.add_argument("--offers_out", help="File to write 'ship source' offers to.")
     parser.add_argument("--usage_map", required=True, help="The changes output file, mandatory.")
     parser.add_argument("--kinds", required=True, help="JSON file mapping file paths to their kinds, mandatory.")
     parser.add_argument("--metadata", action='append', help="path to a metadata bundle")
@@ -138,10 +171,15 @@ def main():
         copyright = find_copyright_in_text(license_text.split("\n")) or ""
         licenses.append(["core", origin, license_type, copyright])
 
-    with open(options.output, "w", newline="") as out:
-        csv_writer = csv.writer(out, quotechar="\"", quoting=csv.QUOTE_MINIMAL)
-        for license in licenses:
-            csv_writer.writerow(license)
+    if options.csv_out:
+        with open(options.csv_out, "w", newline="") as out:
+            csv_writer = csv.writer(out, quotechar="\"", quoting=csv.QUOTE_MINIMAL)
+            for license in licenses:
+                csv_writer.writerow(license)
+
+    if options.offers_out:
+        with open(options.offers_out, "w") as out:
+            out.write("\n".join(attrs.offers))
 
 
 if __name__ == '__main__':
