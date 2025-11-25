@@ -57,7 +57,7 @@ type Metric struct {
 	Value               float64 // Value holds the value of the metric.
 	Type                metrics.MetricType
 	Priority            MetricPriority   // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
-	Tags                []string         // Tags holds optional metric-specific tags (e.g., process ID).
+	Tags                []string         // Tags holds optional metric-specific tags (e.g., "error type").
 	AssociatedWorkloads []wmdef.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
 }
 
