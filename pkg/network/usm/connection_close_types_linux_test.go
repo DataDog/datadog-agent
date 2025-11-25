@@ -8,14 +8,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
-func TestCgoAlignment_ConnTuple(t *testing.T) {
-	ebpftest.TestCgoAlignment[ConnTuple](t)
-}
-
-func TestCgoAlignment_ProtocolStack(t *testing.T) {
-	ebpftest.TestCgoAlignment[ProtocolStack](t)
-}
-
 func TestCgoAlignment_EbpfConnectionCloseEvent(t *testing.T) {
 	ebpftest.TestCgoAlignment[EbpfConnectionCloseEvent](t)
 }

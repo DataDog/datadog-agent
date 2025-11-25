@@ -9,6 +9,7 @@ package usm
 
 import (
 	"sync"
+	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -18,6 +19,10 @@ import (
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
+
+type Registerer interface {
+	RegisterConnectionClosedCB(terminationManager *ConnectionTerminationManager)
+}
 
 const (
 	tcpCloseEventStreamName = "tcp_close"
@@ -110,6 +115,12 @@ func (m *ConnectionTerminationManager) Start() error {
 	}
 
 	m.eventsConsumer.Start()
+
+	go func() {
+		for range time.Tick(10 * time.Second) {
+			m.Sync()
+		}
+	}()
 	return nil
 }
 
@@ -176,13 +187,13 @@ func (m *ConnectionTerminationManager) GetMaps() []*manager.Map {
 // GetProbes returns the eBPF probes required by the connection termination manager
 func (m *ConnectionTerminationManager) GetProbes() []*manager.Probe {
 	return []*manager.Probe{
-		{
-			KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tcpCloseNetifProbe414,
-				UID:          tcpCloseEventStreamName,
-			},
-		},
+		// {
+		// 	KprobeAttachMethod: manager.AttachKprobeWithPerfEventOpen,
+		// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		// 		EBPFFuncName: tcpCloseNetifProbe414,
+		// 		UID:          tcpCloseEventStreamName,
+		// 	},
+		// },
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tcpCloseNetifProbe,
@@ -217,10 +228,12 @@ func (m *ConnectionTerminationManager) ConfigureOptions(opts *manager.Options) {
 // FilterByProtocol returns a filter that only passes events for a specific protocol
 func FilterByProtocol(protocol protocols.ProtocolType) FilterFunc {
 	return func(event *EbpfConnectionCloseEvent) bool {
-		// Check if the protocol is present in the stack at any layer
-		app := protocols.ProtocolType(event.Stack.Application)
-		enc := protocols.ProtocolType(event.Stack.Encryption)
-		return app == protocol || enc == protocol
+		s := protocols.Stack{
+			API:         protocols.API(event.Stack.Api),
+			Application: protocols.Application(event.Stack.Application),
+			Encryption:  protocols.Encryption(event.Stack.Encryption),
+		}
+		return s.Contains(protocol)
 	}
 }
 

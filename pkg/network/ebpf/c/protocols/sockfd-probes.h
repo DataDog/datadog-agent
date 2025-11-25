@@ -37,7 +37,11 @@ int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     event.timestamp_ns = bpf_ktime_get_ns();
 
     // Look up protocol stack if this connection was being monitored
-    protocol_stack_t *stack = get_protocol_stack_if_exists(&t);
+    conn_tuple_t normalized_tuple = t;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+    protocol_stack_t *stack = get_protocol_stack_if_exists(&normalized_tuple);
     if (stack != NULL) {
         event.stack = *stack;
     }

@@ -3,7 +3,7 @@
 
 package usm
 
-type ConnTuple struct {
+type ConnTuple = struct {
 	Saddr_h  uint64
 	Saddr_l  uint64
 	Daddr_h  uint64
@@ -14,7 +14,7 @@ type ConnTuple struct {
 	Pid      uint32
 	Metadata uint32
 }
-type ProtocolStack struct {
+type ProtocolStack = struct {
 	Api         uint8
 	Application uint8
 	Encryption  uint8

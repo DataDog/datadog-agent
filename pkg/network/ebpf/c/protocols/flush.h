@@ -95,10 +95,10 @@ int tracepoint__net__netif_receive_skb_tcp_close(void *ctx) {
     return 0;
 }
 
-SEC("kprobe/__netif_receive_skb_core")
-int netif_receive_skb_core_tcp_close_4_14(void *ctx) {
-    tcp_close_batch_flush_with_telemetry(ctx);
-    return 0;
-}
+//SEC("kprobe/__netif_receive_skb_core")
+//int netif_receive_skb_core_tcp_close_4_14(void *ctx) {
+//    tcp_close_batch_flush_with_telemetry(ctx);
+//    return 0;
+//}
 
 #endif // __USM_FLUSH_H

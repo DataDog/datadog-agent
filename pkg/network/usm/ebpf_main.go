@@ -682,6 +682,10 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 				e.Manager.EnabledModifiers = append(e.Manager.EnabledModifiers, modifiers...)
 			}
 
+			if mp, ok := protocol.(Registerer); ok {
+				mp.RegisterConnectionClosedCB(e.connectionTerminationManager)
+			}
+
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
 			e.disabledProtocols = append(e.disabledProtocols, spec)

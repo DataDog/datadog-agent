@@ -14,7 +14,7 @@ package usm
 */
 import "C"
 
-type ConnTuple C.conn_tuple_t
-type ProtocolStack C.protocol_stack_t
+type ConnTuple = C.conn_tuple_t
+type ProtocolStack = C.protocol_stack_t
 
 type EbpfConnectionCloseEvent C.tcp_close_event_t
