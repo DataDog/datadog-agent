@@ -464,7 +464,7 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
@@ -473,7 +473,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
 			Variables:   newVariablesContext(event, rule, ""),
-			RuleContext: newRuleContext(event, rule, scrubber),
+			RuleContext: newRuleContext(event, rule),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
@@ -503,7 +503,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 	return s
 }
 
-func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) RuleContext {
+func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 	if rule == nil {
 		return RuleContext{}
 	}
@@ -524,11 +524,17 @@ func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) 
 		case []string:
 			scrubbedValues := make([]string, 0, len(value))
 			for _, elem := range value {
-				scrubbedValues = append(scrubbedValues, scrubber.ScrubLine(elem))
+				if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+					scrubbedValues = append(scrubbedValues, scrubbed)
+				}
 			}
 			subExpr.Value = fmt.Sprintf("%v", scrubbedValues)
 		case string:
-			subExpr.Value = scrubber.ScrubLine(value)
+			scrubbed, err := scrubber.ScrubString(value)
+			if err != nil {
+				continue
+			}
+			subExpr.Value = scrubbed
 		default:
 			subExpr.Value = fmt.Sprintf("%v", value)
 		}
@@ -593,8 +599,7 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 
 // EventStringerWrapper an event stringer wrapper
 type EventStringerWrapper struct {
-	Event    interface{} // can be model.Event or events.CustomEvent
-	Scrubber *utils.Scrubber
+	Event interface{} // can be model.Event or events.CustomEvent
 }
 
 func (e EventStringerWrapper) String() string {
@@ -604,7 +609,7 @@ func (e EventStringerWrapper) String() string {
 	)
 	switch evt := e.Event.(type) {
 	case *model.Event:
-		data, err = MarshalEvent(evt, nil, e.Scrubber)
+		data, err = MarshalEvent(evt, nil)
 	case *events.CustomEvent:
 		data, err = MarshalCustomEvent(evt)
 	default:

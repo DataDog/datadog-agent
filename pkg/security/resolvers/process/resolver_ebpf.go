@@ -31,6 +31,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -71,7 +72,7 @@ type EBPFResolver struct {
 	manager      *manager.Manager
 	config       *config.Config
 	statsdClient statsd.ClientInterface
-	scrubber     *utils.Scrubber
+	scrubber     *procutil.DataScrubber
 
 	containerResolver *container.Resolver
 	mountResolver     mount.ResolverInterface
@@ -1037,7 +1038,7 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 
 	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
 		// replace with the scrubbed version
-		argv := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
+		argv, _ := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
@@ -1599,7 +1600,7 @@ func allInodeErrTags() []string {
 
 // NewEBPFResolver returns a new process resolver
 func NewEBPFResolver(manager *manager.Manager, config *config.Config, statsdClient statsd.ClientInterface,
-	scrubber *utils.Scrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
+	scrubber *procutil.DataScrubber, containerResolver *container.Resolver, mountResolver mount.ResolverInterface,
 	cgroupResolver *cgroup.Resolver, userGroupResolver *usergroup.Resolver, timeResolver *stime.Resolver,
 	pathResolver spath.ResolverInterface, envVarsResolver *envvars.Resolver, opts *ResolverOpts) (*EBPFResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU[uint64, *argsEnvsCacheEntry](maxParallelArgsEnvs, nil)

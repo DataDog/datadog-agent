@@ -406,7 +406,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
-	p.probe.logTraceEvent(event.GetEventType(), event)
+	logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)

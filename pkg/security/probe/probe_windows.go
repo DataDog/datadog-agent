@@ -1156,7 +1156,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
-	p.probe.logTraceEvent(event.GetEventType(), event)
+	logTraceEvent(event.GetEventType(), event)
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
@@ -1582,10 +1582,7 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
 	opts.normalize()
 
-	p, err := newProbe(config, opts)
-	if err != nil {
-		return nil, err
-	}
+	p := newProbe(config, opts)
 
 	pp, err := NewWindowsProbe(p, config, ipc, opts)
 	if err != nil {

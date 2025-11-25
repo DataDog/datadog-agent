@@ -251,14 +251,14 @@ type selfTestEvent struct {
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, probe *probe.Probe) bool {
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *probe.Probe) bool {
 	if t.waitingForEvent.Load() && rule.Policy.Source == policySource {
 		ev, ok := event.(*model.Event)
 		if !ok {
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, rule, probe.GetScrubber())
+		s := serializers.NewEventSerializer(ev, rule)
 		if s == nil {
 			return false
 		}
