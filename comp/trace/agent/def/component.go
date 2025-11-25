@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
@@ -30,6 +29,4 @@ type Component interface {
 	SendStatsPayload(p *pb.StatsPayload)
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.
 	GetHTTPHandler(endpoint string) http.Handler
-	// GetConcentrator returns the concentrator of the underlying trace agent.
-	GetConcentrator() *stats.Concentrator
 }

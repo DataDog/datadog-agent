@@ -39,7 +39,6 @@ import (
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -93,14 +92,6 @@ func (c component) GetHTTPHandler(endpoint string) http.Handler {
 		return v
 	}
 	return nil
-}
-
-func (c component) GetConcentrator() *stats.Concentrator {
-	cntr, ok := c.Agent.Concentrator.(*stats.Concentrator)
-	if !ok {
-		return nil
-	}
-	return cntr
 }
 
 type component struct {
