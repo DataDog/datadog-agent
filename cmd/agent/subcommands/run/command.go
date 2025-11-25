@@ -18,7 +18,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"

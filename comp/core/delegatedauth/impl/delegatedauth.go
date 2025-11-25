@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	delegatedauthpkg "github.com/DataDog/datadog-agent/pkg/delegatedauth"
@@ -46,10 +46,10 @@ type dependencies struct {
 }
 
 // NewDelegatedAuth creates a new delegated auth Component based on the current configuration
-func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] {
+func NewDelegatedAuth(deps dependencies) option.Option[def.Component] {
 	if !deps.Config.GetBool("delegated_auth.enabled") {
 		deps.Log.Info("Delegated authentication is disabled")
-		return option.None[delegatedauth.Component]()
+		return option.None[def.Component]()
 	}
 
 	provider := deps.Config.GetString("delegated_auth.provider")
@@ -64,7 +64,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 
 	if orgUUID == "" {
 		deps.Log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
-		return option.None[delegatedauth.Component]()
+		return option.None[def.Component]()
 	}
 
 	var tokenProvider delegatedauthpkg.Provider
@@ -75,7 +75,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 		}
 	default:
 		deps.Log.Errorf("unsupported delegated auth provider: %s", provider)
-		return option.None[delegatedauth.Component]()
+		return option.None[def.Component]()
 	}
 
 	authConfig := &delegatedauthpkg.AuthConfig{
@@ -130,7 +130,7 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 		},
 	})
 
-	return option.New[delegatedauth.Component](comp)
+	return option.New[def.Component](comp)
 }
 
 // GetAPIKey returns the current API key or fetches one if it has not yet been fetched

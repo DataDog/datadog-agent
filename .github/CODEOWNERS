@@ -340,7 +340,6 @@
 /comp/core/config @DataDog/agent-configuration
 /comp/core/configstream @DataDog/agent-metric-pipelines @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
-/comp/core/delegatedauth @DataDog/core-authn
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
