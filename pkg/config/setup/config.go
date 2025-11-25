@@ -1223,9 +1223,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	config.BindEnvAndSetDefault("vsock_addr", "")
 
-	// Blocklist
-	config.BindEnvAndSetDefault("metric_blocklist", []string{})
+	// Filterlist
+	config.BindEnvAndSetDefault("metric_filterlist", []string{})
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 }
 
