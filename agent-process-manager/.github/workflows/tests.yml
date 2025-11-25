@@ -1,0 +1,220 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master, develop, feature/hexagonal-migration ]
+  pull_request:
+    branches: [ main, master, develop, feature/hexagonal-migration ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --component rustfmt
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy Lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --component clippy
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test-engine:
+    name: Engine Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run engine unit and integration tests
+        run: |
+          cd engine
+          cargo test --all-targets
+        env:
+          RUST_LOG: info
+          
+      - name: Run engine doc tests
+        run: |
+          cd engine
+          cargo test --doc
+        env:
+          RUST_LOG: info
+
+  test-e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler python3 netcat-openbsd
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binaries
+        run: cargo build --release
+
+      - name: Setup test runtime directory
+        run: |
+          sudo mkdir -p /run/pm-test
+          sudo chmod 777 /run/pm-test
+
+      - name: Run e2e tests
+        run: |
+          cd tests
+          cargo test --release
+        env:
+          RUST_LOG: info
+
+      - name: Cleanup
+        if: always()
+        run: |
+          pkill -9 -f "daemon" || true
+          sudo rm -rf /run/pm-test || true
+
+  build:
+    name: Build Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+
+      - name: Install Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binaries
+        run: cargo build --release
+
+      - name: Upload old daemon binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: daemon-old
+          path: target/release/daemon
+
+      - name: Upload CLI binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli
+          path: target/release/cli
+          
+      - name: Upload new pm-daemon binary (hexagonal)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm-daemon
+          path: target/release/pm-daemon
+          if-no-files-found: warn
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [format, clippy, test-engine, test-e2e, build]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          echo "Format: ${{ needs.format.result }}"
+          echo "Clippy: ${{ needs.clippy.result }}"
+          echo "Engine Tests: ${{ needs.test-engine.result }}"
+          echo "E2E Tests: ${{ needs.test-e2e.result }}"
+          echo "Build: ${{ needs.build.result }}"
+
+          if [ "${{ needs.format.result }}" != "success" ] || \
+             [ "${{ needs.clippy.result }}" != "success" ] || \
+             [ "${{ needs.test-engine.result }}" != "success" ] || \
+             [ "${{ needs.test-e2e.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ]; then
+            echo "Some checks failed!"
+            exit 1
+          fi
+          echo "All checks passed!"
+

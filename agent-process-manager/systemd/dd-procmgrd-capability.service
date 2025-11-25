@@ -1,0 +1,114 @@
+# Process Manager Daemon - Capability-Based Deployment (Non-Root)
+#
+# This service runs the daemon as a non-root user with CAP_SETUID/CAP_SETGID
+# capabilities, allowing privilege management without full root access.
+#
+# Prerequisites:
+#   1. Create service user:
+#      sudo useradd -r -s /bin/false -d /var/lib/dd-procmgrd dd-procmgrd
+#
+#   2. Set capabilities on binary:
+#      sudo setcap cap_setuid,cap_setgid+ep /usr/bin/dd-procmgrd
+#
+#   3. Create directories:
+#      sudo mkdir -p /var/lib/dd-procmgrd /var/log/dd-procmgrd /etc/dd-procmgrd
+#      sudo chown dd-procmgrd:dd-procmgrd /var/lib/dd-procmgrd /var/log/dd-procmgrd
+#      sudo chown root:dd-procmgrd /etc/dd-procmgrd
+#      sudo chmod 750 /etc/dd-procmgrd
+#
+# Installation:
+#   sudo cp dd-procmgrd-capability.service /etc/systemd/system/dd-procmgrd.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable dd-procmgrd
+#   sudo systemctl start dd-procmgrd
+
+[Unit]
+Description=Process Manager Daemon (Capability-Based)
+Documentation=https://github.com/yourusername/process-manager
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dd-procmgrd
+Group=dd-procmgrd
+
+# Main process
+ExecStart=/usr/bin/dd-procmgrd
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Configuration
+Environment="PM_CONFIG_PATH=/etc/dd-procmgrd/processes.yaml"
+WorkingDirectory=/var/lib/dd-procmgrd
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dd-procmgrd
+
+# Capabilities
+# AmbientCapabilities allows the daemon to use these capabilities
+# and pass them to child processes when switching users
+AmbientCapabilities=CAP_SETUID CAP_SETGID
+# Verify binary has file capabilities set:
+# getcap /usr/bin/dd-procmgrd should show: cap_setgid,cap_setuid+ep
+
+# Security: Enhanced hardening for non-root daemon
+SecureBits=keep-caps
+
+# Filesystem access
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/dd-procmgrd
+ReadWritePaths=/var/log/dd-procmgrd
+ReadWritePaths=/run/dd-procmgrd
+PrivateTmp=yes
+
+# Kernel protection
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+
+# System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallArchitectures=native
+
+# No new privileges (but we need setuid capability)
+NoNewPrivileges=no
+
+# Network restrictions
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/8 ::1/128
+
+# Namespace restrictions
+PrivateDevices=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=no         # Allow SUID for user switching
+
+# Lock down personality
+LockPersonality=yes
+
+# Memory protection
+MemoryDenyWriteExecute=yes
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=512
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target
+

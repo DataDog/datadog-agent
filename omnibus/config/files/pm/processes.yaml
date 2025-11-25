@@ -1,0 +1,62 @@
+# DataDog Agent Process Manager Configuration
+# This file tells the process manager (dd-procmgrd) how to manage the DataDog Agent process
+
+processes:
+  datadog-agent:
+    # Basic configuration
+    command: /opt/datadog-agent/bin/agent/agent
+    args:
+      - run
+    working_dir: /opt/datadog-agent
+    auto_start: true
+    process_type: simple
+
+    # User isolation - run as dd-agent user
+    user: dd-agent
+    group: dd-agent
+
+    # Restart policy - automatically restart on failure
+    restart: on-failure
+    restart_sec: 5                    # Wait 5 seconds before restart
+    restart_max_delay: 60             # Maximum delay between restarts
+    start_limit_burst: 5              # Allow 5 restart attempts
+    start_limit_interval: 300         # Within 300 seconds (5 minutes)
+
+    # Timeouts
+    timeout_start_sec: 300            # 5 minutes to start
+    timeout_stop_sec: 30              # 30 seconds to stop gracefully
+
+    # Lifecycle hooks
+    exec_stop_post:
+      - "rm -f /opt/datadog-agent/run/agent.pid"
+
+    # Process I/O and PID file
+    pidfile: /opt/datadog-agent/run/agent.pid
+    stdout: /var/log/datadog/agent-stdout.log
+    stderr: /var/log/datadog/agent-stderr.log
+
+    # Environment variables
+    # Additional environment can be loaded from /etc/datadog-agent/environment
+    env:
+      DD_LOG_FILE: /var/log/datadog/agent.log
+      DD_LOG_LEVEL: info
+
+    # Health check - monitor agent health via HTTP endpoint
+    health_check:
+      type: http
+      endpoint: http://localhost:5001/agent/status
+      method: GET
+      expected_status: 200
+      interval: 30                    # Check every 30 seconds
+      timeout: 5                      # 5 second timeout per check
+      retries: 3                      # Mark unhealthy after 3 failures
+      start_period: 60                # Grace period before first check
+      restart_after: 0                # 0 = never auto-restart on health failure
+
+    # Resource limits (requires cgroups v2)
+    # These limits help prevent the agent from consuming excessive resources
+    resources:
+      limits:
+        cpu: 1000m                    # 1 CPU core (1000 millicores)
+        memory: 512M                  # 512 MB of RAM
+        pids: 200                     # Maximum 200 processes/threads

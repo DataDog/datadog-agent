@@ -1,0 +1,40 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Test artifacts
+*.tmp
+test-*.yaml
+.test-summary.md
+
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# CI/CD
+.github/
+
+# Go client (not needed for Rust tests)
+go-client/go.sum
+go-client/*.so
+
+# Keep examples and docker files
+!examples/
+!docker/
+

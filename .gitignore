@@ -4,7 +4,7 @@ Dockerfiles/dogstatsd/alpine/static/
 # folders
 vendor/
 .vendor-new/
-bin/
+/bin/
 /dev/
 /site/
 __pycache__

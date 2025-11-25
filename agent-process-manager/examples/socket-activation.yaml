@@ -1,0 +1,100 @@
+# Socket Activation Example Configuration
+# Demonstrates systemd-compatible socket activation with Process Manager
+
+processes:
+  # Example HTTP server that supports socket activation
+  # This is a template - it won't auto-start, only via socket activation
+  http-server:
+    command: /usr/bin/python3
+    args:
+      - -m
+      - http.server
+      - --bind
+      - ""  # Empty bind address - will use socket FD from systemd
+    working_dir: /var/www/html
+    auto_start: false  # Socket activation will start this on-demand
+    process_type: simple
+    restart: on-failure
+    restart_sec: 2
+
+    # For Accept=yes mode: Each connection spawns a new instance
+    # For Accept=no mode: Single instance handles all connections
+
+    # I/O redirection
+    stdout: /var/log/http-server-stdout.log
+    stderr: /var/log/http-server-stderr.log
+
+    # Resource limits
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64M
+      limits:
+        cpu: 500m
+        memory: 128M
+        pids: 50
+
+# Socket configuration
+sockets:
+  # HTTP socket - TCP port 8080
+  # Accept=no: Single instance handles all connections
+  http-tcp:
+    listen_stream: "0.0.0.0:8080"
+    service: http-server
+    accept: false  # Single process instance
+
+  # Alternative: Accept=yes - Spawn new instance per connection
+  # http-tcp-per-connection:
+  #   listen_stream: "0.0.0.0:8080"
+  #   service: http-server
+  #   accept: true  # New instance per connection (like inetd)
+
+  # Unix socket example
+  # http-unix:
+  #   listen_unix: "/run/http.sock"
+  #   service: http-server
+  #   accept: false
+  #   socket_mode: 438  # 0666 octal = 438 decimal (rw-rw-rw-)
+  #   socket_user: www-data
+  #   socket_group: www-data
+
+# How it works:
+#
+# 1. PM creates listening socket on port 8080
+# 2. PM waits for connections
+# 3. When first connection arrives:
+#    - Accept=no: PM starts http-server, passes listening socket via FD 3
+#      - Process reads connections from FD 3 (LISTEN_FDS=1, LISTEN_PID=<pid>)
+#      - Single instance handles all subsequent connections
+#    - Accept=yes: PM accepts connection, spawns http-server instance
+#      - PM passes connected socket to process
+#      - Each connection gets its own process instance
+# 4. If process exits:
+#    - Accept=no: PM restarts it on next connection
+#    - Accept=yes: PM spawns new instance on next connection
+
+# Testing:
+#
+# 1. Start daemon:
+#    pm-daemon socket-activation.yaml
+#
+# 2. Check status (should NOT see http-server running):
+#    pm list
+#
+# 3. Trigger socket activation:
+#    curl http://localhost:8080/
+#
+# 4. Check status again (should NOW see http-server):
+#    pm list
+#    pm describe http-server
+#
+# 5. Monitor logs:
+#    tail -f /var/log/http-server-stdout.log
+
+# Notes:
+#
+# - Not all programs support systemd socket activation
+# - Programs must check for LISTEN_FDS/LISTEN_PID env vars
+# - Socket FDs start at 3 (after stdin=0, stdout=1, stderr=2)
+# - Accept=yes is like inetd (per-connection processes)
+# - Accept=no is like systemd socket activation (single daemon)

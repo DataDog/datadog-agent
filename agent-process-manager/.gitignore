@@ -1,0 +1,40 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Go
+go-client/pm-go-client
+*.test
+!Dockerfile.test
+*.out
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+/tmp/
+
+# Test files (but keep examples/)
+test-*.yaml
+!examples/*.yaml
+.test-summary.md
+
+# Docker temporary files
+docker/mock-datadog/*.log
+docker/mock-datadog/*.pid
+

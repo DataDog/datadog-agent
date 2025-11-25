@@ -14,7 +14,7 @@ RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
 Restart=on-failure
-ExecStart=/opt/datadog-agent/bin/agent/agent run -p /opt/datadog-agent/run/agent.pid
+ExecStart=/opt/datadog-agent/embedded/bin/dd-procmgrd --config-file /opt/datadog-agent/etc/pm/processes.yaml
 
 
 [Install]

@@ -1,0 +1,12 @@
+# Simple web server example
+# Demonstrates: Basic process with restart policy
+
+processes:
+  webserver:
+    command: python3
+    args: ["-m", "http.server", "8080"]
+    restart: always
+    working_dir: /tmp
+    stdout: /tmp/webserver.log
+    stderr: /tmp/webserver-error.log
+

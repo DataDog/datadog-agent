@@ -1,0 +1,72 @@
+# Process Manager Daemon - Standard Deployment (Root)
+#
+# This service runs the daemon as root, allowing full privilege management.
+# Managed processes can run as different users via --user flag.
+#
+# Installation:
+#   sudo cp dd-procmgrd.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable dd-procmgrd
+#   sudo systemctl start dd-procmgrd
+
+[Unit]
+Description=Process Manager Daemon
+Documentation=https://github.com/yourusername/process-manager
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dd-procmgrd
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+
+# Process management
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30s
+
+# Configuration
+Environment="PM_CONFIG_PATH=/etc/dd-procmgrd/processes.yaml"
+WorkingDirectory=/var/lib/dd-procmgrd
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dd-procmgrd
+
+# Security: Basic hardening while maintaining functionality
+# Note: Running as root for privilege management
+
+# Restrict access to sensitive paths
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/dd-procmgrd
+ReadWritePaths=/var/log/dd-procmgrd
+ReadWritePaths=/run/dd-procmgrd
+
+# Process restrictions
+NoNewPrivileges=no                # Allow setuid (needed for --user)
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+
+# Network restrictions
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=127.0.0.1/8 ::1/128
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=512
+
+# Namespaces (optional, comment out if causes issues)
+# PrivateDevices=yes
+# ProtectHostname=yes
+# RestrictNamespaces=yes
+
+[Install]
+WantedBy=multi-user.target
+

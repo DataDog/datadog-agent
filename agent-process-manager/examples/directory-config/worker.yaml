@@ -1,0 +1,44 @@
+# Background Worker Process
+# Filename: worker.yaml
+# Process name will be "worker" (from filename)
+
+command: /usr/bin/python3
+args:
+  - "/opt/app/worker.py"
+
+# Start automatically when daemon starts
+auto_start: true
+
+# Always restart if it crashes
+restart: always
+restart_sec: 10
+restart_max_delay: 300
+
+# Start limit: max 5 restarts in 60 seconds
+start_limit_burst: 5
+start_limit_interval: 60
+
+working_dir: /opt/app
+
+env:
+  WORKER_ID: "1"
+  QUEUE_NAME: "default"
+  LOG_LEVEL: "info"
+
+# Load additional env vars from file
+environment_file: /etc/pm/worker.env
+
+stdout: /var/log/pm/worker.stdout.log
+stderr: /var/log/pm/worker.stderr.log
+
+# Resource limits
+cpu_percent: 25
+memory_mb: 256
+
+# Process type
+type: notify
+
+# Timeout for startup
+timeout_start_sec: 30
+timeout_stop_sec: 10
+

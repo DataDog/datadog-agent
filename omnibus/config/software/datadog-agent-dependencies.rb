@@ -15,6 +15,8 @@ end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
+dependency 'process-manager' if linux_target? && !heroku_target?
+
 dependency "dd-compile-policy" if linux_target? and !heroku_target?
 
 # Bundled cacerts file (is this a good idea?)

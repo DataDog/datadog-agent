@@ -1,0 +1,115 @@
+# Example systemd service override file
+#
+# This file shows common customizations you might want to make
+# to the Process Manager daemon service.
+#
+# To use:
+#   1. Create the override directory:
+#      sudo mkdir -p /etc/systemd/system/dd-procmgrd.service.d/
+#
+#   2. Copy this file:
+#      sudo cp custom.conf.example /etc/systemd/system/dd-procmgrd.service.d/custom.conf
+#
+#   3. Edit as needed:
+#      sudo nano /etc/systemd/system/dd-procmgrd.service.d/custom.conf
+#
+#   4. Reload and restart:
+#      sudo systemctl daemon-reload
+#      sudo systemctl restart dd-procmgrd
+#
+# Or use systemctl edit:
+#   sudo systemctl edit dd-procmgrd
+#   (paste the [Service] section below)
+
+[Service]
+# === CONFIGURATION ===
+
+# Change config file location
+# Environment="PM_CONFIG_PATH=/opt/myapp/processes.yaml"
+
+# Change bind address (default: 127.0.0.1:50051)
+# Environment="PM_BIND_ADDRESS=127.0.0.1:50051"
+
+# Change logging level
+# Environment="RUST_LOG=debug"
+
+# Add custom environment variables
+# Environment="MY_CUSTOM_VAR=value"
+
+
+# === RESOURCE LIMITS ===
+
+# Limit memory usage
+# MemoryMax=2G
+# MemoryHigh=1.5G
+
+# Limit CPU usage (100% = 1 core, 200% = 2 cores)
+# CPUQuota=150%
+
+# Limit number of file descriptors
+# LimitNOFILE=65536
+
+# Limit number of processes/threads
+# LimitNPROC=2048
+# TasksMax=1024
+
+
+# === RESTART BEHAVIOR ===
+
+# Change restart policy
+# Restart=always
+# RestartSec=10s
+
+# Prevent restart loops
+# StartLimitBurst=5
+# StartLimitIntervalSec=60s
+
+
+# === SECURITY ADJUSTMENTS ===
+
+# Allow access to /home if managed processes need it
+# ProtectHome=no
+
+# Allow access to additional paths
+# ReadWritePaths=/opt/myapp
+# ReadWritePaths=/mnt/data
+
+# Relax network restrictions if needed
+# IPAddressAllow=10.0.0.0/8
+
+# Allow additional address families
+# RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+
+# === TIMEOUTS ===
+
+# Change stop timeout
+# TimeoutStopSec=60s
+
+# Add start timeout
+# TimeoutStartSec=30s
+
+
+# === WORKING DIRECTORY ===
+
+# Change working directory
+# WorkingDirectory=/opt/dd-procmgrd
+
+
+# === WATCHDOG ===
+
+# Enable watchdog (daemon must support it)
+# WatchdogSec=30s
+
+
+# === LOGGING ===
+
+# Send logs to syslog instead of journal
+# StandardOutput=syslog
+# StandardError=syslog
+# SyslogIdentifier=dd-procmgrd
+
+# Disable logging (not recommended)
+# StandardOutput=null
+# StandardError=null
+
