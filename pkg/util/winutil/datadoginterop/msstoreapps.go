@@ -91,7 +91,7 @@ func GetStore() (*cStore, error) {
 	var out *cStore
 	r1, _, _ := procGetStore.Call(uintptr(unsafe.Pointer(&out)))
 	if r1 != 0 {
-		return nil, fmt.Errorf("GetStore failed: %s", resultCodes[r1])
+		return nil, fmt.Errorf("GetStore failed: %s", resultCodes[int(r1)])
 	}
 	return out, nil
 }

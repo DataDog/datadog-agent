@@ -10,6 +10,7 @@ package software
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"sort"
@@ -221,5 +222,139 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					len(extraInOurs), strings.Join(extraInOurs, "\n"))
 			}
 		})
+	}
+}
+
+func TestIntegrationMSStoreApps(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Define struct to match PowerShell JSON output
+	type psAppxPackage struct {
+		Name              string
+		Version           string
+		Publisher         string
+		Architecture      int
+		PackageFamilyName string
+	}
+
+	// Get PowerShell MS Store packages (doesn't include apps within the package)
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", `
+		$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8;
+		Get-AppxPackage -AllUsers |
+		Where-Object {
+			-not $_.IsFramework -and
+			-not $_.IsResourcePackage -and
+			-not $_.IsOptional -and
+			-not $_.IsBundle
+		} |
+		Select-Object Name, Version, Publisher, Architecture, PackageFamilyName |
+		Sort-Object Name |
+		ConvertTo-Json
+	`)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	require.NoError(t, err, "PowerShell command failed: %s", stderr.String())
+
+	// Parse JSON output
+	var psApps []psAppxPackage
+	jsonBytes := stdout.Bytes()
+	// Skip UTF-8 BOM if present
+	if len(jsonBytes) >= 3 && jsonBytes[0] == 0xEF && jsonBytes[1] == 0xBB && jsonBytes[2] == 0xBF {
+		jsonBytes = jsonBytes[3:]
+	}
+	err = json.Unmarshal(jsonBytes, &psApps)
+	require.NoError(t, err, "Failed to parse JSON output")
+
+	// Build map: productCode -> []Entry
+	psInventory := []Entry{}
+	for _, app := range psApps {
+		is64bit := app.Architecture == 9
+
+		entry := Entry{
+			DisplayName: app.Name,
+			Version:     app.Version,
+			Publisher:   app.Publisher,
+			ProductCode: app.PackageFamilyName,
+			Is64Bit:     is64bit,
+		}
+
+		psInventory = append(psInventory, entry)
+	}
+
+	// Get our MS Store apps inventory
+	collector := &msStoreAppsCollector{}
+	ourInventory, warnings, err := collector.Collect()
+	require.NoError(t, err)
+	if len(warnings) > 0 {
+		for _, w := range warnings {
+			t.Logf("Warning: %s", w.Message)
+		}
+	}
+
+	// Build comparable map from our inventory: productCode -> []Entry
+	// This will group apps together by package using the ProductCode as the key
+	// so we can only compare packages with the PS output.
+	ourSoftwareMap := make(map[string][]*Entry)
+	for _, software := range ourInventory {
+		if _, exists := ourSoftwareMap[software.ProductCode]; !exists {
+			ourSoftwareMap[software.ProductCode] = []*Entry{software}
+		} else {
+			ourSoftwareMap[software.ProductCode] = append(ourSoftwareMap[software.ProductCode], software)
+		}
+	}
+
+	// Verify that everything from PowerShell exists in our collector with matching fields.
+	// We only check one direction: PS -> Ours. This is because the PS command doesn't include apps in each package.
+	// Technically, we are only checking if the packages exists in our collector, not apps within the package.
+	// At least, this ensures we don't miss any apps that PowerShell can detect.
+	var missingOrMismatchedApps []string
+
+	for _, psEntry := range psInventory {
+		ourPackages, exists := ourSoftwareMap[psEntry.ProductCode]
+		if !exists {
+			// We completely missed this package
+			missingOrMismatchedApps = append(missingOrMismatchedApps,
+				fmt.Sprintf("MISSING: %s v%s (ProductCode: %s)",
+					psEntry.DisplayName, psEntry.Version, psEntry.ProductCode))
+			continue
+		}
+
+		found := false
+		for _, ourEntry := range ourPackages {
+			if psEntry.Version == ourEntry.Version {
+				// Found matching version, now verify fields match
+				if psEntry.Publisher != ourEntry.Publisher {
+					missingOrMismatchedApps = append(missingOrMismatchedApps,
+						fmt.Sprintf("MISMATCH: %s v%s - Publisher differs (PS: %s, Ours: %s)",
+							psEntry.DisplayName, psEntry.Version, psEntry.Publisher, ourEntry.Publisher))
+				}
+				if psEntry.Is64Bit != ourEntry.Is64Bit {
+					missingOrMismatchedApps = append(missingOrMismatchedApps,
+						fmt.Sprintf("MISMATCH: %s v%s - Is64Bit differs (PS: %v, Ours: %v)",
+							psEntry.DisplayName, psEntry.Version, psEntry.Is64Bit, ourEntry.Is64Bit))
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			missingOrMismatchedApps = append(missingOrMismatchedApps,
+				fmt.Sprintf("MISSING VERSION: %s v%s (ProductCode: %s)",
+					psEntry.DisplayName, psEntry.Version, psEntry.ProductCode))
+		}
+		
+	}
+
+	// Log results
+	t.Logf("PowerShell found %d MS Store apps", len(psInventory))
+	t.Logf("Our collector found %d MS Store apps", len(ourSoftwareMap))
+
+	if len(missingOrMismatchedApps) > 0 {
+		t.Errorf("Found %d missing or mismatched MS Store apps:\n%s",
+			len(missingOrMismatchedApps), strings.Join(missingOrMismatchedApps, "\n"))
 	}
 }
