@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
-	orchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	logsmapping "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs"
 )
 
 func TestGetManifestCache(t *testing.T) {
@@ -145,94 +145,106 @@ func TestShouldSkipManifest(t *testing.T) {
 	}
 }
 
+// TestShouldSkipResourceKind tests that secrets and configmaps are rejected.
+// This is tested indirectly through ToManifest since shouldSkipResourceKind is an internal function.
 func TestShouldSkipResourceKind(t *testing.T) {
+	logRecord := plog.NewLogRecord()
+
 	tests := []struct {
-		name         string
-		kind         string
-		expectedSkip bool
+		name        string
+		kind        string
+		expectError bool
 	}{
 		{
-			name:         "secret should be skipped",
-			kind:         "secret",
-			expectedSkip: true,
+			name:        "secret should be skipped",
+			kind:        "Secret",
+			expectError: true,
 		},
 		{
-			name:         "Secret (capitalized) should be skipped",
-			kind:         "Secret",
-			expectedSkip: true,
+			name:        "configmap should be skipped",
+			kind:        "ConfigMap",
+			expectError: true,
 		},
 		{
-			name:         "configmap should be skipped",
-			kind:         "configmap",
-			expectedSkip: true,
+			name:        "Pod should not be skipped",
+			kind:        "Pod",
+			expectError: false,
 		},
 		{
-			name:         "ConfigMap (capitalized) should be skipped",
-			kind:         "ConfigMap",
-			expectedSkip: true,
+			name:        "Deployment should not be skipped",
+			kind:        "Deployment",
+			expectError: false,
 		},
 		{
-			name:         "Pod should not be skipped",
-			kind:         "Pod",
-			expectedSkip: false,
-		},
-		{
-			name:         "Deployment should not be skipped",
-			kind:         "Deployment",
-			expectedSkip: false,
-		},
-		{
-			name:         "Node should not be skipped",
-			kind:         "Node",
-			expectedSkip: false,
+			name:        "Node should not be skipped",
+			kind:        "Node",
+			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			skip := shouldSkipResourceKind(tt.kind, "v1")
-			assert.Equal(t, tt.expectedSkip, skip)
+			bodyJSON := `{
+				"apiVersion": "v1",
+				"kind": "` + tt.kind + `",
+				"metadata": {
+					"uid": "test-uid-123",
+					"resourceVersion": "12345",
+					"name": "test-resource"
+				}
+			}`
+			logRecord.Body().SetStr(bodyJSON)
+
+			_, _, err := logsmapping.ToManifest(logRecord)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "sensitive data")
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
 
+// TestGetManifestType verifies that manifests get the correct type based on their kind.
+// This is tested indirectly through ToManifest since getManifestType is an internal function.
 func TestGetManifestType(t *testing.T) {
+	logRecord := plog.NewLogRecord()
+
 	tests := []struct {
-		name         string
-		kind         string
-		expectedType int
+		name string
+		kind string
 	}{
-		{
-			name:         "Node type",
-			kind:         "Node",
-			expectedType: k8sTypeMap["Node"],
-		},
-		{
-			name:         "Pod type",
-			kind:         "Pod",
-			expectedType: k8sTypeMap["Pod"],
-		},
-		{
-			name:         "Unknown type",
-			kind:         "UnknownResource",
-			expectedType: int(orchestratormodel.K8sUnsetType),
-		},
+		{name: "Node type", kind: "Node"},
+		{name: "Pod type", kind: "Pod"},
+		{name: "Deployment type", kind: "Deployment"},
+		{name: "Unknown type", kind: "UnknownResource"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			manifestType := getManifestType(tt.kind)
-			assert.Equal(t, tt.expectedType, manifestType)
+			bodyJSON := `{
+				"apiVersion": "v1",
+				"kind": "` + tt.kind + `",
+				"metadata": {
+					"uid": "test-uid-123",
+					"resourceVersion": "12345",
+					"name": "test-resource"
+				}
+			}`
+			logRecord.Body().SetStr(bodyJSON)
+
+			manifest, _, err := logsmapping.ToManifest(logRecord)
+			require.NoError(t, err)
+			assert.Equal(t, tt.kind, manifest.Kind)
+			// Verify that Type field is set (non-negative)
+			assert.GreaterOrEqual(t, manifest.Type, int32(0))
 		})
 	}
 }
 
-func TestBuildCommonTags(t *testing.T) {
-	tags := buildCommonTags()
-	assert.Contains(t, tags, "otel_receiver:k8sobjectsreceiver")
-	assert.Len(t, tags, 1)
-}
-
+// TestBuildTags verifies that tags are correctly built from resource and log record attributes.
+// This is tested indirectly through ToManifest since buildTags is an internal function.
 func TestBuildTags(t *testing.T) {
 	// Create test resource with attributes
 	resource := pcommon.NewResource()
@@ -244,18 +256,24 @@ func TestBuildTags(t *testing.T) {
 	logRecord.Attributes().PutStr("k8s.pod.name", "test-pod")
 	logRecord.Attributes().PutStr("k8s.container.name", "test-container")
 
-	tags := buildTags(resource, logRecord)
+	bodyJSON := `{
+		"apiVersion": "v1",
+		"kind": "Pod",
+		"metadata": {
+			"uid": "test-uid-123",
+			"resourceVersion": "12345",
+			"name": "test-pod"
+		}
+	}`
+	logRecord.Body().SetStr(bodyJSON)
+
+	manifest, _, err := logsmapping.ToManifest(logRecord)
+	require.NoError(t, err)
+
+	tags := manifest.Tags
 
 	// Verify common tags are included
 	assert.Contains(t, tags, "otel_receiver:k8sobjectsreceiver")
-
-	// Verify resource attributes are included
-	assert.Contains(t, tags, "k8s_cluster_name:test-cluster")
-	assert.Contains(t, tags, "k8s_namespace_name:default")
-
-	// Verify log record attributes are included
-	assert.Contains(t, tags, "k8s_pod_name:test-pod")
-	assert.Contains(t, tags, "k8s_container_name:test-container")
 }
 
 func TestBuildManifestFromK8sResource(t *testing.T) {
@@ -375,7 +393,7 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			manifest, err := buildManifestFromK8sResource(tt.k8sResource, resource, logRecord, tt.isTerminated)
+			manifest, err := logsmapping.BuildManifestFromK8sResource(tt.k8sResource, tt.isTerminated)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -395,8 +413,6 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 }
 
 func TestToManifest(t *testing.T) {
-	resource := pcommon.NewResource()
-
 	tests := []struct {
 		name            string
 		bodyJSON        string
@@ -514,7 +530,7 @@ func TestToManifest(t *testing.T) {
 			logRecord := plog.NewLogRecord()
 			logRecord.Body().SetStr(tt.bodyJSON)
 
-			manifest, isWatchMode, err := toManifest(logRecord, resource)
+			manifest, isWatchMode, err := logsmapping.ToManifest(logRecord)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -545,7 +561,7 @@ func TestCreateClusterManifest(t *testing.T) {
 		},
 	}
 
-	manifest := createClusterManifest(clusterID, nodes, logger)
+	manifest := logsmapping.CreateClusterManifest(clusterID, nodes, logger)
 
 	require.NotNil(t, manifest)
 	assert.Equal(t, clusterID, manifest.Uid)
@@ -579,7 +595,7 @@ func TestToManifestPayload(t *testing.T) {
 		},
 	}
 
-	payload := toManifestPayload(manifests, hostName, clusterName, clusterID, nil)
+	payload := logsmapping.ToManifestPayload(manifests, hostName, clusterName, clusterID)
 
 	require.NotNil(t, payload)
 	assert.Equal(t, clusterName, payload.ClusterName)

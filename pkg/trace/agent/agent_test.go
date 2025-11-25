@@ -4175,3 +4175,92 @@ func TestAgentWriteTagsBufferedChunks(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
+	tests := []struct {
+		name                  string
+		containerID           string
+		bufferEnabled         bool
+		inputTags             map[string]string
+		bufferReturnTags      []string
+		bufferReturnErr       error
+		expectAsyncCall       bool
+		expectedContainerTags string
+	}{
+		{
+			name:            "fast path no containerID",
+			containerID:     "",
+			bufferEnabled:   true,
+			expectAsyncCall: false,
+		},
+		{
+			name:            "fast path buffer disabled",
+			containerID:     "cid-123",
+			bufferEnabled:   false,
+			expectAsyncCall: false,
+		},
+		{
+			name:                  "async enrichment success",
+			containerID:           "cid-123",
+			bufferEnabled:         true,
+			bufferReturnTags:      []string{"image:nginx", "env:prod"},
+			expectAsyncCall:       true,
+			expectedContainerTags: "image:nginx,env:prod",
+		},
+		{
+			name:            "enrichment error",
+			containerID:     "cid-123",
+			bufferEnabled:   true,
+			bufferReturnErr: errors.New("timeout"),
+			expectAsyncCall: true,
+		},
+		{
+			name:             "empty tags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{},
+			expectAsyncCall:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockWriter := &mockTraceWriter{}
+			mockBuffer := &mockContainerTagsBuffer{
+				enabled:    tt.bufferEnabled,
+				returnTags: tt.bufferReturnTags,
+				pending:    tt.expectAsyncCall,
+			}
+
+			agent := &Agent{
+				TraceWriterV1:       mockWriter,
+				ContainerTagsBuffer: mockBuffer,
+			}
+
+			payload := &writer.SampledChunksV1{
+				Size: 1024,
+				TracerPayload: &idx.InternalTracerPayload{
+					Strings:    idx.NewStringTable(),
+					Attributes: make(map[uint32]*idx.AnyValue),
+				},
+			}
+			for k, v := range tt.inputTags {
+				payload.TracerPayload.SetStringAttribute(k, v)
+			}
+			if tt.containerID != "" {
+				payload.TracerPayload.SetContainerID(tt.containerID)
+			}
+			agent.writeChunksV1(payload)
+
+			assert.Len(t, mockWriter.payloadsV1, 1, "should have written exactly 1 chunk")
+			tp := mockWriter.payloadsV1[0].TracerPayload
+			containerTags, hasContainerTags := tp.GetAttributeAsString(tagContainersTags)
+			if tt.expectedContainerTags == "" {
+				assert.False(t, hasContainerTags)
+			} else {
+				assert.Equal(t, tt.expectedContainerTags, containerTags)
+			}
+			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
+}
