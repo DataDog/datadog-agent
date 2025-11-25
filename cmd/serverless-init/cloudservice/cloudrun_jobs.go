@@ -106,7 +106,7 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 func (c *CloudRunJobs) Init(traceAgent interface{}) error {
 	c.startTime = time.Now()
 	c.traceAgent = traceAgent
-	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") {
+	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") && pkgconfigsetup.Datadog().GetBool("serverless.trace_enabled") {
 		c.initJobSpan()
 		c.setSpanModifier()
 	}
