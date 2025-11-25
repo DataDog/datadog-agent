@@ -68,6 +68,7 @@ func (w *worker) run() {
 			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
+			w.filterList.DebugTags("zung")
 		case ps := <-w.server.packetsIn:
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]

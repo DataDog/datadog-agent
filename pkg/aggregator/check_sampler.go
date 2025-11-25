@@ -182,9 +182,11 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 
 		name := context.Name + serie.NameSuffix
 		// Filter the metrics
-		if filterList != nil && filterList.Test(name) {
-			tlmChecksFilteredMetrics.Inc()
-			continue
+		if filterList != nil {
+			if ok, _ := filterList.Test(name); ok {
+				tlmChecksFilteredMetrics.Inc()
+				continue
+			}
 		}
 		serie.Name = name
 		serie.Tags = context.Tags()
@@ -209,9 +211,11 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 	for ck, points := range pointsByCtx {
 		series := cs.newSketchSeries(ck, points)
 		// Filter the metrics
-		if filterList != nil && filterList.Test(series.Name) {
-			tlmChecksFilteredMetrics.Inc()
-			continue
+		if filterList != nil {
+			if ok, _ := filterList.Test(series.Name); ok {
+				tlmChecksFilteredMetrics.Inc()
+				continue
+			}
 		}
 		cs.sketches = append(cs.sketches, series)
 	}

@@ -201,10 +201,13 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 		// it is the final stage before flushing the series to the serialisation
 		// part of the pipeline but also, here is a stage where all series have been
 		// generated & processed (even the ones generated from a histogram metric).
-		if filterList != nil && filterList.Test(serie.Name) {
-			tlmDogstatsdFilteredMetrics.Inc()
-			continue
+		if filterList != nil {
+			if ok, _ := filterList.Test(serie.Name); ok {
+				tlmDogstatsdFilteredMetrics.Inc()
+				continue
+			}
 		}
+
 		serieSink.Append(serie)
 	}
 }

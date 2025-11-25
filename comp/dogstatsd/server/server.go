@@ -552,6 +552,8 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 	histoMetricNames := s.createHistogramsFilterList(metricNames)
 	matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
 
+	matcher.DebugTags("wubbub")
+
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
 		worker.FilterListUpdate <- matcher

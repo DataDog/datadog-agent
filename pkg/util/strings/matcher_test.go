@@ -48,7 +48,8 @@ func TestIsStringMatching(t *testing.T) {
 		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.list, c.matchPrefix),
 			func(t *testing.T) {
 				b := NewMatcher(c.list, c.matchPrefix)
-				assert.Equal(t, c.result, b.Test(c.name))
+				ok, _ := b.Test(c.name)
+				assert.Equal(t, c.result, ok)
 			})
 	}
 }

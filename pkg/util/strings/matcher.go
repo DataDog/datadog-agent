@@ -6,56 +6,76 @@
 package strings
 
 import (
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+type tags = []string
 
 // Matcher test a string for match against a list of strings.
 // See `NewMatcher` for details.
 type Matcher struct {
 	data        []string
+	tags        map[string]tags
 	matchPrefix bool
 }
 
 // NewMatcher creates a new strings matcher.
 // Use `matchPrefix` to  create a prefixes matcher.
 func NewMatcher(data []string, matchPrefix bool) Matcher {
-	data = slices.Clone(data)
-	sort.Strings(data)
+	metricData := []string{}
+	tagData := make(map[string]tags)
+	for _, metric := range data {
+		tags := strings.Split(metric, ":")
+		if len(tags) > 1 {
+			tag := tagData[tags[0]]
+			tagData[tags[0]] = append(tag, tags[1:]...)
+			log.Info("tag matcher", tags[0], tagData[tags[0]])
+		} else {
+			metricData = append(metricData, metric)
+		}
+	}
+	sort.Strings(metricData)
 
-	if matchPrefix && len(data) > 0 {
+	if matchPrefix && len(metricData) > 0 {
 		// Make sure that elements identify unique prefixes.
 		i := 0
-		for j := 1; j < len(data); j++ {
-			if strings.HasPrefix(data[j], data[i]) {
+		for j := 1; j < len(metricData); j++ {
+			if strings.HasPrefix(metricData[j], metricData[i]) {
 				continue
 			}
 			i++
-			data[i] = data[j]
+			metricData[i] = metricData[j]
 		}
 
-		data = data[:i+1]
+		metricData = metricData[:i+1]
 	}
 
 	// Invariants for data:
 	// For all i, j such that i < j, data[i] < data[j].
 	// for all i, j such that i != j, !HasPrefix(data[i], data[j]).
 	return Matcher{
-		data:        data,
+		data:        metricData,
+		tags:        tagData,
 		matchPrefix: matchPrefix,
 	}
 }
 
 // Test returns true if the given string matches one in the matcher list.
 // or is matching by prefix if the matcher has been created with `matchPrefix`.
-func (m *Matcher) Test(name string) bool {
+// First bool is if we should remove the metric completely, second is if we should
+// remove a tag in the metric.
+func (m *Matcher) Test(name string) (bool, bool) {
 	if m == nil {
-		return false
+		return false, false
 	}
 
-	if len(m.data) == 0 {
-		return false
+	if len(m.data) == 0 && len(m.tags) == 0 {
+		return false, false
 	}
 
 	i := sort.SearchStrings(m.data, name)
@@ -74,11 +94,36 @@ func (m *Matcher) Test(name string) bool {
 	//
 	// Thus j must be i - 1.
 	if m.matchPrefix && i > 0 && strings.HasPrefix(name, m.data[i-1]) {
-		return true
+		return true, false
 	}
 	if i < len(m.data) {
-		return name == m.data[i]
+		return name == m.data[i], false
 	}
 
-	return false
+	m.DebugTags("zoogzoggle")
+
+	_, tag := m.tags[name]
+
+	if tag {
+		fmt.Println("\033[035m", "tags", name, "\033[0m")
+	}
+
+	return false, tag
+}
+
+func (m *Matcher) TestTag(metric string, tag string) bool {
+	tags, ok := m.tags[metric]
+	if !ok {
+		return false
+	}
+
+	pos := strings.Index(tag, ":")
+	return slices.Contains(tags, tag[:pos])
+}
+
+func (m *Matcher) DebugTags(ook string) {
+	fmt.Println("\033[035m", ook, m.tags, "\033[0m")
+	for k, v := range m.tags {
+		fmt.Println("\033[035m", k, "=>", v, "\033[0m")
+	}
 }

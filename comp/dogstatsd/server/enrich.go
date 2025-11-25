@@ -6,6 +6,7 @@
 package server
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -141,9 +142,30 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if filterList != nil && filterList.Test(metricName) {
-		tlmFilteredPoints.Inc()
-		return []metrics.MetricSample{}
+	if filterList != nil {
+		fmt.Println("\033[035m", "Testing", metricName, "\033[0m")
+		filterMetric, filterTag := filterList.Test(metricName)
+		fmt.Println("\033[035m", filterMetric, filterTag, "\033[0m")
+		if filterMetric {
+			tlmFilteredPoints.Inc()
+			return []metrics.MetricSample{}
+		}
+
+		if filterTag {
+			fmt.Println("\033[035m", "Need to filter tag", metricName, "\033[0m")
+			// Need to filter the tag
+			i := 0
+			for _, tag := range tags {
+				filter := filterList.TestTag(metricName, tag)
+				if !filter {
+					tags[i] = tag
+					i++
+				}
+			}
+
+			tags = tags[:i]
+			fmt.Println("\033[035m", "New tags", tags, "\033[0m")
+		}
 	}
 
 	if conf.serverlessMode { // we don't want to set the host while running in serverless mode
