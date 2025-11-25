@@ -128,14 +128,14 @@ linters:
         - syscall.CloseHandle
     staticcheck:
       checks: ["all",
-              "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
+              "-ST1000", "-ST1003", "-ST1005", "-ST1016", "-ST1020", "-ST1021", "-ST1022", # These ones are disabled by default on staticcheck
               "-ST1013", # Use HTTP code enums instead of integers
               # Actual issues that should be fixed eventually
               "-SA6002", # TODO: Fix sync.Pools
               "-SA4025", # TODO: Fix trace unit test
               "-SA4011", "-SA4031", # Disabling these to re-enable golanci-lint default tests
-              "-SA4023"  # Fix the lint_macos_gitlab_amd64 linter discrepancy while we find the issue (see https://github.com/dominikh/go-tools/issues/847)
-              ]
+              "-SA4023",  # Fix the lint_macos_gitlab_amd64 linter discrepancy while we find the issue (see https://github.com/dominikh/go-tools/issues/847)
+              "-QF1001", "-QF1002", "-QF1003", "-QF1004", "-QF1005","-QF1006","-QF1007","-QF1008","-QF1009", "-QF1010", "-QF1011", "-QF1012"] # Exclude this rule for the golangci-lint v2 migrations
     govet:
       settings:
         printf:
