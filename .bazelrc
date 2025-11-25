@@ -17,6 +17,11 @@ common:linux --strategy=sandboxed
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
+common:macos:cross --config=macos
+common:macos:cross:aarch64 --config=macos:cross
+common:macos:cross:aarch64 --platforms=@toolchains_llvm//platforms:darwin-aarch64
+common:macos:cross:x86_64 --config=macos:cross
+common:macos:cross:x86_64 --platforms=@toolchains_llvm//platforms:darwin-x86_64
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]

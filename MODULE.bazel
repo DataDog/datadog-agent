@@ -25,7 +25,7 @@ archive_override(
 
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "bazel_features", version = "1.34.0")
+bazel_dep(name = "bazel_features", version = "1.38.0")
 bazel_dep(name = "bazel_skylib", version = "1.8.2")
 bazel_dep(name = "bazel_lib", version = "3.0.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
@@ -66,7 +66,7 @@ use_repo(multitool, "multitool")
 ## Compilers and toolchains        ##
 ####################################
 
-bazel_dep(name = "rules_cc", version = "0.2.8")
+bazel_dep(name = "rules_cc", version = "0.2.14")
 bazel_dep(name = "rules_flex", version = "0.4")
 bazel_dep(name = "rules_m4", version = "0.3")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
@@ -100,11 +100,59 @@ gcc_toolchains.toolchain(
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
+bazel_dep(name = "toolchains_llvm", version = "1.5.0")
+
+# Above 1.5.0 is missing:
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/380 Always use LLD on darwin
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/554 Support extra toolchain flags
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/572 Add a repository rule for efficient sysroots
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/573 Fix darwin arm to amd x-compilation
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/580 Use source directories for toolchain includes and wrapper tools
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/587 [sysroot] Support integrity and strip attributes
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/588 Tweak builtin-libc++ handling to better support linux cross-arch compilation
+# - https://github.com/bazel-contrib/toolchains_llvm/pull/613 Only emit sysroot warning when bazel is new enough
+git_override(
+    module_name = "toolchains_llvm",
+    commit = "ed7cff62aabd0874a2e7e445cc2fdb91064d75e1",
+    remote = "https://github.com/bazel-contrib/toolchains_llvm",
+)
+
+http_archive(
+    name = "macos_sdk",
+    build_file_content = """
+filegroup(
+    name = "sysroot",
+    srcs = glob(["**"], exclude = ["usr/share/man/**"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    sha256 = "c15cf0f3f17d714d1aa5a642da8e118db53d79429eb015771ba816aa7c6c1cbd",
+    strip_prefix = "MacOSX15.5.sdk",
+    url = "https://github.com/joseluisq/macosx-sdks/releases/download/15.5/MacOSX15.5.sdk.tar.xz",
+)
+
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+use_repo(llvm, "llvm_toolchain")
+
+llvm.sysroot(
+    name = "llvm_toolchain",
+    label = "@macos_sdk//:sysroot",
+    targets = [
+        "darwin-aarch64",
+        "darwin-x86_64",
+    ],
+)
+llvm.toolchain(
+    name = "llvm_toolchain",
+    llvm_version = "19.1.7",  # https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
+)
+
 # TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
 register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "//bazel/toolchains/mingw:mingw_cc_toolchain",
+    "@llvm_toolchain//:all",  # last to avoid taking precedence over GCC toolchains
 )
 
 # Visual Studio / MSBuild tooling, taken from the local installation
