@@ -74,7 +74,8 @@ var (
 		RuntimeNameCRINonstandard,
 	}
 
-	NonstandardMetadata = NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
+	// nonstandardMetadata is used as a map key in GetCollector() when the NonstandardCRIRuntime feature is present
+	nonstandardMetadata = NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
 )
 
 // RuntimeFlavor is a typed string for supported container runtime flavors
@@ -159,9 +160,9 @@ func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
 	// the user supplied a runtime socket that does not map to any of our known
 	// runtimes: containerd, cri-o
 	if env.IsFeaturePresent(env.NonstandardCRIRuntime) {
-		log.Debugf("Overriding collector runtime from %s to %s", r.String(), NonstandardMetadata.String())
+		log.Debugf("Overriding collector runtime from %s to %s", r.String(), nonstandardMetadata.String())
 
-		if runtime, found := mp.collectors[NonstandardMetadata]; found {
+		if runtime, found := mp.collectors[nonstandardMetadata]; found {
 			return runtime
 		}
 	}
