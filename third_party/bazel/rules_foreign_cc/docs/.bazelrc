@@ -1,4 +1,0 @@
-# Bazel configuration flags for rules_foreign_cc_docs
-
-# https://github.com/bazelbuild/stardoc/issues/112
-common --incompatible_allow_tags_propagation
