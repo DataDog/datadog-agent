@@ -70,14 +70,11 @@ func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.
 		}, nil
 	}
 
-	// limit the size of payload sent, and give the intake some statistics
-	if len(resolvConf) > resolvConfMaxSizeBytes {
-		resolvConf = resolvConfTooBig("output", len(resolvConf))
-	}
-
 	item := containerStoreItem{
-		timestamp:  time.Now(),
-		resolvConf: stringInterner.GetString(resolvConf),
+		timestamp: time.Now(),
+	}
+	if resolvConf != "" {
+		item.resolvConf = stringInterner.GetString(resolvConf)
 	}
 
 	return readContainerItemResult{item: item}, nil
@@ -111,9 +108,9 @@ func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 
 	resolvConf, err := r.stripResolvConfFilepath(resolvConfPath)
 	if errors.Is(err, os.ErrNotExist) {
-		// report no data. don't turn this into an error, since if the process exited
+		// report no file. don't turn this into an error, since if the process exited,
 		// that will be checked later by isProcessStillRunning
-		return "", nil
+		return "<missing>", nil
 	}
 	if err != nil {
 		return "", resolvConfReadError(resolvConfPath, err)
@@ -162,7 +159,15 @@ func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) 
 	if scanner.Err() != nil {
 		return "", scanner.Err()
 	}
-	return sb.String(), nil
+
+	resolvConf := sb.String()
+
+	// limit the size of payload sent, and give the intake some statistics
+	if len(resolvConf) > resolvConfMaxSizeBytes {
+		resolvConf = resolvConfTooBig("output", len(resolvConf))
+	}
+
+	return resolvConf, nil
 }
 
 func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {

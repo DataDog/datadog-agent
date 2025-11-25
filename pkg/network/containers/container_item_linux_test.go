@@ -8,6 +8,7 @@
 package containers
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -29,4 +30,43 @@ nameserver 8.8.8.8
 	require.NoError(t, err)
 
 	require.Equal(t, "nameserver 8.8.8.8\nnameserver 8.8.4.4", stripped)
+}
+
+// errorReader is a fake reader that returns a specific error
+type errorReader struct {
+	err error
+}
+
+func (er *errorReader) Read(p []byte) (n int, err error) {
+	return 0, er.err
+}
+func TestStripResolvConfReaderError(t *testing.T) {
+	customErr := errors.New("custom read error")
+	reader := &errorReader{err: customErr}
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	_, err := rs.stripResolvConf(100, reader)
+	require.Error(t, err)
+	require.ErrorIs(t, err, customErr)
+}
+
+func TestStripResolvConfTooBigInput(t *testing.T) {
+	resolvConf := strings.Repeat("a", 5000)
+	reader := strings.NewReader(resolvConf)
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	stripped, err := rs.stripResolvConf(len(resolvConf), reader)
+	require.NoError(t, err)
+
+	require.Equal(t, "<too big: kind=input size=5000>", stripped)
+}
+func TestStripResolvConfTooBigOutput(t *testing.T) {
+	resolvConf := strings.Repeat("a", 2000)
+	reader := strings.NewReader(resolvConf)
+
+	rs := makeResolvStripper(resolvConfInputMaxSizeBytes)
+	stripped, err := rs.stripResolvConf(len(resolvConf), reader)
+	require.NoError(t, err)
+
+	require.Equal(t, "<too big: kind=output size=2000>", stripped)
 }

@@ -51,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
-	"github.com/DataDog/datadog-agent/pkg/network/containers"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -3316,14 +3315,11 @@ func (s *TracerSuite) TestDNSWorkload() {
 
 	tr := setupTracer(t, cfg)
 
-	curDir, err := usmtestutil.CurDir()
-	require.NoError(t, err)
+	trueResolvConf := `nameserver 172.25.0.2
+search local
+options ndots:1`
 
-	resolvConfBytes, err := os.ReadFile(filepath.Join(curDir, "testdata/dnsworkload/resolv.conf"))
-	require.NoError(t, err)
-	trueResolvConf := containers.StripResolvConf(string(resolvConfBytes))
-
-	err = RunDNSWorkload(t)
+	err := RunDNSWorkload(t)
 	require.NoError(t, err, "failed to start DNS workload")
 
 	require.NoError(t, tr.reverseDNS.WaitForDomain("my-server.local"), "failed to wait for my-server.local domain")
