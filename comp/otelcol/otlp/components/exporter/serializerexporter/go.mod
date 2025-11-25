@@ -1,9 +1,10 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 
-go 1.24.0
+go 1.24.10
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.73.0-rc.5
@@ -50,10 +51,34 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
+	github.com/DataDog/datadog-agent v0.0.0-20251125141836-2ae7a968751c // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/errors v0.56.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/containers/image v0.56.2 // indirect
+	github.com/DataDog/gopsutil v1.2.2 // indirect
+	github.com/StackExchange/wmi v1.2.1 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.39.6 // indirect
+	github.com/aws/smithy-go v1.23.2 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/containerd/errdefs v1.0.0 // indirect
+	github.com/containerd/errdefs/pkg v0.3.0 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
+	github.com/docker/docker v28.5.2+incompatible // indirect
+	github.com/docker/go-connections v0.6.0 // indirect
+	github.com/docker/go-units v0.5.0 // indirect
+	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/mountinfo v0.7.2 // indirect
+	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	k8s.io/apimachinery v0.34.1 // indirect
 )
 
 require (
@@ -306,6 +331,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig => ../../../../../../pkg/config/teeconfig
 	github.com/DataDog/datadog-agent/pkg/config/utils => ../../../../../../pkg/config/utils
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig => ../../../../../../pkg/config/viperconfig
+	github.com/DataDog/datadog-agent/pkg/delegatedauth => ../../../../../../pkg/delegatedauth
 	github.com/DataDog/datadog-agent/pkg/errors => ../../../../../../pkg/errors
 	github.com/DataDog/datadog-agent/pkg/fips => ../../../../../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../../../../../pkg/fleet/installer

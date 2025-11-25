@@ -1,4 +1,5 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/DataDog/datadog-agent v0.0.0-20251125141836-2ae7a968751c h1:n8X++dDMiPouS+SDK/7Oh50I2qN7tzeOlRa9Q8/8S0U=
 github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3 h1:92RG43PJUX0unYAdqtNWeQMKigUDK7tpV3iHeeby2e4=
 github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
