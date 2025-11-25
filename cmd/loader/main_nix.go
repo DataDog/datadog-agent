@@ -125,7 +125,9 @@ func main() {
 	} else {
 		log.Debugf("Events received on %d sockets", n)
 		for _, pfd := range pollfds {
-			log.Debugf("Socket %d has events %s", pfd.Fd, reventToString(pfd.Revents))
+			if pfd.Revents != 0 {
+				log.Debugf("Socket %d has events %s", pfd.Fd, reventToString(pfd.Revents))
+			}
 		}
 	}
 
