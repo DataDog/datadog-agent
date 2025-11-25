@@ -36,6 +36,9 @@ func TestAgentConfig(t *testing.T) {
 // TestConfigUpgradeSuccessful tests that the Agent's config can be upgraded
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
+	configRoot := windowsagent.DefaultConfigRoot
+	configBackupRoot := windowsagent.DefaultConfigRoot + "-exp"
+
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -47,7 +50,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 		WithValueEqual("log_to_console", true)
 
 	// collect permissions snapshot before config experiment
-	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
 	s.Require().NoError(err, "should get security info for config root")
 	configSDDLBeforeExperiment := perms.SDDL
 
@@ -69,6 +72,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false).
 		HasDDAgentUserFileAccess()
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configBackupRoot)
+	s.Require().NoError(err, "should get security info for config backup root")
+	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "backup dir permissions should be the same as the config dir permissions")
 
 	// Promote config experiment
 	s.mustPromoteConfigExperiment(config)
@@ -79,7 +85,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 		HasDDAgentUserFileAccess()
 
 	// assert that the config dir permissions have not changed
-	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
 	s.Require().NoError(err, "should get security info for config root")
 	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
@@ -87,6 +93,9 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
+	configRoot := windowsagent.DefaultConfigRoot
+	configBackupRoot := windowsagent.DefaultConfigRoot + "-exp"
+
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -98,7 +107,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 		WithValueEqual("log_level", "debug")
 
 	// collect permissions snapshot before config experiment
-	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
 	s.Require().NoError(err, "should get security info for config root")
 	configSDDLBeforeExperiment := perms.SDDL
 
@@ -144,7 +153,7 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
 
 	// assert that the config dir permissions have not changed
-	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, windowsagent.DefaultConfigRoot)
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
 	s.Require().NoError(err, "should get security info for config root")
 	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
