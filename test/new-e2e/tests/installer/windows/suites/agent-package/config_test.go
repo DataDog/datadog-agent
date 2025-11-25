@@ -82,7 +82,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false).
-		HasDDAgentUserFileAccess()
+		HasDDAgentUserFileAccess().
+		NoDirExists(configBackupRoot) // backup dir should be deleted
 
 	// assert that the config dir permissions have not changed
 	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
@@ -143,7 +144,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_level", "debug").
-		HasDDAgentUserFileAccess()
+		HasDDAgentUserFileAccess().
+		NoDirExists(configBackupRoot) // backup dir should be deleted
 
 	// backend will send stop experiment now
 	s.WaitForDaemonToStop(func() {
