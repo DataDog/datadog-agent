@@ -138,6 +138,7 @@ func (p *containerTagsBuffer) resolvePendingContainers(now time.Time) {
 
 // Stop flushes all pending payloads and stops the worker
 func (p *containerTagsBuffer) Stop() {
+	p.isRunning.Store(false)
 	close(p.exit)
 	p.exitWG.Wait()
 }
@@ -153,8 +154,8 @@ func (p *containerTagsBuffer) Start() {
 		log.Debug("Starting container tags buffer with memory limit: ", p.maxSize)
 		defer p.exitWG.Done()
 		resolveTicker := time.NewTicker(1 * time.Second)
-		statsTicker := time.NewTicker(10 * time.Second)
 		defer resolveTicker.Stop()
+		statsTicker := time.NewTicker(10 * time.Second)
 		defer statsTicker.Stop()
 		for {
 			select {
@@ -273,15 +274,23 @@ func (p *containerTagsBuffer) AsyncEnrichment(containerID string, applyResult fu
 	go func() {
 		defer releasePayloadSize()
 		defer p.totalPayloadsPending.Add(-1)
-		p.in <- bufferInput{
+		select {
+		case p.in <- bufferInput{
 			cid:      containerID,
 			now:      now,
 			onResult: func(tr tagResult) { resChan <- tr },
+		}:
+		case <-p.exit:
+			applyResult(ctags, err)
+			return
 		}
 
 		select {
 		case res := <-resChan:
 			applyResult(res.tags, res.err)
+			return
+		case <-p.exit:
+			applyResult(ctags, err)
 			return
 		case timeout := <-time.After(p.hardTimeLimit):
 			p.deniedContainers.deny(timeout, containerID)
