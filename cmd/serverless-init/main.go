@@ -191,6 +191,8 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 		AzureServerlessTags: azureTags.String(),
 		FunctionTags:        functionTags,
 	})
+	// if compute_stats is enabled, we add the tag needed for accurate metric trace counts after sampling
+	tags = serverlessInitTag.AddTraceStatsTags(tags)
 	traceAgent.SetTags(tags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
@@ -210,8 +212,6 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldFor
 	}
 	// we don't want to add certain tags to metrics for cardinality reasons
 	tags = serverlessInitTag.WithoutHighCardinalityTags(tags)
-	// if compute_stats is enabled, we add the tag needed for accurate metric trace counts after sampling
-	tags = serverlessInitTag.AddTraceStatsTags(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
 	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent
