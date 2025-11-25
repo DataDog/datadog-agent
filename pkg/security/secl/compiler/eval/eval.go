@@ -223,14 +223,16 @@ func isVariableName(str string) (string, bool) {
 }
 
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
-	variableEvaluator, err := opts.VariableStore.GetEvaluator(VariableName(varname))
-	if err == nil {
-		return variableEvaluator, pos, nil
+	var variableEvaluator interface{}
+	variable := opts.VariableStore.Get(varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
 	}
 
 	if strings.HasSuffix(varname, ".length") {
 		trimmedVariable := strings.TrimSuffix(varname, ".length")
-		if variableEvaluator, _ := opts.VariableStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
 			switch evaluator := variableEvaluator.(type) {
 			case *StringArrayEvaluator:
 				return &IntEvaluator{
@@ -264,6 +266,7 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state
 				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
 			}
 		}
+
 	}
 
 	evaluator, err := state.model.GetEvaluator(varname, "", 0)
