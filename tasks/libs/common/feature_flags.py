@@ -8,7 +8,7 @@ from invoke.context import Context
 from tasks.libs.common.color import Color, color_message
 
 
-def is_enabled(ctx: Context, feature: str, verbose: bool = False) -> bool:
+def is_enabled(ctx: Context, feature: str, verbose: bool = False) -> bool:  # noqa
     """
     Performs a dda feature flag check and returns whether a feature is enabled or not.
     """
