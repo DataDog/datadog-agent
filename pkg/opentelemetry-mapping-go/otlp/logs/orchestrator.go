@@ -162,6 +162,7 @@ func ToManifestPayload(manifests []*agentmodel.Manifest, hostName, clusterName, 
 		logger.Error("Failed to get agent version", zap.Error(err))
 		return nil
 	}
+	logger.Info("Agent version", zap.String("version", version.String()))
 	return &agentmodel.CollectorManifest{
 		ClusterName:     clusterName,
 		ClusterId:       clusterID,
