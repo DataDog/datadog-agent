@@ -75,17 +75,17 @@ func (c *Config) Render() (string, error) {
 
 	var logfile string
 	if c.logfile != "" {
-		logfile = fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="%d" />`, c.logfile, c.maxsize, c.maxrolls)
+		logfile = fmt.Sprintf(`<rollingfile type="size" filename="%s" maxsize="%d" maxrolls="%d" />`, xmlEscape(c.logfile), c.maxsize, c.maxrolls)
 	}
 
 	var syslogURI string
 	if c.syslogURI != "" {
-		syslogURI = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" data-uri="%s" />`, c.format, c.syslogURI)
+		syslogURI = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" data-uri="%s" />`, xmlEscape(c.format), xmlEscape(c.syslogURI))
 	}
 
 	jsonSyslogFormat := xmlEscape(`{"agent":"` + strings.ToLower(c.loggerName) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`)
 
-	return fmt.Sprintf(seelogConfigurationTemplate, c.logLevel, c.format, consoleLoggingEnabled, logfile, syslogURI, c.jsonFormat, c.commonFormat, c.syslogRFC, jsonSyslogFormat, xmlEscape(c.loggerName)), nil
+	return fmt.Sprintf(seelogConfigurationTemplate, xmlEscape(c.logLevel), xmlEscape(c.format), consoleLoggingEnabled, logfile, syslogURI, c.jsonFormat, c.commonFormat, c.syslogRFC, jsonSyslogFormat, xmlEscape(c.loggerName)), nil
 }
 
 // SlogLogger returns a slog logger behaving the same way as Render would configure a seelog logger
@@ -205,7 +205,7 @@ func (c *Config) SetLogLevel(l string) {
 func (c *Config) EnableFileLogging(f string, maxsize, maxrolls uint) {
 	c.Lock()
 	defer c.Unlock()
-	c.logfile = xmlEscape(f)
+	c.logfile = f
 	c.maxsize = maxsize
 	c.maxrolls = maxrolls
 }
@@ -214,7 +214,7 @@ func (c *Config) EnableFileLogging(f string, maxsize, maxrolls uint) {
 func (c *Config) ConfigureSyslog(syslogURI string) {
 	c.Lock()
 	defer c.Unlock()
-	c.syslogURI = xmlEscape(syslogURI)
+	c.syslogURI = syslogURI
 
 }
 
@@ -222,13 +222,13 @@ func (c *Config) ConfigureSyslog(syslogURI string) {
 func NewSeelogConfig(name, level, format, jsonFormat, commonFormat string, syslogRFC bool, jsonFormatter, commonFormatter func(ctx context.Context, r stdslog.Record) string) *Config {
 	c := &Config{}
 	c.loggerName = name
-	c.format = xmlEscape(format)
+	c.format = format
 	c.syslogRFC = syslogRFC
 	c.jsonFormat = xmlEscape(jsonFormat)
 	c.jsonFormatter = jsonFormatter
 	c.commonFormat = xmlEscape(commonFormat)
 	c.commonFormatter = commonFormatter
-	c.logLevel = xmlEscape(level)
+	c.logLevel = level
 	return c
 }
 
