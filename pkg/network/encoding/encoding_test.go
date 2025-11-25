@@ -365,6 +365,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
