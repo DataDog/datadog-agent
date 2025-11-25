@@ -24,12 +24,6 @@ build do
     flavor_arg = ENV['AGENT_FLAVOR']
     # TODO too many things done here, should be split
     block do
-         # Licenses
-         # The windows version of pkg_install has some problems w.r.t. relative or absolute
-         # paths. Setting BUILD_WORKSPACE_DIRECTORY is a hack around that.
-         mkdir "#{install_dir}/sources"
-         command_on_repo_root "bazelisk run -- //compliance:install_source_offers --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
-
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
