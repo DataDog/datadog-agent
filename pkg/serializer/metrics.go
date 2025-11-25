@@ -48,6 +48,9 @@ func metricsEndpointFor(kind metricsKind, useV3 bool) transaction.Endpoint {
 		}
 		return endpoints.SeriesEndpoint
 	case metricsKindSketches:
+		if useV3 {
+			return endpoints.V3SketchSeriesEndpoint
+		}
 		return endpoints.SketchSeriesEndpoint
 	default:
 		panic("invalid metricsKind value")
