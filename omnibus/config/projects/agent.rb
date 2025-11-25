@@ -273,6 +273,8 @@ if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
+  # Process manager config directory
+  extra_package_file '/etc/pm/'
 end
 
 # all flavors use the same package scripts
