@@ -8,4 +8,4 @@
 ---
 features:
   - |
-     For the Agent and DDOT, adds new cross-org telemetry metrics for OTLP log, metric and traces. 
+     For the Agent and DDOT, add new cross-org telemetry metrics for OTLP log, metric and traces. 
