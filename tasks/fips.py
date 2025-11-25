@@ -67,7 +67,7 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
                 ],
                 package_deps_suffix="-fips",
             )
-    job["needs"].append({"pipeline": "$PARENT_PIPELINE_ID", "job": "all-artifacts"})
+        job["needs"].append({"pipeline": "$PARENT_PIPELINE_ID", "job": "all-artifacts"})
 
     new_jobs = {}
     new_jobs['variables'] = copy.deepcopy(config['variables'])

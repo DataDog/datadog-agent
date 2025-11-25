@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 )
 
@@ -23,8 +24,9 @@ import (
 // processes them. If the transaction fails to be processed the Worker will send
 // it back to the Forwarder to be retried later.
 type Worker struct {
-	config config.Component
-	log    log.Component
+	config  config.Component
+	log     log.Component
+	secrets secrets.Component
 
 	// Client the http client used to processed transactions.
 	Client *SharedConnection
@@ -56,6 +58,7 @@ type PointSuccessfullySent interface {
 func NewWorker(
 	config config.Component,
 	log log.Component,
+	secrets secrets.Component,
 	highPrioChan <-chan transaction.Transaction,
 	lowPrioChan <-chan transaction.Transaction,
 	requeueChan chan<- transaction.Transaction,
@@ -74,6 +77,7 @@ func NewWorker(
 	worker := &Worker{
 		config:                config,
 		log:                   log,
+		secrets:               secrets,
 		HighPrio:              highPrioChan,
 		LowPrio:               lowPrioChan,
 		RequeueChan:           requeueChan,
@@ -194,7 +198,7 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	if w.blockedList.isBlockForSend(target, time.Now()) {
 		w.requeue(t)
 		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.log, w.Client.GetClient()); err != nil {
+	} else if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient()); err != nil {
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)

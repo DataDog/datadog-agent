@@ -185,6 +185,11 @@ type InvalidSegment struct {
 
 func (s InvalidSegment) templateSegment() {}
 
+// DurationSegment is a segment that is a simple reference to @duration.
+type DurationSegment struct{}
+
+func (s *DurationSegment) templateSegment() {}
+
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
 	ProbeDefinition
