@@ -267,11 +267,14 @@ func (a *logAgent) httpRetryLoop() {
 			a.log.Infof("Checking HTTP connectivity (attempt %d)", attempt)
 
 			if a.checkHTTPConnectivity() {
-				a.log.Info("HTTP connectivity restored - initiating graceful restart to upgrade to HTTP")
+				a.log.Info("HTTP connectivity restored - initiating upgrade to HTTP transport")
 
-				if err := a.restart(ctx); err != nil {
-					a.log.Errorf("Failed to restart with HTTP: %v", err)
-					return
+				// Trigger HTTP upgrade. Since HTTP connectivity is verified,
+				// we commit to HTTP and keep retrying if upgrade fails.
+				if err := a.restartWithHTTPUpgrade(ctx); err != nil {
+					a.log.Errorf("HTTP upgrade failed: %v - will retry", err)
+					// Continue retrying - HTTP is available, we want to use it
+					continue
 				}
 
 				a.log.Info("Successfully upgraded to HTTP transport")

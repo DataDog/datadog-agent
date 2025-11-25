@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -26,6 +27,9 @@ func (a *logAgent) restart(context.Context) error {
 
 	a.restartMutex.Lock()
 	defer a.restartMutex.Unlock()
+
+	// Store current endpoints for rollback if HTTP restart fails
+	previousEndpoints := a.endpoints
 
 	a.log.Info("Gracefully stopping logs-agent")
 
@@ -41,11 +45,12 @@ func (a *logAgent) restart(context.Context) error {
 
 	// Build HTTP endpoints directly since we already verified HTTP connectivity
 	// before triggering this restart (no need to recheck)
-	endpoints, err := buildEndpointsForRestart(a.config)
+	endpoints, err := buildHTTPEndpointsForRestart(a.config)
 	if err != nil {
 		message := fmt.Sprintf("Invalid endpoints: %v", err)
 		status.AddGlobalError(invalidEndpoints, message)
-		return errors.New(message)
+		a.log.Errorf("Failed to build HTTP endpoints, attempting rollback to previous transport: %v", err)
+		return a.rollbackToPreviousTransport(previousEndpoints)
 	}
 
 	a.endpoints = endpoints
@@ -54,11 +59,52 @@ func (a *logAgent) restart(context.Context) error {
 	if err != nil {
 		message := fmt.Sprintf("Could not re-start logs-agent: %v", err)
 		a.log.Error(message)
-		return errors.New(message)
+		a.log.Error("Attempting rollback to previous transport")
+		return a.rollbackToPreviousTransport(previousEndpoints)
 	}
 
 	a.restartPipeline()
 	return nil
+}
+
+// restartWithHTTPUpgrade upgrades the logs-agent pipeline to HTTP transport.
+//
+// Since HTTP connectivity was verified before calling this function, we commit to HTTP
+// and will keep retrying HTTP even if the upgrade fails. If restart fails, the base
+// restart() function will rollback to TCP temporarily, but this function returns an
+// error to trigger retry - ensuring we eventually upgrade to HTTP since connectivity exists.
+func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
+	err := a.restart(ctx)
+	if err != nil {
+		// Restart failed (may have rolled back to TCP to keep agent functional)
+		// Since we verified HTTP connectivity, return error to trigger retry
+		a.log.Warnf("HTTP upgrade attempt failed: %v - will retry on next attempt", err)
+		return fmt.Errorf("HTTP upgrade failed: %w", err)
+	}
+
+	a.log.Info("Successfully upgraded to HTTP transport")
+	return nil
+}
+
+// rollbackToPreviousTransport attempts to restore the agent to its previous working state
+// after a failed transport switch. This ensures the agent continues functioning
+// rather than being left in a broken state.
+func (a *logAgent) rollbackToPreviousTransport(previousEndpoints *config.Endpoints) error {
+	a.log.Warn("Rolling back to previous transport after failed restart")
+
+	a.endpoints = previousEndpoints
+
+	err := a.setupAgentForRestart()
+	if err != nil {
+		// This is a critical failure - we can't recover
+		message := fmt.Sprintf("CRITICAL: Failed to rollback to previous transport: %v", err)
+		a.log.Error(message)
+		return errors.New(message)
+	}
+
+	a.restartPipeline()
+	a.log.Info("Successfully rolled back to previous transport")
+	return errors.New("restart failed, rolled back to previous transport")
 }
 
 // setupAgentForRestart configures and rebuilds only the transient components during a restart.
