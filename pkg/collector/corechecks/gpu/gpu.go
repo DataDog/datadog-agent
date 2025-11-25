@@ -356,46 +356,58 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		//filter out same metric with lower priority
 		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(deviceData.collectorMetrics)
 		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
+		deviceContainer := gpuToContainersMap[deviceUUID]
+		deviceTags := c.deviceTags[deviceUUID]
 
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
-			metricWorkloads := metric.AssociatedWorkloads
-
-			// Metrics with no associated workloads are assumed to apply to all workloads on the device.
-			if container := gpuToContainersMap[deviceUUID]; len(metricWorkloads) == 0 && container != nil {
-				metricWorkloads = []workloadmeta.EntityID{container.EntityID}
-			}
-
-			metricTags := []string{}
-			for _, workloadID := range metricWorkloads {
-				tags, err := c.workloadTagCache.GetWorkloadTags(workloadID)
-				if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
-					multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for GPU %s: %w", deviceUUID, err))
-				}
-
-				// always continue with whatever tags we can get even if there are errors
-				metricTags = append(metricTags, tags...)
-			}
-
-			metricName := gpuMetricsNs + metric.Name
-			allTags := append(append(c.deviceTags[deviceUUID], metricTags...), metric.Tags...)
-
-			// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
-			// We need this to ensure weighted metrics are calibrated correctly.
-			switch metric.Type {
-			case ddmetrics.CountType:
-				err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
-			case ddmetrics.GaugeType:
-				err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
-			default:
-				multiErr = multierror.Append(multiErr, fmt.Errorf("unsupported metric type %s for metric %s", metric.Type, metricName))
-				continue
-			}
-
-			if err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("error sending metric %s: %w", metricName, err))
+			if err := c.emitSingleMetric(&metric, snd, currentExecutionTime, deviceContainer, deviceTags); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}
+	}
+
+	return multiErr
+}
+
+func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainer *workloadmeta.Container, deviceTags []string) error {
+	var multiErr error
+
+	metricWorkloads := metric.AssociatedWorkloads
+
+	// Metrics with no associated workloads are assumed to apply to all workloads on the device.
+	if len(metricWorkloads) == 0 && deviceContainer != nil {
+		metricWorkloads = []workloadmeta.EntityID{deviceContainer.EntityID}
+	}
+
+	metricTags := []string{}
+	for _, workloadID := range metricWorkloads {
+		tags, err := c.workloadTagCache.GetWorkloadTags(workloadID)
+		if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
+			multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
+		}
+
+		// always continue with whatever tags we can get even if there are errors
+		metricTags = append(metricTags, tags...)
+	}
+
+	metricName := gpuMetricsNs + metric.Name
+	allTags := append(append(deviceTags, metricTags...), metric.Tags...)
+
+	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
+	// We need this to ensure weighted metrics are calibrated correctly.
+	var err error
+	switch metric.Type {
+	case ddmetrics.CountType:
+		err = snd.CountWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
+	case ddmetrics.GaugeType:
+		err = snd.GaugeWithTimestamp(metricName, metric.Value, "", allTags, float64(currentExecutionTime.UnixNano())/float64(time.Second))
+	default:
+		err = fmt.Errorf("unsupported metric type %s", metric.Type)
+	}
+
+	if err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("error sending metric: %w", err))
 	}
 
 	return multiErr
