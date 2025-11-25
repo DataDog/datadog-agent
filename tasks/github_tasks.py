@@ -708,6 +708,5 @@ def t(ctx):
     ctx.run("git config --global user.name 'celian-bot'", hide=True)
     ctx.run("git config --global user.email 'github-app[bot]@users.noreply.github.com'", hide=True)
     ctx.run("git add hello.md", hide=True)
-    ctx.run("git commit -m 'Init push", hide=True)
+    ctx.run("git commit -m 'Init push'", hide=True)
     ctx.run(f"git push origin {new_branch}")
-
