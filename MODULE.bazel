@@ -160,4 +160,4 @@ include("//deps/libpcap:libpcap.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "1.14.0")
+bazel_dep(name = "apple_support", version = "1.23.1")
