@@ -18,8 +18,8 @@ index 6bf25d9..a081d31 100644
          outputs.libraries.static_libraries +
          outputs.libraries.shared_libraries +
 -        [outputs.out_include_dir] if outputs.out_include_dir else []
-+        [outputs.out_include_dir] if outputs.out_include_dir else [] +
-+        [outputs.out_pc_dir] if outputs.out_pc_dir else []
++        ([outputs.out_include_dir] if outputs.out_include_dir else []) +
++        ([outputs.out_pc_dir] if outputs.out_pc_dir else [])
      )
      output_groups = _declare_output_groups(installdir_copy.file, output_groups)
      wrapped_files = [
