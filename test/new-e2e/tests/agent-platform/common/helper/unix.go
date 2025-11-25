@@ -37,7 +37,6 @@ func (u *Unix) AgentProcesses() []string {
 		"security-agent",
 		"dogstatsd",
 		"system-probe",
-		"agent-data-plane",
 	}
 }
 
@@ -73,6 +72,5 @@ func (u *UnixDogstatsd) AgentProcesses() []string {
 		"security-agent",
 		"dogstatsd",
 		"system-probe",
-		"agent-data-plane",
 	}
 }

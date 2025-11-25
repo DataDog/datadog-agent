@@ -6,7 +6,7 @@
 package environments
 
 import (
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // ECS is an environment that contains a ECS deployed in a cluster, FakeIntake and Agent configured to talk to each other.

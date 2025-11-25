@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	utilscommon "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	agentClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	agentClientParams "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	utilscommon "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	agentClient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	agentClientParams "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	commonHelper "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -199,8 +199,6 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 				common.CheckCWSBehaviour(tt, t.InstallTestClient)
 			})
 		}
-
-		// TODO(ADP): Update this for Windows when we add Windows support to ADP.
 	})
 }
 

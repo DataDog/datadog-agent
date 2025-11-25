@@ -59,10 +59,10 @@ const (
 	libvirtSSHPrivateKeyArm = "libvirt_rsa-arm"
 )
 
-//go:embed files/datadog.yaml
+//go:embed files/_datadog.yaml
 var datadogAgentConfig string
 
-//go:embed files/system-probe.yaml
+//go:embed files/_system-probe.yaml
 var systemProbeConfig string
 
 //go:embed files/oom_kill.yaml

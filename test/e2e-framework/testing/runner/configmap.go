@@ -15,7 +15,7 @@ import (
 	infragcp "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	infralocal "github.com/DataDog/datadog-agent/test/e2e-framework/resources/local"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )

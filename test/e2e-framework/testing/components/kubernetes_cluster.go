@@ -8,8 +8,8 @@ package components
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 

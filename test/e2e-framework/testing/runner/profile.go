@@ -17,7 +17,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 // CloudProvider alias to string

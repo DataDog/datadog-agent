@@ -56,8 +56,8 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 //	)
 //
 //	type singleEnvSuite struct {
@@ -89,9 +89,9 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-//		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+//		awsvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments/aws/vm"
 //		"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 //	)
 //
@@ -161,11 +161,12 @@ import (
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -390,7 +391,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 	ctx, cancel := bs.providerContext(createTimeout)
 	defer cancel()
 
-	newEnv, newEnvFields, newEnvValues, err := bs.createEnv()
+	newEnv, newEnvFields, newEnvValues, err := environments.CreateEnv[Env]()
 	if err != nil {
 		return fmt.Errorf("unable to create new env: %T for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}

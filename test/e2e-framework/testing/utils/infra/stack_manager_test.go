@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build e2eunit
+
 // Package infra implements utilities to interact with a Pulumi infrastructure
 package infra
 
@@ -15,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"

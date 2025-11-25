@@ -11,15 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	e2ecommon "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	e2ecommon "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -246,18 +245,11 @@ func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstal
 // HasDDAgentUserFileAccess verifies that ddagentuser has appropriate permissions
 // on key Agent files and directories. This is to verify that config updates
 // or upgrades haven't broken file permissions.
-func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess(args ...string) *RemoteWindowsHostAssertions {
+func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess() *RemoteWindowsHostAssertions {
 	r.context.T().Helper()
 
-	var agentUserName string
-	if len(args) > 0 {
-		agentUserName = args[0]
-	} else {
-		agentUserName = windowsagent.DefaultAgentUserName
-	}
-
 	// Get ddagentuser identity
-	ddAgentUser, err := common.GetIdentityForUser(r.remoteHost, agentUserName)
+	ddAgentUser, err := common.GetIdentityForUser(r.remoteHost, windowsagent.DefaultAgentUserName)
 	r.require.NoError(err, "should get ddagentuser identity")
 
 	// Get config root from registry

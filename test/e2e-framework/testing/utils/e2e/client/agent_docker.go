@@ -8,7 +8,7 @@ package client
 import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 type agentDockerExecutor struct {

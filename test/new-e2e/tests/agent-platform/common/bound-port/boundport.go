@@ -7,30 +7,23 @@
 package boundport
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 var (
-	ssUserRegex             = regexp.MustCompile(`(\("(?P<Process>[^"]+)",pid=(?P<PID>\d+),fd=\d+\),?)`)
-	ssUserRegexProcessIdx   = ssUserRegex.SubexpIndex("Process")
-	ssUserRegexPidIdx       = ssUserRegex.SubexpIndex("PID")
-	hostPortRegex           = regexp.MustCompile(`(?P<Address>.+):(?P<Port>\d+)`)
-	hostPortRegexAddressIdx = hostPortRegex.SubexpIndex("Address")
-	hostPortRegexPortIdx    = hostPortRegex.SubexpIndex("Port")
+	ssUserRegex = regexp.MustCompile(`(\("(?P<Process>[^"]+)",pid=(?P<PID>\d+),fd=\d+\),?)`)
 )
 
 // BoundPort represents a port that is bound to a process
 type BoundPort interface {
 	LocalAddress() string
 	LocalPort() int
-	Transport() string
 	Process() string
 	PID() int
 }
@@ -38,7 +31,6 @@ type BoundPort interface {
 type boundPort struct {
 	localAddress string
 	localPort    int
-	transport    string
 	processName  string
 	pid          int
 }
@@ -51,26 +43,12 @@ func (b *boundPort) LocalPort() int {
 	return b.localPort
 }
 
-func (b *boundPort) Transport() string {
-	return b.transport
-}
-
 func (b *boundPort) Process() string {
 	return b.processName
 }
 
 func (b *boundPort) PID() int {
 	return b.pid
-}
-
-func newBoundPort(localAddress string, localPort int, transport, processName string, pid int) *boundPort {
-	return &boundPort{
-		localAddress: localAddress,
-		localPort:    localPort,
-		transport:    transport,
-		processName:  processName,
-		pid:          pid,
-	}
 }
 
 // BoundPorts returns a list of ports that are bound on the host
@@ -84,101 +62,100 @@ func BoundPorts(host *components.RemoteHost) ([]BoundPort, error) {
 	return nil, fmt.Errorf("unsupported OS type: %v", os)
 }
 
+// parseHostPort parses a host:port string into a host address and port number
+// EXAMPLE: 127.0.0.1:45917
+// EXAMPLE: [::]:45917
 func parseHostPort(address string) (string, int, error) {
-	matches := hostPortRegex.FindStringSubmatch(address)
+	re := regexp.MustCompile(`(?P<Address>.+):(?P<Port>\d+)`)
+	matches := re.FindStringSubmatch(address)
 	if len(matches) != 3 {
-		return "", 0, errors.New("invalid address: address did not match")
+		return "", 0, fmt.Errorf("address did not match")
+	}
+	addressIndex := re.SubexpIndex("Address")
+	portIndex := re.SubexpIndex("Port")
+	hostAddress := matches[addressIndex]
+	port, err := strconv.Atoi(matches[portIndex])
+	if err != nil {
+		return "", 0, fmt.Errorf("port is not a number")
 	}
 
-	localAddress := matches[hostPortRegexAddressIdx]
-	localPort, err := strconv.Atoi(matches[hostPortRegexPortIdx])
-	if err != nil {
-		return "", 0, fmt.Errorf("invalid address: port is not a number")
-	}
-	return localAddress, localPort, nil
+	return hostAddress, port, nil
 }
 
 // FromNetstat parses the output of the netstat command
 func FromNetstat(output string) ([]BoundPort, error) {
 	lines := strings.Split(output, "\n")
-
 	ports := make([]BoundPort, 0)
 	for _, line := range lines {
-		// Skip header lines and anything that isn't TCP/UDP.
-		if !strings.HasPrefix(line, "tcp") && !strings.HasPrefix(line, "udp") {
+		if !strings.Contains(line, "LISTEN") {
 			continue
 		}
-
 		parts := strings.Fields(line)
-		if len(parts) < 6 {
-			return nil, fmt.Errorf("unexpected netstat output (too few columns): %s", line)
+		if len(parts) < 7 {
+			return nil, fmt.Errorf("unexpected netstat output: %s", line)
 		}
 
-		transport := parts[0]
-		localAddress, localPort, err := parseHostPort(parts[3])
+		address, port, err := parseHostPort(parts[3])
 		if err != nil {
-			return nil, fmt.Errorf("unexpected netstat output (invalid host address '%s'): %w", parts[3], err)
-		}
-
-		// Figure out what column the process detail starts in.
-		//
-		// For TCP sockets, there's a "State" column which will have a value, but this will be empty for UDP,
-		// so we need to go past that column if we're dealing with TCP.
-		programIdx := 5
-		if strings.HasPrefix(transport, "tcp") {
-			programIdx = 6
+			return nil, fmt.Errorf("unexpected netstat output: %s", line)
 		}
 
 		// EXAMPLE: 15296/node
-		program := parts[programIdx]
+		program := parts[6]
 		programParts := strings.Split(program, "/")
 		pid, err := strconv.Atoi(programParts[0])
 		if err != nil {
-			return nil, fmt.Errorf("unexpected netstat output (invalid PID): %s", line)
+			return nil, fmt.Errorf("unexpected netstat output: %s", line)
 		}
-
-		processName := programParts[1]
-
-		ports = append(ports, newBoundPort(localAddress, localPort, transport, processName, pid))
+		ports = append(ports, &boundPort{
+			localAddress: address,
+			localPort:    port,
+			processName:  programParts[1],
+			pid:          pid,
+		})
 	}
 	return ports, nil
 }
 
 // FromSs parses the output of the ss command
 func FromSs(output string) ([]BoundPort, error) {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-
+	lines := strings.Split(output, "\n")
 	ports := make([]BoundPort, 0)
 	for _, line := range lines {
-		// Skip header lines and anything that isn't TCP/UDP.
-		if !strings.HasPrefix(line, "tcp") && !strings.HasPrefix(line, "udp") {
+		if !strings.Contains(line, "LISTEN") {
 			continue
 		}
-
 		parts := strings.Fields(line)
-		if len(parts) < 7 {
-			return nil, fmt.Errorf("unexpected ss output (too few columns): %s", line)
+		if len(parts) < 6 {
+			return nil, fmt.Errorf("unexpected ss output: %s", line)
 		}
 
-		transport := parts[0]
-		localAddress, localPort, err := parseHostPort(parts[4])
+		address, port, err := parseHostPort(parts[3])
 		if err != nil {
-			return nil, fmt.Errorf("unexpected netstat output (invalid host address '%s'): %w", parts[4], err)
+			return nil, fmt.Errorf("unexpected ss output: %s", line)
 		}
 
 		// EXAMPLE: users:(("node",pid=15296,fd=18))
-		programMatches := ssUserRegex.FindAllStringSubmatch(parts[6], -1)
-		for _, programMatch := range programMatches {
-			if len(programMatch) < 3 {
-				return nil, fmt.Errorf("unexpected ss output (invalid program value): %s", line)
+		program := parts[5]
+		matches := ssUserRegex.FindAllStringSubmatch(program, -1)
+		processIndex := ssUserRegex.SubexpIndex("Process")
+		pidIndex := ssUserRegex.SubexpIndex("PID")
+		for _, match := range matches {
+			if len(match) < 3 {
+				return nil, fmt.Errorf("unexpected ss output: %s", line)
 			}
-			processName := programMatch[ssUserRegexProcessIdx]
-			pid, err := strconv.Atoi(programMatch[ssUserRegexPidIdx])
+			process := match[processIndex]
+			pid, err := strconv.Atoi(match[pidIndex])
 			if err != nil {
-				return nil, fmt.Errorf("unexpected ss output (invalid PID): %s", line)
+				return nil, fmt.Errorf("unexpected ss output: %s", line)
 			}
 
-			ports = append(ports, newBoundPort(localAddress, localPort, transport, processName, pid))
+			ports = append(ports, &boundPort{
+				localAddress: address,
+				localPort:    port,
+				processName:  process,
+				pid:          pid,
+			})
 		}
 	}
 	return ports, nil

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build e2eunit
+
 package e2e
 
 import (
@@ -15,8 +17,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 type testTypeOutput struct {
@@ -57,7 +60,7 @@ func testRawResources(key, value string) provisioners.RawResources {
 func TestCreateEnv(t *testing.T) {
 	suite := &testSuite{}
 
-	env, envFields, envValues, err := suite.createEnv()
+	env, envFields, envValues, err := environments.CreateEnv[testEnv]()
 	require.NoError(t, err)
 
 	testResources := testRawResources("myWrapper1", "myValue")

@@ -6,8 +6,8 @@
 package components
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )

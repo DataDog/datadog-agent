@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 // Host is a remote host environment.
@@ -197,16 +197,6 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 			unit,
 			h.remote.MustExecute("sudo journalctl -xeu "+unit),
 		)
-	}
-}
-
-// WaitForUnitExited waits for a systemd unit to exit with a specific exit code
-func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
-	for _, unit := range units {
-		assert.Eventually(t, func() bool {
-			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"(code=exited, status=%d/\" <(sudo systemctl status %s)", exitCode, unit))
-			return err == nil
-		}, time.Second*90, time.Second*2, "unit %s did not exit or exit with expected code. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 

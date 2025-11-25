@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -26,7 +27,7 @@ type packageDDOTSuite struct {
 
 func testDDOT(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageDDOTSuite{
-		packageBaseSuite: newPackageSuite("ddot", os, arch, method, awshost.WithoutFakeIntake()),
+		packageBaseSuite: newPackageSuite("ddot", os, arch, method, awshost.WithRunOptions(scenec2.WithoutFakeIntake())),
 	}
 }
 

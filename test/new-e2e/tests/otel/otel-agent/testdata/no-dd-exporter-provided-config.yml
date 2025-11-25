@@ -33,9 +33,6 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
-    orchestrator_explorer:
-      cluster_name: ""
-      enabled: false
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -70,9 +67,9 @@ exporters:
     sending_queue:
       batch: null
       block_on_overflow: false
-      enabled: false
+      enabled: true
       num_consumers: 10
-      queue_size: 1000
+      queue_size: 1
       sizer: {}
       storage: null
       wait_for_result: false
