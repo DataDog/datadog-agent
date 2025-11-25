@@ -97,9 +97,10 @@ var columnNames = []string{
 
 // Constants for type column
 const (
-	metricCount = 0x01
-	metricRate  = 0x02
-	metricGauge = 0x03
+	metricCount  = 0x01
+	metricRate   = 0x02
+	metricGauge  = 0x03
+	metricSketch = 0x04
 
 	valueZero    int64 = 0x00
 	valueSint64  int64 = 0x10
@@ -107,6 +108,10 @@ const (
 	valueFloat64 int64 = 0x30
 
 	flagNoIndex = 0x100
+)
+
+const (
+	resourceTypeHost = "host"
 )
 
 type payloadsBuilderV3 struct {
@@ -299,7 +304,7 @@ func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
 
 	if serie.Host != "" {
 		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
-			Type: "host",
+			Type: resourceTypeHost,
 			Name: serie.Host,
 		})
 	}
@@ -463,6 +468,92 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	}
 }
 
+func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
+	if !pb.pipelineConfig.Filter.Filter(sketch) {
+		return nil
+	}
+
+	if ok, err := pb.checkPointsLimit(len(sketch.Points)); !ok {
+		return err
+	}
+
+	for {
+		pb.writeSketchToTxn(sketch)
+		err := pb.finishTxn(len(sketch.Points))
+		if err == errRetry {
+			continue
+		}
+		return err
+	}
+}
+
+func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
+	pb.txn.Reset()
+
+	pb.resourcesBuf = pb.resourcesBuf[:0]
+	if sketch.Host != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: resourceTypeHost,
+			Name: sketch.Host,
+		})
+	}
+
+	pb.writeMetricCommon(
+		sketch.Name,
+		sketch.Tags,
+		0,
+		"",
+		sketch.Source,
+		len(sketch.Points),
+	)
+
+	valueType := valueZero
+	for _, pnt := range sketch.Points {
+		valueType = max(valueType,
+			pointValueType(pnt.Sketch.Basic.Sum),
+			pointValueType(pnt.Sketch.Basic.Min),
+			pointValueType(pnt.Sketch.Basic.Max))
+	}
+
+	typeValue := valueType | metricSketch
+	if sketch.NoIndex {
+		typeValue |= flagNoIndex
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	for _, pnt := range sketch.Points {
+		pb.writePointCommon(pnt.Ts)
+
+		switch valueType {
+		case valueZero:
+		case valueSint64:
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Max))
+		case valueFloat32:
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Sum))
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Min))
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Max))
+		case valueFloat64:
+			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Sum)
+			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Min)
+			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Max)
+		}
+
+		// can share column with sum, min max, if so, cnt must be last.
+		pb.txn.Sint64(columnValueSint64, pnt.Sketch.Basic.Cnt)
+
+		k, n := pnt.Sketch.Cols()
+		deltaEncode(k)
+		for i := range k {
+			pb.txn.Sint64(columnSketchBinKeys, int64(k[i]))
+			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
+		}
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
+	}
+}
+
 type deltaEncoder struct {
 	prev int64
 }
@@ -477,7 +568,7 @@ func (de *deltaEncoder) reset() {
 	de.prev = 0
 }
 
-func deltaEncode(v []int64) {
+func deltaEncode[T int32 | int64](v []T) {
 	if len(v) < 2 {
 		return
 	}
