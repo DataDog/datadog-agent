@@ -3713,11 +3713,11 @@ api_key:
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
 
-## @param kubelet_cache_pods_duration - integer - optional - default: 5
-## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
+## @param kubelet_cache_pods_duration - integer - optional - default: 0
+## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 0
 ## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
 #
-# kubelet_cache_pods_duration: 5
+# kubelet_cache_pods_duration: 0
 
 ## @param kubernetes_pod_expiration_duration - integer - optional - default: 900
 ## @env DD_KUBERNETES_POD_EXPIRATION_DURATION - integer - optional - default: 900
