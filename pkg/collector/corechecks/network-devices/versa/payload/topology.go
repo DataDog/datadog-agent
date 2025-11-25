@@ -6,164 +6,81 @@ import (
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 
-// func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
-// 	if store == nil {
-// 		// it's expected that the value store is nil if we can't reach the device
-// 		// in that case, we just return a nil slice.
-// 		return nil
-// 	}
-
-// 	links := buildNetworkTopologyMetadataWithLLDP(deviceID, store, interfaces)
-// 	if len(links) == 0 {
-// 		links = buildNetworkTopologyMetadataWithCDP(deviceID, store, interfaces)
-// 	}
-// 	return links
-// }
-
 // GetDeviceMetadataFromAppliances process devices API payloads to build metadata
-func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, ifaces []client.Interface) ([]devicemetadata.TopologyLinkMetadata, error) {
-	log.Tracef("GetTopologyMetadata called")
-	return []devicemetadata.TopologyLinkMetadata{}, nil
+func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, appliances []client.Appliance) ([]devicemetadata.TopologyLinkMetadata, error) {
 
 	var links []devicemetadata.TopologyLinkMetadata
 
-	for _, strIndex := range indexes {
-		indexElems := strings.Split(strIndex, ".")
+	for _, device := range appliances {
+		device_id := buildDeviceID(namespace, device.IPAddress)
 
-		// The lldpRemEntry index is composed of those 3 elements separate by `.`: lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex
-		if len(indexElems) != 3 {
-			log.Debugf("Expected 3 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
-			continue
-		}
-		// TODO: Handle TimeMark at indexElems[0] if needed later
-		//       See https://www.rfc-editor.org/rfc/rfc2021
+		// Build topology data for the local device, and the remote device that is connected
+		local = generate_local_side(device_id, device_name: device.Name, device_description: device.Description, device_ip: device.IPAddress)
+		remote = generate_remote_side()
 
-		localPortNum := indexElems[1]
-		lldpRemIndex := indexElems[2]
-
-		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
-		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
-
-		remoteInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_remote.interface_id_type", strIndex)]
-		remoteInterfaceID := formatID(remoteInterfaceIDType, store, "lldp_remote.interface_id", strIndex)
-
-		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
-		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
-
-		resolvedLocalInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
-
-		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
-		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
-		remEntryUniqueID := localPortNum + "." + lldpRemIndex
-
-		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:          deviceID + ":" + remEntryUniqueID,
-			SourceType:  topologyLinkSourceTypeLLDP,
-			Integration: common.SnmpIntegrationName,
-			Remote: &devicemetadata.TopologyLinkSide{
-				Device: &devicemetadata.TopologyLinkDevice{
-					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
-					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
-					ID:          remoteDeviceID,
-					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
-				},
-				Interface: &devicemetadata.TopologyLinkInterface{
-					ID:          remoteInterfaceID,
-					IDType:      remoteInterfaceIDType,
-					Description: store.GetColumnAsString("lldp_remote.interface_desc", strIndex),
-				},
-			},
-			Local: &devicemetadata.TopologyLinkSide{
-				Interface: &devicemetadata.TopologyLinkInterface{
-					DDID:   resolvedLocalInterfaceID,
-					ID:     localInterfaceID,
-					IDType: localInterfaceIDType,
-				},
-				Device: &devicemetadata.TopologyLinkDevice{
-					DDID: deviceID,
-				},
-			},
+		newLink := TopologyLinkMetadata{
+			id=generate_topology_link_id(local_device_id, local_port_id, remote_port_id),
+            source_type="",
+            integration="versa",
+            local=local
+            remote=remote
 		}
 		links = append(links, newLink)
 	}
-	return links
+
+	return links, nil
 }
 
-
-func doInFuncAbove(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
-
-	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
-
-	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
-
-	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
-	if len(indexes) == 0 {
-		log.Debugf("Unable to build links metadata: no lldp_remote indexes found")
-		return nil
-	}
-	sort.Strings(indexes)
-	var links []devicemetadata.TopologyLinkMetadata
-
-	for _, strIndex := range indexes {
-		indexElems := strings.Split(strIndex, ".")
-
-		// The lldpRemEntry index is composed of those 3 elements separate by `.`: lldpRemTimeMark, lldpRemLocalPortNum, lldpRemIndex
-		if len(indexElems) != 3 {
-			log.Debugf("Expected 3 index elements, but got %d, index=`%s`", len(indexElems), strIndex)
-			continue
+func generate_local_side(local_device_id string, ) {
+	return TopologyLinkSide{
+        device=TopologyLinkDevice(dd_id=device_id),
+        interface=TopologyLinkInterface{
+            dd_id=generate_interface_dd_id(),
+            id=,
+            id_type="",
 		}
-		// TODO: Handle TimeMark at indexElems[0] if needed later
-		//       See https://www.rfc-editor.org/rfc/rfc2021
-
-		localPortNum := indexElems[1]
-		lldpRemIndex := indexElems[2]
-
-		remoteDeviceIDType := lldp.ChassisIDSubtypeMap[store.GetColumnAsString("lldp_remote.chassis_id_type", strIndex)]
-		remoteDeviceID := formatID(remoteDeviceIDType, store, "lldp_remote.chassis_id", strIndex)
-
-		remoteInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_remote.interface_id_type", strIndex)]
-		remoteInterfaceID := formatID(remoteInterfaceIDType, store, "lldp_remote.interface_id", strIndex)
-
-		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
-		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
-
-		resolvedLocalInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
-
-		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
-		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
-		remEntryUniqueID := localPortNum + "." + lldpRemIndex
-
-		newLink := devicemetadata.TopologyLinkMetadata{
-			ID:          deviceID + ":" + remEntryUniqueID,
-			SourceType:  topologyLinkSourceTypeLLDP,
-			Integration: common.SnmpIntegrationName,
-			Remote: &devicemetadata.TopologyLinkSide{
-				Device: &devicemetadata.TopologyLinkDevice{
-					Name:        store.GetColumnAsString("lldp_remote.device_name", strIndex),
-					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
-					ID:          remoteDeviceID,
-					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
-				},
-				Interface: &devicemetadata.TopologyLinkInterface{
-					ID:          remoteInterfaceID,
-					IDType:      remoteInterfaceIDType,
-					Description: store.GetColumnAsString("lldp_remote.interface_desc", strIndex),
-				},
-			},
-			Local: &devicemetadata.TopologyLinkSide{
-				Interface: &devicemetadata.TopologyLinkInterface{
-					DDID:   resolvedLocalInterfaceID,
-					ID:     localInterfaceID,
-					IDType: localInterfaceIDType,
-				},
-				Device: &devicemetadata.TopologyLinkDevice{
-					DDID: deviceID,
-				},
-			},
 		}
-		links = append(links, newLink)
-	}
-	return links
+}
+
+func generate_remote_side() {
+	// Check if the device is monitored by Datadog, if it is, can use a DD ID
+	remote_device_dd_id = None
+    if remote_device:
+        remote_device_dd_id = remote_device.serial
+
+    return TopologyLinkSide(
+        device=TopologyLinkDevice(
+            dd_id=remote_device_dd_id,
+            name=sys_name,
+            description=sys_desc,
+            id=id,
+            id_type=id_type,
+            ip_address=ip_addr,
+        ),
+        interface=generate_remote_interface(remote_device, port_id, port_desc)
+}
+
+func generate_remote_interface(remote_device client.Device, port_id string, port_desc string) {
+	
+	remote_interface = TopologyLinkInterface{id=f"Port {port_id}", id_type="interface_name", description=port_desc}
+    
+	if remote_device:
+        remote_interface_dd_id, ok = generate_interface_dd_id()
+
+        if ok:
+            remote_interface = TopologyLinkInterface{dd_id=remote_interface_dd_id}
+        else:
+            remote_interface = TopologyLinkInterface{id=, id_type=""}
+
+    return remote_interface
+}
+
+// generate_interface_dd_id returns the Datadog ID for the interface, error indicates the interface does not resolve to device that is monitored by Datadog
+func generate_interface_dd_id() (id string, error) {
+
+	return nil, errors.New("Not a Datadog monitored device")
+}
+
+func generate_topology_link_id(local_device_id string, local_port_id string, remote_port_id string) string {
+	return f"{local_device_id}:{local_port_id}.{remote_port_id}"
 }

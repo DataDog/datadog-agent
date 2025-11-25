@@ -206,11 +206,11 @@ func (v *VersaCheck) Run() error {
 	// UPDATE HERE TO GET TOPOLOGY METADATA
 	var topologyMetadata []devicemetadata.TopologyLinkMetadata
 	log.Infof("SendTopologyMetadata config value: %v", *v.config.SendTopologyMetadata)
-	
+
 	// Get topology link metadata
 	if *v.config.SendTopologyMetadata {
 		var err error
-		topologyMetadata, err = payload.GetTopologyMetadata()
+		topologyMetadata, err = payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, interfaces)
 		if err != nil {
 			if len(topologyMetadata) == 0 {
 				log.Errorf("failed to parse all topology metadata: %v", err)
