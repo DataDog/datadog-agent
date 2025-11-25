@@ -34,6 +34,11 @@ issues:
     - "`context` is unused"
     - "`id` is unused"
   exclude-rules:
+    # Disable revive for the privateactionrunner package
+    - path: pkg/privateactionrunner/.*
+      linters:
+        - revive
+        
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
