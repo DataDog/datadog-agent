@@ -551,10 +551,10 @@ cc_binary(
             # to the command line.
             # By passing our openssl headers through copts it gets prepended and ensures our
             # openssl version takes precedence
-            select({
+            (select({
                 "@@//:macos_x86_64": ["-Ibazel-out/darwin_x86_64-fastbuild/bin/external/+_repo_rules+openssl/openssl/include"],
                 "//conditions:default": [""],
-            }) if name in ["_ssl", "_hashlib"] else [],
+            }) if name in ["_ssl", "_hashlib"] else []),
         textual_hdrs = info.get('textual_hdrs', []),
     )
     for name, info in PYTHON_MODULES.items()
