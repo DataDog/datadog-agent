@@ -73,6 +73,11 @@ func (a *NullAuditor) Stop() {
 	a.stopChannel <- struct{}{}
 }
 
+// Flush is a no-op for the null auditor as there's nothing to flush
+func (a *NullAuditor) Flush() {
+	// No-op
+}
+
 // Channel returns the channel messages should be sent on
 func (a *NullAuditor) Channel() chan *message.Payload {
 	return a.channel

@@ -130,7 +130,6 @@ func TestActionsController(t *testing.T) {
 	assert.Equal(t, "pass", instance["sasl_plain_password"])
 	assert.Equal(t, "SASL_SSL", instance["security_protocol"])
 
-	// Check that run_once was injected
 	assert.Equal(t, true, instance["run_once"])
 
 	// Check that remote_config_id was injected

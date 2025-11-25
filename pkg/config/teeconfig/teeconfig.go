@@ -161,6 +161,14 @@ func (t *teeConfig) IsConfigured(key string) bool {
 	return base
 }
 
+// HasSection returns true if the section exists in the config
+func (t *teeConfig) HasSection(key string) bool {
+	base := t.baseline.HasSection(key)
+	compare := t.compare.HasSection(key)
+	t.compareResult(key, "HasSection", base, compare)
+	return base
+}
+
 func (t *teeConfig) AllKeysLowercased() []string {
 	base := t.baseline.AllKeysLowercased()
 	compare := t.compare.AllKeysLowercased()
