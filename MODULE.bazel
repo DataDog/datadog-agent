@@ -160,3 +160,5 @@ include("//deps/libpcap:libpcap.MODULE.bazel")
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "1.23.1")
+
+use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")
