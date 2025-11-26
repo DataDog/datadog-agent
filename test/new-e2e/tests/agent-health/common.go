@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package agenthealth provides end-to-end tests for the Agent Health Platform feature.
 package agenthealth
 
 import (
