@@ -17,8 +17,14 @@ bazel:build-deps:linux-arm64:
 
 bazel:build-deps:macos-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
-  script:
-    - bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64
+  script: |
+    export START=$(date '+%s%N' | cut -b1-13)
+    bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64
+    datadog-ci trace span --name "build_c_deps" --start-time "$START" --end-time $(date '+%s%N' | cut -b1-13) --tags plaatform:macos_x86_64
+    echo # How do I add `--tags platform:macos_x86_64`
+    echo # datadog-ci-start-section Build_C_deps
+    echo # datadog-ci trace span --name "$name" --start-time "$datestart" --end-time "$dateend" --tags agent-custom-span:true $category
+    echo # datadog-ci-end-section Build_C_deps
 
 bazel:build-deps:macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
@@ -31,4 +37,3 @@ bazel:build-deps:windows-amd64:
     POWERSHELL_SCRIPT: |-
       [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
       bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' --platforms=//bazel/platforms:windows_x86_64
-      # bazel build @bzip2//...
