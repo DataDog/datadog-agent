@@ -67,9 +67,6 @@ type Installer interface {
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
 
-	GetRunningVersions(ctx context.Context) (map[string]string, error)
-	GetRunningConfigVersions(ctx context.Context) (map[string]string, error)
-
 	Close() error
 }
 
@@ -747,16 +744,6 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
-}
-
-// GetRunningVersions returns the running versions of all packages.
-func (i *installerImpl) GetRunningVersions(ctx context.Context) (map[string]string, error) {
-	return map[string]string{}, nil
-}
-
-func (i *installerImpl) GetRunningConfigVersions(ctx context.Context) (map[string]string, error) {
-	// TODO
-	return map[string]string{}, nil
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller

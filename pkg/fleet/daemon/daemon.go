@@ -753,22 +753,12 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if err != nil {
 		log.Errorf("could not get tasks state: %v", err)
 	}
-	runningVersions, err := d.installer(d.env).GetRunningVersions(ctx)
-	if err != nil {
-		log.Errorf("could not get running versions: %v", err)
-	}
-	runningConfigVersions, err := d.installer(d.env).GetRunningConfigVersions(ctx)
-	if err != nil {
-		log.Errorf("could not get running config versions: %v", err)
-	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
 			Package:                 pkg,
 			StableVersion:           s.Stable,
 			ExperimentVersion:       s.Experiment,
-			RunningVersion:          runningVersions[pkg],
-			RunningConfigVersion:    runningConfigVersions[pkg],
 			StableConfigVersion:     configState[pkg].Stable,
 			ExperimentConfigVersion: configState[pkg].Experiment,
 		}
