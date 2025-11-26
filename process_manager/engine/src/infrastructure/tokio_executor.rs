@@ -426,10 +426,13 @@ impl TokioProcessExecutor {
     ///
     /// Ambient capabilities are preserved across execve() and setuid(), allowing
     /// unprivileged processes to retain specific capabilities.
+    ///
+    /// To set an ambient capability, it must first be in BOTH the permitted AND
+    /// inheritable sets. We use caps::raise() to add individual capabilities
+    /// rather than caps::set() which replaces the entire set.
     #[cfg(target_os = "linux")]
     fn apply_ambient_capabilities(capabilities: &[String]) -> std::io::Result<()> {
         use caps::{CapSet, Capability};
-        use std::collections::HashSet;
 
         for cap_str in capabilities {
             // Parse capability string (e.g., "CAP_NET_BIND_SERVICE")
@@ -441,30 +444,29 @@ impl TokioProcessExecutor {
             })?;
 
             // To set ambient capabilities, we need to:
-            // 1. Add to permitted set
-            // 2. Add to inheritable set
-            // 3. Add to ambient set
-            let mut cap_set = HashSet::new();
-            cap_set.insert(capability);
-
-            caps::set(None, CapSet::Permitted, &cap_set).map_err(|e| {
+            // 1. Ensure capability is in permitted set (raise, not replace)
+            // 2. Ensure capability is in inheritable set (raise, not replace)
+            // 3. Raise the ambient capability
+            //
+            // Using raise() adds to existing set; set() would replace entirely
+            caps::raise(None, CapSet::Permitted, capability).map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
-                    format!("Failed to set {} in permitted set: {}", cap_str, e),
+                    format!("Failed to raise {} in permitted set: {}", cap_str, e),
                 )
             })?;
 
-            caps::set(None, CapSet::Inheritable, &cap_set).map_err(|e| {
+            caps::raise(None, CapSet::Inheritable, capability).map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
-                    format!("Failed to set {} in inheritable set: {}", cap_str, e),
+                    format!("Failed to raise {} in inheritable set: {}", cap_str, e),
                 )
             })?;
 
-            caps::set(None, CapSet::Ambient, &cap_set).map_err(|e| {
+            caps::raise(None, CapSet::Ambient, capability).map_err(|e| {
                 std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
-                    format!("Failed to set {} in ambient set: {}", cap_str, e),
+                    format!("Failed to raise {} in ambient set: {}", cap_str, e),
                 )
             })?;
 
@@ -474,8 +476,9 @@ impl TokioProcessExecutor {
         Ok(())
     }
 
-    /// Stub for non-Linux platforms
+    /// Stub for non-Linux platforms (ambient capabilities only work on Linux)
     #[cfg(not(target_os = "linux"))]
+    #[allow(dead_code)]
     fn apply_ambient_capabilities(_capabilities: &[String]) -> std::io::Result<()> {
         Ok(())
     }
@@ -587,10 +590,12 @@ impl ProcessExecutor for TokioProcessExecutor {
         #[cfg(unix)]
         {
             let use_rlimit = !self.cgroup_available && config.resource_limits.has_limits();
+            #[cfg(target_os = "linux")]
             let has_capabilities = !config.ambient_capabilities.is_empty();
 
             // Always use pre_exec to create a new session (for process group management)
             let limits = config.resource_limits.clone();
+            #[cfg(target_os = "linux")]
             let capabilities = config.ambient_capabilities.clone();
             let socket_fds = config.listen_fds.clone(); // Socket FDs for socket activation
             let has_socket_fds = !socket_fds.is_empty();

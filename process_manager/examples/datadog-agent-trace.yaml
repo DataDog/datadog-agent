@@ -43,7 +43,10 @@ environment_file: -/etc/datadog-agent/environment
 env:
   DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
 
-# Note: ambient_capabilities removed - causes "Invalid argument" error on some systems
+# Ambient capabilities (systemd AmbientCapabilities=)
+# Allows binding to privileged ports (< 1024) when running as non-root
+ambient_capabilities:
+  - CAP_NET_BIND_SERVICE
 
 # Ordering (systemd After=)
 # This process starts after the main agent
