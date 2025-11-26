@@ -17,8 +17,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.37.0
-	golang.org/x/text v0.30.0
+	golang.org/x/sys v0.38.0
+	golang.org/x/text v0.31.0
 	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -32,8 +32,8 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.46.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
@@ -114,6 +114,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
@@ -154,6 +155,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics => ../../../pkg/opentelemetry-mapping-go/otlp/metrics
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum => ../../../pkg/opentelemetry-mapping-go/otlp/rum
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model => ../../../pkg/orchestrator/model
+	github.com/DataDog/datadog-agent/pkg/orchestrator/util => ../../../pkg/orchestrator/util
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ../../../pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
@@ -202,6 +204,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/uuid => ../../../pkg/util/uuid
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
 	github.com/DataDog/datadog-agent/pkg/version => ../../../pkg/version
+	github.com/DataDog/datadog-agent/test/e2e-framework => ../../../test/e2e-framework
 	github.com/DataDog/datadog-agent/test/fakeintake => ../../../test/fakeintake
 	github.com/DataDog/datadog-agent/test/new-e2e => ../../../test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ../../../test/otel

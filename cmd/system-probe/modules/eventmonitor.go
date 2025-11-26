@@ -15,7 +15,6 @@ import (
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
-	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -74,15 +73,6 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 		evm.RegisterEventConsumer(network)
 		log.Info("event monitoring network consumer initialized")
-	}
-
-	if emconfig.ProcessConsumerEnabled {
-		process, err := procconsumer.NewProcessConsumer(evm)
-		if err != nil {
-			return nil, err
-		}
-		evm.RegisterEventConsumer(process)
-		log.Info("event monitoring process-agent consumer initialized")
 	}
 
 	netconfig := netconfig.New()

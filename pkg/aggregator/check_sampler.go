@@ -34,10 +34,20 @@ type CheckSampler struct {
 	deregistered           bool
 	contextResolverMetrics bool
 	logThrottling          util.SimpleThrottler
+	allowSketchBucketReset bool
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMetrics bool, statefulTimeout time.Duration, cache *tags.Store, id checkid.ID, tagger tagger.Component) *CheckSampler {
+func newCheckSampler(
+	expirationCount int,
+	expireMetrics bool,
+	contextResolverMetrics bool,
+	statefulTimeout time.Duration,
+	allowSketchBucketReset bool,
+	cache *tags.Store,
+	id checkid.ID,
+	tagger tagger.Component,
+) *CheckSampler {
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
@@ -48,6 +58,7 @@ func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMet
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
+		allowSketchBucketReset: allowSketchBucketReset,
 	}
 }
 
@@ -115,7 +126,14 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 			return
 		}
 
-		bucket.Value = rawValue - lastBucketValue
+		// Handle reset for monotonic buckets.
+		if rawValue < lastBucketValue && cs.allowSketchBucketReset {
+			if !bucket.FlushFirstValue {
+				return
+			}
+		} else {
+			bucket.Value = rawValue - lastBucketValue
+		}
 	}
 
 	if bucket.Value < 0 {
@@ -124,6 +142,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket) {
 		}
 		return
 	}
+
 	if bucket.Value == 0 {
 		// noop
 		return

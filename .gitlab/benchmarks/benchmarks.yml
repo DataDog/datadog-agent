@@ -25,5 +25,3 @@ benchmark:
     paths:
       - artifacts/
     expire_in: 3 months
-  variables:
-    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"

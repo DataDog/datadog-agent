@@ -38,6 +38,15 @@ dda bzl run //bazel/buildifier
 bazel run //bazel/buildifier
 ```
 
+### Lock file maintenance
+
+`MODULE.bazel.lock` must exhaustively reflect actually used dependencies. After updating any `bazel` dependency, such as
+with `bazel_dep` in a `MODULE.bazel` file, please run:
+
+```sh
+bazel mod deps
+```
+
 ### Remote cache (internal to Datadog)
 
 If you are on the Datadog internal network and want to take advantage of the remote cache, simply add the following line

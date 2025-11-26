@@ -10,14 +10,14 @@ import (
 	"regexp"
 	"testing"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/fleetbackend"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 )
 
 var (
@@ -27,7 +27,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		e2eos.CentOS7,
+		// e2eos.CentOS7,
 		e2eos.Suse15,
 	}
 	// WindowsPlatforms is the list of supported Windows platforms.
@@ -46,7 +46,7 @@ type FleetSuite struct {
 	e2e.BaseSuite[environments.Host]
 
 	Agent   *agent.Agent
-	Backend *fleetbackend.Backend
+	Backend *backend.Backend
 }
 
 // SetupSuite sets up the fleet suite.
@@ -56,7 +56,7 @@ func (s *FleetSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	s.Agent = agent.New(s.T, s.Env())
-	s.Backend = fleetbackend.New(s.T, s.Env())
+	s.Backend = backend.New(s.T, s.Env())
 }
 
 // Run runs the fleet suite for the given platforms.

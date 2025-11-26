@@ -100,10 +100,9 @@ type ContainerContext struct {
 	Resolved    bool                       `field:"-"`
 }
 
-// Key returns a unique key for the entity
-func (c *ContainerContext) Key() (string, bool) {
-	cID := string(c.ContainerID)
-	return cID, cID != ""
+// Hash returns a unique key for the entity
+func (c *ContainerContext) Hash() string {
+	return string(c.ContainerID)
 }
 
 // ParentScope returns the parent entity scope
@@ -353,13 +352,18 @@ func (e *Event) GetProcessTracerTags() []string {
 // Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
 	ID          uint64 `field:"id"`           // SECLDoc[id] Definition:`Unique identifier of the user session on the host`
-	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session`
+	SessionType int    `field:"session_type"` // SECLDoc[session_type] Definition:`Type of the user session` Constants:`UserSessionTypes`
 	Resolved    bool   `field:"-"`
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
 	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
 	K8SExtra    map[string][]string `json:"extra,omitempty"`
+	// SSH User Session context
+	SSHPort       int       `field:"ssh_port,handler:ResolveSSHPort" json:"port,omitempty"`               // SECLDoc[ssh_port] Definition:`SSH port of the user that executed the process`
+	SSHClientIP   net.IPNet `field:"ssh_client_ip,handler:ResolveSSHClientIP" json:"client_ip,omitempty"` // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
+	SSHAuthMethod int       `field:"ssh_auth_method" json:"auth_method,omitempty"`                        // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`
+	SSHPublicKey  string    `field:"ssh_public_key" json:"public_key,omitempty"`                          // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
 }
 
 // MatchedRule contains the identification of one rule that has match

@@ -18,6 +18,7 @@ type Expression struct {
 
 var (
 	_ ExpressionOp = (*LocationOp)(nil)
+	_ ExpressionOp = (*DereferenceOp)(nil)
 )
 
 // ExpressionOp is an operation that can be performed on an expression.
@@ -39,5 +40,16 @@ type LocationOp struct {
 }
 
 func (*LocationOp) irOp() {}
+
+// DereferenceOp dereferences a pointer and extracts data at an offset.
+type DereferenceOp struct {
+	// Bias is the offset in bytes to apply to the dereferenced address.
+	Bias uint32
+
+	// ByteSize is the size in bytes to extract after dereferencing.
+	ByteSize uint32
+}
+
+func (*DereferenceOp) irOp() {}
 
 // TODO: Define expressions as needed for probe generation.

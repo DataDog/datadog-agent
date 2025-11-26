@@ -79,13 +79,15 @@ func BenchmarkSeries(b *testing.B) {
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
 	pb := func(series metrics.Series) (transaction.BytesPayloads, error) {
 		iterableSeries := metricsserializer.CreateIterableSeries(metricsserializer.CreateSerieSource(series))
-		pipeline := []metricsserializer.Pipeline{{
-			FilterFunc: func(_ metricsserializer.Filterable) bool {
-				return true
-			},
-			Destination: transaction.AllRegions,
-		}}
-		return iterableSeries.MarshalSplitCompressPipelines(mockConfig, compressor, pipeline)
+		pipelineConfig := metricsserializer.PipelineConfig{
+			Filter: metricsserializer.AllowAllFilter{},
+		}
+		pipelines := metricsserializer.PipelineSet{pipelineConfig: {}}
+		err := iterableSeries.MarshalSplitCompressPipelines(mockConfig, compressor, pipelines)
+		if err != nil {
+			return nil, err
+		}
+		return pipelines.GetPayloads(), nil
 	}
 
 	payloadBuilder := stream.NewJSONPayloadBuilder(true, mockConfig, compressor, logmock.New(b))

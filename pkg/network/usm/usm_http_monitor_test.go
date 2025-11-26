@@ -175,6 +175,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
+				time.Sleep(time.Second)
 				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
 						if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {

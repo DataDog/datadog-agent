@@ -268,7 +268,7 @@ def run(
 
     if shutil.which("pulumi") is None:
         raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/test-infra-definitions/blob/main/README.md)",
+            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/main/README.md)",
             1,
         )
 
@@ -288,7 +288,7 @@ def run(
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
                 to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
-                ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
+                ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
         except Exception as e:

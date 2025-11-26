@@ -25,6 +25,8 @@ var (
 
 	// SeriesEndpoint is the v2 endpoint used to send series
 	SeriesEndpoint = transaction.Endpoint{Route: "/api/v2/series", Name: "series_v2"}
+	// V3SeriesEndpoint is the v3 endpoint used to send series
+	V3SeriesEndpoint = transaction.Endpoint{Route: "/api/v3/series", Name: "series_v3"}
 	// EventsEndpoint is the v2 endpoint used to send events
 	EventsEndpoint = transaction.Endpoint{Route: "/api/v2/events", Name: "events_v2"}
 	// ServiceChecksEndpoint is the v2 endpoint used to send service checks
@@ -38,8 +40,6 @@ var (
 	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
 	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
-	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
-	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "process_lifecycle"}
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
 	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
 	// ContainerEndpoint is a v1 endpoint used to send container checks

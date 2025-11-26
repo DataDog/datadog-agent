@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 )
 
 // FakeIntake represents a FakeIntake instance

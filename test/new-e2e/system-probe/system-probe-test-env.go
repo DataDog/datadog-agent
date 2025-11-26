@@ -21,8 +21,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	"golang.org/x/term"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"

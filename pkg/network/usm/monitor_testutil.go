@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Helper type to wrap & mock Protocols in tests. We keep an instance of the
@@ -114,4 +115,14 @@ func (m *Monitor) SetConnectionProtocol(t *testing.T, p netebpf.ProtocolStackWra
 	connProtocolMap, _, err := m.ebpfProgram.GetMap(probes.ConnectionProtocolMap)
 	require.NoError(t, err)
 	require.NoError(t, connProtocolMap.Update(unsafe.Pointer(&tup), unsafe.Pointer(&p), ebpf.UpdateAny))
+}
+
+// skipIfKernelNotSupported skips the test if the current kernel version is below the minimum required version.
+func skipIfKernelNotSupported(t *testing.T, minimumKernelVersion kernel.Version, protocolName string) {
+	t.Helper()
+	currKernelVersion, err := kernel.HostVersion()
+	require.NoError(t, err)
+	if currKernelVersion < minimumKernelVersion {
+		t.Skipf("%s monitoring can not run on kernel before %v", protocolName, minimumKernelVersion)
+	}
 }

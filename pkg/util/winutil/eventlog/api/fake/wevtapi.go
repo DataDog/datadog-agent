@@ -102,7 +102,7 @@ func (api *API) EvtSubscribe(
 	}
 
 	api.addSubscription(sub)
-	evtlog.subscriptions[sub.handle] = sub
+	evtlog.addSubscriptionWithHandle(sub.handle, sub)
 	return sub.handle, nil
 }
 
@@ -254,13 +254,13 @@ func (api *API) EvtClose(h windows.Handle) {
 	// is handle a bookmark?
 	bookmark, err := api.getBookmarkByHandle(evtapi.EventBookmarkHandle(h))
 	if err == nil {
-		delete(api.bookmarkHandles, bookmark.handle)
+		api.deleteBookmark(bookmark.handle)
 		return
 	}
 	// is handle an event?
 	event, err := api.getEventRecordByHandle(evtapi.EventRecordHandle(h))
 	if err == nil {
-		delete(api.eventHandles, event.handle)
+		api.deleteEventRecord(event.handle)
 		return
 	}
 	// TODO
@@ -268,11 +268,11 @@ func (api *API) EvtClose(h windows.Handle) {
 	sub, err := api.getSubscriptionByHandle(evtapi.EventResultSetHandle(h))
 	if err == nil {
 		eventLog, err := api.getEventLog(sub.channel)
-		if err != nil {
-			return
+		if err == nil {
+			api.deleteSubscription(sub.handle)
+			eventLog.deleteSubscription(sub.handle)
 		}
-		delete(eventLog.subscriptions, sub.handle)
-		delete(api.subscriptions, sub.handle)
+
 		return
 	}
 }
@@ -359,15 +359,14 @@ func (api *API) EvtRenderBookmark(b evtapi.EventBookmarkHandle) ([]uint16, error
 // https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcew
 func (api *API) RegisterEventSource(SourceName string) (evtapi.EventSourceHandle, error) {
 	// find the log the source is registered to
-	for _, log := range api.eventLogs {
-		_, ok := log.sources[SourceName]
-		if ok {
-			// Create a handle
-			h := evtapi.EventSourceHandle(api.nextHandle.Inc())
-			api.sourceHandles[h] = log.name
-			return h, nil
-		}
+	logName, ok := api.tryGetEventLogName(SourceName)
+	if ok {
+		// Create a handle
+		h := evtapi.EventSourceHandle(api.nextHandle.Inc())
+		api.addEventSourceWithHandle(h, logName)
+		return h, nil
 	}
+
 	return evtapi.EventSourceHandle(0), fmt.Errorf("Event source %s not found", SourceName)
 }
 

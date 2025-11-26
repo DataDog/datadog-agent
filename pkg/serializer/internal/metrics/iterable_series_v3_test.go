@@ -53,7 +53,13 @@ func TestPayloadsBuilderV3(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
 
-	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+
+	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	for _, s := range series {
@@ -61,7 +67,7 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		r.NoError(err)
 	}
 	pb.finishPayload()
-	ps := pb.transactionPayloads()
+	ps := pipelineContext.payloads
 	r.Len(ps, 1)
 	r.Equal(205, len(ps[0].GetContent()))
 	r.Equal([]byte{
@@ -130,7 +136,13 @@ func BenchmarkPayloadsBuilderV3(b *testing.B) {
 		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
 		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
 
-	pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+
+	pb, err := newPayloadsBuilderV3(500_000, 2_000_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
 	if err != nil {
 		b.Fatalf("new: %v", err)
 	}
@@ -140,7 +152,7 @@ func BenchmarkPayloadsBuilderV3(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		err = pb.writeSerie(serie)
-		pb.payloads = pb.payloads[:]
+		pipelineContext.payloads = pipelineContext.payloads[:]
 	}
 
 	if err != nil {
@@ -181,8 +193,12 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 			Source:         metrics.MetricSourceCassandra,
 			Points:         []metrics.Point{{Ts: ts, Value: 3.14}}},
 	}
-
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -190,7 +206,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 	r.NoError(pb.writeSerie(series[2]))
 	r.NoError(pb.writeSerie(series[3]))
 	pb.finishPayload()
-	payloads := pb.transactionPayloads()
+	payloads := pipelineContext.payloads
 	r.Len(payloads, 3)
 
 	r.Equal(2, payloads[0].GetPointCount())
@@ -221,14 +237,18 @@ func TestPayloadsBuilderV3_SplitTooBig(t *testing.T) {
 			Points:         []metrics.Point{{Ts: ts, Value: 2}},
 		},
 	}
-
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
 	r.NoError(pb.writeSerie(series[1]))
 	pb.finishPayload()
-	payloads := pb.transactionPayloads()
+	payloads := pipelineContext.payloads
 	r.Len(payloads, 1)
 
 	r.Equal(1, payloads[0].GetPointCount())
@@ -259,7 +279,12 @@ func TestPayloadsBuilderV3_PointsLimit(t *testing.T) {
 		},
 	}
 
-	pb, err := newPayloadsBuilderV3(1000_0000, 1000_000, 10, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+	pb, err := newPayloadsBuilderV3(1000_0000, 1000_000, 10, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -267,7 +292,7 @@ func TestPayloadsBuilderV3_PointsLimit(t *testing.T) {
 	r.NoError(pb.writeSerie(series[2]))
 	r.NoError(pb.writeSerie(series[3]))
 	pb.finishPayload()
-	payloads := pb.transactionPayloads()
+	payloads := pipelineContext.payloads
 	r.Len(payloads, 2)
 	r.Equal(3, payloads[0].GetPointCount())
 	r.Equal(9, payloads[1].GetPointCount())
@@ -280,16 +305,26 @@ func TestPayloadsBuilderV3_ReservedSpace(t *testing.T) {
 		Tags:   tagset.NewCompositeTags([]string{"foo", "bar"}, []string{"ook", "eek"}),
 		Points: []metrics.Point{{Ts: ts, Value: 3.14}}}
 
-	pb, err := newPayloadsBuilderV3(500, 2_000, 10_000, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+	pb, err := newPayloadsBuilderV3(500, 2_000, 10_000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
-	for len(pb.payloads) == 0 {
+	for len(pipelineContext.payloads) == 0 {
 		require.NoError(t, pb.writeSerie(serie))
 	}
 	require.NoError(t, pb.finishPayload())
 }
 
 func TestPayloadsBuilderV3_Tags(t *testing.T) {
-	pb, err := newPayloadsBuilderV3(1000, 1000, 1000, noopimpl.New())
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+	pb, err := newPayloadsBuilderV3(1000, 1000, 1000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 	for _, tags := range [][2][]string{{nil, nil}, {{"t1"}, nil}, {nil, {"t2"}}, {{"t3"}, {"t4"}}} {
 		ct := tagset.NewCompositeTags(tags[0], tags[1])
@@ -306,8 +341,8 @@ func TestPayloadsBuilderV3_Tags(t *testing.T) {
 		require.NoError(t, pb.writeSerie(serie))
 	}
 	require.NoError(t, pb.finishPayload())
-	require.Len(t, pb.payloads, 1)
-	payload := string(pb.payloads[0].GetContent())
+	require.Len(t, pipelineContext.payloads, 1)
+	payload := string(pipelineContext.payloads[0].GetContent())
 	require.Contains(t, payload, "t1")
 	require.Contains(t, payload, "t2")
 	require.Contains(t, payload, "t3")

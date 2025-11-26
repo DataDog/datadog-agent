@@ -414,6 +414,7 @@ func (suite *KubeletTestSuite) TestPodlistCache() {
 	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
 	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
 	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", -1)
+	mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Default is 0. Need to set to > 0 to test cache
 
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs

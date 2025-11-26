@@ -55,6 +55,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "s: d"
   }
 ]

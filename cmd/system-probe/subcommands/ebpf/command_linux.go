@@ -195,22 +195,22 @@ func isPerCPUMap(mapType ebpf.MapType) bool {
 
 // bpfMapInfo mirrors the kernel's bpf_map_info structure fields we need
 type bpfMapInfo struct {
-	mapType                uint32
-	id                     uint32
-	keySize                uint32
-	valueSize              uint32
-	maxEntries             uint32
-	mapFlags               uint32
-	name                   [16]byte
-	ifindex                uint32
-	btfVmlinuxValueTypeID  uint32
-	netnsDev               uint64
-	netnsIno               uint64
-	btfID                  uint32
-	btfKeyTypeID           uint32
-	btfValueTypeID         uint32
-	btfVmlinuxIDUnused     uint32
-	mapExtra               uint64
+	mapType               uint32
+	id                    uint32
+	keySize               uint32
+	valueSize             uint32
+	maxEntries            uint32
+	mapFlags              uint32
+	name                  [16]byte
+	ifindex               uint32
+	btfVmlinuxValueTypeID uint32
+	netnsDev              uint64
+	netnsIno              uint64
+	btfID                 uint32
+	btfKeyTypeID          uint32
+	btfValueTypeID        uint32
+	btfVmlinuxIDUnused    uint32
+	mapExtra              uint64
 }
 
 // getBTFTypeIDsFromSyscall directly calls BPF_OBJ_GET_INFO_BY_FD to get BTF type IDs

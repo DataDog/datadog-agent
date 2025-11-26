@@ -161,8 +161,9 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 // executable to fetch the actual secrets and returns them.
 func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": secrets.PayloadVersion,
-		"secrets": secretsHandle,
+		"version":                secrets.PayloadVersion,
+		"secrets":                secretsHandle,
+		"secret_backend_timeout": r.backendTimeout,
 	}
 	if r.backendType != "" {
 		payload["type"] = r.backendType

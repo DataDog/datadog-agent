@@ -7,16 +7,16 @@
 package gcphost
 
 import (
-	"github.com/DataDog/test-infra-definitions/resources/gcp"
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/compute"
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 

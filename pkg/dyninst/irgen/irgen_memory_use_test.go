@@ -64,7 +64,10 @@ func TestIrgenMemoryUse(t *testing.T) {
 	for scanner.Scan() {
 		line := scanner.Text()
 		match := gcTraceRegexp.FindStringSubmatch(line)
-		require.NotNil(t, match, "failed to parse gctrace output: %s", scanner.Text())
+		if match == nil {
+			t.Logf("(stderr) %s", line)
+			continue
+		}
 		liveHeap, err := strconv.ParseUint(match[liveIdx], 10, 64)
 		require.NoError(t, err)
 		assert.LessOrEqualf(

@@ -70,13 +70,13 @@ func (a *AppService) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for AppService
-func (a *AppService) Init() error {
+func (a *AppService) Init(_ interface{}) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix), 1.0, a.GetSource(), agent)
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix), 1.0, a.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events

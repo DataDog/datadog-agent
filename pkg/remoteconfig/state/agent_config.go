@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-
-	"github.com/pkg/errors"
 )
 
 const agentConfigOrderID = "configuration_order"
@@ -97,7 +95,7 @@ func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), up
 		if len(matched) != 2 {
 			err = fmt.Errorf("config file path '%s' has wrong format", configPath)
 			hasError = true
-			fullErr = errors.Wrap(fullErr, err.Error())
+			fullErr = fmt.Errorf("%s %w", err.Error(), fullErr)
 			applyStatus(configPath, ApplyStatus{
 				State: ApplyStateError,
 				Error: err.Error(),
@@ -113,7 +111,7 @@ func MergeRCAgentConfig(applyStatus func(cfgPath string, status ApplyStatus), up
 			orderFile, err = parseConfigAgentConfigOrder(c.Config, c.Metadata)
 			if err != nil {
 				hasError = true
-				fullErr = errors.Wrap(fullErr, err.Error())
+				fullErr = fmt.Errorf("%s %w", err.Error(), fullErr)
 				applyStatus(configPath, ApplyStatus{
 					State: ApplyStateError,
 					Error: err.Error(),

@@ -24,6 +24,9 @@ type Component interface {
 	// Stop stops the auditor
 	Stop()
 
+	// Flush immediately writes the current registry to disk
+	Flush()
+
 	// Channel returns the channel to use to communicate with the auditor or nil
 	// if the auditor is currently stopped.
 	Channel() chan *message.Payload

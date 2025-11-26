@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Introduce a new Health Platform component that provides a unified way to detect, collect, and report host system health issues. The component runs health checks periodically and exposes telemetry for monitoring detected problems.
+
+enhancements:
+  - |
+    Add Docker log permissions health check that detects when the Agent cannot access container log files due to restrictive filesystem permissions. The check provides remediation guidance and an optional script to fix permission issues.
+
+other:
+  - |
+    Add new telemetry metric ``health_platform.issues_detected`` tagged by ``health_check_id`` to track the number of detected health issues over time.

@@ -22,8 +22,8 @@ import (
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -169,6 +169,10 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 			common.CheckCWSBehaviour(is.T(), VMclient)
 		}
 	}
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+	common.CheckADPEnabled(is.T(), VMclient)
+	time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+	common.CheckADPDisabled(is.T(), VMclient)
 
 	is.T().Run("remove the agent", func(tt *testing.T) {
 		_, err := VMclient.PkgManager.Remove(*flavorName)

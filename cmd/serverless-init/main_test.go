@@ -22,7 +22,6 @@ import (
 
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -49,7 +48,6 @@ func TestTagsSetup(t *testing.T) {
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
-	assert.Subset(t, logs.GetLogsTags(), allTags)
 }
 
 func TestFxApp(t *testing.T) {

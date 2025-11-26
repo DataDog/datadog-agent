@@ -92,6 +92,7 @@ type hostMetadata struct {
 	CloudProviderHostID      string `json:"cloud_provider_host_id"`
 	CanonicalCloudResourceID string `json:"ccrid"`
 	OsVersion                string `json:"os_version"`
+	InstanceType             string `json:"instance-type"`
 
 	// from file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
@@ -261,6 +262,7 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.CanonicalCloudResourceID = cloudproviders.GetHostCCRID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
+	ih.data.InstanceType = cloudproviders.GetInstanceType(context.Background(), cloudProvider)
 
 	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)
 	ih.data.LinuxPackageSigningEnabled = gpgcheck

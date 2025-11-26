@@ -1,7 +1,8 @@
 :: Retrieve the directory from the given input file
 for %%F in (%SRCFILE%) do set sourcedir=%%~dpF
-:: Make sure the destdir is a proper Windows path
+:: Make sure input paths are proper Windows paths as needed
 for %%F in (%OUTDIR%) do set destdir=%%~fF\\
+for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
 

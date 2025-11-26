@@ -296,6 +296,26 @@ probes:
           ref: "a"
         dsl: "a"
     captureSnapshot: true
+  - id: testThreeStringsInStruct_expression_with_dots
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testThreeStringsInStruct
+    template: "{a.a} {a.b} {a.c}"
+    segments:
+      - json:
+          getmember: [{ref: "a"}, "a"]
+        dsl: "a.a"
+      - str: " "
+      - json:
+          getmember: [{ref: "a"}, "b"]
+        dsl: "t.b"
+      - str: " "
+      - json:
+          getmember: [{ref: "a"}, "c"]
+        dsl: "t.c"
+    captureSnapshot: false
   - id: testUnsafePointer
     type: LOG_PROBE
     tags:
@@ -320,6 +340,26 @@ probes:
           ref: "a"
         dsl: "a"
     captureSnapshot: true
+  - id: testThreeStringsInStructPointer_expression_with_dots
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testThreeStringsInStructPointer
+    template: "{a.a} {a.b} {a.c}"
+    segments:
+      - json:
+          getmember: [{ref: "a"}, "a"]
+        dsl: "a.a"
+      - str: " "
+      - json:
+          getmember: [{ref: "a"}, "b"]
+        dsl: "a.b"
+      - str: " "
+      - json:
+          getmember: [{ref: "a"}, "c"]
+        dsl: "a.c"
+    captureSnapshot: false
   - id: testOneStringInStructPointer
     type: LOG_PROBE
     tags:
@@ -332,6 +372,62 @@ probes:
           ref: "a"
         dsl: "a"
     captureSnapshot: true
+  - id: testNestedPointer
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testNestedPointer
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testNestedPointer_expression_with_dots
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testNestedPointer
+    template: "{x.nested.anotherString}"
+    segments:
+      - json:
+          getmember: [{getmember: [{ref: "x"}, "nested"]}, "anotherString"]
+        dsl: "x.nested.anotherString"
+    captureSnapshot: false
+  - id: testNestedPointer_expression_with_dots_low_limit
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testNestedPointer
+    template: "{x.nested}"
+    segments:
+      - json:
+          getmember: [{ref: "x"}, "nested"]
+        dsl: "x.nested"
+    captureSnapshot: false
+    capture:
+      depthLimit: 1
+  - id: testNestedPointer_expression_with_dots_bad_expr
+    type: LOG_PROBE
+    where:
+      methodName: main.testNestedPointer
+    template: "{x.nested.anotherString.anotherInt} {x.notAMember}"
+    segments:
+      - json:
+          getmember:
+          - {getmember: [{getmember: [{ref: "x"}, "nested"]}, "anotherString"]}
+          - "anotherInt"
+        dsl: "x.nested.anotherString.anotherInt"
+      - str: " "
+      - json:
+          getmember: [{ref: "x"}, "notAMember"]
+        dsl: "x.notAMember"
+    captureSnapshot: false
+    capture:
+      depthLimit: 0
   - id: testByteArray
     type: LOG_PROBE
     tags:

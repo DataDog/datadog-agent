@@ -853,7 +853,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 
 	if tagErr != nil {
 		log.Errorf("failed to get namespace tags for %q from tagger: %v", resourceNamespace, tagErr)
-	} else {
+	} else if len(namespaceTags) > 0 {
 		log.Debugf("obtained tags for namespace %q from tagger: %v", resourceNamespace, namespaceTags)
 		tagList = append(tagList, namespaceTags...)
 	}
@@ -1287,16 +1287,15 @@ func ownerTags(kind, name string) []string {
 		return nil
 	}
 
-	tagFormat := "%s:%s"
-	tagList := []string{fmt.Sprintf(tagFormat, tagKey, name)}
+	tagList := []string{tagKey + ":" + name}
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob))
+			return append(tagList, tags.KubeCronjob+":"+cronjob)
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return append(tagList, fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment))
+			return append(tagList, tags.KubeDeployment+":"+deployment)
 		}
 	}
 

@@ -114,36 +114,26 @@ func TestGetAPIEndpoints(t *testing.T) {
 // TestGetAPIEndpointsSite is a test for GetAPIEndpoints. It makes sure that the deprecated `site` setting still works
 func TestGetAPIEndpointsSite(t *testing.T) {
 	for _, tc := range []struct {
-		name                                     string
-		site                                     string
-		ddURL, eventsDDURL                       string
-		expectedHostname, expectedEventsHostname string
+		name             string
+		site             string
+		ddURL            string
+		expectedHostname string
 	}{
 		{
-			name:                   "site only",
-			site:                   "datadoghq.io",
-			expectedHostname:       "process.datadoghq.io",
-			expectedEventsHostname: "process-events.datadoghq.io",
+			name:             "site only",
+			site:             "datadoghq.io",
+			expectedHostname: "process.datadoghq.io",
 		},
 		{
-			name:                   "dd_url only",
-			ddURL:                  "https://process.datadoghq.eu",
-			expectedHostname:       "process.datadoghq.eu",
-			expectedEventsHostname: "process-events.datadoghq.com.",
+			name:             "dd_url only",
+			ddURL:            "https://process.datadoghq.eu",
+			expectedHostname: "process.datadoghq.eu",
 		},
 		{
-			name:                   "events_dd_url only",
-			eventsDDURL:            "https://process-events.datadoghq.eu",
-			expectedHostname:       "process.datadoghq.com.",
-			expectedEventsHostname: "process-events.datadoghq.eu",
-		},
-		{
-			name:                   "both site and dd_url",
-			site:                   "datacathq.eu",
-			ddURL:                  "https://burrito.com",
-			eventsDDURL:            "https://burrito-events.com",
-			expectedHostname:       "burrito.com",
-			expectedEventsHostname: "burrito-events.com",
+			name:             "both site and dd_url",
+			site:             "datacathq.eu",
+			ddURL:            "https://burrito.com",
+			expectedHostname: "burrito.com",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -154,34 +144,23 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 			if tc.ddURL != "" {
 				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
 			}
-			if tc.eventsDDURL != "" {
-				cfg.SetWithoutSource("process_config.events_dd_url", tc.eventsDDURL)
-			}
 
 			eps, err := endpoint.GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 
 			mainEndpoint := eps[0]
 			assert.Equal(t, tc.expectedHostname, mainEndpoint.Endpoint.Hostname())
-
-			eventsEps, err := endpoint.GetEventsAPIEndpoints(cfg)
-			assert.NoError(t, err)
-
-			mainEventEndpoint := eventsEps[0]
-			assert.Equal(t, tc.expectedEventsHostname, mainEventEndpoint.Endpoint.Hostname())
 		})
 	}
 }
 
-// TestGetConcurrentAPIEndpoints ensures that process and process-events endpoints can be independently set
+// TestGetConcurrentAPIEndpoints ensures that process endpoints can be independently set
 func TestGetConcurrentAPIEndpoints(t *testing.T) {
 	for _, tc := range []struct {
-		name                       string
-		ddURL, eventsDDURL, apiKey string
-		additionalEndpoints        map[string][]string
-		additionalEventsEndpoints  map[string][]string
-		expectedEndpoints          []apicfg.Endpoint
-		expectedEventsEndpoints    []apicfg.Endpoint
+		name                string
+		ddURL, apiKey       string
+		additionalEndpoints map[string][]string
+		expectedEndpoints   []apicfg.Endpoint
 	}{
 		{
 			name:   "default",
@@ -190,13 +169,6 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 				{
 					APIKey:            "test",
 					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					ConfigSettingPath: "api_key",
-				},
-			},
-			expectedEventsEndpoints: []apicfg.Endpoint{
-				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
 					ConfigSettingPath: "api_key",
 				},
 			},
@@ -212,32 +184,6 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 					ConfigSettingPath: "api_key",
 				},
 			},
-			expectedEventsEndpoints: []apicfg.Endpoint{
-				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
-					ConfigSettingPath: "api_key",
-				},
-			},
-		},
-		{
-			name:        "set only process-events endpoint",
-			eventsDDURL: "https://process-events.datadoghq.eu",
-			apiKey:      "test",
-			expectedEndpoints: []apicfg.Endpoint{
-				{
-					APIKey:            "test",
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEndpoint),
-					ConfigSettingPath: "api_key",
-				},
-			},
-			expectedEventsEndpoints: []apicfg.Endpoint{
-				{
-					APIKey:            "test",
-					Endpoint:          mkurl("https://process-events.datadoghq.eu"),
-					ConfigSettingPath: "api_key",
-				},
-			},
 		},
 		{
 			name:   "multiple eps",
@@ -248,14 +194,6 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 					"key2",
 				},
 				"https://mock2.datadoghq.com": {
-					"key3",
-				},
-			},
-			additionalEventsEndpoints: map[string][]string{
-				"https://mock-events.datadoghq.com": {
-					"key2",
-				},
-				"https://mock2-events.datadoghq.com": {
 					"key3",
 				},
 			},
@@ -281,23 +219,6 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 					ConfigSettingPath: "process_config.additional_endpoints",
 				},
 			},
-			expectedEventsEndpoints: []apicfg.Endpoint{
-				{
-					Endpoint:          mkurl(pkgconfigsetup.DefaultProcessEventsEndpoint),
-					APIKey:            "test",
-					ConfigSettingPath: "api_key",
-				},
-				{
-					Endpoint:          mkurl("https://mock-events.datadoghq.com"),
-					APIKey:            "key2",
-					ConfigSettingPath: "process_config.events_additional_endpoints",
-				},
-				{
-					Endpoint:          mkurl("https://mock2-events.datadoghq.com"),
-					APIKey:            "key3",
-					ConfigSettingPath: "process_config.events_additional_endpoints",
-				},
-			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -307,25 +228,13 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
 			}
 
-			if tc.eventsDDURL != "" {
-				cfg.SetWithoutSource("process_config.events_dd_url", tc.eventsDDURL)
-			}
-
 			if tc.additionalEndpoints != nil {
 				cfg.SetWithoutSource("process_config.additional_endpoints", tc.additionalEndpoints)
-			}
-
-			if tc.additionalEventsEndpoints != nil {
-				cfg.SetWithoutSource("process_config.events_additional_endpoints", tc.additionalEventsEndpoints)
 			}
 
 			eps, err := endpoint.GetAPIEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.ElementsMatch(t, tc.expectedEndpoints, eps)
-
-			eventsEps, err := endpoint.GetEventsAPIEndpoints(cfg)
-			assert.NoError(t, err)
-			assert.ElementsMatch(t, tc.expectedEventsEndpoints, eventsEps)
 		})
 	}
 }

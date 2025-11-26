@@ -46,9 +46,12 @@ type Config struct {
 	AttacherDetailedLogs bool
 	// DeviceCacheRefreshInterval is the interval at which the probe scans for the latest devices
 	DeviceCacheRefreshInterval time.Duration
-	// CgroupReapplyDelay is the delay before re-applying cgroup device configuration. 0 means no re-application.
+	// CgroupReapplyInterval is the interval at which to re-apply cgroup device configuration. 0 means no re-application.
 	// Defaults to 30 seconds. It is used to fix race conditions between systemd and the system-probe permission patching.
-	CgroupReapplyDelay time.Duration
+	CgroupReapplyInterval time.Duration
+	// CgroupReapplyInfinitely controls whether the cgroup device configuration should be reapplied infinitely (true) or only once (false).
+	// Defaults to false. When true, the configuration will be reapplied every CgroupReapplyInterval interval.
+	CgroupReapplyInfinitely bool
 }
 
 // StreamConfig is the configuration for the streams.
@@ -91,6 +94,7 @@ func New() *Config {
 		},
 		AttacherDetailedLogs:       spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "attacher_detailed_logs")),
 		DeviceCacheRefreshInterval: spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "device_cache_refresh_interval")),
-		CgroupReapplyDelay:         spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_delay")),
+		CgroupReapplyInterval:      spCfg.GetDuration(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_interval")),
+		CgroupReapplyInfinitely:    spCfg.GetBool(sysconfig.FullKeyPath(consts.GPUNS, "cgroup_reapply_infinitely")),
 	}
 }

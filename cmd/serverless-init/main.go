@@ -52,7 +52,6 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -107,9 +106,9 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 
 	err := modeConf.Runner(logConfig)
 
-	// Defers are LIFO
+	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer cloudService.Shutdown(*metricAgent, traceAgent, err)
 
 	return err
 }
@@ -123,10 +122,6 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	cloudService := cloudservice.GetCloudServiceType()
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
-
-	// Ignore errors for now. Once we go GA, check for errors
-	// and exit right away.
-	_ = cloudService.Init()
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
@@ -155,6 +150,9 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
+
+	// TODO check for errors and exit
+	_ = cloudService.Init(traceAgent)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
@@ -190,7 +188,6 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanID:     random.Random.Uint64(),
 		AzureServerlessTags: azureTags.String(),
 		FunctionTags:        functionTags,
 	})

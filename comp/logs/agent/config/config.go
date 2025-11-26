@@ -47,8 +47,8 @@ const DefaultIntakeProtocol IntakeProtocol = ""
 // DefaultIntakeOrigin indicates that no special DD_SOURCE header is in use for the endpoint intake track type.
 const DefaultIntakeOrigin IntakeOrigin = "agent"
 
-// ServerlessIntakeOrigin is the lambda extension origin
-const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
+// ServerlessIntakeOrigin indicates that data was sent by serverless
+const ServerlessIntakeOrigin IntakeOrigin = "serverless"
 
 // DDOTIntakeOrigin is the DDOT Collector origin
 const DDOTIntakeOrigin IntakeOrigin = "ddot"
