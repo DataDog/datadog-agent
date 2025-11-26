@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

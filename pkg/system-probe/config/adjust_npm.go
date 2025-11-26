@@ -53,6 +53,11 @@ func adjustNetwork(cfg model.Config) {
 			}
 			return nil
 		})
+
+		if cfg.GetBool(netNS("direct_send")) {
+			log.Warn("disabling direct send because this feature is not supported on windows")
+			cfg.Set(netNS("direct_send"), false, model.SourceAgentRuntime)
+		}
 	}
 
 	validateInt64(cfg, spNS("max_tracked_connections"), defaultMaxTrackedConnections, func(v int64) error {
