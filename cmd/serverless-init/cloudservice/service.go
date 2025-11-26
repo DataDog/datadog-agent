@@ -31,10 +31,12 @@ type CloudService interface {
 	GetSource() metrics.MetricSource
 
 	// Init bootstraps the CloudService.
-	Init() error
+	// traceAgent is optional and only used by CloudRunJobs
+	Init(traceAgent interface{}) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(agent serverlessMetrics.ServerlessMetricAgent, runErr error)
+	// traceAgent is optional and currently only used by CloudRunJobs
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
@@ -74,12 +76,12 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 }
 
 // Init is not necessary for LocalService
-func (l *LocalService) Init() error {
+func (l *LocalService) Init(_ interface{}) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
+func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
 	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix), 1.0, l.GetSource(), agent)
 }
 

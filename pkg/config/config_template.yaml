@@ -899,6 +899,18 @@ api_key:
 #
 # secret_refresh_interval: 0
 
+## @param secret_refresh_on_api_key_failure_interval - integer - optional - default 0
+## @env DD_SECRET_REFRESH_ON_API_KEY_FAILURE_INTERVAL - integer - optional - default 0
+##
+## `secret_refresh_on_api_key_failure_interval` is the time in minutes between two secret refreshes
+## triggered by the Agent using an invalid or expired API key (HTTP error code 403 received or the
+## health probe failing). This rate limits how often the secrets are refreshed in response to errors.
+## Set to 0 to disable the refresh.
+##
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
+##
+# secret_refresh_on_api_key_failure_interval: 0
+
 ## @param secret_refresh_scatter - boolean - optional - default true
 ## @env DD_SECRET_REFRESH_SCATTER - boolean - optional - default true
 ##
@@ -2270,9 +2282,6 @@ api_key:
 #     - '*token'
 #     - 'sql*'
 #     - '*pass*d*'
-#
-#   custom_sensitive_regexps:
-#     - 'gh-[a-zA-Z0-9]+'
 
 #   # @param envs_with_value - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
@@ -3701,11 +3710,11 @@ api_key:
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
 
-## @param kubelet_cache_pods_duration - integer - optional - default: 5
-## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
+## @param kubelet_cache_pods_duration - integer - optional - default: 0
+## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 0
 ## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
 #
-# kubelet_cache_pods_duration: 5
+# kubelet_cache_pods_duration: 0
 
 ## @param kubernetes_pod_expiration_duration - integer - optional - default: 900
 ## @env DD_KUBERNETES_POD_EXPIRATION_DURATION - integer - optional - default: 900
