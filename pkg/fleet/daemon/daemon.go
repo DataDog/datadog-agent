@@ -768,6 +768,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentVersion:       s.Experiment,
 			StableConfigVersion:     configState[pkg].Stable,
 			ExperimentConfigVersion: configState[pkg].Experiment,
+			RunningVersion:          runningVersions[pkg],
+			RunningConfigVersion:    runningConfigVersions[pkg],
 		}
 
 		requestState, ok := tasksState[pkg]
