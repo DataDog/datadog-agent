@@ -27,6 +27,6 @@ func Mock(_ *testing.T) snmpscanmanager.Component {
 }
 
 // RequestScan is a mock function
-func (m *SnmpScanManagerMock) RequestScan(req snmpscanmanager.ScanRequest) {
-	m.Called(req)
+func (m *SnmpScanManagerMock) RequestScan(req snmpscanmanager.ScanRequest, forceQueue bool) {
+	m.Called(req, forceQueue)
 }

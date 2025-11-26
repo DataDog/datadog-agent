@@ -453,6 +453,7 @@ def hacky_dev_image_build(
     trace_agent=False,
     system_probe=False,
     security_agent=False,
+    trace_loader=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -522,6 +523,12 @@ def hacky_dev_image_build(
 
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+
+    if trace_loader:
+        from tasks.loader import build as trace_loader_build
+
+        trace_loader_build(ctx)
+        copy_extra_agents += "COPY bin/trace-loader/trace-loader /opt/datadog-agent/embedded/bin/trace-loader\n"
 
     copy_ebpf_assets = ""
     copy_ebpf_assets_final = ""
