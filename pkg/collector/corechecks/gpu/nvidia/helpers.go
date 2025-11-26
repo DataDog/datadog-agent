@@ -31,6 +31,22 @@ var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 const nsPidCacheSize = 1024
 
+var eccErrorTypeToName = map[nvml.MemoryErrorType]string{
+	nvml.MEMORY_ERROR_TYPE_CORRECTED:   "corrected",
+	nvml.MEMORY_ERROR_TYPE_UNCORRECTED: "uncorrected",
+}
+
+var memoryLocationToName = map[nvml.MemoryLocation]string{
+	nvml.MEMORY_LOCATION_L1_CACHE:       "l1_cache",
+	nvml.MEMORY_LOCATION_L2_CACHE:       "l2_cache",
+	nvml.MEMORY_LOCATION_DEVICE_MEMORY:  "device_memory",
+	nvml.MEMORY_LOCATION_REGISTER_FILE:  "register_file",
+	nvml.MEMORY_LOCATION_TEXTURE_MEMORY: "texture_memory",
+	nvml.MEMORY_LOCATION_TEXTURE_SHM:    "texture_shm",
+	nvml.MEMORY_LOCATION_CBU:            "cbu",
+	nvml.MEMORY_LOCATION_SRAM:           "sram",
+}
+
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
 	if val {

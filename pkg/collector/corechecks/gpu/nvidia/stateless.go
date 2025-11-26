@@ -10,10 +10,11 @@ package nvidia
 import (
 	"fmt"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -395,7 +396,31 @@ func createStatelessAPIs(nsPidCache *NsPidCache) []apiCallInfo {
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return nvlinkSample(device)
 			},
-		}}
+		},
+	}
+
+	// Create APIs for ECC errors
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			apis = append(apis, apiCallInfo{
+				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{
+						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
+						Value: float64(count),
+						Type:  metrics.CountType,
+						Tags: []string{
+							fmt.Sprintf("memory_location:%s", memoryLocationName),
+						},
+					}}, 0, nil
+				},
+			})
+		}
+	}
 
 	return apis
 }
