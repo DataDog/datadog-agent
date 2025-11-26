@@ -12,7 +12,6 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	gocmp "github.com/google/go-cmp/cmp"
-	gocmpopts "github.com/google/go-cmp/cmp/cmpopts"
 
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
@@ -518,6 +517,13 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							AgentVersionConstraint: "~7.x",
 						},
 						{
+							ID:                     "rule_c",
+							Expression:             `exec.file.path == "/etc/foo/qwak"`,
+							Status:                 "loaded",
+							AgentVersionConstraint: ">= 7.42.0",
+						},
+						// this rule in error will be reported at the end of the policies list
+						{
 							ID:                     "rule_b",
 							Expression:             `exec.file.path == "/etc/foo/baz"`,
 							Status:                 "filtered",
@@ -525,11 +531,107 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 							FilterType:             string(rules.FilterTypeAgentVersion),
 							AgentVersionConstraint: "< 0.0.2",
 						},
+					},
+				},
+			},
+		},
+		{
+			name: "multiple policies with rules with different priorities",
+			policies: []*testPolicy{
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy A",
+						Source:       "test",
+						InternalType: rules.CustomPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_a",
+								Expression: `exec.file.path == "/etc/foo/bar"`,
+								Priority:   500,
+							},
+							{
+								ID:         "rule_b",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+								Priority:   999,
+							},
+						},
+					},
+				},
+				{
+					info: rules.PolicyInfo{
+						Name:         "Policy B",
+						Source:       "test",
+						InternalType: rules.DefaultPolicyType,
+					},
+					def: rules.PolicyDef{
+						Rules: []*rules.RuleDefinition{
+							{
+								ID:         "rule_c",
+								Expression: `exec.file.path == "/etc/foo/bar" && exec.pid == 42`,
+								Priority:   500,
+							},
+							{
+								ID:         "rule_e",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+								Priority:   999,
+							},
+							{
+								ID:         "rule_f",
+								Expression: `exec.file.path == "/etc/foo/qwak"`,
+								Priority:   100,
+							},
+						},
+					},
+				},
+			},
+			expectedPolicyStates: []*PolicyState{
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy A",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
 						{
-							ID:                     "rule_c",
-							Expression:             `exec.file.path == "/etc/foo/qwak"`,
-							Status:                 "loaded",
-							AgentVersionConstraint: ">= 7.42.0",
+							ID:         "rule_b",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Status:     "loaded",
+							Priority:   999,
+						},
+						{
+							ID:         "rule_a",
+							Expression: `exec.file.path == "/etc/foo/bar"`,
+							Status:     "loaded",
+							Priority:   500,
+						},
+					},
+				},
+				{
+					PolicyMetadata: PolicyMetadata{
+						Name:   "Policy B",
+						Source: "test",
+					},
+					Status: PolicyStatusLoaded,
+					Rules: []*RuleState{
+						{
+							ID:         "rule_e",
+							Expression: `exec.file.path == "/etc/foo/baz"`,
+							Status:     "loaded",
+							Priority:   999,
+						},
+						{
+							ID:         "rule_c",
+							Expression: `exec.file.path == "/etc/foo/bar" && exec.pid == 42`,
+							Status:     "loaded",
+							Priority:   500,
+						},
+						{
+							ID:         "rule_f",
+							Expression: `exec.file.path == "/etc/foo/qwak"`,
+							Status:     "loaded",
+							Priority:   100,
 						},
 					},
 				},
@@ -666,16 +768,6 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 	}
 	ruleOpts, evalOpts := rules.NewBothOpts(map[eval.EventType]bool{"*": true})
 
-	// Sort options for gocmp to ensure consistent ordering of slices
-	goCmpOpts := []gocmp.Option{
-		gocmpopts.SortSlices(func(a, b *PolicyState) bool {
-			return a.PolicyMetadata.Name < b.PolicyMetadata.Name
-		}),
-		gocmpopts.SortSlices(func(a, b *RuleState) bool {
-			return a.ID < b.ID
-		}),
-	}
-
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			rs := rules.NewRuleSet(&model.Model{}, eventCtor, ruleOpts, evalOpts)
@@ -683,7 +775,7 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 			filteredRules, errs := rs.LoadPolicies(loader, rules.PolicyLoaderOpts{MacroFilters: macroFilters, RuleFilters: ruleFilters})
 			policyStates := NewPoliciesState(rs, filteredRules, errs, false)
 
-			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates, goCmpOpts...), gocmp.Diff(tc.expectedPolicyStates, policyStates, goCmpOpts...))
+			assert.True(t, gocmp.Equal(tc.expectedPolicyStates, policyStates), gocmp.Diff(tc.expectedPolicyStates, policyStates))
 		})
 	}
 }
