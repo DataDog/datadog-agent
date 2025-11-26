@@ -28,10 +28,7 @@ const (
 func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
 	opts.normalize()
 
-	p, err := newProbe(config, opts)
-	if err != nil {
-		return nil, err
-	}
+	p := newProbe(config, opts)
 
 	acc, err := NewAgentContainerContext()
 	if err != nil {

@@ -38,6 +38,7 @@ type debuggerData struct {
 }
 
 type messageData struct {
+	duration    *uint64
 	entryOrLine *captureEvent
 	_return     *captureEvent
 	template    *ir.Template
@@ -79,9 +80,14 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			// Update limits after processing segment.
 			limits.maxBytes = maxLogLineBytes - result.Len()
 		case ir.InvalidSegment:
-			// Check limits for invalid segment.
-			limits.maxBytes = maxLogLineBytes - result.Len()
-			writeBoundedString(&result, limits, seg.Error)
+			writeBoundedError(&result, limits, "error", seg.Error)
+		case *ir.DurationSegment:
+			if m.duration == nil {
+				writeBoundedError(&result, limits, "error", "@duration is not available")
+			} else {
+				n, _ := fmt.Fprintf(&result, "%f", time.Duration(*m.duration).Seconds()*1000)
+				limits.consume(n)
+			}
 
 		default:
 			return fmt.Errorf(
