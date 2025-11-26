@@ -127,6 +127,10 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
+	configID := config.GetString("config_id")
+	if configID == "" {
+		configID = "empty"
+	}
 	env := &env.Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
@@ -143,7 +147,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
-		ConfigID:             config.GetStringOrDefault("config_id", "empty"),
+		ConfigID:             configID,
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env, taskDB), nil
