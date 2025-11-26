@@ -1143,6 +1143,25 @@ workflow:
         - comp/core/autodiscovery/listeners/staticconfig.go
       compare_to: $COMPARE_TO_BRANCH
 
+.on_gpu_integration_tests:
+  - !reference [.except_mergequeue]
+  # Skip main unless nightly
+  - if: $CI_COMMIT_BRANCH == "main" && $BUCKET_BRANCH != "nightly"
+    when: never
+  # Run on nightly
+  - if: $BUCKET_BRANCH == "nightly"
+    when: on_success
+  # Run on GPU-related changes
+  - changes:
+      paths:
+        - pkg/gpu/**/*
+        - pkg/collector/corechecks/gpu/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  # Manual otherwise
+  - when: manual
+    allow_failure: true
+
 .on_installer_systemd_changes:
   - <<: *if_main_branch
   - !reference [.except_mergequeue]
