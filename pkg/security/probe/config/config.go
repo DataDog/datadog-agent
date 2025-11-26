@@ -66,9 +66,6 @@ type Config struct {
 	// CustomSensitiveWords defines words to add to the scrubber
 	CustomSensitiveWords []string
 
-	// CustomSensitiveRegexps defines regexps to add to the scrubber
-	CustomSensitiveRegexps []string
-
 	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
 	ERPCDentryResolutionEnabled bool
 
@@ -193,7 +190,6 @@ func NewConfig() (*Config, error) {
 		PIDCacheSize:                       getInt("pid_cache_size"),
 		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
 		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
-		CustomSensitiveRegexps:             getStringSlice("custom_sensitive_regexps"),
 		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
 		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
 		DentryCacheSize:                    getInt("dentry_cache_size"),
