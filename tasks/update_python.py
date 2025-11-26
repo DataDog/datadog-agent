@@ -22,13 +22,6 @@ from tasks.libs.common.color import color_message
 PYTHON_FTP_URL = "https://www.python.org/ftp/python/"
 PYTHON_SBOM_LINUX_URL_TEMPLATE = "https://www.python.org/ftp/python/{version}/Python-{version}.tgz.spdx.json"
 
-# File paths that need updating
-PYTHON_VERSION_FILES = [
-    "omnibus/config/software/python3.rb",
-    "deps/cpython/cpython.MODULE.bazel",
-    "test/new-e2e/tests/agent-platform/common/agent_behaviour.go",
-]
-
 
 @task
 def python_version(_):
@@ -70,8 +63,8 @@ def update_python(
 
     # Check if update is needed
     from packaging.version import Version
-    
-    if Version(target_version) <= Version(current_version): 
+
+    if Version(target_version) <= Version(current_version):
         print(color_message(f"Already at Python {current_version} (target: {target_version})", "yellow"))
         return
 
@@ -87,7 +80,7 @@ def update_python(
             print(color_message(f"WARNING: {msg}", "orange"))
             sha256_hash = None
         else:
-            raise Exit(msg)
+            raise Exit(msg) from e
 
     # Update all files
     print("Updating version references...")
@@ -122,7 +115,7 @@ def _get_current_python_version() -> str:
 def _get_major_minor_version(version: str) -> str:
     """Extract major.minor version from full version string."""
     from packaging.version import Version
-    
+
     ver = Version(version)
     return f"{ver.major}.{ver.minor}"
 
@@ -155,12 +148,12 @@ def _get_latest_python_version(major_minor: str) -> str | None:
             f"Missing required dependency: {e}\n\n"
             "To use this task, install the required dependencies:\n"
             "  pip install packaging httpx orjson"
-        )
-    
+        ) from e
+
     try:
         response = httpx.get(PYTHON_FTP_URL, timeout=30, verify=True)
         response.raise_for_status()
-    except httpx.RequestException as e:
+    except Exception as e:
         print(color_message(f"Error fetching Python versions: {e}", "red"))
         return None
 
@@ -200,7 +193,7 @@ def _get_python_sha256_hash(version: str) -> str:
     """
     import httpx
     import orjson
-    
+
     if not _validate_version_string(version):
         raise ValueError(f"Invalid version format: {version}")
 
@@ -346,4 +339,3 @@ enhancements:
         writer.write(template)
 
     return path
-
