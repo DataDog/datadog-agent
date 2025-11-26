@@ -45,7 +45,7 @@ var (
 
 	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
 	// with 'api.' (see computeDomainURLAPIKeyMap).
-	domainURLRegexp = regexp.MustCompile(`([a-z]{2}\d\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
+	domainURLRegexp = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+|ddog-gov\.com)$`)
 )
 
 func init() {
