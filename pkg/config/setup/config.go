@@ -683,6 +683,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
+	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
