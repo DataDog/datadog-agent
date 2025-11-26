@@ -42,7 +42,7 @@ func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
 		Name:                    defaultECSName,
 		agentOptions:            []ecsagentparams.Option{},
-		fakeintakeOptions:       []scenfi.Option{},
+		fakeintakeOptions:       []scenfi.Option{scenfi.WithLoadBalancer()},
 		ecsOptions:              []Option{},
 		workloadAppFuncs:        []WorkloadAppFunc{},
 		fargateWorkloadAppFuncs: []FargateWorkloadAppFunc{},
