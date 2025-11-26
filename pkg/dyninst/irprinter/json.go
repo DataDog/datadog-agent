@@ -333,6 +333,15 @@ func makeOperationMarshaler(
 				Kind: "LocationOp",
 				Op:   op,
 			}, json.WithMarshalers(marshalers))
+		case *ir.DereferenceOp:
+			type dereferenceWithKind struct {
+				Kind string            `json:"__kind"`
+				Op   *ir.DereferenceOp `json:",inline"`
+			}
+			return json.MarshalEncode(enc, dereferenceWithKind{
+				Kind: "DereferenceOp",
+				Op:   op,
+			}, json.WithMarshalers(marshalers))
 		default:
 			return fmt.Errorf("unknown operation: %T", op)
 		}
