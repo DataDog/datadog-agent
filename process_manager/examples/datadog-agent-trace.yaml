@@ -29,6 +29,11 @@ user: dd-agent
 # Restart policy - socket re-activation handles restarts
 restart: never
 
+# Start limits (systemd StartLimitInterval=10, StartLimitBurst=5)
+# Protects against crash loops during socket activation
+start_limit_interval_sec: 10
+start_limit_burst: 5
+
 # Environment file (systemd EnvironmentFile=-)
 # Prefix with '-' to ignore if file doesn't exist
 environment_file: -/etc/datadog-agent/environment
