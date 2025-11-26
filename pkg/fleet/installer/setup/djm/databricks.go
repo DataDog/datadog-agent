@@ -22,7 +22,7 @@ import (
 const (
 	databricksInjectorVersion   = "0.45.0-1"
 	databricksJavaTracerVersion = "1.55.0-1"
-	databricksAgentVersion      = "7.71.1-1"
+	databricksAgentVersion      = "7.72.3-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
@@ -258,6 +258,42 @@ func setupGPUIntegration(s *common.Setup) {
 	s.DelayedAgentRestartConfig.LogFile = restartLogFile
 }
 
+func setupPrivilegedLogs(s *common.Setup) {
+	s.Out.WriteString("Setting up privileged logs with system probe for standard access mode\n")
+	s.Span.SetTag("host_tag_set.privileged_logs_enabled", "true")
+
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
+
+	createDatabricksLogSymlinks(s)
+}
+
+func createDatabricksLogSymlinks(s *common.Setup) {
+	symlinks := map[string]string{
+		"/var/log/databricks-driver-logs": "/databricks/driver/logs",
+		"/var/log/databricks-spark-logs":  "/databricks/spark/logs",
+		"/var/log/databricks-spark-work":  "/databricks/spark/work",
+	}
+
+	for symlinkPath, targetPath := range symlinks {
+		if _, err := os.Lstat(symlinkPath); err == nil {
+			if err := os.Remove(symlinkPath); err != nil {
+				log.Warnf("Failed to remove existing symlink %s: %v", symlinkPath, err)
+				continue
+			}
+		}
+
+		if err := os.Symlink(targetPath, symlinkPath); err != nil {
+			log.Warnf("Failed to create symlink %s -> %s: %v", symlinkPath, targetPath, err)
+			s.Span.SetTag(fmt.Sprintf("symlink_error.%s", symlinkPath), err.Error())
+		} else {
+			s.Out.WriteString(fmt.Sprintf("Created symlink %s -> %s\n", symlinkPath, targetPath))
+		}
+	}
+}
+
 func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
@@ -267,6 +303,10 @@ func setupDatabricksDriver(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 		sparkIntegration.Logs = driverLogs
 		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+
+		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+			setupPrivilegedLogs(s)
+		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -291,6 +331,10 @@ func setupDatabricksWorker(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+
+		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+			setupPrivilegedLogs(s)
+		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
 		sparkIntegration.Instances = []any{
