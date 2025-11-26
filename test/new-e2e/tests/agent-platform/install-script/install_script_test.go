@@ -185,7 +185,13 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 		if is.cwsSupported {
 			common.CheckCWSBehaviour(is.T(), client)
 		}
+
+		time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+		common.CheckADPEnabled(is.T(), client)
+		time.Sleep(5 * time.Second) // Restarting the agent too fast will cause systemctl to fail
+		common.CheckADPDisabled(is.T(), client)
 	}
+
 	common.CheckInstallationInstallScript(is.T(), client)
 	is.testUninstall(client, flavor)
 }

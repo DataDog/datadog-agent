@@ -19,8 +19,6 @@ import (
 	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-	ec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -435,9 +433,6 @@ func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agen
 			),
 			scenwindows.WithAgentClientOptions(
 				agentclientparams.WithSkipWaitForAgentReady(),
-			),
-			scenwindows.WithEC2InstanceOptions(
-				ec2.WithAMI("ami-0345f44fe05216fc4", e2eos.WindowsServer2022, e2eos.AMD64Arch),
 			),
 		),
 	))}

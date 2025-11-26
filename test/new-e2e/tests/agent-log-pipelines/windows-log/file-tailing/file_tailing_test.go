@@ -118,6 +118,9 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 
 	t.Logf("Permissions granted for new log file.")
 
+	// Verify the tailer is in OK state before generating logs
+	utils.AssertAgentTailerOK(s, logFileName)
+
 	// Generate log
 	utils.AppendLog(s, logFileName, "hello-world", 1)
 
@@ -140,10 +143,8 @@ func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Read permissions revoked")
 
-	// wait for agent to be ready after restart
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		assert.Truef(c, s.Env().Agent.Client.IsReady(), "Agent is not ready after restart")
-	}, 2*time.Minute, 5*time.Second)
+	// Verify the tailer is in OK state before generating logs
+	utils.AssertAgentTailerError(s, logFileName)
 
 	// Generate logs and check the intake for no new logs because of revoked permissions
 	utils.AppendLog(s, logFileName, "access-denied", 1)
@@ -155,6 +156,9 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logFileName)
 
+	// Verify the tailer is in OK state before generating logs
+	utils.AssertAgentTailerError(s, logFileName)
+
 	// Generate logs
 	utils.AppendLog(s, logFileName, "hello-after-permission-world", 1)
 
@@ -162,6 +166,9 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s", logFilePath)
 	t.Logf("Permissions granted for log file.")
+
+	// Verify the tailer is in OK state after permissions are granted
+	utils.AssertAgentTailerOK(s, logFileName)
 
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-after-permission-world", []string{})
@@ -180,8 +187,9 @@ func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
 	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Permissions granted.")
-	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
-	time.Sleep(10000 * time.Millisecond)
+
+	// Verify the tailer is in OK state after permissions are granted
+	utils.AssertAgentTailerOK(s, logFileName)
 
 	// Generate logs
 	utils.AppendLog(s, logFileName, "access-granted", 1)
@@ -207,6 +215,9 @@ func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
 	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("icacls %s /grant ddagentuser:R", logFilePath))
 	assert.NoErrorf(t, err, "Unable to adjust permissions for the log file %s.", logFilePath)
 	t.Logf("Permissions granted for new log file.")
+
+	// Verify the tailer is in OK state for the rotated file before generating logs
+	utils.AssertAgentTailerOK(s, logFileName)
 
 	// Generate new logs
 	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
