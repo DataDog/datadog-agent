@@ -203,7 +203,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	if config.EnableCertCollection {
 		if err := ssluprobes.ValidateSupported(); err != nil {
-			log.Warn("TLS certificate collection is not supported on this kernel. Disabling. Details: %w", err)
+			log.Warnf("TLS certificate collection is not supported on this kernel. Disabling. Details: %w", err)
 			config.EnableCertCollection = false
 		}
 	}
