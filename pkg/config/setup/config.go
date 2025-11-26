@@ -384,6 +384,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_on_api_key_failure_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
@@ -511,9 +512,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 5000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "16m") // with 5min interval, 16m will allow running a test 3 times (15min + 1min margin)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "70m") // with 30min interval, 70m will allow running a test 3 times (t0, t30, t60)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "30m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_per_minute", 150)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
@@ -682,6 +683,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
+	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1221,6 +1223,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 
 	config.BindEnvAndSetDefault("vsock_addr", "")
+
+	// Filterlist
+	config.BindEnvAndSetDefault("metric_filterlist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1741,8 +1749,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
-	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
-	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
@@ -2012,7 +2018,10 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
-	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+	// Cache TTL for pod lists in the kubelet client. Set to 0 because it's only
+	// used by workloadmeta that already defines its own pull frequency and has
+	// its own storage, so no need for an extra cache.
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 0)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
@@ -2533,21 +2542,22 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                        config.GetString("secret_backend_type"),
-		Config:                      config.GetStringMap("secret_backend_config"),
-		Command:                     config.GetString("secret_backend_command"),
-		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                     config.GetInt("secret_backend_timeout"),
-		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:             config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                     config.GetString("run_path"),
-		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
-		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
-		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
-		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
+		Type:                         config.GetString("secret_backend_type"),
+		Config:                       config.GetStringMap("secret_backend_config"),
+		Command:                      config.GetString("secret_backend_command"),
+		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                      config.GetInt("secret_backend_timeout"),
+		MaxSize:                      config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:              config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:       config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:                config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:              config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                      config.GetString("run_path"),
+		AuditFileMaxSize:             config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace:  config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:             config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:                config.GetStringMapStringSlice("secret_image_to_handle"),
+		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {

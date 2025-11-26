@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -30,6 +31,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
+	mock_containers "github.com/DataDog/datadog-agent/pkg/process/util/containers/mocks"
 )
 
 func TestEmitNvmlMetrics(t *testing.T) {
@@ -39,14 +41,24 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	// Create check instance using mocks
 	checkGeneric := newCheck(
 		fakeTagger,
 		testutil.GetTelemetryMock(t),
-		testutil.GetWorkloadMetaMock(t),
+		wmetaMock,
 	)
 	check, ok := checkGeneric.(*Check)
 	require.True(t, ok)
+
+	// enable GPU check in configuration right before Configure
+	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	// we need to cancel the check to make sure all resources and async workers are released
+	// before deinitializing the mock library at test cleanup
+	t.Cleanup(func() { checkGeneric.Cancel() })
 
 	device1UUID := "gpu-uuid-1"
 	device2UUID := "gpu-uuid-2"
@@ -99,12 +111,16 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	containerTags := []string{"container_id:" + containerID}
 	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID), "foo", containerTags, nil, nil, nil)
 
-	gpuToContainersMap := map[string]*workloadmeta.Container{
-		device1UUID: {
-			EntityID: workloadmeta.EntityID{
-				ID: containerID,
-			},
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   containerID,
+			Kind: workloadmeta.KindContainer,
 		},
+	}
+	wmetaMock.Set(container)
+
+	gpuToContainersMap := map[string]*workloadmeta.Container{
+		device1UUID: container,
 	}
 
 	// Process the metrics
@@ -148,11 +164,17 @@ func TestEmitNvmlMetrics(t *testing.T) {
 func TestRunDoesNotError(t *testing.T) {
 	// Tests for the specific output are above, this only ensures that the run function does not error
 	// even if things are not correctly setup
-
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions()))
+	ddnvml.WithMockNVML(t,
+		testutil.GetBasicNvmlMockWithOptions(
+			testutil.WithMockAllFunctions(),
+			testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
+				return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
+			}),
+		),
+	)
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 
 	// Create check instance using mocks
@@ -161,6 +183,8 @@ func TestRunDoesNotError(t *testing.T) {
 		testutil.GetTelemetryMock(t),
 		wmetaMock,
 	)
+	check, ok := checkGeneric.(*Check)
+	require.True(t, ok)
 
 	// Add a container to the workload meta mock with GPU devices
 	wmetaMock.Set(&workloadmeta.Container{
@@ -185,14 +209,14 @@ func TestRunDoesNotError(t *testing.T) {
 		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
 	})
 
+	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
 	require.NoError(t, err)
-
-	require.NoError(t, checkGeneric.Run())
-
 	// we need to cancel the check to make sure all resources and async workers are released
 	// before deinitializing the mock library at test cleanup
 	t.Cleanup(func() { checkGeneric.Cancel() })
+
+	require.NoError(t, checkGeneric.Run())
 }
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
@@ -200,7 +224,12 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	const numSupportedCollectorTypes = 5
 
 	// mock up device count so that we can check when check collectors are created/destroyed
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions())
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
+			return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
+		}),
+	)
 	ddnvml.WithMockNVML(t, nvmlMock)
 	curDeviceCount := atomic.Int32{}
 	curDeviceCount.Store(int32(len(testutil.GPUUUIDs)) - 2)
@@ -234,6 +263,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
 
 	// configure check
+	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	require.Empty(t, check.collectors)
 	t.Cleanup(func() { check.Cancel() })
@@ -291,6 +321,15 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	)
 	check, ok := checkGeneric.(*Check)
 	require.True(t, ok)
+
+	// enable GPU check in configuration right before Configure
+	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	// we need to cancel the check to make sure all resources and async workers are released
+	// before deinitializing the mock library at test cleanup
+	t.Cleanup(func() { checkGeneric.Cancel() })
 
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMockAllFunctions(), testutil.WithDeviceCount(1))
 	ddnvml.WithMockNVML(t, nvmlMock)

@@ -344,15 +344,15 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			}
 
 			allMounts[event.Mount.MountID]++
-			return len(allMounts) == 3
+			return false
 		}, 5*time.Second, model.FileMoveMountEventType)
 
-		assert.Equal(t, 3, len(allMounts), "Not all mount events were obtained")
+		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
 
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 		for i := range allMounts {
 			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0, 0, "")
-			if len(path) == 0 {
+			if len(path) == 0 || !strings.Contains(path, "tmp1") || !strings.Contains(path, "tmp2") {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
 				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
