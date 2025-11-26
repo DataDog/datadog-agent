@@ -3281,6 +3281,8 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	}
 	// We need eBPF to test this kernel-side fix
 	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
 	// Create a server that reads one byte and closes, or just listens.
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
