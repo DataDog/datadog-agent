@@ -14,9 +14,8 @@ import (
 	"net"
 	"syscall"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
+	"golang.org/x/sys/unix"
 )
 
 func registerNetworkHandlers(handlers map[int]syscallHandler) []string {
@@ -48,7 +47,7 @@ func registerNetworkHandlers(handlers map[int]syscallHandler) []string {
 		{
 			ID:         syscallID{ID: SocketNr, Name: "socket"},
 			Func:       handleSocket,
-			ShouldSend: nil,
+			ShouldSend: shouldSendSocket,
 			RetFunc:    handleSocketRet,
 		},
 		{
@@ -191,21 +190,37 @@ func handleConnect(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, r
 }
 
 func handleSocket(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	socketMsg := &ebpfless.SocketSyscallFakeMsg{
-		AddressFamily: uint16(tracer.ReadArgInt32(regs, 0)),
-		SocketType:    uint16(tracer.ReadArgInt32(regs, 1)),
+	domain := uint16(tracer.ReadArgInt32(regs, 0))
+	rawSockType := tracer.ReadArgInt32(regs, 1)
+	// Mask out SOCK_CLOEXEC / SOCK_NONBLOCK flags; SOCK_STREAM=1, SOCK_DGRAM=2, ... fit in 4 bits.
+	sockType := uint16(rawSockType) & 0x0F
+	protocol := uint16(tracer.ReadArgInt32(regs, 2))
+
+	msg.Type = ebpfless.SyscallTypeSocket
+	msg.SocketEvent = &ebpfless.SocketSyscallMsg{
+		Domain:   domain,
+		Type:     sockType,
+		Protocol: protocol,
 	}
-	socketMsg.Protocol = uint16(tracer.ReadArgInt32(regs, 2))
-	if socketMsg.Protocol == 0 {
-		switch socketMsg.SocketType {
+
+	// Cache socket metadata for every family so later syscalls on the same fd
+	// (bind, connect, setsockopt, ...) can correlate family/type/protocol from
+	// process.FdToSocket regardless of the address family.
+	internalProtocol := protocol
+	if internalProtocol == 0 && (domain == unix.AF_INET || domain == unix.AF_INET6) {
+		switch sockType {
 		case unix.SOCK_STREAM:
-			socketMsg.Protocol = unix.IPPROTO_TCP
+			internalProtocol = unix.IPPROTO_TCP
 		case unix.SOCK_DGRAM:
-			socketMsg.Protocol = unix.IPPROTO_UDP
-		default:
+			internalProtocol = unix.IPPROTO_UDP
 		}
 	}
-	msg.Socket = socketMsg
+
+	msg.SocketInfo = &ebpfless.SocketSyscallFakeMsg{
+		AddressFamily: domain,
+		Protocol:      internalProtocol,
+		SocketType:    sockType,
+	}
 	return nil
 }
 
@@ -252,11 +267,11 @@ func handleAcceptRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 func handleSocketRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	ret := int32(tracer.ReadRet(regs))
 
-	if msg.Socket != nil && ret != -1 {
+	if msg.SocketInfo != nil && ret != -1 {
 		process.FdToSocket[ret] = SocketInfo{
-			AddressFamily: msg.Socket.AddressFamily,
-			Protocol:      msg.Socket.Protocol,
-			SocketType:    msg.Socket.SocketType,
+			AddressFamily: msg.SocketInfo.AddressFamily,
+			Protocol:      msg.SocketInfo.Protocol,
+			SocketType:    msg.SocketInfo.SocketType,
 		}
 	}
 
@@ -264,6 +279,10 @@ func handleSocketRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg,
 }
 
 // Should send messages
+func shouldSendSocket(msg *ebpfless.SyscallMsg) bool {
+	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM)
+}
+
 func shouldSendConnect(msg *ebpfless.SyscallMsg) bool {
 	return msg.Retval >= 0 || msg.Retval == -int64(syscall.EACCES) || msg.Retval == -int64(syscall.EPERM) || msg.Retval == -int64(syscall.ECONNREFUSED) || msg.Retval == -int64(syscall.ETIMEDOUT) || msg.Retval == -int64(syscall.EINPROGRESS)
 }
@@ -348,7 +367,6 @@ func handleSetsockopt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg
 
 	// Nothing to do if no filters
 	if fLen == 0 || ptrFilter == 0 {
-
 		msg.Type = ebpfless.SyscallTypeSetsockopt
 		msg.Setsockopt = &ebpfless.SetsockoptSyscallMsg{
 			Level:          level,
