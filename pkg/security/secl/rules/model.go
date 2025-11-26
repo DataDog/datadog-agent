@@ -86,6 +86,7 @@ type RuleDefinition struct {
 	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
 	Silent                 bool                   `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string                 `yaml:"group_id,omitempty" json:"group_id,omitempty"`
+	Priority               int                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -342,7 +343,7 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 
 	// check that the field is compatible with the rule event type
 	fieldPathForMetadata := h.Field + ".path"
-	fieldEventType, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
+	fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
 	if err != nil {
 		return fmt.Errorf("failed to get event type for field '%s': %w", fieldPathForMetadata, err)
 	}
