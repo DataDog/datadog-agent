@@ -58,7 +58,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	}
 
 	err = storage.activityDumpHandler.HandleActivityDump(selector.Image, selector.Tag, headerData, raw.Bytes())
-	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the security-agent", request.Format, selector)
+	seclog.Infof("[%s] file for activity dump [%s] was forwarded to the activity dump handler", request.Format, selector)
 	return err
 }
 
