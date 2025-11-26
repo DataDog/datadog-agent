@@ -176,6 +176,10 @@ def _license_csv_impl(ctx):
     if ctx.outputs.offers_out:
         args.add("--offers_out", ctx.outputs.offers_out.path)
         outputs.append(ctx.outputs.offers_out)
+    if ctx.attr.licenses_dir:
+        copy_dir = ctx.actions.declare_directory(ctx.attr.licenses_dir)
+        args.add("--licenses_dir", copy_dir.path)
+        outputs.append(copy_dir)
 
     report.append("Top label: %s" % str(ctx.attr.target.label))
     if hasattr(t_m_i, "target"):
@@ -248,7 +252,22 @@ def _license_csv_impl(ctx):
         },
         use_default_shell_env = True,
     )
-    return [DefaultInfo(files = depset(outputs))]
+
+    # We need to declare output groups so that we can isolate the tree
+    # artifact which is the licenses directory. But if we are doing it,
+    # let's do it for everything.
+    output_groups = {}
+    if ctx.outputs.csv_out:
+        output_groups["csv"] = [ctx.outputs.csv_out]
+    if ctx.outputs.offers_out:
+        output_groups["offers"] = [ctx.outputs.offers_out]
+    if ctx.attr.licenses_dir:
+        output_groups["licenses"] = [copy_dir]
+    ret = [
+        DefaultInfo(files = depset(outputs)),
+        OutputGroupInfo(**output_groups),
+    ]
+    return ret
 
 license_csv = rule(
     implementation = _license_csv_impl,
@@ -264,6 +283,9 @@ license_csv = rule(
         ),
         "offers_out": attr.output(
             doc = """Output file for ship source offers.""",
+        ),
+        "licenses_dir": attr.string(
+            doc = """Name of folder to copy licenses to.""",
         ),
         "usage_map_private": attr.output(
             doc = """Intermediate dump of data to drive gather_licenses. Private.""",
