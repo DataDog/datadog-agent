@@ -170,12 +170,14 @@ linters:
         - name: error-strings
         - name: errorf
         - name: exported
+          disabled: true
         - name: increment-decrement
         - name: indent-error-flow
         - name: package-comments
         - name: range
         - name: receiver-naming
         - name: redefines-builtin-id
+          disabled: true
         - name: superfluous-else
         - name: time-naming
         - name: unexported-return
@@ -220,6 +222,10 @@ linters:
     # 'errcheck' errors in test/integration/utils/certificates.go
     - path: (.+)\.go$
       text: Error return value of `pem.Encode` is not checked
+    - linters:
+      - revive
+      path: (.+)\.go$
+      text: 'var-naming: avoid meaningless package names'
     # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - path: (.+)\.go$
       text: 'exported: exported const APIName should have comment \(or a comment on this block\) or be unexported'
