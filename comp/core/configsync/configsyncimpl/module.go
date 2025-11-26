@@ -63,10 +63,10 @@ type configSync struct {
 
 // newComponent checks if the component was enabled as per the config and return a enable/disabled configsync
 func newComponent(deps dependencies) (configsync.Component, error) {
-	var url *url.URL
+	var compUrl *url.URL
 	if deps.Config.GetBool("agent_ipc.use_socket") {
-		path := pkgconfigsetup.Datadog().GetString("agent_ipc.socket_path") + "/agent_ipc.socket"
-		url = &url.URL{
+		path := deps.Config.GetString("agent_ipc.socket_path") + "/agent_ipc.socket"
+		compUrl = &url.URL{
 			Scheme: "http",
 			Host:   path,
 			Path:   "/config/v1",
@@ -75,13 +75,13 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 		host := deps.Config.GetString("agent_ipc.host")
 		port := deps.Config.GetInt("agent_ipc.port")
 		if port <= 0 {
-			deps.Log.Infof("configsync disabled: agent_ipc.port invalid: %d)", agentIPCPort)
+			deps.Log.Infof("configsync disabled: agent_ipc.port invalid: %d)", port)
 			return configSync{}, nil
 		}
 
-		url = &url.URL{
+		compUrl = &url.URL{
 			Scheme: "https",
-			Host:   net.JoinHostPort(agentIPCHost, strconv.Itoa(agentIPCPort)),
+			Host:   net.JoinHostPort(host, strconv.Itoa(port)),
 			Path:   "/config/v1",
 		}
 	}
@@ -99,7 +99,7 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 	configSync := configSync{
 		Config:  deps.Config,
 		Log:     deps.Log,
-		url:     url,
+		url:     compUrl,
 		client:  deps.IPCClient,
 		ctx:     ctx,
 		timeout: deps.SyncParams.Timeout,
@@ -115,7 +115,7 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 			}
 			if time.Now().After(deadline) {
 				cancel()
-				return nil, deps.Log.Errorf("failed to sync config at startup, is the core agent listening on '%s' ?", url.String())
+				return nil, deps.Log.Errorf("failed to sync config at startup, is the core agent listening on '%s' ?", compUrl.String())
 			}
 			time.Sleep(2 * time.Second)
 		}
@@ -134,6 +134,6 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 		},
 	})
 
-	deps.Log.Infof("configsync enabled (agent_ipc '%s' | agent_ipc.config_refresh_interval: %d)", url.Host, configRefreshIntervalSec)
+	deps.Log.Infof("configsync enabled (agent_ipc '%s' | agent_ipc.config_refresh_interval: %d)", compUrl.Host, configRefreshIntervalSec)
 	return configSync, nil
 }

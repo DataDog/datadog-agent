@@ -47,7 +47,7 @@ func getListener(address string) (net.Listener, error) {
 	}
 
 	if ipAddr := net.ParseIP(address); ipAddr != nil {
-		return net.Listen("tcp", ipAddr)
+		return net.Listen("tcp", address)
 	}
 
 	// if the address is an IP address, return a TCP listener otherwise try it as a unix socket
