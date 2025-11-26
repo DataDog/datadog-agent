@@ -51,9 +51,10 @@ func GetFDFromListener(ln net.Listener) (uintptr, error) {
 	}
 	defer f.Close()
 
+	origFD := f.Fd()
 	// Duplicate the file descriptor so that it's still valid when the file is
 	// closed or garbage collected
-	duppedFD, err := unix.Dup(int(f.Fd()))
+	duppedFD, err := unix.Dup(int(origFD))
 	if err != nil {
 		return 0, fmt.Errorf("failed to duplicate file descriptor: %v", err)
 	}

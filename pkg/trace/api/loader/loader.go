@@ -13,6 +13,20 @@ import (
 	"strconv"
 )
 
+func getFileFromFD(fdStr string, name string) (*os.File, error) {
+	fd, err := strconv.Atoi(fdStr)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse file descriptor %v: %v", fdStr, err)
+	}
+
+	f := os.NewFile(uintptr(fd), name)
+	if f == nil {
+		return nil, fmt.Errorf("invalid file descriptor %v", fdStr)
+	}
+
+	return f, nil
+}
+
 // GetListenerFromFD creates a new net.Listener from a file descriptor
 //
 // Under the hood the file descriptor will be dupped to be used by the Go runtime
@@ -47,18 +61,4 @@ func GetConnFromFD(fdStr string, name string) (net.Conn, error) {
 		return nil, fmt.Errorf("could not create file connection for %v: %v", fdStr, err)
 	}
 	return conn, nil
-}
-
-func getFileFromFD(fdStr string, name string) (*os.File, error) {
-	fd, err := strconv.Atoi(fdStr)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse file descriptor %v: %v", fdStr, err)
-	}
-
-	f := os.NewFile(uintptr(fd), name)
-	if f == nil {
-		return nil, fmt.Errorf("invalid file descriptor %v", fdStr)
-	}
-
-	return f, nil
 }
