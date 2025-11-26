@@ -521,6 +521,7 @@ cc_binary(
         ":library_srcs_omit_frozen",
         ":bootstrap_headers",
         ":python_headers",
+        ":modules_headers",
     ],
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
@@ -529,7 +530,7 @@ cc_binary(
     deps = [
         ":modules_getpath",
         ":mimalloc",
-    ] + [":build_module_" + m for m in PYTHON_MODULES.keys()],
+    ],# + [":build_module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
     includes = _COMMON_INCLUDE_DIRS,
     copts = COMMON_COPTS,
