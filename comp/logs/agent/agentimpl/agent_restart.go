@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -71,6 +72,9 @@ func (a *logAgent) restart(_ context.Context, newEndpoints *config.Endpoints) er
 
 	a.restartPipeline()
 	logsmetrics.TlmRestartAttempt.Inc(restartStatusSuccess, targetTransport)
+
+	// Log the successful transport switch with timestamp
+	a.log.Infof("[TEST-TIME] Logs agent restarted with %s transport at %s", targetTransport, time.Now().Format(time.RFC3339))
 	return nil
 }
 
@@ -100,7 +104,7 @@ func (a *logAgent) restartWithHTTPUpgrade(ctx context.Context) error {
 		return fmt.Errorf("HTTP upgrade failed: %w", err)
 	}
 
-	a.log.Info("Successfully upgraded to HTTP transport")
+	a.log.Infof("[TEST-TIME] Successfully upgraded to HTTP transport at %s", time.Now().Format(time.RFC3339))
 	return nil
 }
 
@@ -194,10 +198,14 @@ func (a *logAgent) smartHTTPRestart() {
 	a.httpRetryStopChan = make(chan struct{})
 	a.httpRetryMutex.Unlock()
 
-	a.log.Info("Starting HTTP connectivity retry with exponential backoff")
+	a.log.Info("Starting HTTP connectivity retry with exponential backoff in 10 seconds...")
 
-	// Start background goroutine for periodic HTTP checks
-	go a.httpRetryLoop()
+	// Wait 10 seconds before starting HTTP retry to allow TCP connection to stabilize
+	go func() {
+		time.Sleep(10 * time.Second)
+		a.log.Info("Initiating HTTP connectivity retry loop")
+		a.httpRetryLoop()
+	}()
 }
 
 // httpRetryLoop runs periodic HTTP connectivity checks with exponential backoff
@@ -209,6 +217,10 @@ func (a *logAgent) httpRetryLoop() {
 	if maxRetryInterval == 0 {
 		a.log.Warn("HTTP connectivity retry interval max set to 0 seconds, skipping HTTP connectivity retry")
 		return
+	}
+
+	if os.Getenv("TEST_SMART_RECOVERY") == "1" {
+		a.log.Info("TEST_SMART_RECOVERY: HTTP retry loop active - will attempt to upgrade from TCP to HTTP")
 	}
 
 	attempt := uint(0)
@@ -224,7 +236,7 @@ func (a *logAgent) httpRetryLoop() {
 			a.log.Infof("Checking HTTP connectivity (attempt %d)", attempt)
 
 			if a.checkHTTPConnectivity() {
-				a.log.Info("HTTP connectivity restored - initiating upgrade to HTTP transport")
+				a.log.Infof("[TEST-TIME] HTTP connectivity restored at %s - initiating upgrade to HTTP transport", time.Now().Format(time.RFC3339))
 
 				// Trigger HTTP upgrade. Since HTTP connectivity is verified,
 				// we commit to HTTP and keep retrying if upgrade fails.
@@ -238,7 +250,6 @@ func (a *logAgent) httpRetryLoop() {
 
 				// Publish retry success metric
 				logsmetrics.TlmHTTPConnectivityRetryAttempt.Inc("success")
-				a.log.Info("Successfully upgraded to HTTP transport")
 				return
 			}
 
