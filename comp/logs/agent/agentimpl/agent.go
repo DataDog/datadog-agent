@@ -136,8 +136,9 @@ type logAgent struct {
 	restartMutex sync.Mutex
 
 	// HTTP retry state for TCP fallback recovery
-	httpRetryStopChan chan struct{}
-	httpRetryMutex    sync.Mutex
+	httpRetryCtx    context.Context
+	httpRetryCancel context.CancelFunc
+	httpRetryMutex  sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
