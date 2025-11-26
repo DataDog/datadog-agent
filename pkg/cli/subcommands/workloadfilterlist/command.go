@@ -19,11 +19,10 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // cliParams are the command-line arguments for this subcommand
