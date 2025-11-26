@@ -50,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/battery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
@@ -125,6 +126,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
+	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
 
 	registerSystemProbeChecks(tagger)
 }
