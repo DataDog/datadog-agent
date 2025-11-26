@@ -624,10 +624,26 @@ impl ProcessExecutor for TokioProcessExecutor {
                         Self::apply_rlimits_in_child(&limits)?;
                     }
 
-                    // 3. Set ambient capabilities (Linux-only, before setuid)
-                    // Ambient capabilities are preserved across setuid/setgid and inherited by children
+                    // 3. Set ambient capabilities (Linux-only)
+                    // This is a multi-step process because setuid() clears ambient capabilities:
+                    // a) Set SECBIT_KEEP_CAPS to preserve permitted set across setuid
+                    // b) Raise capability in permitted and inheritable sets
+                    // c) Do setuid (permitted preserved, but ambient cleared)
+                    // d) Raise capability in ambient set again after setuid
+                    #[cfg(target_os = "linux")]
+                    let needs_caps_after_setuid = has_capabilities && uid_opt.is_some();
+
                     #[cfg(target_os = "linux")]
                     if has_capabilities {
+                        // Set SECBIT_KEEP_CAPS to preserve capabilities across setuid
+                        // This is required because setuid() from root to non-root clears capabilities
+                        const PR_SET_SECUREBITS: libc::c_int = 28;
+                        const SECBIT_KEEP_CAPS: libc::c_ulong = 0x10;
+                        if libc::prctl(PR_SET_SECUREBITS, SECBIT_KEEP_CAPS) != 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+
+                        // Raise capabilities in permitted and inheritable sets
                         Self::apply_ambient_capabilities(&capabilities)?;
                     }
 
@@ -645,6 +661,14 @@ impl ProcessExecutor for TokioProcessExecutor {
                             return Err(std::io::Error::last_os_error());
                         }
                         eprintln!("Set UID to {}", uid);
+                    }
+
+                    // 6. Re-raise ambient capabilities after setuid
+                    // setuid() clears the ambient set even with SECBIT_KEEP_CAPS,
+                    // but permitted and inheritable are preserved, so we can raise ambient again
+                    #[cfg(target_os = "linux")]
+                    if needs_caps_after_setuid {
+                        Self::apply_ambient_capabilities(&capabilities)?;
                     }
 
                     Ok(())
