@@ -26,6 +26,7 @@ import (
 	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -220,6 +221,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		}),
 		settingsimpl.Module(),
 		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
 	)
 
 	err := app.Start(ctx)
