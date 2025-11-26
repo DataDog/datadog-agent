@@ -125,6 +125,7 @@ type Event struct {
 	Connect    ConnectEvent    `field:"connect" event:"connect"`       // [7.60] [Network] A connect was executed
 	Accept     AcceptEvent     `field:"accept" event:"accept"`         // [7.63] [Network] An accept was executed
 	SetSockOpt SetSockOptEvent `field:"setsockopt" event:"setsockopt"` // [7.68] [Network] A setsockopt was executed
+	Socket     SocketEvent     `field:"socket" event:"socket"`         // [7.68] [Network] A socket was created
 
 	// kernel events
 	SELinux      SELinuxEvent      `field:"selinux" event:"selinux"`             // [7.30] [Kernel] An SELinux operation was run
@@ -1108,6 +1109,14 @@ type SetSockOptEvent struct {
 	FilterInstructions string `field:"filter_instructions,handler:ResolveSetSockOptFilterInstructions"`     // SECLDoc[filter_instructions] Definition:`Instructions of the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
 	FilterHash         string `field:"filter_hash,handler:ResolveSetSockOptFilterHash:"`                    // SECLDoc[filter_hash] Definition:`Hash of the currently attached filter using sha256. Only available if the optname is \`SO_ATTACH_FILTER\``
 	UsedImmediates     []int  `field:"used_immediates,handler:ResolveSetSockOptUsedImmediates, weight:999"` // SECLDoc[used_immediates] Definition:`List of immediate values used in the currently attached filter. Only available if the optname is \`SO_ATTACH_FILTER\``
+}
+
+// SocketEvent represents a socket event
+type SocketEvent struct {
+	SyscallEvent
+	Domain   uint16 `field:"domain"`   // SECLDoc[domain] Definition:`Socket domain`
+	Type     uint16 `field:"type"`     // SECLDoc[type] Definition:`Socket type`
+	Protocol uint16 `field:"protocol"` // SECLDoc[protocol] Definition:`Socket protocol`
 }
 
 // CapabilitiesEvent is used to report capabilities usage
