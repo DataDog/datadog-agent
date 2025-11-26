@@ -3273,6 +3273,73 @@ func (s *TracerSuite) TestTLSCertParsing() {
 
 }
 
+func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("skipping retransmit sync test on prebuilt")
+	}
+	// We need eBPF to test this kernel-side fix
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+	// Create a server that reads one byte and closes, or just listens.
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Connect
+	c, err := server.Dial()
+	require.NoError(t, err)
+
+	// Establish connection first
+	// We don't send "ping" here to keep the baseline segs_out low (SYN + ACK = 2 segments).
+	// Then we write "data" (3rd segment).
+	// Stale SentPackets = 3.
+	// We need retransmits > 3 to fail the test without the fix.
+
+	// Drop packets now to induce retransmits
+	iptablesWrapper(t, func() {
+		// Write data.
+		_, err = c.Write([]byte("data"))
+		require.NoError(t, err)
+
+		// Wait for retransmits. Linux TCP RTO min is often 200ms.
+		// Backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms...
+		// In 4 seconds we expect ~4 retransmits.
+		// 4 (retransmits) > 3 (stale sent packets) -> Test should fail without fix.
+		time.Sleep(4 * time.Second)
+	})
+
+	// Close connection. This should trigger the sync in the BPF program.
+	c.Close()
+
+	// Check stats.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+
+		// We expect retransmits > 0
+		assert.Greater(ct, int(conn.Monotonic.Retransmits), 0, "should have retransmits")
+
+		// With the fix, SentPackets should be updated on close to match the kernel's segs_out,
+		// which includes retransmits. So SentPackets should be >= Retransmits.
+		// Without the fix, SentPackets would only count the initial sends (e.g. 2: "ping" + "data"),
+		// while Retransmits could be much higher (e.g. 5+), failing this check.
+		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentPackets), int(conn.Monotonic.Retransmits),
+			"SentPackets (%d) should be >= Retransmits (%d) due to sync on close", conn.Monotonic.SentPackets, conn.Monotonic.Retransmits)
+
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
 	// find a connection from Python client to CoreDNS
 	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
