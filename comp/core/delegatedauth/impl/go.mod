@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl
 
-go 1.24.0
+go 1.24.10
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.74.0-devel
@@ -14,7 +14,7 @@ require (
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.175 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.176 // indirect
 	github.com/DataDog/datadog-agent v0.0.0-20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.5 // indirect

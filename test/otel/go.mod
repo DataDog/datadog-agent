@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/otel
 
-go 1.24.10
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.74.0-devel
@@ -73,9 +73,9 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.176 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.74.0-devel // indirect

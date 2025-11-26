@@ -43,13 +43,14 @@ require go.yaml.in/yaml/v2 v2.4.3 // indirect
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.176 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.73.0-rc.5 // indirect
-  github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent v0.0.0-20251125141836-2ae7a968751c // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/config v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.74.0-devel // indirect

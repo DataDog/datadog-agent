@@ -1,11 +1,11 @@
 module github.com/DataDog/datadog-agent/pkg/serializer
 
-go 1.24.10
+go 1.24.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.176
-	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
+	github.com/DataDog/datadog-agent/comp/core/config v0.74.0-devel
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.74.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.74.0-devel
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.56.0-rc.3

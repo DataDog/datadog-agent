@@ -2,7 +2,7 @@
 
 module github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl
 
-go 1.24.10
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.0.0-00010101000000-000000000000
@@ -72,14 +72,14 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.176 // indirect
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/config v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/config v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.74.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/core/status v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.73.0-rc.5 // indirect
