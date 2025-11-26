@@ -146,26 +146,34 @@ impl StartProcess for StartProcessUseCase {
         // 4. Check filesystem conditions (ConditionPathExists)
         use crate::domain::check_all_conditions;
         if !check_all_conditions(process.condition_path_exists()) {
+            let process_name = process.name().to_string();
             warn!(
-                process = %process.name(),
+                process = %process_name,
                 "Filesystem conditions not satisfied, refusing to start"
             );
+            // Reset state back to created since we couldn't start
+            process.reset_to_created();
+            self.repository.save(process).await?;
             return Err(DomainError::InvalidCommand(format!(
                 "Process '{}' cannot start: filesystem conditions not met",
-                process.name()
+                process_name
             )));
         }
 
         // 5. Check start limit (prevent restart thrashing)
         if process.is_start_limit_exceeded() {
+            let state_str = process.state().to_string();
             warn!(
                 process = %process.name(),
                 burst = process.start_limit_burst(),
                 interval = process.start_limit_interval_sec(),
                 "Start limit exceeded, refusing to start"
             );
+            // Reset state back to created since we couldn't start
+            process.reset_to_created();
+            self.repository.save(process).await?;
             return Err(DomainError::InvalidStateTransition {
-                from: process.state().to_string(),
+                from: state_str,
                 to: "starting (start limit exceeded)".to_string(),
             });
         }

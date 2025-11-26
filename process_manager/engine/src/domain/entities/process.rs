@@ -439,6 +439,12 @@ impl Process {
         Ok(())
     }
 
+    /// Reset process state back to created (used when start fails due to conditions)
+    pub fn reset_to_created(&mut self) {
+        self.state = ProcessState::Created;
+        self.started_at = None;
+    }
+
     /// Mark the process as running with a PID
     pub fn mark_running(&mut self, pid: u32) -> Result<(), DomainError> {
         if !self.state.can_transition_to(ProcessState::Running) {
