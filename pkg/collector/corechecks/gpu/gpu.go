@@ -258,6 +258,11 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	gpuToContainers := make(map[string]*workloadmeta.Container, len(allPhysicalDevices))
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
+		if containers.IsDatadogAgentContainer(c.wmeta, container) {
+			log.Debugf("Container %s is a Datadog container, skipping for device assignment", container.Name)
+			continue
+		}
+
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
 			c.telemetry.missingContainerGpuMapping.Inc(container.Name)

@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -127,6 +129,23 @@ type mockTracerPayloadModifier struct {
 func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	m.modifyCalled = true
 	m.lastPayload = tp
+}
+
+type mockContainerTagsBuffer struct {
+	containertagsbuffer.NoOpTagsBuffer
+	enabled    bool
+	returnTags []string
+	returnErr  error
+	pending    bool
+}
+
+func (m *mockContainerTagsBuffer) IsEnabled() bool {
+	return m.enabled
+}
+
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), _ int64) bool {
+	cb(m.returnTags, m.returnErr)
+	return m.pending
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -4050,4 +4069,198 @@ func TestUpdateAPIKey(t *testing.T) {
 	agnt.UpdateAPIKey("test", "foo")
 	tw := agnt.TraceWriter.(*mockTraceWriter)
 	assert.Equal(t, "foo", tw.apiKey)
+}
+
+func TestAgentWriteTagsBufferedChunks(t *testing.T) {
+	tests := []struct {
+		name             string
+		containerID      string
+		bufferEnabled    bool
+		inputTags        map[string]string
+		bufferReturnTags []string
+		bufferReturnErr  error
+		expectAsyncCall  bool
+		verifyTags       func(t *testing.T, writtenTags map[string]string)
+	}{
+		{
+			name:            "fast path no containerID",
+			containerID:     "",
+			bufferEnabled:   true,
+			expectAsyncCall: false,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:            "fast path buffer disabled",
+			containerID:     "cid-123",
+			bufferEnabled:   false,
+			expectAsyncCall: false,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:             "async enrichment success",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{"image:nginx", "env:prod"},
+			expectAsyncCall:  true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.Contains(t, tags, tagContainersTags)
+				assert.Equal(t, "image:nginx,env:prod", tags[tagContainersTags])
+			},
+		},
+		{
+			name:            "enrichment error",
+			containerID:     "cid-123",
+			bufferEnabled:   true,
+			bufferReturnErr: errors.New("timeout"),
+			expectAsyncCall: true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:             "empty tags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{},
+			expectAsyncCall:  true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:             "keeps other existing non containertags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			inputTags:        map[string]string{"existing": "value"},
+			bufferReturnTags: []string{"new:tag"},
+			expectAsyncCall:  true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.Equal(t, "value", tags["existing"])
+				assert.Equal(t, "new:tag", tags[tagContainersTags])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockWriter := &mockTraceWriter{}
+			mockBuffer := &mockContainerTagsBuffer{
+				enabled:    tt.bufferEnabled,
+				returnTags: tt.bufferReturnTags,
+				pending:    tt.expectAsyncCall,
+			}
+
+			agent := &Agent{
+				TraceWriter:         mockWriter,
+				ContainerTagsBuffer: mockBuffer,
+			}
+
+			payload := &writer.SampledChunks{
+				Size: 1024,
+				TracerPayload: &pb.TracerPayload{
+					ContainerID: tt.containerID,
+					Tags:        tt.inputTags,
+				},
+			}
+
+			agent.writeChunks(payload)
+
+			assert.Len(t, mockWriter.payloads, 1, "should have written exactly 1 chunk")
+			tt.verifyTags(t, mockWriter.payloads[0].TracerPayload.Tags)
+			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
+}
+
+func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
+	tests := []struct {
+		name                  string
+		containerID           string
+		bufferEnabled         bool
+		inputTags             map[string]string
+		bufferReturnTags      []string
+		bufferReturnErr       error
+		expectAsyncCall       bool
+		expectedContainerTags string
+	}{
+		{
+			name:            "fast path no containerID",
+			containerID:     "",
+			bufferEnabled:   true,
+			expectAsyncCall: false,
+		},
+		{
+			name:            "fast path buffer disabled",
+			containerID:     "cid-123",
+			bufferEnabled:   false,
+			expectAsyncCall: false,
+		},
+		{
+			name:                  "async enrichment success",
+			containerID:           "cid-123",
+			bufferEnabled:         true,
+			bufferReturnTags:      []string{"image:nginx", "env:prod"},
+			expectAsyncCall:       true,
+			expectedContainerTags: "image:nginx,env:prod",
+		},
+		{
+			name:            "enrichment error",
+			containerID:     "cid-123",
+			bufferEnabled:   true,
+			bufferReturnErr: errors.New("timeout"),
+			expectAsyncCall: true,
+		},
+		{
+			name:             "empty tags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{},
+			expectAsyncCall:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockWriter := &mockTraceWriter{}
+			mockBuffer := &mockContainerTagsBuffer{
+				enabled:    tt.bufferEnabled,
+				returnTags: tt.bufferReturnTags,
+				pending:    tt.expectAsyncCall,
+			}
+
+			agent := &Agent{
+				TraceWriterV1:       mockWriter,
+				ContainerTagsBuffer: mockBuffer,
+			}
+
+			payload := &writer.SampledChunksV1{
+				Size: 1024,
+				TracerPayload: &idx.InternalTracerPayload{
+					Strings:    idx.NewStringTable(),
+					Attributes: make(map[uint32]*idx.AnyValue),
+				},
+			}
+			for k, v := range tt.inputTags {
+				payload.TracerPayload.SetStringAttribute(k, v)
+			}
+			if tt.containerID != "" {
+				payload.TracerPayload.SetContainerID(tt.containerID)
+			}
+			agent.writeChunksV1(payload)
+
+			assert.Len(t, mockWriter.payloadsV1, 1, "should have written exactly 1 chunk")
+			tp := mockWriter.payloadsV1[0].TracerPayload
+			containerTags, hasContainerTags := tp.GetAttributeAsString(tagContainersTags)
+			if tt.expectedContainerTags == "" {
+				assert.False(t, hasContainerTags)
+			} else {
+				assert.Equal(t, tt.expectedContainerTags, containerTags)
+			}
+			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
 }
