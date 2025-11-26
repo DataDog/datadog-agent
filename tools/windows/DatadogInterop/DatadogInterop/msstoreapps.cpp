@@ -1,3 +1,4 @@
+#include <windows.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.ApplicationModel.Core.h>
 #include <winrt/Windows.Management.Deployment.h>
@@ -9,29 +10,16 @@ using namespace winrt::Windows::ApplicationModel;
 using namespace winrt::Windows::Management::Deployment;
 using namespace winrt::Windows::System;
 
-// Return codes
-enum Result {
-    SUCCESS,
-    INVALID_PARAMS,
-    EXCEPTION
-};
-
-// Offset between 1601-01-01 and 1970-01-01 in milliseconds
-constexpr int64_t EPOCH_DIFF_MILLIS = 11644473600000LL;
-
-static uint8_t is64(ProcessorArchitecture a) {
+static uint64_t is64(ProcessorArchitecture a) {
     if (a == ProcessorArchitecture::X64 || a == ProcessorArchitecture::Arm64) {
         return 1;
     }
     return 0;
 }
 
-static int64_t dtToUnixEpochMs(const DateTime &dt) {
-    int64_t ticks = dt.time_since_epoch().count();
-    // Convert ticks to milliseconds
-    int64_t millisSince1601 = ticks / 10000; // 10,000 * 100ns = 1ms
-    int64_t unixMillis = millisSince1601 - EPOCH_DIFF_MILLIS;
-    return unixMillis;
+static int64_t dtToUnixTimestamp(const DateTime &dt) {
+    // Convert to Unix time_t (seconds since 1970-01-01)
+    return winrt::clock::to_time_t(dt);
 }
 
 static const wchar_t *copyHStr(MSStoreInternal *msStore, winrt::hstring hstr) {
@@ -45,7 +33,7 @@ static void addEntryToStore(MSStoreInternal *msStore, const Package &pkg, winrt:
     int64_t installDate = 0;
     // Not all packages have InstalledDate
     try {
-        installDate = dtToUnixEpochMs(pkg.InstalledDate());
+        installDate = dtToUnixTimestamp(pkg.InstalledDate());
     } catch (...) {
     }
     PackageVersion version = id.Version();
@@ -64,9 +52,10 @@ static void addEntryToStore(MSStoreInternal *msStore, const Package &pkg, winrt:
     msStore->entriesVec.push_back(e);
 }
 
-extern "C" __declspec(dllexport) int GetStore(MSStore **out) {
+extern "C" __declspec(dllexport) BOOL GetStore(MSStore **out) {
     if (!out) {
-        return Result::INVALID_PARAMS;
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
     }
 
     MSStoreInternal *msStore = new MSStoreInternal();
@@ -102,22 +91,27 @@ extern "C" __declspec(dllexport) int GetStore(MSStore **out) {
             }
         }
 
-        msStore->count = static_cast<int32_t>(msStore->entriesVec.size());
+        msStore->count = static_cast<int64_t>(msStore->entriesVec.size());
         if (!msStore->entriesVec.empty()) {
             msStore->entries = msStore->entriesVec.data();
         }
 
         *out = msStore;
-        return Result::SUCCESS;
+        SetLastError(ERROR_SUCCESS);
+        return TRUE;
     } catch (...) {
-        return Result::EXCEPTION;
+        delete msStore;
+        SetLastError(ERROR_UNHANDLED_EXCEPTION);
+        return FALSE;
     }
 }
 
-extern "C" __declspec(dllexport) int FreeStore(MSStore *msStore) {
+extern "C" __declspec(dllexport) BOOL FreeStore(MSStore *msStore) {
     if (!msStore) {
-        return Result::INVALID_PARAMS;
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
     }
-    delete reinterpret_cast<MSStoreInternal *>(msStore);
-    return Result::SUCCESS;
+    delete static_cast<MSStoreInternal *>(msStore);
+    SetLastError(ERROR_SUCCESS);
+    return TRUE;
 }
