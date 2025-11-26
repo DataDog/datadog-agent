@@ -270,10 +270,10 @@ func TestEnabledNamespacesEnvVar(t *testing.T) {
 			name:     "empty",
 			expected: []string{},
 		},
-		//{
-		//	name:     "nil",
-		//	expected: nil,
-		//},
+		{
+			name:     "nil",
+			expected: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -301,10 +301,10 @@ func TestDisabledNamespacesEnvVar(t *testing.T) {
 			name:     "empty",
 			expected: []string{},
 		},
-		//{
-		//	name:     "nil",
-		//	expected: nil,
-		//},
+		{
+			name:     "nil",
+			expected: nil,
+		},
 	}
 
 	for _, tt := range tests {
