@@ -42,6 +42,8 @@ type RemoteProgram struct {
 var _ FilterProgram = &RemoteProgram{}
 
 // Evaluate evaluates the filter program against a workload entity.
+// Note: we are assuming a strong dependency on the remote server.
+// If the remote server is not available, we consider the entity excluded by default.
 func (p *RemoteProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	cacheKey := p.getCacheKey(entity)
 	if p.Cache != nil && cacheKey != "" {
@@ -60,14 +62,14 @@ func (p *RemoteProgram) Evaluate(entity workloadfilter.Filterable) workloadfilte
 	if err != nil {
 		p.Logger.Errorf("unable to build workloadfilter request: %v", err)
 		p.TelemetryStore.RemoteEvaluationErrors.Inc(p.ObjectType, p.Name, "request_build_error")
-		return workloadfilter.Unknown
+		return workloadfilter.Excluded
 	}
 
 	client, err := p.Provider.GetClient()
 	if err != nil {
 		p.Logger.Errorf("unable to get client: %v", err)
 		p.TelemetryStore.RemoteEvaluationErrors.Inc(p.ObjectType, p.Name, "client_error")
-		return workloadfilter.Unknown
+		return workloadfilter.Excluded
 	}
 
 	// Create the context with the auth token
@@ -83,7 +85,7 @@ func (p *RemoteProgram) Evaluate(entity workloadfilter.Filterable) workloadfilte
 	if err != nil {
 		p.Logger.Errorf("workloadfilter remote evaluation failed: %v", err)
 		p.TelemetryStore.RemoteEvaluationErrors.Inc(p.ObjectType, p.Name, "rpc_error")
-		return workloadfilter.Unknown
+		return workloadfilter.Excluded
 	}
 
 	result := proto.ToWorkloadFilterResult(resp.Result)
