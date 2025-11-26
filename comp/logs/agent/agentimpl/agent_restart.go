@@ -195,7 +195,12 @@ func (a *logAgent) smartHTTPRestart() {
 	}
 
 	a.httpRetryMutex.Lock()
-	a.httpRetryStopChan = make(chan struct{})
+	// Cancel any existing loop to avoid leaks or duplicate retries
+	if a.httpRetryCancel != nil {
+		a.httpRetryCancel()
+	}
+	a.httpRetryCtx, a.httpRetryCancel = context.WithCancel(context.Background())
+	ctx := a.httpRetryCtx
 	a.httpRetryMutex.Unlock()
 
 	a.log.Info("Starting HTTP connectivity retry with exponential backoff in 10 seconds...")
@@ -204,15 +209,14 @@ func (a *logAgent) smartHTTPRestart() {
 	go func() {
 		time.Sleep(10 * time.Second)
 		a.log.Info("Initiating HTTP connectivity retry loop")
-		a.httpRetryLoop()
+		a.httpRetryLoop(ctx)
 	}()
 }
 
 // httpRetryLoop runs periodic HTTP connectivity checks with exponential backoff
 // Uses a similar backoff strategy as the TCP connection manager:
 // exponential backoff with randomization [2^(n-1), 2^n) seconds, capped at configured max
-func (a *logAgent) httpRetryLoop() {
-	ctx := context.Background()
+func (a *logAgent) httpRetryLoop(ctx context.Context) {
 	maxRetryInterval := time.Duration(config.HTTPConnectivityRetryIntervalMax(a.config)) * time.Second
 	if maxRetryInterval == 0 {
 		a.log.Warn("HTTP connectivity retry interval max set to 0 seconds, skipping HTTP connectivity retry")
@@ -255,7 +259,7 @@ func (a *logAgent) httpRetryLoop() {
 
 			a.log.Debug("HTTP connectivity check failed - will retry")
 
-		case <-a.httpRetryStopChan:
+		case <-ctx.Done():
 			a.log.Debug("HTTP retry loop stopped")
 			return
 		}
@@ -302,8 +306,9 @@ func (a *logAgent) stopHTTPRetry() {
 	a.httpRetryMutex.Lock()
 	defer a.httpRetryMutex.Unlock()
 
-	if a.httpRetryStopChan != nil {
-		close(a.httpRetryStopChan)
-		a.httpRetryStopChan = nil
+	if a.httpRetryCancel != nil {
+		a.httpRetryCancel()
+		a.httpRetryCancel = nil
+		a.httpRetryCtx = nil
 	}
 }
