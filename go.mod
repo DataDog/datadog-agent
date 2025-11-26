@@ -616,7 +616,7 @@ require (
 	github.com/gofrs/flock v0.12.1 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -964,7 +964,10 @@ require (
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 )
 
-require go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
+require (
+	github.com/go-jose/go-jose/v4 v4.1.3
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
+)
 
 require (
 	cyphar.com/go-pathrs v0.2.1 // indirect
