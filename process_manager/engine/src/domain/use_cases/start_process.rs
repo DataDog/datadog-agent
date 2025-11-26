@@ -79,36 +79,57 @@ impl StartProcess for StartProcessUseCase {
             .stop_conflicting_processes(&process, &all_processes)
             .await?;
 
-        // Auto-start required dependencies (requires, binds_to, wants)
-        // binds_to is a startup dependency in systemd (like Requires, plus shutdown binding)
-        let mut deps_to_start = Vec::new();
-        deps_to_start.extend(process.requires().iter().cloned());
-        deps_to_start.extend(process.binds_to().iter().cloned());
-        deps_to_start.extend(process.wants().iter().cloned());
+        // Auto-start hard dependencies first (requires, binds_to)
+        // These MUST succeed or the process cannot start
+        let hard_deps: Vec<String> = process
+            .requires()
+            .iter()
+            .chain(process.binds_to().iter())
+            .cloned()
+            .collect();
 
-        for dep_name in deps_to_start {
-            if let Some(dep_process) = all_processes.get(&dep_name) {
-                // Skip if already running OR starting (prevents cycles)
+        for dep_name in &hard_deps {
+            if let Some(dep_process) = all_processes.get(dep_name) {
                 if dep_process.state() != ProcessState::Running
                     && dep_process.state() != ProcessState::Starting
                 {
                     info!(
                         process = %process.name(),
                         dependency = %dep_name,
-                        "Auto-starting dependency"
+                        "Auto-starting hard dependency"
                     );
-
-                    // Recursively start dependency with its own dependencies
                     let dep_command = StartProcessCommand::from_id(dep_process.id());
-                    self.execute(dep_command).await?;
+                    self.execute(dep_command).await?; // Hard dep failure stops parent
                 }
             } else {
-                // Hard dependencies (requires, binds_to) must exist
-                if process.requires().contains(&dep_name) || process.binds_to().contains(&dep_name)
+                return Err(DomainError::DependencyNotFound(dep_name.clone()));
+            }
+        }
+
+        // Auto-start soft dependencies (wants)
+        // These are best-effort - failures are logged but don't stop the parent
+        for dep_name in process.wants() {
+            if let Some(dep_process) = all_processes.get(dep_name) {
+                if dep_process.state() != ProcessState::Running
+                    && dep_process.state() != ProcessState::Starting
                 {
-                    return Err(DomainError::DependencyNotFound(dep_name));
+                    info!(
+                        process = %process.name(),
+                        dependency = %dep_name,
+                        "Auto-starting soft dependency (wants)"
+                    );
+                    let dep_command = StartProcessCommand::from_id(dep_process.id());
+                    // Soft dependency - log error but continue
+                    if let Err(e) = self.execute(dep_command).await {
+                        warn!(
+                            process = %process.name(),
+                            dependency = %dep_name,
+                            error = %e,
+                            "Soft dependency failed to start, continuing anyway"
+                        );
+                    }
                 }
-                // Soft dependencies (wants) can be missing - just log warning
+            } else {
                 warn!(
                     process = %process.name(),
                     dependency = %dep_name,
