@@ -35,11 +35,12 @@ env:
 
 # Conditional starting (systemd ConditionPathExists=|)
 # Process only starts if at least one of these config files exists
-# Also check that kernel debug filesystem is mounted (required for eBPF)
+# The '|' prefix means OR logic - any one path existing satisfies the condition
+# Note: systemd uses Requires=sys-kernel-debug.mount for the debug filesystem
+# TODO: Implement mount point dependencies in process manager
 condition_path_exists:
-  - /etc/datadog-agent/system-probe.yaml
-  - /etc/datadog-agent/managed/datadog-agent/stable/system-probe.yaml
-  - /sys/kernel/debug  # Replaces Requires=sys-kernel-debug.mount
+  - "|/etc/datadog-agent/system-probe.yaml"
+  - "|/etc/datadog-agent/managed/datadog-agent/stable/system-probe.yaml"
 
 # Ordering (systemd Before= means this starts before those processes)
 # Note: In process manager, we use 'before' to indicate this should start first

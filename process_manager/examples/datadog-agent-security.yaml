@@ -37,10 +37,10 @@ env:
 
 # Conditional starting (systemd ConditionPathExists=|)
 # Process only starts if at least one of these config files exists
-# The '!' prefix means "negate" - we use paths without prefix for "exists"
+# The '|' prefix means OR logic - any one path existing satisfies the condition
 condition_path_exists:
-  - /etc/datadog-agent/security-agent.yaml
-  - /etc/datadog-agent/managed/datadog-agent/stable/security-agent.yaml
+  - "|/etc/datadog-agent/security-agent.yaml"
+  - "|/etc/datadog-agent/managed/datadog-agent/stable/security-agent.yaml"
 
 # Ordering (systemd After=)
 after:
