@@ -211,10 +211,10 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 	}
 
 	pInfo := &rules.PolicyInfo{
-		Name:       policyName,
-		Source:     policySource,
-		Type:       rules.SelftestPolicy,
-		IsInternal: true,
+		Name:         policyName,
+		Source:       policySource,
+		InternalType: rules.SelftestPolicyType,
+		IsInternal:   true,
 	}
 
 	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)

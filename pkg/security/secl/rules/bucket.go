@@ -40,8 +40,8 @@ func (rb *RuleBucket) AddRule(rule *Rule) error {
 	// sort by policy, execution context, then by priority
 	sort.SliceStable(rb.rules, func(i, j int) bool {
 		// sort by policy type
-		if rb.rules[i].Policy.Type != rb.rules[j].Policy.Type {
-			return rb.rules[i].Policy.Type == DefaultPolicyType
+		if rb.rules[i].Policy.InternalType != rb.rules[j].Policy.InternalType {
+			return rb.rules[i].Policy.InternalType == DefaultPolicyType
 		}
 
 		// sort by execution context
