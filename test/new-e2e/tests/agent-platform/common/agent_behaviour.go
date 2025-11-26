@@ -222,7 +222,7 @@ const (
 	ExpectedPythonVersion2 = "2.7.18"
 	// ExpectedPythonVersion3 is the expected python 3 version
 	// Bump this version when the version in omnibus/config/software/python3.rb changes
-	ExpectedPythonVersion3 = "3.13.7"
+	ExpectedPythonVersion3 = "3.13.9"
 	// ExpectedUnloadedPython is the status value for uninitialized lazy loaded python runtime
 	ExpectedUnloadedPython = "unused"
 )
