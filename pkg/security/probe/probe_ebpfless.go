@@ -363,6 +363,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Type = uint32(model.PrCtlEventType)
 		event.PrCtl.Option = syscallMsg.Prctl.Option
 		event.PrCtl.NewName = syscallMsg.Prctl.NewName
+	case ebpfless.SyscallTypeSocket:
+		event.Type = uint32(model.SocketEventType)
+		event.Socket.Domain = syscallMsg.SocketEvent.Domain
+		event.Socket.Type = syscallMsg.SocketEvent.Type
+		event.Socket.Protocol = syscallMsg.SocketEvent.Protocol
+		event.Socket.Retval = syscallMsg.Retval
 	}
 
 	// container context
