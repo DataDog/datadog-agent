@@ -163,6 +163,9 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	}
 
 	agent.setupAgent()
+	suite.T().Cleanup(func() {
+		_ = agent.stop(context.TODO())
+	})
 
 	return agent, sources, services
 }
