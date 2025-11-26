@@ -21,11 +21,11 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // CacheResolverKey is used to store and retrieve processes from the cache
@@ -39,7 +39,7 @@ type EBPFLessResolver struct {
 	sync.RWMutex
 	entryCache   map[CacheResolverKey]*model.ProcessCacheEntry
 	opts         ResolverOpts
-	scrubber     *procutil.DataScrubber
+	scrubber     *utils.Scrubber
 	statsdClient statsd.ClientInterface
 
 	// stats
@@ -49,7 +49,7 @@ type EBPFLessResolver struct {
 }
 
 // NewEBPFLessResolver returns a new process resolver
-func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts *ResolverOpts) (*EBPFLessResolver, error) {
+func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, opts *ResolverOpts) (*EBPFLessResolver, error) {
 	p := &EBPFLessResolver{
 		entryCache:   make(map[CacheResolverKey]*model.ProcessCacheEntry),
 		opts:         *opts,
@@ -329,17 +329,17 @@ func (p *EBPFLessResolver) Dump(_ bool) (string, error) {
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
 func (p *EBPFLessResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+	if pr.ArgsEntry == nil || pr.ArgsEntry.ScrubbedResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
 
 	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
 		// replace with the scrubbed version
-		argv, _ := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
+		argv := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
-	pr.ScrubbedArgvResolved = true
+	pr.ArgsEntry.ScrubbedResolved = true
 
 	return GetProcessArgv(pr)
 }
