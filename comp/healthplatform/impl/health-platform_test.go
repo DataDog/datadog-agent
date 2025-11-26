@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -58,6 +59,23 @@ func (m *mockLifecycle) Stop(ctx context.Context) error {
 	return nil
 }
 
+// mockHostname is a simple mock for hostname component
+type mockHostname struct {
+	hostname string
+}
+
+func (m *mockHostname) Get(_ context.Context) (string, error) {
+	return m.hostname, nil
+}
+
+func (m *mockHostname) GetWithProvider(_ context.Context) (hostnameinterface.Data, error) {
+	return hostnameinterface.Data{Hostname: m.hostname, Provider: "mock"}, nil
+}
+
+func (m *mockHostname) GetSafe(_ context.Context) string {
+	return m.hostname
+}
+
 // testRequires creates a Requires struct for testing with health platform enabled
 func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 	cfg := config.NewMock(t)
@@ -72,6 +90,7 @@ func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 		Config:    cfg,
 		Log:       logmock.New(t),
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		Hostname:  &mockHostname{hostname: "test-hostname"},
 	}
 }
 
