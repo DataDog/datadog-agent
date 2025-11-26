@@ -376,6 +376,7 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\datadog-installer.exe",
+      "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

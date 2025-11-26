@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ import (
 
 var (
 	configPath                  = filepath.Join(config.DefaultConfPath, "managed", "rc-orgwide-wls-policy.bin")
-	ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
+	ddPolicyCompileRelativePath string
 	// Pattern to extract policy ID from config path: datadog/\d+/<product>/<config_id>/<hash>
 	policyIDPattern = regexp.MustCompile(`^datadog/\d+/[^/]+/([^/]+)/`)
 	// Pattern to extract numeric prefix from policy ID: N.<name>
@@ -36,6 +37,20 @@ var (
 	// getInstallPath is a variable that can be overridden in tests
 	getInstallPath = config.GetInstallPath
 )
+
+func init() {
+	// Set the relative path with the correct extension for the platform
+	if runtime.GOOS == "windows" {
+		ddPolicyCompileRelativePath = filepath.Join("bin", "dd-compile-policy.exe")
+	} else {
+		ddPolicyCompileRelativePath = filepath.Join("embedded", "bin", "dd-compile-policy")
+	}
+}
+
+// getCompilePolicyBinaryPath returns the full path to the compile policy binary
+func getCompilePolicyBinaryPath() string {
+	return filepath.Join(getInstallPath(), ddPolicyCompileRelativePath)
+}
 
 // Requires defines the dependencies for the workloadselection component
 type Requires struct {
@@ -78,27 +93,13 @@ type workloadselectionComponent struct {
 	config config.Component
 }
 
-// isCompilePolicyBinaryAvailable checks if the compile policy binary is available
-// and executable
-func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
-	compilePath := filepath.Join(getInstallPath(), ddPolicyCompileRelativePath)
-	info, err := os.Stat(compilePath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			c.log.Warnf("failed to stat APM workload selection compile policy binary: %v", err)
-		}
-		return false
-	}
-	return info.Mode().IsRegular() && info.Mode()&0111 != 0
-}
-
 // compilePolicyBinary compiles the policy binary into a binary file
 // readable by the injector
 func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
 	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command(filepath.Join(getInstallPath(), ddPolicyCompileRelativePath), "--input-string", string(rawConfig), "--output-file", configPath)
+	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", configPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
