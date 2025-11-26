@@ -108,9 +108,9 @@ func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeD
 
 	err := modeConf.Runner(logConfig)
 
-	// Defers are LIFO
+	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer cloudService.Shutdown(*metricAgent, traceAgent, err)
 
 	return err
 }
@@ -124,10 +124,6 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	cloudService := cloudservice.GetCloudServiceType()
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
-
-	// Ignore errors for now. Once we go GA, check for errors
-	// and exit right away.
-	_ = cloudService.Init()
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
@@ -156,6 +152,9 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
+
+	// TODO check for errors and exit
+	_ = cloudService.Init(traceAgent)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 

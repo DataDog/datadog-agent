@@ -2282,9 +2282,6 @@ api_key:
 #     - '*token'
 #     - 'sql*'
 #     - '*pass*d*'
-#
-#   custom_sensitive_regexps:
-#     - 'gh-[a-zA-Z0-9]+'
 
 #   # @param envs_with_value - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
@@ -4268,8 +4265,8 @@ api_key:
 #         #   "10.0.0.1":              # target device IP address
 #         #     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
 #         #       match_value: "eth0"  # (required) the value to match
-#         #       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
-#         #       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+#         #       in_speed: 50         # (optional) inbound speed value in bytes per sec, no value or 0 means no override
+#         #       out_speed: 25        # (optional) outbound speed value in bytes per sec, no value or 0 means no override
 #         #       tags:                # (optional) interface level tags
 #         #         - "testTagKey:testTagValue"
 #         #         - "tagKey2:tagValue2"

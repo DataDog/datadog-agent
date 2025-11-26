@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var eventOnce sync.Once
@@ -62,13 +61,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 		assert.Equal(tb, "open", event.GetType(), "wrong event type")
 	})
 
-	scrubber, err := utils.NewScrubber(nil, nil)
-	if err != nil {
-		tb.Errorf("failed to create scrubber: %v", err)
-		return nil
-	}
-
-	return serializers.NewEventSerializer(workingEvent, nil, scrubber)
+	return serializers.NewEventSerializer(workingEvent, nil)
 }
 
 func BenchmarkSerializersEasyJson(b *testing.B) {
