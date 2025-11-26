@@ -143,6 +143,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
+		ConfigID:             config.GetStringOrDefault("config_id", "empty"),
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env, taskDB), nil
@@ -752,6 +753,12 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	tasksState, err := d.taskDB.GetTasksState()
 	if err != nil {
 		log.Errorf("could not get tasks state: %v", err)
+	}
+	runningVersions := map[string]string{
+		"datadog-agent": version.AgentPackageVersion,
+	}
+	runningConfigVersions := map[string]string{
+		"datadog-agent": d.env.ConfigID,
 	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
