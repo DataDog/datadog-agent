@@ -195,7 +195,7 @@ int BPF_UPROBE(uprobe__cudaStreamSynchronize, __u64 stream) {
 
 SEC("uretprobe/cudaStreamSynchronize")
 int BPF_URETPROBE(uretprobe__cudaStreamSynchronize) {
-    log_debug("cudaStreamSyncronize[ret]: pid=%llx\n", bpf_get_current_pid_tgid());
+    log_debug("cudaStreamSynchronize[ret]: pid=%llx\n", bpf_get_current_pid_tgid());
     return _stream_sync_exit();
 }
 
