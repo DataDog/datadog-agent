@@ -462,6 +462,7 @@ func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
 func getPIDs() ([]int32, error) {
 	var read uint32
 	var psSize uint32 = 1024
+	const dwordSize uint32 = 4
 
 	for {
 		buf := make([]uint32, psSize)
@@ -472,7 +473,8 @@ func getPIDs() ([]int32, error) {
 			psSize += 1024
 			continue
 		}
-		pids := make([]int32, read)
+		// read is a number of bytes, so we need to divide by the size of a DWORD to get the number of PIDs
+		pids := make([]int32, read/dwordSize)
 		for i := range pids {
 			pids[i] = int32(buf[i])
 		}
