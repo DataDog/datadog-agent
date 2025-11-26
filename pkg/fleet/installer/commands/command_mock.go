@@ -125,6 +125,14 @@ func (m *installerMock) UninstrumentAPMInjector(_ context.Context, _ string) err
 	return nil
 }
 
+func (m *installerMock) GetRunningVersions(_ context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (m *installerMock) GetRunningConfigVersions(_ context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
 func (m *installerMock) Close() error {
 	return nil
 }

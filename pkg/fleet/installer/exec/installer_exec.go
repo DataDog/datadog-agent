@@ -338,6 +338,16 @@ func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]repository
 	return allStates.ConfigStates, nil
 }
 
+// GetRunningVersions returns the running versions of all packages.
+func (i *InstallerExec) GetRunningVersions(ctx context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+// GetRunningConfigVersions returns the running versions of all packages' configurations.
+func (i *InstallerExec) GetRunningConfigVersions(ctx context.Context) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
 // Close cleans up any resources.
 func (i *InstallerExec) Close() error {
 	return nil

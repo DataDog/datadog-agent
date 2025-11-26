@@ -139,6 +139,16 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 	return args.Error(0)
 }
 
+func (m *testPackageManager) GetRunningVersions(ctx context.Context) (map[string]string, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
+func (m *testPackageManager) GetRunningConfigVersions(ctx context.Context) (map[string]string, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(map[string]string), args.Error(1)
+}
+
 func (m *testPackageManager) Close() error {
 	args := m.Called()
 	return args.Error(0)
