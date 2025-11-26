@@ -41,14 +41,12 @@ build do
         Dir.glob("#{installation_dir}/include/openssl/tmp*").each do |tmp_file|
           delete tmp_file
         end
-      end
-    end
-    if !windows?
-    lib_extension = if linux_target? then ".so.#{version}" else ".#{version}.dylib" end
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
-      " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-      " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-      " #{install_dir}/embedded/lib/pkgconfig/*.pc"
+    else
+      lib_extension = if linux_target? then ".so.#{version}" else ".#{version}.dylib" end
+      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
+        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
+        " #{install_dir}/embedded/lib/pkgconfig/*.pc"
     end
   else
 
