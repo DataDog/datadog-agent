@@ -288,29 +288,44 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 // onConfigUpdate handles configuration change notification to update the internal API key of the Endpoint if needed
 func (e *Endpoint) onConfigUpdate(l *LogsConfigKeys) {
-	l.getConfig().OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64) {
+	if e.isAdditionalEndpoint {
+		e.onConfigUpdateAdditionalEndpoints(l)
+	} else {
+		e.onConfigUpdateFromReaderMainEndpoint(l.getConfig())
+	}
+}
+
+// onConfigUpdateFromReaderMainEndpoint handles configuration change notification to update the internal API key of the
+// endpoint if it is the main endpoint
+func (e *Endpoint) onConfigUpdateFromReaderMainEndpoint(config model.Reader) {
+	config.OnUpdate(func(key string, _ model.Source, oldVal interface{}, newVal interface{}, _ uint64) {
 		if key != e.configSettingPath {
 			return
 		}
 
-		// main Endpoints can directly get their API key from the configuration without having to load complex
-		// types.
-		if !e.isAdditionalEndpoint {
-			if newAPIKey, ok := newVal.(string); !ok {
-				log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", e.configSettingPath)
-			} else {
-				if oldKey, ok := oldVal.(string); ok && oldKey != e.apiKey.Load() {
-					// This should never happens as it means that an update from the config was
-					// missed
-					log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
-				}
-				log.Infof("rotating API key for '%s': %s -> %s",
-					e.configSettingPath,
-					scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
-					scrubber.HideKeyExceptLastFiveChars(newAPIKey),
-				)
-				e.apiKey.Store(newAPIKey)
+		if newAPIKey, ok := newVal.(string); !ok {
+			log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", e.configSettingPath)
+		} else {
+			if oldKey, ok := oldVal.(string); ok && oldKey != e.apiKey.Load() {
+				// This should never happens as it means that an update from the config was
+				// missed
+				log.Warnf("old API key for '%s' doesn't match the one in this endpoints", e.configSettingPath)
 			}
+			log.Infof("rotating API key for '%s': %s -> %s",
+				e.configSettingPath,
+				scrubber.HideKeyExceptLastFiveChars(e.apiKey.Load()),
+				scrubber.HideKeyExceptLastFiveChars(newAPIKey),
+			)
+			e.apiKey.Store(newAPIKey)
+		}
+	})
+}
+
+// onConfigUpdateAdditionalEndpoints handles configuration change notification to update the internal API key of the
+// endpoint, when the endpoint is an additional endpoint
+func (e *Endpoint) onConfigUpdateAdditionalEndpoints(l *LogsConfigKeys) {
+	l.getConfig().OnUpdate(func(key string, _ model.Source, _ interface{}, _ interface{}, _ uint64) {
+		if key != e.configSettingPath {
 			return
 		}
 
