@@ -474,8 +474,8 @@ func createTestWLMProcessStats(wlmProcs []*wmdef.Process, elevatedPermissions bo
 }
 
 // randRange returns a random number between min and max inclusive [min, max]
-func randRange(min, max int) int {
-	return rand.IntN(max+1-min) + min
+func randRange(minValue, maxValue int) int {
+	return rand.IntN(maxValue+1-minValue) + minValue
 }
 
 // randomUnprivilegedProcessStats returns process stats with reasonable randomized data

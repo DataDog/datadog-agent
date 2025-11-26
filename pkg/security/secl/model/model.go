@@ -655,8 +655,8 @@ type DNSResponse struct {
 }
 
 // Matches returns true if the two DNS events matches
-func (de *DNSEvent) Matches(new *DNSEvent) bool {
-	return de.Question.Name == new.Question.Name && de.Question.Type == new.Question.Type && de.Question.Class == new.Question.Class
+func (de *DNSEvent) Matches(other *DNSEvent) bool {
+	return de.Question.Name == other.Question.Name && de.Question.Type == other.Question.Type && de.Question.Class == other.Question.Class
 }
 
 // IMDSEvent represents an IMDS event

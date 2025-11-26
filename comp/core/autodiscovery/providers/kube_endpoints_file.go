@@ -144,10 +144,10 @@ func (p *KubeEndpointsFileConfigProvider) addHandler(obj interface{}) {
 	}
 }
 
-func (p *KubeEndpointsFileConfigProvider) updateHandler(old, new interface{}) {
-	newEp, ok := new.(*v1.Endpoints)
+func (p *KubeEndpointsFileConfigProvider) updateHandler(oldObj, newObj interface{}) {
+	newEp, ok := newObj.(*v1.Endpoints)
 	if !ok {
-		log.Errorf("Expected an Endpoints type, got: %T", new)
+		log.Errorf("Expected an Endpoints type, got: %T", newObj)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (p *KubeEndpointsFileConfigProvider) updateHandler(old, new interface{}) {
 		return
 	}
 
-	oldEp, ok := old.(*v1.Endpoints)
+	oldEp, ok := oldObj.(*v1.Endpoints)
 	if !ok {
 		log.Errorf("Expected a Endpoints type, got: %T", old)
 		return

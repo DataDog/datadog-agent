@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	ScanFilesystemType = "filesystem" // ScanFilesystemType defines the type for file-system scan
-	ScanDaemonType     = "daemon"     // ScanDaemonType defines the type for daemon scan
+	// ScanFilesystemType defines the type for file-system scan
+	ScanFilesystemType = "filesystem"
+	// ScanDaemonType defines the type for daemon scan
+	ScanDaemonType = "daemon"
 )
 
 // Report defines the report interface

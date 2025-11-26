@@ -455,14 +455,14 @@ func nodeBaseToProto(nb *NodeBase) *adproto.NodeBase {
 	return pnb
 }
 
-func capabilityNodeToProto(cap *CapabilityNode) *adproto.CapabilityNode {
-	if cap == nil {
+func capabilityNodeToProto(capNode *CapabilityNode) *adproto.CapabilityNode {
+	if capNode == nil {
 		return nil
 	}
 
 	return &adproto.CapabilityNode{
-		NodeBase:   nodeBaseToProto(&cap.NodeBase),
-		Capability: cap.Capability,
-		IsCapable:  cap.Capable,
+		NodeBase:   nodeBaseToProto(&capNode.NodeBase),
+		Capability: capNode.Capability,
+		IsCapable:  capNode.Capable,
 	}
 }

@@ -25,9 +25,12 @@ func NewEventTypeMetada(fields ...string) *EventTypeMetadata {
 type Platform string
 
 const (
-	Unspecified Platform = "unspecified" // Unspecified defines unspecified platforms
-	Linux       Platform = "linux"       // Linux defines linux platforms
-	Windows     Platform = "windows"     // Windows defines windows platforms
+	// Unspecified defines unspecified platforms
+	Unspecified Platform = "unspecified"
+	// Linux defines linux platforms
+	Linux Platform = "linux"
+	// Windows defines windows platforms
+	Windows Platform = "windows"
 )
 
 // Module represents everything needed to generate the accessors for a specific module (fields, build tags, ...)

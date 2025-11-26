@@ -69,12 +69,12 @@ func getProcessKFilters(eventType model.EventType, approvers rules.Approvers) ([
 				eventMask:    uint64(1 << (eventType - 1)),
 			})
 		case eval.RangeValueType:
-			min, max := value.Value.(rules.RangeFilterValue).Min, value.Value.(rules.RangeFilterValue).Max
-			if !auidRangeSet || auidRange.Min > min {
-				auidRange.Min = min
+			rangeMin, rangeMax := value.Value.(rules.RangeFilterValue).Min, value.Value.(rules.RangeFilterValue).Max
+			if !auidRangeSet || auidRange.Min > rangeMin {
+				auidRange.Min = rangeMin
 			}
-			if !auidRangeSet || auidRange.Max < max {
-				auidRange.Max = max
+			if !auidRangeSet || auidRange.Max < rangeMax {
+				auidRange.Max = rangeMax
 			}
 			auidRangeSet = true
 		}

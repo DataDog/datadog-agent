@@ -40,7 +40,7 @@ type syntheticsTestScheduler struct {
 	flushLoopDone                chan struct{}
 	epForwarder                  eventplatform.Forwarder
 	telemetry                    telemetry.Component
-	generateTestResultID         func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error)
+	generateTestResultID         func(func(rand io.Reader, limit *big.Int) (n *big.Int, err error)) (string, error)
 	ticker                       *time.Ticker
 	tickerC                      <-chan time.Time
 	runTraceroute                func(ctx context.Context, cfg config.Config, telemetry telemetry.Component) (payload.NetworkPath, error)

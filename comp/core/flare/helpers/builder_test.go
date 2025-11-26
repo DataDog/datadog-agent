@@ -183,7 +183,7 @@ func TestRedactingOtherServicesApiKey(t *testing.T) {
 	fb := getNewBuilder(t)
 	defer fb.clean()
 
-	clear := []byte(`init_config:
+	clearConfig := []byte(`init_config:
 instances:
 - host: 127.0.0.1
   api_key: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -198,7 +198,7 @@ instances:
   api_key: "********"
   version: 4 # omit this line if you're running pdns_recursor version 3.x`
 
-	fb.AddFile("test.conf", clear)
+	fb.AddFile("test.conf", clearConfig)
 	assertFileContent(t, fb, redacted, "test.conf")
 }
 
@@ -206,7 +206,7 @@ func TestAddFileYamlDetection(t *testing.T) {
 	fb := getNewBuilder(t)
 	defer fb.clean()
 
-	clear := []byte(`instances:
+	clearYAML := []byte(`instances:
 - host: 127.0.0.1
   token:
     - abcdef
@@ -216,7 +216,7 @@ func TestAddFileYamlDetection(t *testing.T) {
   - host: 127.0.0.1
     token: "********"`
 
-	fb.AddFile("test.yaml", clear)
+	fb.AddFile("test.yaml", clearYAML)
 	assertFileContent(t, fb, redacted, "test.yaml")
 }
 

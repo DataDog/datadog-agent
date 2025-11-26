@@ -157,7 +157,7 @@ func (t *ttlCache) putAndCheckExtrema(
 	dimensions *Dimensions,
 	startTs, ts uint64,
 	curExtrema float64,
-	min bool,
+	isMin bool,
 ) (assumeFromLastWindow bool) {
 	key := t.cache.computeKey(dimensions.String())
 	if c, found := t.cache.get(key); found {
@@ -170,7 +170,7 @@ func (t *ttlCache) putAndCheckExtrema(
 		}
 
 		isNotFirst := isNotFirstPoint(startTs, ts, cnt.startTs)
-		if min {
+		if isMin {
 			// We assume the minimum comes from the last time window if either of the following is true:
 			// - the point is NOT the first in the timeseries AND is lower than the previous one
 			// - the global minimum is bigger than the stored minimum (and therefore a reset must have happened)

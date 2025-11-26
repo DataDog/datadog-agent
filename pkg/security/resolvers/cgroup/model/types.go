@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	ErrNoImageProvided = errors.New("no image name provided") // ErrNoImageProvided is returned when no image name is provided
+	// ErrNoImageProvided is returned when no image name is provided
+	ErrNoImageProvided = errors.New("no image name provided")
 )
 
 // WorkloadSelector is a selector used to uniquely indentify the image of a workload

@@ -583,7 +583,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			tickCh <- scheduler.timeNowFn()
 
 			scheduler.runTraceroute = tc.expectedRunTraceroute
-			scheduler.generateTestResultID = func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+			scheduler.generateTestResultID = func(func(rand io.Reader, limit *big.Int) (n *big.Int, err error)) (string, error) {
 				return "4907739274636687553", nil
 			}
 

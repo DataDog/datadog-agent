@@ -294,11 +294,11 @@ func (r *rootFsDeviceFinder) askProcPartitions() (string, error) {
 			continue
 		}
 		maj, err1 := strconv.ParseUint(fields[0], 10, 32)
-		min, err2 := strconv.ParseUint(fields[1], 10, 32)
+		minorValue, err2 := strconv.ParseUint(fields[1], 10, 32)
 		if err1 != nil || err2 != nil {
 			continue
 		}
-		if uint32(maj) == r.major && uint32(min) == r.minor {
+		if uint32(maj) == r.major && uint32(minorValue) == r.minor {
 			name := fields[3]
 			if name != "" {
 				return "/dev/" + name, nil

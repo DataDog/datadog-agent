@@ -446,7 +446,7 @@ func hasAssertionOn100PacketLoss(assertionResults []common.AssertionResult) bool
 }
 
 // generateRandomStringUInt63 returns a cryptographically random uint63 as decimal string.
-func generateRandomStringUInt63(randIntFn func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+func generateRandomStringUInt63(randIntFn func(rand io.Reader, limit *big.Int) (n *big.Int, err error)) (string, error) {
 	maxi := new(big.Int).Lsh(big.NewInt(1), 63) // 2^63
 	n, err := randIntFn(rand.Reader, maxi)      // 0 <= n < 2^63
 	if err != nil {

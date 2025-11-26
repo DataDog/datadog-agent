@@ -183,10 +183,10 @@ func AllBPFForEachMapElemProgramFunctions() []string {
 	}
 }
 
-func getMaxEntries(numCPU int, min int, max int) uint32 {
-	maxEntries := int(math.Min(float64(max), float64(min*numCPU)/4))
-	if maxEntries < min {
-		maxEntries = min
+func getMaxEntries(numCPU int, minEntries int, maxEntriesLimit int) uint32 {
+	maxEntries := int(math.Min(float64(maxEntriesLimit), float64(minEntries*numCPU)/4))
+	if maxEntries < minEntries {
+		maxEntries = minEntries
 	}
 
 	return uint32(maxEntries)

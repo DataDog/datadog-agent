@@ -118,8 +118,8 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 	}
 
 	splits := conf.GetStringMapString("tag_value_split_separator")
-	appendToHostTags := func(old, new []string) []string {
-		return appendAndSplitTags(old, new, splits)
+	appendToHostTags := func(existing, incoming []string) []string {
+		return appendAndSplitTags(existing, incoming, splits)
 	}
 
 	configTags := configUtils.GetConfiguredTags(conf, false)

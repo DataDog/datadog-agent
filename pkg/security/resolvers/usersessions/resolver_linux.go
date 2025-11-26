@@ -196,7 +196,9 @@ func (ifr *incrementalFileReader) Init(f *os.File) error {
 	ifr.ino = inodeOf(st)
 	_, err = ifr.f.Seek(ifr.offset, io.SeekStart)
 	if err != nil {
-		ifr.close(false)
+		if closeErr := ifr.close(false); closeErr != nil {
+			seclog.Warnf("failed to close ssh log reader: %v", closeErr)
+		}
 		ifr.f = nil
 	}
 	return err
@@ -399,12 +401,16 @@ func (ifr *incrementalFileReader) reloadIfRotated() error {
 	if curIno != 0 && ifr.ino != 0 && curIno != ifr.ino {
 		// The file has been rotated
 		if ifr.f != nil {
-			_ = ifr.close(false)
+			if closeErr := ifr.close(false); closeErr != nil {
+				seclog.Warnf("failed to close rotated ssh log file: %v", closeErr)
+			}
 			ifr.f = nil
 		}
 		f, err := os.Open(ifr.path)
 		if err != nil {
-			ifr.close(false)
+			if closeErr := ifr.close(false); closeErr != nil {
+				seclog.Warnf("failed to close ssh log reader after open error: %v", closeErr)
+			}
 			ifr.f = nil
 			return err
 		}

@@ -739,8 +739,8 @@ func (s *InternalSpan) Error() bool {
 }
 
 // SetError sets the error flag for the span.
-func (s *InternalSpan) SetError(error bool) {
-	s.span.Error = error
+func (s *InternalSpan) SetError(hasError bool) {
+	s.span.Error = hasError
 }
 
 // Attributes returns the attributes of the span.

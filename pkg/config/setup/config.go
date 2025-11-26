@@ -2472,8 +2472,12 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	log.Warnf("FIPS mode is enabled! All communication to DataDog will be routed to the local FIPS proxy on '%s' starting from port %d", localAddress, portRangeStart)
 
 	// Disabling proxy to make sure all data goes directly to the FIPS proxy
-	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
+	if err := os.Unsetenv("HTTP_PROXY"); err != nil {
+		log.Warnf("failed to unset HTTP_PROXY: %v", err)
+	}
+	if err := os.Unsetenv("HTTPS_PROXY"); err != nil {
+		log.Warnf("failed to unset HTTPS_PROXY: %v", err)
+	}
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"

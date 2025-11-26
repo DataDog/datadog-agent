@@ -144,11 +144,11 @@ func cStringArrayToSlice(a **C.char) []string {
 
 // cstrlen returns the length of a null-terminated C string. It's an alternative
 // to calling C.strlen, which avoids the overhead of doing a cgo call.
-func cstrlen(s *C.char) (len int) {
+func cstrlen(s *C.char) (length int) {
 	// TODO: This is ~13% of the CPU time of Benchmark_cStringArrayToSlice.
 	// Optimize using SWAR or similar vector techniques?
 	for ; *s != 0; s = (*C.char)(unsafe.Add(unsafe.Pointer(s), 1)) {
-		len++
+		length++
 	}
 	return
 }

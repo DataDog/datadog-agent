@@ -38,21 +38,21 @@ func SetMaxProcs() bool {
 		set = true
 	}
 
-	if max, exists := os.LookupEnv(gomaxprocsKey); exists {
-		if max == "" {
+	if maxValue, exists := os.LookupEnv(gomaxprocsKey); exists {
+		if maxValue == "" {
 			log.Errorf("runtime: GOMAXPROCS value was empty string")
 			return set
 		}
 
-		_, err = strconv.Atoi(max)
+		_, err = strconv.Atoi(maxValue)
 		if err == nil {
 			// Go runtime will already have parsed the integer and set it properly.
 			return set
 		}
 
-		if strings.HasSuffix(max, "m") {
+		if strings.HasSuffix(maxValue, "m") {
 			// Value represented as millicpus.
-			trimmed := strings.TrimSuffix(max, "m")
+			trimmed := strings.TrimSuffix(maxValue, "m")
 			milliCPUs, err := strconv.Atoi(trimmed)
 			if err != nil {
 				log.Errorf("runtime: error parsing GOMAXPROCS milliCPUs value: %v", max)
@@ -61,13 +61,13 @@ func SetMaxProcs() bool {
 
 			cpus := milliCPUs / 1000
 			if cpus > 0 {
-				log.Infof("runtime: honoring GOMAXPROCS millicpu configuration: %v, setting GOMAXPROCS to: %d", max, cpus)
+				log.Infof("runtime: honoring GOMAXPROCS millicpu configuration: %v, setting GOMAXPROCS to: %d", maxValue, cpus)
 				runtime.GOMAXPROCS(cpus)
 				set = true
 			} else {
 				log.Infof(
 					"runtime: GOMAXPROCS millicpu configuration: %s was less than 1, setting GOMAXPROCS to 1",
-					max)
+					maxValue)
 				runtime.GOMAXPROCS(1)
 				set = true
 			}
@@ -75,7 +75,7 @@ func SetMaxProcs() bool {
 		}
 
 		log.Errorf(
-			"runtime: unhandled GOMAXPROCS value: %s", max)
+			"runtime: unhandled GOMAXPROCS value: %s", maxValue)
 	}
 	return set
 }

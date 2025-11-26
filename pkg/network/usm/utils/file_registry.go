@@ -155,16 +155,16 @@ func NewUnknownAttachmentError(err error) *UnknownAttachmentError {
 // the error received. To reduce memory usage of this debugging feature, for
 // very common errors we store a summary instead of the full error string,
 // leaving the latter for more interesting errors.
-func getBlockReason(error error) string {
-	if errors.Is(error, binversion.ErrNotGoExe) {
+func getBlockReason(blockErr error) string {
+	if errors.Is(blockErr, binversion.ErrNotGoExe) {
 		return "not-go"
 	}
 
-	if errors.Is(error, safeelf.ErrNoSymbols) {
+	if errors.Is(blockErr, safeelf.ErrNoSymbols) {
 		return "no-symbols"
 	}
 
-	return error.Error()
+	return blockErr.Error()
 }
 
 // Register inserts or updates a new file registration within to the `FileRegistry`;

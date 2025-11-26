@@ -85,8 +85,8 @@ func NewDatadogMetricController(client dynamic.Interface, informer dynamicinform
 	if _, err := datadogMetricsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    c.enqueue,
 		DeleteFunc: c.enqueue,
-		UpdateFunc: func(_, new interface{}) {
-			c.enqueue(new)
+	UpdateFunc: func(_, newObj interface{}) {
+		c.enqueue(newObj)
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("cannot add event handler to datadogMetricsInformer informer: %v", err)

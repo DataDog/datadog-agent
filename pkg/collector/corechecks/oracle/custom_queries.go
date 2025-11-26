@@ -31,8 +31,8 @@ func concatenateTypeError(_ error, prefix string, expectedType string, column st
 	)
 }
 
-func concatenateError(input error, new string) error {
-	return fmt.Errorf("%w %s", input, new)
+func concatenateError(input error, newMsg string) error {
+	return fmt.Errorf("%w %s", input, newMsg)
 }
 
 //nolint:revive // TODO(DBM) Fix revive linter

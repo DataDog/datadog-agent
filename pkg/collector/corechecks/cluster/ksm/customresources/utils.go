@@ -35,8 +35,10 @@ import (
 type ContainerType string
 
 const (
-	Init     ContainerType = "initcontainer" // Init initcontainer metric name
-	Standard ContainerType = "container"     // Standard standard container name
+	// Init initcontainer metric name
+	Init ContainerType = "initcontainer"
+	// Standard standard container name
+	Standard ContainerType = "container"
 )
 
 const networkBandwidthResourceName = "kubernetes.io/network-bandwidth"

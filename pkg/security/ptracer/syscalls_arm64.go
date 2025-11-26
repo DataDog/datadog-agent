@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	OpenatNr         = unix.SYS_OPENAT            // OpenatNr defines the syscall ID for arm64
+	// OpenatNr defines the syscall ID for arm64
+	OpenatNr = unix.SYS_OPENAT
 	Openat2Nr        = unix.SYS_OPENAT2           // Openat2Nr defines the syscall ID for arm64
 	NameToHandleAtNr = unix.SYS_NAME_TO_HANDLE_AT // NameToHandleAtNr defines the syscall ID for arm64
 	OpenByHandleAtNr = unix.SYS_OPEN_BY_HANDLE_AT // OpenByHandleAtNr defines the syscall ID for arm64

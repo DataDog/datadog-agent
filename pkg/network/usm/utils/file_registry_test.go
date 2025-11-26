@@ -539,9 +539,9 @@ func createTempTestFile(t *testing.T, name string) (string, PathIdentifier) {
 	return path, pathID
 }
 
-func createSymlink(t *testing.T, old, new string) {
-	require.NoError(t, os.Symlink(old, new))
-	t.Cleanup(func() { require.NoError(t, os.Remove(new)) })
+func createSymlink(t *testing.T, old, newPath string) {
+	require.NoError(t, os.Symlink(old, newPath))
+	t.Cleanup(func() { require.NoError(t, os.Remove(newPath)) })
 }
 
 func newFileRegistry() *FileRegistry {

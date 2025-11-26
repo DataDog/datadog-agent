@@ -219,12 +219,12 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 
 	for _, testCase := range testCases {
 		assertAsyncWorkerCount(t, 0)
-		min, max, expectedWorkers := testCase[0], testCase[1], testCase[2]
+		minChecks, maxChecks, expectedWorkers := testCase[0], testCase[1], testCase[2]
 
 		r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 		require.NotNil(t, r)
 
-		for checks := min; checks <= max; checks++ {
+		for checks := minChecks; checks <= maxChecks; checks++ {
 			r.UpdateNumWorkers(int64(checks))
 			require.True(t, expvars.GetWorkerCount() <= expectedWorkers)
 		}

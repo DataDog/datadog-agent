@@ -29,7 +29,7 @@ type DestinationType int
 // ForwarderHealth interface is implemented by the health checker. The resolver
 // uses this method to inform the healthchecker when API keys have been updated.
 type ForwarderHealth interface {
-	UpdateAPIKeys(domain string, old []string, new []string)
+	UpdateAPIKeys(domain string, oldKeys []string, updatedKeys []string)
 }
 
 const (

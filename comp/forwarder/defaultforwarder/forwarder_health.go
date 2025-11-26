@@ -169,7 +169,7 @@ func (fh *forwarderHealth) healthCheckLoop() {
 }
 
 // UpdateAPIKeys will be called by the domain resolver when it has updated an api key.
-func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []string) {
+func (fh *forwarderHealth) UpdateAPIKeys(domain string, oldKeys []string, updatedKeys []string) {
 	fh.keyMapMutex.Lock()
 
 	apiDomain := getAPIDomain(domain)
@@ -185,7 +185,7 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 	fh.keysPerAPIEndpoint[apiDomain] = newList
 
 	// remove old key messages, then check apiKey validity and update the messages
-	for _, oldKey := range old {
+	for _, oldKey := range oldKeys {
 		// Need to check the old key doesn't exist in the list
 		// Even if it has been replaced here, it may still belong to another
 		// resolver sharing the same api endpoint and so shouldn't be removed.
@@ -196,7 +196,7 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 	fh.keyMapMutex.Unlock()
 
 	// Check our new API keys
-	fh.checkValidAPIKeys(apiDomain, new)
+	fh.checkValidAPIKeys(apiDomain, updatedKeys)
 }
 
 func getAPIDomain(domain string) string {

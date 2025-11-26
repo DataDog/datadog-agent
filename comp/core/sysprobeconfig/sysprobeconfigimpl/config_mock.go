@@ -60,13 +60,23 @@ func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
 	for _, kv := range oldEnv {
 		if strings.HasPrefix(kv, "DD_") {
 			kvslice := strings.SplitN(kv, "=", 2)
-			os.Unsetenv(kvslice[0])
+			if len(kvslice) == 0 {
+				continue
+			}
+			if err := os.Unsetenv(kvslice[0]); err != nil {
+				t.Fatalf("failed to unset env %s: %v", kvslice[0], err)
+			}
 		}
 	}
 	t.Cleanup(func() {
 		for _, kv := range oldEnv {
 			kvslice := strings.SplitN(kv, "=", 2)
-			os.Setenv(kvslice[0], kvslice[1])
+			if len(kvslice) != 2 {
+				continue
+			}
+			if err := os.Setenv(kvslice[0], kvslice[1]); err != nil {
+				t.Fatalf("failed to restore env %s: %v", kvslice[0], err)
+			}
 		}
 	})
 

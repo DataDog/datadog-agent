@@ -21,9 +21,12 @@ import (
 )
 
 const (
-	OverlayFS = "overlay" // OverlayFS overlay filesystem
-	TmpFS     = "tmpfs"   // TmpFS tmpfs
-	UnknownFS = "unknown" // UnknownFS unknown filesystem
+	// OverlayFS overlay filesystem
+	OverlayFS = "overlay"
+	// TmpFS tmpfs
+	TmpFS = "tmpfs"
+	// UnknownFS unknown filesystem
+	UnknownFS = "unknown"
 
 	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
 	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
@@ -245,23 +248,34 @@ func (e *FileEvent) GetPathResolutionError() string {
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown   MountOrigin = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs                       // MountOriginProcfs mount point info from procfs
-	MountOriginEvent                        // MountOriginEvent mount point info from an event
-	MountOriginUnshare                      // MountOriginUnshare mount point info from an event
-	MountOriginFsmount                      // MountOriginFsmount mount point info from the fsmount syscall
-	MountOriginOpenTree                     // MountOriginOpenTree mount point created from the open_tree syscall
-	MountOriginListmount                    // MountOriginListmount mount point obtained by calling `listmount`
+	// MountOriginUnknown unknown mount origin
+	MountOriginUnknown MountOrigin = iota
+	// MountOriginProcfs mount point info from procfs
+	MountOriginProcfs
+	// MountOriginEvent mount point info from an event
+	MountOriginEvent
+	// MountOriginUnshare mount point info from an event
+	MountOriginUnshare
+	// MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginFsmount
+	// MountOriginOpenTree mount point created from the open_tree syscall
+	MountOriginOpenTree
+	// MountOriginListmount mount point obtained by calling `listmount`
+	MountOriginListmount
 )
 
 // MountSource source of the mount
 type MountSource = uint32
 
 const (
-	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
-	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
-	MountSourceDevice                      // MountSourceDevice mount resolved with the device
-	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
+	// MountSourceUnknown mount resolved from unknown source
+	MountSourceUnknown MountSource = iota
+	// MountSourceMountID mount resolved with the mount id
+	MountSourceMountID
+	// MountSourceDevice mount resolved with the device
+	MountSourceDevice
+	// MountSourceSnapshot mount resolved from the snapshot
+	MountSourceSnapshot
 )
 
 // MountSources defines mount sources
@@ -276,10 +290,14 @@ var MountSources = [...]string{
 type MountEventSource = uint32
 
 const (
-	MountEventSourceInvalid         MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
-	MountEventSourceMountSyscall                            // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
-	MountEventSourceFsmountSyscall                          // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
-	MountEventSourceOpenTreeSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+	// MountEventSourceInvalid the source of the mount event is invalid
+	MountEventSourceInvalid MountEventSource = iota
+	// MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
+	MountEventSourceMountSyscall
+	// MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
+	MountEventSourceFsmountSyscall
+	// MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+	MountEventSourceOpenTreeSyscall
 )
 
 // MountSourceToString returns the string corresponding to a mount source
@@ -309,12 +327,18 @@ func (m *Mount) GetFSType() string {
 }
 
 const (
-	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
-	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
-	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
-	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
-	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	// ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromUnknown = iota
+	// ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
+	ProcessCacheEntryFromPlaceholder
+	// ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromEvent
+	// ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromKernelMap
+	// ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
+	ProcessCacheEntryFromProcFS
+	// ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromSnapshot
 )
 
 // ProcessSources defines process sources

@@ -321,14 +321,14 @@ func (hc *HelmCheck) deleteSecret(obj interface{}) {
 	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
 }
 
-func (hc *HelmCheck) updateSecret(old, new interface{}) {
-	oldSecret, ok := old.(*v1.Secret)
+func (hc *HelmCheck) updateSecret(oldObj, newObj interface{}) {
+	oldSecret, ok := oldObj.(*v1.Secret)
 	if !ok {
 		log.Warnf("Expected *v1.Secret, got: %T", old)
 		return
 	}
 
-	newSecret, ok := new.(*v1.Secret)
+	newSecret, ok := newObj.(*v1.Secret)
 	if !ok {
 		log.Warnf("Expected *v1.Secret, got: %T", new)
 		return
@@ -379,14 +379,14 @@ func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
 	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
 }
 
-func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
-	oldConfigmap, ok := old.(*v1.ConfigMap)
+func (hc *HelmCheck) updateConfigmap(oldObj, newObj interface{}) {
+	oldConfigmap, ok := oldObj.(*v1.ConfigMap)
 	if !ok {
 		log.Warnf("Expected *v1.ConfigMap, got: %T", old)
 		return
 	}
 
-	newConfigmap, ok := new.(*v1.ConfigMap)
+	newConfigmap, ok := newObj.(*v1.ConfigMap)
 	if !ok {
 		log.Warnf("Expected *v1.ConfigMap, got: %T", new)
 		return

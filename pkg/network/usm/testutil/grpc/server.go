@@ -51,7 +51,7 @@ func (*Server) SayHello(_ context.Context, in *pb.HelloRequest) (*pb.HelloReply,
 
 // Max implements MathServer.
 func (*Server) Max(srv pbStream.Math_MaxServer) error {
-	var max int32
+	var currentMax int32
 	for {
 		select {
 		case <-srv.Context().Done():
@@ -70,13 +70,13 @@ func (*Server) Max(srv pbStream.Math_MaxServer) error {
 			continue
 		}
 
-		if req.Num <= max {
+		if req.Num <= currentMax {
 			continue
 		}
 
 		// update max and send it to stream
-		max = req.Num
-		resp := pbStream.Response{Result: max}
+		currentMax = req.Num
+		resp := pbStream.Response{Result: currentMax}
 		if err := srv.Send(&resp); err != nil {
 			log.Printf("send error %v", err)
 		}

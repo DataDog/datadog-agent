@@ -519,13 +519,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		}
 
 		if lenActions := len(p.horizontalLastActions); lenActions > 0 {
-			firstIndex := max(lenActions-statusRetainedActions, 0)
+			firstIndex := orderedMax(lenActions-statusRetainedActions, 0)
 
 			status.Horizontal.LastActions = slices.Clone(p.horizontalLastActions[firstIndex:lenActions])
 		}
 
 		if lenRecommendations := len(p.horizontalLastRecommendations); lenRecommendations > 0 {
-			firstIndex := max(lenRecommendations-statusRetainedRecommendations, 0)
+			firstIndex := orderedMax(lenRecommendations-statusRetainedRecommendations, 0)
 
 			status.Horizontal.LastRecommendations = slices.Clone(p.horizontalLastRecommendations[firstIndex:lenRecommendations])
 		}
@@ -736,22 +736,22 @@ func getHorizontalRetentionValues(policy *datadoghq.DatadogPodAutoscalerApplyPol
 
 	if policy.ScaleUp != nil {
 		scaleUpRetention := getLongestScalingRulesPeriod(policy.ScaleUp.Rules)
-		eventsRetention = max(eventsRetention, scaleUpRetention)
+		eventsRetention = orderedMax(eventsRetention, scaleUpRetention)
 
 		scaleUpStabilizationWindow := time.Second * time.Duration(policy.ScaleUp.StabilizationWindowSeconds)
-		recommendationRetention = max(recommendationRetention, scaleUpStabilizationWindow)
+		recommendationRetention = orderedMax(recommendationRetention, scaleUpStabilizationWindow)
 	}
 
 	if policy.ScaleDown != nil {
 		scaleDownRetention := getLongestScalingRulesPeriod(policy.ScaleDown.Rules)
-		eventsRetention = max(eventsRetention, scaleDownRetention)
+		eventsRetention = orderedMax(eventsRetention, scaleDownRetention)
 
 		scaleDownStabilizationWindow := time.Second * time.Duration(policy.ScaleDown.StabilizationWindowSeconds)
-		recommendationRetention = max(recommendationRetention, scaleDownStabilizationWindow)
+		recommendationRetention = orderedMax(recommendationRetention, scaleDownStabilizationWindow)
 	}
 
-	eventsRetention = min(eventsRetention, longestScalingRulePeriodAllowed)
-	recommendationRetention = min(recommendationRetention, longestStabilizationWindowAllowed)
+	eventsRetention = orderedMin(eventsRetention, longestScalingRulePeriodAllowed)
+	recommendationRetention = orderedMin(recommendationRetention, longestStabilizationWindowAllowed)
 
 	return eventsRetention, recommendationRetention
 }

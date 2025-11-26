@@ -9,14 +9,14 @@ package workload
 
 import "cmp"
 
-func min[T cmp.Ordered](a T, b T) T {
+func orderedMin[T cmp.Ordered](a T, b T) T {
 	if a < b {
 		return a
 	}
 	return b
 }
 
-func max[T cmp.Ordered](a T, b T) T {
+func orderedMax[T cmp.Ordered](a T, b T) T {
 	if a > b {
 		return a
 	}

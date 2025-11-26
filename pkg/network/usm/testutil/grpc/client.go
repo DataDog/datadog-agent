@@ -48,7 +48,7 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 
 	rand.Shuffle(len(input), func(i, j int) { input[i], input[j] = input[j], input[i] })
 
-	var max int32
+	var maxValue int32
 	var sendErr error
 	// A go routine to send input requests
 	go func() {
@@ -73,7 +73,7 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 				receiveErr = err
 				return
 			}
-			max = resp.Result
+			maxValue = resp.Result
 		}
 	}()
 
@@ -86,8 +86,8 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	if receiveErr != nil {
 		return receiveErr
 	}
-	if max != numberOfMessages {
-		return fmt.Errorf("expected to have %d as max, but instead got %d", numberOfMessages, max)
+	if maxValue != numberOfMessages {
+		return fmt.Errorf("expected to have %d as max, but instead got %d", numberOfMessages, maxValue)
 	}
 	return nil
 }

@@ -696,9 +696,9 @@ func PrettyPrintDDSketch(sketch *ddsketch.DDSketch) string {
 	fmt.Fprintf(&b, "  Sum: %.6g\n", sketch.GetSum())
 	fmt.Fprintf(&b, "  ZeroCount: %.0f\n", sketch.GetZeroCount())
 
-	min, _ := sketch.GetMinValue()
-	max, _ := sketch.GetMaxValue()
-	fmt.Fprintf(&b, "  Min: %.6g, Max: %.6g\n", min, max)
+	minValue, _ := sketch.GetMinValue()
+	maxValue, _ := sketch.GetMaxValue()
+	fmt.Fprintf(&b, "  Min: %.6g, Max: %.6g\n", minValue, maxValue)
 
 	// Quantiles
 	fmt.Fprintf(&b, "  Quantiles:\n")

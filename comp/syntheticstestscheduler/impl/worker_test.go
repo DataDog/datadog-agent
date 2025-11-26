@@ -385,7 +385,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 	}
 
 	sched := &syntheticsTestScheduler{
-		generateTestResultID: func(func(rand io.Reader, max *big.Int) (n *big.Int, err error)) (string, error) {
+		generateTestResultID: func(func(rand io.Reader, limit *big.Int) (n *big.Int, err error)) (string, error) {
 			return "test-result-id-123", nil
 		},
 	}

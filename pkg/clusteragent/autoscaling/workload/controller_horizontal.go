@@ -340,11 +340,11 @@ func stabilizeRecommendations(currentTime time.Time, recHist []datadoghqcommon.D
 
 	for _, a := range slices.Backward(recHist) {
 		if a.GeneratedAt.Time.After(upCutoff.Time) {
-			upRecommendation = min(upRecommendation, a.Replicas)
+			upRecommendation = orderedMin(upRecommendation, a.Replicas)
 		}
 
 		if a.GeneratedAt.Time.After(downCutoff.Time) {
-			downRecommendation = max(downRecommendation, a.Replicas)
+			downRecommendation = orderedMax(downRecommendation, a.Replicas)
 		}
 
 		if a.GeneratedAt.Time.Before(upCutoff.Time) && a.GeneratedAt.Time.Before(downCutoff.Time) {
@@ -397,7 +397,7 @@ func applyScaleUpPolicy(
 		// We could find directly `periodStartReplicas` by looking at `FromReplicas` in the first matching event.
 		// TODO: In case of manual scaling (outside of DPA), we could consider it in the calculation, while it's currently not.
 		replicasAdded, replicasRemoved, expireIn := accumulateReplicasChange(currentTime, events, rule.PeriodSeconds)
-		minExpireIn = min(minExpireIn, expireIn)
+		minExpireIn = orderedMin(minExpireIn, expireIn)
 
 		// When are computing the number of replicas at the start of the period, needed to compute % scaling.
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
@@ -461,7 +461,7 @@ func applyScaleDownPolicy(
 		// We could find directly `periodStartReplicas` by looking at `FromReplicas` in the first matching event.
 		// TODO: In case of manual scaling (outside of DPA), we could consider it in the calculation, while it's currently not.
 		replicasAdded, replicasRemoved, expireIn := accumulateReplicasChange(currentTime, events, rule.PeriodSeconds)
-		minExpireIn = min(minExpireIn, expireIn)
+		minExpireIn = orderedMin(minExpireIn, expireIn)
 
 		// When are computing the number of replicas at the start of the period, needed to compute % scaling.
 		// For that we consider the current number and apply the opposite of the events that happened in the period.

@@ -11,8 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 )
 
-func checkProfilingNeedsRestart(old, new int) error {
-	if old == 0 && new != 0 && profiling.IsRunning() {
+func checkProfilingNeedsRestart(oldValue, newValue int) error {
+	if oldValue == 0 && newValue != 0 && profiling.IsRunning() {
 		return errors.New("go runtime setting applied; manually restart internal profiling to capture profile data in the app")
 	}
 	return nil

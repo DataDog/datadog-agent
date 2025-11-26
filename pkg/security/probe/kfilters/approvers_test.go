@@ -185,7 +185,7 @@ func TestApproverAUIDRange(t *testing.T) {
 
 	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
-	assert := func(t *testing.T, ruleDefs []string, min, max uint32) {
+	assert := func(t *testing.T, ruleDefs []string, minValue, maxValue uint32) {
 		t.Helper()
 
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
@@ -209,7 +209,7 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 		if len(kfilters) != 1 {
 
-			if min != 0 && max != 0 {
+			if minValue != 0 && maxValue != 0 {
 				t.Fatalf("expected kfilter not found: %+v", kfilters)
 			} else {
 				// no kfilter expected
@@ -224,7 +224,7 @@ func TestApproverAUIDRange(t *testing.T) {
 		}
 
 		value := entry.(*hashKFilter).value.(*ebpf.UInt32RangeMapItem)
-		if value.Min != min || value.Max != max {
+		if value.Min != minValue || value.Max != maxValue {
 			t.Fatalf("expected kfilter not found: %+v => %+v", kfilters, value)
 		}
 	}

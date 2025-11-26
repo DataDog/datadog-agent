@@ -52,8 +52,10 @@ import (
 )
 
 const (
-	Snapshotting = iota // Snapshotting describes the state where resolvers are being populated
-	Snapshotted         // Snapshotted describes the state where resolvers are fully populated
+	// Snapshotting describes the state where resolvers are being populated
+	Snapshotting = iota
+	// Snapshotted describes the state where resolvers are fully populated
+	Snapshotted
 )
 
 const (

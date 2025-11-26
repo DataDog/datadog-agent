@@ -144,8 +144,8 @@ func (i *UInt32RangeMapItem) MarshalBinary() ([]byte, error) {
 }
 
 // NewUInt32RangeMapItem returns a new UInt32RangeMapItem
-func NewUInt32RangeMapItem(min, max uint32) *UInt32RangeMapItem {
-	return &UInt32RangeMapItem{Min: min, Max: max}
+func NewUInt32RangeMapItem(minValue, maxValue uint32) *UInt32RangeMapItem {
+	return &UInt32RangeMapItem{Min: minValue, Max: maxValue}
 }
 
 // Zero table items

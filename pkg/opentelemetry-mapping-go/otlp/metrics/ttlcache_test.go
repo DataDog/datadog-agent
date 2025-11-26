@@ -265,8 +265,8 @@ func TestPutAndGetExtrema(t *testing.T) {
 
 		{
 			// Now do the same for the maximum; use the opposite of min to reverse comparisons.
-			max := -points.min
-			assumeMaxFromLastWindow := prevPts.PutAndCheckMax(maxDims, startTs, ts, max)
+			maxValue := -points.min
+			assumeMaxFromLastWindow := prevPts.PutAndCheckMax(maxDims, startTs, ts, maxValue)
 			assert.Equal(t, points.assumeFromLastWindow, assumeMaxFromLastWindow,
 				"Point #%d failed for max; expected %v because %q", i, points.assumeFromLastWindow, points.reason,
 			)

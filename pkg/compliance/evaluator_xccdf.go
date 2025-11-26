@@ -99,8 +99,14 @@ func (p *oscapIO) Run(ctx context.Context) error {
 			hostRoot = "/host"
 		}
 
-		os.Setenv("OSCAP_PROBE_ROOT", hostRoot)
-		defer os.Unsetenv("OSCAP_PROBE_ROOT")
+		if err := os.Setenv("OSCAP_PROBE_ROOT", hostRoot); err != nil {
+			return err
+		}
+		defer func() {
+			if err := os.Unsetenv("OSCAP_PROBE_ROOT"); err != nil {
+				log.Warnf("failed to unset OSCAP_PROBE_ROOT: %v", err)
+			}
+		}()
 	}
 
 	args := []string{}

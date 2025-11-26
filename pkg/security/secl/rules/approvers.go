@@ -61,9 +61,9 @@ func partialEval(event eval.Event, ctx *eval.Context, rule *Rule, field eval.Fie
 }
 
 func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
-	min := math.MinInt
+	minValue := math.MinInt
 	if fieldCap.RangeFilterValue != nil {
-		min = fieldCap.RangeFilterValue.Min
+		minValue = fieldCap.RangeFilterValue.Min
 	}
 
 	maxResult, err := partialEval(event, ctx, rule, fieldCap.Field, value)
@@ -75,13 +75,13 @@ func isAnIntLesserEqualThanApprover(event eval.Event, ctx *eval.Context, rule *R
 	}
 
 	result, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)+1)
-	return !result, RangeFilterValue{Min: min, Max: value.(int)}, err
+	return !result, RangeFilterValue{Min: minValue, Max: value.(int)}, err
 }
 
 func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
-	min := math.MinInt
+	minValue := math.MinInt
 	if fieldCap.RangeFilterValue != nil {
-		min = fieldCap.RangeFilterValue.Min
+		minValue = fieldCap.RangeFilterValue.Min
 	}
 
 	maxResult, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)-1)
@@ -93,13 +93,13 @@ func isAnIntLesserThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, 
 	}
 
 	result, err := partialEval(event, ctx, rule, fieldCap.Field, value)
-	return !result, RangeFilterValue{Min: min, Max: value.(int) - 1}, err
+	return !result, RangeFilterValue{Min: minValue, Max: value.(int) - 1}, err
 }
 
 func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
-	max := math.MaxInt
+	maxValue := math.MaxInt
 	if fieldCap.RangeFilterValue != nil {
-		max = fieldCap.RangeFilterValue.Max
+		maxValue = fieldCap.RangeFilterValue.Max
 	}
 
 	minResult, err := partialEval(event, ctx, rule, fieldCap.Field, value)
@@ -111,13 +111,13 @@ func isAnIntGreaterEqualThanApprover(event eval.Event, ctx *eval.Context, rule *
 	}
 
 	result, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)-1)
-	return !result, RangeFilterValue{Min: value.(int), Max: max}, err
+	return !result, RangeFilterValue{Min: value.(int), Max: maxValue}, err
 }
 
 func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule, fieldCap *FieldCapability, value interface{}) (bool, interface{}, error) {
-	max := math.MaxInt
+	maxValue := math.MaxInt
 	if fieldCap.RangeFilterValue != nil {
-		max = fieldCap.RangeFilterValue.Max
+		maxValue = fieldCap.RangeFilterValue.Max
 	}
 
 	minResult, err := partialEval(event, ctx, rule, fieldCap.Field, value.(int)+1)
@@ -129,7 +129,7 @@ func isAnIntGreaterThanApprover(event eval.Event, ctx *eval.Context, rule *Rule,
 	}
 
 	result, err := partialEval(event, ctx, rule, fieldCap.Field, value)
-	return !result, RangeFilterValue{Min: value.(int) + 1, Max: max}, err
+	return !result, RangeFilterValue{Min: value.(int) + 1, Max: maxValue}, err
 }
 
 // isAnApprover returns whether the given value is an approver for the given rule

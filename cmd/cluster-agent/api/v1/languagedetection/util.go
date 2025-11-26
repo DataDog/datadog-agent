@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // containersLanguageWithDirtyFlag encapsulates containers languages along with a dirty flag
@@ -195,7 +196,9 @@ func (ownersLanguages *OwnersLanguages) cleanExpiredLanguages(wlm workloadmeta.C
 			containersLanguages.dirty = true
 		}
 	}
-	ownersLanguages.flush(wlm)
+	if err := ownersLanguages.flush(wlm); err != nil {
+		log.Warnf("failed to flush expired languages: %v", err)
+	}
 }
 
 // syncFromInjectableLanguages updates DetectedLanguages to match InjectableLanguages for followers
@@ -226,7 +229,9 @@ func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(wlm workload
 	langsWithDirtyFlag.dirty = true
 
 	// Always flush to keep workloadmeta in sync
-	ownersLanguages.flush(wlm)
+	if err := ownersLanguages.flush(wlm); err != nil {
+		log.Warnf("failed to flush injectable languages: %v", err)
+	}
 }
 
 // handleKubeApiServerUnsetEvents handles unset events emitted by the kubeapiserver

@@ -31,21 +31,21 @@ type symbolFilter interface {
 // string set.
 type stringSetSymbolFilter struct {
 	symbolSet common.StringSet
-	min       int
-	max       int
+	minLength int
+	maxLength int
 }
 
 func newStringSetSymbolFilter(symbolSet common.StringSet) stringSetSymbolFilter {
 	min, max := getSymbolLengthBoundaries(symbolSet)
 	return stringSetSymbolFilter{
 		symbolSet: symbolSet,
-		min:       min,
-		max:       max,
+		minLength: min,
+		maxLength: max,
 	}
 }
 
 func (f stringSetSymbolFilter) getMinMaxLength() (int, int) {
-	return f.min, f.max
+	return f.minLength, f.maxLength
 }
 
 func (f stringSetSymbolFilter) getNumWanted() int {

@@ -614,7 +614,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	if closeErr := i.close(); closeErr != nil {
+		log.Warnf("failed to close installer dependencies: %v", closeErr)
+	}
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {

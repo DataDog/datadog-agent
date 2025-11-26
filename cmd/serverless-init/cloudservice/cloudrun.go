@@ -25,7 +25,8 @@ const CloudRunOrigin = "cloudrun"
 const (
 	// Environment var needed for service
 	revisionNameEnvVar      = "K_REVISION"
-	ServiceNameEnvVar       = "K_SERVICE" // ServiceNameEnvVar is also used in the trace package
+	// ServiceNameEnvVar is also used in the trace package
+	ServiceNameEnvVar = "K_SERVICE"
 	configurationNameEnvVar = "K_CONFIGURATION"
 	// exists as cloudrunfunction env var for all runtimes except Go
 	functionTypeEnvVar   = "FUNCTION_SIGNATURE_TYPE"
