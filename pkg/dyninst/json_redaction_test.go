@@ -264,6 +264,13 @@ var defaultRedactors = []jsonRedactor{
 			`{mutex internals}`,
 		),
 	),
+	redactor(
+		exactMatcher(`/message`),
+		regexpStringReplacer(
+			`[0-9]+\.[0-9]+ms`,
+			`[duration]ms`,
+		),
+	),
 }
 
 const mutexInternalsRegexp = `\{state: [[:digit:]]+, sema: [[:digit:]]+\}`

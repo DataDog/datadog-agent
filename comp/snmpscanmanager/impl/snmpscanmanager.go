@@ -10,13 +10,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	snmpscan "github.com/DataDog/datadog-agent/comp/snmpscan/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -27,10 +30,11 @@ import (
 
 const (
 	scanWorkers   = 2 // Max concurrent scans allowed
-	scanQueueSize = 10000
+	scanQueueSize = 10_000
 
 	snmpCallsPerSecond = 8
 	snmpCallInterval   = time.Second / snmpCallsPerSecond
+	maxSnmpCallCount   = 100_000
 
 	scanSchedulerCheckInterval = 10 * time.Minute
 	scanRefreshInterval        = 182 * 24 * time.Hour   // 6 months
@@ -61,7 +65,9 @@ type Requires struct {
 
 // Provides defines the output of the snmpscanmanager component
 type Provides struct {
-	Comp snmpscanmanager.Component
+	Comp          snmpscanmanager.Component
+	Status        status.InformationProvider
+	FlareProvider flare.Provider
 }
 
 // NewComponent creates a new snmpscanmanager component
@@ -97,7 +103,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 	})
 
 	return Provides{
-		Comp: scanManager,
+		Comp:          scanManager,
+		Status:        status.NewInformationProvider(scanManager),
+		FlareProvider: flare.NewProvider(scanManager.fillFlare),
 	}, nil
 }
 
@@ -197,6 +205,7 @@ func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest
 		snmpscan.ScanParams{
 			ScanType:     metadata.DefaultScan,
 			CallInterval: snmpCallInterval,
+			MaxCallCount: maxSnmpCallCount,
 		})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -367,4 +376,11 @@ func (m *snmpScanManagerImpl) scheduleScanRetry(req snmpscanmanager.ScanRequest,
 		req:        req,
 		nextScanTs: lastScanTs.Add(scanRetryDelays[idx]),
 	})
+}
+
+func (m *snmpScanManagerImpl) cloneDeviceScans() deviceScansByIP {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	return maps.Clone(m.deviceScans)
 }

@@ -126,11 +126,18 @@ func TestReadAvailableFingerprintMismatch(t *testing.T) {
 	opener := opener.NewMockFileOpener()
 	opener.AddMockFile(mockFile)
 
-	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: nil}
+	fpConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+		Source:              types.FingerprintConfigSourcePerSource,
+	}
+	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: fpConfig}
 	fingerprinterMock := NewFingerprinterMock()
 	fingerprinterMock.SetSequence(
 		mockFile.Name(),
-		&types.Fingerprint{Value: 6789012345, Config: nil}, // Different fingerprint from original
+		&types.Fingerprint{Value: 6789012345, Config: fpConfig}, // Different fingerprint from original
 	)
 
 	tailer, _ := newTestTailer(t, mockFile.Name(), nil, fingerprinterMock, opener, nil)
@@ -157,12 +164,19 @@ func TestReadAvailableFingerprintMismatchMidRead(t *testing.T) {
 	opener := opener.NewMockFileOpener()
 	opener.AddMockFile(mockFile)
 
-	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: nil}
+	fpConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+		Source:              types.FingerprintConfigSourcePerSource,
+	}
+	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: fpConfig}
 	fingerprinterMock := NewFingerprinterMock()
 	fingerprinterMock.SetSequence(
 		mockFile.Name(),
 		originalFingerprint,
-		&types.Fingerprint{Value: 6789012345, Config: nil},
+		&types.Fingerprint{Value: 6789012345, Config: fpConfig},
 	)
 
 	mockDecoderOptions := &decoder.MockDecoderOptions{
