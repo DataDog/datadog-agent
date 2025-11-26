@@ -145,6 +145,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
+			delegatedAuthComp option.Option[delegatedauth.Component],
 			snmpScanManager snmpscanmanager.Component,
 		) error {
 			defer StopAgentWithDefaults()
@@ -169,6 +170,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agenttelemetryComponent,
 				hostname,
 				ipc,
+				delegatedAuthComp,
 				snmpScanManager,
 			)
 			if err != nil {

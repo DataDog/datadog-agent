@@ -409,6 +409,7 @@
 /pkg/cli/subcommands/clusterchecks      @DataDog/container-platform
 /pkg/cli/subcommands/autoscalerlist     @DataDog/container-autoscaling @DataDog/container-integrations
 /pkg/cli/subcommands/processchecks      @DataDog/container-experiences
+/pkg/delegatedauth                      @DataDog/core-authn
 /pkg/discovery/                         @DataDog/agent-discovery
 /pkg/errors/                            @DataDog/agent-runtimes
 /pkg/privileged-logs/                        @DataDog/agent-discovery @DataDog/agent-log-pipelines

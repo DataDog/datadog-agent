@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
@@ -48,6 +49,7 @@ func MakeCommand(globalConfGetter func() *subcommands.GlobalParams) *cobra.Comma
 				logfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				otelagentStatusfx.Module(),
+				delegatedauthfx.Module(),
 			)
 		},
 	}

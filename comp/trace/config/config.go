@@ -94,13 +94,30 @@ func NewConfig(deps Dependencies) (Component, error) {
 			log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
 			return
 		}
+
+		// Handle the case where oldValue is nil (initial configuration)
 		oldAPIKey, ok1 := oldValue.(string)
 		newAPIKey, ok2 := newValue.(string)
+
+		// If oldValue is nil, treat it as an empty string for initial setup
+		if oldValue == nil {
+			ok1 = true
+			oldAPIKey = ""
+		}
+
 		if ok1 && ok2 {
-			log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			if oldAPIKey != "" {
+				log.Debugf("Updating API key in trace-agent config, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			} else {
+				log.Debugf("Initial API key setup in trace-agent config: `%s`", scrubber.HideKeyExceptLastFiveChars(newAPIKey))
+			}
 			// Update API Key on config, and propagate the signal to registered listeners
 			newAPIKey = pkgconfigutils.SanitizeAPIKey(newAPIKey)
 			c.updateAPIKey(oldAPIKey, newAPIKey)
+		} else if !ok2 {
+			log.Errorf("new API key for '%s' is invalid (not a string) ignoring new value", setting)
+		} else if !ok1 && oldValue != nil {
+			log.Errorf("old API key for '%s' is invalid (not a string) ignoring new value", setting)
 		}
 	})
 

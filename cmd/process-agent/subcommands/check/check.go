@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -71,6 +72,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 			return &statsd.NoOpClient{}
 		}),
 		ipcfx.ModuleReadOnly(),
+		delegatedauthfx.Module(),
 	}
 }
 

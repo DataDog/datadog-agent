@@ -1222,6 +1222,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 
 	config.BindEnvAndSetDefault("vsock_addr", "")
+
+	// Delegated authentication
+	config.BindEnvAndSetDefault("delegated_auth.enabled", false)
+	config.BindEnvAndSetDefault("delegated_auth.provider", "", "DD_DELEGATED_AUTH_PROVIDER")
+	config.BindEnvAndSetDefault("delegated_auth.org_uuid", "", "DD_DELEGATED_AUTH_ORG_UUID")
+	config.BindEnvAndSetDefault("delegated_auth.refresh_interval_mins", 60)
 }
 
 func agent(config pkgconfigmodel.Setup) {

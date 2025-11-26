@@ -1,0 +1,238 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+// Package delegatedauthimpl implements the delegatedauth component interface
+package delegatedauthimpl
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	delegatedauthpkg "github.com/DataDog/datadog-agent/pkg/delegatedauth"
+	"github.com/DataDog/datadog-agent/pkg/delegatedauth/cloudauth"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
+)
+
+type delegatedAuthComponent struct {
+	config config.Component
+	log    log.Component
+
+	mu              sync.RWMutex
+	apiKey          *string
+	provider        delegatedauthpkg.Provider
+	authConfig      *delegatedauthpkg.AuthConfig
+	refreshInterval time.Duration
+
+	// Context and cancellation for background refresh goroutine
+	refreshCtx    context.Context
+	refreshCancel context.CancelFunc
+}
+
+type dependencies struct {
+	fx.In
+	Config config.Component
+	Log    log.Component
+	Lc     fx.Lifecycle
+}
+
+// NewDelegatedAuth creates a new delegated auth Component based on the current configuration
+func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] {
+	if !deps.Config.GetBool("delegated_auth.enabled") {
+		deps.Log.Info("Delegated authentication is disabled")
+		return option.None[delegatedauth.Component]()
+	}
+
+	provider := deps.Config.GetString("delegated_auth.provider")
+	orgUUID := deps.Config.GetString("delegated_auth.org_uuid")
+	refreshInterval := deps.Config.GetDuration("delegated_auth.refresh_interval_mins") * time.Minute
+
+	if refreshInterval == 0 {
+		// Default to 60 minutes if refresh interval was set incorrectly
+		refreshInterval = 60 * time.Minute
+		deps.Log.Warn("Refresh interval was set to 0 defaulting to 60 minutes")
+	}
+
+	if orgUUID == "" {
+		deps.Log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
+		return option.None[delegatedauth.Component]()
+	}
+
+	var tokenProvider delegatedauthpkg.Provider
+	switch provider {
+	case cloudauth.ProviderAWS:
+		tokenProvider = &cloudauth.AWSAuth{
+			AwsRegion: deps.Config.GetString("delegated_auth.aws_region"),
+		}
+	default:
+		deps.Log.Errorf("unsupported delegated auth provider: %s", provider)
+		return option.None[delegatedauth.Component]()
+	}
+
+	authConfig := &delegatedauthpkg.AuthConfig{
+		OrgUUID:      orgUUID,
+		Provider:     provider,
+		ProviderAuth: tokenProvider,
+	}
+
+	comp := &delegatedAuthComponent{
+		config:          deps.Config,
+		log:             deps.Log,
+		provider:        tokenProvider,
+		authConfig:      authConfig,
+		refreshInterval: refreshInterval,
+	}
+
+	// Register lifecycle hooks to ensure API key is fetched early
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			comp.log.Info("Delegated authentication is enabled, fetching initial API key...")
+
+			// Create a context for the background refresh goroutine
+			comp.refreshCtx, comp.refreshCancel = context.WithCancel(context.Background())
+
+			// Fetch the initial API key synchronously during startup
+			apiKey, err := comp.GetAPIKey(ctx)
+			if err != nil {
+				comp.log.Errorf("Failed to get initial delegated API key: %v", err)
+				// Return nil here to not stop the agent from starting
+				return nil
+			}
+
+			// Update the config with the initial API key
+			comp.updateConfigWithAPIKey(*apiKey)
+			comp.log.Info("Successfully fetched and set initial delegated API key")
+
+			// Start the background refresh goroutine
+			comp.startBackgroundRefresh()
+
+			return nil
+		},
+		OnStop: func(_ context.Context) error {
+			comp.log.Info("Stopping delegated auth background refresh...")
+
+			// Cancel the background refresh context
+			if comp.refreshCancel != nil {
+				comp.refreshCancel()
+			}
+
+			comp.log.Info("Delegated auth background refresh stopped")
+			return nil
+		},
+	})
+
+	return option.New[delegatedauth.Component](comp)
+}
+
+// GetAPIKey returns the current API key or fetches one if it has not yet been fetched
+func (d *delegatedAuthComponent) GetAPIKey(ctx context.Context) (*string, error) {
+	creds, _, err := d.refreshAndGetAPIKey(ctx, false)
+	return creds, err
+}
+
+// RefreshAPIKey fetches the API key and stores it in the component. It only returns an error if there is an issue
+func (d *delegatedAuthComponent) RefreshAPIKey(ctx context.Context) error {
+	_, _, err := d.refreshAndGetAPIKey(ctx, true)
+	return err
+}
+
+// RefreshAndGetAPIKey refreshes the API key and stores it in the component it returns the current API key and if a refresh actually occurred
+func (d *delegatedAuthComponent) RefreshAndGetAPIKey(ctx context.Context) (*string, bool, error) {
+	return d.refreshAndGetAPIKey(ctx, true)
+}
+
+// refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
+func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, forceRefresh bool) (*string, bool, error) {
+	// If not forcing refresh, check if we already have a cached key
+	if !forceRefresh {
+		d.mu.RLock()
+		apiKey := d.apiKey
+		d.mu.RUnlock()
+
+		if apiKey != nil {
+			return apiKey, false, nil
+		}
+	}
+
+	// Need to fetch a new key - acquire write lock
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Double-check pattern - another goroutine might have refreshed while we were waiting for the write lock
+	if !forceRefresh && d.apiKey != nil {
+		return d.apiKey, false, nil
+	}
+
+	d.log.Info("Fetching delegated API key")
+
+	// Authenticate with the configured provider
+	apiKey, err := d.authenticate()
+	if err != nil {
+		d.log.Errorf("Failed to generate auth proof: %v", err)
+		return nil, false, err
+	}
+
+	d.apiKey = apiKey
+
+	return apiKey, true, nil
+}
+
+// startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
+func (d *delegatedAuthComponent) startBackgroundRefresh() {
+	// Start background refresh
+	go func() {
+		ticker := time.NewTicker(d.refreshInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-d.refreshCtx.Done():
+				// Context was canceled, exit the goroutine
+				d.log.Debug("Background refresh goroutine exiting due to context cancellation")
+				return
+			case <-ticker.C:
+				// Time to refresh
+				lCreds, updated, lErr := d.RefreshAndGetAPIKey(d.refreshCtx)
+				if lErr != nil {
+					// Check if the error is due to context cancellation
+					if d.refreshCtx.Err() != nil {
+						d.log.Debug("Refresh failed due to context cancellation, exiting")
+						return
+					}
+					d.log.Errorf("Failed to refresh delegated API key: %v", lErr)
+				} else {
+					// Update the config with the new API key
+					if updated {
+						d.updateConfigWithAPIKey(*lCreds)
+					}
+				}
+			}
+		}
+	}()
+}
+
+// authenticate uses the configured provider to get creds
+func (d *delegatedAuthComponent) authenticate() (*string, error) {
+	creds, err := d.authConfig.ProviderAuth.GetAPIKey(d.config, d.authConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to authenticate with AWS: %w", err)
+	}
+	return creds, nil
+}
+
+// Update the updateConfigWithAPIKey method to use the correct Set method
+func (d *delegatedAuthComponent) updateConfigWithAPIKey(apiKey string) {
+	// Update the api_key config value using the Writer interface
+	// This will trigger OnUpdate callbacks for any components listening to this config
+	d.config.Set("api_key", apiKey, pkgconfigmodel.SourceAgentRuntime)
+	d.log.Infof("Updated config with new apiKey")
+}

@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -300,6 +302,7 @@ func run(log log.Component,
 	_ healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	delegatedAuthComp option.Option[delegatedauth.Component],
 	snmpScanManager snmpscanmanager.Component,
 ) error {
 	defer func() {
@@ -360,6 +363,7 @@ func run(log log.Component,
 		agenttelemetryComponent,
 		hostname,
 		ipc,
+		delegatedAuthComp,
 		snmpScanManager,
 	); err != nil {
 		return err
@@ -388,6 +392,7 @@ func run(log log.Component,
 
 func getSharedFxOption() fx.Option {
 	return fx.Options(
+		delegatedauthfx.Module(),
 		flare.Module(flare.NewParams(
 			defaultpaths.GetDistPath(),
 			defaultpaths.PyChecksPath,
@@ -579,6 +584,7 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	_ option.Option[delegatedauth.Component],
 	snmpScanManager snmpscanmanager.Component,
 ) error {
 	var err error

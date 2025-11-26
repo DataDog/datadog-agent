@@ -23,6 +23,15 @@ modules:
   comp/core/config:
     used_by_otel: true
   comp/core/configsync: default
+  comp/core/delegatedauth/def:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/fx:
+    independent: false
+    used_by_otel: true
+  comp/core/delegatedauth/impl:
+    independent: false
+    used_by_otel: true
   comp/core/flare/builder:
     used_by_otel: true
   comp/core/flare/types:
@@ -196,6 +205,8 @@ modules:
   pkg/config/utils:
     used_by_otel: true
   pkg/config/viperconfig:
+    used_by_otel: true
+  pkg/delegatedauth:
     used_by_otel: true
   pkg/dyninst/testprogs/progs: ignored
   pkg/errors: default
