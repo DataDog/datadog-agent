@@ -1134,11 +1134,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 
 func TestIsTCPRequired(t *testing.T) {
 	tests := []struct {
-		name                 string
-		forceTCP             bool
-		socks5Proxy          string
-		additionalEndpoints  bool
-		expectedTCPRequired  bool
+		name                string
+		forceTCP            bool
+		socks5Proxy         string
+		additionalEndpoints bool
+		expectedTCPRequired bool
 	}{
 		{
 			name:                "no TCP requirements",

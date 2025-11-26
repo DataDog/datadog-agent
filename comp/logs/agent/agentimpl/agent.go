@@ -219,15 +219,15 @@ func (a *logAgent) start(context.Context) error {
 
 	// If we're currently sending over TCP, attempt restart over HTTP
 	if !endpoints.UseHTTP {
-		a.smartHttpRestart()
+		a.smartHTTPRestart()
 	}
 	return nil
 }
 
-// smartHttpRestart initiates periodic HTTP connectivity checks with exponential backoff
+// smartHTTPRestart initiates periodic HTTP connectivity checks with exponential backoff
 // to automatically upgrade from TCP to HTTP when connectivity is restored.
 // This only runs when TCP fallback occurred (not when [force_]use_tcp is configured).
-func (a *logAgent) smartHttpRestart() {
+func (a *logAgent) smartHTTPRestart() {
 	// Check if we're eligible for HTTP retry
 	if config.IsTCPRequired(a.config) {
 		return
