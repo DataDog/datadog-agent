@@ -58,7 +58,6 @@ type PolicyRule struct {
 	ModifiedBy  []PolicyInfo
 	UsedBy      []PolicyInfo
 	EnableCount int // tracks the number of times the rule was enabled/disabled.It is only updated when merging conflicting rules.
-
 }
 
 // AreActionsSupported returns true if the actions defined on the rule are supported given a list of enabled event types

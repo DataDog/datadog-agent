@@ -329,6 +329,9 @@
         },
         "group_id": {
           "type": "string"
+        },
+        "priority": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
