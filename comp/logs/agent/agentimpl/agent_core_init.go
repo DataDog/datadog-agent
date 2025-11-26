@@ -8,7 +8,6 @@
 package agentimpl
 
 import (
-	"os"
 	"time"
 
 	"github.com/spf13/afero"
@@ -60,16 +59,7 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 // dependent on configuration and connectivity
 func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
-
-	// TEST_SMART_RECOVERY: Force TCP start to test HTTP retry mechanism
-	// When set to "1", forces the agent to start with TCP even if HTTP is available,
-	// allowing the smart HTTP recovery mechanism to upgrade to HTTP
-	testSmartRecovery := os.Getenv("TEST_SMART_RECOVERY") == "1"
-
-	if testSmartRecovery {
-		// Force TCP start for testing - HTTP retry will attempt upgrade
-		httpConnectivity = config.HTTPConnectivityFailure
-	} else if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
+	if endpoints, err := buildHTTPEndpointsForConnectivityCheck(coreConfig); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
 	}
 
