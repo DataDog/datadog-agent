@@ -90,8 +90,8 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 				},
 				"message": fmt.Sprintf("Windows Event Log detected event %d from %s", payload.EventID, payload.Provider),
 				"tags": []string{
-					fmt.Sprintf("channel:%s", payload.Channel),
-					fmt.Sprintf("provider:%s", payload.Provider),
+					"channel:" + payload.Channel,
+					"provider:" + payload.Provider,
 					fmt.Sprintf("event_id:%d", payload.EventID),
 					"source:windows_event_log",
 				},

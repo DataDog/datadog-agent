@@ -11,6 +11,7 @@ package exprlang
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -65,7 +66,7 @@ func (d *pooledDecoder) put() {
 // Parse parses a DSL JSON expression into a strongly-typed AST node.
 func Parse(dslJSON []byte) (Expr, error) {
 	if len(dslJSON) == 0 {
-		return nil, fmt.Errorf("parse error: empty DSL expression")
+		return nil, errors.New("parse error: empty DSL expression")
 	}
 	pooled := getPooledDecoder(dslJSON)
 	defer pooled.put()
@@ -115,7 +116,7 @@ func Parse(dslJSON []byte) (Expr, error) {
 
 		refValue := val.String()
 		if refValue == "" {
-			return nil, fmt.Errorf("parse error: ref value cannot be empty")
+			return nil, errors.New("parse error: ref value cannot be empty")
 		}
 
 		if err := readClosingBrace(); err != nil {

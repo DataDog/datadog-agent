@@ -48,7 +48,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return fmt.Errorf("error getting state: %w", err)
 	}
 	if state.ExperimentDeploymentID != "" {
-		return fmt.Errorf("there is already an experiment in progress")
+		return errors.New("there is already an experiment in progress")
 	}
 	err = os.RemoveAll(d.ExperimentPath)
 	if err != nil {

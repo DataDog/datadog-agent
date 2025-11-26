@@ -286,7 +286,7 @@ func IsDirSecure(targetDir string) error {
 		return fmt.Errorf("failed to get owner: %w", err)
 	}
 	if owner == nil {
-		return fmt.Errorf("owner is nil")
+		return errors.New("owner is nil")
 	}
 	var allowedSids []*windows.SID
 	for _, id := range allowedWellKnownSids {

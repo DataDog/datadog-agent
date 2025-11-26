@@ -286,10 +286,10 @@ func (p *Probe) initCOREGPU(cfg *config.Config) error {
 
 func getAssetName(module string, debug bool) string {
 	if debug {
-		return fmt.Sprintf("%s-debug.o", module)
+		return module + "-debug.o"
 	}
 
-	return fmt.Sprintf("%s.o", module)
+	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {

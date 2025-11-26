@@ -1096,20 +1096,24 @@ func TestGetPropertyUint64(t *testing.T) {
 	data := map[string]struct {
 		propertyName   string
 		expectedNumber uint64
-		expectedError  error
+		expectedError  string
 	}{
-		"prop_uint property retrieved": {"prop_uint", 3, nil},
-		"uint32 property retrieved":    {"prop_uint32", 5, nil},
-		"uint64 property retrieved":    {"prop_uint64", 10, nil},
-		"error int64 not valid":        {"prop_int64", 0, errors.New("property prop_int64 (int64) cannot be converted to uint64")},
-		"error string not valid":       {"prop_string", 0, errors.New("property prop_string (string) cannot be converted to uint64")},
-		"error prop not exist":         {"prop_not_exist", 0, errors.New("property prop_not_exist not found")},
+		"prop_uint property retrieved": {"prop_uint", 3, ""},
+		"uint32 property retrieved":    {"prop_uint32", 5, ""},
+		"uint64 property retrieved":    {"prop_uint64", 10, ""},
+		"error int64 not valid":        {"prop_int64", 0, "property prop_int64 (int64) cannot be converted to uint64"},
+		"error string not valid":       {"prop_string", 0, "property prop_string (string) cannot be converted to uint64"},
+		"error prop not exist":         {"prop_not_exist", 0, "property prop_not_exist not found"},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
 			num, err := getPropertyUint64(properties, d.propertyName)
 			assert.Equal(t, d.expectedNumber, num)
-			assert.Equal(t, d.expectedError, err)
+			if d.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, d.expectedError)
+			}
 		})
 	}
 }
@@ -1123,17 +1127,21 @@ func TestGetPropertyString(t *testing.T) {
 	data := map[string]struct {
 		propertyName   string
 		expectedString string
-		expectedError  error
+		expectedError  string
 	}{
-		"valid string":         {"prop_string", "foo bar", nil},
-		"prop_uint not valid":  {"prop_uint", "", errors.New("property prop_uint (uint) cannot be converted to string")},
-		"error prop not exist": {"prop_not_exist", "", errors.New("property prop_not_exist not found")},
+		"valid string":         {"prop_string", "foo bar", ""},
+		"prop_uint not valid":  {"prop_uint", "", "property prop_uint (uint) cannot be converted to string"},
+		"error prop not exist": {"prop_not_exist", "", "property prop_not_exist not found"},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
 			num, err := getPropertyString(properties, d.propertyName)
 			assert.Equal(t, d.expectedString, num)
-			assert.Equal(t, d.expectedError, err)
+			if d.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, d.expectedError)
+			}
 		})
 	}
 }
@@ -1148,18 +1156,22 @@ func TestGetPropertyBool(t *testing.T) {
 	data := map[string]struct {
 		propertyName      string
 		expectedBoolValue bool
-		expectedError     error
+		expectedError     string
 	}{
-		"valid bool true":      {"prop_bool_true", true, nil},
-		"valid bool false":     {"prop_bool_false", false, nil},
-		"prop_uint not valid":  {"prop_uint", false, errors.New("property prop_uint (uint) cannot be converted to bool")},
-		"error prop not exist": {"prop_not_exist", false, errors.New("property prop_not_exist not found")},
+		"valid bool true":      {"prop_bool_true", true, ""},
+		"valid bool false":     {"prop_bool_false", false, ""},
+		"prop_uint not valid":  {"prop_uint", false, "property prop_uint (uint) cannot be converted to bool"},
+		"error prop not exist": {"prop_not_exist", false, "property prop_not_exist not found"},
 	}
 	for name, d := range data {
 		t.Run(name, func(t *testing.T) {
 			num, err := getPropertyBool(properties, d.propertyName)
 			assert.Equal(t, d.expectedBoolValue, num)
-			assert.Equal(t, d.expectedError, err)
+			if d.expectedError == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, d.expectedError)
+			}
 		})
 	}
 }
