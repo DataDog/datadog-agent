@@ -4,19 +4,3 @@ common --repo_env=PIP_INDEX_URL
 common --repo_env=PIP_EXTRA_INDEX_URL
 common --repo_env=UV_INDEX
 common --repo_env=UV_DEFAULT_INDEX
-
-common --action_env=PIP_INDEX_URL
-common --action_env=PIP_EXTRA_INDEX_URL
-common --action_env=UV_INDEX
-common --action_env=UV_DEFAULT_INDEX
-
-common --host_action_env=PIP_INDEX_URL
-common --host_action_env=PIP_EXTRA_INDEX_URL
-common --host_action_env=UV_INDEX
-common --host_action_env=UV_DEFAULT_INDEX
-
-common --test_env=PIP_INDEX_URL
-common --test_env=PIP_EXTRA_INDEX_URL
-common --test_env=UV_INDEX
-common --test_env=UV_DEFAULT_INDEX
-

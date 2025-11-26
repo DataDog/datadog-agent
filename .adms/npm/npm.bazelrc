@@ -4,35 +4,8 @@
 common --repo_env=YARN_NPM_REGISTRY_SERVER
 common --repo_env=YARN_NPM_ALWAYS_AUTH
 
-common --action_env=YARN_NPM_REGISTRY_SERVER
-common --action_env=YARN_NPM_ALWAYS_AUTH
-
-common --host_action_env=YARN_NPM_REGISTRY_SERVER
-common --host_action_env=YARN_NPM_ALWAYS_AUTH
-
-common --test_env=YARN_NPM_REGISTRY_SERVER
-common --test_env=YARN_NPM_ALWAYS_AUTH
-
-
-
 # npm Configuration
 common --repo_env=NPM_CONFIG_REGISTRY
 common --repo_env=npm_config_registry
 common --repo_env=NPM_CONFIG_ALWAYS_AUTH
 common --repo_env=npm_config_always_auth
-
-common --action_env=NPM_CONFIG_REGISTRY
-common --action_env=npm_config_registry
-common --action_env=NPM_CONFIG_ALWAYS_AUTH
-common --action_env=npm_config_always_auth
-
-common --host_action_env=NPM_CONFIG_REGISTRY
-common --host_action_env=npm_config_registry
-common --host_action_env=NPM_CONFIG_ALWAYS_AUTH
-common --host_action_env=npm_config_always_auth
-
-common --test_env=NPM_CONFIG_REGISTRY
-common --test_env=npm_config_registry
-common --test_env=NPM_CONFIG_ALWAYS_AUTH
-common --test_env=npm_config_always_auth
-
