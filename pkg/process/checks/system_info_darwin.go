@@ -25,8 +25,7 @@ type statsProvider interface {
 
 type sysctlStatsProvider struct{}
 
-//nolint:revive // TODO(PROC) Fix revive linter
-func (_ *sysctlStatsProvider) getThreadCount() (int32, error) {
+func (*sysctlStatsProvider) getThreadCount() (int32, error) {
 	threadCount, err := unix.SysctlUint32("machdep.cpu.thread_count")
 	return int32(threadCount), err
 }
