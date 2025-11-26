@@ -3,15 +3,3 @@
 common --repo_env=GOPROXY
 common --repo_env=GONOSUMDB
 common --repo_env=GOPRIVATE
-
-common --action_env=GOPROXY
-common --action_env=GONOSUMDB
-common --action_env=GOPRIVATE
-
-common --host_action_env=GOPROXY
-common --host_action_env=GONOSUMDB
-common --host_action_env=GOPRIVATE
-
-common --test_env=GOPROXY
-common --test_env=GONOSUMDB
-common --test_env=GOPRIVATE
