@@ -206,4 +206,5 @@ func init() {
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 	KFilterGetters["connect"] = connectKFiltersGetter
 	KFilterGetters["prctl"] = prctlKFiltersGetter
+	KFilterGetters["socket"] = socketKFiltersGetter
 }

@@ -117,7 +117,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSetrlimitProbes(fentry)...)
 	allProbes = append(allProbes, getCapabilitiesMonitoringProbes()...)
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
-	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
+	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 
 	allProbes = append(allProbes,

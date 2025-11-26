@@ -39,6 +39,18 @@ struct bind_event_t {
     u16 padding;
 };
 
+struct socket_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    int domain;
+    int type;
+    int protocol;
+};
+
 struct connect_event_t {
     struct kevent_t event;
     struct process_context_t process;

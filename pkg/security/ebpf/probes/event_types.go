@@ -83,6 +83,8 @@ func NetworkSelectors(hasCgroupSocket bool) []manager.ProbesSelector {
 		ps = append(ps, &manager.BestEffort{Selectors: []manager.ProbesSelector{
 			hookFunc("hook_sock_create"),
 			hookFunc("hook_sock_release"),
+			hookFunc("hook_sys_socket"),
+			hookFunc("rethook_sys_socket"),
 		}})
 	}
 
@@ -555,6 +557,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("rethook_io_connect"),
 			}},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "connect", hasFentry, EntryAndExit)},
+		},
+		// List of probes required to capture socket events
+		"socket": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "socket", hasFentry, EntryAndExit)},
 		},
 
 		// List of probes required to capture chdir events

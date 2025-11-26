@@ -608,6 +608,17 @@ type SetSockOptEventSerializer struct {
 	FilterHash string `json:"filter_hash,omitempty"`
 }
 
+// SocketEventSerializer serializes a socket event to JSON
+// easyjson:json
+type SocketEventSerializer struct {
+	// Socket domain
+	Domain string `json:"domain"`
+	// Socket type
+	Type string `json:"type"`
+	// Socket protocol
+	Protocol string `json:"protocol"`
+}
+
 // PrCtlEventSerializer serializes a prctl event
 // easyjson:json
 type PrCtlEventSerializer struct {
@@ -773,6 +784,7 @@ type EventSerializer struct {
 	*CGroupWriteEventSerializer   `json:"cgroup_write,omitempty"`
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
+	*SocketEventSerializer        `json:"socket,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1457,6 +1469,14 @@ func newPrCtlEventSerializer(e *model.Event) *PrCtlEventSerializer {
 	}
 }
 
+func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
+	return &SocketEventSerializer{
+		Domain:   model.SocketDomain(e.Socket.Domain).String(),
+		Type:     model.SocketType(e.Socket.Type).String(),
+		Protocol: model.SocketProtocol(e.Socket.Protocol).String(),
+	}
+}
+
 func newCGroupWriteEventSerializer(e *model.Event) *CGroupWriteEventSerializer {
 	return &CGroupWriteEventSerializer{
 		File: newFileSerializer(&e.CgroupWrite.File, e, 0, nil),
@@ -1773,6 +1793,8 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.CapabilitiesEventSerializer = newCapabilitiesEventSerializer(event, &event.CapabilitiesUsage)
 	case model.PrCtlEventType:
 		s.PrCtlEventSerializer = newPrCtlEventSerializer(event)
+	case model.SocketEventType:
+		s.SocketEventSerializer = newSocketEventSerializer(event)
 	}
 
 	return s
