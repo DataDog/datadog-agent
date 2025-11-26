@@ -268,8 +268,8 @@ func execOrExit(env []string, fullPath string) {
 }
 
 // returns a map of environment variables to file descriptors that the trace-agent will use
-// the first return value is the file descriptor of the TCP listener, if enabled, so that
-// it can be handled specially to manage the liveness probe
+// the first return value is the file descriptor of the TCP listener or -1 if not enabled,
+// so that it can be handled specially to manage the liveness probe
 func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, err error) {
 	// logic from applyDatadogConfig in comp/trace/config/setup.go
 	// the loader needs to initialize the sockets in the same way as the trace-agent
@@ -304,6 +304,7 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 
 	// end of config initialization
 
+	tcpFD = -1
 	listeners = make(map[string]uintptr)
 
 	// "datadog" TCP receiver
