@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
 
@@ -37,8 +36,6 @@ func TestGetIAMRole(t *testing.T) {
 	}))
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
-	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	val, err := getIAMRole(ctx)
 	require.NoError(t, err)
@@ -62,8 +59,6 @@ func TestGetSecurityCredentials(t *testing.T) {
 	}))
 	defer ts.Close()
 	ec2internal.MetadataURL = ts.URL
-	conf := configmock.New(t)
-	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	cred, err := GetSecurityCredentials(ctx)
 	require.NoError(t, err)
