@@ -11,18 +11,12 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-
-if TYPE_CHECKING:
-    import httpx
-    import orjson
-    from packaging.version import Version
 
 # Python.org URLs
 PYTHON_FTP_URL = "https://www.python.org/ftp/python/"
@@ -77,7 +71,7 @@ def update_python(
     # Check if update is needed
     from packaging.version import Version
     
-    if Version(target_version) <= Version(current_version):
+    if Version(target_version) <= Version(current_version): 
         print(color_message(f"Already at Python {current_version} (target: {target_version})", "yellow"))
         return
 
@@ -103,7 +97,8 @@ def update_python(
 
     if release_note:
         releasenote_path = _create_releasenote(ctx, current_version, target_version)
-        print(color_message(f"Release note created at {releasenote_path}", "green"))
+        if releasenote_path:
+            print(color_message(f"Release note created at {releasenote_path}", "green"))
 
     print(color_message(f"\n✓ Python version upgraded from {current_version} to {target_version}", "green"))
     print(color_message("\nRemember to:", "blue"))
@@ -159,9 +154,7 @@ def _get_latest_python_version(major_minor: str) -> str | None:
         raise Exit(
             f"Missing required dependency: {e}\n\n"
             "To use this task, install the required dependencies:\n"
-            "  pip install packaging httpx orjson\n\n"
-            "Or with the Agent's embedded Python:\n"
-            "  /opt/datadog-agent/embedded/bin/python3 -m pip install packaging httpx orjson"
+            "  pip install packaging httpx orjson"
         )
     
     try:
@@ -205,17 +198,8 @@ def _get_python_sha256_hash(version: str) -> str:
         ValueError: If version format is invalid
         RuntimeError: If SBOM file cannot be fetched or parsed
     """
-    try:
-        import httpx
-        import orjson
-    except ImportError as e:
-        raise Exit(
-            f"Missing required dependency: {e}\n\n"
-            "To use this task, install the required dependencies:\n"
-            "  pip install packaging httpx orjson\n\n"
-            "Or with the Agent's embedded Python:\n"
-            "  /opt/datadog-agent/embedded/bin/python3 -m pip install packaging httpx orjson"
-        )
+    import httpx
+    import orjson
     
     if not _validate_version_string(version):
         raise ValueError(f"Invalid version format: {version}")
@@ -338,7 +322,7 @@ def _update_test_python(version: str, warn: bool):
     print(f"  ✓ Updated {file_path}")
 
 
-def _create_releasenote(ctx: Context, old_version: str, new_version: str) -> str:
+def _create_releasenote(ctx: Context, old_version: str, new_version: str) -> str | None:
     """Create a release note for the Python patch version update."""
     template = f"""---
 enhancements:
@@ -349,11 +333,13 @@ enhancements:
     # Create release note using reno
     res = ctx.run(f'reno new "Bump embedded Python to {new_version}"', hide='both')
     if not res:
-        raise Exit("Could not create release note")
+        print(color_message("WARNING: Could not create release note. Please create manually.", "orange"))
+        return None
 
     match = re.match(r"^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
     if not match:
-        raise Exit("Could not get created release note path")
+        print(color_message("WARNING: Could not get created release note path. Please create manually.", "orange"))
+        return None
 
     path = match.group(1)
     with open(path, "w") as writer:
