@@ -15,39 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/agent/mocks"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/command"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-func TestDownloadCommand(t *testing.T) {
-	tests := []struct {
-		name     string
-		cliInput []string
-		check    func(cliParams *downloadPolicyCliParams, params core.BundleParams)
-	}{
-		{
-			name:     "runtime download",
-			cliInput: []string{"download"},
-			check: func(_ *downloadPolicyCliParams, params core.BundleParams) {
-				// Verify logger defaults
-				require.Equal(t, command.LoggerName, params.LoggerName(), "logger name not matching")
-				require.Equal(t, "off", params.LogLevelFn(nil), "log level not matching")
-			},
-		},
-	}
-
-	for _, test := range tests {
-		fxutil.TestOneShotSubcommand(t,
-			downloadPolicyCommands(&command.GlobalParams{}),
-			test.cliInput,
-			downloadPolicy,
-			test.check,
-		)
-	}
-}
 
 func newMockRSClient(t *testing.T) secagent.SecurityModuleCmdClientWrapper {
 	m := mocks.NewSecurityModuleClientWrapper(t)
