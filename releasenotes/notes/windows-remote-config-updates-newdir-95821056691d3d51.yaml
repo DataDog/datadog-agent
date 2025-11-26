@@ -1,7 +1,7 @@
 ---
 upgrade:
   - |
-    Remote Agent Management now creates a new directory that is a peer to the current Agent configuration directory.
+    Remote Agent Management now creates a new directory that is at the same level as the current Agent configuration directory.
   
     * Linux: /etc/datadog-agent-exp
     * Windows: C:\ProgramData\Datadog-exp
