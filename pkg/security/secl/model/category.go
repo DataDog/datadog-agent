@@ -115,6 +115,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		BindEventType.String(),
 		ConnectEventType.String(),
 		AcceptEventType.String(),
+		SocketEventType.String(),
 		SetSockOptEventType.String(),
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),

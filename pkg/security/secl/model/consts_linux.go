@@ -867,6 +867,15 @@ var (
 		"RLIMIT_RTTIME":     unix.RLIMIT_RTTIME,
 	}
 
+	// SocketDomainConstants is the list of socket domains
+	// generate_constants:Socket domains,Socket domains are the supported socket domains.
+	SocketDomainConstants = map[string]int{
+		"AF_UNSPEC": syscall.AF_UNSPEC,
+		"AF_INET":   syscall.AF_INET,
+		"AF_INET6":  syscall.AF_INET6,
+		"AF_UNIX":   syscall.AF_UNIX,
+	}
+
 	// SocketTypeConstants is the list of socket types
 	// generate_constants:Socket types,Socket types are the supported socket types.
 	SocketTypeConstants = map[string]int{
@@ -877,6 +886,17 @@ var (
 		"SOCK_SEQPACKET": syscall.SOCK_SEQPACKET,
 		"SOCK_DCCP":      syscall.SOCK_DCCP,
 		"SOCK_PACKET":    syscall.SOCK_PACKET,
+	}
+
+	// SocketProtocolConstants is the list of socket protocols
+	// generate_constants:Socket protocols,Socket protocols are the supported socket protocols.
+	SocketProtocolConstants = map[string]int{
+		"IPPROTO_IP":     syscall.IPPROTO_IP,
+		"IPPROTO_TCP":    syscall.IPPROTO_TCP,
+		"IPPROTO_UDP":    syscall.IPPROTO_UDP,
+		"IPPROTO_ICMP":   syscall.IPPROTO_ICMP,
+		"IPPROTO_IPV6":   syscall.IPPROTO_IPV6,
+		"IPPROTO_ICMPV6": syscall.IPPROTO_ICMPV6,
 	}
 
 	// SetSockoptLevelConstants is the list of available levels for setsockopt events
@@ -1376,6 +1396,13 @@ func initSetSockOptOptNameConstantsIPv6() {
 		setsockoptOptNameStringsIPv6[v] = k
 	}
 }
+func initSocketDomainConstants() {
+	for k, v := range SocketDomainConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		socketDomainStrings[v] = k
+	}
+}
+
 func initSocketTypeConstants() {
 	for k, v := range SocketTypeConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
@@ -1390,7 +1417,8 @@ func initSocketFamilyConstants() {
 }
 
 func initSocketProtocolConstants() {
-	for k, v := range SetSockoptLevelConstants {
+	for k, v := range SocketProtocolConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: v}
 		socketProtocolStrings[v] = k
 	}
 }
@@ -2305,6 +2333,7 @@ var (
 	setsockoptOptNameStringsIPv6      = map[int]string{}
 
 	setsockoptLevelStrings = map[int]string{}
+	socketDomainStrings    = map[int]string{}
 	socketTypeStrings      = map[int]string{}
 	socketFamilyStrings    = map[uint16]string{}
 	socketProtocolStrings  = map[int]string{}
@@ -2360,6 +2389,13 @@ type SetSockOptLevel int
 
 func (s SetSockOptLevel) String() string {
 	return setsockoptLevelStrings[int(s)]
+}
+
+// SocketDomain is used to define the domain of a socket
+type SocketDomain int
+
+func (s SocketDomain) String() string {
+	return socketDomainStrings[int(s)]
 }
 
 // SocketType is used to define the type of a socket in setsockopt

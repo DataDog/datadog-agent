@@ -143,6 +143,8 @@ const (
 	TracerMemfdCreateEventType
 	// TracerMemfdSealEventType Tracer memfd seal event
 	TracerMemfdSealEventType
+	// SocketEventType is sent when a socket is created
+	SocketEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -336,6 +338,8 @@ func (t EventType) String() string {
 		return "tracer_memfd_create"
 	case TracerMemfdSealEventType:
 		return "tracer_memfd_seal"
+	case SocketEventType:
+		return "socket"
 	default:
 		return "unknown"
 	}
