@@ -477,7 +477,7 @@ func getPIDs() ([]int32, error) {
 		if err := windows.EnumProcesses(buf, &read); err != nil {
 			return nil, err
 		}
-		if uint32(len(buf) * dwordSize) == read {
+		if uint32(len(buf)*int(dwordSize)) == read {
 			psSize += PIDBufferIncrement
 			continue
 		}
