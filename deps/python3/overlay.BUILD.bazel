@@ -268,6 +268,20 @@ filegroup(
     ] + PYTHON_CORE_MODULES_SRCS,
 )
 
+cc_library(
+    name = "library_objs_omit_frozen",
+    srcs = [":library_srcs_omit_frozen"],
+    hdrs = [
+        ":python_headers",
+        ":modules_headers",
+    ],
+    deps = [":mimalloc"],
+    includes = _COMMON_INCLUDE_DIRS,
+    linkstatic = True,
+    copts = COMMON_COPTS,
+    local_defines = PY_CORE_DEFINES,
+)
+
 filegroup(
     name = "mimalloc_headers",
     srcs = glob(["Include/internal/mimalloc/**/*.h"])
@@ -464,9 +478,9 @@ cc_binary(
         "Programs/_freeze_module.c",
         "Modules/getpath_noop.c",
         ":python_headers",
-        ":library_srcs_omit_frozen",
         ":modules_headers",
         "Objects/typeslots.inc",
+        ":library_objs_omit_frozen",
     ],
     linkopts = select({
         "@platforms//os:linux": ["-lutil"],
@@ -518,7 +532,6 @@ cc_binary(
     name = "bootstrap_python",
     srcs = [
         "Programs/_bootstrap_python.c",
-        ":library_srcs_omit_frozen",
         ":bootstrap_headers",
         ":python_headers",
     ],
@@ -528,6 +541,7 @@ cc_binary(
     }),
     deps = [
         ":modules_getpath",
+        ":library_objs_omit_frozen",
         ":mimalloc",
     ] + [":build_module_" + m for m in PYTHON_MODULES.keys()],
     local_defines = COMMON_DEFINES + PY_CORE_DEFINES,
@@ -615,7 +629,6 @@ cc_library(
 cc_library(
     name = "libpython",
     srcs = [
-        ":library_srcs_omit_frozen",
         ":python_headers",
         ":modules_headers",
     ],
@@ -626,6 +639,7 @@ cc_library(
         ":mimalloc",
         ":frozen_o",
         ":modules_getpath",
+        ":library_objs_omit_frozen",
     ] + select({
         "@platforms//os:linux": [":dynload_shlib"],
         "@platforms//os:macos": [":dynload_shlib"],
