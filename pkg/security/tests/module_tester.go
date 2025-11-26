@@ -572,7 +572,7 @@ func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev, nil)
+	b, err := serializers.MarshalEvent(ev, nil, tm.probe.GetScrubber())
 	return string(b), err
 }
 

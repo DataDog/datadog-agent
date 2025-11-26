@@ -102,7 +102,7 @@ func applyOverride(rd1, rd2 *PolicyRule) {
 
 	wasOverridden := false
 	// for backward compatibility, by default only the expression is copied if no options
-	if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.Type == DefaultPolicyType {
+	if slices.Contains(rd2.Def.OverrideOptions.Fields, OverrideAllFields) && rd1.Policy.InternalType == DefaultPolicyType {
 		tmpExpression := rd1.Def.Expression
 		*rd1.Def = *rd2.Def
 		rd1.Def.Expression = tmpExpression
@@ -172,7 +172,7 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 		r.Def.Disabled = r2.Def.Disabled
 		r.Policy = r2.Policy
 	} else {
-		if r.Policy.Type == DefaultPolicyType && r2.Policy.Type == CustomPolicyType {
+		if r.Policy.InternalType == DefaultPolicyType && r2.Policy.InternalType == CustomPolicyType {
 			if !r2.Def.Disabled || (r2.Def.Disabled && r.EnableCount < 0) {
 				r.Def.Disabled = r2.Def.Disabled
 				r.Policy = r2.Policy
@@ -183,18 +183,18 @@ func (r *PolicyRule) MergeWith(r2 *PolicyRule) {
 	r.ModifiedBy = append(r.ModifiedBy, r2.Policy)
 }
 
-// PolicyType represents the type of a policy
-type PolicyType string
+// InternalPolicyType represents the internal type of a policy
+type InternalPolicyType string
 
 const (
 	// DefaultPolicyType is the default policy type
-	DefaultPolicyType PolicyType = "default"
+	DefaultPolicyType InternalPolicyType = "default"
 	// CustomPolicyType is the custom policy type
-	CustomPolicyType PolicyType = "custom"
-	// InternalPolicyType is the policy for internal use (bundled_policy_provider)
-	InternalPolicyType PolicyType = "internal"
-	// SelftestPolicy is the policy for self tests
-	SelftestPolicy PolicyType = "selftest"
+	CustomPolicyType InternalPolicyType = "custom"
+	// BundledPolicyType is the policy for internal use (bundled_policy_provider)
+	BundledPolicyType InternalPolicyType = "internal"
+	// SelftestPolicyType is the policy for self tests
+	SelftestPolicyType InternalPolicyType = "selftest"
 )
 
 // PolicyInfo contains information about a policy that aren't part of the policy definition
@@ -203,8 +203,10 @@ type PolicyInfo struct {
 	Name string
 	// Source is the source of the policy
 	Source string
-	// Type is the type of the policy
-	Type PolicyType
+	// InternalType is the internal type of the policy
+	InternalType InternalPolicyType
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	Type string
 	// Version is the version of the policy, this field is copied from the policy definition
 	Version string
 	// ReplacePolicyID is the ID that this policy should replace
@@ -368,9 +370,16 @@ RULES:
 
 // LoadPolicyFromDefinition load a policy from a definition
 func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []MacroFilter, ruleFilters []RuleFilter) (*Policy, error) {
-	if def != nil && def.Version != "" {
-		info.Version = def.Version
-		info.ReplacePolicyID = def.ReplacePolicyID
+	if def != nil {
+		if def.Version != "" {
+			info.Version = def.Version
+		}
+		if def.ReplacePolicyID != "" {
+			info.ReplacePolicyID = def.ReplacePolicyID
+		}
+		if def.Type != "" {
+			info.Type = def.Type
+		}
 	}
 
 	p := &Policy{
@@ -388,7 +397,7 @@ func LoadPolicy(info *PolicyInfo, reader io.Reader, macroFilters []MacroFilter, 
 	def := PolicyDef{}
 	decoder := yaml.NewDecoder(reader)
 	if err := decoder.Decode(&def); err != nil {
-		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Err: err}
+		return nil, &ErrPolicyLoad{Name: info.Name, Source: info.Source, Type: info.Type, Err: err}
 	}
 
 	return LoadPolicyFromDefinition(info, &def, macroFilters, ruleFilters)
