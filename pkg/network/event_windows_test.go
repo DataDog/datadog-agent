@@ -96,10 +96,11 @@ func TestFlowToConnStatWithIPv6TcpMonotonic(t *testing.T) {
 		ClassifyResponse:         21,
 		HttpUpgradeToH2Requested: 22,
 		HttpUpgradeToH2Accepted:  23,
-		Tls_versions_offered:     24,
-		Tls_version_chosen:       25,
+		Tls_versions_offered:     0x1 | 0x2 | 0x4,
+		Tls_version_chosen:       0x0303,
 		Tls_alpn_requested:       26,
 		Tls_alpn_chosen:          27,
+		Tls_cipher_suite:         0x1301,
 	}
 
 	tcpData := &driver.TCPFlowData{
@@ -142,6 +143,7 @@ func TestFlowToConnStatWithIPv6TcpMonotonic(t *testing.T) {
 	assert.Equal(t, cs.Cookie, flow.FlowCookie)
 	assert.Equal(t, cs.TLSTags.ChosenVersion, flow.Tls_version_chosen)
 	assert.Equal(t, cs.TLSTags.OfferedVersions, uint8(flow.Tls_versions_offered))
+	assert.Equal(t, cs.TLSTags.CipherSuite, flow.Tls_cipher_suite)
 
 	// TCP related stats.
 	assert.Equal(t, cs.Monotonic.Retransmits, uint32(tcpData.RetransmitCount))
@@ -175,10 +177,11 @@ func TestFlowToConnStatWithIPv4UdpNoMonotonicc(t *testing.T) {
 		ClassifyResponse:         21,
 		HttpUpgradeToH2Requested: 22,
 		HttpUpgradeToH2Accepted:  23,
-		Tls_versions_offered:     24,
-		Tls_version_chosen:       25,
+		Tls_versions_offered:     0x1 | 0x2 | 0x4,
+		Tls_version_chosen:       0x0301,
 		Tls_alpn_requested:       26,
 		Tls_alpn_chosen:          27,
+		Tls_cipher_suite:         0xCCA8,
 	}
 
 	for i := 0; i < 16; i++ {
@@ -206,4 +209,5 @@ func TestFlowToConnStatWithIPv4UdpNoMonotonicc(t *testing.T) {
 	assert.Equal(t, cs.Cookie, flow.FlowCookie)
 	assert.Equal(t, cs.TLSTags.ChosenVersion, flow.Tls_version_chosen)
 	assert.Equal(t, cs.TLSTags.OfferedVersions, uint8(flow.Tls_versions_offered))
+	assert.Equal(t, cs.TLSTags.CipherSuite, flow.Tls_cipher_suite)
 }
