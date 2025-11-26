@@ -17,7 +17,6 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl/internal/metadata"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -30,7 +29,7 @@ type ddExtensionFactory struct {
 	factories              *otelcol.Factories
 	configProviderSettings otelcol.ConfigProviderSettings
 	byoc                   bool
-	ipcComp                option.Option[ipc.Component]
+	ipcComp                ipc.Component
 }
 
 // isOCB returns true if extension was built with OCB
@@ -44,7 +43,7 @@ func NewFactory() extension.Factory {
 }
 
 // NewFactoryForAgent creates a factory for Datadog Flare Extension for use with Agent
-func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, ipcComp option.Option[ipc.Component], byoc bool) extension.Factory {
+func NewFactoryForAgent(factories *otelcol.Factories, configProviderSettings otelcol.ConfigProviderSettings, ipcComp ipc.Component, byoc bool) extension.Factory {
 	return &ddExtensionFactory{
 		factories:              factories,
 		configProviderSettings: configProviderSettings,

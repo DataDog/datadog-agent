@@ -16,14 +16,13 @@ import (
 
 	"go.opentelemetry.io/collector/component/componenttest"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector"
 
+	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	converterimpl "github.com/DataDog/datadog-agent/comp/otelcol/converter/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
 	"github.com/google/go-cmp/cmp"
@@ -44,13 +43,13 @@ import (
 )
 
 // this is only used for config unmarshalling.
-func addFactories(factories otelcol.Factories) {
+func addFactories(t *testing.T, factories otelcol.Factories) {
 	factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(nil, nil, nil, nil, nil, otel.NewDisabledGatewayUsage(), serializerexporter.TelemetryStore{})
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(nil, func(context.Context) (string, error) {
 		return "hostname", nil
 	})
 	factories.Connectors[component.MustNewType("datadog")] = datadogconnector.NewFactoryForAgent(nil, nil)
-	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, option.None[ipc.Component](), false)
+	factories.Extensions[Type] = NewFactoryForAgent(nil, otelcol.ConfigProviderSettings{}, ipcmock.New(t), false)
 	factories.Telemetry = otelconftelemetry.NewFactory()
 }
 
@@ -58,7 +57,7 @@ func TestGetConfDump(t *testing.T) {
 	// get factories
 	factories, err := components()
 	assert.NoError(t, err)
-	addFactories(factories)
+	addFactories(t, factories)
 
 	// extension config
 	config := Config{
@@ -68,7 +67,7 @@ func TestGetConfDump(t *testing.T) {
 		factories:              &factories,
 		configProviderSettings: newConfigProviderSettings(uriFromFile("simple-dd/config.yaml"), false),
 	}
-	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, option.None[ipc.Component](), true, false)
+	extension, err := NewExtension(context.TODO(), &config, componenttest.NewNopTelemetrySettings(), component.BuildInfo{}, ipcmock.New(t), true, false)
 	assert.NoError(t, err)
 
 	ext, ok := extension.(*ddExtension)
