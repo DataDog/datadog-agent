@@ -5,7 +5,7 @@
 
 //go:build !ec2
 
-package ec2
+package creds
 
 import (
 	"context"

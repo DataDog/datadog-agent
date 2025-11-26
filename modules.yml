@@ -296,6 +296,8 @@ modules:
     used_by_otel: true
   pkg/trace:
     used_by_otel: true
+  pkg/util/aws/creds:
+    used_by_otel: true
   pkg/util/backoff:
     used_by_otel: true
   pkg/util/buf:

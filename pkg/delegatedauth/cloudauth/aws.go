@@ -23,7 +23,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/delegatedauth"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -85,37 +85,37 @@ func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *delegatedauth.Aut
 
 // getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.
 // It first tries config/environment variables, then falls back to EC2 instance metadata service.
-func (a *AWSAuth) getCredentials(cfg pkgconfigmodel.Reader) *ec2.SecurityCredentials {
-	creds := &ec2.SecurityCredentials{}
+func (a *AWSAuth) getCredentials(cfg pkgconfigmodel.Reader) *creds.SecurityCredentials {
+	awsCredentials := &creds.SecurityCredentials{}
 
 	// First, try to get credentials from config
-	creds.AccessKeyID = cfg.GetString(awsAccessKeyIDName)
-	creds.SecretAccessKey = cfg.GetString(awsSecretAccessKeyName)
-	creds.Token = cfg.GetString(awsSessionTokenName)
+	awsCredentials.AccessKeyID = cfg.GetString(awsAccessKeyIDName)
+	awsCredentials.SecretAccessKey = cfg.GetString(awsSecretAccessKeyName)
+	awsCredentials.Token = cfg.GetString(awsSessionTokenName)
 
 	// Then try environment variables
-	if creds.AccessKeyID == "" {
-		creds.AccessKeyID = os.Getenv(awsAccessKeyIDName)
+	if awsCredentials.AccessKeyID == "" {
+		awsCredentials.AccessKeyID = os.Getenv(awsAccessKeyIDName)
 	}
-	if creds.SecretAccessKey == "" {
-		creds.SecretAccessKey = os.Getenv(awsSecretAccessKeyName)
+	if awsCredentials.SecretAccessKey == "" {
+		awsCredentials.SecretAccessKey = os.Getenv(awsSecretAccessKeyName)
 	}
-	if creds.Token == "" {
-		creds.Token = os.Getenv(awsSessionTokenName)
+	if awsCredentials.Token == "" {
+		awsCredentials.Token = os.Getenv(awsSessionTokenName)
 	}
 
 	// If we have explicit credentials, return them
-	if creds.AccessKeyID != "" && creds.SecretAccessKey != "" {
-		return creds
+	if awsCredentials.AccessKeyID != "" && awsCredentials.SecretAccessKey != "" {
+		return awsCredentials
 	}
 
 	// Fall back to EC2 instance metadata service (same as ec2_tags.go does)
 	log.Debugf("No explicit AWS credentials found in config or environment, trying EC2 instance metadata service")
 	ctx := context.Background()
-	ec2Creds, err := ec2.GetSecurityCredentials(ctx)
+	ec2Creds, err := creds.GetSecurityCredentials(ctx)
 	if err != nil {
 		log.Warnf("Failed to get credentials from EC2 instance metadata: %v", err)
-		return creds
+		return awsCredentials
 	}
 
 	log.Infof("Successfully retrieved AWS credentials from EC2 instance metadata service")
@@ -141,11 +141,11 @@ func (a *AWSAuth) getUserAgent() string {
 	return fmt.Sprintf("datadog-agent/%s", version.AgentVersion)
 }
 
-func (a *AWSAuth) generateAwsAuthData(orgUUID string, creds *ec2.SecurityCredentials) (*SigningData, error) {
+func (a *AWSAuth) generateAwsAuthData(orgUUID string, awsCredentials *creds.SecurityCredentials) (*SigningData, error) {
 	if orgUUID == "" {
 		return nil, fmt.Errorf("missing org UUID")
 	}
-	if creds == nil || (creds.AccessKeyID == "" && creds.SecretAccessKey == "") || creds.Token == "" {
+	if awsCredentials == nil || (awsCredentials.AccessKeyID == "" && awsCredentials.SecretAccessKey == "") || awsCredentials.Token == "" {
 		return nil, fmt.Errorf("missing AWS credentials")
 	}
 	stsFullURL, region, host := a.getConnectionParameters()
@@ -176,9 +176,9 @@ func (a *AWSAuth) generateAwsAuthData(orgUUID string, creds *ec2.SecurityCredent
 
 	// Create AWS credentials from our EC2 credentials
 	awsCreds := aws.Credentials{
-		AccessKeyID:     creds.AccessKeyID,
-		SecretAccessKey: creds.SecretAccessKey,
-		SessionToken:    creds.Token,
+		AccessKeyID:     awsCredentials.AccessKeyID,
+		SecretAccessKey: awsCredentials.SecretAccessKey,
+		SessionToken:    awsCredentials.Token,
 	}
 
 	// Create the v4 signer

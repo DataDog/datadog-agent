@@ -5,14 +5,14 @@
 
 //go:build ec2
 
-package ec2
+package creds
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
 
 // SecurityCredentials represents AWS security credentials from the EC2 instance metadata service.

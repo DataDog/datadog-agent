@@ -5,7 +5,7 @@
 
 //go:build ec2
 
-package ec2
+package creds
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
 
 func TestGetIAMRole(t *testing.T) {

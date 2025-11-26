@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
 func TestGenerateAwsAuthData(t *testing.T) {
@@ -21,7 +21,7 @@ func TestGenerateAwsAuthData(t *testing.T) {
 		AwsRegion: "us-east-1",
 	}
 
-	creds := &ec2.SecurityCredentials{
+	awsCreds := &creds.SecurityCredentials{
 		AccessKeyID:     "test-access-key-id",
 		SecretAccessKey: "test-secret-access-key",
 		Token:           "test-session-token",
@@ -29,7 +29,7 @@ func TestGenerateAwsAuthData(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, creds)
+	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
@@ -63,7 +63,7 @@ func TestGenerateAwsAuthData(t *testing.T) {
 
 	// Verify session token header is present
 	assert.Contains(t, headers, "X-Amz-Security-Token")
-	assert.Equal(t, []string{creds.Token}, headers["X-Amz-Security-Token"])
+	assert.Equal(t, []string{awsCreds.Token}, headers["X-Amz-Security-Token"])
 
 	// Verify other required headers
 	assert.Contains(t, headers, "Content-Type")
@@ -87,7 +87,7 @@ func TestGenerateAwsAuthDataWithDefaultEndpoint(t *testing.T) {
 		AwsRegion: "", // Empty region should use global endpoint
 	}
 
-	creds := &ec2.SecurityCredentials{
+	awsCreds := &creds.SecurityCredentials{
 		AccessKeyID:     "test-access-key-id",
 		SecretAccessKey: "test-secret-access-key",
 		Token:           "test-session-token",
@@ -95,7 +95,7 @@ func TestGenerateAwsAuthDataWithDefaultEndpoint(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, creds)
+	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
@@ -110,7 +110,7 @@ func TestGenerateAwsAuthDataWithRegionalEndpoint(t *testing.T) {
 		AwsRegion: "eu-west-1",
 	}
 
-	creds := &ec2.SecurityCredentials{
+	awsCreds := &creds.SecurityCredentials{
 		AccessKeyID:     "test-access-key-id",
 		SecretAccessKey: "test-secret-access-key",
 		Token:           "test-session-token",
@@ -118,7 +118,7 @@ func TestGenerateAwsAuthDataWithRegionalEndpoint(t *testing.T) {
 
 	orgUUID := "test-org-uuid-12345"
 
-	signingData, err := auth.generateAwsAuthData(orgUUID, creds)
+	signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
 	require.NoError(t, err)
 	require.NotNil(t, signingData)
 
@@ -133,13 +133,13 @@ func TestGenerateAwsAuthDataMissingOrgUUID(t *testing.T) {
 		AwsRegion: "us-east-1",
 	}
 
-	creds := &ec2.SecurityCredentials{
+	awsCreds := &creds.SecurityCredentials{
 		AccessKeyID:     "test-access-key-id",
 		SecretAccessKey: "test-secret-access-key",
 		Token:           "test-session-token",
 	}
 
-	_, err := auth.generateAwsAuthData("", creds)
+	_, err := auth.generateAwsAuthData("", awsCreds)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing org UUID")
 }
@@ -157,7 +157,7 @@ func TestGenerateAwsAuthDataMissingCredentials(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 
 	// Test with empty credentials
-	_, err = auth.generateAwsAuthData(orgUUID, &ec2.SecurityCredentials{})
+	_, err = auth.generateAwsAuthData(orgUUID, &creds.SecurityCredentials{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "missing AWS credentials")
 }

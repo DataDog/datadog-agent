@@ -9,6 +9,7 @@ package tags
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -23,7 +24,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	ec2util "github.com/DataDog/datadog-agent/pkg/util/ec2"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -169,7 +169,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 
 	// If the above fails, for backward compatibility, fall back to our legacy
 	// behavior, where we explicitly query instance role to get credentials.
-	iamParams, err := ec2util.GetSecurityCredentials(ctx)
+	iamParams, err := getSecurityCreds(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -245,4 +245,39 @@ func GetTags(ctx context.Context) ([]string, error) {
 		log.Warn(err.Error())
 	}
 	return tags, err
+}
+
+type ec2SecurityCred struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	Token           string
+}
+
+func getSecurityCreds(ctx context.Context) (*ec2SecurityCred, error) {
+	iamParams := &ec2SecurityCred{}
+
+	iamRole, err := getIAMRole(ctx)
+	if err != nil {
+		return iamParams, err
+	}
+
+	res, err := ec2internal.DoHTTPRequest(ctx, ec2internal.MetadataURL+"/iam/security-credentials/"+iamRole, ec2internal.UseIMDSv2(), true)
+	if err != nil {
+		return iamParams, fmt.Errorf("unable to fetch EC2 API to get iam role: %s", err)
+	}
+
+	err = json.Unmarshal([]byte(res), &iamParams)
+	if err != nil {
+		return iamParams, fmt.Errorf("unable to unmarshall json, %s", err)
+	}
+	return iamParams, nil
+}
+
+func getIAMRole(ctx context.Context) (string, error) {
+	res, err := ec2internal.DoHTTPRequest(ctx, ec2internal.MetadataURL+"/iam/security-credentials/", ec2internal.UseIMDSv2(), true)
+	if err != nil {
+		return "", fmt.Errorf("unable to fetch EC2 API to get security credentials: %s", err)
+	}
+
+	return res, nil
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 )
 
 // TestGenerateAwsAuthDataIntegration is an integration test that uses real AWS credentials
@@ -41,7 +41,7 @@ func TestGenerateAwsAuthDataIntegration(t *testing.T) {
 	orgUUID := "test-org-uuid-12345"
 
 	// Create credentials
-	creds := &ec2.SecurityCredentials{
+	awsCreds := &creds.SecurityCredentials{
 		AccessKeyID:     accessKeyID,
 		SecretAccessKey: secretAccessKey,
 		Token:           sessionToken,
@@ -69,7 +69,7 @@ func TestGenerateAwsAuthDataIntegration(t *testing.T) {
 			}
 
 			// Generate the signing data
-			signingData, err := auth.generateAwsAuthData(orgUUID, creds)
+			signingData, err := auth.generateAwsAuthData(orgUUID, awsCreds)
 			require.NoError(t, err)
 			require.NotNil(t, signingData)
 
@@ -157,7 +157,7 @@ func TestGenerateAwsAuthDataIntegrationDebug(t *testing.T) {
 	orgUUID := "test-org-uuid-12345"
 
 	// Create credentials
-	creds := &ec2.SecurityCredentials{
+	awsCreds := &creds.SecurityCredentials{
 		AccessKeyID:     accessKeyID,
 		SecretAccessKey: secretAccessKey,
 		Token:           sessionToken,
@@ -254,7 +254,7 @@ func TestGenerateAwsAuthDataWithoutOrgHeader(t *testing.T) {
 	// For now, just verify our credentials work with a basic AWS SDK call
 	// We'll use the generateAwsAuthData but then remove the org header before sending
 	auth := &AWSAuth{AwsRegion: ""}
-	credsPtr := &ec2.SecurityCredentials{
+	credsPtr := &creds.SecurityCredentials{
 		AccessKeyID:     accessKeyID,
 		SecretAccessKey: secretAccessKey,
 		Token:           sessionToken,
