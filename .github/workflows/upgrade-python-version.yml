@@ -1,0 +1,118 @@
+name: Upgrade Python version
+
+on:
+  workflow_dispatch:
+  # TODO: Remove this push trigger before merging - only for testing
+  push:
+    branches:
+      - kyle.neale/automate-python-patch-upgrades
+  schedule:
+    # At 4AM on Tuesday (UTC) - runs after dependency updates on Monday
+    - cron: "0 4 * * 2"
+
+permissions: {}
+
+jobs:
+  upgrade_python_version:
+    name: Upgrade Python version
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # This is required for getting the required OIDC token from GitHub
+    environment:
+      name: main
+    steps:
+      - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
+        id: octo-sts
+        with:
+          scope: DataDog/datadog-agent
+          policy: self.update-dependencies.create-pr
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # credentials are needed to create the PR at the end of the workflow
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: '3.13'
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Install additional dependencies
+        run: |
+          pip install packaging httpx orjson
+
+      - name: Check for Python updates
+        id: check_update
+        run: |
+          # Get current version
+          CURRENT_VERSION=$(dda inv python-version 2>/dev/null || true)
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "Could not determine current Python version"
+            exit 1
+          fi
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Try to get latest patch version (this will exit early if already up to date)
+          set +e
+          dda inv update-python 2>&1 | tee update_output.txt
+          UPDATE_EXIT_CODE=$?
+          set -e
+          
+          if [ $UPDATE_EXIT_CODE -eq 0 ]; then
+            if git diff --quiet; then
+              echo "needs_update=false" >> $GITHUB_OUTPUT
+              echo "No Python patch update needed"
+            else
+              NEW_VERSION=$(dda inv python-version 2>/dev/null || echo "$CURRENT_VERSION")
+              # Create version without dots for Python.org URLs (e.g., 3.13.9 -> 3139)
+              NEW_VERSION_NO_DOTS=$(echo "$NEW_VERSION" | tr -d '.')
+              echo "needs_update=true" >> $GITHUB_OUTPUT
+              echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+              echo "new_version_no_dots=$NEW_VERSION_NO_DOTS" >> $GITHUB_OUTPUT
+              echo "Python patch update from $CURRENT_VERSION to $NEW_VERSION is available"
+            fi
+          else
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "Update check completed - no changes needed"
+          fi
+
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        name: Create pull request
+        if: steps.check_update.outputs.needs_update == 'true'
+        with:
+          token: ${{ steps.octo-sts.outputs.token }}
+          sign-commits: true
+          commit-message: "chore(deps): upgrade embedded Python to ${{ steps.check_update.outputs.new_version }}"
+          branch: bot/upgrade-python-version-${{ steps.check_update.outputs.new_version }}
+          title: "[automated] Upgrade embedded Python to ${{ steps.check_update.outputs.new_version }}"
+          body: |
+            ### What does this PR do?
+            Upgrades the Agent's embedded Python interpreter from **${{ steps.check_update.outputs.current_version }}** to **${{ steps.check_update.outputs.new_version }}** (patch version update).
+            
+            ### Changes
+            - Updated `omnibus/config/software/python3.rb` with new version and SHA256
+            - Updated `deps/cpython/cpython.MODULE.bazel` with new version and SHA256
+            - Updated `test/new-e2e/tests/agent-platform/common/agent_behaviour.go` with expected version
+            - Created release note documenting the upgrade
+            
+            ### Motivation
+            Keep embedded Python up-to-date, benefit from bug fixes and security patches.
+            
+            ### Verification
+            The SHA256 hash has been automatically fetched and verified against the official Python.org SBOM (Software Bill of Materials) file.
+            
+            See the [official Python release page](https://www.python.org/downloads/release/python-${{ steps.check_update.outputs.new_version_no_dots }}/) for details on what's new in this patch version.
+            
+            ### Testing checklist
+            - [ ] Verify the SHA256 hash matches the official Python release
+            - [ ] Build succeeds on all platforms (Linux, Windows, macOS)
+            - [ ] Python checks run successfully
+            - [ ] Integration tests pass
+            
+            ### Describe how you validated your changes
+            CI is considered enough to validate changes.
+          team-reviewers: agent-integrations
+          labels: team/agent-integrations,changelog/no-changelog,ask-review
