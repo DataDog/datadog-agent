@@ -28,15 +28,19 @@ static const wchar_t *copyHStr(MSStoreInternal *msStore, winrt::hstring hstr) {
     return hstr.c_str();
 }
 
+// Safe accessor template for fields that may throw exceptions
+template <typename Func>
+static auto safeAccess(Func fn, auto defaultValue) -> decltype(defaultValue) {
+    try {
+        return fn();
+    } catch (...) {
+        return defaultValue;
+    }
+}
+
 static void addEntryToStore(MSStoreInternal *msStore, const Package &pkg, winrt::hstring displayName) {
     auto id = pkg.Id();
-    int64_t installDate = 0;
-    // Not all packages have InstalledDate
-    try {
-        installDate = dtToUnixTimestamp(pkg.InstalledDate());
-    } catch (...) {
-    }
-    PackageVersion version = id.Version();
+    PackageVersion version = safeAccess([&]() { return id.Version(); }, PackageVersion{});
 
     MSStoreEntry e{};
     e.display_name = copyHStr(msStore, displayName);
@@ -44,10 +48,10 @@ static void addEntryToStore(MSStoreInternal *msStore, const Package &pkg, winrt:
     e.version_minor = version.Minor;
     e.version_build = version.Build;
     e.version_revision = version.Revision;
-    e.install_date = installDate;
-    e.is_64bit = is64(id.Architecture());
-    e.publisher = copyHStr(msStore, id.Publisher());
-    e.product_code = copyHStr(msStore, id.FamilyName());
+    e.install_date = safeAccess([&]() { return dtToUnixTimestamp(pkg.InstalledDate()); }, 0LL);
+    e.is_64bit = safeAccess([&]() { return is64(id.Architecture()); }, 0ULL);
+    e.publisher = copyHStr(msStore, safeAccess([&]() { return id.Publisher(); }, winrt::hstring{}));
+    e.product_code = copyHStr(msStore, safeAccess([&]() { return id.FamilyName(); }, winrt::hstring{}));
 
     msStore->entriesVec.push_back(e);
 }
@@ -71,7 +75,7 @@ extern "C" __declspec(dllexport) BOOL GetStore(MSStore **out) {
 
         for (auto const &pkg : packages) {
             auto id = pkg.Id();
-            auto displayName = id.Name();
+            auto displayName = safeAccess([&]() { return id.Name(); }, winrt::hstring{});
             auto appListEntries = pkg.GetAppListEntries();
 
             if (appListEntries.Size() == 0) {
