@@ -54,7 +54,7 @@ func TestNewSampleCollector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := setupMockDevice(t, tt.customSetup)
 
-			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -112,12 +112,12 @@ func TestCollectProcessUtilization(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func() []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
 				}
@@ -130,7 +130,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -168,12 +168,12 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func() []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
 				}
@@ -190,7 +190,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -242,12 +242,12 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func() []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
 				}
@@ -267,7 +267,7 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			bc := collector.(*baseCollector)
@@ -356,12 +356,12 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 			originalFactory := sampleAPIFactory
 			defer func() { sampleAPIFactory = originalFactory }()
 
-			sampleAPIFactory = func(nsPidCache *NsPidCache) []apiCallInfo {
+			sampleAPIFactory = func() []apiCallInfo {
 				return []apiCallInfo{
 					{
 						Name: "process_utilization",
 						Handler: func(device safenvml.Device, lastTimestamp uint64) ([]Metric, uint64, error) {
-							return processUtilizationSample(device, lastTimestamp, nsPidCache)
+							return processUtilizationSample(device, lastTimestamp)
 						},
 					},
 				}
@@ -374,7 +374,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{NsPidCache: &NsPidCache{}})
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()

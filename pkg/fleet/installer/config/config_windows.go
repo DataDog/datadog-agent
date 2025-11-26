@@ -16,7 +16,10 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -50,9 +53,14 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if state.ExperimentDeploymentID != "" {
 		return fmt.Errorf("there is already an experiment in progress")
 	}
+	// Clear and recreate the experiment/backup directory
 	err = os.RemoveAll(d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
+	}
+	err = secureCreateTargetDirectoryWithSourcePermissions(d.StablePath, d.ExperimentPath)
+	if err != nil {
+		return fmt.Errorf("error creating target directory: %w", err)
 	}
 	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath)
 	if err != nil {
@@ -121,10 +129,13 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if os.IsNotExist(err) {
 		return nil
 	}
-	// Ensure target directory exists before trying to write to it
-	err = os.MkdirAll(targetPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating target directory: %w", err)
+	// target path must already exist, caller must ensure it has the correct permissions.
+	// We must not allow robocopy to create the target directory, as it may not safely create the directory,
+	// see paths.SecureCreateDirectory for more details.
+	// This function is reused for the restore operation, too, so this is also a safety to ensure
+	// we don't modify the original directory.
+	if _, err := os.Stat(targetPath); err != nil {
+		return fmt.Errorf("failed to open target directory: %w", err)
 	}
 	deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
 	if err != nil && !os.IsNotExist(err) {
@@ -158,4 +169,16 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
 	return nil
+}
+
+// secureCreateTargetDirectoryWithSourcePermissions creates targetPath with the same permissions as srcPath.
+//
+// See paths.SecureCreateDirectory for more details.
+func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath string) error {
+	sd, err := windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return fmt.Errorf("error getting security info for source directory: %w", err)
+	}
+	sddl := sd.String()
+	return paths.SecureCreateDirectory(targetPath, sddl)
 }

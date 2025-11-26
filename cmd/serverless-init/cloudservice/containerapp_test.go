@@ -51,7 +51,7 @@ func TestGetContainerAppTagsWithOptionalEnvVars(t *testing.T) {
 	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
-	err := service.Init()
+	err := service.Init(nil)
 	assert.NoError(t, err)
 
 	tags := service.GetTags()
@@ -88,7 +88,7 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 
 		t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
-		service.Init()
+		service.Init(nil)
 		return
 	}
 
@@ -113,7 +113,7 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 
 		t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 
-		service.Init()
+		service.Init(nil)
 		return
 	}
 
