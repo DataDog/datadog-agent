@@ -108,7 +108,7 @@ func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) 
 		hasGlobalStreams := probe.streamHandlers.globalStreamsCount() == 1 && handlers.global != nil && len(handlers.global.pendingMemorySpans) > 0
 		hasNonGlobalStreams := probe.streamHandlers.streamsCount() == 1 && handlers.stream != nil && len(handlers.stream.pendingKernelSpans) > 0
 		return hasGlobalStreams && hasNonGlobalStreams
-	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.streamHandlers)
+	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.deps.StreamHandlers)
 
 	// Check that we're receiving the events we expect
 	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)
@@ -164,8 +164,8 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	handlers := s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
 	// Check device assignments
-	require.Contains(t, probe.consumer.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
-	tidMap := probe.consumer.sysCtx.selectedDeviceByPIDAndTID[cmd.Process.Pid]
+	require.Contains(t, probe.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
+	tidMap := probe.sysCtx.selectedDeviceByPIDAndTID[cmd.Process.Pid]
 	require.Len(t, tidMap, 1)
 	require.ElementsMatch(t, []int{cmd.Process.Pid}, maps.Keys(tidMap))
 
