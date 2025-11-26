@@ -1,0 +1,25 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build !windows
+
+package workloadselectionimpl
+
+import "os"
+
+// isCompilePolicyBinaryAvailable checks if the compile policy binary is available
+// and executable on Unix systems
+func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
+	compilePath := getCompilePolicyBinaryPath()
+	info, err := os.Stat(compilePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			c.log.Warnf("failed to stat APM workload selection compile policy binary: %v", err)
+		}
+		return false
+	}
+	// On Unix, check for executable bits
+	return info.Mode().IsRegular() && info.Mode()&0111 != 0
+}
