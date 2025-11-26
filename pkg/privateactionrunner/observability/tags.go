@@ -75,10 +75,3 @@ func AddCommonTagsToLogs(ctx context.Context, tags CommonTags) context.Context {
 	logger := log.FromContext(ctx)
 	return log.ContextWithLogger(ctx, logger.With(tags.AsLogFields()...))
 }
-
-func boolToString(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
-}

@@ -34,15 +34,14 @@ issues:
     - "`context` is unused"
     - "`id` is unused"
   exclude-rules:
-    # Disable revive for the privateactionrunner package
-    - path: pkg/privateactionrunner/.*
-      linters:
-        - revive
-        
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
         - errcheck
+    # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
+    - path: "pkg/privateactionrunner/"
+      linters:
+        - revive
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]

@@ -15,8 +15,11 @@ import (
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// contextKey is a private type for context keys
+type contextKey int
+
 // loggerContextKey is the key used to store the logger in the context.
-var loggerContextKey = struct{}{}
+const loggerContextKey contextKey = iota
 
 // Field represents a structured logging field
 type Field struct {
