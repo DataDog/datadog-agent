@@ -115,7 +115,7 @@ func getECSInstanceMetadata(ctx context.Context) (string, string, string, string
 		return "", "", "", "", err
 	}
 
-	awsAccountID, region := ParseRegionAndAWSAccountID(ecsInstance.ContainerInstanceARN)
+	region, awsAccountID := ParseRegionAndAWSAccountID(ecsInstance.ContainerInstanceARN)
 
 	return awsAccountID, region, ecsInstance.Cluster, ecsInstance.Version, err
 }
@@ -131,7 +131,7 @@ func getECSTaskMetadata(ctx context.Context) (string, string, string, string, er
 		return "", "", "", "", err
 	}
 
-	awsAccountID, region := ParseRegionAndAWSAccountID(ecsTask.TaskARN)
+	region, awsAccountID := ParseRegionAndAWSAccountID(ecsTask.TaskARN)
 
 	return awsAccountID, region, ParseClusterName(ecsTask.ClusterName), ecsTask.Version, err
 }
