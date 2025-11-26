@@ -35,6 +35,14 @@ var counterPaths = []string{
 	pdhutil.CounterAllProcessIOWriteBytesPerSec,
 }
 
+// Global variables for getPIDs buffer scaling - exposed for testing
+var (
+	// InitialPIDBufferSize is the initial size of the buffer used to retrieve PIDs
+	InitialPIDBufferSize uint32 = 1024
+	// PIDBufferIncrement is how much to increase the buffer size when it's too small
+	PIDBufferIncrement uint32 = 1024
+)
+
 // NewProcessProbe returns a Probe object
 func NewProcessProbe(...Option) Probe {
 	p := &probe{}
@@ -461,7 +469,7 @@ func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
 
 func getPIDs() ([]int32, error) {
 	var read uint32
-	var psSize uint32 = 1024
+	var psSize uint32 = InitialPIDBufferSize
 	const dwordSize uint32 = 4
 
 	for {
@@ -469,8 +477,8 @@ func getPIDs() ([]int32, error) {
 		if err := windows.EnumProcesses(buf, &read); err != nil {
 			return nil, err
 		}
-		if uint32(len(buf)) == read {
-			psSize += 1024
+		if uint32(len(buf) * dwordSize) == read {
+			psSize += PIDBufferIncrement
 			continue
 		}
 		// read is a number of bytes, so we need to divide by the size of a DWORD to get the number of PIDs
