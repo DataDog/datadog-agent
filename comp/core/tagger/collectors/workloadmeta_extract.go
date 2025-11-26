@@ -767,6 +767,8 @@ func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInf
 	tagList.AddLow("crd_group", crd.Group)
 	tagList.AddLow("crd_kind", crd.Kind)
 	tagList.AddLow("crd_version", crd.Version)
+	tagList.AddLow("crd_name", crd.Name)
+	tagList.AddLow("crd_namespace", crd.Namespace)
 
 	low, orch, high, standard := tagList.Compute()
 

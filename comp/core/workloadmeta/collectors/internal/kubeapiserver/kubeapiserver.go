@@ -240,7 +240,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
-	handlerRegistration, err := setupCRDInformer(ctx, wlmetaStore, apiserverClient.APIExentionsInformerFactory)
+	handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)
 	if err != nil {
 		log.Errorf("failed to setup CRD informer: %v", err)
 	} else {

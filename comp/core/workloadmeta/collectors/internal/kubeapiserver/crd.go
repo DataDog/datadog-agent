@@ -8,8 +8,6 @@
 package kubeapiserver
 
 import (
-	"context"
-
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/client-go/tools/cache"
@@ -25,7 +23,7 @@ type crdEventHandler struct {
 }
 
 // setupCRDInformer sets up event handlers for the shared CRD informer
-func setupCRDInformer(_ context.Context, wlm workloadmeta.Component, informerFactory externalversions.SharedInformerFactory) (cache.ResourceEventHandlerRegistration, error) {
+func setupCRDInformer(wlm workloadmeta.Component, informerFactory externalversions.SharedInformerFactory) (cache.ResourceEventHandlerRegistration, error) {
 	informer := informerFactory.Apiextensions().V1().CustomResourceDefinitions().Informer()
 	crdHandler := &crdEventHandler{
 		wlm:    wlm,
