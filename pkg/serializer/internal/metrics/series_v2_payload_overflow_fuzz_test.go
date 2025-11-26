@@ -259,7 +259,7 @@ func addSeeds(f *testing.F, withLevel bool) {
 	mixed := make([]byte, 2048)
 	for i := range mixed {
 		if i%100 < 50 {
-			mixed[i] = byte(i % 26) + 'a' // lowercase letters
+			mixed[i] = byte(i%26) + 'a' // lowercase letters
 		} else {
 			mixed[i] = byte(i * 7) // pseudo-random
 		}
