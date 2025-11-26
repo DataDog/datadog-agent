@@ -2419,7 +2419,7 @@ func TestActionSetVariableLength(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
-		policyType   PolicyType
+		policyType   InternalPolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -2476,9 +2476,9 @@ rules:
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
 				Rules:  map[string][]*PolicyRule{},
 				Macros: map[string][]*PolicyMacro{},
@@ -2517,9 +2517,9 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
 				Rules: map[string][]*PolicyRule{
 					"rule_test": {
@@ -2530,9 +2530,9 @@ broken
 								Disabled:   true,
 							},
 							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "myLocal.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
 							Accepted: true,
 						},
@@ -2558,9 +2558,9 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
 				Rules: map[string][]*PolicyRule{
 					"rule_test": {
@@ -2571,9 +2571,9 @@ broken
 								Combine:    OverridePolicy,
 							},
 							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
+								Name:         "myLocal.policy",
+								Source:       PolicyProviderTypeRC,
+								InternalType: CustomPolicyType,
 							},
 							Accepted: true,
 						},
@@ -2589,9 +2589,9 @@ broken
 			r := strings.NewReader(tt.args.fileContent)
 
 			info := &PolicyInfo{
-				Name:   tt.args.name,
-				Source: tt.args.source,
-				Type:   tt.args.policyType,
+				Name:         tt.args.name,
+				Source:       tt.args.source,
+				InternalType: tt.args.policyType,
 			}
 
 			got, err := LoadPolicy(info, r, tt.args.macroFilters, tt.args.ruleFilters)

@@ -17,6 +17,7 @@ import (
 	semconv126 "go.opentelemetry.io/otel/semconv/v1.26.0"
 	semconv "go.opentelemetry.io/otel/semconv/v1.6.1"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
@@ -178,43 +179,43 @@ func TestGetOTelSpanType(t *testing.T) {
 			name:     "redis span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): "redis"},
-			expected: spanTypeRedis,
+			expected: attributes.SpanTypeRedis,
 		},
 		{
 			name:     "memcached span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): "memcached"},
-			expected: spanTypeMemcached,
+			expected: attributes.SpanTypeMemcached,
 		},
 		{
 			name:     "sql db client span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemPostgreSQL.Value.AsString()},
-			expected: spanTypeSQL,
+			expected: attributes.SpanTypeSQL,
 		},
 		{
 			name:     "elastic db client span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemElasticsearch.Value.AsString()},
-			expected: spanTypeElasticsearch,
+			expected: attributes.SpanTypeElasticsearch,
 		},
 		{
 			name:     "opensearch db client span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv117.DBSystemOpensearch.Value.AsString()},
-			expected: spanTypeOpenSearch,
+			expected: attributes.SpanTypeOpenSearch,
 		},
 		{
 			name:     "cassandra db client span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemCassandra.Value.AsString()},
-			expected: spanTypeCassandra,
+			expected: attributes.SpanTypeCassandra,
 		},
 		{
 			name:     "other db client span",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{string(semconv.DBSystemKey): semconv.DBSystemCouchDB.Value.AsString()},
-			expected: spanTypeDB,
+			expected: attributes.SpanTypeDB,
 		},
 		{
 			name:     "http client span",
@@ -247,19 +248,19 @@ func TestGetOTelSpanType(t *testing.T) {
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{"db.system": "redis"},
 			sattrs:   map[string]string{"db.system": "memcached"},
-			expected: spanTypeMemcached,
+			expected: attributes.SpanTypeMemcached,
 		},
 		{
 			name:     "db.system only in span",
 			spanKind: ptrace.SpanKindClient,
 			sattrs:   map[string]string{"db.system": "redis"},
-			expected: spanTypeRedis,
+			expected: attributes.SpanTypeRedis,
 		},
 		{
 			name:     "db.system only in resource",
 			spanKind: ptrace.SpanKindClient,
 			rattrs:   map[string]string{"db.system": "redis"},
-			expected: spanTypeRedis,
+			expected: attributes.SpanTypeRedis,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
