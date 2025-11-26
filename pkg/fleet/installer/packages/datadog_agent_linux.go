@@ -101,12 +101,12 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		// Note: datadog-agent-trace, datadog-agent-process, datadog-agent-security are NOT included - managed by dd-procmgrd
-		SystemdUnitsStable: []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-sysprobe.service", "datadog-agent-data-plane.service"},
-		SystemdUnitsExp:    []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-data-plane-exp.service"},
+		// Note: datadog-agent-trace, datadog-agent-process, datadog-agent-security, datadog-agent-sysprobe are NOT included - managed by dd-procmgrd
+		SystemdUnitsStable: []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-data-plane.service"},
+		SystemdUnitsExp:    []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-data-plane-exp.service"},
 
 		UpstartMainService: "datadog-agent",
-		UpstartServices:    []string{"datadog-agent", "datadog-agent-sysprobe", "datadog-agent-data-plane"},
+		UpstartServices:    []string{"datadog-agent", "datadog-agent-data-plane"},
 
 		SysvinitMainService: "datadog-agent",
 		SysvinitServices:    []string{"datadog-agent", "datadog-agent-data-plane"},

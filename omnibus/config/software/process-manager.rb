@@ -40,6 +40,7 @@ build do
     copy 'process_manager/examples/datadog-agent-trace.socket.yaml', "#{etc_dir}/processes.d/datadog-agent-trace.socket.yaml"
     copy 'process_manager/examples/datadog-agent-process.yaml', "#{etc_dir}/processes.d/datadog-agent-process.yaml"
     copy 'process_manager/examples/datadog-agent-security.yaml', "#{etc_dir}/processes.d/datadog-agent-security.yaml"
+    copy 'process_manager/examples/datadog-agent-sysprobe.yaml', "#{etc_dir}/processes.d/datadog-agent-sysprobe.yaml"
 
     # Note: extra_package_file is registered at project level in agent.rb
   end

@@ -1,0 +1,63 @@
+# Datadog System Probe - Process Manager Configuration
+# Equivalent to the systemd datadog-agent-sysprobe.service unit
+#
+# This configuration is used by dd-procmgrd to supervise the Datadog System Probe.
+# Place this file at: /etc/pm/processes.d/datadog-agent-sysprobe.yaml
+# The process name is derived from the filename (datadog-agent-sysprobe)
+#
+# System Probe provides eBPF-based monitoring for network, security, and process data.
+# It must run as root and requires the kernel debug filesystem to be mounted.
+
+description: Datadog System Probe
+command: /opt/datadog-agent/embedded/bin/system-probe
+args:
+  - run
+  - --config=/etc/datadog-agent/system-probe.yaml
+# Note: --pid arg removed - process manager tracks PIDs internally
+process_type: simple
+auto_start: false  # Started via 'wants' from main agent
+
+# No user specified - runs as root (required for eBPF)
+
+# Restart policy (systemd Restart=on-failure)
+restart: on-failure
+
+# Start limits (systemd StartLimitInterval=10, StartLimitBurst=5)
+start_limit_interval_sec: 10
+start_limit_burst: 5
+
+# Environment file (systemd EnvironmentFile=-)
+environment_file: -/etc/datadog-agent/environment
+
+# Environment variables (systemd Environment=)
+env:
+  DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
+
+# Conditional starting (systemd ConditionPathExists=|)
+# Process only starts if at least one of these config files exists
+# Also check that kernel debug filesystem is mounted (required for eBPF)
+condition_path_exists:
+  - /etc/datadog-agent/system-probe.yaml
+  - /etc/datadog-agent/managed/datadog-agent/stable/system-probe.yaml
+  - /sys/kernel/debug  # Replaces Requires=sys-kernel-debug.mount
+
+# Ordering (systemd Before= means this starts before those processes)
+# Note: In process manager, we use 'before' to indicate this should start first
+before:
+  - datadog-agent
+  - datadog-agent-exp
+
+# Binding (systemd BindsTo=)
+# This process is bound to the main agent - stops when main agent stops
+binds_to:
+  - datadog-agent
+
+# Mutual exclusion (systemd Conflicts=)
+conflicts:
+  - datadog-agent-exp
+  - datadog-agent-sysprobe-exp
+
+# Output handling
+stdout: inherit
+stderr: inherit
+
