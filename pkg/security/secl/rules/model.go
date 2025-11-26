@@ -86,6 +86,7 @@ type RuleDefinition struct {
 	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
 	Silent                 bool                   `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string                 `yaml:"group_id,omitempty" json:"group_id,omitempty"`
+	Priority               int                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
