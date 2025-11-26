@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -259,6 +258,11 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 	gpuToContainers := make(map[string]*workloadmeta.Container, len(allPhysicalDevices))
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
+		if containers.IsDatadogAgentContainer(c.wmeta, container) {
+			log.Debugf("Container %s is a Datadog container, skipping for device assignment", container.Name)
+			continue
+		}
+
 		containerDevices, err := containers.MatchContainerDevices(container, allPhysicalDevices)
 		if err != nil {
 			c.telemetry.missingContainerGpuMapping.Inc(container.Name)
@@ -321,8 +325,8 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		c.telemetry.metricsSent.Add(float64(len(metrics)), string(collector.Name()))
 	}
 
-	// Cache container tags to avoid repeated tagger calls for the same container
-	containerTagsCache := make(map[string][]string)
+	// tag cache is for repeated calls during a single check run, not preserved between runs
+	containerTagCache := newContainerTagCache(c.tagger)
 
 	//iterate through devices to emit its metrics
 	for deviceUUID, deviceData := range perDeviceMetrics {
@@ -332,24 +336,8 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 
 		var containerTags []string
 		if container := gpuToContainersMap[deviceUUID]; container != nil {
-			containerID := container.EntityID.ID
-
-			// Check cache first
-			if cachedTags, exists := containerTagsCache[containerID]; exists {
-				containerTags = cachedTags // Direct reference, no copy
-			} else {
-				// Fetch and cache container tags
-				entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-				// we use orchestrator cardinality here to ensure we get the pod_name tag
-				// ref: https://docs.datadoghq.com/containers/kubernetes/tag/?tab=datadogoperator#out-of-the-box-tags
-				tags, err := c.tagger.Tag(entityID, taggertypes.OrchestratorCardinality)
-				if err != nil {
-					multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
-					containerTagsCache[containerID] = nil // Cache the error state to avoid repeated calls
-				} else {
-					containerTagsCache[containerID] = tags
-					containerTags = tags // Direct reference, no copy
-				}
+			if containerTags, err = containerTagCache.getContainerTags(container); err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting container tags for GPU %s: %w", deviceUUID, err))
 			}
 		}
 

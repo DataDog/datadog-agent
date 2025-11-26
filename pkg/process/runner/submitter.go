@@ -58,8 +58,7 @@ type CheckSubmitter struct {
 	realtimeUpdate map[string]bool
 
 	// Endpoints for logging purposes
-	processAPIEndpoints       []apicfg.Endpoint
-	processEventsAPIEndpoints []apicfg.Endpoint
+	processAPIEndpoints []apicfg.Endpoint
 
 	hostname string
 
@@ -117,9 +116,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	connectionsResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
 	log.Debugf("Creating connections queue with max_size=%d and max_weight=%d", connectionsResults.MaxSize(), connectionsResults.MaxWeight())
 
-	eventResults := api.NewWeightedQueue(queueSize, int64(queueBytes))
-	log.Debugf("Creating event check queue with max_size=%d and max_weight=%d", eventResults.MaxSize(), eventResults.MaxWeight())
-
 	dropCheckPayloads := config.GetStringSlice("process_config.drop_check_payloads")
 	if len(dropCheckPayloads) > 0 {
 		log.Debugf("Dropping payloads from checks: %v", dropCheckPayloads)
@@ -132,11 +128,6 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		return nil, err
 	}
 
-	processEventsAPIEndpoints, err := endpoint.GetEventsAPIEndpoints(config)
-	if err != nil {
-		return nil, err
-	}
-
 	processFwd := forwarders.GetProcessForwarder()
 	rtProcessFwd := forwarders.GetRTProcessForwarder()
 
@@ -145,26 +136,23 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		queues: []*api.WeightedQueue{
 			processResults,
 			rtProcessResults,
-			eventResults,
 			connectionsResults,
 		},
 		resultsQueue: map[string]*api.WeightedQueue{
-			checks.ProcessCheckName:       processResults,
-			checks.DiscoveryCheckName:     processResults,
-			checks.ContainerCheckName:     processResults,
-			checks.RTProcessCheckName:     rtProcessResults,
-			checks.RTContainerCheckName:   rtProcessResults,
-			checks.ProcessEventsCheckName: eventResults,
-			checks.ConnectionsCheckName:   connectionsResults,
+			checks.ProcessCheckName:     processResults,
+			checks.DiscoveryCheckName:   processResults,
+			checks.ContainerCheckName:   processResults,
+			checks.RTProcessCheckName:   rtProcessResults,
+			checks.RTContainerCheckName: rtProcessResults,
+			checks.ConnectionsCheckName: connectionsResults,
 		},
 		submitFuncs: map[string]submitFunc{
-			checks.ProcessCheckName:       processFwd.SubmitProcessChecks,
-			checks.DiscoveryCheckName:     processFwd.SubmitProcessDiscoveryChecks,
-			checks.ContainerCheckName:     processFwd.SubmitContainerChecks,
-			checks.RTProcessCheckName:     rtProcessFwd.SubmitRTProcessChecks,
-			checks.RTContainerCheckName:   rtProcessFwd.SubmitRTContainerChecks,
-			checks.ProcessEventsCheckName: forwarders.GetEventForwarder().SubmitProcessEventChecks,
-			checks.ConnectionsCheckName:   forwarders.GetConnectionsForwarder().SubmitConnectionChecks,
+			checks.ProcessCheckName:     processFwd.SubmitProcessChecks,
+			checks.DiscoveryCheckName:   processFwd.SubmitProcessDiscoveryChecks,
+			checks.ContainerCheckName:   processFwd.SubmitContainerChecks,
+			checks.RTProcessCheckName:   rtProcessFwd.SubmitRTProcessChecks,
+			checks.RTContainerCheckName: rtProcessFwd.SubmitRTContainerChecks,
+			checks.ConnectionsCheckName: forwarders.GetConnectionsForwarder().SubmitConnectionChecks,
 		},
 		realtimeUpdate: map[string]bool{
 			checks.ProcessCheckName:     true,
@@ -173,8 +161,7 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 			checks.RTContainerCheckName: true,
 		},
 
-		processAPIEndpoints:       processAPIEndpoints,
-		processEventsAPIEndpoints: processEventsAPIEndpoints,
+		processAPIEndpoints: processAPIEndpoints,
 
 		hostname: hostname,
 
@@ -199,17 +186,13 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 	}, nil
 }
 
-func printStartMessage(log log.Component, hostname string, processAPIEndpoints []apicfg.Endpoint, processEventsAPIEndpoints []apicfg.Endpoint) {
+func printStartMessage(log log.Component, hostname string, processAPIEndpoints []apicfg.Endpoint) {
 	eps := make([]string, 0, len(processAPIEndpoints))
 	for _, e := range processAPIEndpoints {
 		eps = append(eps, e.Endpoint.String())
 	}
-	eventsEps := make([]string, 0, len(processEventsAPIEndpoints))
-	for _, e := range processEventsAPIEndpoints {
-		eventsEps = append(eventsEps, e.Endpoint.String())
-	}
 
-	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s, events endpoints=%s", hostname, eps, eventsEps)
+	log.Infof("Starting CheckSubmitter for host=%s, endpoints=%s", hostname, eps)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -220,7 +203,7 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func (s *CheckSubmitter) Start() error {
-	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
+	printStartMessage(s.log, s.hostname, s.processAPIEndpoints)
 
 	for _, q := range s.queues {
 		s.wg.Add(1)
@@ -257,11 +240,9 @@ func (s *CheckSubmitter) Start() error {
 					ProcessQueueSize:      s.resultsQueue[checks.ProcessCheckName].Len(),
 					RtProcessQueueSize:    s.resultsQueue[checks.RTProcessCheckName].Len(),
 					ConnectionsQueueSize:  s.resultsQueue[checks.ConnectionsCheckName].Len(),
-					EventQueueSize:        s.resultsQueue[checks.ProcessEventsCheckName].Len(),
 					ProcessQueueBytes:     s.resultsQueue[checks.ProcessCheckName].Weight(),
 					RtProcessQueueBytes:   s.resultsQueue[checks.RTProcessCheckName].Weight(),
 					ConnectionsQueueBytes: s.resultsQueue[checks.ConnectionsCheckName].Weight(),
-					EventQueueBytes:       s.resultsQueue[checks.ProcessEventsCheckName].Weight(),
 				})
 			case <-queueLogTicker.C:
 				s.logQueuesSize()
@@ -341,22 +322,19 @@ func (s *CheckSubmitter) logQueuesSize() {
 		processSize     = s.resultsQueue[checks.ProcessCheckName].Len()
 		rtProcessSize   = s.resultsQueue[checks.RTProcessCheckName].Len()
 		connectionsSize = s.resultsQueue[checks.ConnectionsCheckName].Len()
-		eventsSize      = s.resultsQueue[checks.ProcessEventsCheckName].Len()
 	)
 
 	if processSize == 0 &&
 		rtProcessSize == 0 &&
-		connectionsSize == 0 &&
-		eventsSize == 0 {
+		connectionsSize == 0 {
 		return
 	}
 
 	s.log.Infof(
-		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d], event[size=%d, weight=%d]",
+		"Delivery queues: process[size=%d, weight=%d], rtprocess[size=%d, weight=%d], connections[size=%d, weight=%d]",
 		processSize, s.resultsQueue[checks.ProcessCheckName].Weight(),
 		rtProcessSize, s.resultsQueue[checks.RTProcessCheckName].Weight(),
 		connectionsSize, s.resultsQueue[checks.ConnectionsCheckName].Weight(),
-		eventsSize, s.resultsQueue[checks.ProcessEventsCheckName].Weight(),
 	)
 }
 
@@ -398,9 +376,6 @@ func (s *CheckSubmitter) messagesToCheckResult(start time.Time, name string, mes
 		extraHeaders.Set(headers.ServiceDiscoveryEnabled, s.serviceDiscoveryEnabled)
 
 		switch name {
-		case checks.ProcessEventsCheckName:
-			extraHeaders.Set(headers.EVPOriginHeader, "process-agent")
-			extraHeaders.Set(headers.EVPOriginVersionHeader, version.AgentVersion)
 		case checks.ConnectionsCheckName, checks.ProcessCheckName:
 			requestID := s.getRequestID(start, messageIndex)
 			s.log.Debugf("the request id of the current message: %s", requestID)

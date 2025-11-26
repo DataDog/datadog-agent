@@ -285,7 +285,7 @@ func (ev *Event) GetFields() []eval.Field {
 	return fields
 }
 
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
 	if newField, found := GetDefaultLegacyFields(field); found {
@@ -299,11 +299,11 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{$Field.IsArray}}, nil
 	{{end}}
 	}
 
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: originalField}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: originalField}
 }
 
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {

@@ -384,6 +384,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
 	config.BindEnvAndSetDefault("secret_refresh_interval", 0)
+	config.BindEnvAndSetDefault("secret_refresh_on_api_key_failure_interval", 0)
 	config.BindEnvAndSetDefault("secret_refresh_scatter", true)
 	config.BindEnvAndSetDefault("secret_scope_integration_to_their_k8s_namespace", false)
 	config.BindEnvAndSetDefault("secret_allowed_k8s_namespace", []string{})
@@ -511,9 +512,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.max_ttl", DefaultNetworkPathMaxTTL)
 	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 5000)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "16m") // with 5min interval, 16m will allow running a test 3 times (15min + 1min margin)
-	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_contexts_limit", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "70m") // with 30min interval, 70m will allow running a test 3 times (t0, t30, t60)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "30m")
 	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_per_minute", 150)
 	config.BindEnvAndSetDefault("network_path.collector.pathtest_max_burst_duration", "30s")
@@ -813,6 +814,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.exclude_checks_from_dispatching", []string{})
 	config.BindEnvAndSetDefault("cluster_checks.rebalance_period", 10*time.Minute)
+	config.BindEnvAndSetDefault("cluster_checks.ksm_sharding_enabled", false) // KSM resource sharding: splits KSM check by resource type (pods, nodes, others)
 
 	// Cluster check runner
 	config.BindEnvAndSetDefault("clc_runner_enabled", false)
@@ -1298,6 +1300,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("auth_init_timeout", 30*time.Second)
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
+	config.BindEnvAndSetDefault("health_platform.enabled", false)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
@@ -1565,6 +1568,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
 	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.endpoints", []string{})
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -2009,7 +2013,10 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubelet_client_key", "")
 
 	config.BindEnvAndSetDefault("kubernetes_pod_expiration_duration", 15*60) // in seconds, default 15 minutes
-	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 5)            // Polling frequency in seconds of the agent to the kubelet "/pods" endpoint
+	// Cache TTL for pod lists in the kubelet client. Set to 0 because it's only
+	// used by workloadmeta that already defines its own pull frequency and has
+	// its own storage, so no need for an extra cache.
+	config.BindEnvAndSetDefault("kubelet_cache_pods_duration", 0)
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
@@ -2257,7 +2264,7 @@ func findUnknownEnvVars(config pkgconfigmodel.Config, environ []string, addition
 		// these variables are used by source code integration
 		"DD_GIT_COMMIT_SHA":     {},
 		"DD_GIT_REPOSITORY_URL": {},
-		// signals whether or not ADP is enabled
+		// signals whether or not ADP is enabled (deprecated)
 		"DD_ADP_ENABLED": {},
 		// trace-loader socket file descriptors
 		"DD_APM_NET_RECEIVER_FD":  {},
@@ -2530,21 +2537,22 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(secrets.ConfigParams{
-		Type:                        config.GetString("secret_backend_type"),
-		Config:                      config.GetStringMap("secret_backend_config"),
-		Command:                     config.GetString("secret_backend_command"),
-		Arguments:                   config.GetStringSlice("secret_backend_arguments"),
-		Timeout:                     config.GetInt("secret_backend_timeout"),
-		MaxSize:                     config.GetInt("secret_backend_output_max_size"),
-		RefreshInterval:             config.GetInt("secret_refresh_interval"),
-		RefreshIntervalScatter:      config.GetBool("secret_refresh_scatter"),
-		GroupExecPerm:               config.GetBool("secret_backend_command_allow_group_exec_perm"),
-		RemoveLinebreak:             config.GetBool("secret_backend_remove_trailing_line_break"),
-		RunPath:                     config.GetString("run_path"),
-		AuditFileMaxSize:            config.GetInt("secret_audit_file_max_size"),
-		ScopeIntegrationToNamespace: config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
-		AllowedNamespace:            config.GetStringSlice("secret_allowed_k8s_namespace"),
-		ImageToHandle:               config.GetStringMapStringSlice("secret_image_to_handle"),
+		Type:                         config.GetString("secret_backend_type"),
+		Config:                       config.GetStringMap("secret_backend_config"),
+		Command:                      config.GetString("secret_backend_command"),
+		Arguments:                    config.GetStringSlice("secret_backend_arguments"),
+		Timeout:                      config.GetInt("secret_backend_timeout"),
+		MaxSize:                      config.GetInt("secret_backend_output_max_size"),
+		RefreshInterval:              config.GetInt("secret_refresh_interval"),
+		RefreshIntervalScatter:       config.GetBool("secret_refresh_scatter"),
+		GroupExecPerm:                config.GetBool("secret_backend_command_allow_group_exec_perm"),
+		RemoveLinebreak:              config.GetBool("secret_backend_remove_trailing_line_break"),
+		RunPath:                      config.GetString("run_path"),
+		AuditFileMaxSize:             config.GetInt("secret_audit_file_max_size"),
+		ScopeIntegrationToNamespace:  config.GetBool("secret_scope_integration_to_their_k8s_namespace"),
+		AllowedNamespace:             config.GetStringSlice("secret_allowed_k8s_namespace"),
+		ImageToHandle:                config.GetStringMapStringSlice("secret_image_to_handle"),
+		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
 
 	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" {
@@ -2652,6 +2660,13 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 			}
 		case map[interface{}]interface{}:
 			if k == len(trailingElements)-1 {
+				// use integer key when it exists in map to avoid mixing string and integer keys (e.g., "2" and 2)
+				if index, err := strconv.Atoi(elem); err == nil {
+					if _, exists := modifyValue[index]; exists {
+						modifyValue[index] = newValue
+						continue
+					}
+				}
 				modifyValue[elem] = newValue
 			} else {
 				iterateValue = modifyValue[elem]

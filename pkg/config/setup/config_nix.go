@@ -30,8 +30,6 @@ var (
 var (
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
-	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
-	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
 )
@@ -73,7 +71,6 @@ func osinit() {
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
-	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
 
 	if defaultRunPath == "" {

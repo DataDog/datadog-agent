@@ -387,6 +387,111 @@ func (s *testAgentConfigSuite) TestConfigAltDir() {
 		WithValueEqual("InstallPath", altInstallPath+`\`)
 }
 
+func (s *testAgentConfigSuite) TestConfigCustomUser() {
+	// Arrange
+	agentUser := "customuser"
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installCurrentAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+	)
+	// sanity check that the agent is running as the custom user
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
+	// Assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	s.mustStartConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false)
+
+	// Promote config experiment
+	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("all").
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess(agentUser).
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
+func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	agentUser := "customuser"
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installCurrentAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+
+	// Assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	s.mustStartConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false)
+
+	// Promote config experiment
+	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("all").
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess(agentUser).
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
 func (s *testAgentConfigSuite) mustStartConfigExperiment(config installerwindows.ConfigExperiment) {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.Installer().StartConfigExperiment(consts.AgentPackage, config)

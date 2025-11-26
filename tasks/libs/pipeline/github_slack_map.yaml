@@ -25,7 +25,7 @@
 '@datadog/apm-onboarding': '#apm-onboarding'
 '@datadog/apm-trace-storage': '#apm-trace-storage'
 '@datadog/asm-go': '#k9-library-go'
-'@datadog/container-app': '#kubernetes-experiences'
+'@datadog/kubernetes-experiences': '#kubernetes-experiences'
 '@datadog/agent-onboarding': '#agent-onboarding-ops'
 '@datadog/container-autoscaling': '#container-autoscaling'
 '@datadog/container-integrations': '#container-integrations'
@@ -53,3 +53,4 @@
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'
 '@datadog/windows-products': '#windows-products-ops'
 '@datadog/synthetics-executing': '#synthetics'
+'@datadog/agent-health': '#agent-health'
