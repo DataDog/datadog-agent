@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/aws/creds
 
-go 1.24.10
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0

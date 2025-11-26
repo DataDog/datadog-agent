@@ -26,14 +26,14 @@ import (
 
 type dependencies struct {
 	fx.In
-	Config  config.Component
-	Log     log.Component
-	Lc      compdef.Lifecycle
-	Params  Params
-  // DelegatedAuth ensures the delegated auth component is initialized before the forwarder
+	Config config.Component
+	Log    log.Component
+	Lc     compdef.Lifecycle
+	Params Params
+	// DelegatedAuth ensures the delegated auth component is initialized before the forwarder
 	// This is critical because the API key from delegated auth must be available before domain resolvers are created
 	DelegatedAuth option.Option[delegatedauth.Component]
-	Secrets secrets.Component
+	Secrets       secrets.Component
 }
 
 type provides struct {

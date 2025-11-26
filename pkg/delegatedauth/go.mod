@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/delegatedauth
 
-go 1.24.10
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5

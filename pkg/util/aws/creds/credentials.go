@@ -5,6 +5,7 @@
 
 //go:build ec2
 
+// Package creds holds aws creds fetching related files
 package creds
 
 import (
