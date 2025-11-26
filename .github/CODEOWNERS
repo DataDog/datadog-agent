@@ -681,7 +681,9 @@
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
 /tasks/update_go.py                     @DataDog/agent-runtimes
+/tasks/update_python.py                 @DataDog/agent-integrations
 /tasks/unit_tests/update_go_tests.py    @DataDog/agent-runtimes
+/tasks/unit_tests/update_python_tests.py @DataDog/agent-integrations
 /tasks/unit_tests/kmt_tests.py          @DataDog/ebpf-platform
 /tasks/pkg_template.py                  @DataDog/agent-runtimes
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
