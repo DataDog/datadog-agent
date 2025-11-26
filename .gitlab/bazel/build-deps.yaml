@@ -17,13 +17,13 @@ bazel:build-deps:linux-arm64:
 
 bazel:build-deps:macos-amd64:
   extends: .bazel:build-deps
-  tags: [ "macos:ventura-amd64", "specific:true" ]
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
   script:
     - bazel build //deps/...
 
 bazel:build-deps:macos-arm64:
   extends: .bazel:build-deps
-  tags: [ "macos:ventura-arm64", "specific:true" ]
+  tags: [ "macos:sonoma-arm64", "specific:true" ]
   script:
     - bazel build //deps/...
 
