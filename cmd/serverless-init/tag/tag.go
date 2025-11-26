@@ -80,16 +80,17 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	return tagsMap
 }
 
-// AddTraceTags adds tags needed for accurate trace metric stats computation to an existing tag map.
+// AddTraceTags adds tags needed for accurate trace metric stats computation to a new tag map.
 //
 // Some traces are sampled out in the agent and don't get sent to the backend.
 // If "_dd.compute_stats" is enabled, we make sure to count the unsampled traces when computing trace stat metrics.
 // If "_dd.compute_stats" is disabled, the result is known incorrect data.
 func AddTraceStatsTags(tagsMap map[string]string) map[string]string {
 	if enabled, _ := strconv.ParseBool(os.Getenv(enableBackendTraceStatsEnvVar)); enabled {
-		traceTags := make(map[string]string)
-		traceTags[tags.ComputeStatsKey] = tags.ComputeStatsValue
-		maps.Copy(tagsMap, traceTags)
+		// Use of clone instead of copy creates a new map to avoid polluting other agent components.
+		newTags := maps.Clone(tagsMap)
+		newTags[tags.ComputeStatsKey] = tags.ComputeStatsValue
+		return newTags
 	}
 	return tagsMap
 }
