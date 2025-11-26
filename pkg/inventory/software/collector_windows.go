@@ -18,15 +18,10 @@ func defaultCollectors() []Collector {
 	return []Collector{
 		// desktopAppCollector aggregates MSI and Registry collectors
 		&desktopAppCollector{},
-		// msStoreAppsCollector collects Windows Store apps
-		&msStoreAppsCollector{},
 	}
 }
 
 // desktopAppCollector aggregates multiple sources to identify desktop apps.
-// It collects from the following sources:
-// - Windows Registry (installed desktop applications)
-// - MSI database (Windows Installer database)
 // It will flag apps that are in broken states by comparing them between multiple sources.
 // I.e. if an application is present in the MSI database and not in the registry.
 type desktopAppCollector struct{}
@@ -48,29 +43,22 @@ func convertTimestamp(dateStr string) (string, error) {
 }
 
 func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
-	var allWarnings []*Warning
-
-	// Collect from registry
 	regCollector := registryCollector{}
 	regEntries, regWarnings, err := regCollector.Collect()
 	if err != nil {
 		return nil, regWarnings, err
 	}
-	allWarnings = append(allWarnings, regWarnings...)
-
 	// Build a map of software entry for quick lookup
 	regMap := map[string]*Entry{}
 	for _, regEntry := range regEntries {
 		regMap[regEntry.GetID()] = regEntry
 	}
 
-	// Collect from MSI database
 	msiCollector := mSICollector{}
 	msiEntries, msiWarnings, err := msiCollector.Collect()
 	if err != nil {
-		return nil, append(allWarnings, msiWarnings...), err
+		return nil, msiWarnings, err
 	}
-	allWarnings = append(allWarnings, msiWarnings...)
 
 	for _, msiEntry := range msiEntries {
 		if regEntry, ok := regMap[msiEntry.GetID()]; !ok {
@@ -84,7 +72,7 @@ func (d *desktopAppCollector) Collect() ([]*Entry, []*Warning, error) {
 		}
 	}
 
-	return regEntries, allWarnings, nil
+	return regEntries, append(regWarnings, msiWarnings...), nil
 }
 
 // trimVersion trims leading zeros from each part of a version string.
