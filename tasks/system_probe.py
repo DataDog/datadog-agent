@@ -709,8 +709,7 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
 
-    cmd = ["bazelisk", "run", "--", "@libpcap//:install", f"--destdir='{embedded_path}'"]
-    ctx.run(" ".join(cmd))
+    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
     ctx.run(f"strip -g {target_file}")
     return
 
