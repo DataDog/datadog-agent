@@ -27,8 +27,9 @@ import (
 // Commands returns the compliance commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
-		Use:   "compliance",
-		Short: "Compliance Agent utility commands",
+		Use:    "compliance",
+		Short:  "Compliance Agent utility commands",
+		Hidden: true,
 	}
 
 	complianceCmd.AddCommand(CheckCommand(globalParams))
