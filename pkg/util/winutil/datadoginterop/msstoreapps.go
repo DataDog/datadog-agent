@@ -14,34 +14,6 @@ import (
 	"unsafe"
 )
 
-// Must mirror C++ structs exactly (64-bit build assumed).
-
-// C++:
-// typedef struct MSStoreEntry {
-//     const wchar_t* display_name;
-//     uint16_t version_major;
-//     uint16_t version_minor;
-//     uint16_t version_build;
-//     uint16_t version_revision;
-//     int64_t  install_date;
-//     uint8_t  is_64bit;
-//     const wchar_t* publisher;
-//     const wchar_t* product_code;
-// };
-//
-// Layout (MSVC, x64):
-//  0:  wchar_t* display_name   (8 bytes)
-//  8:  uint16_t version_major  (2)
-// 10:  uint16_t version_minor  (2)
-// 12:  uint16_t version_build  (2)
-// 14:  uint16_t version_revision (2)   -> now at offset 16
-// 16:  int64_t  install_date   (8)     -> now at offset 24
-// 24:  uint8_t  is_64bit       (1)
-// 25:  padding (7)             -> to align next pointer at 32
-// 32:  wchar_t* publisher      (8)
-// 40:  wchar_t* product_code   (8)
-// sizeof = 48
-
 type cStoreEntry struct {
 	DisplayName     *uint16
 	VersionMajor    uint16
@@ -49,54 +21,39 @@ type cStoreEntry struct {
 	VersionBuild    uint16
 	VersionRevision uint16
 	InstallDate     int64
-	Is64Bit         uint8
-	_               [7]byte // padding to align next pointer to 8 bytes
+	Is64Bit         uint64
 	Publisher       *uint16
 	ProductCode     *uint16
 }
 
-// C++:
-// typedef struct MSStore {
-//     int32_t       count;
-//     MSStoreEntry* entries;
-// };
-//
-// Layout (x64):
-//  0: int32_t count  (4)
-//  4: padding (4)    -> to align pointer
-//  8: MSStoreEntry* entries (8)
-// sizeof = 16
-
 type cStore struct {
-	Count   int32
-	_       [4]byte // padding
+	Count   int64
 	Entries *cStoreEntry
 }
 
 var (
-	mod      = syscall.NewLazyDLL("libdatadog-interop.dll")
-	procGetStore = mod.NewProc("GetStore")
+	mod           = syscall.NewLazyDLL("libdatadog-interop.dll")
+	procGetStore  = mod.NewProc("GetStore")
 	procFreeStore = mod.NewProc("FreeStore")
 )
-
-var resultCodes = map[int]string{
-	0: "SUCCESS",
-	1: "INVALID_PARAMS",
-	2: "EXCEPTION",
-}
 
 // GetStore returns a pointer to a cStore struct containing the list of MS Store apps.
 // The caller is responsible for freeing the memory allocated for the cStore struct using FreeStore.
 func GetStore() (*cStore, error) {
 	var out *cStore
-	r1, _, _ := procGetStore.Call(uintptr(unsafe.Pointer(&out)))
-	if r1 != 0 {
-		return nil, fmt.Errorf("GetStore failed: %s", resultCodes[int(r1)])
+	r1, _, lastErr := procGetStore.Call(uintptr(unsafe.Pointer(&out)))
+	if r1 == 0 {
+		return nil, fmt.Errorf("GetStore failed: %w", lastErr)
 	}
 	return out, nil
 }
 
 // FreeStore frees the memory allocated for the cStore struct.
-func FreeStore(store *cStore) {
-	_, _, _ = procFreeStore.Call(uintptr(unsafe.Pointer(store)))
+// Returns an error if the free operation fails.
+func FreeStore(store *cStore) error {
+	r1, _, lastErr := procFreeStore.Call(uintptr(unsafe.Pointer(store)))
+	if r1 == 0 {
+		return fmt.Errorf("FreeStore failed: %w", lastErr)
+	}
+	return nil
 }
