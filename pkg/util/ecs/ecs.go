@@ -50,27 +50,27 @@ func (m *MetaECS) fromCacheValue(value string) error {
 }
 
 // GetClusterMeta returns the cluster meta for ECS.
-func GetClusterMeta() (MetaECS, error) {
+func GetClusterMeta() (*MetaECS, error) {
 	// Try to get the cluster meta from cache
 	meta := &MetaECS{}
 	cacheClusterMetaKey := cache.BuildAgentKey(constants.ECSClusterMetaCacheKey)
 	if cachedClusterID, found := cache.Cache.Get(cacheClusterMetaKey); found {
 		err := meta.fromCacheValue(cachedClusterID.(string))
 		if err != nil {
-			return MetaECS{}, err
+			return nil, err
 		}
-		return *meta, nil
+		return meta, nil
 	}
 
 	// If not in cache, get the cluster meta from ECS
 	meta, err := newECSMeta(context.Background())
 	if err != nil || meta == nil {
-		return MetaECS{}, err
+		return nil, err
 	}
 
 	// Set the cluster meta in cache
 	cache.Cache.Set(cacheClusterMetaKey, meta.toCacheValue(), cache.NoExpiration)
-	return *meta, nil
+	return meta, nil
 }
 
 // newECSMeta returns a MetaECS object
@@ -177,9 +177,9 @@ func initClusterID(awsAccountID string, region, clusterName string) (string, err
 	hash := md5.New()
 	hash.Write([]byte(cluster))
 	hashString := hex.EncodeToString(hash.Sum(nil))
-	uuid, err := uuid.FromBytes([]byte(hashString[0:16]))
+	id, err := uuid.FromBytes([]byte(hashString[0:16]))
 	if err != nil {
 		return "", err
 	}
-	return uuid.String(), nil
+	return id.String(), nil
 }

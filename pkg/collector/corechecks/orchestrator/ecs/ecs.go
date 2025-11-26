@@ -196,7 +196,7 @@ func (c *Check) initConfig() {
 	}
 
 	meta, err := ecsutil.GetClusterMeta()
-	if err != nil {
+	if err != nil || meta == nil {
 		log.Warnf("Failed to get ECS meta: %s", err)
 		return
 	}

@@ -101,9 +101,11 @@ func (e *eventTransformer) toPayloadModel() (*model.EventsPayload, error) {
 	if env.IsFeaturePresent(env.Kubernetes) {
 		clusterID, err = clustername.GetClusterID()
 	} else if env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.ECSManagedInstances) {
-		var meta ecsutil.MetaECS
+		var meta *ecsutil.MetaECS
 		meta, err = ecsutil.GetClusterMeta()
-		clusterID = meta.ECSClusterID
+		if meta != nil {
+			clusterID = meta.ECSClusterID
+		}
 	}
 	if err != nil {
 		log.Warnf("Error getting cluster id: %v", err)

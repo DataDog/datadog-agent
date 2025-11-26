@@ -17,7 +17,7 @@ type MetaECS struct {
 	ECSAgentVersion string
 }
 
-// GetClusterID returns the cluster ID
-func GetClusterMeta() (MetaECS, error) {
-	return MetaECS{}, nil
+// GetClusterMeta returns the cluster meta for ECS.
+func GetClusterMeta() (*MetaECS, error) {
+	return &MetaECS{}, nil
 }
