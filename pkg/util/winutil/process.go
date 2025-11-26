@@ -20,10 +20,14 @@ import (
 var (
 	modntdll                       = windows.NewLazyDLL("ntdll.dll")
 	modkernel                      = windows.NewLazyDLL("kernel32.dll")
+	modversion                     = windows.NewLazyDLL("version.dll")
 	procNtQueryInformationProcess  = modntdll.NewProc("NtQueryInformationProcess")
 	procReadProcessMemory          = modkernel.NewProc("ReadProcessMemory")
 	procIsWow64Process             = modkernel.NewProc("IsWow64Process")
 	procQueryFullProcessImageNameW = modkernel.NewProc("QueryFullProcessImageNameW")
+	procGetFileVersionInfoSizeW    = modversion.NewProc("GetFileVersionInfoSizeW")
+	procGetFileVersionInfoW        = modversion.NewProc("GetFileVersionInfoW")
+	procVerQueryValueW             = modversion.NewProc("VerQueryValueW")
 )
 
 // C definition from winternl.h
@@ -479,4 +483,121 @@ func IsCurrentProcessLocalSystem() (bool, error) {
 	defer windows.FreeSid(localSystem)
 
 	return currentUser.Equals(localSystem), nil
+}
+
+// GetFileDescription returns the file description for given executable path
+func GetFileDescription(executablePath string) (string, error) {
+	// Convert path to UTF16
+	pathPtr, err := syscall.UTF16PtrFromString(executablePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert path to UTF16: %w", err)
+	}
+
+	// Get the size of the version information
+	var handle uint32
+	size, _, err := procGetFileVersionInfoSizeW.Call(
+		uintptr(unsafe.Pointer(pathPtr)),
+		uintptr(unsafe.Pointer(&handle)),
+	)
+	if size == 0 {
+		if err != nil && err != syscall.Errno(0) {
+			return "", fmt.Errorf("GetFileVersionInfoSizeW failed: %w", err)
+		}
+		return "", fmt.Errorf("no version information available for %s", executablePath)
+	}
+
+	// Allocate buffer for version info
+	data := make([]byte, size)
+
+	// Get the version information
+	ret, _, err := procGetFileVersionInfoW.Call(
+		uintptr(unsafe.Pointer(pathPtr)),
+		uintptr(handle),
+		uintptr(size),
+		uintptr(unsafe.Pointer(&data[0])),
+	)
+	if ret == 0 {
+		if err != nil && err != syscall.Errno(0) {
+			return "", fmt.Errorf("GetFileVersionInfoW failed: %w", err)
+		}
+		return "", fmt.Errorf("GetFileVersionInfoW failed")
+	}
+
+	// Query the language and code page
+	// First get the translation table
+	subBlockPtr, err := syscall.UTF16PtrFromString("\\VarFileInfo\\Translation")
+	if err != nil {
+		return "", fmt.Errorf("failed to create subblock string: %w", err)
+	}
+
+	var langCodePagePtr uintptr
+	var langCodePageLen uint32
+	ret, _, err = procVerQueryValueW.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		uintptr(unsafe.Pointer(subBlockPtr)),
+		uintptr(unsafe.Pointer(&langCodePagePtr)),
+		uintptr(unsafe.Pointer(&langCodePageLen)),
+	)
+
+	// If we can't get translation table, try common language codes
+	var langCodePage string
+	if ret == 0 || langCodePageLen < 4 {
+		return "", fmt.Errorf("no language code page found")
+	}
+
+	// Extract the first language/codepage pair
+	langCode := *(*uint16)(unsafe.Pointer(langCodePagePtr))
+	codePage := *(*uint16)(unsafe.Pointer(langCodePagePtr + 2))
+	langCodePage = fmt.Sprintf("%04x%04x", langCode, codePage)
+
+	// Query for FileDescription
+	fileDescQuery := fmt.Sprintf("\\StringFileInfo\\%s\\FileDescription", langCodePage)
+	fileDescQueryPtr, err := syscall.UTF16PtrFromString(fileDescQuery)
+	if err != nil {
+		return "", fmt.Errorf("failed to create file description query: %w", err)
+	}
+
+	var fileDescPtr uintptr
+	var fileDescLen uint32
+	ret, _, err = procVerQueryValueW.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		uintptr(unsafe.Pointer(fileDescQueryPtr)),
+		uintptr(unsafe.Pointer(&fileDescPtr)),
+		uintptr(unsafe.Pointer(&fileDescLen)),
+	)
+
+	if ret == 0 || fileDescLen == 0 {
+		// Try alternative common language codes
+		alternativeLangCodes := []string{"040904b0", "040904e4", "00000000"}
+		for _, altLangCode := range alternativeLangCodes {
+			if altLangCode == langCodePage {
+				continue // Already tried this one
+			}
+
+			fileDescQuery = fmt.Sprintf("\\StringFileInfo\\%s\\FileDescription", altLangCode)
+			fileDescQueryPtr, err = syscall.UTF16PtrFromString(fileDescQuery)
+			if err != nil {
+				continue
+			}
+
+			ret, _, _ = procVerQueryValueW.Call(
+				uintptr(unsafe.Pointer(&data[0])),
+				uintptr(unsafe.Pointer(fileDescQueryPtr)),
+				uintptr(unsafe.Pointer(&fileDescPtr)),
+				uintptr(unsafe.Pointer(&fileDescLen)),
+			)
+
+			if ret != 0 && fileDescLen > 0 {
+				break
+			}
+		}
+
+		if ret == 0 || fileDescLen == 0 {
+			return "", fmt.Errorf("FileDescription not found in version info")
+		}
+	}
+
+	// Convert the UTF16 string to Go string
+	fileDesc := windows.UTF16PtrToString((*uint16)(unsafe.Pointer(fileDescPtr)))
+	return fileDesc, nil
 }
