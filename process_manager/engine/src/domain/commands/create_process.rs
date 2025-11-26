@@ -27,6 +27,8 @@ pub struct CreateProcessCommand {
     pub command: String,
     pub args: Vec<String>,
 
+    pub description: Option<String>,
+
     // Optional configuration
     pub restart: Option<RestartPolicy>,
     pub restart_sec: Option<u64>,

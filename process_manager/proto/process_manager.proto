@@ -116,88 +116,75 @@ message ResourceLimits {
 }
 
 message CreateRequest {
-  string name = 1;          // Required: human-readable process name
-  string command = 2;       // Required: command to execute
+  // Required fields
+  string name = 1;
+  string command = 2;
   repeated string args = 3;
+  string description = 38;
 
-  // Optional configuration
-  RestartPolicy restart = 4;          // Restart policy
-  uint64 restart_sec = 5;             // Base restart delay in seconds
-  uint64 restart_max_delay = 6;       // Maximum restart delay cap
-  uint32 start_limit_burst = 7;       // Max restart attempts
-  uint64 start_limit_interval = 8;    // Time window for start limits
-  string working_dir = 9;             // Working directory
-  map<string, string> env = 10;       // Environment variables
-  string environment_file = 28;       // Load env vars from file (KEY=VALUE format, prefix with '-' to ignore missing)
-  string pidfile = 29;                // Write PID to this file on start, remove on stop
-  bool auto_start = 11;               // Auto-start on creation
+  // Restart configuration
+  RestartPolicy restart = 4;
+  uint64 restart_sec = 5;
+  uint64 restart_max_delay = 6;
+  uint32 start_limit_burst = 7;
+  uint64 start_limit_interval = 8;
 
-  // Output redirection
-  string stdout = 12;                 // stdout: file path, "inherit", or "null"
-  string stderr = 13;                 // stderr: file path, "inherit", or "null"
+  // Environment
+  string working_dir = 9;
+  map<string, string> env = 10;
+  string environment_file = 11;
 
-  // Timeouts (in seconds, 0 = no timeout)
-  uint64 timeout_start_sec = 14;      // Max time to wait for process to start
-  uint64 timeout_stop_sec = 15;       // Max time to wait for graceful stop before force kill
+  // Runtime context
+  string pidfile = 12;
+  bool auto_start = 13;
+  string stdout = 14;
+  string stderr = 15;
 
-  // Kill signal configuration
-  KillSignal kill_signal = 16;        // Signal to send on stop (default: SIGTERM)
-  KillMode kill_mode = 33;             // How to kill child processes (default: CONTROL_GROUP)
+  // Timeouts
+  uint64 timeout_start_sec = 16;
+  uint64 timeout_stop_sec = 17;
 
-  // Exit status configuration
-  repeated int32 success_exit_status = 17;  // Exit codes that should be considered success (default: [0])
+  // Kill configuration
+  KillSignal kill_signal = 18;
+  KillMode kill_mode = 19;
 
-  // Pre/Post execution hooks
-  repeated string exec_start_pre = 18;   // Commands to run before starting the main process
-  repeated string exec_start_post = 19;  // Commands to run after successfully starting the main process
-  repeated string exec_stop_post = 20;   // Commands to run after stopping the main process
+  // Exit status
+  repeated int32 success_exit_status = 20;
 
-  // User/Group execution
-  string user = 21;   // User to run the process as (username or UID)
-  string group = 22;  // Group to run the process as (groupname or GID)
+  // Lifecycle hooks
+  repeated string exec_start_pre = 21;
+  repeated string exec_start_post = 22;
+  repeated string exec_stop_post = 23;
 
-  // Dependencies (systemd-like)
-  repeated string after = 23;     // Start after these processes (by name)
-  repeated string before = 24;    // Start before these processes (by name)
-  repeated string requires = 25;  // Hard dependency - must be running
-  repeated string wants = 26;     // Soft dependency - nice to have
-  repeated string binds_to = 35;  // Strong binding - if target stops, this stops too
-  repeated string conflicts = 36; // Mutual exclusion - cannot run if these are running
+  // User/Group
+  string user = 24;
+  string group = 25;
 
-  // Process type (systemd-like)
-  ProcessType process_type = 27;  // How to determine when the service has started (default: SIMPLE)
+  // Dependencies
+  repeated string after = 26;
+  repeated string before = 27;
+  repeated string requires = 28;
+  repeated string wants = 29;
+  repeated string binds_to = 30;
+  repeated string conflicts = 31;
 
-  // Health check (Docker/Kubernetes-style)
-  HealthCheck health_check = 31;
+  // Process type
+  ProcessType process_type = 32;
 
-  // Resource limits (cgroup v2)
-  ResourceLimits resource_limits = 32;
+  // Health check
+  HealthCheck health_check = 33;
 
-  // Conditional execution (systemd-like)
-  // Paths to check before starting. Supports prefixes:
-  // - No prefix or empty: path must exist (AND logic - all must be true)
-  // - "!": path must NOT exist (negation with AND logic)
-  // - "|": path must exist (OR logic - at least one prefixed with | must be true)
-  //
-  // Examples:
-  //   "/etc/config.yaml" - must exist
-  //   "!/etc/override.yaml" - must NOT exist
-  //   "|/etc/config1.yaml", "|/etc/config2.yaml" - at least one must exist
-  repeated string condition_path_exists = 34;
+  // Resource limits
+  ResourceLimits resource_limits = 34;
 
-  // Runtime directories (systemd-like)
-  // Creates directories under /run/ (or /var/run/) on process start, removes on stop.
-  // Each entry is a relative path that will be created under /run/.
-  // Example: "datadog" creates /run/datadog with proper ownership and permissions (0755).
-  repeated string runtime_directory = 37;
+  // Conditional execution
+  repeated string condition_path_exists = 35;
 
-  // Ambient capabilities (systemd-like, Linux-only)
-  // Grant specific Linux capabilities without requiring root privileges.
-  // Capabilities are inherited by child processes.
-  // Example: "CAP_NET_BIND_SERVICE" allows binding to privileged ports (< 1024).
-  // Common capabilities: CAP_NET_BIND_SERVICE, CAP_SYS_ADMIN, CAP_NET_RAW
-  // Note: Requires Linux with ambient capabilities support (kernel 4.3+)
-  repeated string ambient_capabilities = 38;
+  // Runtime directories
+  repeated string runtime_directory = 36;
+
+  // Ambient capabilities
+  repeated string ambient_capabilities = 37;
 }
 
 message CreateResponse {
@@ -225,17 +212,17 @@ message ListRequest {}
 
 message Process {
   string id = 1;
-  string name = 2;        // Optional human-readable name
+  string name = 2;
   uint32 pid = 3;
   string command = 4;
-  repeated string args = 12;  // Command arguments
-  ProcessState state = 5;
-  uint32 run_count = 6;   // Number of times the process has been started
-  int32 exit_code = 7;    // Exit code when available
-  string signal = 8;      // Signal that terminated the process if any
-  int64 created_at = 9;   // Unix timestamp when process was created
-  int64 started_at = 10;   // Unix timestamp when process was started
-  int64 ended_at = 11;    // Unix timestamp when process ended (if applicable)
+  repeated string args = 5;
+  ProcessState state = 6;
+  uint32 run_count = 7;
+  int32 exit_code = 8;
+  string signal = 9;
+  int64 created_at = 10;
+  int64 started_at = 11;
+  int64 ended_at = 12;
 }
 
 message ListResponse {
@@ -247,81 +234,89 @@ message DescribeRequest {
 }
 
 message ProcessDetail {
+  // Identity
   string id = 1;
-  string name = 2;        // Optional human-readable name
-  uint32 pid = 3;
-  string command = 4;
-  repeated string args = 5;
-  ProcessState state = 6;
-  string restart_policy = 7;
-  uint32 run_count = 8;
-  int32 exit_code = 9;
-  string signal = 10;
+  string name = 2;
+  string description = 3;
+  
+  // Runtime state
+  uint32 pid = 4;
+  ProcessState state = 5;
+  uint32 run_count = 6;
+  int32 exit_code = 7;
+  string signal = 8;
+  
+  // Command
+  string command = 9;
+  repeated string args = 10;
+  
+  // Timestamps
   int64 created_at = 11;
   int64 started_at = 12;
   int64 ended_at = 13;
+  
+  // Environment
   string working_dir = 14;
   map<string, string> env = 15;
-
-  // Restart timing and failure tracking
-  uint64 restart_sec = 40;              // Base restart delay in seconds
-  uint64 restart_max_delay = 41;        // Maximum restart delay cap
-  uint32 consecutive_failures = 42;     // Current consecutive failure count
+  string environment_file = 16;
   
-  // Start limit protection
-  uint32 start_limit_burst = 43;        // Max restart attempts in interval
-  uint64 start_limit_interval = 44;     // Time window for start limits (seconds)
+  // Restart configuration
+  string restart_policy = 17;
+  uint64 restart_sec = 18;
+  uint64 restart_max_delay = 19;
+  uint32 consecutive_failures = 20;
+  uint32 start_limit_burst = 21;
+  uint64 start_limit_interval = 22;
   
   // Timeouts
-  uint64 timeout_start_sec = 45;        // Max time to wait for process to start (0 = no timeout)
-  uint64 timeout_stop_sec = 46;         // Max time to wait for graceful stop (default: 90s)
+  uint64 timeout_start_sec = 23;
+  uint64 timeout_stop_sec = 24;
   
   // Kill configuration
-  string kill_signal_str = 47;          // Signal name (e.g., "SIGTERM", "SIGKILL")
-  KillMode kill_mode_val = 48;          // How to kill child processes
+  string kill_signal_str = 25;
+  KillMode kill_mode_val = 26;
   
   // Runtime context
-  string environment_file = 30;
-  string pidfile = 31;
-  string stdout = 32;
-  string stderr = 33;
-  string user = 34;
-  string group = 35;
+  string pidfile = 27;
+  string stdout = 28;
+  string stderr = 29;
+  string user = 30;
+  string group = 31;
 
-  // Lifecycle and exit behavior
-  repeated int32 success_exit_status = 36;     // Exit codes considered successful
-  repeated string exec_start_pre = 37;          // Commands to run before starting
-  repeated string exec_start_post = 38;         // Commands to run after starting
-  repeated string exec_stop_post = 39;          // Commands to run after stopping
+  // Lifecycle hooks
+  repeated int32 success_exit_status = 32;
+  repeated string exec_start_pre = 33;
+  repeated string exec_start_post = 34;
+  repeated string exec_stop_post = 35;
 
   // Dependencies
-  repeated string after = 16;
-  repeated string before = 17;
-  repeated string requires = 18;
-  repeated string wants = 19;
-  repeated string binds_to = 24;
-  repeated string conflicts = 25;
+  repeated string after = 36;
+  repeated string before = 37;
+  repeated string requires = 38;
+  repeated string wants = 39;
+  repeated string binds_to = 40;
+  repeated string conflicts = 41;
 
   // Process type
-  ProcessType process_type = 20;
+  ProcessType process_type = 42;
 
-  // Health check configuration and status
-  HealthCheck health_check = 28;  // Health check configuration (if configured)
-  string health_status = 21;  // Current health status: healthy, unhealthy, starting, unknown
-  uint32 health_check_failures = 29;  // Number of consecutive health check failures
-  int64 last_health_check = 49;  // Unix timestamp of last health check (0 if never checked)
+  // Health check
+  HealthCheck health_check = 43;
+  string health_status = 44;
+  uint32 health_check_failures = 45;
+  int64 last_health_check = 46;
 
   // Resource limits
-  ResourceLimits resource_limits = 22;
+  ResourceLimits resource_limits = 47;
 
   // Conditional execution
-  repeated string condition_path_exists = 23;
+  repeated string condition_path_exists = 48;
 
   // Runtime directories
-  repeated string runtime_directory = 26;
+  repeated string runtime_directory = 49;
 
   // Ambient capabilities (Linux-only)
-  repeated string ambient_capabilities = 27;
+  repeated string ambient_capabilities = 50;
 }
 
 message DescribeResponse {

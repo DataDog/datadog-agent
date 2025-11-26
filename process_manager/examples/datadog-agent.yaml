@@ -8,6 +8,7 @@
 # Note: dd-procmgrd must run as root to handle user switching, runtime directories,
 # and capabilities for child processes.
 
+description: Datadog Agent
 command: /opt/datadog-agent/bin/agent/agent
 args:
   - run

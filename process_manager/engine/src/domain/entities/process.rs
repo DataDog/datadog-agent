@@ -15,6 +15,7 @@ pub struct Process {
     // Identity
     id: ProcessId,
     name: String,
+    description: Option<String>,
 
     // Configuration
     command: String,
@@ -141,6 +142,7 @@ impl Process {
         Ok(Self {
             id: ProcessId::generate(),
             name,
+            description: None,
             command,
             args: Vec::new(),
             process_type: ProcessType::default(),
@@ -201,6 +203,10 @@ impl Process {
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     pub fn command(&self) -> &str {
@@ -838,6 +844,7 @@ pub struct ProcessBuilder {
     command: String,
 
     // Optional fields
+    description: Option<String>,
     args: Vec<String>,
     restart: Option<RestartPolicy>,
     restart_sec: Option<u64>,
@@ -885,6 +892,7 @@ impl ProcessBuilder {
         Self {
             name: name.into(),
             command: command.into(),
+            description: None,
             args: Vec::new(),
             restart: None,
             restart_sec: None,
@@ -921,6 +929,12 @@ impl ProcessBuilder {
             ambient_capabilities: Vec::new(),
             socket: None,
         }
+    }
+
+    /// Set description
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
     }
 
     /// Set command arguments
@@ -1154,6 +1168,9 @@ impl ProcessBuilder {
         let mut process = Process::new(self.name, self.command)?;
 
         // Apply optional fields
+        if let Some(description) = self.description {
+            process.description = Some(description);
+        }
         if !self.args.is_empty() {
             process.args = self.args;
         }
@@ -1315,6 +1332,17 @@ mod tests {
         assert_eq!(process.args(), &["-g", "daemon off;"]);
         assert_eq!(process.working_dir(), Some("/var/www"));
         assert_eq!(process.user(), Some("www-data"));
+    }
+
+    #[test]
+    fn test_builder_with_description() {
+        let process = ProcessBuilder::new("my-app", "/bin/app")
+            .description("My Application Service")
+            .build()
+            .unwrap();
+
+        assert_eq!(process.name(), "my-app");
+        assert_eq!(process.description(), Some("My Application Service"));
     }
 
     #[test]

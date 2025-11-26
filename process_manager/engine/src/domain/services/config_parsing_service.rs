@@ -72,6 +72,7 @@ impl ConfigParsingService {
             name,
             command: config.command,
             args: config.args,
+            description: config.description,
             restart: Some(restart_policy),
             restart_sec: config.restart_sec,
             restart_max_delay_sec: config.restart_max_delay_sec,
@@ -235,6 +236,7 @@ mod tests {
     fn test_parse_restart_policy() {
         let mut config = ProcessConfig {
             command: "test".to_string(),
+            description: None,
             args: vec![],
             auto_start: false,
             restart: Some("always".to_string()),
@@ -301,6 +303,7 @@ mod tests {
     fn test_parse_basic_config() {
         let config = ProcessConfig {
             command: "/bin/echo".to_string(),
+            description: None,
             args: vec!["hello".to_string()],
             auto_start: true,
             restart: Some("always".to_string()),
@@ -349,5 +352,56 @@ mod tests {
         assert_eq!(cmd.restart, Some(RestartPolicy::Always));
         assert_eq!(cmd.restart_sec, Some(5));
         assert_eq!(cmd.working_dir, Some("/tmp".to_string()));
+    }
+
+    #[test]
+    fn test_parse_config_with_description() {
+        let config = ProcessConfig {
+            command: "/bin/app".to_string(),
+            description: Some("My Application Service".to_string()),
+            args: vec![],
+            auto_start: false,
+            restart: None,
+            restart_sec: None,
+            restart_max_delay_sec: None,
+            start_limit_burst: None,
+            start_limit_interval_sec: None,
+            working_dir: None,
+            env: Default::default(),
+            environment_file: None,
+            pidfile: None,
+            stdout: None,
+            stderr: None,
+            timeout_start_sec: None,
+            timeout_stop_sec: None,
+            kill_signal: None,
+            kill_mode: None,
+            success_exit_status: None,
+            exec_start_pre: None,
+            exec_start_post: None,
+            exec_stop_post: None,
+            user: None,
+            group: None,
+            ambient_capabilities: None,
+            runtime_directory: None,
+            after: None,
+            before: None,
+            requires: None,
+            wants: None,
+            binds_to: None,
+            conflicts: None,
+            process_type: None,
+            health_check: None,
+            resource_limits: None,
+            condition_path_exists: None,
+            socket: None,
+        };
+
+        let result = ConfigParsingService::parse("my-app".to_string(), config);
+        assert!(result.is_ok());
+
+        let cmd = result.unwrap();
+        assert_eq!(cmd.name, "my-app");
+        assert_eq!(cmd.description, Some("My Application Service".to_string()));
     }
 }

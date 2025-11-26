@@ -533,9 +533,7 @@ impl DaemonBuilder {
         } else {
             // Unix socket mode: custom implementation
             let port = get_unique_port(); // Still need for log file naming
-            let socket_path = self
-                .grpc_socket
-                .unwrap_or_else(|| unique_socket_path(port));
+            let socket_path = self.grpc_socket.unwrap_or_else(|| unique_socket_path(port));
 
             // Create temp files for capturing daemon logs
             let stdout_path = format!("/tmp/daemon-{}-{}.stdout.log", port, std::process::id());

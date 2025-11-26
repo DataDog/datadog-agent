@@ -226,6 +226,7 @@ impl ProcessManager for ProcessManagerService {
         let detail = crate::proto::process_manager::ProcessDetail {
             id: result.process.id().to_string(),
             name: result.process.name().to_string(),
+            description: result.process.description().unwrap_or("").to_string(),
             pid: result.process.pid().unwrap_or(0),
             command: result.process.command().to_string(),
             args: result.process.args().to_vec(),

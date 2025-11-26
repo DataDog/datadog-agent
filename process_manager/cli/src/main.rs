@@ -108,7 +108,9 @@ fn print_usage() {
     eprintln!("  status                             Show detailed daemon status");
     eprintln!();
     eprintln!("Environment Variables:");
-    eprintln!("  DD_PM_SOCKET        Unix socket path (default: /var/run/datadog/process-manager.sock)");
+    eprintln!(
+        "  DD_PM_SOCKET        Unix socket path (default: /var/run/datadog/process-manager.sock)"
+    );
     eprintln!("  DD_PM_USE_TCP       Set to use TCP instead of Unix socket");
     eprintln!("  DD_PM_DAEMON_PORT   TCP port when using TCP (default: 50051)");
 }

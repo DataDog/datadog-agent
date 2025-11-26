@@ -13,6 +13,7 @@
 # manager's native socket activation. The process manager pre-creates the listening
 # socket and passes it to trace-agent via LISTEN_FDS when a connection arrives.
 
+description: Datadog Trace Agent (APM)
 command: /opt/datadog-agent/embedded/bin/trace-agent
 args:
   - --config

@@ -5,6 +5,7 @@
 # Place this file at: /etc/pm/processes.d/datadog-agent-process.yaml
 # The process name is derived from the filename (datadog-agent-process)
 
+description: Datadog Process Agent
 command: /opt/datadog-agent/embedded/bin/process-agent
 args:
   - --cfgpath=/etc/datadog-agent/datadog.yaml

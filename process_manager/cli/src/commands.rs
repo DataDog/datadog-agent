@@ -199,6 +199,7 @@ pub async fn handle_create(
         name: opts.name.clone(),
         command: opts.command.clone(),
         args: opts.args.clone(),
+        description: opts.description.clone().unwrap_or_default(),
         restart: restart_enum as i32,
         restart_sec: opts.restart_sec.unwrap_or(0),
         restart_max_delay: opts.restart_max_delay.unwrap_or(0),
@@ -442,6 +443,9 @@ pub async fn handle_describe(
     // Basic Info
     println!("\nBASIC INFORMATION");
     println!("  Name:            {}", detail.name);
+    if !detail.description.is_empty() {
+        println!("  Description:     {}", detail.description);
+    }
     println!("  ID:              {}", detail.id);
     println!("  Command:         {}", detail.command);
     if !detail.args.is_empty() {

@@ -91,6 +91,8 @@ impl TryFrom<CreateRequest> for CreateProcessCommand {
             command: req.command,
             args: req.args,
 
+            description: req.description.into_option(),
+
             // Restart configuration
             restart: super::mappers::proto_to_restart_policy(req.restart),
             restart_sec: req.restart_sec.into_option(),

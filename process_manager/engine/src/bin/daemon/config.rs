@@ -139,7 +139,10 @@ mod tests {
         assert_eq!(config.grpc_port, DEFAULT_GRPC_PORT);
         assert_eq!(config.rest_port, DEFAULT_REST_PORT);
         assert_eq!(config.grpc_socket, "/var/run/datadog/process-manager.sock");
-        assert_eq!(config.rest_socket, "/var/run/datadog/process-manager-api.sock");
+        assert_eq!(
+            config.rest_socket,
+            "/var/run/datadog/process-manager-api.sock"
+        );
         assert_eq!(config.enable_rest, DEFAULT_ENABLE_REST);
         assert_eq!(config.log_level, DEFAULT_LOG_LEVEL);
     }

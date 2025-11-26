@@ -128,6 +128,7 @@ pub struct CreateOptions {
     pub name: String,
     pub command: String,
     pub args: Vec<String>,
+    pub description: Option<String>,
     pub restart: Option<String>,
     pub restart_sec: Option<u64>,
     pub restart_max_delay: Option<u64>,
@@ -252,6 +253,7 @@ impl CreateOptions {
         i: &mut usize,
     ) -> Result<bool, String> {
         match flag {
+            "--description" => parse_flag!(self, args, *i, "--description", description),
             "--working-dir" => parse_flag!(self, args, *i, "--working-dir", working_dir),
             "--environment-file" => {
                 parse_flag!(self, args, *i, "--environment-file", environment_file)
@@ -526,6 +528,7 @@ impl CreateOptions {
         eprintln!("  [args...]    Optional arguments for the command");
         eprintln!();
         eprintln!("Options:");
+        eprintln!("  --description <text>            Human-readable description");
         eprintln!("  --restart <policy>              Restart policy: never, always, on-failure, on-success");
         eprintln!("  --restart-sec <seconds>         Base restart delay (default: 1)");
         eprintln!("  --restart-max-delay <seconds>   Maximum restart delay cap (default: 60)");

@@ -48,6 +48,9 @@ pub struct ProcessConfig {
     pub command: String,
 
     #[serde(default)]
+    pub description: Option<String>,
+
+    #[serde(default)]
     pub args: Vec<String>,
 
     #[serde(default)]

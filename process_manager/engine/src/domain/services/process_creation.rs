@@ -63,6 +63,9 @@ impl ProcessCreationService {
         let mut builder = Process::builder(&command.name, &command.command);
 
         // Apply basic configuration
+        if let Some(ref description) = command.description {
+            builder = builder.description(description);
+        }
         if !command.args.is_empty() {
             builder = builder.args(command.args.clone());
         }
@@ -361,6 +364,26 @@ mod tests {
         // Second creation with same name should fail
         let result = service.create_from_command(command).await;
         assert!(matches!(result, Err(DomainError::DuplicateProcess(_))));
+    }
+
+    #[tokio::test]
+    async fn test_create_with_description() {
+        let repository = Arc::new(InMemoryProcessRepository::new());
+        let service = ProcessCreationService::new(repository.clone());
+
+        let command = CreateProcessCommand {
+            name: "my-service".to_string(),
+            command: "/bin/app".to_string(),
+            description: Some("My Application Service".to_string()),
+            ..Default::default()
+        };
+
+        let result = service.create_from_command(command).await;
+        assert!(result.is_ok());
+
+        let (id, _) = result.unwrap();
+        let process = repository.find_by_id(&id).await.unwrap().unwrap();
+        assert_eq!(process.description(), Some("My Application Service"));
     }
 
     #[test]
