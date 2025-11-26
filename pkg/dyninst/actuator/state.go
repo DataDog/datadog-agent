@@ -899,9 +899,10 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 	interval := now.Sub(sm.lastHeartbeat)
 	sm.lastHeartbeat = now
 
-	totalCostSPS := 0.0
-	maxCostSPS := -1.0
-	var maxProg *program
+	// Validate budget on every core independently.
+	var totalCostSPS []float64
+	var maxCostSPS []float64
+	var maxProg []*program
 	detachedAny := false
 	for _, prog := range sm.programs {
 		if prog.state != programStateLoaded {
@@ -912,49 +913,66 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 			// Not attached.
 			continue
 		}
-		stats := prog.loaded.loaded.RuntimeStats()
-		hits := stats.HitCnt - prog.lastRuntimeStats.HitCnt
-		execCost := stats.CPU - prog.lastRuntimeStats.CPU
-		interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
-		prog.lastRuntimeStats = stats
-
-		costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
-		totalCostSPS += costSPS
-
-		if costSPS > maxCostSPS {
-			maxCostSPS = costSPS
-			maxProg = prog
+		perCoreStats := prog.loaded.loaded.RuntimeStats()
+		for len(totalCostSPS) < len(perCoreStats) {
+			totalCostSPS = append(totalCostSPS, 0)
+			maxCostSPS = append(maxCostSPS, -1)
+			maxProg = append(maxProg, nil)
 		}
+		for core, stats := range perCoreStats {
+			hits := stats.HitCnt - prog.lastRuntimeStats.HitCnt
+			execCost := stats.CPU - prog.lastRuntimeStats.CPU
+			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
+			prog.lastRuntimeStats = stats
 
-		if costSPS > sm.breakerCfg.PerProbeCPULimit {
-			// Circuit breaker triggered for this probe, detach it.
-			prog.state = programStateDraining
-			proc.state = processStateFailed
-			err := fmt.Errorf(
-				"probe exceeded CPU limit of %fcpus/s using %fcpus = %fcpus (exec) + %fcpus (%d interrupts) over %fs",
-				sm.breakerCfg.PerProbeCPULimit,
-				(execCost + interruptCost).Seconds(),
-				execCost.Seconds(),
-				interruptCost.Seconds(),
-				hits,
-				interval.Seconds(),
-			)
-			effects.detachFromProcess(proc.attachedProgram, err)
-			detachedAny = true
+			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
+			totalCostSPS[core] += costSPS
+			if costSPS > maxCostSPS[core] {
+				maxCostSPS[core] = costSPS
+				maxProg[core] = prog
+			}
+			if costSPS > sm.breakerCfg.PerProbeCPULimit && proc.state == processStateAttached {
+				// Circuit breaker triggered for this probe, detach it.
+				prog.state = programStateDraining
+				proc.state = processStateFailed
+				err := fmt.Errorf(
+					"probe exceeded CPU limit of %fcpus/s using %fcpus = %fcpus (exec) + %fcpus (%d interrupts) over %fs on core %d",
+					sm.breakerCfg.PerProbeCPULimit,
+					(execCost + interruptCost).Seconds(),
+					execCost.Seconds(),
+					interruptCost.Seconds(),
+					hits,
+					interval.Seconds(),
+					core,
+				)
+				effects.detachFromProcess(proc.attachedProgram, err)
+				detachedAny = true
+			}
 		}
 	}
 
-	if !detachedAny && maxProg != nil && totalCostSPS > sm.breakerCfg.AllProbesCPULimit {
-		// Circuit breaker triggered across all probes, detach the most costly program.
-		prog := maxProg
+	// Check if any core exceeded the total budget across all probes.
+	// If so, pick the most expensive probe on a core with highest total cost.
+	if len(totalCostSPS) == 0 {
+		return
+	}
+	maxCore := 0
+	for core, cost := range totalCostSPS {
+		if cost > totalCostSPS[maxCore] {
+			maxCore = core
+		}
+	}
+	if !detachedAny && maxProg[maxCore] != nil && totalCostSPS[maxCore] > sm.breakerCfg.AllProbesCPULimit {
+		prog := maxProg[maxCore]
 		proc := sm.processes[prog.processID]
 		prog.state = programStateDraining
 		proc.state = processStateFailed
 		err := fmt.Errorf(
-			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
+			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
 			sm.breakerCfg.AllProbesCPULimit,
-			totalCostSPS,
-			maxCostSPS,
+			totalCostSPS[maxCore],
+			maxCore,
+			maxCostSPS[maxCore],
 			interval.Seconds(),
 		)
 		effects.detachFromProcess(proc.attachedProgram, err)

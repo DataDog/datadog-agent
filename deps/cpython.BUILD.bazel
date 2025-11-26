@@ -42,6 +42,7 @@ run_binary(
             "libffi_win_dir",
             "openssl-bin_win_dir",
             "tcltk_win_dir",
+            "@visual_studio//:msbuild",
         ]
     ),
     env = {
@@ -59,8 +60,7 @@ run_binary(
         "OPENSSL_DIR": r"$(location openssl-bin_win_dir)\amd64",
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
-        # This sets up vs toolchain and depends on the system
-        "MSBUILD": r"C:\devtools\vstudio\MSBuild\Current\Bin\MSBuild.exe",
+        "MSBUILD": "$(location @visual_studio//:msbuild)",
     },
     out_dirs = ["python_win"],
     tool = "build_python.bat",

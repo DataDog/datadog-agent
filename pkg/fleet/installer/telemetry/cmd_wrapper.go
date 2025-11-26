@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 )
@@ -36,14 +37,24 @@ func CommandContext(ctx context.Context, name string, args ...string) *TracedCmd
 func (c *TracedCmd) Run() (err error) {
 	defer func() { c.span.Finish(err) }()
 	var stderr bytes.Buffer
-	c.Cmd.Stderr = &stderr
+	var stdout bytes.Buffer
+	if c.Cmd.Stderr != nil {
+		c.Cmd.Stderr = io.MultiWriter(c.Cmd.Stderr, &stderr)
+	} else {
+		c.Cmd.Stderr = &stderr
+	}
+	if c.Cmd.Stdout != nil {
+		c.Cmd.Stdout = io.MultiWriter(c.Cmd.Stdout, &stdout)
+	} else {
+		c.Cmd.Stdout = &stdout
+	}
 	err = c.Cmd.Run()
-	c.span.SetTag("stderr", stderr.String())
 	if err != nil {
 		exitErr := &exec.ExitError{}
 		if errors.As(err, &exitErr) {
 			c.span.SetTag("exit_code", exitErr.ExitCode())
 		}
+		return fmt.Errorf("%s\n%s\n%w", stdout.String(), stderr.String(), err)
 	}
-	return err
+	return nil
 }

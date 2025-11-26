@@ -101,8 +101,12 @@ func TestReadAvailableRotation(t *testing.T) {
 
 	tailer, _ := newTestTailer(t, mockFile.Name(), nil, nil, opener, mockDecoderOptions)
 	tailer.windowsOpenFileTimeout = 0
+
+	// Consume the first chunk immediately to allow it to complete,
+	// but block on the second chunk to force file close before rotation
 	go func() {
-		<-tailer.decoder.InputChan()
+		<-tailer.decoder.InputChan()      // Consume first chunk
+		time.Sleep(50 * time.Millisecond) // Let the second read attempt and hit timeout
 		<-tailer.decoder.InputChan()
 		tailer.decoder.Start()
 	}()
@@ -122,11 +126,18 @@ func TestReadAvailableFingerprintMismatch(t *testing.T) {
 	opener := opener.NewMockFileOpener()
 	opener.AddMockFile(mockFile)
 
-	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: nil}
+	fpConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+		Source:              types.FingerprintConfigSourcePerSource,
+	}
+	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: fpConfig}
 	fingerprinterMock := NewFingerprinterMock()
 	fingerprinterMock.SetSequence(
 		mockFile.Name(),
-		&types.Fingerprint{Value: 6789012345, Config: nil}, // Different fingerprint from original
+		&types.Fingerprint{Value: 6789012345, Config: fpConfig}, // Different fingerprint from original
 	)
 
 	tailer, _ := newTestTailer(t, mockFile.Name(), nil, fingerprinterMock, opener, nil)
@@ -153,12 +164,19 @@ func TestReadAvailableFingerprintMismatchMidRead(t *testing.T) {
 	opener := opener.NewMockFileOpener()
 	opener.AddMockFile(mockFile)
 
-	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: nil}
+	fpConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		Count:               1,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+		Source:              types.FingerprintConfigSourcePerSource,
+	}
+	originalFingerprint := &types.Fingerprint{Value: 1234567890, Config: fpConfig}
 	fingerprinterMock := NewFingerprinterMock()
 	fingerprinterMock.SetSequence(
 		mockFile.Name(),
 		originalFingerprint,
-		&types.Fingerprint{Value: 6789012345, Config: nil},
+		&types.Fingerprint{Value: 6789012345, Config: fpConfig},
 	)
 
 	mockDecoderOptions := &decoder.MockDecoderOptions{
@@ -170,6 +188,8 @@ func TestReadAvailableFingerprintMismatchMidRead(t *testing.T) {
 	tailer.fingerprint = originalFingerprint
 	tailer.windowsOpenFileTimeout = 0
 	go func() {
+		// Wait for the decoder to attempt to read the first line
+		time.Sleep(50 * time.Millisecond)
 		<-tailer.decoder.InputChan()
 		tailer.decoder.Start()
 	}()

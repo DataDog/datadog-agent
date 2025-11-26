@@ -399,6 +399,9 @@ func (r *EBPFResolvers) Close() error {
 		fmt.Println(err)
 		return err
 	}
-
+	// clean up the user sessions resolver goroutine and resources
+	if r.UserSessionsResolver != nil {
+		r.UserSessionsResolver.Close()
+	}
 	return nil
 }

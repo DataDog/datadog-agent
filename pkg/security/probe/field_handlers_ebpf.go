@@ -1038,3 +1038,13 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 	}
 	return usedCapabilities
 }
+
+// ResolveSSHClientIP resolves the ssh username of the event
+func (fh *EBPFFieldHandlers) ResolveSSHClientIP(_ *model.Event, evtCtx *model.UserSessionContext) net.IPNet {
+	return evtCtx.SSHClientIP
+}
+
+// ResolveSSHPort resolves the public key of the event
+func (fh *EBPFFieldHandlers) ResolveSSHPort(_ *model.Event, evtCtx *model.UserSessionContext) int {
+	return evtCtx.SSHPort
+}

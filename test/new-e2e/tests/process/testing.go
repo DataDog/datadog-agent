@@ -362,6 +362,14 @@ func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool
 	assertManualContainerCheck(t, check, expectedContainers...)
 }
 
+// assertManualRTProcessCheck asserts that the realtime manual check output contains at least one process stat
+func assertManualRTProcessCheck(t require.TestingT, check string) {
+	var rt agentmodel.CollectorRealTime
+	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
+	require.NoError(t, err)
+	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
+}
+
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
 func assertManualContainerCheck(t require.TestingT, check string, expectedContainers ...string) {
 	var checkOutput struct {

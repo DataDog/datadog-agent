@@ -26,7 +26,7 @@ func (s *Setup) postInstallPackages() (err error) {
 func (s *Setup) addAgentToAdditionalGroups() {
 	for _, group := range s.DdAgentAdditionalGroups {
 		// Add dd-agent user to additional group for permission reason, in particular to enable reading log files not world readable
-		if _, err := user.GetGroupID(group); err != nil {
+		if _, err := user.GetGroupID(s.Ctx, group); err != nil {
 			log.Infof("Skipping group %s as it does not exist", group)
 			continue
 		}

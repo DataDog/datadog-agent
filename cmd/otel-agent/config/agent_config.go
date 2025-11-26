@@ -199,6 +199,9 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
+	if pkgconfig.GetInt("cmd_port") <= 0 {
+		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
+	}
 
 	if pkgconfig.Get("apm_config.features") == nil {
 		apmConfigFeatures := []string{}

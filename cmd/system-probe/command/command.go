@@ -16,6 +16,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// LoggerName defines the logger name
+const LoggerName = "SYS-PROBE"
+
 // GlobalParams contains the values of system-probe global Cobra flags.
 //
 // A pointer to this type is passed to SubcommandFactory's, but its contents
