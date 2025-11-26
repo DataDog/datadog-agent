@@ -25,14 +25,22 @@ dependency "cacerts"
 
 default_version "3.5.4"
 
+source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
+
+version("3.5.4") { source sha256: "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99" }
+
+relative_path "openssl-#{version}"
+
 build do
   if !fips_mode?
-    installation_dir = windows? ? python_3_embedded : "#{install_dir}/embedded
+    installation_dir = if windows? then python_3_embedded else "#{install_dir}/embedded" end
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{installation_dir}"
     if windows?
-      # shutil generates temporary files during run install that are not removed afterwards.
-      Dir.glob("#{installation_dir}/include/openssl/tmp*").each do |tmp_file|
-        delete tmp_file
+      block do
+        # shutil generates temporary files during run install that are not removed afterwards.
+        Dir.glob("#{installation_dir}/include/openssl/tmp*").each do |tmp_file|
+          delete tmp_file
+        end
       end
     end
     if !windows?
@@ -43,28 +51,6 @@ build do
       " #{install_dir}/embedded/lib/pkgconfig/*.pc"
     end
   else
-    source url: "https://www.openssl.org/source/openssl-#{version}.tar.gz", extract: :lax_tar
-
-    version("3.1.0") { source sha256: "aaa925ad9828745c4cad9d9efeb273deca820f2cdcf2c3ac7d7c1212b7c497b4" }
-    version("3.0.9") { source sha256: "eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a603cabbf1b00a1dc90" }
-    version("3.0.8") { source sha256: "6c13d2bf38fdf31eac3ce2a347073673f5d63263398f1f69d0df4a41253e4b3e" }
-    version("3.0.11") { source sha256: "b3425d3bb4a2218d0697eb41f7fc0cdede016ed19ca49d168b78e8d947887f55" }
-    version("3.0.12") { source sha256: "f93c9e8edde5e9166119de31755fc87b4aa34863662f67ddfcba14d0b6b69b61" }
-    version("3.0.13") { source sha256: "88525753f79d3bec27d2fa7c66aa0b92b3aa9498dafd93d7cfa4b3780cdae313" }
-    version("3.0.14") { source sha256: "eeca035d4dd4e84fc25846d952da6297484afa0650a6f84c682e39df3a4123ca" }
-    version("3.3.0") { source sha256: "53e66b043322a606abf0087e7699a0e033a37fa13feb9742df35c3a33b18fb02" }
-    version("3.3.1") { source sha256: "777cd596284c883375a2a7a11bf5d2786fc5413255efab20c50d6ffe6d020b7e" }
-    version("3.3.2") { source sha256: "2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281" }
-    version("3.4.0") { source sha256: "e15dda82fe2fe8139dc2ac21a36d4ca01d5313c75f99f46c4e8a27709b7294bf" }
-    version("3.4.1") { source sha256: "002a2d6b30b58bf4bea46c43bdd96365aaf8daa6c428782aa4feee06da197df3" }
-    version("3.5.2") { source sha256: "c53a47e5e441c930c3928cf7bf6fb00e5d129b630e0aa873b08258656e7345ec" }
-    version("3.5.4") { source sha256: "967311f84955316969bdb1d8d4b983718ef42338639c621ec4c34fddef355e99" }
-    
-    relative_path "openssl-#{version}"    
-    if version != default_version
-      # Patch is no longer needed in 3.5.2, keeping it in for backwards compatibility
-      patch source: "0001-fix-preprocessor-concatenation.patch"
-    end
 
     env = with_standard_compiler_flags(with_embedded_path)
     if windows?
