@@ -320,11 +320,13 @@ func (*fakeLoadedProgram) Attach(ProcessID, Executable) (AttachedProgram, error)
 	return nil, nil
 }
 
-func (p *fakeLoadedProgram) RuntimeStats() loader.RuntimeStats {
-	return loader.RuntimeStats{
-		HitCnt:       1000,
-		ThrottledCnt: 999,
-		CPU:          1e3 * time.Second,
+func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
+	return []loader.RuntimeStats{
+		{
+			HitCnt:       1000,
+			ThrottledCnt: 999,
+			CPU:          1e3 * time.Second,
+		},
 	}
 }
 

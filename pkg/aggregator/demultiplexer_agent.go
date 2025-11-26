@@ -504,7 +504,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 
 // SetSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the samplers.
-func (d *AgentDemultiplexer) SetSamplersFilterList(filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
+func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
 
 	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
 	// Histogram metrics need aggregating before we determine the correct name to be filtered.

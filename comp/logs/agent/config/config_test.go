@@ -720,7 +720,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
-		Origin:                 "lambda-extension",
+		Origin:                 "serverless",
 		Protocol:               "test-proto",
 		isReliable:             true,
 	}

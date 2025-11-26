@@ -14,6 +14,8 @@ single_machine_performance-regression_detector-merge_base_check:
   variables:
     GIT_DEPTH: 0  # Ensure we can fetch full history for merge-base calculation
   script:
+    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
     # Fetch origin to ensure we have latest main branch
     - git fetch origin
     # Get the base branch from release.json
@@ -45,8 +47,6 @@ single_machine_performance-regression_detector-merge_base_check:
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
     - aws configure set aws_secret_access_key "$SMP_BOT_KEY" --profile ${AWS_NAMED_PROFILE}
     - aws configure set region us-west-2 --profile ${AWS_NAMED_PROFILE}
-    # `datadog-ci` relies on `DATADOG_API_KEY` so we get that here.
-    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
 
     # Check if image exists for the baseline SHA
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
@@ -97,7 +97,7 @@ single-machine-performance-regression_detector:
       - outputs/decision_record.md # for posterity, this is appended to final PR comment
     when: always
   variables:
-    SMP_VERSION: 0.24.1
+    SMP_VERSION: 0.25.1
   # See 'decision_record.md' for the determination of whether this job passes or fails.
   allow_failure: false
   retry: !reference [.retry_only_infra_failure, retry]

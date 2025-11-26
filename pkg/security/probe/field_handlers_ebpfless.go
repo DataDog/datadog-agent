@@ -11,6 +11,7 @@ package probe
 import (
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"slices"
 	"strings"
 	"time"
@@ -620,4 +621,14 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ 
 // ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
 func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
 	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveSSHClientIP resolves the ssh username of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
+	return net.IPNet{} // EBPFLess mode does not support SSH
+}
+
+// ResolveSSHPort resolves the public key of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0 //EBPFLess mode does not support SSH port
 }

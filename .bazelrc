@@ -6,6 +6,7 @@ startup --max_idle_secs=28800 # Keep the server alive for at most 8 hours of ina
 # Common options -------------------------------------------------------------------------------------------------------
 common --@rules_python//python/config_settings:bootstrap_impl=script # https://github.com/bazel-contrib/rules_python/blob/main/BZLMOD_SUPPORT.md
 common --enable_platform_specific_config # Supported OS identifiers are linux, macos, windows, freebsd, and openbsd
+common --http_timeout_scaling=3.0 # At least one attempt reaches 30s (3,6,12,24,30,30,30,30) instead of only 10s (1,2,4,8,10,10,10,10)
 common --incompatible_strict_action_env # Do not leak local environment variables into the build context
 common --verbose_failures
 

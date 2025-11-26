@@ -8,7 +8,6 @@ package setup
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -656,9 +655,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 16*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 70*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 30*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
@@ -1038,82 +1037,6 @@ func TestClusterCheckDefaults(t *testing.T) {
 	conf := newTestConf(t)
 	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
 	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
-}
-
-func TestProxyNotLoaded(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTP := "http://localhost:1234"
-	proxyHTTPS := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-	assert.Equal(t, 0, len(proxyHTTPConfig))
-	assert.Equal(t, 0, len(proxyHTTPSConfig))
-}
-
-func TestProxyLoadedFromEnvVars(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTP := "http://localhost:1234"
-	proxyHTTPS := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
-
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, proxyHTTP, proxyHTTPConfig)
-	assert.Equal(t, proxyHTTPS, proxyHTTPSConfig)
-}
-
-func TestProxyLoadedFromConfigFile(t *testing.T) {
-	t.Skip()
-
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	tempDir := t.TempDir()
-	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
-
-	conf.AddConfigPath(tempDir)
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, "http://localhost:1234", proxyHTTPConfig)
-	assert.Equal(t, "https://localhost:1234", proxyHTTPSConfig)
-}
-
-func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTPEnvVar := "http://localhost:1234"
-	proxyHTTPSEnvVar := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTPEnvVar)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPSEnvVar)
-
-	tempDir := t.TempDir()
-	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
-
-	conf.AddConfigPath(tempDir)
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
-	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
 }
 
 var testExampleConf = []byte(`

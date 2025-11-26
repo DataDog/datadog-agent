@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
 func TestOperationApply_Patch(t *testing.T) {
@@ -639,4 +639,50 @@ func TestConfig_SimpleStartStop(t *testing.T) {
 	_, err = os.ReadFile(filepath.Join(stableDir, "conf.d", "mycheck.d", "config.yaml"))
 	assert.Error(t, err)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func TestOperationApply_MultipleAPIKeysWithDuplicateKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "datadog.yaml")
+
+	// Craft YAML content with two api_key entries (duplicate), which is allowed in yaml.v2 loader,
+	// but not in yaml.v3 (v3 will only keep the last one by default, but v2 merges them as a map).
+	// For this test, we intentionally want to verify parsing and overwriting with yaml.v2.
+
+	// Note: When there are duplicate keys, yaml.v2 will use the last occurrence by default.
+	// For the purpose of this test, we check that the resulting config can be updated and parsed safely.
+
+	originalYAML := []byte(`
+api_key: "KEY_1"
+some_other: value
+api_key: "KEY_2"
+`)
+	assert.NoError(t, os.WriteFile(filePath, originalYAML, 0644))
+
+	root, err := os.OpenRoot(tmpDir)
+	assert.NoError(t, err)
+	defer root.Close()
+
+	// Patch: Replace api_key to a new value (should replace the effective value, regardless of duplicates in original)
+	patchJSON := `[{"op": "replace", "path": "/api_key", "value": "NEW_KEY"}]`
+	op := &FileOperation{
+		FileOperationType: FileOperationPatch,
+		FilePath:          "/datadog.yaml",
+		Patch:             []byte(patchJSON),
+	}
+
+	err = op.apply(root, tmpDir)
+	assert.NoError(t, err)
+
+	// Check file content, should now have api_key: NEW_KEY
+	updated, err := os.ReadFile(filePath)
+	assert.NoError(t, err)
+
+	var updatedMap map[string]interface{}
+	err = yaml.Unmarshal(updated, &updatedMap)
+	assert.NoError(t, err)
+
+	// The map should take only the last value (or now, our patched one)
+	assert.Equal(t, "NEW_KEY", updatedMap["api_key"])
+	assert.Equal(t, "value", updatedMap["some_other"])
 }

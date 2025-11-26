@@ -36,6 +36,7 @@ import (
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/golang/mock/gomock"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
@@ -396,7 +397,7 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.LastTCPSentMiscounts.Load())
+	assert.NotZero(t, connection.EbpfTracerTelemetry.GetLastTCPSentMiscounts())
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {
@@ -3270,4 +3271,175 @@ func (s *TracerSuite) TestTLSCertParsing() {
 		})
 	})
 
+}
+
+func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
+	t := s.T()
+	cfg := testConfig()
+	if isPrebuilt(cfg) {
+		t.Skip("skipping retransmit sync test on prebuilt")
+	}
+	// We need eBPF to test this kernel-side fix
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+	// Create a server that reads one byte and closes, or just listens.
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Connect
+	c, err := server.Dial()
+	require.NoError(t, err)
+
+	// Establish connection first
+	// We don't send "ping" here to keep the baseline segs_out low (SYN + ACK = 2 segments).
+	// Then we write "data" (3rd segment).
+	// Stale SentPackets = 3.
+	// We need retransmits > 3 to fail the test without the fix.
+
+	// Drop packets now to induce retransmits
+	iptablesWrapper(t, func() {
+		// Write data.
+		_, err = c.Write([]byte("data"))
+		require.NoError(t, err)
+
+		// Wait for retransmits. Linux TCP RTO min is often 200ms.
+		// Backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms...
+		// In 4 seconds we expect ~4 retransmits.
+		// 4 (retransmits) > 3 (stale sent packets) -> Test should fail without fix.
+		time.Sleep(4 * time.Second)
+	})
+
+	// Close connection. This should trigger the sync in the BPF program.
+	c.Close()
+
+	// Check stats.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.True(ct, ok, "connection not found") {
+			return
+		}
+
+		// We expect retransmits > 0
+		assert.Greater(ct, int(conn.Monotonic.Retransmits), 0, "should have retransmits")
+
+		// With the fix, SentPackets should be updated on close to match the kernel's segs_out,
+		// which includes retransmits. So SentPackets should be >= Retransmits.
+		// Without the fix, SentPackets would only count the initial sends (e.g. 2: "ping" + "data"),
+		// while Retransmits could be much higher (e.g. 5+), failing this check.
+		assert.GreaterOrEqual(ct, int(conn.Monotonic.SentPackets), int(conn.Monotonic.Retransmits),
+			"SentPackets (%d) should be >= Retransmits (%d) due to sync on close", conn.Monotonic.SentPackets, conn.Monotonic.Retransmits)
+
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
+func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
+	// find a connection from Python client to CoreDNS
+	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
+		return c.Type == network.UDP &&
+			c.Dest.String() == "172.25.0.2" &&
+			c.DPort == 53 &&
+			c.Source.String() == "172.25.0.3"
+	})
+
+	require.NotNil(ct, conn, "could not find DNS connection from Python client to CoreDNS")
+
+	var foundDNSQuery bool
+	var successfulResponses uint32
+	for domain, byQueryType := range conn.DNSStats {
+		if domain.Get() == "my-server.local" {
+			foundDNSQuery = true
+			for _, stats := range byQueryType {
+				// rcode 0 means successful response
+				successfulResponses += stats.CountByRcode[0]
+			}
+		}
+	}
+
+	require.True(ct, foundDNSQuery, "expected to find my-server.local in DNSStats")
+
+	require.NotZero(ct, successfulResponses, "expected at least one successful DNS response for my-server.local")
+	return conn
+}
+
+// TestDNSWorkload creates a fake DNS workload with docker-compose, that has a known
+// resolv.conf inserted. It tests that we see the resolv.conf in the connections
+func (s *TracerSuite) TestDNSWorkload() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+
+	// Container ID resolution (not resolv.conf resolution) fails in this test before 5.11.
+	// I think it's related to this patch:
+	// https://github.com/torvalds/linux/commit/3ae700ecfae913316e3b4fe5f60c72b6131aaa1f#diff-360c5854af72f475f4ebbf588f1c163c9b9694f618088f5ff1e399b36e339901
+	// It changes the way that timestamps are offered in /proc/<pid>/stat.
+	// It's likely my test's injection of process events via HandleEvents is wrong on older kernels
+	if kv < kernel.VersionCode(5, 11, 0) {
+		t.Skip("Not supported before 5.11")
+	}
+
+	skipOnEbpflessNotSupported(t, cfg)
+
+	tr := setupTracer(t, cfg)
+
+	trueResolvConf := `nameserver 172.25.0.2
+search local
+options ndots:1`
+
+	err := RunDNSWorkload(t)
+	require.NoError(t, err, "failed to start DNS workload")
+
+	require.NoError(t, tr.reverseDNS.WaitForDomain("my-server.local"), "failed to wait for my-server.local domain")
+
+	// first, find the DNS connection just to grab the PID
+	var conn *network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn = expectDNSWorkload(ct, connections)
+	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper stats")
+
+	proc, err := process.NewProcessWithContext(context.Background(), int32(conn.Pid))
+	require.NoError(t, err)
+
+	createTime, err := proc.CreateTime()
+	require.NoError(t, err)
+
+	// StartTime is recorded as nanoseconds by security's EBPFResolver
+	createTime *= int64(time.Millisecond)
+
+	containerID := intern.GetByString("test-python-container")
+
+	// CWS is not running, so we need to inject a fake process event
+	procEvent := &events.Process{
+		Pid:         conn.Pid,
+		ContainerID: containerID,
+		StartTime:   createTime,
+	}
+	events.Consumer().HandleEvent(procEvent)
+
+	// next, do the real test, now that we marked the process with HandleEvent
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+
+		conn = expectDNSWorkload(ct, connections)
+
+		require.Equal(ct, procEvent.Pid, conn.Pid, "unexpected connection PID")
+		require.Equal(ct, containerID, conn.ContainerID.Source, "unexpected container ID")
+
+		resolvConf, ok := connections.ResolvConfs[conn.ContainerID.Source]
+		require.True(ct, ok, "container didn't have a resolv.conf")
+		require.Equal(ct, trueResolvConf, resolvConf.Get(), "resolv.conf was found, but didn't match expected value")
+	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper resolv.conf")
 }
