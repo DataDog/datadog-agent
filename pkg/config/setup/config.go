@@ -1222,6 +1222,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 
 	config.BindEnvAndSetDefault("vsock_addr", "")
+
+	// Filterlist
+	config.BindEnvAndSetDefault("metric_filterlist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1742,8 +1748,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
-	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
-	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")
