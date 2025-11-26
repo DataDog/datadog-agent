@@ -153,6 +153,30 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 			},
 		},
+		"local sdk injection with enabled label set to false in enabled namespace should not get injection": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     true,
+				"admission_controller.mutate_unlabelled": false,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "false",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: false,
+		},
 		"pod with mutate label and java annotation should mutate": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":     false,
