@@ -683,6 +683,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("gpu.use_sp_process_metrics", false)
 	config.BindEnvAndSetDefault("gpu.sp_process_metrics_request_timeout", 3*time.Second)
 	config.BindEnvAndSetDefault("gpu.integrate_with_workloadmeta_processes", true)
+	config.BindEnvAndSetDefault("gpu.workload_tag_cache_size", 1024)
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1222,6 +1223,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
 
 	config.BindEnvAndSetDefault("vsock_addr", "")
+
+	// Filterlist
+	config.BindEnvAndSetDefault("metric_filterlist", []string{})
+	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
+	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
+	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1742,8 +1749,6 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)
 	config.BindEnvAndSetDefault("statsd_metric_namespace", "")
 	config.BindEnvAndSetDefault("statsd_metric_namespace_blacklist", StandardStatsdPrefixes)
-	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
-	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution", false)
 	config.BindEnvAndSetDefault("histogram_copy_to_distribution_prefix", "")

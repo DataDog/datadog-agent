@@ -627,10 +627,16 @@ func (s *server) handleMessages() {
 	}
 
 	// init the metric names filterlist
+	filterlist := s.config.GetStringSlice("metric_filterlist")
+	filterlistPrefix := s.config.GetBool("metric_filterlist_match_prefix")
+	if len(filterlist) == 0 {
+		filterlist = s.config.GetStringSlice("statsd_metric_blocklist")
+		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
+	}
 
 	s.localFilterListConfig = localFilterListConfig{
-		metricNames: s.config.GetStringSlice("statsd_metric_blocklist"),
-		matchPrefix: s.config.GetBool("statsd_metric_blocklist_match_prefix"),
+		metricNames: filterlist,
+		matchPrefix: filterlistPrefix,
 	}
 	s.restoreFilterListFromLocalConfig()
 }
