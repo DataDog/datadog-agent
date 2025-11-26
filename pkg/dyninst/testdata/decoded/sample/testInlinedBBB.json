@@ -56,8 +56,7 @@
           "location": {
             "method": "main.testInlinedBBB"
           }
-        },
-        "captures": {}
+        }
       }
     },
     "timestamp": "[ts]",

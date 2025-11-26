@@ -812,6 +812,12 @@ Package metricscompression provides the component for metrics compression
 
 Package snmpscan is a light component that can be used to perform a scan or a walk of a particular device
 
+### [comp/snmpscanmanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpscanmanager)
+
+*Datadog Team*: ndm-core
+
+Package snmpscanmanager is a component that is used to manage SNMP device scans
+
 ### [comp/softwareinventory](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/softwareinventory)
 
 *Datadog Team*: windows-products

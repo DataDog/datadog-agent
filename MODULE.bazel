@@ -34,7 +34,7 @@ bazel_dep(name = "rules_shell", version = "0.6.1")
 # Temporary until a future rules_pkg release
 git_override(
     module_name = "rules_pkg",
-    commit = "daa496412d12598d6b24619a9a6cd6fc137de384",
+    commit = "46bd2689886984c2b77d6005595f351e404dfa57",
     remote = "https://github.com/bazelbuild/rules_pkg",
 )
 
@@ -52,7 +52,10 @@ http_archive(
     ],
     sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
     strip_prefix = "buildtools-8.2.1",
-    urls = ["https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz"],
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/buildtools-8.2.1.tar.gz",
+        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz",
+    ],
 )
 
 bazel_dep(name = "rules_multitool", version = "1.9.0")
@@ -155,3 +158,8 @@ include("//deps/acl:acl.MODULE.bazel")
 include("//deps/cpython:cpython.MODULE.bazel")
 include("//deps/openssl3:openssl3.MODULE.bazel")
 include("//deps/libpcap:libpcap.MODULE.bazel")
+
+# This enables cross-compilation for macOS x86_64 on Apple Silicon.
+# Simply add --platforms=@apple_support//platforms:macos_x86_64
+# to the build command to enable it.
+bazel_dep(name = "apple_support", version = "1.23.1")

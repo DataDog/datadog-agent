@@ -58,7 +58,6 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // genaccessors
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
@@ -190,10 +189,9 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	}
 }
 
-// Key returns a unique key for the entity
-func (cg *CGroupContext) Key() (string, bool) {
-	cgrpID := string(cg.CGroupID)
-	return cgrpID, cgrpID != ""
+// Hash returns a unique key for the entity
+func (cg *CGroupContext) Hash() string {
+	return string(cg.CGroupID)
 }
 
 // ParentScope returns the parent entity scope
@@ -399,9 +397,9 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
 }
 
 // ParentScope returns the parent entity scope
