@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Customers using Single Step Instrumentation with both configuration based targeting (enabled namespace or
+    targets) in combination with Local Lib Injection will no longer receive mutation from the config or tags to labels
+    webhook in a disabled namespace. 

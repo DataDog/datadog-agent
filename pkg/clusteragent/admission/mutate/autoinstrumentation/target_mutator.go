@@ -250,6 +250,11 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	// If the namespace is disabled, we should not mutate the pod.
+	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
+		return false
+	}
+
 	// We need to explicitly check for the label being set to false, which opts out of mutation.
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {

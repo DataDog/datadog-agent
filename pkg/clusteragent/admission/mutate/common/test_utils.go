@@ -129,14 +129,15 @@ func FakePodWithAnnotation(k, v string) *corev1.Pod {
 
 // FakePodSpec describes a pod we are going to create.
 type FakePodSpec struct {
-	NS          string
-	Name        string
-	Labels      map[string]string
-	Annotations map[string]string
-	Envs        []corev1.EnvVar
-	ParentKind  string
-	ParentName  string
-	Containers  []corev1.Container
+	NS             string
+	Name           string
+	Labels         map[string]string
+	Annotations    map[string]string
+	Envs           []corev1.EnvVar
+	ParentKind     string
+	ParentName     string
+	Containers     []corev1.Container
+	InitContainers []corev1.Container
 }
 
 // Create makes a Pod from a FakePodSpec setting up sane defaults.
@@ -151,6 +152,10 @@ func (f FakePodSpec) Create() *corev1.Pod {
 
 	if len(f.Containers) > 0 {
 		pod.Spec.Containers = append(pod.Spec.Containers, f.Containers...)
+	}
+
+	if len(f.InitContainers) > 0 {
+		pod.Spec.InitContainers = append(pod.Spec.InitContainers, f.InitContainers...)
 	}
 
 	return pod

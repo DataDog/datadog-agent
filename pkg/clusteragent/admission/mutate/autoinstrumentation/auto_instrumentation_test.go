@@ -15,7 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -24,12 +25,15 @@ import (
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 const (
 	defaultInjectorVersion = "0"
 	defaultTestContainer   = "test-container"
+	defaultNamespace       = "application"
 )
 
 var defaultContainerNames = []string{defaultTestContainer}
@@ -41,6 +45,18 @@ var defaultLibraries = map[string]string{
 	"php":    "v1",
 	"python": "v3",
 	"ruby":   "v2",
+}
+
+var defaultDeployments = []common.MockDeployment{
+	{
+		ContainerName:  defaultTestContainer,
+		DeploymentName: "deployment",
+		Namespace:      defaultNamespace,
+	},
+}
+
+var defaultNamespaces = []workloadmeta.KubernetesMetadata{
+	newTestNamespace(defaultNamespace, map[string]string{}),
 }
 
 // TestAutoinstrumentation is an integration style test that ensures user configuration maps to the expected pod
@@ -78,19 +94,14 @@ func TestAutoinstrumentation(t *testing.T) {
 		expected     *expected
 	}{
 		"default configuration should not mutate": {
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with annotation but without mutate label and mutate unlabelled disabled should not mutate": {
@@ -98,22 +109,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"local lib injection should set install type": {
@@ -121,25 +127,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -157,25 +158,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -190,25 +186,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/python-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/python-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -223,25 +214,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/js-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/js-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -256,25 +242,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/php-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/php-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -289,25 +270,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/ruby-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -322,25 +298,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/dotnet-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/dotnet-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -355,26 +326,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-						"admission.datadoghq.com/apm-inject.debug": "true",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+					"admission.datadoghq.com/apm-inject.debug": "true",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -394,26 +360,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-						"admission.datadoghq.com/apm-inject.debug": "false",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+					"admission.datadoghq.com/apm-inject.debug": "false",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -433,25 +394,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/apm-inject.debug": "true",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.debug": "true",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with mutate label disabled and annotation should not mutate": {
@@ -459,25 +415,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "false",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "false",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with mutate label disabled with mutate unlabelled and annotation should not mutate": {
@@ -485,25 +436,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "false",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "false",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with mutate label but no annotation and instrumentation disabled should not mutate": {
@@ -511,22 +457,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with mutate label but no annotation and instrumentation enabled should get default libs": {
@@ -534,22 +475,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     true,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -562,22 +498,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -594,25 +525,20 @@ func TestAutoinstrumentation(t *testing.T) {
 					"java": "v2",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -626,19 +552,14 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -653,19 +574,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"python": "v5",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -682,19 +598,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"java": "default",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -711,19 +622,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"foo",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod inside of enabled namespace should get mutated": {
@@ -733,19 +639,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"application",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -760,25 +661,20 @@ func TestAutoinstrumentation(t *testing.T) {
 					"foo",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -795,19 +691,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"application",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod outside of disabled namespace should get mutated": {
@@ -817,19 +708,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"foo",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -844,25 +730,20 @@ func TestAutoinstrumentation(t *testing.T) {
 					"application",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod inside of disabled namespace but with local lib injection and instrumentation disabled should not get mutated": {
@@ -872,25 +753,20 @@ func TestAutoinstrumentation(t *testing.T) {
 					"application",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with local lib injection and default tag should resolve to version": {
@@ -898,25 +774,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "default",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "default",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -931,26 +802,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-						"admission.datadoghq.com/js-lib.version":   "v3",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+					"admission.datadoghq.com/js-lib.version":   "v3",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -966,26 +832,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version":   "v1",
-						"admission.datadoghq.com/apm-inject.version": "v3",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1",
+					"admission.datadoghq.com/apm-inject.version": "v3",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: "v3",
@@ -1000,25 +861,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/unknown-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/unknown-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with local lib injection using all annotation gets all libs": {
@@ -1026,25 +882,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version": "latest",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version": "latest",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1057,22 +908,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version": "latest",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version": "latest",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"pod with local lib injection using all annotation, no label, and mutated unlabelled gets mutated": {
@@ -1080,22 +926,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version": "latest",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version": "latest",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1108,25 +949,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1.2.3",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1.2.3",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1141,26 +977,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version": "v1",
-						"admission.datadoghq.com/all-lib.version":  "latest",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+					"admission.datadoghq.com/all-lib.version":  "latest",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1175,25 +1006,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version": "unsupported",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version": "unsupported",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1207,25 +1033,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"admission_controller.mutate_unlabelled":        false,
 				"apm_config.instrumentation.injector_image_tag": "1.2.3",
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/php-lib.version": "5.2.1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/php-lib.version": "5.2.1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: "1.2.3",
@@ -1243,19 +1064,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					"application",
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: "1.2.3",
@@ -1280,19 +1096,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1319,19 +1130,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1367,19 +1173,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1406,19 +1207,14 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
 		"targets with matching rule and local sdk injection favors local sdk version": {
@@ -1438,25 +1234,20 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/ruby-lib.version": "v3",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version": "v3",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1483,22 +1274,17 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/ruby-lib.version": "v3",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version": "v3",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1526,22 +1312,17 @@ func TestAutoinstrumentation(t *testing.T) {
 					},
 				},
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/ruby-lib.version": "v3",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/ruby-lib.version": "v3",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1556,26 +1337,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/php-lib.version":         "v1",
-						"admission.datadoghq.com/apm-inject.custom-image": "docker.io/library/apm-inject-package:v27",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/php-lib.version":         "v1",
+					"admission.datadoghq.com/apm-inject.custom-image": "docker.io/library/apm-inject-package:v27",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				initContainerImages: []string{
@@ -1590,25 +1366,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/php-lib.custom-image": "foo/bar:1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/php-lib.custom-image": "foo/bar:1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				initContainerImages: []string{
@@ -1623,26 +1394,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.version":   "v1",
-						"admission.datadoghq.com/java-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_rate_limit":50}`,
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1",
+					"admission.datadoghq.com/java-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_rate_limit":50}`,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1664,22 +1430,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/java-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_rate_limit":50}`,
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_rate_limit":50}`,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
-				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1698,26 +1459,21 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/all-lib.version":   "latest",
-						"admission.datadoghq.com/all-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version":   "latest",
+					"admission.datadoghq.com/all-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_rate_limit":50,"tracing_sampling_rate":0.3}`,
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: "test-container",
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1734,22 +1490,22 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-						{
-							Name: "istio-proxy",
-						},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+					},
+					{
+						Name: "istio-proxy",
 					},
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1764,17 +1520,17 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled": true,
 				"kube_resources_namespace":           "datadog-test",
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "datadog-test",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-					},
+			pod: common.FakePodSpec{
+				Name:       "test",
+				NS:         "datadog-test",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: []common.MockDeployment{
+				{
+					ContainerName:  defaultTestContainer,
+					DeploymentName: "deployment",
+					Namespace:      "datadog-test",
 				},
 			},
 			shouldMutate: false,
@@ -1784,19 +1540,14 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled": true,
 				"kube_resources_namespace":           "datadog-test",
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1906,25 +1657,20 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-					Annotations: map[string]string{
-						"admission.datadoghq.com/test-container.java-lib.version": "v1",
-					},
-					Labels: map[string]string{
-						admissioncommon.EnabledLabelKey: "true",
-					},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/test-container.java-lib.version": "v1",
 				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-					},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1939,19 +1685,14 @@ func TestAutoinstrumentation(t *testing.T) {
 				"apm_config.instrumentation.enabled":                              true,
 				"admission_controller.auto_instrumentation.init_security_context": `{"privileged":true}`,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -1962,26 +1703,47 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 			},
 		},
+		"when a pod is created in a privileged namespace that is not enabled, no mutation occurs": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"foo",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces: []workloadmeta.KubernetesMetadata{
+				newTestNamespace("application", map[string]string{
+					"pod-security.kubernetes.io/enforce":         "restricted",
+					"pod-security.kubernetes.io/enforce-version": "latest",
+					"pod-security.kubernetes.io/warn":            "restricted",
+					"pod-security.kubernetes.io/audit":           "restricted",
+				}),
+			},
+			shouldMutate: false,
+		},
 		"when a pod is created in a privileged namespace, the default security context is set": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("application", map[string]string{
-					"pod-security.kubernetes.io/enforce": "restricted",
+					"pod-security.kubernetes.io/enforce":         "restricted",
+					"pod-security.kubernetes.io/enforce-version": "latest",
+					"pod-security.kubernetes.io/warn":            "restricted",
+					"pod-security.kubernetes.io/audit":           "restricted",
 				}),
 			},
 			shouldMutate: true,
@@ -2005,29 +1767,29 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
 							},
 						},
 					},
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -2049,27 +1811,27 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("100m"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU: resource.MustParse("100m"),
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU: resource.MustParse("100m"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU: resource.MustParse("100m"),
 							},
 						},
 					},
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -2089,27 +1851,27 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
 							},
 						},
 					},
 				},
-			},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -2129,57 +1891,57 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					InitContainers: []corev1.Container{
-						{
-							Name: "foo",
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("700m"),
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("700m"),
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				InitContainers: []corev1.Container{
+					{
+						Name: "foo",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("700m"),
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
 							},
-						},
-						{
-							Name: "bar",
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("101m"),
-									corev1.ResourceMemory: resource.MustParse("700Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("101m"),
-									corev1.ResourceMemory: resource.MustParse("700Mi"),
-								},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("700m"),
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
 							},
 						},
 					},
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("102m"),
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("102m"),
-									corev1.ResourceMemory: resource.MustParse("500Mi"),
-								},
+					{
+						Name: "bar",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("101m"),
+								corev1.ResourceMemory: resource.MustParse("700Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("101m"),
+								corev1.ResourceMemory: resource.MustParse("700Mi"),
 							},
 						},
 					},
 				},
-			},
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("102m"),
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("102m"),
+								corev1.ResourceMemory: resource.MustParse("500Mi"),
+							},
+						},
+					},
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -2201,57 +1963,57 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					InitContainers: []corev1.Container{
-						{
-							Name: "foo",
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				InitContainers: []corev1.Container{
+					{
+						Name: "foo",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("100Mi"),
 							},
-						},
-					},
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-							},
-						},
-						{
-							Name: "sidecar",
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("100Mi"),
 							},
 						},
 					},
 				},
-			},
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+						},
+					},
+					{
+						Name: "sidecar",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+						},
+					},
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -2278,57 +2040,57 @@ func TestAutoinstrumentation(t *testing.T) {
 				"admission_controller.auto_instrumentation.init_resources.cpu":    "101m",
 				"admission_controller.auto_instrumentation.init_resources.memory": "301Mi",
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					InitContainers: []corev1.Container{
-						{
-							Name: "foo",
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("100Mi"),
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				InitContainers: []corev1.Container{
+					{
+						Name: "foo",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("100Mi"),
 							},
-						},
-					},
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-							},
-						},
-						{
-							Name: "sidecar",
-							Resources: corev1.ResourceRequirements{
-								Limits: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("200m"),
-									corev1.ResourceMemory: resource.MustParse("200Mi"),
-								},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("100m"),
+								corev1.ResourceMemory: resource.MustParse("100Mi"),
 							},
 						},
 					},
 				},
-			},
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+						},
+					},
+					{
+						Name: "sidecar",
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("200m"),
+								corev1.ResourceMemory: resource.MustParse("200Mi"),
+							},
+						},
+					},
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
 			shouldMutate: true,
 			expected: &expected{
 				injectorVersion: defaultInjectorVersion,
@@ -2349,6 +2111,98 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 			},
 		},
+		"tags from labels webhook applies to enabled namespace": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"tags.datadoghq.com/env": "local",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_ENV": "local",
+				},
+			},
+		},
+		"tags from labels webhook does not apply when pod is created outside enabled namespaces": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"foo",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"tags.datadoghq.com/env": "local",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: false,
+		},
+		"config webhook applies to enabled namespace": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+				"admission_controller.inject_config.mode": "hostip",
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_AGENT_HOST": "",
+				},
+			},
+		},
+		"config webhook does not apply outside of enabled namespace": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"foo",
+				},
+				"admission_controller.inject_config.mode": "hostip",
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: false,
+		},
 	}
 
 	for name, test := range tests {
@@ -2357,6 +2211,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockImageResolver := NewFakeImageResolver()
+			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
 			for _, ns := range test.namespaces {
@@ -2366,14 +2221,19 @@ func TestAutoinstrumentation(t *testing.T) {
 			// Setup webhook.
 			config, err := autoinstrumentation.NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
+			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
 			require.NoError(t, err)
+			mutator := common.NewMutators(
+				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
+				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
+				apmMutator,
+			)
 			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator)
 			require.NoError(t, err)
 
 			// Mutate pod.
 			in := test.pod.DeepCopy()
-			mutated, err := webhook.MutatePod(in, in.Namespace, nil)
+			mutated, err := webhook.MutatePod(in, in.Namespace, mockDynamic)
 			require.NoError(t, err)
 
 			// If no mutation is expected, the pod should be identical and the boolean returned must be false.
@@ -2421,6 +2281,8 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 	tests := map[string]struct {
 		config             map[string]any
 		pod                *corev1.Pod
+		namespaces         []workloadmeta.KubernetesMetadata
+		deployments        []common.MockDeployment
 		expected           map[string]string
 		expectedContainers []string
 	}{
@@ -2428,19 +2290,14 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
-					},
-				},
-			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
 			expected: map[string]string{
 				"LD_PRELOAD": "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 			},
@@ -2450,25 +2307,25 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Env: []corev1.EnvVar{
-								{
-									Name:  "LD_PRELOAD",
-									Value: "/foo",
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Env: []corev1.EnvVar{
+							{
+								Name:  "LD_PRELOAD",
+								Value: "/foo",
 							},
 						},
 					},
 				},
-			},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
 			expected: map[string]string{
 				"LD_PRELOAD": "/foo:/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 			},
@@ -2478,25 +2335,25 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-							Env: []corev1.EnvVar{
-								{
-									Name:  "LD_PRELOAD",
-									Value: "/foo:/bar",
-								},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Env: []corev1.EnvVar{
+							{
+								Name:  "LD_PRELOAD",
+								Value: "/foo:/bar",
 							},
 						},
 					},
 				},
-			},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
 			expected: map[string]string{
 				"LD_PRELOAD": "/foo:/bar:/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
 			},
@@ -2508,20 +2365,31 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
-			mockMeta := common.FakeStore(t)
+			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockImageResolver := NewFakeImageResolver()
+			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+
+			// Add the namespaces.
+			for _, ns := range test.namespaces {
+				mockMeta.(workloadmetamock.Mock).Set(&ns)
+			}
 
 			// Setup webhook.
 			config, err := autoinstrumentation.NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
+			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
 			require.NoError(t, err)
+			mutator := common.NewMutators(
+				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
+				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
+				apmMutator,
+			)
 			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator)
 			require.NoError(t, err)
 
 			// Mutate pod.
 			in := test.pod.DeepCopy()
-			mutated, err := webhook.MutatePod(in, in.Namespace, nil)
+			mutated, err := webhook.MutatePod(in, in.Namespace, mockDynamic)
 			require.NoError(t, err)
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
@@ -2538,6 +2406,8 @@ func TestSkippedDueToResources(t *testing.T) {
 	tests := map[string]struct {
 		config              map[string]any
 		pod                 *corev1.Pod
+		namespaces          []workloadmeta.KubernetesMetadata
+		deployments         []common.MockDeployment
 		skipped             bool
 		expectedContainers  []string
 		expectedAnnotations map[string]string
@@ -2546,19 +2416,19 @@ func TestSkippedDueToResources(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
-					Namespace: "application",
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name: defaultTestContainer,
-						},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
 					},
 				},
-			},
+			}.Create(),
+			deployments:        defaultDeployments,
+			namespaces:         defaultNamespaces,
 			skipped:            false,
 			expectedContainers: defaultContainerNames,
 		},
@@ -2566,16 +2436,29 @@ func TestSkippedDueToResources(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: common.FakePodWithContainer("java-pod", corev1.Container{Name: defaultTestContainer, Resources: corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("499m"),
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("499m"),
+								corev1.ResourceMemory: resource.MustParse("50Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("499m"),
+								corev1.ResourceMemory: resource.MustParse("50Mi"),
+							},
+						},
+					},
 				},
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("499m"),
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
-				},
-			}}),
+			}.Create(),
+			deployments:        defaultDeployments,
+			namespaces:         defaultNamespaces,
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
@@ -2586,14 +2469,27 @@ func TestSkippedDueToResources(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: common.FakePodWithContainer("java-pod", corev1.Container{Name: defaultTestContainer, Resources: corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU: resource.MustParse("0.025"),
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU: resource.MustParse("0.025"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU: resource.MustParse("0.025"),
+							},
+						},
+					},
 				},
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU: resource.MustParse("0.025"),
-				},
-			}}),
+			}.Create(),
+			deployments:        defaultDeployments,
+			namespaces:         defaultNamespaces,
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
@@ -2604,16 +2500,29 @@ func TestSkippedDueToResources(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
 			},
-			pod: common.FakePodWithContainer("java-pod", corev1.Container{Name: defaultTestContainer, Resources: corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("0.025"),
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("0.025"),
+								corev1.ResourceMemory: resource.MustParse("50Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("0.025"),
+								corev1.ResourceMemory: resource.MustParse("50Mi"),
+							},
+						},
+					},
 				},
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("0.025"),
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
-				},
-			}}),
+			}.Create(),
+			deployments:        defaultDeployments,
+			namespaces:         defaultNamespaces,
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
@@ -2626,16 +2535,29 @@ func TestSkippedDueToResources(t *testing.T) {
 				"admission_controller.auto_instrumentation.init_resources.cpu":    "101m",
 				"admission_controller.auto_instrumentation.init_resources.memory": "301Mi",
 			},
-			pod: common.FakePodWithContainer("java-pod", corev1.Container{Name: defaultTestContainer, Resources: corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("0.025"),
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Containers: []corev1.Container{
+					{
+						Name: defaultTestContainer,
+						Resources: corev1.ResourceRequirements{
+							Limits: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("0.025"),
+								corev1.ResourceMemory: resource.MustParse("50Mi"),
+							},
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:    resource.MustParse("0.025"),
+								corev1.ResourceMemory: resource.MustParse("50Mi"),
+							},
+						},
+					},
 				},
-				Requests: corev1.ResourceList{
-					corev1.ResourceCPU:    resource.MustParse("0.025"),
-					corev1.ResourceMemory: resource.MustParse("50Mi"),
-				},
-			}}),
+			}.Create(),
+			deployments:        defaultDeployments,
+			namespaces:         defaultNamespaces,
 			skipped:            false,
 			expectedContainers: defaultContainerNames,
 		},
@@ -2645,20 +2567,31 @@ func TestSkippedDueToResources(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
-			mockMeta := common.FakeStore(t)
+			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
 			mockImageResolver := NewFakeImageResolver()
+			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
+
+			// Add the namespaces.
+			for _, ns := range test.namespaces {
+				mockMeta.(workloadmetamock.Mock).Set(&ns)
+			}
 
 			// Setup webhook.
 			config, err := autoinstrumentation.NewConfig(mockConfig)
 			require.NoError(t, err)
-			mutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
+			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
 			require.NoError(t, err)
+			mutator := common.NewMutators(
+				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
+				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
+				apmMutator,
+			)
 			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator)
 			require.NoError(t, err)
 
 			// Mutate pod.
 			in := test.pod.DeepCopy()
-			mutated, err := webhook.MutatePod(in, in.Namespace, nil)
+			mutated, err := webhook.MutatePod(in, in.Namespace, mockDynamic)
 			require.NoError(t, err)
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
