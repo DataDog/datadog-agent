@@ -192,8 +192,8 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 		FunctionTags:        functionTags,
 	})
 	// if compute_stats is enabled, we add the tag needed for accurate metric trace counts after sampling
-	tags = serverlessInitTag.AddTraceStatsTags(tags)
-	traceAgent.SetTags(tags)
+	traceTags := serverlessInitTag.AddTraceStatsTags(tags)
+	traceAgent.SetTags(traceTags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
 			traceAgent.Flush()
