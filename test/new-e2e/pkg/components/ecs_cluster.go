@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	clientecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/ecs"

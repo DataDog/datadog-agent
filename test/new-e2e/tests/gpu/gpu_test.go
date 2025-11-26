@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -50,9 +50,14 @@ const (
 	gpuSystemUbuntu1804Driver430 systemName = "ubuntu1804-430"
 	gpuSystemUbuntu1804Driver510 systemName = "ubuntu1804-510"
 	defaultGpuSystem             systemName = gpuSystemUbuntu2204
+	defaultCudaVersion           string     = "12.4.1"
+	oldCudaVersion               string     = "10.2"
+	dockerRegistry               string     = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub"
+)
 
-	cuda12DockerImage    = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/nvidia/cuda:12.6.3-base-ubuntu22.04"
-	pytorch19DockerImage = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/pytorch/pytorch:1.9.0-cuda10.2-cudnn7-runtime"
+var (
+	cuda12DockerImage    = fmt.Sprintf("%s/nvidia/cuda:%s-base-ubuntu22.04", dockerRegistry, defaultCudaVersion)
+	pytorch19DockerImage = fmt.Sprintf("%s/pytorch/pytorch:1.9.0-cuda%s-cudnn7-runtime", dockerRegistry, oldCudaVersion)
 )
 
 // gpuSystems is a map of AMIs for different Ubuntu versions
@@ -64,6 +69,7 @@ var gpuSystems = map[systemName]systemData{
 		hasEcrCredentialsHelper:      false, // needs to be installed from the repos
 		hasAllNVMLCriticalAPIs:       true,  // 22.04 has all the critical APIs
 		supportsSystemProbeComponent: true,
+		cudaVersion:                  defaultCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver430: {
 		ami:                          "ami-0cd4aa4912d788419",
@@ -72,6 +78,7 @@ var gpuSystems = map[systemName]systemData{
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       false,                // DeviceGetNumGpuCores is missing for this version of the driver,
 		supportsSystemProbeComponent: false,
+		cudaVersion:                  oldCudaVersion,
 	},
 	gpuSystemUbuntu1804Driver510: {
 		ami:                          "ami-0cbf114f88ec230fe",
@@ -80,6 +87,7 @@ var gpuSystems = map[systemName]systemData{
 		hasEcrCredentialsHelper:      true,                 // already installed in the AMI, as it's not present in the 18.04 repos
 		hasAllNVMLCriticalAPIs:       true,                 // 510 driver has all the critical APIs
 		supportsSystemProbeComponent: false,
+		cudaVersion:                  oldCudaVersion,
 	},
 }
 
@@ -156,7 +164,10 @@ func runGpuHostSuite(t *testing.T, gpuSystem systemName) {
 
 func (s *gpuHostSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
-	s.caps = &hostCapabilities{&s.BaseSuite}
+	s.caps = &hostCapabilities{
+		suite:             &s.BaseSuite,
+		containerIDToName: make(map[string]string),
+	}
 	s.gpuBaseSuite.SetupSuite()
 }
 
@@ -217,7 +228,10 @@ func runGpuK8sSuite(t *testing.T, gpuSystem systemName) {
 
 func (s *gpuK8sSuite) SetupSuite() {
 	// The base suite needs the capabilities struct, so set it before calling the base SetupSuite
-	s.caps = &kubernetesCapabilities{&s.BaseSuite}
+	s.caps = &kubernetesCapabilities{
+		suite:          &s.BaseSuite,
+		containerToJob: make(map[string]string),
+	}
 	s.gpuBaseSuite.SetupSuite()
 }
 
@@ -355,9 +369,13 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	// seems it's always the same error code.
 	flake.MarkOnLog(v.T(), errMsgNoCudaCapableDevice)
 	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
-	_ = v.runCudaDockerWorkload()
+	containerID := v.runCudaDockerWorkload()
 
 	v.EventuallyWithT(func(c *assert.CollectT) {
+		// Check for workload errors first
+		err := v.caps.CheckWorkloadErrors(containerID)
+		assert.NoError(c, err, "workload job should not have errors")
+
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
 		metricNames := []string{"gpu.process.core.usage"}
@@ -427,7 +445,7 @@ func (v *gpuBaseSuite[Env]) TestWorkloadmetaHasGPUs() {
 		status, err := v.caps.Agent().WorkloadList()
 		assert.NoError(c, err)
 		out = status.Content
-		assert.Contains(c, out, "=== Entity gpu sources(merged):[runtime] id: ")
+		assert.Contains(c, out, "=== Entity gpu sources(merged):[nvml] id: ")
 	}, 30*time.Second, 1*time.Second)
 
 	if v.T().Failed() {

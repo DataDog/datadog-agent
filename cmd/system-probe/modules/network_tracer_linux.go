@@ -8,11 +8,18 @@
 package modules
 
 import (
-	"time"
+	"context"
+	"io"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func init() { registerModule(NetworkTracer) }
@@ -25,4 +32,29 @@ var NetworkTracer = &module.Factory{
 	NeedsEBPF:        tracer.NeedsEBPF,
 }
 
-func inactivityEventLog(_ time.Duration) {}
+func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
+	httpMux.HandleFunc("/network_id", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		id, err := getNetworkID(req.Context())
+		if err != nil {
+			log.Debugf("unable to retrieve network ID: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		_, _ = io.WriteString(w, id)
+	}))
+
+	return nil
+}
+
+func getNetworkID(ctx context.Context) (string, error) {
+	id := ""
+	err := netnsutil.WithRootNS(kernel.ProcFSRoot(), func() error {
+		var err error
+		id, err = ec2.GetNetworkID(ctx)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}

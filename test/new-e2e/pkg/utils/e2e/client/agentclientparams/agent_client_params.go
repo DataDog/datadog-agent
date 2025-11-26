@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	osComp "github.com/DataDog/test-infra-definitions/components/os"
+	osComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 // Params defines the parameters for the Agent client.

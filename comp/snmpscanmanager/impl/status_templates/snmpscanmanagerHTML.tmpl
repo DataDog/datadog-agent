@@ -1,0 +1,18 @@
+{{- if or (gt .pendingScanCount 0) (gt .successScanCount 0) .failedScanIPs }}
+<div class="stat">
+  <span class="stat_title">SNMP Device Scans</span>
+  <span class="stat_data">
+    Pending scans count: {{ .pendingScanCount }}</br>
+    Successful scans count: {{ .successScanCount }}</br>
+
+    {{- if .failedScanIPs }}
+    Failed scans IPs:</br>
+    {{- range $ip := .failedScanIPs }}
+      - {{ $ip }}</br>
+    {{- end }}
+    {{- else }}
+    No failed scans.</br>
+    {{- end }}
+  </span>
+</div>
+{{- end -}}

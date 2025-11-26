@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -596,7 +597,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 	// refresh the secrets and only collect newly updated keys
 	keysResolved = []string{}
-	output, err := resolver.Refresh()
+	output, err := resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
 	assert.Equal(t, []string{"some/second_level"}, keysResolved)
@@ -615,7 +616,7 @@ func TestResolveThenRefresh(t *testing.T) {
 
 	// refresh one last time and only those two handles have updated keys
 	keysResolved = []string{}
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	slices.Sort(keysResolved)
 	assert.Equal(t, testConfNestedOriginMultiple, resolver.origin)
@@ -660,7 +661,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	allowlistPaths = []string{"api_key"}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
-	_, err := resolver.Refresh()
+	_, err := resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{})
 
@@ -668,7 +669,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	allowlistPaths = []string{"setting"}
 
 	// Refresh sees the change to the handle
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changes, []string{"second_value"})
 }
@@ -710,7 +711,7 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	}
 
 	// only 1 setting path got updated
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, changedPaths, []string{"instances/0/password"})
 }
@@ -746,7 +747,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 
 	// Refresh the secrets, which will add to the audit file
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 1)
 
@@ -757,7 +758,7 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	}
 
 	// Refresh secrets again, which will add another row the audit file
-	_, err = resolver.Refresh()
+	_, err = resolver.Refresh(true)
 	require.NoError(t, err)
 	assert.Equal(t, auditFileNumRows(tmpfile.Name()), 2)
 
@@ -766,6 +767,72 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 			"handle": "fourth_value",
 		}, nil
 	}
+}
+
+func TestRefreshModes(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.backendCommand = "some_command"
+	resolver.cache = map[string]string{"api_key": "test_key"}
+	resolver.origin = handleToContext{
+		"api_key": []secretContext{{origin: "test", path: []string{"api_key"}}},
+	}
+
+	var calls atomic.Int32
+	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
+		calls.Add(1)
+		return map[string]string{"api_key": "test_value"}, nil
+	}
+
+	t.Run("updateNow=true refreshes synchronously", func(t *testing.T) {
+		calls.Store(0)
+		result, err := resolver.Refresh(true)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result)
+		assert.Equal(t, int32(1), calls.Load())
+	})
+
+	t.Run("throttling within interval", func(t *testing.T) {
+		resolver.apiKeyFailureRefreshInterval = 100 * time.Millisecond
+		resolver.lastThrottledRefresh = time.Time{}
+		resolver.startRefreshRoutine(nil)
+		defer func() {
+			if resolver.ticker != nil {
+				resolver.ticker.Stop()
+			}
+		}()
+
+		calls.Store(0)
+
+		// 1 refresh passes, 2 get dropped
+		resolver.Refresh(false)
+		resolver.Refresh(false)
+		resolver.Refresh(false)
+		time.Sleep(50 * time.Millisecond)
+
+		assert.Equal(t, int32(1), calls.Load(), "only first refresh should process")
+
+		// after interval, next should succeed
+		time.Sleep(100 * time.Millisecond)
+		resolver.Refresh(false)
+		time.Sleep(50 * time.Millisecond)
+
+		assert.Equal(t, int32(2), calls.Load(), "refresh after interval should process")
+	})
+
+	t.Run("feature disabled drops all refreshes", func(t *testing.T) {
+		resolver.apiKeyFailureRefreshInterval = 0
+		if resolver.ticker == nil {
+			resolver.startRefreshRoutine(nil)
+		}
+
+		calls.Store(0)
+		resolver.Refresh(false)
+		resolver.Refresh(false)
+		time.Sleep(50 * time.Millisecond)
+
+		assert.Equal(t, int32(0), calls.Load(), "no refreshes when disabled")
+	})
 }
 
 func TestStartRefreshRoutineWithScatter(t *testing.T) {

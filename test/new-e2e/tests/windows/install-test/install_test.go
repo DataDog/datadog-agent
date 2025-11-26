@@ -17,6 +17,7 @@ import (
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
+	servicetest "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/install-test/service-test"
 
 	"testing"
 
@@ -518,4 +519,53 @@ func (s *testInstallWithLanmanServerDisabledSuite) TestInstallWithLanmanServerDi
 
 	_ = s.installAgentPackage(vm, s.AgentPackage)
 	RequireAgentRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm))
+}
+
+func TestInstallWithInstallOnlyFlag(t *testing.T) {
+	s := &testInstallWithInstallOnlyFlagSuite{}
+	Run(t, s)
+}
+
+type testInstallWithInstallOnlyFlagSuite struct {
+	baseAgentMSISuite
+}
+
+func (s *testInstallWithInstallOnlyFlagSuite) TestInstallWithInstallOnlyFlag() {
+	vm := s.Env().RemoteHost
+
+	// install the agent with DD_INSTALL_ONLY=1
+	_ = s.installAgentPackage(vm, s.AgentPackage,
+		windowsAgent.WithInstallOnly("true"),
+	)
+
+	// Verify the agent was installed
+	productCode, err := windowsAgent.GetDatadogAgentProductCode(vm)
+	s.Require().NoError(err, "should find installed agent")
+	s.Require().NotEmpty(productCode, "product code should not be empty")
+
+	// Check that services are NOT running
+	// Use the standard list of expected installed services
+	for _, service := range servicetest.ExpectedInstalledServices() {
+		status, err := windowsCommon.GetServiceStatus(vm, service)
+		s.Require().NoError(err, "service %s should exist", service)
+		s.Assert().NotEqual("Running", status,
+			"service %s should not be running when DD_INSTALL_ONLY=1", service)
+	}
+
+	// Verify services can be started manually
+	s.Run("services can be started manually", func() {
+		err := windowsCommon.StartService(vm, "datadogagent")
+		s.Require().NoError(err, "should be able to start datadogagent service")
+
+		// Wait for service to start
+		s.Assert().EventuallyWithT(func(c *assert.CollectT) {
+			status, err := windowsCommon.GetServiceStatus(vm, "datadogagent")
+			assert.NoError(c, err, "should get service status")
+			assert.Equal(c, "Running", status, "datadogagent should be running after manual start")
+		}, 30*time.Second, 1*time.Second, "datadogagent service should start within 30 seconds")
+	})
+
+	// Clean up
+	t := s.newTester(vm)
+	s.uninstallAgentAndRunUninstallTests(t)
 }

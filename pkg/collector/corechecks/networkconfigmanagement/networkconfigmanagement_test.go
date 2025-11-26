@@ -162,6 +162,11 @@ var invalidConfigMissingAuth = []byte(`
 ip_address: 10.0.0.1
 `)
 
+var baseInitConfig = []byte(`
+ssh:
+  insecure_skip_verify: true
+`)
+
 // Unit Tests
 
 func TestCheck_Configure_ValidConfig(t *testing.T) {
@@ -169,7 +174,7 @@ func TestCheck_Configure_ValidConfig(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 
 	require.NoError(t, err)
 	assert.NotNil(t, check.checkContext)
@@ -207,7 +212,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 			check := createTestCheck(t)
 			senderManager := mocksender.CreateDefaultDemultiplexer()
 
-			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, []byte{}, "test")
+			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, baseInitConfig, "test")
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
@@ -218,7 +223,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 func TestCheck_Run_Success(t *testing.T) {
 	check := createTestCheck(t)
 
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, baseInitConfig)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
@@ -229,7 +234,7 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// mock the time
@@ -291,7 +296,7 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
@@ -312,7 +317,7 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// Set up a mock remote client that fails config retrieval
@@ -335,7 +340,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// mock the time
@@ -405,7 +410,7 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// mock the time

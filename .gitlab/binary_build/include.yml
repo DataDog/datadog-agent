@@ -9,5 +9,6 @@ include:
   - .gitlab/binary_build/fakeintake.yml
   - .gitlab/binary_build/linux.yml
   - .gitlab/binary_build/otel_agent.yml
+  - .gitlab/binary_build/host_profiler.yml
   - .gitlab/binary_build/system_probe.yml
   - .gitlab/binary_build/windows.yml

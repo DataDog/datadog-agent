@@ -55,13 +55,6 @@ type ExporterConfig struct {
 
 // Validate the configuration for errors. This is required by component.Config.
 func (c *ExporterConfig) Validate() error {
-	key := string(c.API.Key)
-	if key != "" { // there is no api key in the config when serializer exporter is used in OTLP ingest
-		if err := datadogconfig.StaticAPIKeyCheck(key); err != nil {
-			return err
-		}
-	}
-
 	histCfg := c.Metrics.Metrics.HistConfig
 	if histCfg.Mode == datadogconfig.HistogramModeNoBuckets && !histCfg.SendAggregations {
 		return fmt.Errorf("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")

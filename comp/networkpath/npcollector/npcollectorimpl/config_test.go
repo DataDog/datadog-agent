@@ -48,9 +48,9 @@ func TestNewConfig(t *testing.T) {
 				pathtestInputChanSize:        1000,
 				pathtestProcessingChanSize:   1000,
 				storeConfig: pathteststore.Config{
-					ContextsLimit:    5000,
-					TTL:              16 * time.Minute,
-					Interval:         5 * time.Minute,
+					ContextsLimit:    1000,
+					TTL:              70 * time.Minute,
+					Interval:         30 * time.Minute,
 					MaxPerMinute:     150,
 					MaxBurstDuration: 30 * time.Second,
 				},

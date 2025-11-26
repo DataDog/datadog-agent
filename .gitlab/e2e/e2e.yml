@@ -240,6 +240,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestECSSuite
@@ -545,6 +546,8 @@ new-e2e-alp:
     TEAM: agent-log-pipelines
   # Temporary for #incident-44744
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -573,6 +576,7 @@ new-e2e-cws:
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-discovery:
   extends: .new_e2e_template
@@ -796,6 +800,7 @@ new-e2e-ha-agent-failover:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -962,8 +967,30 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
-  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
+all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
+  stage: e2e
+  tags: ["arch:amd64", "specific:true"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  needs:
+    - agent_deb-x64-a7
+    - agent_deb-x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7
+    - agent_rpm-x64-a7
+    - agent_suse-x64-a7
+  script:
+    - exit 0
+  artifacts:
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
+    expire_in: 1 day
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
@@ -971,7 +998,9 @@ generate-flakes-finder-pipeline:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
+  dependencies: [compute_gitlab_ci_config]
   needs:
+    - all-artifacts
     - compute_gitlab_ci_config
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -1024,6 +1053,7 @@ generate-fips-e2e-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - all-artifacts
     - agent_deb-x64-a7-fips
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7-fips

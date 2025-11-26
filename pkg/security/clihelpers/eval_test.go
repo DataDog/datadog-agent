@@ -12,9 +12,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/hashicorp/go-multierror"
 )
 
 type fakeProvider struct {
@@ -89,7 +88,7 @@ rules:
 
 		decoder := json.NewDecoder(bytes.NewBufferString(testData))
 
-		report, err := evalRule(provider, decoder, EvalRuleParams{RuleID: "IMDS"})
+		report, err := evalRule(provider, decoder, EvalRuleParams{})
 		if err != nil {
 			t.Fatalf("error evaluating rule: %s", err)
 		}
@@ -115,12 +114,12 @@ rules:
 
 		decoder := json.NewDecoder(bytes.NewBufferString(testData))
 
-		report, err := evalRule(provider, decoder, EvalRuleParams{RuleID: "IMDS"})
+		report, err := evalRule(provider, decoder, EvalRuleParams{})
 		if err != nil {
 			t.Fatalf("error evaluating rule: %s", err)
 		}
 
-		if !report.Succeeded {
+		if report.Succeeded {
 			t.Fatalf("expected rule to fail")
 		}
 	})

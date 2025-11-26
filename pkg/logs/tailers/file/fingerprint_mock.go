@@ -32,6 +32,7 @@ func NewFingerprinterMock() *FingerprinterMock {
 type fingerprintStore struct {
 	idx          int
 	fingerprints []*types.Fingerprint
+	Config       *types.FingerprintConfig
 }
 
 func (f *fingerprintStore) Next() *types.Fingerprint {
@@ -94,6 +95,14 @@ func (f *FingerprinterMock) ComputeFingerprintFromConfig(filepath string, _ *typ
 		return store.Next(), nil
 	}
 	return nil, fmt.Errorf("no fingerprint set for file %s", filepath)
+}
+
+// GetEffectiveConfigForFile returns nil for the mock implementation
+func (f *FingerprinterMock) GetEffectiveConfigForFile(file *File) *types.FingerprintConfig {
+	if fingerprint, ok := f.fingerprints[file.Path]; ok && fingerprint.Config != nil {
+		return fingerprint.Config
+	}
+	return nil
 }
 
 // ComputeFingerprintFromHandle returns previously set fingerprint for the given File, or an error if no fingerprint was set

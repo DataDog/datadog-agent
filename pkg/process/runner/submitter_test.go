@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsfxnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
@@ -301,23 +302,6 @@ func TestCollectorMessagesToCheckResult(t *testing.T) {
 				headers.ServiceDiscoveryEnabled: "false",
 			},
 		},
-		{
-			name:    "process_events",
-			message: &model.CollectorProcEvent{},
-			expectHeaders: map[string]string{
-				headers.TimestampHeader:         strconv.Itoa(int(now.Unix())),
-				headers.HostHeader:              testHostName,
-				headers.ProcessVersionHeader:    agentVersion.GetNumber(),
-				headers.ContainerCountHeader:    "0",
-				headers.ContentTypeHeader:       headers.ProtobufContentType,
-				headers.EVPOriginHeader:         "process-agent",
-				headers.EVPOriginVersionHeader:  version.AgentVersion,
-				headers.AgentStartTime:          strconv.Itoa(int(submitter.agentStartTime)),
-				headers.PayloadSource:           "process_agent",
-				headers.ProcessesEnabled:        "false",
-				headers.ServiceDiscoveryEnabled: "false",
-			},
-		},
 	}
 
 	for _, test := range tests {
@@ -485,6 +469,7 @@ func getSubmitterDeps(t *testing.T, configOverrides map[string]interface{}, sysp
 		sysprobeconfigimpl.MockModule(),
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeconfigOverrides}),
 		connectionsforwarderfx.Module(),
+		secretsfxnoop.Module(),
 		forwardersimpl.Module(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)
@@ -502,6 +487,7 @@ func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submit
 		}),
 		sysprobeconfigimpl.MockModule(),
 		connectionsforwarderfx.Module(),
+		secretsfxnoop.Module(),
 		forwardersimpl.Module(),
 		fx.Provide(func() log.Component {
 			return logmock.New(t)

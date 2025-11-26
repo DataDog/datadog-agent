@@ -274,7 +274,7 @@ Configuring a stack involves generating a configuration file, referred to as the
 
 This file is managed by the `kmt.gen-config` command. You typically don't need to edit it manually.
 
-A sample VMSet file can be found [here](https://github.com/DataDog/test-infra-definitions/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
+A sample VMSet file can be found [here](https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/f85e7eb2f003b6f9693c851549fbb7f3969b8ade/scenarios/aws/microVMs/sample-vm-config.json).
 
 ### Local vs. Remote VMs
 

@@ -8,10 +8,10 @@ package gcphost
 import (
 	"fmt"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/resources/gcp"
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/compute"
-	"github.com/DataDog/test-infra-definitions/scenarios/gcp/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"

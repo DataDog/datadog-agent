@@ -202,14 +202,29 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 	// Approximated capacity, location ops may require more than one instruction.
 	ops := make([]Op, 0, 4+len(expr.Operations))
 	ops = append(ops, ExprPrepareOp{})
+
+	// Track the size of the last operation to sanity check that we are
+	// dereferencing a pointer with the correct size.
+	var lastOpSize uint32
 	for _, op := range expr.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
+			lastOpSize = op.ByteSize
 			var err error
 			ops, err = g.EncodeLocationOp(injectionPC, op, ops)
 			if err != nil {
 				return nil, err
 			}
+		case *ir.DereferenceOp:
+			const pointerSize = 8
+			if lastOpSize != pointerSize {
+				return nil, fmt.Errorf("unexpected pointer size: %d", lastOpSize)
+			}
+			lastOpSize = op.ByteSize
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias: op.Bias,
+				Len:  op.ByteSize,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}

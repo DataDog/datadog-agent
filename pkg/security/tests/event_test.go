@@ -101,10 +101,8 @@ func TestEventHeartbeatSent(t *testing.T) {
 	})
 }
 
-func TestEventRateLimiters(t *testing.T) {
+func TestEventRaleLimiters(t *testing.T) {
 	SkipIfNotAvailable(t)
-
-	const testTTL = 5 * time.Second
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -116,7 +114,7 @@ func TestEventRateLimiters(t *testing.T) {
 						Name:  "test_unique_id_services",
 						Field: "process.file.name",
 						TTL: &rules.HumanReadableDuration{
-							Duration: testTTL,
+							Duration: 5 * time.Second,
 						},
 						Append: true,
 					},
@@ -178,7 +176,6 @@ func TestEventRateLimiters(t *testing.T) {
 			t.Error(err)
 		}
 
-		const noEventTimeout = 3 * time.Second
 		// open from the first process
 		err = test.GetEventSent(t, func() error {
 			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
@@ -188,24 +185,9 @@ func TestEventRateLimiters(t *testing.T) {
 			return f.Close()
 		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
-		}, noEventTimeout, "test_unique_id")
+		}, time.Second*3, "test_unique_id")
 		if err == nil {
 			t.Error("unexpected event")
-		}
-
-		// wait for the first process name to expire
-		time.Sleep(testTTL - noEventTimeout + 100*time.Millisecond)
-		err = test.GetEventSent(t, func() error {
-			f, err := os.OpenFile(testFile, os.O_CREATE, 0)
-			if err != nil {
-				t.Fatal(err)
-			}
-			return f.Close()
-		}, func(_ *rules.Rule, _ *model.Event) bool {
-			return true
-		}, time.Second*3, "test_unique_id")
-		if err != nil {
-			t.Error(err)
 		}
 	})
 

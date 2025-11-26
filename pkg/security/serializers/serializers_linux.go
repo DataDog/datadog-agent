@@ -1506,14 +1506,14 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(ctx.ContainerID),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
-			Variables: newVariablesContext(event, rule, eval.ContainerScoperType),
+			Variables: newVariablesContext(event, rule, "container."),
 		}
 	}
 
 	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
-			Variables: newVariablesContext(event, rule, eval.CGroupScoperType),
+			Variables: newVariablesContext(event, rule, "cgroup."),
 		}
 	}
 

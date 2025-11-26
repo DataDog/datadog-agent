@@ -5,7 +5,7 @@
 
 package parameters
 
-import "github.com/DataDog/test-infra-definitions/components"
+import "github.com/DataDog/datadog-agent/test/e2e-framework/components"
 
 // StoreKey alias to string
 type StoreKey string

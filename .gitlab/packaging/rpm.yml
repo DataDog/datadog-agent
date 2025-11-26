@@ -26,11 +26,12 @@ include:
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-rpm.txt"
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=rhel"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 .package_rpm_x86:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_x64$CI_IMAGE_RPM_X64_SUFFIX:$CI_IMAGE_RPM_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   variables:
     DD_PKG_ARCH: x86_64
@@ -38,7 +39,7 @@ include:
     STATIC_QUALITY_GATE_ARCH: x86_64
 
 .package_rpm_arm64:
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_arm64$CI_IMAGE_RPM_ARM64_SUFFIX:$CI_IMAGE_RPM_ARM64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
   variables:
     PACKAGE_ARCH: arm64
@@ -103,7 +104,7 @@ agent_rpm-x64-a7-fips:
   tags: ["arch:amd64", "specific:true"]
   needs: ["datadog-agent-7-x64-fips"]
   variables:
-    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_rpm_amd64_fips"
 
@@ -111,7 +112,7 @@ agent_rpm-arm64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64-fips"]
   variables:
-    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+    OMNIBUS_EXTRA_ARGS: "--host-distribution rhel --flavor fips"
     DD_PROJECT: agent
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_agent_rpm_arm64_fips"
 
@@ -227,6 +228,7 @@ installer_suse_rpm-arm64:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-rpm.txt"
     DD_PROJECT: iot-agent
+    OMNIBUS_EXTRA_ARGS: "--host-distribution=rhel"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
   retry: 2

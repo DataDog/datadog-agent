@@ -65,7 +65,7 @@ type KubeUtil struct {
 
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
-	podListCacheDuration time.Duration
+	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
 
@@ -229,12 +229,14 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	var ok bool
 	pods := PodList{}
 
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
-		if !ok {
-			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-		} else {
-			return &pods, nil
+	if ku.podListCacheDuration > 0 {
+		if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+			pods, ok = cached.(PodList)
+			if !ok {
+				log.Errorf("Invalid pod list cache format, forcing a cache miss")
+			} else {
+				return &pods, nil
+			}
 		}
 	}
 
@@ -278,8 +280,9 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 	pods.Items = tmpSlice
 
-	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	if ku.podListCacheDuration > 0 {
+		cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	}
 
 	return &pods, nil
 }

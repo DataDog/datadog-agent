@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )

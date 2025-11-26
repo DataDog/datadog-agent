@@ -803,30 +803,33 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     LOG(5, "recorded scratch@0x%llx < [register expr]", sm->offset);
   } break;
 
-    // case SM_OP_EXPR_DEREFERENCE_PTR: {
-    //   uint32_t bias = sm_read_program_uint32(sm);
-    //   uint32_t byte_len = sm_read_program_uint32(sm);
-    //   buf_offset_t value_offset = sm->offset;
-    //   if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
-    //     return 1;
-    //   }
-    //   data_item_header_t di = {
-    //       .type = 0,
-    //       .length = byte_len,
-    //       .address = *(target_ptr_t*)&((*buf)[value_offset]) + bias};
-    //   if (di.address == 0) {
-    //     sm->offset = 0;
-    //   } else {
-    //     sm->offset = scratch_buf_serialize(buf, &di, byte_len);
-    //   }
-    //   if (!sm->offset) {
-    //     // Abort expression evaluation by returning early.
-    //     scratch_buf_set_len(buf, sm->expr_results_end_offset);
-    //     if (!sm_return(sm)) {
-    //       return 1;
-    //     }
-    //   }
-    // } break;
+  case SM_OP_EXPR_DEREFERENCE_PTR: {
+    LOG(4, "EXPR_DEREFERENCE_PTR: starting");
+    uint32_t bias = sm_read_program_uint32(sm);
+    uint32_t byte_len = sm_read_program_uint32(sm);
+    buf_offset_t value_offset = sm->offset;
+    if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
+      return 1;
+    }
+    target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
+    if (addr == 0) {
+      // NULL pointer: abort expression evaluation.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+    addr += bias;
+    if (!scratch_buf_dereference(buf, sm->offset, byte_len, addr)) {
+      // Dereference failed: abort expression evaluation.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+  } break;
 
   case SM_OP_PROCESS_POINTER: {
     type_t elem_type = (type_t)sm_read_program_uint32(sm);

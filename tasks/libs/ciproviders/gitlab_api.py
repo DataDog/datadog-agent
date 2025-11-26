@@ -1276,19 +1276,6 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
     return all_stages
 
 
-def get_test_infra_def_version():
-    """
-    Get test-infra-definitions version from `test/new-e2e/go.mod` file's require directive
-    """
-    try:
-        with open(Path.cwd() / "test" / "new-e2e" / "go.mod") as go_mod_file:
-            for line in go_mod_file:
-                if "github.com/DataDog/test-infra-definitions" in line and not line.strip().startswith("//"):
-                    return line.split("-")[-1].strip()
-    except Exception:
-        return "main"
-
-
 def get_buildimages_version():
     """
     Get the version of datadog-agent-buildimages currently used
