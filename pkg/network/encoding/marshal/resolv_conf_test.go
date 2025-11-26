@@ -70,3 +70,16 @@ func TestResolvConfBuilder(t *testing.T) {
 	expectedStrings := []string{"", resolvConfData1234.Get(), resolvConfData5678.Get()}
 	require.Equal(t, expectedStrings, conns.ResolvConfs, "resolv.confs should appear in the order of connections")
 }
+
+func TestResolvConfEmptyBuilder(t *testing.T) {
+	resolvConfFormatter := newResolvConfFormatter(&network.Connections{})
+
+	streamer := NewProtoTestStreamer[*model.Connections]()
+	builder := model.NewConnectionsBuilder(streamer)
+
+	resolvConfFormatter.FormatResolvConfs(builder)
+
+	conns := streamer.Unwrap(t, &model.Connections{})
+
+	require.Nil(t, conns.ResolvConfs)
+}

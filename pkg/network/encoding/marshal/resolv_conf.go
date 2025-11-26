@@ -40,6 +40,10 @@ func (f *resolvConfFormatter) FormatResolvConfIdx(nc *network.ConnectionStats, b
 }
 
 func (f *resolvConfFormatter) FormatResolvConfs(builder *model.ConnectionsBuilder) {
+	if len(f.resolvConfSet) == 0 {
+		return
+	}
+	// skip over the zero index
 	resolvConfList := make([]string, len(f.resolvConfSet)+1)
 	for resolvConf, idx := range f.resolvConfSet {
 		resolvConfList[idx] = resolvConf.Get()
