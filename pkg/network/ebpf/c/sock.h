@@ -86,7 +86,8 @@ static __always_inline void get_tcp_segment_counts(struct sock* skp, __u32* pack
 
 static __always_inline void get_tcp_retrans_counts(struct sock* skp, __u32* retransmits) {
 #ifdef COMPILE_PREBUILT
-    // counting retransmits not currently supported on prebuilt
+    // fetching the total_retrans field not supported on prebuilt
+    // setting the field to 0 is safe since the caller will not use the value if it's less than the current count
     *retransmits = 0;
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(retransmits, tcp_sk(skp), total_retrans);

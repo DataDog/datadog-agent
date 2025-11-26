@@ -3280,6 +3280,7 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 		t.Skip("skipping retransmit sync test on prebuilt")
 	}
 	// We need eBPF to test this kernel-side fix
+	skipOnEbpflessNotSupported(t, cfg)
 	// Create a server that reads one byte and closes, or just listens.
 	server := tracertestutil.NewTCPServer(func(c net.Conn) {
 		io.Copy(io.Discard, c)
@@ -3337,7 +3338,6 @@ func (s *TracerSuite) TestTCPRetransmitSyncOnClose() {
 	}, 5*time.Second, 100*time.Millisecond)
 }
 
-
 func expectDNSWorkload(ct *assert.CollectT, connections *network.Connections) *network.ConnectionStats {
 	// find a connection from Python client to CoreDNS
 	conn := network.FirstConnection(connections, func(c network.ConnectionStats) bool {
@@ -3388,6 +3388,7 @@ func (s *TracerSuite) TestDNSWorkload() {
 	skipOnEbpflessNotSupported(t, cfg)
 
 	tr := setupTracer(t, cfg)
+
 	trueResolvConf := `nameserver 172.25.0.2
 search local
 options ndots:1`
