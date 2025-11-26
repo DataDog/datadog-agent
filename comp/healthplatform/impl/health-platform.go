@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -26,6 +27,7 @@ type Requires struct {
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
+	Hostname  hostnameinterface.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -40,6 +42,7 @@ type healthPlatformImpl struct {
 	// Core dependencies
 	log       log.Component       // Logger for health platform operations
 	telemetry telemetry.Component // Telemetry component for metrics collection
+	config    config.Component    // Config component for accessing configuration
 
 	// Issue tracking
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
@@ -47,6 +50,9 @@ type healthPlatformImpl struct {
 
 	// Remediation management
 	remediationRegistry *remediations.Registry // Registry of remediation templates
+
+	// Forwarder
+	forwarder *forwarder // Forwarder for sending health reports to Datadog intake
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -76,6 +82,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Core dependencies
 		log:       reqs.Log,
 		telemetry: reqs.Telemetry,
+		config:    reqs.Config,
 
 		// Remediation management
 		remediationRegistry: remediations.NewRegistry(), // Initialize remediation registry with built-in templates
@@ -83,6 +90,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Issue tracking
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+	}
+
+	// Initialize the forwarder if API key is available
+	apiKey := reqs.Config.GetString("api_key")
+	if apiKey == "" {
+		reqs.Log.Warn("API key not configured, health platform forwarder disabled")
+	} else {
+		hostname, err := reqs.Hostname.Get(context.Background())
+		if err != nil {
+			reqs.Log.Warnf("Could not get hostname for health platform forwarder: %v", err)
+		} else {
+			comp.forwarder = newForwarder(comp, hostname, apiKey)
+		}
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -113,12 +133,24 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
+
+	// Start the forwarder if it's configured
+	if h.forwarder != nil {
+		h.forwarder.start()
+	}
+
 	return nil
 }
 
 // stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
+
+	// Stop the forwarder if it's running
+	if h.forwarder != nil {
+		h.forwarder.stop()
+	}
+
 	return nil
 }
 
