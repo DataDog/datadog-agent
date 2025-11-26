@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // PlatformProbe represents the no-op platform probe on unsupported platforms
@@ -67,6 +68,11 @@ func (p *Probe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _
 // GetService returns the service name from the process tree
 func (p *Probe) GetService(_ *model.Event) string {
 	return ""
+}
+
+// GetScrubber returns the event scrubber
+func (p *Probe) GetScrubber() *utils.Scrubber {
+	return nil
 }
 
 // GetEventTags returns the event tags
