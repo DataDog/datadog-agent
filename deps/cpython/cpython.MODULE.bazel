@@ -46,7 +46,7 @@ python_src_deps = {
 
 python_bin_deps = {
     "libffi": ("3.4.4", "681c0e6306b4bcb54ecce8305f67ca88ab03be922b6c4dcfd18240ad46e357d8"),
-    "openssl-bin": ("3.0.16.2", "8686b76cbd4192143ed73bc60719efdb080bcdb8f887bdb7d66c5fecd2b6a36f"),
+    "openssl-bin": ("3.0.18", "382af4c449004fe3d334c061209c80e39f544e78fed8b2fcbc182f112e8158bf"),
     "tcltk": ("8.6.15.0", "60adc5fc31c02347666198ffc74e5b6d0948f6765bb9034ae423a5a16c22a4e5"),
 }
 
