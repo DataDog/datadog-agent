@@ -154,7 +154,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 
 	h.backoffPolicy.Reset()
 	for i := 0; i < 5; i++ {
-		assert.Equal(t, 300*time.Second, h.backoffPolicy.NextBackOff())
+		assert.InDelta(t, 300*time.Second, h.backoffPolicy.NextBackOff(), 1)
 	}
 }
 

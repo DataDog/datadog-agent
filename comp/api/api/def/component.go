@@ -72,6 +72,7 @@ var AuthorizedConfigPathsCore = buildAuthorizedSet(
 	"service_discovery.forwarder.additional_endpoints",
 	"runtime_security_config.endpoints.additional_endpoints",
 	"runtime_security_config.activity_dump.remote_storage.endpoints",
+	"compliance_config.endpoints",
 )
 
 func buildAuthorizedSet(paths ...string) AuthorizedSet {

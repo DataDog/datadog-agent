@@ -13,7 +13,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/windows"
 )
 
 func writeConfigV2(t *testing.T, v2Dir string) {
@@ -196,4 +199,22 @@ func TestConfigV2Rollback(t *testing.T) {
 	assertConfigV3(t, originalDirPath) // Make sure it changed
 
 	assertDeploymentID(t, dirs, "experiment-789", "")
+}
+
+func TestSecureCreateTargetDirectoryWithSourcePermissions(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	targetPath := filepath.Join(t.TempDir(), "target")
+	// Set the source path to a directory with known SDDL
+	sddl := "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;CI;FA;;;WD)"
+	assert.NoError(t, paths.SecureCreateDirectory(sourcePath, sddl))
+
+	// Create the target directory with the same permissions as the source directory
+	assert.NoError(t, secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath))
+
+	// Check the target directory has the same permissions as the source directory
+	targetSD, err := windows.GetNamedSecurityInfo(targetPath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	assert.NoError(t, err)
+	sourceSD, err := windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	assert.NoError(t, err)
+	assert.Equal(t, sourceSD.String(), targetSD.String())
 }

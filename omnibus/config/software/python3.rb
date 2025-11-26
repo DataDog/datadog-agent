@@ -67,8 +67,6 @@ build do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   else
-    dependency "vc_redist_14"
-
     ###############################
     # Setup openssl dependency... #
     ###############################

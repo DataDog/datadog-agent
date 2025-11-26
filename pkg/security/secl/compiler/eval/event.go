@@ -20,7 +20,7 @@ type Event interface {
 	// GetType returns the Type of the Event
 	GetType() EventType
 	// GetFieldMetadata returns the Event Field Metadata for the given Field
-	GetFieldMetadata(field Field) (EventType, reflect.Kind, string, error)
+	GetFieldMetadata(field Field) (EventType, reflect.Kind, string, bool, error)
 	// SetFieldValue sets the value of the given Field
 	SetFieldValue(field Field, value interface{}) error
 	// GetFieldValue returns the value of the given Field
@@ -41,7 +41,7 @@ func EventTypeFromState(model Model, state *State) (EventType, error) {
 
 	ev := model.NewEvent()
 	for field := range state.fieldValues {
-		evt, _, _, err := ev.GetFieldMetadata(field)
+		evt, _, _, _, err := ev.GetFieldMetadata(field)
 		if err != nil {
 			return "", err
 		}
