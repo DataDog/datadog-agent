@@ -648,8 +648,6 @@ func (s *server) restoreFilterListFromLocalConfig() {
 	s.tlmFilterListUpdates.Inc()
 	s.tlmFilterListSize.Set(float64(len(filterList)))
 
-	fmt.Println("\033[035m", "Setting filterlist", filterList, "\033[0m")
-
 	s.SetFilterList(filterList, filterListPrefix)
 }
 
