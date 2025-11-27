@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
@@ -41,7 +42,7 @@ var (
 		},
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks-driver-logs/stdout",
+			Path:                   "/var/log/databricks/driver/logs/stdout",
 			Source:                 "driver_stdout",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
@@ -267,29 +268,34 @@ func setupPrivilegedLogs(s *common.Setup) {
 	}
 	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
 
-	createDatabricksLogSymlinks(s)
+	createDatabricksLogBindMounts(s)
 }
 
-func createDatabricksLogSymlinks(s *common.Setup) {
-	symlinks := map[string]string{
-		"/var/log/databricks-driver-logs": "/databricks/driver/logs",
-		"/var/log/databricks-spark-logs":  "/databricks/spark/logs",
-		"/var/log/databricks-spark-work":  "/databricks/spark/work",
+func createDatabricksLogBindMounts(s *common.Setup) {
+	databricksLogDir := "/var/log/databricks"
+	if err := os.MkdirAll(databricksLogDir, 0755); err != nil {
+		log.Warnf("Failed to create databricks log directory %s: %v", databricksLogDir, err)
+		s.Span.SetTag("bind_mount_error.mkdir", err.Error())
+		return
 	}
 
-	for symlinkPath, targetPath := range symlinks {
-		if _, err := os.Lstat(symlinkPath); err == nil {
-			if err := os.Remove(symlinkPath); err != nil {
-				log.Warnf("Failed to remove existing symlink %s: %v", symlinkPath, err)
-				continue
-			}
+	bindMounts := map[string]string{
+		"/var/log/databricks/driver": "/databricks/driver/logs",
+		"/var/log/databricks/work":   "/databricks/spark/work",
+	}
+
+	for mountPoint, source := range bindMounts {
+		if err := os.MkdirAll(mountPoint, 0755); err != nil {
+			log.Warnf("Failed to create mount point %s: %v", mountPoint, err)
+			s.Span.SetTag(fmt.Sprintf("bind_mount_error.%s", mountPoint), err.Error())
+			continue
 		}
 
-		if err := os.Symlink(targetPath, symlinkPath); err != nil {
-			log.Warnf("Failed to create symlink %s -> %s: %v", symlinkPath, targetPath, err)
-			s.Span.SetTag(fmt.Sprintf("symlink_error.%s", symlinkPath), err.Error())
+		if err := syscall.Mount(source, mountPoint, "bind", syscall.MS_BIND, ""); err != nil {
+			log.Warnf("Failed to create bind mount %s -> %s: %v", source, mountPoint, err)
+			s.Span.SetTag(fmt.Sprintf("bind_mount_error.%s", mountPoint), err.Error())
 		} else {
-			s.Out.WriteString(fmt.Sprintf("Created symlink %s -> %s\n", symlinkPath, targetPath))
+			s.Out.WriteString(fmt.Sprintf("Created bind mount %s -> %s\n", source, mountPoint))
 		}
 	}
 }
