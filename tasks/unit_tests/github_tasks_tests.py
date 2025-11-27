@@ -27,15 +27,19 @@ class GithubAPIMock:
         self.pr_files = pr_files or []
         self.assigned_labels = []
         self.pr = pr
+        # self.pr.remove_from_labels = self.remove_pr_label
 
     def get_pr_files(self, *_args, **_kwargs):
         return self.pr_files
 
     def get_pr_labels(self, *_args, **_kwargs):
-        return self.pr_labels
+        return self.pr_labels + self.assigned_labels
 
     def add_pr_label(self, _pr_id, label_name):
         self.assigned_labels.append(label_name)
+
+    def remove_pr_label(self, label_name):
+        self.pr_labels.remove(label_name)
 
     def get_pr(self, _pr_id):
         return self.pr
@@ -56,17 +60,19 @@ class TestAssignTeamLabelMock(unittest.TestCase):
             patch.object(tasks.github_tasks, 'read_owners') as read_owners_mock,
             patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock,
         ):
+            pr = unittest.mock.Mock(spec=GithubAPIMock.PullRequest)
             gh = GithubAPIMock(
                 pr_labels,
                 changed_files,
+                pr=pr,
             )
             gh_mock.return_value = gh
+            gh.pr.remove_from_labels = gh.remove_pr_label  # only for triage removal
             read_owners_mock.return_value = fake_codeowners
             team_labels_mock.return_value = possible_labels
-
             assign_team_label(Context())
 
-            self.assertEqual(sorted(gh.assigned_labels), sorted(expected_labels))
+            self.assertEqual(sorted(gh.get_pr_labels()), sorted(expected_labels))
 
     def test_no_match(self):
         changed_files = ['idonotexist']
@@ -111,15 +117,15 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         self.make_test(changed_files, expected_labels)
 
-    def test_skip1(self):
+    def test_no_skip_qa(self):
         changed_files = ['.gitignore']
-        expected_labels = []
+        expected_labels = ['qa/done', 'team/team-everything']
 
         self.make_test(changed_files, expected_labels, pr_labels=['qa/done'])
 
-    def test_skip2(self):
+    def test_skip_has_team_label(self):
         changed_files = ['.gitignore']
-        expected_labels = []
+        expected_labels = ['team/team-a']
 
         self.make_test(changed_files, expected_labels, pr_labels=['team/team-a'])
 
@@ -128,6 +134,12 @@ class TestAssignTeamLabelMock(unittest.TestCase):
         expected_labels = []
 
         self.make_test(changed_files, expected_labels, possible_labels=['team/team-doc'])
+
+    def test_remove_triage_label(self):
+        changed_files = ['.gitignore']
+        expected_labels = ['team/team-a']
+
+        self.make_test(changed_files, expected_labels, pr_labels=['team/triage', 'team/team-a'])
 
 
 class TestExtractQADescriptionFromPR(unittest.TestCase):

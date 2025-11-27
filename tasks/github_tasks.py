@@ -188,21 +188,27 @@ def _get_team_labels():
 def assign_team_label(_, pr_id=-1):
     """
     Assigns the github team label name if teams can
-    be deduced from the changed files
+    be deduced from the changed files.
+    Removes the team/triage label if it exists.
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
 
     labels = gh.get_pr_labels(pr_id)
+    has_triage = False
+    has_team = False
 
-    # Skip if necessary
-    if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done or no code change, skipping')
-        return
+    for label in labels:
+        if label.startswith('team/'):
+            if label != 'team/triage':
+                has_team = True
+            else:
+                has_triage = True
 
-    if any(label.startswith('team/') for label in labels):
-        print('This PR already has a team label, skipping')
+    if has_triage:
+        _remove_pr_label(gh, pr_id, 'team/triage')
+    if has_team:
         return
 
     # Find team
@@ -212,6 +218,14 @@ def assign_team_label(_, pr_id=-1):
         return
 
     _assign_pr_team_labels(gh, pr_id, teams)
+
+
+def _remove_pr_label(gh, pr_id, label):
+    """
+    Remove a label from a pull request
+    """
+    pr = gh.get_pr(pr_id)
+    pr.remove_from_labels(label)
 
 
 def _assign_pr_team_labels(gh, pr_id, teams):
