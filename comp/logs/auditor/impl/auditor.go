@@ -136,6 +136,15 @@ func (a *registryAuditor) Stop() {
 	}
 }
 
+// Flush immediately writes the current registry to disk.
+// This is useful to ensure all file positions are committed before a restart,
+// preventing duplicate log processing.
+func (a *registryAuditor) Flush() {
+	if err := a.flushRegistry(); err != nil {
+		a.log.Warnf("Failed to flush auditor registry: %v", err)
+	}
+}
+
 func (a *registryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()

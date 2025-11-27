@@ -59,6 +59,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "{pointer: not captured at 0x[addr]}"
   }
 ]

@@ -67,8 +67,6 @@ build do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   else
-    dependency "vc_redist_14"
-
     ###############################
     # Setup openssl dependency... #
     ###############################
@@ -122,11 +120,6 @@ build do
     # We can also remove the DLLs that were put there by the python build since they won't be loaded anyway
     delete "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3.dll"
     delete "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3.dll"
-    # Generate libpython3XY.a for MinGW tools
-    # https://docs.python.org/3/whatsnew/3.8.html
-    major, minor, _ = version.split(".")
-    command "gendef #{windows_safe_path(python_3_embedded)}\\python#{major}#{minor}.dll"
-    command "dlltool --dllname python#{major}#{minor}.dll --def python#{major}#{minor}.def --output-lib #{windows_safe_path(python_3_embedded)}\\libs\\libpython#{major}#{minor}.a"
 
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"

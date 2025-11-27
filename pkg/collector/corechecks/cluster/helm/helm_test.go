@@ -13,6 +13,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -390,6 +391,12 @@ func TestRun_withCollectEvents(t *testing.T) {
 	err = check.Run()
 	require.NoError(t, err)
 	expectedTags = check.allTags(&rel, k8sSecrets, false)
+	for i, tag := range expectedTags {
+		if strings.HasPrefix(tag, "helm_status:") {
+			expectedTags[i] = "helm_status:uninstalled"
+			break
+		}
+	}
 	mockedSender.AssertEventWithCompareFunc(
 		t,
 		eventForRelease(&rel, "Helm release \"my_datadog\" in \"default\" namespace has been deleted.", expectedTags),

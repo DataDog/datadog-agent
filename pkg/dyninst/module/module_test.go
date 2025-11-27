@@ -75,6 +75,24 @@ func makeFakeEvent(header output.EventHeader, data []byte) dispatcher.Message {
 	))
 }
 
+func makeFakeEventWithStack(
+	header output.EventHeader, stackPCs []uint64,
+) dispatcher.Message {
+	eventHeaderSize := int(unsafe.Sizeof(output.EventHeader{}))
+	stackByteLen := len(stackPCs) * 8
+	header.Stack_byte_len = uint16(stackByteLen)
+	totalSize := eventHeaderSize + stackByteLen
+	header.Data_byte_len = uint32(totalSize)
+
+	buf := make([]byte, totalSize)
+	copy(buf, unsafe.Slice((*byte)(unsafe.Pointer(&header)), eventHeaderSize))
+	if len(stackPCs) > 0 {
+		stackBytes := unsafe.Slice((*byte)(unsafe.Pointer(&stackPCs[0])), stackByteLen)
+		copy(buf[eventHeaderSize:], stackBytes)
+	}
+	return dispatcher.MakeTestingMessage(buf)
+}
+
 // TestProgramLifecycleFlow tests the complete program lifecycle including
 // attachment, loading with metadata (git info, container info), and proper sink
 // creation with the correct uploader metadata.
@@ -138,7 +156,7 @@ func TestProgramLifecycleFlow(t *testing.T) {
 	}}, metadata)
 
 	// Update first probe version and ensure diagnostics/log metadata follow.
-	processUpdate.Probes[0].(*rcjson.LogProbe).Version++
+	processUpdate.Probes[0].(*rcjson.SnapshotProbe).Version++
 	deps.sendUpdates(processUpdate)
 	updatedProbeVersions := map[string]int{"probe-1": 2, "probe-2": 1}
 	require.Equal(t, updatedProbeVersions, collectReceived())
@@ -415,6 +433,69 @@ func TestDecoderErrorHandling(t *testing.T) {
 	assert.Equal(t, json.RawMessage(decoder.output), logsUploader.messages[0])
 }
 
+// TestStackPCsRecordedForEntryEvents verifies that stack PCs are recorded in
+// the decoder when entry events are stored in the buffer tree for later
+// pairing. This works around a bug where return events may need the PCs but
+// don't have them.
+func TestStackPCsRecordedForEntryEvents(t *testing.T) {
+	deps := newFakeTestingDependencies(t)
+	decoder := &fakeDecoder{output: `{"test":"data"}`}
+	processUpdate := createTestProcessConfig()
+	deps.decoderFactory.decoder = decoder
+	deps.irGenerator.program = createTestProgram()
+	tombstoneFilePath := "" // don't use tombstone files
+	_ = module.NewUnstartedModule(deps.toDeps(), tombstoneFilePath)
+
+	deps.sendUpdates(processUpdate)
+
+	loaded, err := deps.actuator.runtime.Load(
+		ir.ProgramID(42), processUpdate.Executable, processUpdate.ProcessID, processUpdate.Probes,
+	)
+	require.NoError(t, err)
+	sink := deps.dispatcher.sinks[ir.ProgramID(42)]
+	require.NotNil(t, sink)
+
+	_, err = loaded.Attach(processUpdate.ProcessID, processUpdate.Executable)
+	require.NoError(t, err)
+
+	// Create an entry event with stack PCs that expects return pairing.
+	stackHash := uint64(0x1234567890abcdef)
+	stackPCs := []uint64{0x1000, 0x2000, 0x3000}
+	entryHeader := output.EventHeader{
+		Goid:                      1,
+		Stack_byte_depth:          2,
+		Probe_id:                  0,
+		Stack_hash:                stackHash,
+		Event_pairing_expectation: uint8(output.EventPairingExpectationReturnPairingExpected),
+	}
+	entryEvent := makeFakeEventWithStack(entryHeader, stackPCs)
+
+	// Handle the entry event. It should be stored in the buffer tree and
+	// the stack PCs should be recorded.
+	require.NoError(t, sink.HandleEvent(entryEvent))
+
+	// Verify that ReportStackPCs was called with the correct values.
+	require.NotNil(t, decoder.reportedStackPCs)
+	require.Equal(t, stackPCs, decoder.reportedStackPCs[stackHash])
+
+	// Now create a return event that pairs with the entry event.
+	returnHeader := output.EventHeader{
+		Goid:                      1,
+		Stack_byte_depth:          2,
+		Probe_id:                  0,
+		Stack_hash:                stackHash,
+		Event_pairing_expectation: uint8(output.EventPairingExpectationEntryPairingExpected),
+	}
+	// Return event may not have stack PCs, but decoder should have them cached.
+	returnEvent := makeFakeEvent(returnHeader, nil)
+
+	decoder.probe = processUpdate.Probes[0]
+	require.NoError(t, sink.HandleEvent(returnEvent))
+
+	// Verify that Decode was called, which means the events were paired.
+	require.Len(t, decoder.decodeCalls, 1)
+}
+
 // TestProcessRemoval verifies that process removals are properly handled by
 // updating the internal state and notifying the actuator.
 func TestProcessRemoval(t *testing.T) {
@@ -538,7 +619,12 @@ func TestProbeIssueReporting(t *testing.T) {
 func TestNoSuccessfulProbes(t *testing.T) {
 	processUpdate := createTestProcessConfig()
 	fakeDeps := newFakeTestingDependencies(t)
-	a := actuator.NewActuator()
+	a := actuator.NewActuator(actuator.CircuitBreakerConfig{
+		Interval:          1 * time.Second,
+		PerProbeCPULimit:  0.1,
+		AllProbesCPULimit: 0.5,
+		InterruptOverhead: 5 * time.Microsecond,
+	})
 	t.Cleanup(func() { require.NoError(t, a.Shutdown()) })
 	deps := fakeDeps.toDeps()
 	deps.IRGenerator = irgen.NewGenerator()
@@ -624,7 +710,7 @@ func (f *fakeAttacher) Attach(
 
 type fakeAttachedProgram struct{}
 
-func (fakeAttachedProgram) Detach() error { return nil }
+func (fakeAttachedProgram) Detach(_ error) error { return nil }
 
 type fakeIRGenerator struct {
 	program *ir.Program
@@ -693,12 +779,17 @@ func (d *failOnceDecoder) Decode(
 	return bytes, probe, nil
 }
 
+func (d *failOnceDecoder) ReportStackPCs(stackHash uint64, stackPCs []uint64) {
+	d.inner.ReportStackPCs(stackHash, stackPCs)
+}
+
 type fakeDecoder struct {
 	probe  ir.ProbeDefinition
 	err    error
 	output string
 
-	decodeCalls []decodeCall
+	decodeCalls      []decodeCall
+	reportedStackPCs map[uint64][]uint64
 }
 
 type decodeCall struct {
@@ -712,6 +803,13 @@ func (f *fakeDecoder) Decode(
 ) ([]byte, ir.ProbeDefinition, error) {
 	f.decodeCalls = append(f.decodeCalls, decodeCall{event, symbolicator, out})
 	return []byte(f.output), f.probe, f.err
+}
+
+func (f *fakeDecoder) ReportStackPCs(stackHash uint64, stackPCs []uint64) {
+	if f.reportedStackPCs == nil {
+		f.reportedStackPCs = make(map[uint64][]uint64)
+	}
+	f.reportedStackPCs[stackHash] = stackPCs
 }
 
 type fakeDiagnosticsUploader struct {
@@ -856,7 +954,7 @@ func collectDiagnosticVersions(
 // Test data helpers.
 
 func createTestProbe(id string) ir.ProbeDefinition {
-	return &rcjson.LogProbe{
+	return &rcjson.SnapshotProbe{
 		LogProbeCommon: rcjson.LogProbeCommon{
 			ProbeCommon: rcjson.ProbeCommon{
 				ID:      id,

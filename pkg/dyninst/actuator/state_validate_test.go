@@ -188,13 +188,9 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 			)
 		}
 
-	case processStateLoadingFailed:
-		// currentProgram may be 0 after failure.
-		if proc.err == nil {
-			report("process %v in LoadingFailed state has no error", procID)
-		}
+	case processStateFailed:
 		if len(proc.probes) == 0 {
-			report("process %v has no probes in LoadingFailed state", procID)
+			report("process %v has no probes in Failed state", procID)
 		}
 
 	case processStateInvalid:

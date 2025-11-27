@@ -2211,6 +2211,22 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "object",
                     "description": "Extra of the Kubernetes \"kubectl exec\" session"
+                },
+                "ssh_port": {
+                    "type": "integer",
+                    "description": "Port of the SSH session"
+                },
+                "ssh_client_ip": {
+                    "type": "string",
+                    "description": "Client IP of the SSH session"
+                },
+                "ssh_auth_method": {
+                    "type": "string",
+                    "description": "Authentication method of the SSH session"
+                },
+                "ssh_public_key": {
+                    "type": "string",
+                    "description": "Public key of the SSH session"
                 }
             },
             "additionalProperties": false,
@@ -5639,6 +5655,22 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "object",
             "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        },
+        "ssh_port": {
+            "type": "integer",
+            "description": "Port of the SSH session"
+        },
+        "ssh_client_ip": {
+            "type": "string",
+            "description": "Client IP of the SSH session"
+        },
+        "ssh_auth_method": {
+            "type": "string",
+            "description": "Authentication method of the SSH session"
+        },
+        "ssh_public_key": {
+            "type": "string",
+            "description": "Public key of the SSH session"
         }
     },
     "additionalProperties": false,
@@ -5656,6 +5688,10 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `k8s_uid` | UID of the Kubernetes "kubectl exec" session |
 | `k8s_groups` | Groups of the Kubernetes "kubectl exec" session |
 | `k8s_extra` | Extra of the Kubernetes "kubectl exec" session |
+| `ssh_port` | Port of the SSH session |
+| `ssh_client_ip` | Client IP of the SSH session |
+| `ssh_auth_method` | Authentication method of the SSH session |
+| `ssh_public_key` | Public key of the SSH session |
 
 
 ## `Variables`

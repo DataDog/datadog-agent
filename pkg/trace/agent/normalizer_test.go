@@ -610,9 +610,9 @@ func TestNormalizeChunkNotPopulatingOrigin(t *testing.T) {
 	root := newTestSpan()
 	traceutil.SetMeta(root, "_dd.origin", "rum")
 	chunk := testutil.TraceChunkWithSpan(root)
-	chunk.Origin = "lambda"
+	chunk.Origin = "cloudrun"
 	setChunkAttributes(chunk, root)
-	assert.Equal("lambda", chunk.Origin)
+	assert.Equal("cloudrun", chunk.Origin)
 }
 
 func TestNormalizeChunkPopulatingSamplingPriority(t *testing.T) {

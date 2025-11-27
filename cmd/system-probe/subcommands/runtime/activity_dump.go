@@ -71,7 +71,7 @@ func listCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -94,7 +94,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -147,7 +147,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -225,7 +225,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -286,7 +286,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -430,13 +430,15 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 		if err != nil {
 			return err
 		}
-		os.Stdout.Write(buffer.Bytes())
+		// TODO: should check if Write returned an error
+		_, _ = os.Stdout.Write(buffer.Bytes())
 	case "protobuf":
 		buffer, err := diff.EncodeSecDumpProtobuf()
 		if err != nil {
 			return err
 		}
-		os.Stdout.Write(buffer.Bytes())
+		// TODO: should check if Write returned an error
+		_, _ = os.Stdout.Write(buffer.Bytes())
 	case "json":
 		buffer, err := diff.EncodeJSON("  ")
 		if err != nil {

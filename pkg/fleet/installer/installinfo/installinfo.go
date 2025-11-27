@@ -137,7 +137,7 @@ func getRPMVersion(ctx context.Context) (version string, err error) {
 	}()
 	cancelctx, cancelfunc := context.WithTimeout(ctx, execTimeout)
 	defer cancelfunc()
-	output, err := exec.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
+	output, err := telemetry.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
 	return string(output), err
 }
 
@@ -148,7 +148,7 @@ func getDpkgVersion(ctx context.Context) (version string, err error) {
 	}()
 	cancelctx, cancelfunc := context.WithTimeout(ctx, execTimeout)
 	defer cancelfunc()
-	cmd := exec.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
+	cmd := telemetry.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Warnf("Failed to get dpkg version: %s", err)

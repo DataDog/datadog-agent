@@ -86,8 +86,8 @@ func init() {
 		DatadogDataDir, _ = getProgramDataDirForProduct("Datadog Agent")
 	}
 	AgentConfigDir = DatadogDataDir
+	AgentConfigDirExp = filepath.Clean(DatadogDataDir) + "-exp"
 	DatadogInstallerData = filepath.Join(DatadogDataDir, "Installer")
-	AgentConfigDirExp = DatadogDataDir + "-exp"
 	PackagesPath = filepath.Join(DatadogInstallerData, "packages")
 	ConfigsPath = filepath.Join(DatadogInstallerData, "managed")
 	RootTmpDir = filepath.Join(DatadogInstallerData, "tmp")
@@ -167,7 +167,7 @@ func EnsureInstallerDataDir() error {
 
 	return winio.RunWithPrivileges(privilegesRequired, func() error {
 		// Create root path: `C:\ProgramData\Datadog\Installer`
-		err := secureCreateDirectory(DatadogInstallerData, sddl)
+		err := SecureCreateDirectory(DatadogInstallerData, sddl)
 		if err != nil {
 			return fmt.Errorf("failed to create DatadogInstallerData: %w", err)
 		}
@@ -207,11 +207,11 @@ func EnsureInstallerDataDir() error {
 	})
 }
 
-// secureCreateDirectory creates a directory with the specified SDDL string.
+// SecureCreateDirectory creates a directory with the specified SDDL string.
 //
 // If the directory already exists and it is owned by Administrators or SYSTEM, the permissions
 // are set to the expected state. If the directory is owned by an unknown party, an error is returned.
-func secureCreateDirectory(path string, sddl string) error {
+func SecureCreateDirectory(path string, sddl string) error {
 	// Try to create the directory with the desired permissions.
 	// We avoid TOCTOU issues because CreateDirectory fails if the directory already exists.
 	// This is of concern because Windows by default grants Users write access to ProgramData.
@@ -324,6 +324,14 @@ func createDirectoryWithSDDL(path string, sddl string) error {
 		// CreateDirectory does not apply the security descriptor if the directory already exists
 		// so treat it as an error if the directory already exists.
 		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	// CreateDirectory creates the directory with the Owner,Group,DACL,
+	// but does not apply the AI (SeDaclAutoInherit) flag, so we reapply the SDDL
+	// here to ensure the AI flag is set.
+	err = setNamedSecurityInfoFromSecurityDescriptor(path, sd)
+	if err != nil {
+		return fmt.Errorf("failed to set named security info: %w", err)
 	}
 
 	return nil

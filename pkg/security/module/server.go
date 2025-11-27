@@ -74,12 +74,21 @@ type pendingMsg struct {
 	sendAfter       time.Time
 	retry           int
 	skip            bool
+
+	sshSessionPatcher sshSessionPatcher
 }
 
 func (p *pendingMsg) isResolved() bool {
 	for _, report := range p.actionReports {
 		if err := report.IsResolved(); err != nil {
 			seclog.Debugf("action report not resolved: %v", err)
+			return false
+		}
+	}
+
+	if p.sshSessionPatcher != nil {
+		if err := p.sshSessionPatcher.IsResolved(); err != nil {
+			seclog.Debugf("ssh session not resolved: %v", err)
 			return false
 		}
 	}
@@ -102,6 +111,10 @@ func (p *pendingMsg) toJSON() ([]byte, error) {
 		if len(data) > 0 {
 			p.backendEvent.RuleActions = append(p.backendEvent.RuleActions, data)
 		}
+	}
+
+	if p.sshSessionPatcher != nil {
+		p.sshSessionPatcher.PatchEvent(p.eventSerializer)
 	}
 
 	backendEventJSON, err := easyjson.Marshal(p.backendEvent)
@@ -286,8 +299,8 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 		}
 	}
 
-	// on fargate, append global tags on custom events
-	if fargate.IsFargateInstance() {
+	// in sidecar, append global tags on custom events
+	if fargate.IsSidecar() {
 		appendTagsIfNotPresent(a.getGlobalTags())
 	}
 
@@ -441,7 +454,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 				actionReports = append(actionReports, ar)
 			}
 		}
-
+		// Create SSH session patcher if the event has an SSH user session
+		sshSessionPatcher := createSSHSessionPatcher(ev, a.probe)
 		timestamp := ev.ResolveEventTime()
 		if timestamp.IsZero() {
 			timestamp = time.Now()
@@ -450,13 +464,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		msg := &pendingMsg{
 			ruleID:          groupRuleID,
 			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule),
+			eventSerializer: serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
 			extTagsCb:       extTagsCb,
 			service:         service,
 			timestamp:       timestamp,
 			sendAfter:       time.Now().Add(retention),
 			tags:            tags,
 			actionReports:   actionReports,
+
+			sshSessionPatcher: sshSessionPatcher,
 		}
 
 		a.enqueue(msg)

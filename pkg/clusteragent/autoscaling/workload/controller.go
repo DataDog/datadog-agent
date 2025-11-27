@@ -509,7 +509,7 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 	for _, objective := range spec.Objectives {
 		switch objective.Type {
 		case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
-			if objective.CustomQueryObjective == nil {
+			if objective.CustomQuery == nil {
 				return fmt.Errorf("Autoscaler objective type is custom query but customQueryObjective is nil")
 			}
 		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:

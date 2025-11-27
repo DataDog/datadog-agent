@@ -95,7 +95,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	}()
 
 	// Process each event
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
