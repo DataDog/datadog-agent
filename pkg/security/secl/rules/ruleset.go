@@ -358,7 +358,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
-				var variableValue interface{} = actionDef.Set.DefaultValue
+				var variableValue = actionDef.Set.DefaultValue
 				if variableValue == nil {
 					variableValue = actionDef.Set.Value
 				}
@@ -1122,6 +1122,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		if len(policy.Macros) == 0 && len(policy.Rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
 			errs = multierror.Append(errs, &ErrPolicyLoad{
 				Name:    policy.Info.Name,
+				Type:    policy.Info.Type,
 				Version: policy.Info.Version,
 				Source:  policy.Info.Source,
 				Err:     ErrPolicyIsEmpty,

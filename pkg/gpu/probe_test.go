@@ -118,9 +118,9 @@ func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) 
 		ebpf.CudaEventTypeKernelLaunch.String():      2,
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
-		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize and cudaMemcpy
+		ebpf.CudaEventTypeSync.String():              3, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize
 		ebpf.CudaEventTypeVisibleDevicesSet.String(): 1,
-		ebpf.CudaEventTypeSyncDevice.String():        1,
+		ebpf.CudaEventTypeSyncDevice.String():        2, // cudaDeviceSynchronize, cudaMemcpy
 	}
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {

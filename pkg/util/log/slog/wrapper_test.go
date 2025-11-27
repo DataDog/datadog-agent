@@ -76,7 +76,7 @@ func TestNewWrapperWithCloseAndFlush(t *testing.T) {
 	flushFunc := func() { flushCalled = true }
 	closeFunc := func() { closeCalled = true }
 
-	wrapper := newWrapperWithCloseAndFlush(handler, flushFunc, closeFunc)
+	wrapper := NewWrapperWithCloseAndFlush(handler, flushFunc, closeFunc)
 
 	wrapper.Flush()
 	assert.True(t, flushCalled)

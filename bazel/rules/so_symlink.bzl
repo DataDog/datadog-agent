@@ -9,6 +9,18 @@ _SPECS = [
 def _gen_targets(base_name, src, libname, version, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
+
+    # Windows: no symlinks, no renaming - just copy the DLL as-is
+    if spec.os == "windows":
+        pkg_files(
+            name = name,
+            srcs = [src],
+            prefix = spec.prefix,
+            target_compatible_with = [platform],
+        )
+        return platform, ":{}".format(name)
+
+    # Unix: create symlink chain with versioning
     target = spec.format.format(libname, ".{}".format(version))
     targets = ["{}_real_name".format(name)]
     pkg_files(
@@ -37,12 +49,14 @@ def _gen_targets(base_name, src, libname, version, spec):
     return platform, ":{}".format(name)
 
 def so_symlink(name, src, libname, version):
-    """Creates shared library symlink chain following Unix conventions.
+    """Creates shared library packaging appropriate for each platform.
 
-    Generates the common multilevel symlink hierarchy for shared libraries, for reference:
+    Unix (Linux/macOS): Generates the common multilevel symlink hierarchy for shared libraries:
     - `real name`: actual file with full version (e.g., libreadline.so.3.0 / libreadline.3.0.dylib)
     - `soname`: major version symlink, for runtime ABI compatibility (e.g., libreadline.so.3 / libreadline.3.dylib)
     - `linker name`: unversioned symlink, for development/linking (e.g., libreadline.so / libreadline.dylib)
+
+    Windows: Simply copies the DLL to bin/ without renaming or creating symlinks.
 
     See: `Program Library HOWTO` by David Wheeler, https://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html
 
@@ -50,7 +64,7 @@ def so_symlink(name, src, libname, version):
         name: Name of the generated pkg_filegroup
         src: Label of the cc_shared_library to package
         libname: Library name without extension (e.g., "libreadline")
-        version: Full version string (e.g., "3.0")
+        version: Full version string (e.g., "3.0", ignored on Windows)
     """
     native.alias(
         name = name,

@@ -19,7 +19,7 @@ import (
 )
 
 // newTestRuleWithExecContextTag creates a *Rule with the given id and tag value
-func newOrderTestRule(t *testing.T, id string, policyType PolicyType, execContextTag string, priority int) *Rule {
+func newOrderTestRule(t *testing.T, id string, internalPolicyType InternalPolicyType, execContextTag string, priority int) *Rule {
 	expression := `open.file.path == "/tmp/test"`
 	pc := ast.NewParsingContext(false)
 	evalRule, err := eval.NewRule(id, expression, pc, &eval.Opts{})
@@ -36,7 +36,7 @@ func newOrderTestRule(t *testing.T, id string, policyType PolicyType, execContex
 				Priority:   priority,
 			},
 			Policy: PolicyInfo{
-				Type: policyType,
+				InternalType: internalPolicyType,
 			},
 		},
 		Rule: evalRule,
