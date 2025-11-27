@@ -203,12 +203,12 @@ func checkSSHUserSessionJSON(testMod *testModule, t testing.TB, data []byte) {
 			}
 		}
 
-		// Check Port and IP as username
+		// Check Port and IP as identity
 
-		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.username`); err != nil || el == nil {
-			t.Errorf("user_session.username not found: %v", err)
-		} else if username, ok := el.(string); !ok || username == fmt.Sprintf("%s:%f", sshClientIP, sshClientPort) {
-			t.Errorf("user_session.username is empty: %v", el)
+		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.identity`); err != nil || el == nil {
+			t.Errorf("user_session.identity not found: %v", err)
+		} else if identity, ok := el.(string); !ok || identity == fmt.Sprintf("%s:%f", sshClientIP, sshClientPort) {
+			t.Errorf("user_session.identity is empty: %v", el)
 		}
 
 		if el, err := jsonpath.JsonPathLookup(jsonData, `$.process.user_session.ssh_auth_method`); err != nil || el == nil {

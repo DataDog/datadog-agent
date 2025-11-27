@@ -44,8 +44,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 			out.SessionType = string(in.String())
 		case "id":
 			out.ID = string(in.String())
-		case "username":
-			out.Username = string(in.String())
+		case "identity":
+			out.Identity = string(in.String())
 		case "ssh_session_id":
 			out.SSHSessionID = string(in.String())
 		case "ssh_client_port":
@@ -156,15 +156,15 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 		}
 		out.String(string(in.ID))
 	}
-	if in.Username != "" {
-		const prefix string = ",\"username\":"
+	if in.Identity != "" {
+		const prefix string = ",\"identity\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Username))
+		out.String(string(in.Identity))
 	}
 	if in.SSHSessionID != "" {
 		const prefix string = ",\"ssh_session_id\":"

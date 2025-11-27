@@ -221,8 +221,8 @@ type UserSessionContextSerializer struct {
 	SessionType string `json:"session_type,omitempty"`
 	// Unique identifier of the user session on the host
 	ID string `json:"id,omitempty"`
-	// Username of the user session
-	Username string `json:"username,omitempty"`
+	// Identity of the user session
+	Identity string `json:"identity,omitempty"`
 	K8SSessionContextSerializer
 	SSHSessionContextSerializer
 }
@@ -1049,7 +1049,7 @@ func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Eve
 
 	userSessionContextSerializer.SessionType = model.UserSessionTypeStrings[usersession.Type(e.FieldHandlers.ResolveSessionType(e, ctx))]
 	userSessionContextSerializer.ID = e.FieldHandlers.ResolveSessionID(e, ctx)
-	userSessionContextSerializer.Username = e.FieldHandlers.ResolveSessionIdentity(e, ctx)
+	userSessionContextSerializer.Identity = e.FieldHandlers.ResolveSessionIdentity(e, ctx)
 	return userSessionContextSerializer
 }
 

@@ -2176,9 +2176,9 @@
           "type": "string",
           "description": "Unique identifier of the user session on the host"
         },
-        "username": {
+        "identity": {
           "type": "string",
-          "description": "Username of the user session"
+          "description": "Identity of the user session"
         },
         "k8s_session_id": {
           "type": "string",
