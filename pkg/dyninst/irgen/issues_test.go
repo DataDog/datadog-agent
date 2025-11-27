@@ -8,6 +8,7 @@
 package irgen_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 func TestMissingProbeIssue(t *testing.T) {
@@ -25,11 +25,9 @@ func TestMissingProbeIssue(t *testing.T) {
 	cfg := testprogs.MustGetCommonConfigs(t)[0]
 	bin := testprogs.MustGetBinary(t, testProg, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, testProg)
+	probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
 
-	f, err := safeelf.Open(bin)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, f.Close()) }()
-	obj, err := object.NewElfObject(f)
+	obj, err := object.OpenElfFileWithDwarf(bin)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	probes = probes[:len(probes):len(probes)] // so appends realloc

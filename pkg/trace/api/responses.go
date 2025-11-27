@@ -6,6 +6,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,6 +54,10 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter, statsd s
 		msg = errtag
 	case io.EOF, io.ErrUnexpectedEOF:
 		errtag = "unexpected-eof"
+		msg = errtag
+	case context.DeadlineExceeded:
+		status = http.StatusRequestTimeout
+		errtag = "timeout"
 		msg = errtag
 	}
 	if err, ok := err.(net.Error); ok && err.Timeout() {

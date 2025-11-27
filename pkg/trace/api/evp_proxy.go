@@ -13,21 +13,23 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 const (
 	validSubdomainSymbols       = "_-."
 	validPathSymbols            = "/_-+"
-	validPathQueryStringSymbols = "/_-+@?&=.:\""
+	validPathQueryStringSymbols = "/_-+@?&=.:\"[]"
 )
 
 // EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
@@ -176,6 +178,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
 	}
+	if t.conf.ErrorTrackingStandalone {
+		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "true")
+	}
 
 	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
@@ -254,7 +259,12 @@ func isValidPath(s string) bool {
 }
 
 func isValidQueryString(s string) bool {
-	for _, c := range s {
+	decoded, err := url.QueryUnescape(s)
+	if err != nil {
+		log.Debugf("failed to unescape query string: %v", err)
+		return false
+	}
+	for _, c := range decoded {
 		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && !strings.ContainsRune(validPathQueryStringSymbols, c) {
 			return false
 		}

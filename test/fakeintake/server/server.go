@@ -80,6 +80,8 @@ type Server struct {
 	storeDriver string
 	store       serverstore.Store
 
+	sqliteDbPath string
+
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
 }
@@ -108,7 +110,7 @@ func NewServer(options ...Option) *Server {
 		opt(fi)
 	}
 
-	fi.store = serverstore.NewStore(fi.storeDriver)
+	fi.store = serverstore.NewStore(fi.storeDriver, fi.sqliteDbPath)
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -229,6 +231,13 @@ func WithDDDevForward() Option {
 			fi.apiKey = apiKey
 		}
 		fi.dddevForward = true
+	}
+}
+
+// WithSqlitePath sets the sqlite file path to store the received data.
+func WithSqlitePath(path string) Option {
+	return func(fi *Server) {
+		fi.sqliteDbPath = path
 	}
 }
 
@@ -427,6 +436,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		writeHTTPResponse(w, response)
 		return nil
 	}
+	collectTime := fi.clock.Now().UTC() // record before I/O to cut down on variability
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err.Error())
@@ -447,7 +457,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	contentType := req.Header.Get("Content-Type")
 
 	apiKey := fi.extractDatadogAPIKey(req)
-	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime)
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)

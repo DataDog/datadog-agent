@@ -34,6 +34,11 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 }
 
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
+
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.RestrictedTo }}
@@ -63,7 +68,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
-			OpOverrides: {{$Field.OpOverrides}},
+			OpOverrides: []*eval.OpOverrides{ {{Join $Field.OpOverrides ", "}} },
 			{{- end}}
 			{{- if and $Field.Iterator (not $Field.IsIterator) }}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
@@ -235,7 +240,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return {{$Return}}
 					{{end -}}
 				},
-			{{end -}}
+			{{end}}
 			Field: field,
 			{{- if $Field.Iterator}}
 				{{- if gt $Field.Weight 0}}
@@ -261,7 +266,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 }
 
 func (ev *Event) GetFields() []eval.Field {
-	return []eval.Field{
+	fields := []eval.Field{
 		{{range $Name, $Field := .Fields}}
 			{{- if $Field.GettersOnly }}
 				{{continue}}
@@ -270,21 +275,23 @@ func (ev *Event) GetFields() []eval.Field {
 			"{{$Name}}",
 		{{end}}
 	}
+	
+	// Add legacy field names if mapping is available
+	legacyKeys := GetDefaultLegacyFieldsKeys()
+	if legacyKeys != nil {
+		fields = append(fields, legacyKeys...)
+	}
+	
+	return fields
 }
 
-func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
-	m := &Model{}
-	evaluator, err := m.GetEvaluator(field, "", 0)
-	if err != nil {
-		return nil, err
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
+	originalField := field
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
 	}
 
-	ctx := eval.NewContext(ev)
-	value := evaluator.Eval(ctx)
-	return value, nil
-}
-
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
 	switch field {
 	{{range $Name, $Field := .Fields}}
 	{{- if $Field.GettersOnly }}
@@ -292,35 +299,25 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	{{end}}
 
 	case "{{$Name}}":
-		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", nil
+		return "{{$Field.Event}}", {{$Field | GetFieldReflectType}}, "{{$Field.BasicType}}", {{$Field.IsArray}}, nil
 	{{end}}
 	}
 
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
-}
-
-func (ev *Event) initProcess() {
-	if ev.BaseEvent.ProcessContext == nil {
-		ev.BaseEvent.ProcessContext = &ProcessContext{}
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
-	}
-
-	if ev.Exec.Process == nil {
-		ev.Exec.Process = &Process{}
-	}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: originalField}
 }
 
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := GetDefaultLegacyFields(field); found {
+		mappedField = newField
+	}
+
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
 		ev.initProcess()
 	}
 
-	switch field {
+	switch mappedField {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
 			{{continue}}

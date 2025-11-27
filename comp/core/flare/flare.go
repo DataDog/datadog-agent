@@ -277,7 +277,7 @@ func (f *flare) runProviders(fb types.FlareBuilder, providerTimeout time.Duratio
 				<-timer.C
 			}
 		case <-timer.C:
-			err := f.log.Warnf("flare provider '%s' skipped after %s", providerName, timeout)
+			err := f.log.Warnf("flare provider '%s' timedout after %s", providerName, timeout)
 			_ = fb.Logf("%s", err.Error())
 		}
 	}

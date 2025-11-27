@@ -31,6 +31,8 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
@@ -38,8 +40,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	healthdef "github.com/DataDog/datadog-agent/comp/logs/health/def"
-	healthmock "github.com/DataDog/datadog-agent/comp/logs/health/mock"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -54,6 +56,7 @@ import (
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -63,20 +66,20 @@ type AgentTestSuite struct {
 	testLogFile string
 	fakeLogs    int64
 
-	source          *sources.LogSource
-	configOverrides map[string]interface{}
-	tagger          tagger.Component
-	healthRegistrar healthdef.Component
+	source              *sources.LogSource
+	configOverrides     map[string]interface{}
+	tagger              tagger.Component
+	kubeHealthRegistrar kubehealthdef.Component
 }
 
 type testDeps struct {
 	fx.In
 
-	Config          configComponent.Component
-	Log             log.Component
-	InventoryAgent  inventoryagent.Component
-	Auditor         auditor.Component
-	HealthRegistrar healthdef.Component
+	Config              configComponent.Component
+	Log                 log.Component
+	InventoryAgent      inventoryagent.Component
+	Auditor             auditor.Component
+	KubeHealthRegistrar kubehealthdef.Component
 }
 
 func (suite *AgentTestSuite) SetupTest() {
@@ -104,6 +107,8 @@ func (suite *AgentTestSuite) SetupTest() {
 	suite.configOverrides["logs_config.run_path"] = suite.testDir
 	// Shorter grace period for tests.
 	suite.configOverrides["logs_config.stop_grace_period"] = 1
+	// Set a short scan period to allow it to run in the time period of the tcp and http tests
+	suite.configOverrides["logs_config.file_scan_period"] = 1
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
 	suite.tagger = fakeTagger
@@ -116,6 +121,7 @@ func (suite *AgentTestSuite) TearDownTest() {
 	metrics.LogsSent.Set(0)
 	metrics.DestinationErrors.Set(0)
 	metrics.DestinationLogsDropped.Init()
+	metrics.LogsTruncated.Set(0)
 }
 
 func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent, *sources.LogSources, *service.Services) {
@@ -126,19 +132,18 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	suite.configOverrides["logs_enabled"] = true
 
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
-		fx.Supply(configComponent.Params{}),
-		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configComponent.MockModule(),
+		fx.Provide(func() configComponent.Component {
+			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+		}),
 		hostnameimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
-		fx.Provide(healthmock.NewProvides),
+		fx.Provide(kubehealthmock.NewProvides),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
-	suite.healthRegistrar = deps.HealthRegistrar
+	suite.kubeHealthRegistrar = deps.KubeHealthRegistrar
 
 	agent := &logAgent{
 		log:              deps.Log,
@@ -190,6 +195,61 @@ func (suite *AgentTestSuite) testAgent(endpoints *config.Endpoints) {
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
 }
 
+func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
+	// Set a very small max message size to force truncation
+	suite.configOverrides["logs_config.max_message_size_bytes"] = 10 // Only 1 byte
+
+	// Create a test file with content that will definitely trigger log-line truncation
+	truncationLogFile := fmt.Sprintf("%s/truncation.log", suite.testDir)
+	fd, err := os.Create(truncationLogFile)
+	suite.NoError(err)
+	defer fd.Close()
+
+	// Write 10 long lines that exceed the max_message_size
+	for i := 0; i < 10; i++ {
+		fd.WriteString("1235678912345\n")
+	}
+	suite.NoError(fd.Sync())
+
+	l := mock.NewMockLogsIntake(suite.T())
+	defer l.Close()
+	endpoint := tcp.AddrToEndPoint(l.Addr())
+	endpoints := config.NewEndpoints(endpoint, nil, true, false)
+
+	truncationConfig := config.LogsConfig{
+		Type:       config.FileType,
+		Path:       truncationLogFile, // Use our new file with long content
+		Identifier: "source-sds-test",
+		Service:    "service-sds-test",
+	}
+	truncationSource := sources.NewLogSource("", &truncationConfig)
+
+	agent, sources, _ := createAgent(suite, endpoints)
+
+	agent.startPipeline()
+
+	sources.AddSource(truncationSource)
+
+	// Wait for the agent to process logs and trigger truncation
+	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 4*time.Second, func() bool {
+		return metrics.LogsTruncated.Value() > 0
+	})
+
+	agent.stop(context.TODO())
+
+	// Verify the metric contains the correct service and source information
+	truncatedLogsMetric := metrics.LogsTruncated.Value()
+
+	// The metric counts total truncations, not just lines
+	assert.True(suite.T(), truncatedLogsMetric == 10, "Expected 10 instances of truncation (one for each line)")
+	suite.T().Logf("Total truncations: %d (this includes byte-level truncations)", truncatedLogsMetric)
+
+	// Verify that the service and source are correctly captured
+	// The truncation metrics should capture this information
+	assert.Equal(suite.T(), truncationSource.Config.Identifier, "source-sds-test", "Source identifier should be 'source-sds-test'")
+	assert.Equal(suite.T(), truncationSource.Config.Service, "service-sds-test", "Service identifier should be 'service-sds-test'")
+}
+
 func (suite *AgentTestSuite) TestAgentTcp() {
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
@@ -210,7 +270,7 @@ func (suite *AgentTestSuite) TestAgentHttp() {
 }
 
 func (suite *AgentTestSuite) TestAgentStopsWithWrongBackendTcp() {
-	endpoint := config.NewEndpoint("", "", "fake:", 0, false)
+	endpoint := config.NewEndpoint("", "", "fake:", 0, config.EmptyPathPrefix, false)
 	endpoints := config.NewEndpoints(endpoint, []config.Endpoint{}, true, false)
 
 	env.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
@@ -263,7 +323,7 @@ func (suite *AgentTestSuite) TestAgentLiveness() {
 
 	var count int
 	testutil.AssertTrueBeforeTimeout(suite.T(), 10*time.Millisecond, 1*time.Second, func() bool {
-		count = suite.healthRegistrar.(*healthmock.Registrar).CountRegistered("logs-agent")
+		count = suite.kubeHealthRegistrar.(*kubehealthmock.Registrar).CountRegistered("logs-agent")
 		return count > 0
 	})
 
@@ -435,12 +495,11 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 func (suite *AgentTestSuite) createDeps() dependencies {
 	return fxutil.Test[dependencies](suite.T(), fx.Options(
-		fx.Supply(configComponent.Params{}),
-		fx.Supply(log.Params{}),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
-		configComponent.MockModule(),
+		fx.Provide(func() configComponent.Component {
+			return configComponent.NewMockWithOverrides(suite.T(), suite.configOverrides)
+		}),
 		hostnameimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
 		inventoryagentimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		compressionfx.MockModule(),
@@ -448,7 +507,10 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 			return suite.tagger
 		}),
 		auditorfx.Module(),
-		fx.Provide(healthmock.NewProvides),
+		fx.Provide(kubehealthmock.NewProvides),
+		fx.Provide(func() option.Option[healthplatform.Component] {
+			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
+		}),
 	))
 }
 

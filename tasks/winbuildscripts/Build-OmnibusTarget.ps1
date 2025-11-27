@@ -69,13 +69,16 @@ Invoke-BuildScript `
     }
 
     # Show the contents of the output package directories for debugging purposes
-    Get-ChildItem -Path C:\omnibus-ruby\pkg\
-    Get-ChildItem -Path "C:\opt\datadog-agent\bin\agent\"
-    Get-ChildItem -Path ".\omnibus\pkg\"
+    if (Test-Path 'C:\omnibus-ruby\pkg\') { Get-ChildItem -Path 'C:\omnibus-ruby\pkg\' }
+    if (Test-Path '.\omnibus\pkg\') { Get-ChildItem -Path '.\omnibus\pkg\' }
 
     if ($BuildOutOfSource) {
-        # Copy the resulting package to the mnt directory
-        mkdir C:\mnt\omnibus\pkg -Force -ErrorAction Stop | Out-Null
-        Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg" -Force -ErrorAction Stop
+        # Copy the resulting package to the mnt directory when relevant
+        mkdir C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID -Force -ErrorAction Stop | Out-Null
+        if (Test-Path '.\omnibus\pkg\') {
+            Copy-Item -Path ".\omnibus\pkg\*" -Destination "C:\mnt\omnibus\pkg\pipeline-$env:CI_PIPELINE_ID" -Force -ErrorAction Stop
+        } else {
+            Write-Host "No local .\\omnibus\\pkg\\ directory to copy; proceeding"
+        }
     }
 }

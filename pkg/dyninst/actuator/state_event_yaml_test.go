@@ -9,15 +9,16 @@ package actuator
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"syscall"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -55,12 +56,9 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 		}
 
 		eventData := struct {
-			TenantID tenantID            `yaml:"tenant_id,omitempty"`
-			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed  []int               `yaml:"removed,omitempty"`
-		}{
-			TenantID: ev.tenantID,
-		}
+			Updated []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed []int               `yaml:"removed,omitempty"`
+		}{}
 
 		// Convert updated processes
 		for _, proc := range ev.updated {
@@ -101,20 +99,18 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 	case eventProgramLoadingFailed:
 		return encodeNodeTag("!loading-failed", map[string]any{
 			"program_id": int(ev.programID),
-			"error":      ev.err.Error(),
 		})
 
 	case eventProgramAttached:
 		return encodeNodeTag("!attached", map[string]int{
-			"program_id": int(ev.program.ir.ID),
-			"process_id": int(ev.program.procID.PID),
+			"program_id": int(ev.program.programID),
+			"process_id": int(ev.program.processID.PID),
 		})
 
 	case eventProgramAttachingFailed:
 		return encodeNodeTag("!attaching-failed", map[string]any{
 			"program_id": int(ev.programID),
 			"process_id": int(ev.processID.PID),
-			"error":      ev.err.Error(),
 		})
 
 	case eventProgramDetached:
@@ -127,6 +123,9 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 		return encodeNodeTag("!unloaded", map[string]int{
 			"program_id": int(ev.programID),
 		})
+
+	case eventHeartbeatCheck:
+		return encodeNodeTag("!heartbeat-check", map[string]any{})
 
 	case eventShutdown:
 		return encodeNodeTag("!shutdown", map[string]any{})
@@ -164,9 +163,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		var eventData struct {
-			TenantID tenantID            `yaml:"tenant_id,omitempty"`
-			Updated  []processUpdateYaml `yaml:"updated,omitempty"`
-			Removed  []int               `yaml:"removed,omitempty"`
+			Updated []processUpdateYaml `yaml:"updated,omitempty"`
+			Removed []int               `yaml:"removed,omitempty"`
 		}
 		if err := node.Decode(&eventData); err != nil {
 			return fmt.Errorf("failed to decode processes-updated event: %w", err)
@@ -189,17 +187,19 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			}
 
 			updated = append(updated, ProcessUpdate{
-				ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
-				Executable: Executable{
-					Path: proc.Executable.Path,
-					Key: procmon.FileKey{
-						FileHandle: procmon.FileHandle{
-							Dev: proc.Executable.Key.FileHandle.Dev,
-							Ino: proc.Executable.Key.FileHandle.Ino,
-						},
-						LastModified: syscall.Timespec{
-							Sec:  proc.Executable.Key.FileCookie.Sec,
-							Nsec: proc.Executable.Key.FileCookie.Nsec,
+				Info: procinfo.Info{
+					ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
+					Executable: Executable{
+						Path: proc.Executable.Path,
+						Key: procinfo.FileKey{
+							FileHandle: procinfo.FileHandle{
+								Dev: proc.Executable.Key.FileHandle.Dev,
+								Ino: proc.Executable.Key.FileHandle.Ino,
+							},
+							LastModified: syscall.Timespec{
+								Sec:  proc.Executable.Key.FileCookie.Sec,
+								Nsec: proc.Executable.Key.FileCookie.Nsec,
+							},
 						},
 					},
 				},
@@ -214,9 +214,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 
 		ye.event = eventProcessesUpdated{
-			tenantID: eventData.TenantID,
-			updated:  updated,
-			removed:  removedProcessIDs,
+			updated: updated,
+			removed: removedProcessIDs,
 		}
 
 	case "loaded":
@@ -229,7 +228,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramLoaded{
 			programID: ir.ProgramID(eventData.ProgramID),
 			loaded: &loadedProgram{
-				ir: &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
+				programID: ir.ProgramID(eventData.ProgramID),
+				loaded:    &fakeLoadedProgram{},
 			},
 		}
 
@@ -243,7 +243,6 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramLoadingFailed{
 			programID: ir.ProgramID(eventData.ProgramID),
-			err:       errors.New(eventData.Error),
 		}
 
 	case "attached":
@@ -256,8 +255,11 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		ye.event = eventProgramAttached{
 			program: &attachedProgram{
-				ir:     &ir.Program{ID: ir.ProgramID(eventData.ProgramID)},
-				procID: ProcessID{PID: int32(eventData.ProcessID)},
+				loadedProgram: &loadedProgram{
+					programID: ir.ProgramID(eventData.ProgramID),
+					loaded:    &fakeLoadedProgram{},
+				},
+				processID: ProcessID{PID: int32(eventData.ProcessID)},
 			},
 		}
 
@@ -273,7 +275,6 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 		ye.event = eventProgramAttachingFailed{
 			programID: ir.ProgramID(eventData.ProgramID),
 			processID: ProcessID{PID: int32(eventData.ProcessID)},
-			err:       errors.New(eventData.Error),
 		}
 
 	case "detached":
@@ -300,6 +301,9 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			programID: ir.ProgramID(eventData.ProgramID),
 		}
 
+	case "heartbeat-check":
+		ye.event = eventHeartbeatCheck{}
+
 	case "shutdown":
 		ye.event = eventShutdown{}
 
@@ -309,3 +313,25 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 
 	return nil
 }
+
+type fakeLoadedProgram struct{}
+
+func (*fakeLoadedProgram) Attach(ProcessID, Executable) (AttachedProgram, error) {
+	return nil, nil
+}
+
+func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
+	return []loader.RuntimeStats{
+		{
+			HitCnt:       1000,
+			ThrottledCnt: 999,
+			CPU:          1e3 * time.Second,
+		},
+	}
+}
+
+func (*fakeLoadedProgram) Close() error {
+	return nil
+}
+
+var _ LoadedProgram = (*fakeLoadedProgram)(nil)

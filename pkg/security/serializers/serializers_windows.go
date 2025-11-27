@@ -26,6 +26,8 @@ type FileSerializer struct {
 	DevicePath string `json:"device_path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
+	// File extension
+	Extension string `json:"extension,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -113,8 +115,9 @@ type EventSerializer struct {
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ uint64, _ *model.FileMetadata) *FileSerializer {
 	return &FileSerializer{
-		Path: e.FieldHandlers.ResolveFilePath(e, fe),
-		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
+		Path:      e.FieldHandlers.ResolveFilePath(e, fe),
+		Name:      e.FieldHandlers.ResolveFileBasename(e, fe),
+		Extension: e.FieldHandlers.ResolveFileExtension(e, fe),
 	}
 }
 
@@ -123,6 +126,7 @@ func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *
 		Path:       e.FieldHandlers.ResolveFileUserPath(e, fe),
 		DevicePath: e.FieldHandlers.ResolveFimFilePath(e, fe),
 		Name:       e.FieldHandlers.ResolveFimFileBasename(e, fe),
+		Extension:  e.FieldHandlers.ResolveFimFileExtension(e, fe),
 	}
 }
 
@@ -159,9 +163,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		User:       e.FieldHandlers.ResolveUser(e, ps),
 	}
 
-	if len(ps.ContainerID) != 0 {
+	if len(ps.ContainerContext.ContainerID) != 0 {
 		psSerializer.Container = &ContainerContextSerializer{
-			ID: ps.ContainerID,
+			ID: string(ps.ContainerContext.ContainerID),
 		}
 	}
 	return psSerializer
@@ -210,8 +214,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, rule *rules.Rule) ([]byte, error) {
-	s := NewEventSerializer(event, rule)
+func MarshalEvent(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) ([]byte, error) {
+	s := NewEventSerializer(event, rule, scrubber)
 	return json.Marshal(s)
 }
 
@@ -221,9 +225,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
+func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event, rule),
+		BaseEventSerializer:   NewBaseEventSerializer(event, rule, scrubber),
 		UserContextSerializer: newUserContextSerializer(event),
 	}
 	eventType := model.EventType(event.Type)

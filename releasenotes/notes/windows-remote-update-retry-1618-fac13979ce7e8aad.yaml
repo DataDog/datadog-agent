@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Remote Agent management on Windows now automatically retries when the MSI
+    returns error 1618 (``ERROR_INSTALL_ALREADY_RUNNING``).

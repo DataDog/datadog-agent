@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -27,7 +28,10 @@ const (
 func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
 	opts.normalize()
 
-	p := newProbe(config, opts)
+	p, err := newProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
 
 	acc, err := NewAgentContainerContext()
 	if err != nil {
@@ -82,6 +86,11 @@ func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 	return IsNetworkNotSupported(kv) || !kv.IsMapValuesToMapHelpersAllowed() || !kv.HasBPFForEachMapElemHelper()
 }
 
+// IsCapabilitiesMonitoringSupported returns if the capabilities monitoring feature is supported
+func IsCapabilitiesMonitoringSupported(kv *kernel.Version) bool {
+	return kv.HasBPFForEachMapElemHelper()
+}
+
 // NewAgentContainerContext returns the agent container context
 func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	pid := utils.Getpid()
@@ -98,9 +107,11 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 		CreatedAt: uint64(createTime),
 	}
 
-	cid, err := utils.GetProcContainerID(uint32(pid), uint32(pid))
+	cfs := utils.DefaultCGroupFS()
+
+	cid, _, _, err := cfs.FindCGroupContext(uint32(pid), uint32(pid))
 	if err != nil {
-		return nil, err
+		seclog.Warnf("unable to find agent cgroup context: %v", err)
 	}
 	acc.ContainerID = cid
 	return acc, nil

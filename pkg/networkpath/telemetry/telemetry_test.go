@@ -19,9 +19,6 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 	metricTags := []string{"foo:bar", "tag2:val2"}
 	expectedTags := []string{
 		"collector:network_path_integration",
-		"destination_hostname:abc",
-		"destination_ip:10.0.0.1",
-		"destination_port:unspecified",
 		"foo:bar",
 		"origin:network_path_integration",
 		"protocol:UDP",
@@ -36,15 +33,11 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 		expectedMetrics []metricsender.MockReceivedMetric
 	}{
 		{
-			name: "with hops and interval",
+			name: "with interval",
 			path: payload.NetworkPath{
 				Origin:      payload.PathOriginNetworkPathIntegration,
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
-				Hops: []payload.NetworkPathHop{
-					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.2"},
-				},
 			},
 			checkDuration: 10 * time.Second,
 			checkInterval: 20 * time.Second,
@@ -68,74 +61,14 @@ func TestSubmitNetworkPathTelemetry(t *testing.T) {
 					Value:      float64(1),
 					Tags:       expectedTags,
 				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.reachable",
-					Value:      float64(0),
-					Tags:       expectedTags,
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.unreachable",
-					Value:      float64(1),
-					Tags:       expectedTags,
-				},
 			},
 		},
 		{
-			name: "with last hop successful",
+			name: "without interval",
 			path: payload.NetworkPath{
 				Origin:      payload.PathOriginNetworkPathIntegration,
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc"},
 				Protocol:    payload.ProtocolUDP,
-				Hops: []payload.NetworkPathHop{
-					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-					{Hostname: "hop_2", IPAddress: "1.1.1.2", Reachable: true},
-				},
-			},
-			checkDuration: 10 * time.Second,
-			checkInterval: 0,
-			tags:          metricTags,
-			expectedMetrics: []metricsender.MockReceivedMetric{
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.check_duration",
-					Value:      float64(10),
-					Tags:       expectedTags,
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.monitored",
-					Value:      float64(1),
-					Tags:       expectedTags,
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.hops",
-					Value:      float64(2),
-					Tags:       expectedTags,
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.reachable",
-					Value:      float64(1),
-					Tags:       expectedTags,
-				},
-				{
-					MetricType: metrics.GaugeType,
-					Name:       "datadog.network_path.path.unreachable",
-					Value:      float64(0),
-					Tags:       expectedTags,
-				},
-			},
-		},
-		{
-			name: "no hops and no interval",
-			path: payload.NetworkPath{
-				Origin:      payload.PathOriginNetworkPathIntegration,
-				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "10.0.0.1"},
-				Protocol:    payload.ProtocolUDP,
-				Hops:        []payload.NetworkPathHop{},
 			},
 			checkDuration: 10 * time.Second,
 			checkInterval: 0,

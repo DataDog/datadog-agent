@@ -1,0 +1,11 @@
+{
+  "type": "unsupported",
+  "operation": "matches",
+  "argument": [
+    {
+      "ref": "payload"
+    },
+    "[0-9]+"
+  ],
+  "error": ""
+}

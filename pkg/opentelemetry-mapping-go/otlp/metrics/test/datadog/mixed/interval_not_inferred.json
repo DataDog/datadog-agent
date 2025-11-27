@@ -1,0 +1,110 @@
+{
+  "Metrics": {
+    "Sketches": [
+      {
+        "Name": "delta_histogram",
+        "Tags": [],
+        "Host": "",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Interval": 0,
+        "Timestamp": 1755603980235511877,
+        "Summary": {
+          "Min": -100,
+          "Max": 99.95733062532716,
+          "Sum": 3.141592653589793,
+          "Avg": 0.15707963267948966,
+          "Cnt": 20
+        },
+        "Keys": [
+          -1635,
+          -1590,
+          0,
+          1453,
+          1498,
+          1524,
+          1543,
+          1558,
+          1570,
+          1580,
+          1589,
+          1597,
+          1604,
+          1610,
+          1616,
+          1621,
+          1626,
+          1631,
+          1635
+        ],
+        "Counts": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          2
+        ]
+      }
+    ],
+    "TimeSeries": [
+      {
+        "Name": "random_delta_sum",
+        "Tags": [],
+        "Host": "",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Interval": 0,
+        "Timestamp": 1755603940234853944,
+        "Value": 8617
+      },
+      {
+        "Name": "random_delta_sum",
+        "Tags": [],
+        "Host": "",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Interval": 0,
+        "Timestamp": 1755603960236383064,
+        "Value": 9227
+      },
+      {
+        "Name": "random_delta_sum",
+        "Tags": [],
+        "Host": "",
+        "OriginID": "",
+        "OriginProduct": 10,
+        "OriginSubProduct": 17,
+        "OriginProductDetail": 0,
+        "Type": "count",
+        "Interval": 0,
+        "Timestamp": 1755603980235511877,
+        "Value": 9125
+      }
+    ]
+  },
+  "Hosts": {
+    "": {}
+  }
+}

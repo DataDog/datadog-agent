@@ -7,6 +7,7 @@ package traceutil
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
@@ -60,13 +61,51 @@ func GetRoot(t pb.Trace) *pb.Span {
 	}
 
 	// Have a safe behavior if that's not the case
-	// Pick the first span without its parent
+	// Pick a random span without its parent
 	for parentID := range parentIDToChild {
 		return parentIDToChild[parentID]
 	}
 
 	// Gracefully fail with the last span of the trace
 	return t[len(t)-1]
+}
+
+// GetRootV1 extracts the root span from a trace
+func GetRootV1(t *idx.InternalTraceChunk) *idx.InternalSpan {
+	// That should be caught beforehand
+	if len(t.Spans) == 0 {
+		return nil
+	}
+	// General case: go over all spans and check for one which matching parent
+	parentIDToChild := map[uint64]*idx.InternalSpan{}
+
+	for i := range t.Spans {
+		// Common case optimization: check for span with ParentID == 0, starting from the end,
+		// since some clients report the root last
+		j := len(t.Spans) - 1 - i
+		if t.Spans[j].ParentID() == 0 {
+			return t.Spans[j]
+		}
+		parentIDToChild[t.Spans[j].ParentID()] = t.Spans[j]
+	}
+
+	for i := range t.Spans {
+		delete(parentIDToChild, t.Spans[i].SpanID())
+	}
+
+	// Here, if the trace is valid, we should have len(parentIDToChild) == 1
+	if len(parentIDToChild) != 1 {
+		log.Debugf("Didn't reliably find the root span for traceID:%v", t.TraceID)
+	}
+
+	// Have a safe behavior if that's not the case
+	// Pick the first span without its parent
+	for parentID := range parentIDToChild {
+		return parentIDToChild[parentID]
+	}
+
+	// Gracefully fail with the last span of the trace
+	return t.Spans[len(t.Spans)-1]
 }
 
 // ChildrenMap returns a map containing for each span id the list of its

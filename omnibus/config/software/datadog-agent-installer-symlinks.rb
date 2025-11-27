@@ -11,11 +11,12 @@ build do
     if linux_target? and install_dir == '/opt/datadog-agent'
       version = project.build_version
       mkdir '/opt/datadog-packages/datadog-agent'
-      link "/opt/datadog-agent", "/opt/datadog-packages/datadog-agent/#{version}"
-      link "/opt/datadog-packages/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/stable"
+      mkdir '/opt/datadog-packages/run/datadog-agent'
+      link "/opt/datadog-agent", "/opt/datadog-packages/run/datadog-agent/#{version}"
+      link "/opt/datadog-packages/run/datadog-agent/#{version}", "/opt/datadog-packages/datadog-agent/stable"
       link "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent/experiment"
       project.extra_package_file "/opt/datadog-packages/datadog-agent"
+      project.extra_package_file "/opt/datadog-packages/run"
     end
   end
 end
-

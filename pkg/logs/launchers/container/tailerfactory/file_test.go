@@ -5,6 +5,8 @@
 
 //go:build kubelet || docker
 
+// Package tailerfactory implements the logic required to determine which kind
+// of tailer to use for a container-related LogSource, and to create that tailer.
 package tailerfactory
 
 import (
@@ -287,7 +289,7 @@ func TestMakeK8sSource(t *testing.T) {
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -374,7 +376,7 @@ func TestGetPodAndContainer_wmeta_not_initialize(t *testing.T) {
 func TestGetPodAndContainer_pod_not_found(t *testing.T) {
 	workloadmetaStore := fxutil.Test[option.Option[workloadmeta.Component]](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		compConfig.MockModule(),
+		fx.Provide(func() compConfig.Component { return compConfig.NewMock(t) }),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))

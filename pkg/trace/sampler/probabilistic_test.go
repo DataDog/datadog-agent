@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -142,6 +143,29 @@ func TestProbabilisticSampler(t *testing.T) {
 		})
 		assert.False(t, sampled)
 	})
+	t.Run("keep-dd-128-v1", func(t *testing.T) {
+		tid := []byte{9, 10, 11, 12, 13, 14, 15, 16}
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 70,
+		}
+		sampler := NewProbabilisticSampler(conf)
+		sampled := sampler.SampleV1(tid, idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{}))
+		assert.True(t, sampled)
+	})
+	t.Run("drop-dd-128-v1", func(t *testing.T) {
+		tid := make([]byte, 16)
+		binary.BigEndian.PutUint64(tid[:8], 555)
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 68,
+		}
+		sampler := NewProbabilisticSampler(conf)
+		sampled := sampler.SampleV1(tid, idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{}))
+		assert.False(t, sampled)
+	})
 }
 
 type mockConsumer struct {
@@ -167,6 +191,7 @@ func FuzzConsistentWithOtel(f *testing.F) {
 	pspCfg := &probabilisticsamplerprocessor.Config{
 		SamplingPercentage: samplingPercent,
 		HashSeed:           hashSeed,
+		Mode:               "hash_seed",
 	}
 
 	conf := &config.AgentConfig{
@@ -180,7 +205,29 @@ func FuzzConsistentWithOtel(f *testing.F) {
 	f.Add([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
 	f.Fuzz(func(t *testing.T, tid []byte) {
 		if len(tid) < 16 {
-			t.Skip("need at least 16 bytes for trace id")
+			t.Skip("need at least 16 bytes for W3C Trace Context trace id")
+		}
+		// Skip zero trace IDs as they are invalid per W3C Trace Context
+		// specification. OpenTelemetry follows the W3C Trace Context
+		// specification for trace IDs. The test uses
+		// opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor
+		// which handles trace IDs according to W3C standards.
+		//
+		// Per W3C Trace Context[1] "All bytes as zero
+		// (00000000000000000000000000000000) is considered an invalid
+		// value." The behavior of these two implementations with a
+		// zero-value trace ID is undefined behavior.
+		//
+		// [1]: https://www.w3.org/TR/trace-context/#trace-id, section 3.2.2.3
+		allZero := true
+		for i := 0; i < 16 && i < len(tid); i++ {
+			if tid[i] != 0 {
+				allZero = false
+				break
+			}
+		}
+		if allZero {
+			t.Skip("zero trace IDs are invalid per OpenTelemetry / W3C spec")
 		}
 		mc := &mockConsumer{} //Do this setup in here to avoid having to clear this data between tests
 		tp, err := pspFactory.CreateTraces(context.Background(), cfg, pspCfg, mc)
@@ -194,7 +241,13 @@ func FuzzConsistentWithOtel(f *testing.F) {
 			TraceID: binary.BigEndian.Uint64(tid[8:]),
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
 		})
-		assert.Equal(t, len(mc.traces) == 1, sampled)
+		otelSampled := len(mc.traces) == 1
+		if otelSampled != sampled {
+			t.Logf("Trace ID: %x", tid)
+			t.Logf("OTel sampled: %v, Datadog sampled: %v", otelSampled, sampled)
+			t.Logf("Upper 8 bytes: %x, Lower 8 bytes: %x", tid[:8], tid[8:])
+		}
+		assert.Equal(t, otelSampled, sampled)
 	})
 }
 

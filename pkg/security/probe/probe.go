@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -29,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
@@ -58,6 +59,14 @@ type PlatformProbe interface {
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
 }
+
+var probeTelemetry = struct {
+	totalVariables telemetry.Gauge
+}{
+	totalVariables: metrics.NewITGauge(metrics.MetricSECLTotalVariables, []string{"type", "scope"}, "Number of instantiated variables"),
+}
+
+var probeEventZeroer = model.NewEventZeroer()
 
 // EventConsumer defines a probe event consumer
 type EventConsumer struct {
@@ -107,7 +116,7 @@ type Probe struct {
 	cancelFnc func()
 	wg        sync.WaitGroup
 	startTime time.Time
-	scrubber  *procutil.DataScrubber
+	scrubber  *utils.Scrubber
 
 	// Events section
 	consumers           []*EventConsumer
@@ -120,14 +129,19 @@ type Probe struct {
 	ruleActionStats     map[actionStatsTags]*atomic.Int64
 }
 
-func newProbe(config *config.Config, opts Opts) *Probe {
+func newProbe(config *config.Config, opts Opts) (*Probe, error) {
+	scrubber, err := utils.NewScrubber(config.Probe.CustomSensitiveWords, config.Probe.CustomSensitiveRegexps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create event scrubber: %w", err)
+	}
+
 	return &Probe{
 		Opts:            opts,
 		Config:          config,
 		StatsdClient:    opts.StatsdClient,
-		scrubber:        newProcScrubber(config.Probe.CustomSensitiveWords),
+		scrubber:        scrubber,
 		ruleActionStats: make(map[actionStatsTags]*atomic.Int64),
-	}
+	}, nil
 }
 
 // Init initializes the probe
@@ -192,7 +206,9 @@ func (p *Probe) Close() error {
 
 // Stop the probe
 func (p *Probe) Stop() {
-	p.cancelFnc()
+	if p.cancelFnc != nil {
+		p.cancelFnc()
+	}
 	p.wg.Wait()
 
 	p.PlatformProbe.Stop()
@@ -322,12 +338,17 @@ func (p *Probe) sendEventToConsumers(event *model.Event) {
 	}
 }
 
-func logTraceEvent(eventType model.EventType, event interface{}) {
+func (p *Probe) logTraceEvent(eventType model.EventType, event interface{}) {
 	if !seclog.DefaultLogger.IsTracing() {
 		return
 	}
 
-	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event})
+	seclog.DefaultLogger.TraceTagf(eventType, "Dispatching event %s", serializers.EventStringerWrapper{Event: event, Scrubber: p.scrubber})
+}
+
+// GetScrubber returns the event scrubber
+func (p *Probe) GetScrubber() *utils.Scrubber {
+	return p.scrubber
 }
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -337,7 +358,7 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
-	logTraceEvent(event.GetEventType(), event)
+	p.logTraceEvent(event.GetEventType(), event)
 
 	// send wildcard first
 	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
@@ -396,6 +417,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {
 		return p.PlatformProbe.NewEvent()
@@ -417,11 +439,6 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
-}
-
-// IsSysctlEventEnabled returns whether the sysctl event is enabled
-func (p *Probe) IsSysctlEventEnabled() bool {
-	return p.Config.RuntimeSecurity.SysCtlEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

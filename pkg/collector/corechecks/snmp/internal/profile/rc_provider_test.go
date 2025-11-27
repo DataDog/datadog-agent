@@ -6,10 +6,11 @@
 package profile
 
 import (
+	"testing"
+
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestUnpackRawConfigs(t *testing.T) {
@@ -40,6 +41,45 @@ func TestUnpackRawConfigs(t *testing.T) {
 				"symbol": {
 					"OID": "1.2.3.0",
 					"name": "someMetric"
+				}
+			}]
+		}
+	}`)}
+
+	profileWithStringScaleFactor := ProfileConfig{
+		Definition: profiledefinition.ProfileDefinition{
+			Name: "some-profile",
+			Metrics: []profiledefinition.MetricsConfig{
+				{Symbol: profiledefinition.SymbolConfig{
+					OID:         "1.2.3.0",
+					Name:        "someMetric",
+					ScaleFactor: 1.23,
+				}},
+			},
+		},
+		IsUserProfile: true,
+	}
+	profileRawWithStringScaleFactor := state.RawConfig{Config: []byte(`{
+		"profile_definition": {
+			"name": "some-profile",
+			"metrics": [{
+				"symbol": {
+					"OID": "1.2.3.0",
+					"name": "someMetric",
+					"scale_factor_string": "1.23"
+				}
+			}]
+		}
+	}`)}
+
+	profileRawWithWrongStringScaleFactor := state.RawConfig{Config: []byte(`{
+		"profile_definition": {
+			"name": "some-profile",
+			"metrics": [{
+				"symbol": {
+					"OID": "1.2.3.0",
+					"name": "someMetric",
+					"scale_factor_string": "not a float"
 				}
 			}]
 		}
@@ -95,6 +135,26 @@ func TestUnpackRawConfigs(t *testing.T) {
 		expectedErrors: map[string]string{
 			"id-2":   "multiple profiles for name: \"some-profile\"",
 			"broken": "could not unmarshal",
+		},
+	}, {
+		name: "profile with string scale factor",
+		configs: map[string]state.RawConfig{
+			"some-id": profileRawWithStringScaleFactor,
+		},
+		expectedProfiles: ProfileConfigMap{
+			"some-profile": profileWithStringScaleFactor,
+		},
+		expectedErrors: nil,
+	}, {
+		name: "profile with wrong string scale factor",
+		configs: map[string]state.RawConfig{
+			"some-id": profileRawWithWrongStringScaleFactor,
+		},
+		expectedProfiles: ProfileConfigMap{
+			"some-profile": someProfile,
+		},
+		expectedErrors: map[string]string{
+			"some-id": "could not parse scale factor \"not a float\" as float64: strconv.ParseFloat: parsing \"not a float\": invalid syntax",
 		},
 	}} {
 		t.Run(tc.name, func(t *testing.T) {

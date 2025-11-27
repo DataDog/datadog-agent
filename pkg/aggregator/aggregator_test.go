@@ -20,8 +20,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -268,14 +271,6 @@ func TestDefaultData(t *testing.T) {
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
-		Host:           agg.hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", series).Return(nil).Times(1)
@@ -329,14 +324,6 @@ func TestDefaultSeries(t *testing.T) {
 		Host:           agg.hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
-		Host:           agg.hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
 	}}
 
 	s.On("SendSeries", expectedSeries).Return(nil).Times(1)
@@ -536,14 +523,6 @@ func TestRecurrentSeries(t *testing.T) {
 		Host:           demux.Aggregator().hostname,
 		MType:          metrics.APIGaugeType,
 		SourceTypeName: "System",
-	}, &metrics.Serie{
-		Name:           fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()),
-		Points:         []metrics.Point{{Value: 0, Ts: float64(start.Unix())}},
-		Host:           demux.Aggregator().hostname,
-		Tags:           tagset.CompositeTagsFromSlice([]string{}),
-		MType:          metrics.APIGaugeType,
-		SourceTypeName: "System",
-		NoIndex:        true,
 	}}
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
@@ -804,8 +783,7 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 	r := require.New(t)
 	for _, serie := range series {
 		// ignore default series automatically sent by the aggregator
-		if serie.Name == fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()) ||
-			serie.Name == fmt.Sprintf("n_o_i_n_d_e_x.datadog.%s.payload.dropped", flavor.GetFlavor()) {
+		if serie.Name == fmt.Sprintf("datadog.%s.running", flavor.GetFlavor()) {
 			// ignore default series
 			continue
 		}
@@ -845,7 +823,13 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), core.MockBundle(), logscompressionmock.MockModule(), metricscompressionmock.MockModule(), haagentmock.Module())
+	deps := fxutil.Test[TestDeps](t,
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
+		defaultforwarder.MockModule(),
+		core.MockBundle(),
+		logscompressionmock.MockModule(),
+		metricscompressionmock.MockModule(),
+		haagentmock.Module())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

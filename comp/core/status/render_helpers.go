@@ -59,6 +59,7 @@ func HTMLFmap() pkghtmltemplate.FuncMap {
 			"lastErrorMessage":    lastErrorMessageHTML,
 			"pythonLoaderError":   pythonLoaderErrorHTML,
 			"status":              statusHTML,
+			"contains":            strings.Contains,
 		}
 	})
 	return htmlFuncMap
@@ -193,10 +194,19 @@ func formatUnixTimeSince(rawUnixTime any) string {
 func parseUnixTime(value any) (time.Time, error) {
 	raw := int64(0)
 	switch v := value.(type) {
+	case time.Time:
+		return v, nil
 	case int64:
 		raw = v
 	case float64:
 		raw = int64(v)
+	// Case where the unix time is a time.Time and has been converted into a string date due to a JSON marshall
+	case string:
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("error while parsing time: %s", v)
+		}
+		return t, nil
 	default:
 		return time.Time{}, fmt.Errorf("invalid time parameter %T", v)
 	}

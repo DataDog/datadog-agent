@@ -19,6 +19,19 @@ var (
 	allowPrecompiledFallbackKey = spNS("allow_precompiled_fallback")
 )
 
+// eBPFMapPreallocationSupported return true if the kernel has the BPF memory allocator, without it, using NO_PREALLOC
+// can lead to performance implications, as the allocator takes care of caching allocations.
+func eBPFMapPreallocationSupported() bool {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+
+	if err != nil {
+		log.Warnf("unable to detect the kernel version: %s", err)
+		return false
+	}
+
+	return kernelVersion.Code >= ebpfkernel.Kernel6_1
+}
+
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
@@ -34,6 +47,27 @@ func ProcessEventDataStreamSupported() bool {
 	}
 
 	return true
+}
+
+// RedisMonitoringSupported returns true if Redis monitoring is supported on the current kernel
+func RedisMonitoringSupported() bool {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		log.Errorf("unable to detect the kernel version: %s", err)
+		return false
+	}
+	// Redis monitoring requires kernel 5.4.0+ due to eBPF verifier complexity
+	return kernelVersion.Code >= ebpfkernel.Kernel5_4
+}
+
+// HTTP2MonitoringSupported returns true if HTTP2 monitoring is supported on the current kernel
+func HTTP2MonitoringSupported() bool {
+	kernelVersion, err := ebpfkernel.NewKernelVersion()
+	if err != nil {
+		log.Errorf("unable to detect the kernel version: %s", err)
+		return false
+	}
+	return kernelVersion.Code >= ebpfkernel.Kernel5_2
 }
 
 func allowPrebuiltEbpfFallback(cfg model.Config) {

@@ -7,6 +7,7 @@
 package probe
 
 import (
+	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -107,7 +108,10 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
+	if ev.ProcessContext == nil {
+		return nil, false
+	}
+	return &ev.ProcessContext.Process.ContainerContext, true
 }
 
 // ResolveContainerRuntime retrieves the container runtime managing the container
@@ -201,4 +205,14 @@ func (fh *FieldHandlers) ResolveFileMetadataCompression(_ *model.Event, _ *model
 // ResolveFileMetadataIsGarbleObfuscated resolves file metadata is_garble_obfuscated
 func (fh *FieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.Event, _ *model.FileMetadata) bool {
 	return false
+}
+
+// ResolveFimFileExtension resolves the extension of a file
+func (fh *FieldHandlers) ResolveFimFileExtension(ev *model.Event, f *model.FimFileEvent) string {
+	if f.Extension == "" {
+		if baseName := ev.FieldHandlers.ResolveFimFileBasename(ev, f); baseName != "" {
+			f.Extension = filepath.Ext(baseName)
+		}
+	}
+	return f.Extension
 }

@@ -19,23 +19,21 @@ import (
 )
 
 func TestStartStopUDPListener(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
 	cfg := map[string]interface{}{}
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = RandomPortName
 	cfg["dogstatsd_non_local_traffic"] = false
 
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
 	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
 	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config, packetsTelemetryStore), deps.Config, nil, telemetryStore, packetsTelemetryStore)
-	require.NotNil(t, s)
 
 	assert.NoError(t, err)
+	require.NotNil(t, s)
 
 	s.Listen()
 	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	address, _ := net.ResolveUDPAddr("udp", s.LocalAddr())
 	_, err = net.ListenUDP("udp", address)
 	assert.Error(t, err)
 
@@ -55,11 +53,8 @@ func TestStartStopUDPListener(t *testing.T) {
 }
 
 func TestUDPNonLocal(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-
 	cfg := map[string]interface{}{}
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = RandomPortName
 	cfg["dogstatsd_non_local_traffic"] = true
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
@@ -72,25 +67,20 @@ func TestUDPNonLocal(t *testing.T) {
 	defer s.Stop()
 
 	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	address, _ := net.ResolveUDPAddr("udp", s.LocalAddr())
 	_, err = net.ListenUDP("udp", address)
 	assert.Error(t, err)
 
 	// External port should be unavailable
-	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
+	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), address.Port)
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	_, err = net.ListenUDP("udp", address)
 	assert.Error(t, err)
 }
 
 func TestUDPLocalOnly(t *testing.T) {
-	port, err := getAvailableUDPPort()
-	require.NoError(t, err)
-
-	fmt.Println("port: ", port)
-
 	cfg := map[string]interface{}{}
-	cfg["dogstatsd_port"] = port
+	cfg["dogstatsd_port"] = RandomPortName
 	cfg["dogstatsd_non_local_traffic"] = false
 	deps := fulfillDepsWithConfig(t, cfg)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
@@ -103,12 +93,12 @@ func TestUDPLocalOnly(t *testing.T) {
 	defer s.Stop()
 
 	// Local port should be unavailable
-	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
+	address, _ := net.ResolveUDPAddr("udp", s.LocalAddr())
 	_, err = net.ListenUDP("udp", address)
 	assert.Error(t, err)
 
 	// External port should be available
-	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), port)
+	externalPort := fmt.Sprintf("%s:%d", getLocalIP(), address.Port)
 	address, _ = net.ResolveUDPAddr("udp", externalPort)
 	conn, err := net.ListenUDP("udp", address)
 	require.NotNil(t, conn)

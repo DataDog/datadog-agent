@@ -41,7 +41,7 @@ var testDevices = []client.Device{
 		SystemIP:     "10.0.0.2",
 		HostName:     "test-2",
 		SiteID:       "102",
-		Reachability: "reachable",
+		Reachability: "unreachable",
 		DeviceModel:  "vbond",
 		DeviceOs:     "vbond-os",
 		Version:      "20.12",
@@ -80,7 +80,7 @@ func TestProcessDevicesMetadata(t *testing.T) {
 			Name:         "test-2",
 			Tags:         []string{"device_vendor:cisco", "device_namespace:test-ns", "hostname:test-2", "system_ip:10.0.0.2", "site_id:102", "type:vbond", "device_ip:10.0.0.2", "device_hostname:test-2", "device_id:test-ns:10.0.0.2", "source:cisco-sdwan"},
 			IDTags:       []string{"device_namespace:test-ns", "system_ip:10.0.0.2"},
-			Status:       devicemetadata.DeviceStatusReachable,
+			Status:       devicemetadata.DeviceStatusUnreachable,
 			Model:        "vbond",
 			OsName:       "vbond-os",
 			Version:      "20.12",
@@ -107,7 +107,7 @@ func TestProcessDevicesTags(t *testing.T) {
 			"device_ip:10.0.0.1",
 			"device_hostname:test-1",
 			"device_id:test-ns:10.0.0.1",
-			"dd.internal.resource:ndm_device_user_tags:test-ns:10.0.0.1",
+			"dd.internal.resource:ndm_device:test-ns:10.0.0.1",
 		},
 		"10.0.0.2": {
 			"device_vendor:cisco",
@@ -119,7 +119,7 @@ func TestProcessDevicesTags(t *testing.T) {
 			"device_ip:10.0.0.2",
 			"device_hostname:test-2",
 			"device_id:test-ns:10.0.0.2",
-			"dd.internal.resource:ndm_device_user_tags:test-ns:10.0.0.2",
+			"dd.internal.resource:ndm_device:test-ns:10.0.0.2",
 		},
 	}, tags)
 }
@@ -128,10 +128,9 @@ func TestProcessDevicesUptime(t *testing.T) {
 	TimeNow = mockTimeNow
 
 	uptimes := GetDevicesUptime(testDevices)
-	require.Len(t, uptimes, 2)
+	require.Len(t, uptimes, 1)
 	require.Equal(t, map[string]float64{
 		"10.0.0.1": 360000,
-		"10.0.0.2": 720000,
 	}, uptimes)
 }
 

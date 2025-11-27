@@ -17,6 +17,7 @@
 deploy_containers-cws-instrumentation-rc-versioned:
   extends: .deploy_containers-cws-instrumentation-base
   rules: !reference [.on_deploy_manual_auto_on_rc]
+  needs: []
 
 # will push the `7.xx.y` tags
 deploy_containers-cws-instrumentation-final-versioned:

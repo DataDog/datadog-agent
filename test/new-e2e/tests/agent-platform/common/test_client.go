@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	componentos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -216,25 +216,25 @@ func AgentProcessIsRunning(client *TestClient, processName string) bool {
 }
 
 // AssertPortBoundByService accepts a port and a service name and returns true if the port is bound by the service
-func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, service string) (boundport.BoundPort, bool) {
+func AssertPortBoundByService(t assert.TestingT, client *TestClient, transport string, port int, service string, processName string) (boundport.BoundPort, bool) {
 	if h, ok := t.(tHelper); ok {
 		h.Helper()
 	}
 
-	// TODO: might need to map service name to process name, this is working right now though
-	pids, err := process.FindPID(client.Host, service)
+	pids, err := process.FindPID(client.Host, processName)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
 	if !assert.NotEmpty(t, pids, "service %s should be running", service) {
+		fmt.Printf("service %s should be running\n", service)
 		return nil, false
 	}
 
-	boundPort, err := GetBoundPort(client.Host, port)
+	boundPort, err := GetBoundPort(client.Host, transport, port)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
-	if !assert.NotNil(t, boundPort, "port %d should be bound", port) {
+	if !assert.NotNil(t, boundPort, "port %s/%d should be bound", transport, port) {
 		return nil, false
 	}
 	if !assert.Containsf(t, pids, boundPort.PID(), "port %#v should be bound by service %s", boundPort, service) {
@@ -244,14 +244,14 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 }
 
 // GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
-func GetBoundPort(host *components.RemoteHost, port int) (boundport.BoundPort, error) {
-	ports, err := boundport.BoundPorts(host)
+func GetBoundPort(host *components.RemoteHost, transport string, port int) (boundport.BoundPort, error) {
+	bports, err := boundport.BoundPorts(host)
 	if err != nil {
 		return nil, err
 	}
-	for _, boundPort := range ports {
-		if boundPort.LocalPort() == port {
-			return boundPort, nil
+	for _, bport := range bports {
+		if bport.Transport() == transport && bport.LocalPort() == port {
+			return bport, nil
 		}
 	}
 	return nil, nil
@@ -331,4 +331,26 @@ func execWithRetry(exec func(string) (string, error), cmd string) (string, error
 	}
 
 	return output, err
+}
+
+// MacOSTestClient is a helper to run commands on a Mac OS remote host for tests
+type MacOSTestClient struct {
+	host *components.RemoteHost
+}
+
+// NewMacOSTestClient creates a client to help write tests that run on a Mac OS remote host
+func NewMacOSTestClient(host *components.RemoteHost) *MacOSTestClient {
+	return &MacOSTestClient{
+		host: host,
+	}
+}
+
+// Execute runs commands on a Mac OS remote host
+func (c *MacOSTestClient) Execute(command string) (output string, err error) {
+	return c.host.Execute(command)
+}
+
+// ExecuteWithRetry execute the command with retry
+func (c *MacOSTestClient) ExecuteWithRetry(cmd string) (output string, err error) {
+	return execWithRetry(c.Execute, cmd)
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/common"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -27,7 +28,7 @@ const (
 // HasEC2ResourceTags returns whether the metadata endpoint in ECS exposes
 // resource tags.
 func HasEC2ResourceTags() bool {
-	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return false
 	}
 	return queryCacheBool(hasEC2ResourceTagsCacheKey, func() (bool, time.Duration) {
@@ -60,7 +61,7 @@ func HasFargateResourceTags(ctx context.Context) bool {
 }
 
 func queryCacheBool(cacheKey string, cacheMissEvalFunc func() (bool, time.Duration)) bool {
-	if !pkgconfigsetup.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(common.CloudProviderName, pkgconfigsetup.Datadog()) {
 		return false
 	}
 	if cachedValue, found := cache.Cache.Get(cacheKey); found {

@@ -18,7 +18,7 @@ import (
 )
 
 func TestCertCommunication(t *testing.T) {
-	res, err := generateCertKeyPair()
+	res, err := generateCertKeyPair(nil, nil, nil, nil)
 	assert.NoError(t, err)
 
 	// Load server certificate

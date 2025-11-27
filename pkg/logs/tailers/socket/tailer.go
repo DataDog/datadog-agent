@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package socket provides socket-based log tailers
 package socket
 
 import (
@@ -28,7 +28,7 @@ type Tailer struct {
 	Conn       net.Conn
 	outputChan chan *message.Message
 	read       func(*Tailer) ([]byte, string, error)
-	decoder    *decoder.Decoder
+	decoder    decoder.Decoder
 	stop       chan struct{}
 	done       chan struct{}
 }
@@ -67,7 +67,7 @@ func (t *Tailer) forwardMessages() {
 		// the decoder has successfully been flushed
 		t.done <- struct{}{}
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range t.decoder.OutputChan() {
 		if len(output.GetContent()) > 0 {
 			origin := message.NewOrigin(t.source)
 			origin.SetTags(output.ParsingExtra.Tags)
@@ -113,7 +113,7 @@ func (t *Tailer) readForever() {
 				sourceHostTag := fmt.Sprintf("source_host:%s", ipAddressWithoutPort)
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, sourceHostTag)
 			}
-			t.decoder.InputChan <- msg
+			t.decoder.InputChan() <- msg
 		}
 	}
 }

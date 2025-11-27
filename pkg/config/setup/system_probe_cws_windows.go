@@ -14,12 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-func platformCWSConfig(cfg pkgconfigmodel.Config) {
+func platformCWSConfig(cfg pkgconfigmodel.Setup) {
 	programdata, err := winutil.GetProgramDataDir()
 	if err == nil {
 		cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", filepath.Join(programdata, "runtime-security.d"))
 	} else {
 		cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", "c:\\programdata\\datadog\\runtime-security.d")
 	}
-	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3335")
+	cfg.BindEnvAndSetDefault("runtime_security_config.cmd_socket", "")
 }

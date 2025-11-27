@@ -241,29 +241,25 @@ func (e *FileEvent) GetPathResolutionError() string {
 	return ""
 }
 
-// IsOverlayFS returns whether it is an overlay fs
-func (e *FileEvent) IsOverlayFS() bool {
-	return e.Filesystem == "overlay"
-}
-
 // MountOrigin origin of the mount
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown MountOrigin = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs                     // MountOriginProcfs mount point info from procfs
-	MountOriginEvent                      // MountOriginEvent mount point info from an event
-	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
-	MountOriginFsmount                    // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginUnknown   MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                       // MountOriginProcfs mount point info from procfs
+	MountOriginEvent                        // MountOriginEvent mount point info from an event
+	MountOriginUnshare                      // MountOriginUnshare mount point info from an event
+	MountOriginFsmount                      // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginOpenTree                     // MountOriginOpenTree mount point created from the open_tree syscall
+	MountOriginListmount                    // MountOriginListmount mount point obtained by calling `listmount`
 )
 
 // MountSource source of the mount
 type MountSource = uint32
 
 const (
-	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
-	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
 )
 
@@ -271,9 +267,18 @@ const (
 var MountSources = [...]string{
 	"unknown",
 	"mount_id",
-	"device",
 	"snapshot",
 }
+
+// MountEventSource source syscall of the mount event
+type MountEventSource = uint32
+
+const (
+	MountEventSourceInvalid         MountEventSource = iota // MountEventSourceInvalid the source of the mount event is invalid
+	MountEventSourceMountSyscall                            // MountEventSourceMountSyscall the source of the mount event is the `mount` syscall
+	MountEventSourceFsmountSyscall                          // MountEventSourceFsmountSyscall the source of the mount event is the `fsmount` syscall
+	MountEventSourceOpenTreeSyscall                         // MountEventSourceOpenTreeSyscall the source of the mount event is the `open_tree` syscall
+)
 
 // MountSourceToString returns the string corresponding to a mount source
 func MountSourceToString(source MountSource) string {
@@ -287,6 +292,8 @@ var MountOrigins = [...]string{
 	"event",
 	"unshare",
 	"fsmount",
+	"open_tree",
+	"listmount",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin
@@ -297,11 +304,6 @@ func MountOriginToString(origin MountOrigin) string {
 // GetFSType returns the filesystem type of the mountpoint
 func (m *Mount) GetFSType() string {
 	return m.FSType
-}
-
-// IsOverlayFS returns whether it is an overlay fs
-func (m *Mount) IsOverlayFS() bool {
-	return m.GetFSType() == "overlay"
 }
 
 const (
@@ -375,7 +377,7 @@ func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEven
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
-func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
+func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *Event, _ *UserSessionContext) {}
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
 func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecurityCredentials {
@@ -401,7 +403,7 @@ const (
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveUserSessionContext(evtCtx *UserSessionContext)
+	ResolveUserSessionContext(event *Event, evtCtx *UserSessionContext)
 	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }

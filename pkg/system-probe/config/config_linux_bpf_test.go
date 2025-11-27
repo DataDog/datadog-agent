@@ -76,6 +76,14 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	}
 }
 
+func TestHTTP2MonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	require.Equal(t, HTTP2MonitoringSupported(), cfg.GetBool("service_monitoring_config.http2.enabled"))
+}
+
 func TestNPMEnabled(t *testing.T) {
 	tests := []struct {
 		npm, usm, ccm, csm, csmNpm bool
@@ -112,6 +120,18 @@ func TestNPMEnabled(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, te.npmEnabled, cfg.ModuleIsEnabled(NetworkTracerModule), "unexpected network tracer module enablement: npm: %v, usm: %v, ccm: %v", te.npm, te.usm, te.ccm)
 		})
+	}
+}
+
+func TestRedisMonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	if RedisMonitoringSupported() {
+		require.True(t, cfg.GetBool("service_monitoring_config.redis.enabled"))
+	} else {
+		require.False(t, cfg.GetBool("service_monitoring_config.redis.enabled"))
 	}
 }
 
@@ -153,7 +173,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	t.Run("allow_precompiled_fallback set in config", func(t *testing.T) {
 		t.Run("true", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrecompiledFallbackKey, true, model.SourceDefault)
+			cfg.Set(allowPrecompiledFallbackKey, true, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.True(t, cfg.GetBool(allowPrecompiledFallbackKey))
@@ -162,7 +182,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrecompiledFallbackKey, false, model.SourceDefault)
+			cfg.Set(allowPrecompiledFallbackKey, false, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.False(t, cfg.GetBool(allowPrecompiledFallbackKey))
@@ -175,7 +195,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 	t.Run("allow_prebuilt_fallback set in config", func(t *testing.T) {
 		t.Run("true", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrebuiltFallbackKey, true, model.SourceDefault)
+			cfg.Set(allowPrebuiltFallbackKey, true, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.True(t, cfg.GetBool(allowPrebuiltFallbackKey))
@@ -183,7 +203,7 @@ func TestEbpfPrebuiltFallbackDeprecation(t *testing.T) {
 
 		t.Run("false", func(t *testing.T) {
 			cfg := mock.NewSystemProbe(t)
-			cfg.Set(allowPrebuiltFallbackKey, false, model.SourceDefault)
+			cfg.Set(allowPrebuiltFallbackKey, false, model.SourceAgentRuntime)
 			Adjust(cfg)
 
 			assert.False(t, cfg.GetBool(allowPrebuiltFallbackKey))

@@ -11,7 +11,6 @@ package mount
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -24,8 +23,18 @@ func (mr *NoOpResolver) IsMountIDValid(_ uint32) (bool, error) {
 	return false, nil
 }
 
-// SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
-func (mr *NoOpResolver) SyncCache(_ uint32) error {
+// SyncCache Snapshots the current mount points of the system by reading through /proc/.../mountinfo.
+func (mr *NoOpResolver) SyncCache() error {
+	return nil
+}
+
+// HasListMount returns true if the kernel has the listmount() syscall, false otherwise
+func (mr *NoOpResolver) HasListMount() bool {
+	return false
+}
+
+// SyncCacheFromListMount Snapshots the current mount points of the system by calling `listmount`
+func (mr *NoOpResolver) SyncCacheFromListMount() error {
 	return nil
 }
 
@@ -35,30 +44,27 @@ func (mr *NoOpResolver) Delete(_ uint32) error {
 }
 
 // ResolveFilesystem returns the name of the filesystem
-func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, error) {
+func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32) (string, error) {
 	return "", nil
 }
 
 // Insert a new mount point in the cache
-func (mr *NoOpResolver) Insert(_ model.Mount, _ uint32) error {
+func (mr *NoOpResolver) Insert(_ model.Mount) error {
 	return nil
 }
 
-// DelPid removes the pid form the pid mapping
-func (mr *NoOpResolver) DelPid(_ uint32) {}
-
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (string, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32) (string, model.MountSource, model.MountOrigin, error) {
 	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMount returns the mount
-func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ uint32, _ containerutils.ContainerID) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, errors.New("not available")
 }
 
@@ -70,4 +76,9 @@ func (mr *NoOpResolver) SendStats() error {
 // ToJSON return a json version of the cache
 func (mr *NoOpResolver) ToJSON() ([]byte, error) {
 	return nil, nil
+}
+
+// InsertMoved inserts a mount from move_mount
+func (mr *NoOpResolver) InsertMoved(_ model.Mount) error {
+	return nil
 }

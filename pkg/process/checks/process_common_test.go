@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,19 +46,23 @@ func makeProcess(pid int32, cmdline string) *procutil.Process {
 	return &procutil.Process{
 		Pid:     pid,
 		Cmdline: strings.Split(cmdline, " "),
-		Stats: &procutil.Stats{
-			CPUPercent: &procutil.CPUPercentStat{
-				UserPct:   float64(rand.Uint64()),
-				SystemPct: float64(rand.Uint64()),
-			},
-			MemInfo: &procutil.MemoryInfoStat{
-				RSS: rand.Uint64(),
-				VMS: rand.Uint64(),
-			},
-			MemInfoEx:   &procutil.MemoryInfoExStat{},
-			IOStat:      &procutil.IOCountersStat{},
-			CtxSwitches: &procutil.NumCtxSwitchesStat{},
+		Stats:   makeProcessStats(),
+	}
+}
+
+func makeProcessStats() *procutil.Stats {
+	return &procutil.Stats{
+		CPUPercent: &procutil.CPUPercentStat{
+			UserPct:   float64(rand.Uint64()),
+			SystemPct: float64(rand.Uint64()),
 		},
+		MemInfo: &procutil.MemoryInfoStat{
+			RSS: rand.Uint64(),
+			VMS: rand.Uint64(),
+		},
+		MemInfoEx:   &procutil.MemoryInfoExStat{},
+		IOStat:      &procutil.IOCountersStat{},
+		CtxSwitches: &procutil.NumCtxSwitchesStat{},
 	}
 }
 
@@ -188,17 +193,17 @@ func TestFormatIO(t *testing.T) {
 	}
 
 	// fp.IOStat is nil
-	assert.NotNil(t, formatIO(&procutil.Stats{}, last, time.Now().Add(-2*time.Second)))
+	assert.NotNil(t, formatIO(&procutil.Stats{}, last, time.Now(), time.Now().Add(-2*time.Second)))
 
 	// IOStats have 0 values
-	result := formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{}}, last, time.Now().Add(-2*time.Second))
+	result := formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{}}, last, time.Now(), time.Now().Add(-2*time.Second))
 	assert.Equal(t, float32(0), result.ReadRate)
 	assert.Equal(t, float32(0), result.WriteRate)
 	assert.Equal(t, float32(0), result.ReadBytesRate)
 	assert.Equal(t, float32(0), result.WriteBytesRate)
 
 	// Elapsed time < 1s
-	assert.NotNil(t, formatIO(fp, last, time.Now()))
+	assert.NotNil(t, formatIO(fp, last, time.Now(), time.Now()))
 
 	// IOStats have permission problem
 	result = formatIO(&procutil.Stats{IOStat: &procutil.IOCountersStat{
@@ -206,13 +211,13 @@ func TestFormatIO(t *testing.T) {
 		WriteCount: -1,
 		ReadBytes:  -1,
 		WriteBytes: -1,
-	}}, last, time.Now().Add(-1*time.Second))
+	}}, last, time.Now(), time.Now().Add(-1*time.Second))
 	assert.Equal(t, float32(-1), result.ReadRate)
 	assert.Equal(t, float32(-1), result.WriteRate)
 	assert.Equal(t, float32(-1), result.ReadBytesRate)
 	assert.Equal(t, float32(-1), result.WriteBytesRate)
 
-	result = formatIO(fp, last, time.Now().Add(-1*time.Second))
+	result = formatIO(fp, last, time.Now(), time.Now().Add(-1*time.Second))
 	require.NotNil(t, result)
 	assert.Equal(t, float32(5), result.ReadRate)
 	assert.Equal(t, float32(6), result.WriteRate)
@@ -382,4 +387,10 @@ func yieldConnections(count int) []*model.Connection {
 		result[i] = &model.Connection{LastBytesReceived: 10, LastBytesSent: 20}
 	}
 	return result
+}
+
+func constantMockClock(time time.Time) *clock.Mock {
+	c := clock.NewMock()
+	c.Set(time)
+	return c
 }

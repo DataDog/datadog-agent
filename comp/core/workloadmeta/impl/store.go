@@ -29,6 +29,7 @@ const (
 	pullCollectorInterval         = 5 * time.Second
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
+	closeEventBundleChTimeout     = 10 * time.Second
 	eventChBufferSize             = 50
 )
 
@@ -248,6 +249,29 @@ func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wm
 	return nil, errors.NewNotFound(podName)
 }
 
+// ListKubernetesPods implements Store#ListKubernetesPods
+func (w *workloadmeta) ListKubernetesPods() []*wmdef.KubernetesPod {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesPod)
+
+	pods := make([]*wmdef.KubernetesPod, 0, len(entities))
+	for i := range entities {
+		pods = append(pods, entities[i].(*wmdef.KubernetesPod))
+	}
+
+	return pods
+}
+
+func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
+	// There should only be one entity of this kind with the ID used in the
+	// Kubelet collector
+	entity, err := w.getEntityByKind(wmdef.KindKubeletMetrics, wmdef.KubeletMetricsID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeletMetrics), nil
+}
+
 // GetProcess implements Store#GetProcess.
 func (w *workloadmeta) GetProcess(pid int32) (*wmdef.Process, error) {
 	id := strconv.Itoa(int(pid))
@@ -444,6 +468,16 @@ func (w *workloadmeta) GetGPU(id string) (*wmdef.GPU, error) {
 	}
 
 	return entity.(*wmdef.GPU), nil
+}
+
+// GetKubelet implements Store#GetKubelet.
+func (w *workloadmeta) GetKubelet() (*wmdef.Kubelet, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubelet, wmdef.KubeletID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.Kubelet), nil
 }
 
 // ListGPUs implements Store#ListGPUs.
@@ -882,7 +916,22 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-	ch <- bundle
+
+	// Send with timeout to prevent indefinite blocking
+	// There are two timeouts here:
+	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
+	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	select {
+	case ch <- bundle:
+		// Successfully sent
+	case <-time.After(closeEventBundleChTimeout):
+		// Timeout sending to channel - subscriber not reading, events will be lost
+		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		// Close acknowledgment channel to prevent resource leak
+		close(bundle.Ch)
+		return
+	}
 
 	if wait {
 		select {

@@ -8,7 +8,7 @@ package health
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -20,6 +20,6 @@ type windowsHealthSuite struct {
 
 func TestWindowsHealthSuite(t *testing.T) {
 	t.Parallel()
-	suite := &windowsHealthSuite{baseHealthSuite{descriptor: os.WindowsDefault}}
+	suite := &windowsHealthSuite{baseHealthSuite{descriptor: os.WindowsServerDefault}}
 	e2e.Run(t, suite, e2e.WithProvisioner(awshost.Provisioner()))
 }

@@ -84,6 +84,10 @@ func testArrayOfStructs(a [2]nestedStruct) {
 
 //nolint:all
 //go:noinline
+func testArrayEmptyStructs(a [2]struct{}) {}
+
+//nolint:all
+//go:noinline
 func testOverLimitArrayParameters(
 	a, b, c, d, e, f, g,
 	h, i, j, k, l, m, n,
@@ -120,4 +124,6 @@ func executeArrayFuncs() {
 	testOverLimitArrayParameters([3]uint32{1, 2, 1}, [3]uint32{1, 2, 2}, [3]uint32{1, 2, 3}, [3]uint32{1, 2, 4}, [3]uint32{1, 2, 5}, [3]uint32{1, 2, 6}, [3]uint32{1, 2, 7},
 		[3]uint32{1, 2, 8}, [3]uint32{1, 2, 9}, [3]uint32{1, 2, 10}, [3]uint32{1, 2, 11}, [3]uint32{1, 2, 12}, [3]uint32{1, 2, 13}, [3]uint32{1, 2, 14},
 		[3]uint32{1, 2, 15}, [3]uint32{1, 2, 16}, [3]uint32{1, 2, 17}, [3]uint32{1, 2, 18}, [3]uint32{1, 2, 19}, [3]uint32{1, 2, 20}, [3]uint32{1, 2, 21})
+
+	testArrayEmptyStructs([2]struct{}{{}, {}})
 }

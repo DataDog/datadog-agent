@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/go-tuf/pkg/keys"
 	"github.com/DataDog/go-tuf/sign"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/bbolt"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -42,20 +41,20 @@ func newTestConfig(t testing.TB, repo testRepositories) model.Config {
 	return cfg
 }
 
-func newTestClient(db *bbolt.DB, cfg model.Config) (*CoreAgentClient, error) {
+func newTestClient(ts *transactionalStore, cfg model.Config) (*CoreAgentClient, error) {
 	opts := []ClientOption{
 		WithOrgIDCheck(2),
 		WithConfigRootOverride("datadoghq.com", cfg.GetString("remote_configuration.config_root")),
 		WithDirectorRootOverride("datadoghq.com", cfg.GetString("remote_configuration.director_root")),
 	}
-	return NewCoreAgentClient(db, getTestOrgUUIDProvider(2), opts...)
+	return newCoreAgentClient(ts, getTestOrgUUIDProvider(2), opts...)
 }
 
 func TestClientState(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
-	client1, err := newTestClient(db, cfg)
+	ts := getTestTransactionalStore(t)
+	client1, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 
 	// Testing default state
@@ -85,7 +84,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, targets1, targets1u)
 
 	// Testing state is maintained between runs
-	client2, err := newTestClient(db, cfg)
+	client2, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
@@ -114,10 +113,10 @@ func TestClientFullState(t *testing.T) {
 	}
 	testRepository := newTestRepository(2, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	cfg := newTestConfig(t, testRepository)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	// Prepare
-	client, err := newTestClient(db, cfg)
+	client, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	err = client.Update(testRepository.toUpdate())
 	assert.NoError(t, err)
@@ -151,19 +150,19 @@ func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string
 func TestClientVerifyTUF(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	previousConfigTargets := testRepository1.configTargets
-	client1, err := newTestClient(db, cfg)
+	client1, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
-	testRepository1.configTargets = generateTargets(generateKey(), testRepository1.configTargetsVersion, nil)
+	testRepository1.configTargets = generateTargets(generateKey(), testRepository1.configTargetsVersion, nil, nil)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.Error(t, err)
 
 	testRepository1.configTargets = previousConfigTargets
-	client2, err := newTestClient(db, cfg)
+	client2, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
-	testRepository1.directorTargets = generateTargets(generateKey(), testRepository1.directorTargetsVersion, nil)
+	testRepository1.directorTargets = generateTargets(generateKey(), testRepository1.directorTargetsVersion, nil, nil)
 	err = client2.Update(testRepository1.toUpdate())
 	assert.Error(t, err)
 }
@@ -189,9 +188,9 @@ func TestClientVerifyUptane(t *testing.T) {
 	testRepositoryInvalid1 := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: target2content}})
 
 	cfgValid := newTestConfig(t, testRepositoryValid)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
-	client1, err := newTestClient(db, cfgValid)
+	client1, err := newTestClient(ts, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
@@ -200,7 +199,7 @@ func TestClientVerifyUptane(t *testing.T) {
 	assert.Equal(t, target1content, targetFile)
 
 	cfgInvalid1 := newTestConfig(t, testRepositoryInvalid1)
-	client2, err := newTestClient(db, cfgInvalid1)
+	client2, err := newTestClient(ts, cfgInvalid1)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
 	assert.Error(t, err)
@@ -209,7 +208,7 @@ func TestClientVerifyUptane(t *testing.T) {
 }
 
 func TestClientVerifyOrgID(t *testing.T) {
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()
@@ -232,20 +231,20 @@ func TestClientVerifyOrgID(t *testing.T) {
 
 	cfgValid := newTestConfig(t, testRepositoryValid)
 
-	client1, err := newTestClient(db, cfgValid)
+	client1, err := newTestClient(ts, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	cfgInvalid := newTestConfig(t, testRepositoryInvalid)
-	client2, err := newTestClient(db, cfgInvalid)
+	client2, err := newTestClient(ts, cfgInvalid)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)
 }
 
 func TestClientVerifyOrgUUID(t *testing.T) {
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()
@@ -264,30 +263,30 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	cfgValid := newTestConfig(t, testRepositoryValid)
 
 	// Valid repository with an orgID and a UUID in the snapshot
-	client1, err := newTestClient(db, cfgValid)
+	client1, err := newTestClient(ts, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	cfgValidNoUUID := newTestConfig(t, testRepositoryValidNoUUID)
 	// Valid repository with an orgID but no UUID in the snapshot
-	db2 := getTestDB(t)
-	client2, err := newTestClient(db2, cfgValidNoUUID)
+	ts2 := getTestTransactionalStore(t)
+	client2, err := newTestClient(ts2, cfgValidNoUUID)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryValidNoUUID.toUpdate())
 	assert.Error(t, err)
 
 	cfgInvalid := newTestConfig(t, testRepositoryInvalid)
 	// Invalid repository : receives snapshot with orgUUID for org 2, but is org 3
-	client3, err := newTestClient(db, cfgInvalid)
+	client3, err := newTestClient(ts, cfgInvalid)
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)
 }
 
 func TestOrgStore(t *testing.T) {
-	db := getTestDB(t)
-	client, err := NewCoreAgentClient(db, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	ts := getTestTransactionalStore(t)
+	client, err := newCoreAgentClient(ts, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 
 	// Store key
@@ -317,12 +316,108 @@ func TestOrgStore(t *testing.T) {
 	assert.Equal(t, "def", uuid)
 }
 
+// TestRollbackRejected asserts that a rollback attack is rejected
+func TestRollbackRejected(t *testing.T) {
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	target3Content, target3 := generateTarget()
+
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+	targetFiles := []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}}
+
+	testRepository1 := newTestRepository(2, 1, configTargets, directorTargets, targetFiles)
+	cfg := newTestConfig(t, testRepository1)
+
+	ts := getTestTransactionalStore(t)
+
+	client1, err := newTestClient(ts, cfg)
+	assert.NoError(t, err)
+	err = client1.Update(testRepository1.toUpdate())
+	assert.NoError(t, err)
+
+	configTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	directorTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	targetFiles = []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/3", Raw: target3Content}}
+
+	// Roll-forward to a high version with epoch-millis used for the versions of the targets/snapshot/timestamp versions.
+	testRepository2 := testRepository1.incrementalChange(configTargets, directorTargets, targetFiles, nil, time.Now().UnixMilli())
+	err = client1.Update(testRepository2.toUpdate())
+	assert.NoError(t, err)
+
+	// Roll-back to a lower version with epoch-seconds used for the versions of the targets/snapshot/timestamp versions.
+	testRepository3 := testRepository2.incrementalChange(configTargets, directorTargets, targetFiles, nil, time.Now().Unix())
+	err = client1.Update(testRepository3.toUpdate())
+	assert.Error(t, err) // Update() fails when validating the incoming timestamp meta's version. It is lower than the last-known-good, and is rejected.
+}
+
+// TestKeyRotationRollback asserts that we can rotate signing keys to recover from a fast-forward attack
+func TestKeyRotationRollback(t *testing.T) {
+	target1content, target1 := generateTarget()
+	_, target2 := generateTarget()
+	target3Content, target3 := generateTarget()
+
+	configTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+	}
+	directorTargets := data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+	}
+	targetFiles := []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}}
+
+	testRepository1 := newTestRepository(2, 10, configTargets, directorTargets, targetFiles)
+	cfg := newTestConfig(t, testRepository1)
+	ts := getTestTransactionalStore(t)
+
+	client1, err := newTestClient(ts, cfg)
+
+	assert.NoError(t, err)
+	err = client1.Update(testRepository1.toUpdate())
+	assert.NoError(t, err)
+
+	// Roll-forward attack with epoch-millis used for the versions of the targets/snapshot/timestamp versions.
+	testRepository2 := testRepository1.incrementalChange(configTargets, directorTargets, targetFiles, nil, time.Now().UnixMilli())
+	err = client1.Update(testRepository2.toUpdate())
+	assert.NoError(t, err)
+
+	configTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/2": target2,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	directorTargets = data.TargetFiles{
+		"datadog/2/APM_SAMPLING/id/1": target1,
+		"datadog/2/APM_SAMPLING/id/3": target3,
+	}
+	targetFiles = []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/3", Raw: target3Content}}
+
+	// Update with revoked/rotated targets/snapshot/timestamp keys, and a downgraded version for those roles (to epoch-seconds, down from epoch-millis)
+	testRepository3 := testRepository2.incrementalChangeWithKeyRotation(configTargets, directorTargets, targetFiles, time.Now().Unix())
+	err = client1.Update(testRepository3.toUpdate())
+	assert.NoError(t, err) // Despite the downgrade of the timestamp, snapshot and targets versions, the key rotations allow the update to succeed.
+}
+
 func generateKey() keys.Signer {
 	key, _ := keys.GenerateEd25519Key()
 	return key
 }
 
 type testRepositories struct {
+	snapshotOrgID int
+
 	configTimestampKey   keys.Signer
 	configTargetsKey     keys.Signer
 	configSnapshotKey    keys.Signer
@@ -353,15 +448,76 @@ type testRepositories struct {
 	targetFiles []*pbgo.File
 }
 
+func (r testRepositories) incrementalChange(configTargetFiles data.TargetFiles, directorTargetFiles data.TargetFiles, targetFiles []*pbgo.File, expires *time.Time, version int64) testRepositories {
+	r.configTimestampVersion++
+	r.configTargetsVersion++
+	r.configSnapshotVersion++
+
+	r.directorTimestampVersion = version
+	r.directorTargetsVersion = version
+	r.directorSnapshotVersion = version
+
+	r.configTargets = generateTargets(r.configTargetsKey, r.configTargetsVersion, configTargetFiles, expires)
+	r.configSnapshot = generateSnapshot(r.snapshotOrgID, r.configSnapshotKey, r.configSnapshotVersion, r.configTargetsVersion, expires)
+	r.configTimestamp = generateTimestamp(r.configTimestampKey, r.configTimestampVersion, r.configSnapshotVersion, r.configSnapshot, expires)
+
+	r.directorTargets = generateTargets(r.directorTargetsKey, r.directorTargetsVersion, directorTargetFiles, expires)
+	r.directorSnapshot = generateSnapshot(r.snapshotOrgID, r.directorSnapshotKey, r.directorSnapshotVersion, r.directorTargetsVersion, expires)
+	r.directorTimestamp = generateTimestamp(r.directorTimestampKey, r.directorTimestampVersion, r.directorSnapshotVersion, r.directorSnapshot, expires)
+
+	r.targetFiles = targetFiles
+	return r
+}
+
+func (r testRepositories) incrementalChangeWithKeyRotation(configTargetFiles data.TargetFiles, directorTargetFiles data.TargetFiles, targetFiles []*pbgo.File, version int64) testRepositories {
+	// Increment the config versions
+	r.configTimestampVersion++
+	r.configTargetsVersion++
+	r.configSnapshotVersion++
+	r.configRootVersion++
+
+	// Update the director versions
+	r.directorTimestampVersion = version
+	r.directorSnapshotVersion = version
+	r.directorTargetsVersion = version
+	r.directorRootVersion++
+
+	prevConfigRootKey := r.configRootKey
+	r.configRootKey = generateKey()
+	r.configRoot = generateRoot(r.configRootKey, r.configRootVersion, r.configTimestampKey, r.configTargetsKey, r.configSnapshotKey, prevConfigRootKey, nil)
+	r.configTargets = generateTargets(r.configTargetsKey, r.configTargetsVersion, configTargetFiles, nil)
+	r.configSnapshot = generateSnapshot(r.snapshotOrgID, r.configSnapshotKey, r.configSnapshotVersion, r.configTargetsVersion, nil)
+	r.configTimestamp = generateTimestamp(r.configTimestampKey, r.configTimestampVersion, r.configSnapshotVersion, r.configSnapshot, nil)
+
+	// rotate director keys
+	prevDirectorRootKey := r.directorRootKey
+	r.directorRootKey = generateKey()
+
+	directorTargetSnapshotDirectorKey := generateKey()
+	r.directorTargetsKey = directorTargetSnapshotDirectorKey
+	r.directorTimestampKey = directorTargetSnapshotDirectorKey
+	r.directorSnapshotKey = directorTargetSnapshotDirectorKey
+
+	r.directorRoot = generateRoot(r.directorRootKey, r.directorRootVersion, r.directorTimestampKey, r.directorTargetsKey, r.directorSnapshotKey, prevDirectorRootKey, nil)
+	r.directorTargets = generateTargets(r.directorTargetsKey, r.directorTargetsVersion, directorTargetFiles, nil)
+	r.directorSnapshot = generateSnapshot(r.snapshotOrgID, r.directorSnapshotKey, r.directorSnapshotVersion, r.directorTargetsVersion, nil)
+	r.directorTimestamp = generateTimestamp(r.directorTimestampKey, r.directorTimestampVersion, r.directorSnapshotVersion, r.directorSnapshot, nil)
+
+	r.targetFiles = targetFiles
+	return r
+}
+
 func newTestRepository(snapshotOrgID int, version int64, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+	directorTimestampSnapshotTargetKey := generateKey()
 	repos := testRepositories{
+		snapshotOrgID:        snapshotOrgID,
 		configTimestampKey:   generateKey(),
 		configTargetsKey:     generateKey(),
 		configSnapshotKey:    generateKey(),
 		configRootKey:        generateKey(),
-		directorTimestampKey: generateKey(),
-		directorTargetsKey:   generateKey(),
-		directorSnapshotKey:  generateKey(),
+		directorTimestampKey: directorTimestampSnapshotTargetKey,
+		directorTargetsKey:   directorTimestampSnapshotTargetKey,
+		directorSnapshotKey:  directorTimestampSnapshotTargetKey,
 		directorRootKey:      generateKey(),
 		targetFiles:          targetFiles,
 	}
@@ -373,14 +529,14 @@ func newTestRepository(snapshotOrgID int, version int64, configTargets data.Targ
 	repos.directorTimestampVersion = 20 + version
 	repos.directorTargetsVersion = 200 + version
 	repos.directorSnapshotVersion = 2000 + version
-	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey, nil)
-	repos.configTargets = generateTargets(repos.configTargetsKey, 100+version, configTargets)
-	repos.configSnapshot = generateSnapshot(snapshotOrgID, repos.configSnapshotKey, 1000+version, repos.configTargetsVersion)
-	repos.configTimestamp = generateTimestamp(repos.configTimestampKey, 10+version, repos.configSnapshotVersion, repos.configSnapshot)
-	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey, nil)
-	repos.directorTargets = generateTargets(repos.directorTargetsKey, 200+version, directorTargets)
-	repos.directorSnapshot = generateSnapshot(snapshotOrgID, repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion)
-	repos.directorTimestamp = generateTimestamp(repos.directorTimestampKey, 20+version, repos.directorSnapshotVersion, repos.directorSnapshot)
+	repos.configRoot = generateRoot(repos.configRootKey, version, repos.configTimestampKey, repos.configTargetsKey, repos.configSnapshotKey, nil, nil)
+	repos.configTargets = generateTargets(repos.configTargetsKey, 100+version, configTargets, nil)
+	repos.configSnapshot = generateSnapshot(snapshotOrgID, repos.configSnapshotKey, 1000+version, repos.configTargetsVersion, nil)
+	repos.configTimestamp = generateTimestamp(repos.configTimestampKey, 10+version, repos.configSnapshotVersion, repos.configSnapshot, nil)
+	repos.directorRoot = generateRoot(repos.directorRootKey, version, repos.directorTimestampKey, repos.directorTargetsKey, repos.directorSnapshotKey, nil, nil)
+	repos.directorTargets = generateTargets(repos.directorTargetsKey, 200+version, directorTargets, nil)
+	repos.directorSnapshot = generateSnapshot(snapshotOrgID, repos.directorSnapshotKey, 2000+version, repos.directorTargetsVersion, nil)
+	repos.directorTimestamp = generateTimestamp(repos.directorTimestampKey, 20+version, repos.directorSnapshotVersion, repos.directorSnapshot, nil)
 	return repos
 }
 
@@ -402,10 +558,13 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	}
 }
 
-func generateRoot(key keys.Signer, version int64, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer) []byte {
+func generateRoot(key keys.Signer, version int64, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer, expires *time.Time) []byte {
 	root := data.NewRoot()
 	root.Version = version
 	root.Expires = time.Now().Add(1 * time.Hour)
+	if expires != nil {
+		root.Expires = *expires
+	}
 	root.AddKey(key.PublicData())
 	root.AddKey(timestampKey.PublicData())
 	root.AddKey(targetsKey.PublicData())
@@ -437,9 +596,12 @@ func generateRoot(key keys.Signer, version int64, timestampKey keys.Signer, targ
 	return serializedRoot
 }
 
-func generateTimestamp(key keys.Signer, version int64, snapshotVersion int64, snapshot []byte) []byte {
+func generateTimestamp(key keys.Signer, version int64, snapshotVersion int64, snapshot []byte, expires *time.Time) []byte {
 	meta := data.NewTimestamp()
 	meta.Expires = time.Now().Add(1 * time.Hour)
+	if expires != nil {
+		meta.Expires = *expires
+	}
 	meta.Version = version
 	meta.Meta["snapshot.json"] = data.TimestampFileMeta{Version: snapshotVersion, Length: int64(len(snapshot)), Hashes: data.Hashes{
 		"sha256": hashSha256(snapshot),
@@ -449,9 +611,12 @@ func generateTimestamp(key keys.Signer, version int64, snapshotVersion int64, sn
 	return serialized
 }
 
-func generateTargets(key keys.Signer, version int64, targets data.TargetFiles) []byte {
+func generateTargets(key keys.Signer, version int64, targets data.TargetFiles, expires *time.Time) []byte {
 	meta := data.NewTargets()
 	meta.Expires = time.Now().Add(1 * time.Hour)
+	if expires != nil {
+		meta.Expires = *expires
+	}
 	meta.Version = version
 	meta.Targets = targets
 	signed, _ := sign.Marshal(&meta, key)
@@ -459,9 +624,12 @@ func generateTargets(key keys.Signer, version int64, targets data.TargetFiles) [
 	return serialized
 }
 
-func generateSnapshot(orgID int, key keys.Signer, version int64, targetsVersion int64) []byte {
+func generateSnapshot(orgID int, key keys.Signer, version int64, targetsVersion int64, expires *time.Time) []byte {
 	meta := data.NewSnapshot()
 	meta.Expires = time.Now().Add(1 * time.Hour)
+	if expires != nil {
+		meta.Expires = *expires
+	}
 	meta.Version = version
 	meta.Meta["targets.json"] = data.SnapshotFileMeta{Version: targetsVersion}
 

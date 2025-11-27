@@ -91,7 +91,7 @@ func matchResultTree(at *activity_tree.ActivityTree, toMatch map[string][]string
 func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCacheEntry {
 	// setting process
 	process := model.NewPlaceholderProcessCacheEntry(42, 42, false)
-	process.ContainerID = containerutils.ContainerID(containerID)
+	process.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	process.FileEvent.PathnameStr = test.processPath
 	process.FileEvent.BasenameStr = filepath.Base(test.processPath)
 	process.Argv0 = filepath.Base(test.processPath)
@@ -106,7 +106,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 
 	// setting process ancestor
 	process.Ancestor = model.NewPlaceholderProcessCacheEntry(41, 41, false)
-	process.Ancestor.ContainerID = containerutils.ContainerID(containerID)
+	process.Ancestor.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	process.Ancestor.FileEvent.PathnameStr = test.parentProcessPath
 	process.Ancestor.FileEvent.BasenameStr = filepath.Base(test.parentProcessPath)
 	process.Ancestor.Argv0 = filepath.Base(test.parentProcessPath)
@@ -133,7 +133,7 @@ func craftFakeProcess(containerID string, test *testIteration) *model.ProcessCac
 	process.Ancestor.Ancestor.FileEvent.PathnameStr = "/usr/bin/systemd"
 	process.Ancestor.Ancestor.FileEvent.BasenameStr = "systemd"
 	if test.granpaInsideContainer {
-		process.Ancestor.Ancestor.ContainerID = containerutils.ContainerID(containerID)
+		process.Ancestor.Ancestor.ContainerContext.ContainerID = containerutils.ContainerID(containerID)
 	}
 	process.Ancestor.Ancestor.FileEvent.Inode = 40
 	process.Ancestor.Ancestor.FileEvent.MountID = 40

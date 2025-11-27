@@ -8,36 +8,31 @@ package firewallscanner
 import (
 	"testing"
 
-	"go.uber.org/fx"
-	"gopkg.in/yaml.v2"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func Test_getRulesToCheck(t *testing.T) {
 	tests := []struct {
 		name          string
-		conf          []byte
+		conf          string
 		expectedRules sourcesByRule
 	}{
 		{
 			name:          "empty config",
-			conf:          []byte(``),
+			conf:          ``,
 			expectedRules: sourcesByRule{},
 		},
 		{
 			name: "snmp traps config",
-			conf: []byte(`
+			conf: `
 network_devices:
   snmp_traps:
     enabled: true
     port: 1000
-`),
+`,
 			expectedRules: sourcesByRule{
 				firewallRule{
 					protocol: "UDP",
@@ -47,16 +42,16 @@ network_devices:
 		},
 		{
 			name: "snmp traps config not enabled",
-			conf: []byte(`
+			conf: `
 network_devices:
   snmp_traps:
     port: 1000
-`),
+`,
 			expectedRules: sourcesByRule{},
 		},
 		{
 			name: "netflow config",
-			conf: []byte(`
+			conf: `
 network_devices:
   netflow:
     enabled: true
@@ -67,7 +62,7 @@ network_devices:
       - flow_type: ipfix
         port: 1001
       - flow_type: sflow5
-`),
+`,
 			expectedRules: sourcesByRule{
 				firewallRule{
 					protocol: "UDP",
@@ -89,7 +84,7 @@ network_devices:
 		},
 		{
 			name: "snmp traps and netflow config",
-			conf: []byte(`
+			conf: `
 network_devices:
   snmp_traps:
     enabled: true
@@ -101,7 +96,7 @@ network_devices:
         port: 1000
       - flow_type: netflow5
         port: 1001
-`),
+`,
 			expectedRules: sourcesByRule{
 				firewallRule{
 					protocol: "UDP",
@@ -116,14 +111,7 @@ network_devices:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rawConf := make(map[string]any)
-			require.NoError(t, yaml.Unmarshal(tt.conf, &rawConf))
-
-			conf := fxutil.Test[config.Component](t,
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: rawConf}),
-			)
-
+			conf := configmock.NewFromYAML(t, tt.conf)
 			rules := getRulesToCheck(conf)
 			assert.Equal(t, tt.expectedRules, rules)
 		})

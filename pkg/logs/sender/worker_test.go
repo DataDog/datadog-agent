@@ -80,7 +80,6 @@ func TestSender(t *testing.T) {
 	destinationsCtx.Stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderSingleDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -112,7 +111,6 @@ func TestSenderSingleDestination(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderDualReliableDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -151,7 +149,6 @@ func TestSenderDualReliableDestination(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderUnreliableAdditionalDestination(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -240,7 +237,6 @@ func TestSenderUnreliableStopsWhenMainFails(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -290,7 +286,6 @@ func TestSenderReliableContinuseWhenOneFails(t *testing.T) {
 	worker.stop()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	cfg := configmock.New(t)
 	input := make(chan *message.Payload, 1)
@@ -358,4 +353,24 @@ func TestSenderReliableWhenOneFailsAndRecovers(t *testing.T) {
 	reliableServer1.Stop()
 	reliableServer2.Stop()
 	worker.stop()
+}
+
+func TestMRFPayloads(t *testing.T) {
+	cfg := configmock.New(t)
+	input := make(chan *message.Payload, 1)
+	auditor := &testAuditor{
+		output: make(chan *message.Payload, 1),
+	}
+
+	reliableRespond1 := make(chan int)
+	reliableServer1 := http.NewTestServerWithOptions(200, 1, true, reliableRespond1, cfg)
+
+	destinationFactory := func(_ string) *client.Destinations {
+		return client.NewDestinations([]client.Destination{reliableServer1.Destination}, nil)
+	}
+
+	worker := newWorker(cfg, input, auditor, destinationFactory, 10, NewMockServerlessMeta(false), metrics.NewNoopPipelineMonitor(""), "test")
+	worker.start()
+
+	input <- &message.Payload{}
 }

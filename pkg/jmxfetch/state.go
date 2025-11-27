@@ -104,28 +104,28 @@ func InitRunner(server dogstatsdServer.Component, logger jmxlogger.Component, ip
 
 // GetIntegrations returns the JMXFetch integrations' instances as a map[string]interface{}.
 func GetIntegrations() (map[string]interface{}, error) {
-	integrations := map[string]interface{}{}
-	configs := map[string]integration.JSONMap{}
+	scheduledConfigs := GetScheduledConfigs()
+	integrations := make(map[string]interface{}, 2)
+	configs := make(map[string]integration.JSONMap, len(scheduledConfigs))
 
-	for name, config := range GetScheduledConfigs() {
+	for name, config := range scheduledConfigs {
 		var rawInitConfig integration.RawMap
-		err := yaml.Unmarshal(config.InitConfig, &rawInitConfig)
-		if err != nil {
+		if err := yaml.Unmarshal(config.InitConfig, &rawInitConfig); err != nil {
 			return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
 		}
 
-		c := map[string]interface{}{}
+		c := make(map[string]interface{}, 5)
 		c["init_config"] = GetJSONSerializableMap(rawInitConfig)
-		instances := []integration.JSONMap{}
+		instances := make([]integration.JSONMap, 0, len(config.Instances))
 		for _, instance := range config.Instances {
 			var rawInstanceConfig integration.JSONMap
-			err := yaml.Unmarshal(instance, &rawInstanceConfig)
-			if err != nil {
+			if err := yaml.Unmarshal(instance, &rawInstanceConfig); err != nil {
 				return nil, fmt.Errorf("unable to parse JMX configuration: %w", err)
 			}
 			instances = append(instances, GetJSONSerializableMap(rawInstanceConfig).(integration.JSONMap))
 		}
 
+		integration.ConfigSourceToMetadataMap(config.Source, c)
 		c["instances"] = instances
 		c["check_name"] = config.Name
 

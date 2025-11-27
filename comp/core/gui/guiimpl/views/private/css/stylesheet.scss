@@ -201,7 +201,7 @@ a {
     text-align: center;
   }
   #restart_status {
-    color: #ff0000; 
+    color: #ff0000;
   }
   #agent_info {
     position: absolute;
@@ -736,5 +736,51 @@ a {
     .load_more:active {
       background-color: #a2a2a2;
     }
+  }
+}
+
+.inventory-scrollbox {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 2px solid $purple;
+  background: #f6f3fa; // Very light Datadog purple
+  box-shadow: 0 2px 8px rgba(107, 65, 154, 0.2); // Soft purple shadow
+  border-radius: 6px;
+  padding: 0.5em;
+  margin-bottom: 1em;
+
+  // Custom scrollbar for Webkit browsers
+  &::-webkit-scrollbar {
+    width: 12px;
+    background: #e8e0f2;
+    border-radius: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $purple;
+    border-radius: 6px;
+    border: 2px solid #f6f3fa;
+  }
+
+  // For Firefox
+  scrollbar-width: thin;
+  scrollbar-color: $purple #e8e0f2;
+}
+
+.source-bubble {
+  display: inline-block;
+  padding: 0px 6px;
+  border-radius: 10px;
+  font-size: 0.85em;
+  font-weight: normal;
+  margin-left: 5px;
+
+  &.installed {
+    background-color: #E3F2FD;
+    color: #1976D2;
+  }
+
+  &.broken {
+    background-color: #F3E5F5;
+    color: #7B1FA2;
   }
 }

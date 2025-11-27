@@ -9,9 +9,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	tifeks "github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	tifeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -28,16 +28,19 @@ func TestEKSSuite(t *testing.T) {
 			tifeks.WithWindowsNodeGroup(),
 			tifeks.WithBottlerocketNodeGroup(),
 			tifeks.WithLinuxARMNodeGroup(),
+			tifeks.WithUseAL2023Nodes(),
 		),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(kubernetesagentparams.WithDualShipping()),
+		awskubernetes.WithDeployArgoRollout(),
 	)))
 }
 
 func (suite *eksSuite) SetupSuite() {
 	suite.k8sSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
+	suite.envSpecificClusterTags = []string{"^kube_distribution:eks$"}
 }
 
 func (suite *eksSuite) TestEKSFargate() {
@@ -53,6 +56,7 @@ func (suite *eksSuite) TestEKSFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -84,6 +88,7 @@ func (suite *eksSuite) TestEKSFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -115,6 +120,7 @@ func (suite *eksSuite) TestEKSFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -148,6 +154,7 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -163,7 +170,6 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 }
 
 func (suite *eksSuite) TestNginxFargate() {
-
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
@@ -183,6 +189,7 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx-fargate$`,
@@ -217,6 +224,7 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx-fargate$`,
 				`^kube_service:nginx$`,
@@ -243,6 +251,7 @@ func (suite *eksSuite) TestNginxFargate() {
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^kube_cluster_name:`,
+				"^kube_distribution:eks$",
 				`^kube_container_name:nginx$`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx-fargate$`,

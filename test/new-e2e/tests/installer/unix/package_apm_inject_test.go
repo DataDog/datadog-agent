@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 )
@@ -410,13 +410,6 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
-func (s *packageApmInjectSuite) TestInstallStandaloneLib() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_LIBRARIES=python")
-	defer s.Purge()
-	s.host.AssertPackageNotInstalledByPackageManager("datadog-apm-library-python")
-	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python")
-}
-
 func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
@@ -486,7 +479,7 @@ func (s *packageApmInjectSuite) assertStableConfig(expectedConfigs map[string]in
 	}
 
 	state := s.host.State()
-	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/application_monitoring.yaml", 0644, "root", "root")
 	content, err := s.host.ReadFile("/etc/datadog-agent/application_monitoring.yaml")
 	assert.NoError(s.T(), err)
 

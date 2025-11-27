@@ -66,7 +66,7 @@ type cfg struct {
 // NewConfig is the default constructor for the component, it returns
 // a component instance and an error.
 func NewConfig(deps Dependencies) (Component, error) {
-	tracecfg, err := setupConfig(deps, "")
+	tracecfg, err := setupConfigCommon(deps)
 
 	if err != nil {
 		// Allow main Agent to start with missing API key
@@ -82,7 +82,7 @@ func NewConfig(deps Dependencies) (Component, error) {
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
-	c.coreConfig.OnUpdate(func(setting string, oldValue, newValue any, _ uint64) {
+	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
 		log.Debugf("OnUpdate: %s", setting)
 		if setting != apiKeyConfigKey {
 			return

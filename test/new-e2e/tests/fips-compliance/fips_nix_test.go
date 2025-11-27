@@ -13,12 +13,13 @@ import (
 
 	"testing"
 
-	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -44,11 +45,10 @@ func TestLinuxFIPSComplianceSuite(t *testing.T) {
 		awshost.WithAgentOptions(
 			agentparams.WithFlavor("datadog-fips-agent"),
 			// Install custom check that reports the FIPS mode of Python
-			// TODO ADXT-881: Need forward slashes to workaround test-infra bug
 			agentparams.WithFile(
 				`/etc/datadog-agent/checks.d/e2e_fips_test.py`,
 				fipsTestCheck,
-				false,
+				true,
 			),
 			agentparams.WithFile(
 				`/etc/datadog-agent/conf.d/e2e_fips_test.yaml`,
@@ -138,15 +138,22 @@ func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
 	var pid string
 	var err error
 
+	// wake up the trace-agent
+	// NB: the endpoint is no-op
+	v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
+
 	for _, agentPath := range paths {
-		v.T().Logf("Checking loaded libraries for %v", agentPath)
-		v.EventuallyWithT(func(collect *assert.CollectT) {
-			pid, err = v.Env().RemoteHost.Host.Execute(fmt.Sprintf("pidof %v", agentPath))
-			require.NoError(collect, err)
-			pid = strings.TrimSpace(pid)
-			require.NotEmpty(collect, pid)
-		}, time.Second*10, time.Second)
-		loadedLibs := v.Env().RemoteHost.Host.MustExecute(fmt.Sprintf("sudo cat /proc/%s/maps", pid))
-		assert.Contains(v.T(), loadedLibs, "/opt/datadog-agent/embedded/lib/ossl-modules/fips.so")
+		v.T().Run(agentPath, func(t *testing.T) {
+			t.Logf("Checking loaded libraries for %v", agentPath)
+			require.EventuallyWithT(t, func(collect *assert.CollectT) {
+				pid, err = v.Env().RemoteHost.Host.Execute(fmt.Sprintf("pidof %v", agentPath))
+				require.NoError(collect, err)
+				pid = strings.TrimSpace(pid)
+				require.NotEmpty(collect, pid)
+			}, time.Second*10, time.Second)
+			loadedLibs, err := v.Env().RemoteHost.Host.Execute(fmt.Sprintf("sudo cat /proc/%s/maps", pid))
+			require.NoError(t, err)
+			assert.Contains(t, loadedLibs, "/opt/datadog-agent/embedded/lib/ossl-modules/fips.so")
+		})
 	}
 }

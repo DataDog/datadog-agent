@@ -14,12 +14,15 @@ import (
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
+	tolerateUnreadyAnnotation = "ad.datadoghq.com/tolerate-unready"
+
 	// Keys of standard tags
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
@@ -86,4 +89,10 @@ func getPrometheusIncludeAnnotations() types.PrometheusAnnotations {
 		maps.Copy(annotations, check.AD.GetIncludeAnnotations())
 	}
 	return annotations
+}
+
+// shouldSkipPodReadiness checks if a pod should skip readiness checks based on its annotations
+func shouldSkipPodReadiness(pod *workloadmeta.KubernetesPod) bool {
+	tolerate, ok := pod.Annotations[tolerateUnreadyAnnotation]
+	return ok && tolerate == "true"
 }

@@ -29,7 +29,13 @@ func WalkTarXZArchive(tarxzArchive string, walkFunc func(*tar.Reader, *tar.Heade
 	}
 	defer f.Close()
 
-	zr, err := xz.NewReader(f, 0)
+	return WalkTarXZArchiveReader(f, walkFunc)
+}
+
+// WalkTarXZArchiveReader walks the provided .tar.xz archive reader, calling walkFunc for each entry.
+// If ErrStopWalk is returned from walkFunc, then the walk is stopped.
+func WalkTarXZArchiveReader(rdr io.Reader, walkFunc func(*tar.Reader, *tar.Header) error) error {
+	zr, err := xz.NewReader(rdr, 0)
 	if err != nil {
 		return err
 	}
@@ -78,6 +84,18 @@ func TarXZExtractFile(tarxzArchive string, path string, destinationDir string) e
 // TarXZExtractAll extracts all regular files from the .tar.xz archive
 func TarXZExtractAll(tarxzArchive string, destinationDir string) error {
 	return WalkTarXZArchive(tarxzArchive, func(tr *tar.Reader, hdr *tar.Header) error {
+		if hdr.Typeflag == tar.TypeReg {
+			if err := untarFile(tr, hdr, destinationDir); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// TarXZExtractAllReader extracts all regular files from the .tar.xz archive reader
+func TarXZExtractAllReader(rdr io.Reader, destinationDir string) error {
+	return WalkTarXZArchiveReader(rdr, func(tr *tar.Reader, hdr *tar.Header) error {
 		if hdr.Typeflag == tar.TypeReg {
 			if err := untarFile(tr, hdr, destinationDir); err != nil {
 				return err

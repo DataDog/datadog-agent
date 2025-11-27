@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"maps"
+	"math"
 	"sync"
 	"syscall"
 
@@ -63,6 +64,9 @@ const (
 
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
+
+	// EventFlagsIsSnapshot is true if the event is generated from a snapshot
+	EventFlagsIsSnapshot
 )
 
 const (
@@ -344,6 +348,23 @@ var (
 		"IP_PROTO_RAW":     IPProtoRAW,
 	}
 
+	// NetworkProtocolTypeConstants is the list of supported network protocol specific types
+	// generate_constants:Network Protocol Types,Types of specific network protocols.
+	NetworkProtocolTypeConstants = map[string]NetworkProtocolType{
+		"ICMP_ECHO_REQUEST":              ICMPTypeEchoRequest,
+		"ICMP_ECHO_REPLY":                ICMPTypeEchoReply,
+		"ICMP_ROUTER_SOLICITATION":       ICMPTypeRouterSolicitation,
+		"ICMP_ROUTER_ADVERTISEMENT":      ICMPTypeRouterAdvertisement,
+		"ICMP_NEIGHBOR_SOLICITATION":     ICMPTypeNeighborSolicitation,
+		"ICMP_NEIGHBOR_ADVERTISEMENT":    ICMPTypeNeighborAdvertisement,
+		"ICMP_V6_ECHO_REQUEST":           ICMPv6TypeEchoRequest,
+		"ICMP_V6_ECHO_REPLY":             ICMPv6TypeEchoReply,
+		"ICMP_V6_ROUTER_SOLICITATION":    ICMPv6TypeRouterSolicitation,
+		"ICMP_V6_ROUTER_ADVERTISEMENT":   ICMPv6TypeRouterAdvertisement,
+		"ICMP_V6_NEIGHBOR_SOLICITATION":  ICMPv6TypeNeighborSolicitation,
+		"ICMP_V6_NEIGHBOR_ADVERTISEMENT": ICMPv6TypeNeighborAdvertisement,
+	}
+
 	// NetworkDirectionConstants is the list of supported network directions
 	// generate_constants:Network directions,Network directions are the supported directions of network packets.
 	NetworkDirectionConstants = map[string]NetworkDirection{
@@ -419,22 +440,43 @@ var (
 		"STATIC":  Static,
 		"DYNAMIC": Dynamic,
 	}
+
+	// UserSessionTypes are the supported user session types
+	// generate_constants:UserSessionTypes,UserSessionTypes are the supported user session types.
+	UserSessionTypes = map[string]usersession.Type{
+		"unknown": usersession.UserSessionTypeUnknown,
+		"k8s":     usersession.UserSessionTypeK8S,
+		"ssh":     usersession.UserSessionTypeSSH,
+	}
+
+	// SSHAuthMethodConstants are the supported SSH authentication methods
+	// generate_constants:SSHAuthMethod,SSH authentication methods.
+	SSHAuthMethodConstants = map[string]usersession.AuthType{
+		"password":   usersession.SSHAuthMethodPassword,
+		"public_key": usersession.SSHAuthMethodPublicKey,
+		"unknown":    usersession.SSHAuthMethodUnknown,
+	}
 )
 
 var (
-	dnsQTypeStrings         = map[uint32]string{}
-	dnsQClassStrings        = map[uint32]string{}
-	dnsResponseCodeStrings  = map[uint32]string{}
-	l3ProtocolStrings       = map[L3Protocol]string{}
-	l4ProtocolStrings       = map[L4Protocol]string{}
-	networkDirectionStrings = map[NetworkDirection]string{}
-	addressFamilyStrings    = map[uint16]string{}
-	tlsVersionStrings       = map[uint16]string{}
-	abiStrings              = map[ABI]string{}
-	architectureStrings     = map[Architecture]string{}
-	compressionTypeStrings  = map[CompressionType]string{}
-	fileTypeStrings         = map[FileType]string{}
-	linkageTypeStrings      = map[LinkageType]string{}
+	dnsQTypeStrings            = map[uint32]string{}
+	dnsQClassStrings           = map[uint32]string{}
+	dnsResponseCodeStrings     = map[uint32]string{}
+	l3ProtocolStrings          = map[L3Protocol]string{}
+	l4ProtocolStrings          = map[L4Protocol]string{}
+	networkDirectionStrings    = map[NetworkDirection]string{}
+	networkProtocolTypeStrings = map[NetworkProtocolType]string{}
+	addressFamilyStrings       = map[uint16]string{}
+	tlsVersionStrings          = map[uint16]string{}
+	abiStrings                 = map[ABI]string{}
+	architectureStrings        = map[Architecture]string{}
+	compressionTypeStrings     = map[CompressionType]string{}
+	fileTypeStrings            = map[FileType]string{}
+	linkageTypeStrings         = map[LinkageType]string{}
+	// UserSessionTypeStrings are the supported user session types
+	UserSessionTypeStrings = map[usersession.Type]string{}
+	// SSHAuthMethodStrings are the supported SSH authentication methods
+	SSHAuthMethodStrings = map[usersession.AuthType]string{}
 )
 
 // File flags
@@ -508,6 +550,13 @@ func initL4ProtocolConstants() {
 	}
 }
 
+func initNetworkProtocolTypeConstants() {
+	for k, v := range NetworkProtocolTypeConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		networkProtocolTypeStrings[v] = k
+	}
+}
+
 func initNetworkDirectionContants() {
 	for k, v := range NetworkDirectionConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
@@ -577,6 +626,22 @@ func initLinkageTypeConstants() {
 	}
 }
 
+// InitUserSessionTypes initialize the constants for user session types
+func InitUserSessionTypes() {
+	for k, v := range UserSessionTypes {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		UserSessionTypeStrings[v] = k
+	}
+}
+
+// InitSSHAuthMethodConstants initialize the constants for SSH auth methods
+func InitSSHAuthMethodConstants() {
+	for k, v := range SSHAuthMethodConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		SSHAuthMethodStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initBoolConstants()
 	initErrorConstants()
@@ -601,12 +666,12 @@ func initConstants() {
 	initDNSQTypeConstants()
 	initL3ProtocolConstants()
 	initL4ProtocolConstants()
+	initNetworkProtocolTypeConstants()
 	initNetworkDirectionContants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	initAUIDConstants()
-	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
@@ -623,6 +688,9 @@ func initConstants() {
 	initSocketTypeConstants()
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
+	initPrCtlOptionConstants()
+	InitUserSessionTypes()
+	InitSSHAuthMethodConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -933,6 +1001,44 @@ const (
 	IPProtoMPLS L4Protocol = 137
 	// IPProtoRAW Raw IP packets
 	IPProtoRAW L4Protocol = 255
+)
+
+// NetworkProtocolType is the type of the protocol of the network event
+type NetworkProtocolType uint16
+
+func (proto NetworkProtocolType) String() string {
+	return networkProtocolTypeStrings[proto]
+}
+
+const (
+	// UnspecType is the default type
+	UnspecType NetworkProtocolType = math.MaxUint16
+
+	// ICMPTypeEchoRequest is the type for ICMP echo requests
+	ICMPTypeEchoRequest NetworkProtocolType = 8
+	// ICMPTypeEchoReply is the type for ICMP echo replies
+	ICMPTypeEchoReply NetworkProtocolType = 0
+	// ICMPTypeRouterSolicitation is the type for ICMP router solicitation
+	ICMPTypeRouterSolicitation NetworkProtocolType = 9
+	// ICMPTypeRouterAdvertisement is the type for ICMP router advertisement
+	ICMPTypeRouterAdvertisement NetworkProtocolType = 10
+	// ICMPTypeNeighborSolicitation is the type for ICMP neighbor solicitation
+	ICMPTypeNeighborSolicitation NetworkProtocolType = 135
+	// ICMPTypeNeighborAdvertisement is the type for ICMP neighbor advertisement
+	ICMPTypeNeighborAdvertisement NetworkProtocolType = 136
+
+	// ICMPv6TypeEchoRequest is the type for ICMPv6 echo requests
+	ICMPv6TypeEchoRequest NetworkProtocolType = 128
+	// ICMPv6TypeEchoReply is the type for ICMPv6 echo replies
+	ICMPv6TypeEchoReply NetworkProtocolType = 129
+	// ICMPv6TypeRouterSolicitation is the type for ICMPv6 router solicitation
+	ICMPv6TypeRouterSolicitation NetworkProtocolType = 133
+	// ICMPv6TypeRouterAdvertisement is the type for ICMPv6 router advertisement
+	ICMPv6TypeRouterAdvertisement NetworkProtocolType = 134
+	// ICMPv6TypeNeighborSolicitation is the type for ICMPv6 neighbor solicitation
+	ICMPv6TypeNeighborSolicitation NetworkProtocolType = 137
+	// ICMPv6TypeNeighborAdvertisement is the type for ICMPv6 neighbor advertisement
+	ICMPv6TypeNeighborAdvertisement NetworkProtocolType = 138
 )
 
 // NetworkDirection is used to identify the network direction of a flow

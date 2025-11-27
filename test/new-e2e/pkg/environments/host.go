@@ -6,13 +6,17 @@
 package environments
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
@@ -42,7 +46,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := e.generateAndDownloadAgentFlare(outputDir)
+		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
@@ -53,16 +57,16 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
-func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
-	if e.Agent == nil || e.RemoteHost == nil {
+func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
+	if agent == nil || host == nil {
 		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
-	// generate a local flare
+	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// todo skip uploading it to backend, requires further changes in agent executor
 	// to redirect stdin to null, on linux adding `</dev/null`
 	// on windows prepending command with `@() |`, pre-piping with an empty array
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	flareCommandOutput, err := e.Agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--local"}))
+	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {
@@ -79,19 +83,115 @@ func (e *Host) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 		return "", fmt.Errorf("output does not contain the path to the flare archive, output: %s", flareCommandOutput)
 	}
 	flarePath := matches[1]
-	flareFileInfo, err := e.RemoteHost.Lstat(flarePath)
+	flareFileInfo, err := host.Lstat(flarePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to stat flare archive: %w", err)
 	}
 	dstPath := filepath.Join(outputDir, flareFileInfo.Name())
 
-	err = e.RemoteHost.EnsureFileIsReadable(flarePath)
+	err = host.EnsureFileIsReadable(flarePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to ensure flare archive is readable: %w", err)
 	}
-	err = e.RemoteHost.GetFile(flarePath, dstPath)
+	err = host.GetFile(flarePath, dstPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to download flare archive: %w", err)
 	}
 	return dstPath, nil
+}
+
+func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec, error) {
+	switch family {
+	case os.LinuxFamily:
+		return []CoverageTargetSpec{{
+			AgentName:       "datadog-agent",
+			CoverageCommand: []string{"sudo", "datadog-agent", "coverage", "generate"},
+			Required:        true,
+		}, {
+			AgentName:       "trace-agent",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/trace-agent", "-c", "/etc/datadog-agent", "coverage", "generate"},
+			Required:        false,
+		}, {
+			AgentName:       "process-agent",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/process-agent", "coverage", "generate"},
+			Required:        false,
+		}, {
+			AgentName:       "security-agent",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/security-agent", "coverage", "generate"},
+			Required:        false,
+		}, {
+			AgentName:       "system-probe",
+			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
+			Required:        false,
+		}}, nil
+	case os.WindowsFamily:
+		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
+		return []CoverageTargetSpec{{
+			AgentName:       "datadog-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath)},
+			Required:        true,
+		}, {
+			AgentName:       "trace-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\trace-agent.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}, {
+			AgentName:       "process-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\process-agent.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}, {
+			AgentName:       "security-agent",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\security-agent.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}, {
+			AgentName:       "system-probe",
+			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath)},
+			Required:        false,
+		}}, nil
+	}
+	return nil, fmt.Errorf("unsupported OS family: %v", family)
+}
+
+// Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
+func (e *Host) Coverage(outputDir string) (string, error) {
+
+	if e.RemoteHost == nil {
+		return "RemoteHost component is not initialized, skipping coverage", nil
+	}
+	if e.Agent == nil {
+		return "Agent component is not initialized, skipping coverage", nil
+	}
+
+	outStr := []string{}
+	outStr = append(outStr, "===== Coverage =====")
+	commandCoverages, err := e.getAgentCoverageCommands(e.RemoteHost.OSFamily)
+	if err != nil {
+		return "", err
+	}
+	errs := []error{}
+	for _, target := range commandCoverages {
+		outStr = append(outStr, fmt.Sprintf("==== %s ====", target.AgentName))
+		output, err := e.RemoteHost.Execute(strings.Join(target.CoverageCommand, " "))
+		if err != nil {
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
+			continue
+		}
+		// find coverage folder in command output
+		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
+		matches := re.FindStringSubmatch(output)
+		if len(matches) < 2 {
+			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", output))
+			continue
+		}
+		err = e.RemoteHost.GetFolder(matches[1], filepath.Join(outputDir, filepath.Base(matches[1])))
+		if err != nil {
+			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
+			continue
+		}
+		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
+	}
+
+	if len(errs) > 0 {
+		return strings.Join(outStr, "\n"), errors.Join(errs...)
+	}
+	return strings.Join(outStr, "\n"), nil
 }

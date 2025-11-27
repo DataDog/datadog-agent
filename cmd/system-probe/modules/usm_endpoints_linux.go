@@ -26,7 +26,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	registerUSMCommonEndpoints(nt, httpMux)
 
 	httpMux.HandleFunc("/debug/kafka_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_kafka_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.kafka.enabled") {
 			writeDisabledProtocolMessage("kafka", w)
 			return
 		}
@@ -43,7 +43,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_postgres_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.postgres.enabled") {
 			writeDisabledProtocolMessage("postgres", w)
 			return
 		}
@@ -60,7 +60,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/redis_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_redis_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.redis.enabled") {
 			writeDisabledProtocolMessage("redis", w)
 			return
 		}
@@ -77,7 +77,7 @@ func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
 	})
 
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
-		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.enable_http2_monitoring") {
+		if !coreconfig.SystemProbe().GetBool("service_monitoring_config.http2.enabled") {
 			writeDisabledProtocolMessage("http2", w)
 			return
 		}

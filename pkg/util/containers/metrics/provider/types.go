@@ -23,13 +23,25 @@ type ContainerMemStats struct {
 
 	// Linux-only fields
 	WorkingSet       *float64 // Following cAdvisor/Kubernetes: defined as UsageTotal - InactiveFiles
-	RSS              *float64
 	Cache            *float64
+	RSS              *float64
+	Shmem            *float64
+	FileMapped       *float64
+	FileDirty        *float64
+	FileWriteback    *float64
+	RefaultAnon      *float64
+	RefaultFile      *float64
 	OOMEvents        *float64 // Number of events where memory allocation failed
 	PartialStallTime *float64 // Correspond to PSI Some total
 	Peak             *float64
 	Pgfault          *float64
 	Pgmajfault       *float64
+	PageTables       *float64 // Available only in cgroups v2
+	ActiveAnon       *float64
+	InactiveAnon     *float64
+	ActiveFile       *float64
+	InactiveFile     *float64
+	Unevictable      *float64
 
 	// Windows-only fields
 	PrivateWorkingSet *float64

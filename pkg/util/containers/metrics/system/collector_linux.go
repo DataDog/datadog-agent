@@ -124,9 +124,9 @@ func newSystemCollector(cache *provider.Cache, wlm option.Option[workloadmeta.Co
 	if env.IsContainerized() {
 		collectors = &provider.Collectors{}
 
-		// When the Agent runs as a sidecar (e.g. Fargate) with shared PID namespace, we can use the system collector in some cases.
+		// When the Agent runs as a sidecar (e.g. Fargate or Managed Instances) with shared PID namespace, we can use the system collector in some cases.
 		// TODO: Check how we could detect shared PID namespace instead of makeing assumption
-		isAgentSidecar := env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate)
+		isAgentSidecar := env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate) || env.IsECSSidecarMode(pkgconfigsetup.Datadog())
 
 		// With sysfs we can always get cgroup stats
 		if env.IsHostSysAvailable() {
@@ -351,6 +351,18 @@ func buildMemoryStats(cgs *cgroups.MemoryStats) *provider.ContainerMemStats {
 	convertField(cgs.Peak, &cs.Peak)
 	convertField(cgs.Pgfault, &cs.Pgfault)
 	convertField(cgs.Pgmajfault, &cs.Pgmajfault)
+	convertField(cgs.Shmem, &cs.Shmem)
+	convertField(cgs.FileMapped, &cs.FileMapped)
+	convertField(cgs.FileDirty, &cs.FileDirty)
+	convertField(cgs.FileWriteback, &cs.FileWriteback)
+	convertField(cgs.RefaultAnon, &cs.RefaultAnon)
+	convertField(cgs.RefaultFile, &cs.RefaultFile)
+	convertField(cgs.ActiveAnon, &cs.ActiveAnon)
+	convertField(cgs.InactiveAnon, &cs.InactiveAnon)
+	convertField(cgs.ActiveFile, &cs.ActiveFile)
+	convertField(cgs.InactiveFile, &cs.InactiveFile)
+	convertField(cgs.Unevictable, &cs.Unevictable)
+	convertField(cgs.PageTables, &cs.PageTables)
 	convertFieldAndUnit(cgs.PSISome.Total, &cs.PartialStallTime, float64(time.Microsecond))
 
 	// Compute complex fields

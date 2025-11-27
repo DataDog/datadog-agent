@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package container provides container-related log tailers
 package container
 
 import (
@@ -39,8 +40,7 @@ type ReadErrorMock struct {
 	io.Reader
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (r *ReadErrorMock) Read(p []byte) (int, error) {
+func (r *ReadErrorMock) Read(_ []byte) (int, error) {
 	return 0, errFoo
 }
 

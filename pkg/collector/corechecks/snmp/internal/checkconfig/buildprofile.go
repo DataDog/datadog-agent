@@ -71,6 +71,7 @@ func (c *CheckConfig) BuildProfile(sysObjectID string) (profiledefinition.Profil
 		profile.Device.Vendor = rootProfile.Device.Vendor
 	}
 	profile.Metadata = updateMetadataDefinitionWithDefaults(profile.Metadata, c.CollectTopology, c.CollectVPN)
+	profile.Metrics = updateMetricsDefinitionWithDefaults(profile.Metrics, c.CollectVPN)
 
 	return profile, profileErr
 }

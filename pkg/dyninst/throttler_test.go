@@ -9,8 +9,6 @@ package dyninst_test
 
 import (
 	"context"
-	"log"
-	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -20,6 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -48,7 +48,9 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(t, tempDir, busyloopPath, "busyloop")
+	obj, irp := dyninsttest.GenerateIr(
+		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
+	)
 
 	// Adjust throttling parameters.
 	// Practically infinite period, with specific event count.
@@ -80,7 +82,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
-		sampleProc.Process.Wait()
+		sampleProc.Wait()
 	}()
 	sampleStdin.Write([]byte("\n"))
 
@@ -94,11 +96,22 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 		require.NoError(t, err)
 	}
 
-	// Check there are no more events after a short delay.
-	rd.SetDeadline(time.Now().Add(10 * time.Millisecond))
-	v, err := rd.Read()
-	log.Printf("err: %v", err)
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded, "expected deadline exceeded, got %#+v, %#+v", err, v)
+	// Check that throttling happened.
+	perCoreStats := program.RuntimeStats()
+	var stats loader.RuntimeStats
+	for _, coreStats := range perCoreStats {
+		stats.HitCnt += coreStats.HitCnt
+		stats.ThrottledCnt += coreStats.ThrottledCnt
+		stats.CPU += coreStats.CPU
+	}
+	require.Greater(t, int(stats.HitCnt), expectedEvents)
+	require.Greater(t, int(stats.ThrottledCnt), 0)
+	// It may happen that different threads execute probe at the same nanosecond,
+	// allowing both to reset the budget, discounting the capture done by the other.
+	// In this test the one refresh would happen at the very beginning. We relax
+	// the expectations, allowing all threads to hit the same nanosecond, but we assume
+	// that no thread will execute more than once before the other resets the budget.
+	require.LessOrEqual(t, int(stats.HitCnt)-int(stats.ThrottledCnt), expectedEvents+2)
 }
 
 func refreshesBudget(t *testing.T, busyloopPath string) {
@@ -107,7 +120,9 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(t, tempDir, busyloopPath, "busyloop")
+	obj, irp := dyninsttest.GenerateIr(
+		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
+	)
 
 	// Adjust throttling parameters.
 	// Small period, and budget.
@@ -135,7 +150,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 	defer cleanup()
 	defer func() {
 		sampleProc.Process.Kill()
-		sampleProc.Process.Wait()
+		sampleProc.Wait()
 	}()
 	sampleStdin.Write([]byte("\n"))
 

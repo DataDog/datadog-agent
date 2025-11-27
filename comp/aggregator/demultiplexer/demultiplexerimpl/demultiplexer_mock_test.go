@@ -28,14 +28,7 @@ func TestSetDefaultSender(t *testing.T) {
 
 	var component demultiplexerComp.Component = mock
 
-	lazySenderManager, err := component.LazyGetSenderManager()
-	require.NoError(t, err)
-
-	componentSender, err := lazySenderManager.GetDefaultSender()
-	require.NoError(t, err)
-	require.Equal(t, sender, componentSender)
-
-	componentSender, err = component.GetDefaultSender()
+	componentSender, err := component.GetDefaultSender()
 	require.NoError(t, err)
 	require.Equal(t, sender, componentSender)
 }

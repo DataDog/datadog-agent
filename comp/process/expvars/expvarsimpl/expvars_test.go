@@ -13,8 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -27,14 +30,16 @@ func TestExpvarServer(t *testing.T) {
 	flavor.SetFlavor("process_agent")
 
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
-		fx.Supply(core.BundleParams{}),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"process_config.expvar_port": 43423,
-		}}),
-
-		Module(),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"process_config.expvar_port": 43423,
+			})
+		}),
+		telemetryimpl.MockModule(),
+		sysprobeconfigimpl.MockModule(),
 		hostinfoimpl.MockModule(),
-		core.MockBundle(),
+		Module(),
 	))
 
 	assert.Eventually(t, func() bool {
@@ -54,15 +59,17 @@ func TestTelemetry(t *testing.T) {
 	flavor.SetFlavor("process_agent")
 
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
-		fx.Supply(core.BundleParams{}),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"telemetry.enabled":          true,
-			"process_config.expvar_port": 43423,
-		}}),
-
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"telemetry.enabled":          true,
+				"process_config.expvar_port": 43423,
+			})
+		}),
 		Module(),
 		hostinfoimpl.MockModule(),
-		core.MockBundle(),
+		telemetryimpl.MockModule(),
+		sysprobeconfigimpl.MockModule(),
 	))
 
 	assert.Eventually(t, func() bool {

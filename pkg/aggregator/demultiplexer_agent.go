@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -67,7 +68,7 @@ type AgentDemultiplexer struct {
 
 	senders *senders
 
-	hostTagProvider *HostTagProvider
+	hostTagProvider *hosttags.HostTagProvider
 
 	// sharded statsd time samplers
 	statsd
@@ -216,7 +217,7 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer:  noAggSerializer,
 		},
 
-		hostTagProvider: NewHostTagProvider(),
+		hostTagProvider: hosttags.NewHostTagProvider(),
 		senders:         newSenders(agg),
 
 		// statsd time samplers
@@ -501,12 +502,18 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-// SetTimeSamplersBlocklist triggers a reconfiguration of the blocklist
-// applied in the time samplers.
-func (d *AgentDemultiplexer) SetTimeSamplersBlocklist(blocklist *utilstrings.Blocklist) {
+// SetSamplersFilterList triggers a reconfiguration of the filter list
+// applied in the samplers.
+func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
+
+	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
+	// Histogram metrics need aggregating before we determine the correct name to be filtered.
 	for _, worker := range d.statsd.workers {
-		worker.blocklistChan <- blocklist
+		worker.filterListChan <- histoFilterList
 	}
+
+	// Metrics from checks are only filtered here, so we need the full filter list.
+	d.aggregator.filterListChan <- filterList
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

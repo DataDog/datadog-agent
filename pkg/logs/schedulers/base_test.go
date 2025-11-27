@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package schedulers provides log source scheduling functionality
 package schedulers
 
 import (
@@ -20,7 +20,6 @@ type testSched struct {
 	stopped bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (t *testSched) Start(_ SourceManager) {
 	t.started = true
 }

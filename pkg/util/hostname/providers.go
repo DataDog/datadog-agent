@@ -27,6 +27,10 @@ var (
 	hostnameExpvars  = expvar.NewMap("hostname")
 	hostnameProvider = expvar.String{}
 	hostnameErrors   = expvar.Map{}
+	driftCalculator  = driftService{
+		initialDelay:      defaultInitialDelay,
+		recurringInterval: defaultRecurringInterval,
+	}
 )
 
 func init() {
@@ -39,6 +43,8 @@ func init() {
 // until now by previous providers.
 type providerCb func(ctx context.Context, currentHostname string) (string, error)
 
+// provider is a struct that contains the name of the provider, the function to call to get the hostname, and a boolean to
+// indicate if the provider should stop the search for a hostname if it is successful.
 type provider struct {
 	name string
 	cb   providerCb
@@ -126,12 +132,12 @@ var (
 	}
 )
 
-// providerCatalog holds all the various kinds of hostname providers
+// getProviderCatalog holds all the various kinds of hostname providers
 //
 // The order if this list matters:
 // * Config (`hostname')
 // * Config (`hostname_file')
-// * Fargate
+// * Fargate/Sidecar (strips hostname for Fargate and managed instances in sidecar mode)
 // * GCE
 // * Azure
 // * FQDN
@@ -166,8 +172,8 @@ func saveHostname(cacheHostnameKey string, hostname string, providerName string,
 	}
 
 	cache.Cache.Set(cacheHostnameKey, data, cache.NoExpiration)
-	// We don't have a hostname on fargate. 'fromFargate' will return an empty hostname and we don't want to show it
-	// in the status page.
+	// We don't have a hostname in sidecar mode (Fargate, managed instances).
+	// 'fromFargate' will return an empty hostname and we don't want to show it in the status page.
 	if providerName != "" && providerName != fargateProviderName && !legacyHostnameResolution {
 		hostnameProvider.Set(providerName)
 	}
@@ -227,7 +233,9 @@ func getHostname(ctx context.Context, keyCache string, legacyHostnameResolution 
 	warnAboutFQDN(ctx, hostname)
 
 	if hostname != "" {
-		return saveHostname(cacheHostnameKey, hostname, providerName, legacyHostnameResolution), nil
+		hostnameData := saveHostname(cacheHostnameKey, hostname, providerName, legacyHostnameResolution)
+		driftCalculator.scheduleHostnameDriftChecks(ctx, hostnameData)
+		return hostnameData, nil
 	}
 
 	err = fmt.Errorf("unable to reliably determine the host name. You can define one in the agent config file or in your hosts file")

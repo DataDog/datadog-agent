@@ -18,8 +18,8 @@ func validateState(s *state, reportError func(error)) {
 		reportError(fmt.Errorf(format, args...))
 	}
 	for procID, proc := range s.processes {
-		if procID != proc.processKey {
-			report("process %v has mismatched ID field %v", procID, proc.processKey)
+		if procID != proc.processID {
+			report("process %v has mismatched ID field %v", procID, proc.processID)
 		}
 		validateProcess(proc, s, report)
 	}
@@ -93,10 +93,10 @@ func validateState(s *state, reportError func(error)) {
 					"process %v currentProgram %v does not exist",
 					procID, proc.currentProgram,
 				)
-			} else if prog.processKey != procID {
+			} else if prog.processID != procID {
 				report(
 					"process %v currentProgram %v points to different process %v",
-					procID, proc.currentProgram, prog.processKey,
+					procID, proc.currentProgram, prog.processID,
 				)
 			}
 		}
@@ -104,26 +104,26 @@ func validateState(s *state, reportError func(error)) {
 }
 
 func validateProcess(proc *process, s *state, report func(format string, args ...any)) {
-	procKey := proc.processKey
+	procID := proc.processID
 
 	switch proc.state {
 	case processStateWaitingForProgram:
 		if proc.currentProgram == 0 {
 			report(
 				"process %v in WaitingForProgram state has no currentProgram",
-				procKey,
+				procID,
 			)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil {
 			report(
 				"process %v in WaitingForProgram state should not have attachedProgram",
-				procKey,
+				procID,
 			)
 		}
 
@@ -131,78 +131,74 @@ func validateProcess(proc *process, s *state, report func(format string, args ..
 		if proc.currentProgram == 0 {
 			report(
 				"process %v in Attaching state has no currentProgram",
-				procKey,
+				procID,
 			)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil {
 			report(
 				"process %v in Attaching state should not have attachedProgram yet",
-				procKey,
+				procID,
 			)
 		}
 
 	case processStateAttached:
 		if proc.currentProgram == 0 {
-			report("process %v in Attached state has no currentProgram", procKey)
+			report("process %v in Attached state has no currentProgram", procID)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram == nil {
 			report(
-				"process %v in Attached state has no attachedProgram", procKey,
+				"process %v in Attached state has no attachedProgram", procID,
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.ir.ID != proc.currentProgram {
+			proc.attachedProgram.programID != proc.currentProgram {
 			report(
 				"process %v attachedProgram ID %v does not match currentProgram %v",
-				procKey, proc.attachedProgram.ir.ID, proc.currentProgram,
+				procID, proc.attachedProgram.programID, proc.currentProgram,
 			)
 		}
 		if proc.attachedProgram != nil &&
-			proc.attachedProgram.procID != procKey.ProcessID {
+			proc.attachedProgram.processID != procID {
 			report(
 				"process %v attachedProgram has wrong processID %v",
-				procKey, proc.attachedProgram.procID,
+				procID, proc.attachedProgram.processID,
 			)
 		}
 
 	case processStateDetaching:
 		if proc.currentProgram == 0 {
-			report("process %v in Detaching state has no currentProgram", procKey)
+			report("process %v in Detaching state has no currentProgram", procID)
 		}
 		if _, exists := s.programs[proc.currentProgram]; !exists {
 			report(
 				"process %v references non-existent program %v",
-				procKey, proc.currentProgram,
+				procID, proc.currentProgram,
 			)
 		}
 
-	case processStateLoadingFailed:
-		// currentProgram may be 0 after failure.
-		if proc.err == nil {
-			report("process %v in LoadingFailed state has no error", procKey)
-		}
+	case processStateFailed:
 		if len(proc.probes) == 0 {
-			report("process %v has no probes in LoadingFailed state", procKey)
+			report("process %v has no probes in Failed state", procID)
 		}
 
 	case processStateInvalid:
 		// This state should not normally appear in a valid state.
-		report("process %v is in Invalid state", procKey)
+		report("process %v is in Invalid state", procID)
 
 	default:
-		report("process %v has unknown state %v", procKey, proc.state)
+		report("process %v has unknown state %v", procID, proc.state)
 	}
 }
 
@@ -212,15 +208,15 @@ func validateProgram(
 	progID := prog.id
 
 	// Check that processID references exist and are consistent.
-	proc, exists := s.processes[prog.processKey]
+	proc, exists := s.processes[prog.processID]
 	if !exists {
 		report(
-			"program %v references non-existent process %v", progID, prog.processKey,
+			"program %v references non-existent process %v", progID, prog.processID,
 		)
 	} else if proc.currentProgram != progID {
 		report(
 			"program %v is not the current program for process %v",
-			progID, prog.ProcessID,
+			progID, prog.processID,
 		)
 	}
 
@@ -244,10 +240,10 @@ func validateProgram(
 				"program %v in Loaded state should have loadedProgram", progID,
 			)
 		}
-		if prog.loaded != nil && prog.loaded.ir.ID != progID {
+		if prog.loaded != nil && prog.loaded.programID != progID {
 			report(
 				"program %v has loadedProgram with mismatched ID %v",
-				progID, prog.loaded.ir.ID,
+				progID, prog.loaded.programID,
 			)
 		}
 

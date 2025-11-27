@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-func certTemplate() (*x509.Certificate, error) {
+func certTemplate(additionalIPs []net.IP, additionalDNSNames []string) (*x509.Certificate, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
@@ -40,8 +40,8 @@ func certTemplate() (*x509.Certificate, error) {
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature | x509.KeyUsageCRLSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
 		IsCA:                  true,
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
-		DNSNames:              []string{"localhost"},
+		IPAddresses:           append([]net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")}, additionalIPs...),
+		DNSNames:              append([]string{"localhost"}, additionalDNSNames...),
 	}
 
 	return &template, nil
@@ -53,24 +53,32 @@ type Certificate struct {
 	key  []byte
 }
 
-func generateCertKeyPair() (Certificate, error) {
-	rootCertTmpl, err := certTemplate()
+// generateCertKeyPair generates a certificate and key pair.
+// If signerCert and signerKey are not provided, the root certificate template is used as the parent.
+func generateCertKeyPair(signerCert *x509.Certificate, signerKey any, additionalIPs []net.IP, additionalDNSNames []string) (Certificate, error) {
+	certTmpl, err := certTemplate(additionalIPs, additionalDNSNames)
 	if err != nil {
 		return Certificate{}, err
 	}
 
-	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	certKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return Certificate{}, fmt.Errorf("Unable to generate IPC private key: %v", err)
 	}
 
-	certDER, err := x509.CreateCertificate(rand.Reader, rootCertTmpl, rootCertTmpl, &rootKey.PublicKey, rootKey)
+	// If signer is not provided, use the root certificate template as the parent
+	if signerCert == nil || signerKey == nil {
+		signerCert = certTmpl
+		signerKey = certKey
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, certTmpl, signerCert, &certKey.PublicKey, signerKey)
 	if err != nil {
 		return Certificate{}, err
 	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	rawKey, err := x509.MarshalECPrivateKey(rootKey)
+	rawKey, err := x509.MarshalECPrivateKey(certKey)
 	if err != nil {
 		return Certificate{}, fmt.Errorf("Unable to marshall private key: %v", err)
 	}

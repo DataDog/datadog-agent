@@ -16,11 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -86,16 +84,8 @@ func (d *DatadogInstaller) SetBinaryPath(path string) {
 
 func (d *DatadogInstaller) execute(cmd string, options ...client.ExecuteOption) (string, error) {
 	// Ensure the API key and site are set for telemetry
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
 	envVars := map[string]string{
-		"DD_API_KEY": apiKey,
+		"DD_API_KEY": installer.GetAPIKey(),
 		"DD_SITE":    "datadoghq.com",
 	}
 
@@ -287,7 +277,7 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 	}
 	msiArgList := params.msiArgs[:]
 	if params.agentUser != "" {
-		msiArgList = append(msiArgList, fmt.Sprintf("DDAGENTUSER_NAME=%s", params.agentUser))
+		msiArgList = append(msiArgList, fmt.Sprintf(`DDAGENTUSER_NAME="%s"`, params.agentUser))
 	}
 	msiArgs := ""
 	if msiArgList != nil {
@@ -553,9 +543,14 @@ func WithDevEnvOverrides(prefix string) PackageOption {
 
 // SetConfigExperiment sets the config catalog for the Datadog Installer daemon.
 func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string, error) {
-	serializedConfig, err := json.Marshal(map[string]ConfigExperiment{
-		config.ID: config,
-	})
+	// Convert ConfigExperiment to installerConfig format
+	installerConfig := map[string]interface{}{
+		config.ID: map[string]interface{}{
+			"deployment_id":   config.ID,
+			"file_operations": convertFilesToOperations(config.Files),
+		},
+	}
+	serializedConfig, err := json.Marshal(installerConfig)
 	if err != nil {
 		return "", err
 	}
@@ -567,13 +562,21 @@ func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string,
 // StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
 // It first sets the config catalog and then starts the experiment.
 func (d *DatadogInstaller) StartConfigExperiment(packageName string, config ConfigExperiment) (string, error) {
-	// First set the config catalog
-	_, err := d.SetConfigExperiment(config)
+	// Convert ConfigExperiment to installerConfig format
+	operations := map[string]interface{}{
+		"deployment_id":   config.ID,
+		"file_operations": convertFilesToOperations(config.Files),
+	}
+
+	serializedOps, err := json.Marshal(operations)
 	if err != nil {
 		return "", err
 	}
+	// Escape quotes in the JSON string to handle PowerShell quoting properly
+	opsStr := strings.ReplaceAll(string(serializedOps), `"`, `\"`)
+
 	// Then start the config experiment
-	return d.execute(fmt.Sprintf("daemon start-config-experiment %s %s", packageName, config.ID))
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, opsStr))
 }
 
 // PromoteConfigExperiment promotes a config experiment through the daemon.
@@ -643,4 +646,17 @@ func (d *DatadogInstallerGA) StopExperiment(packageName string) (string, error) 
 		return out, ignoreEOF(err)
 	}
 	return out, err
+}
+
+// convertFilesToOperations converts ConfigExperimentFiles to file operations
+func convertFilesToOperations(files []ConfigExperimentFile) []map[string]interface{} {
+	operations := make([]map[string]interface{}, len(files))
+	for i, file := range files {
+		operations[i] = map[string]interface{}{
+			"file_op":   "merge-patch",
+			"file_path": file.Path,
+			"patch":     file.Contents,
+		}
+	}
+	return operations
 }

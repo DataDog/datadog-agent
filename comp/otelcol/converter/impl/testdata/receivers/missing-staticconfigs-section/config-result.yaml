@@ -36,6 +36,14 @@ extensions:
     
 processors:
   infraattributes/user-defined:
+  filter/drop-prometheus-internal-metrics/dd-autoconfigured:
+    metrics: 
+      exclude:
+        match_type: regexp
+        metric_names:
+          - ^scrape_.*$
+          - ^up$
+          - ^promhttp_metric_handler_errors_total$
 
 service:
     extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
@@ -47,3 +55,4 @@ service:
         metrics/dd-autoconfigured/datadog:
             receivers: [prometheus/dd-autoconfigured]
             exporters: [datadog]
+            processors: [filter/drop-prometheus-internal-metrics/dd-autoconfigured]

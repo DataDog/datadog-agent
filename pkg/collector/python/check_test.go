@@ -66,3 +66,7 @@ func TestConfigureDeprecated(t *testing.T) {
 func TestCheckDiagnosesDeserialization(t *testing.T) {
 	testGetDiagnoses(t)
 }
+
+func TestRunAfterCancel(t *testing.T) {
+	testRunAfterCancel(t)
+}

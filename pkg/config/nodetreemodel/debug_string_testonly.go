@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 package nodetreemodel
 
@@ -13,7 +12,12 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func panicInTest(format string, params ...interface{}) {
+	panic(log.Errorf(format, params...))
+}
 
 func (c *ntmConfig) toDebugString(source model.Source, opts ...model.StringifyOption) (string, error) {
 	strcfg := model.StringifyConfig{}
@@ -46,8 +50,10 @@ func (c *ntmConfig) toDebugString(source model.Source, opts ...model.StringifyOp
 
 	if source == "all" {
 		lines := []string{}
-		for _, src := range []model.Source{"root", model.SourceDefault, model.SourceEnvVar, model.SourceFile} {
-			single, err := c.td.stringifySourceTree(c.selectTree(src), src)
+		allSources := append([]model.Source{model.Source("root")}, model.Sources...)
+		for _, src := range allSources {
+			tree, _ := c.getTreeBySource(src)
+			single, err := c.td.stringifySourceTree(tree, src)
 			if err != nil {
 				return "", err
 			}
@@ -57,27 +63,16 @@ func (c *ntmConfig) toDebugString(source model.Source, opts ...model.StringifyOp
 		return strings.Join(lines, "\n"), nil
 	}
 
-	lines, err := c.td.stringifySourceTree(c.selectTree(source), source)
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		return "", err
+	}
+	lines, err := c.td.stringifySourceTree(tree, source)
 	if err != nil {
 		return "", err
 	}
 	lines = c.td.appendExtraDetails(lines)
 	return strings.Join(lines, "\n"), nil
-}
-
-func (c *ntmConfig) selectTree(src model.Source) Node {
-	switch src {
-	case "root":
-		return c.root
-	case model.SourceEnvVar:
-		return c.envs
-	case model.SourceDefault:
-		return c.defaults
-	case model.SourceFile:
-		return c.file
-	default:
-		return nil
-	}
 }
 
 type ptrCount struct {
@@ -109,6 +104,11 @@ func (d *treeDebugger) appendExtraDetails(lines []string) []string {
 func (d *treeDebugger) stringifySourceTree(tree Node, src model.Source) ([]string, error) {
 	if tree == nil {
 		return nil, fmt.Errorf("invalid source: %s", src)
+	}
+	if len(tree.(InnerNode).ChildrenKeys()) == 0 {
+		// If a tree is empty, don't process its root nodes. This allows
+		// OmitPointerAddr to correctly count unique nodes that actually appear.
+		return nil, nil
 	}
 	res, err := d.nodeToString(tree, 0, "")
 	if err != nil {

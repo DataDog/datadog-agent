@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	mockconfig "github.com/DataDog/datadog-agent/pkg/config/mock"
 
 	// we need some valid check in the catalog to run tests
@@ -84,7 +84,7 @@ func (s *dummyService) IsReady() bool {
 }
 
 // HasFilter returns false
-func (s *dummyService) HasFilter(_ filter.Scope) bool {
+func (s *dummyService) HasFilter(_ workloadfilter.Scope) bool {
 	return false
 }
 
@@ -94,7 +94,12 @@ func (s *dummyService) GetExtraConfig(key string) (string, error) {
 }
 
 // FilterConfigs does nothing.
-func (s *dummyService) FilterTemplates(map[string]integration.Config) {
+func (s *dummyService) FilterTemplates(_ map[string]integration.Config) {
+}
+
+// GetImageName does nothing
+func (s *dummyService) GetImageName() string {
+	return ""
 }
 
 func TestGetFallbackHost(t *testing.T) {
@@ -768,6 +773,7 @@ func TestResolve(t *testing.T) {
 				ADIdentifiers: []string{"redis"},
 				Instances:     []integration.Data{integration.Data("pod_name: redis\npod_namespace: default\npod_uid: 05567616-cb47-41ea-af04-295c1297e957\ntags:\n- foo:bar\n")},
 				ServiceID:     "a5901276aed1",
+				PodNamespace:  "default",
 			},
 		},
 		{

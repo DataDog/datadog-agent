@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -40,6 +41,9 @@ type FakeDCAClient struct {
 
 	NodeAnnotations    map[string]string
 	NodeAnnotationsErr error
+
+	NodeUID    string
+	NodeUIDErr error
 
 	NamespaceLabels    map[string]string
 	NamespaceLabelsErr error
@@ -80,6 +84,10 @@ func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 
 func (f *FakeDCAClient) GetNodeAnnotations(_ string, _ ...string) (map[string]string, error) {
 	return f.NodeAnnotations, f.NodeLabelsErr
+}
+
+func (f *FakeDCAClient) GetNodeUID(_ string) (string, error) {
+	return f.NodeUID, f.NodeUIDErr
 }
 
 func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
@@ -418,8 +426,15 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 	podsCache := kubelet.PodList{
 		Items: pods,
 	}
-	cache.Cache.Set("KubeletPodListCacheKey", podsCache, 2*time.Second)
-	kubeUtilFake := &kubelet.KubeUtil{}
+
+	// Cache never expires because the unit tests below are not covering the case
+	// of cache miss. They are only testing parsePods behaves correctly depending
+	// on the cluster agent version and the agent configuration.
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("kubelet_cache_pods_duration", 5) // Cache is disabled by default. Enable it.
+	cache.Cache.Set("KubeletPodListCacheKey", podsCache, -1)
+
+	kubeUtilFake := kubelet.NewKubeUtil()
 
 	type fields struct {
 		kubeUtil                    *kubelet.KubeUtil

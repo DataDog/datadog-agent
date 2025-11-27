@@ -10,7 +10,7 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -45,7 +45,9 @@ var hiddenConfigs = []string{
 }
 
 func getFullConfig(v *baseConfigSuite) map[interface{}]interface{} {
-	output, err := v.Env().Agent.Client.ConfigWithError()
+	output, err := v.Env().Agent.Client.ConfigWithError(
+		agentclient.WithArgs([]string{"--all"}),
+	)
 	require.NoError(v.T(), err)
 
 	var config map[interface{}]interface{}

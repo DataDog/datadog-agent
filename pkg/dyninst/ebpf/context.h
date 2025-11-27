@@ -5,6 +5,7 @@
 #include "types.h"
 #include "queue.h"
 #include "scratch.h"
+#include "chased_pointers_trie.h"
 
 typedef uint32_t type_t;
 
@@ -33,13 +34,6 @@ typedef struct pointers_queue_item {
 
 DEFINE_QUEUE(pointers, pointers_queue_item_t, 128);
 
-#define MAX_CHASED_POINTERS 128
-typedef struct chased_pointers {
-  uint32_t n;
-  target_ptr_t ptrs[MAX_CHASED_POINTERS];
-  type_t types[MAX_CHASED_POINTERS];
-} chased_pointers_t;
-
 #define ENQUEUE_STACK_DEPTH 32
 typedef struct stack_machine {
   // Initialized on every entry point.
@@ -55,11 +49,14 @@ typedef struct stack_machine {
   uint32_t data_stack_pointer;
 
   pointers_queue_t pointers_queue;
-  chased_pointers_t chased;
+  chased_pointers_trie_t chased;
   // Remaining pointer chasing limit, given currently processed data item.
   // Maybe 0, in which case data might still be processed (i.e. interface type rewrite),
   // but no further pointers will be chased.
   uint32_t pointer_chasing_ttl;
+
+  uint32_t collection_size_limit;
+  uint32_t string_size_limit;
 
   // Offset of currently visited context object, or zero.
   buf_offset_t go_context_offset;
@@ -90,7 +87,7 @@ struct {
   __type(value, stack_machine_t);
 } stack_machine_buf SEC(".maps");
 
-static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
+static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_params) {
   const unsigned long zero = 0;
   stack_machine_t* stack_machine =
       (stack_machine_t*)bpf_map_lookup_elem(&stack_machine_buf, &zero);
@@ -99,8 +96,11 @@ static stack_machine_t* stack_machine_ctx_load(uint32_t pointer_chasing_limit) {
   }
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
-  stack_machine->chased.n = 0;
-  stack_machine->pointer_chasing_ttl = pointer_chasing_limit;
+  chased_pointers_trie_init(&stack_machine->chased);
+  stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
+  stack_machine->collection_size_limit = probe_params->collection_size_limit;
+  stack_machine->string_size_limit = probe_params->string_size_limit;
+  stack_machine->pointers_queue.len = 0;
   return stack_machine;
 }
 
@@ -148,5 +148,53 @@ typedef struct global_ctx {
   // Declared here, as pointers in maps are treated as scalars by verifier.
   struct pt_regs* regs;
 } global_ctx_t;
+
+typedef struct call_depths_entry {
+  uint32_t depth;
+  uint32_t probe_id;
+} call_depths_entry_t;
+
+#define CALL_DEPTHS_SIZE 8
+
+// Call depths is a set of call depths at entry that are used to track
+// the in-progress calls. It is unsorted. Zero-valued entries are considered
+// available for insertion.
+typedef struct call_depths {
+  call_depths_entry_t depths[CALL_DEPTHS_SIZE];
+} call_depths_t;
+
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __uint(max_entries, 8192);
+  __type(key, uint64_t); // goid
+  __type(value, call_depths_t);
+} in_progress_calls SEC(".maps");
+
+static inline __attribute__((always_inline)) bool call_depths_insert(
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id) {
+  for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
+    if (depths->depths[i].depth == 0 && depths->depths[i].probe_id == 0) {
+      depths->depths[i].depth = depth;
+      depths->depths[i].probe_id = probe_id;
+      return true;
+    }
+  }
+  return false;
+}
+
+static inline __attribute__((always_inline)) bool call_depths_delete(
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id, int* remaining) {
+  bool found = false;
+  for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
+    if (depths->depths[i].depth == depth && depths->depths[i].probe_id == probe_id) {
+      depths->depths[i].depth = 0;
+      depths->depths[i].probe_id = 0;
+      found = true;
+    } else if (depths->depths[i].depth != 0 || depths->depths[i].probe_id != 0) {
+      (*remaining)++;
+    }
+  }
+  return found;
+}
 
 #endif // __CONTEXT_H__

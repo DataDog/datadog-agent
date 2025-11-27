@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
@@ -73,6 +74,53 @@ func (f Replacer) Replace(trace pb.Trace) {
 						if val, ok := spanEvent.Attributes[key]; ok {
 							spanEvent.Attributes[key] = f.replaceAttributeAnyValue(re, val, str)
 						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// ReplaceV1 replaces all tags matching the Replacer's rules.
+func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
+	for _, rule := range f.rules {
+		key, str, re := rule.Name, rule.Repl, rule.Re
+		for _, s := range trace.Spans {
+			switch key {
+			case "*":
+				for k, v := range s.Attributes() {
+					kString := trace.Strings.Get(k)
+					if strings.HasPrefix(kString, hiddenTagPrefix) {
+						continue
+					}
+					vString := v.AsString(trace.Strings)
+					newV := re.ReplaceAllString(vString, str)
+					if newV != vString {
+						s.SetAttributeFromString(kString, newV)
+					}
+				}
+				s.SetResource(re.ReplaceAllString(s.Resource(), str))
+				for _, spanEvent := range s.Events() {
+					for keyAttr, val := range spanEvent.Attributes() {
+						kString := trace.Strings.Get(keyAttr)
+						if !strings.HasPrefix(kString, hiddenTagPrefix) {
+							vString := val.AsString(trace.Strings)
+							newV := re.ReplaceAllString(vString, str)
+							if newV != vString {
+								spanEvent.SetAttributeFromString(kString, newV)
+							}
+						}
+					}
+				}
+			case "resource.name":
+				s.SetResource(re.ReplaceAllString(s.Resource(), str))
+			default:
+				if val, ok := s.GetAttributeAsString(key); ok {
+					s.SetAttributeFromString(key, re.ReplaceAllString(val, str))
+				}
+				for _, spanEvent := range s.Events() {
+					if val, ok := spanEvent.GetAttributeAsString(key); ok {
+						spanEvent.SetAttributeFromString(key, re.ReplaceAllString(val, str))
 					}
 				}
 			}

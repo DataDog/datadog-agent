@@ -128,14 +128,14 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 	// looking for x payloads (with max 600 connections) and check if the last 2 have a max span of 200ms
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		cnx, err := FakeIntake.Client().GetConnections()
-		assert.NoError(t, err)
+		assert.NoError(c, err)
 
 		if !assert.GreaterOrEqualf(c, len(cnx.GetPayloadsByName(targetHostnameNetID)), 2, "not enough payloads") {
 			return
 		}
 
 		cnx.ForeachHostnameConnections(func(cnx *aggregator.Connections, _ string) {
-			assert.LessOrEqualf(t, len(cnx.Connections), 600, "too many payloads")
+			assert.LessOrEqualf(c, len(cnx.Connections), 600, "too many payloads")
 		})
 
 		hostPayloads := cnx.GetPayloadsByName(targetHostnameNetID)
@@ -150,7 +150,7 @@ func test1HostFakeIntakeNPM600cnxBucket[Env any](v *e2e.BaseSuite[Env], FakeInta
 		dt := latestPayloadTime.Sub(cnx600PayloadTime).Seconds()
 		t.Logf("hostname+networkID %v diff time %f seconds", targetHostnameNetID, dt)
 
-		assert.Greater(t, 0.2, dt, "delta between collection is higher than 200ms")
+		assert.Greater(c, 0.2, dt, "delta between collection is higher than 200ms")
 	}, 90*time.Second, time.Second, "not enough connections received")
 }
 

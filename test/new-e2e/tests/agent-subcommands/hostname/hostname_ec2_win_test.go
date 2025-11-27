@@ -8,9 +8,9 @@ package hostname
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -24,7 +24,7 @@ type windowsHostnameSuite struct {
 
 func TestWindowsHostnameSuite(t *testing.T) {
 	t.Parallel()
-	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))
+	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))
 	e2e.Run(t, &windowsHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(osOption)))
 }
 

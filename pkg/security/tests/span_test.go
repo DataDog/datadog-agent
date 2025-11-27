@@ -49,7 +49,7 @@ func TestSpan(t *testing.T) {
 
 	fakeTraceID128b := "136272290892501783905308705057321818530"
 
-	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-span")
 		if err != nil {
 			t.Fatal(err)
@@ -78,7 +78,7 @@ func TestSpan(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "exec", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		testFile, _, err := test.Path("test-span-exec")
 		if err != nil {
 			t.Fatal(err)

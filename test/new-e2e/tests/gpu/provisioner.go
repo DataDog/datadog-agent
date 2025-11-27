@@ -6,6 +6,7 @@
 package gpu
 
 import (
+	_ "embed"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,24 +14,30 @@ import (
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/command"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/nvidia"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	componentsremote "github.com/DataDog/test-infra-definitions/components/remote"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/nvidia"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	componentsremote "github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
+
+//go:embed testdata/config/agent_config.yaml
+var agentConfigStr string
+
+//go:embed testdata/config/system_probe_config.yaml
+var systemProbeConfigStr string
 
 type systemData struct {
 	ami string
@@ -53,6 +60,10 @@ type systemData struct {
 	// supportsSystemProbeComponent is true if the system supports the system-probe component
 	// that is used to collect GPU metrics. Some systems have older kernels that we don't support.
 	supportsSystemProbeComponent bool
+
+	// cudaVersion is the version of CUDA installed in the system, will be used to validate the installation
+	// This avoids weird compatibility issues that can arise without explicit errors.
+	cudaVersion string
 }
 
 type systemName string
@@ -76,14 +87,6 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
 
-const defaultSysprobeConfig = `
-gpu_monitoring:
-  enabled: true
-
-system_probe_config:
-  log_level: debug
-`
-
 const helmValuesTemplate = `
 datadog:
   kubelet:
@@ -91,6 +94,7 @@ datadog:
   clusterName: "%s"
   gpuMonitoring:
     enabled: true
+    privilegedMode: true
   logLevel: DEBUG
 agents:
   useHostNetwork: true
@@ -108,7 +112,9 @@ agents:
           value: "/host/root/proc"
     agent:
       env:
-        - name: DD_ENABLE_NVML_DETECTION
+        - name: DD_GPU_ENABLED
+          value: "true"
+        - name: DD_GPU_USE_SP_PROCESS_METRICS
           value: "true"
 `
 
@@ -125,8 +131,8 @@ type provisionerParams struct {
 func getDefaultProvisionerParams() *provisionerParams {
 	return &provisionerParams{
 		agentOptions: []agentparams.Option{
-			agentparams.WithSystemProbeConfig(defaultSysprobeConfig),
-			agentparams.WithAgentConfig("enable_nvml_detection: true"),
+			agentparams.WithSystemProbeConfig(systemProbeConfigStr),
+			agentparams.WithAgentConfig(agentConfigStr),
 		},
 		kubernetesAgentOptions: nil,
 		instanceType:           gpuInstanceType,
@@ -166,7 +172,7 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 		}
 
 		// Validate GPU devices
-		validateGPUDevicesCmd, err := validateGPUDevices(&awsEnv, host)
+		validateGPUDevicesCmd, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)
 		if err != nil {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
@@ -243,7 +249,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("ec2.InstallECRCredentialsHelper %w", err)
 		}
 
-		validateDevices, err := validateGPUDevices(&awsEnv, host)
+		validateDevices, err := validateGPUDevices(&awsEnv, host, params.systemData.cudaVersion)
 		if err != nil {
 			return fmt.Errorf("validateGPUDevices: %w", err)
 		}
@@ -327,11 +333,13 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 }
 
 // validateGPUDevices checks that there are GPU devices present and accesible
-func validateGPUDevices(e *aws.Environment, vm *componentsremote.Host) ([]pulumi.Resource, error) {
+func validateGPUDevices(e *aws.Environment, vm *componentsremote.Host, cudaVersion string) ([]pulumi.Resource, error) {
 	commands := map[string]string{
-		"pci":    fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
-		"driver": "lsmod | grep nvidia",
-		"nvidia": "nvidia-smi -L | grep GPU",
+		"pci":            fmt.Sprintf("lspci -d %s:: | grep NVIDIA", nvidiaPCIVendorID),
+		"driver":         "lsmod | grep nvidia",
+		"nvidia":         "nvidia-smi -L | grep GPU",
+		"driver-version": "cat /proc/driver/nvidia/version | grep NVRM",
+		"cuda-version":   fmt.Sprintf("nvidia-smi | grep 'CUDA Version:' | grep %s ; nvidia-smi | grep 'CUDA Version:'", cudaVersion), // print the cuda version for debugging even if there's not a match
 	}
 
 	var cmds []pulumi.Resource

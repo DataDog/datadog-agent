@@ -8,15 +8,15 @@ package installscript
 import (
 	"fmt"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 )
 
 const (
-	databricksAgentVersion          = "7.66.0-1"
-	databricksApmInjectVersion      = "0.40.0"
-	databricksApmLibraryJavaVersion = "1.49.0"
+	databricksAgentVersion          = "7.71.1-1"
+	databricksApmInjectVersion      = "0.45.0"
+	databricksApmLibraryJavaVersion = "1.55.0"
 )
 
 type installScriptDatabricksSuite struct {

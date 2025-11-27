@@ -3,7 +3,7 @@
 	<outputs formatid="syslog-common">
 		<console />
 		
-		<custom name="syslog" formatid="syslog-syslog-common" data-uri="udp://localhost:514" data-tls="false" />
+		<custom name="syslog" formatid="syslog-syslog-common" data-uri="udp://localhost:514" />
 	</outputs>
 	<formats>
 		<format id="json"          format=""/>

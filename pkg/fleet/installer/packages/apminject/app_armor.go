@@ -96,6 +96,12 @@ func setupAppArmor(ctx context.Context) (err error) {
 		return nil
 	}
 
+	// check if apparmor is running properly by executing aa-status
+	if err = telemetry.CommandContext(ctx, "aa-status").Run(); err != nil {
+		// no-op is apparmor is not running properly
+		return nil
+	}
+
 	// make sure base profile exists before we continue
 	if _, err = os.Stat(appArmorBaseProfile); errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -159,9 +165,9 @@ func reloadAppArmor(ctx context.Context) error {
 	if running, err := systemd.IsRunning(); err != nil {
 		return err
 	} else if running {
-		return tracedCommand(ctx, "systemctl", "reload", "apparmor")
+		return telemetry.CommandContext(ctx, "systemctl", "reload", "apparmor").Run()
 	}
-	return tracedCommand(ctx, "service", "apparmor", "reload")
+	return telemetry.CommandContext(ctx, "service", "apparmor", "reload").Run()
 }
 
 func isAppArmorRunning() bool {
@@ -170,13 +176,4 @@ func isAppArmorRunning() bool {
 		return false
 	}
 	return strings.TrimSpace(string(data)) == "Y"
-}
-
-func tracedCommand(ctx context.Context, name string, arg ...string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, name)
-	defer func() { span.Finish(err) }()
-
-	cmd := exec.Command(name, arg...)
-	_, err = cmd.Output()
-	return err
 }

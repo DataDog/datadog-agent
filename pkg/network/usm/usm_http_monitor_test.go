@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	usmhttp "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
@@ -173,6 +175,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
+				time.Sleep(time.Second)
 				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
 						if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
@@ -227,4 +230,166 @@ func getHTTPUnixClientArray(size int, unixPath string) []*http.Client {
 	}
 
 	return res
+}
+
+func TestGoTLSMapCleanup(t *testing.T) {
+	// This test reproduces the Go-TLS map leak by:
+	// 1. Creating proxy processes that make HTTPS requests (populates conn_tup_by_go_tls_conn map)
+	// 2. Abruptly terminating each proxy with cancel() (simulates SIGKILL)
+	// 3. Repeating 10 times to create multiple leak opportunities
+	// 4. Verifying all map entries are eventually cleaned up by tcp_close kprobe
+
+	if !gotlsutils.GoTLSSupported(t, config.New()) {
+		t.Skip("GoTLS not supported on this platform")
+	}
+
+	SetGoTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
+	cfg := utils.NewUSMEmptyConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableGoTLSSupport = true
+	cfg.GoTLSExcludeSelf = false
+
+	srvDoneFn := testutil.HTTPServer(t, serverAddrIPV4, testutil.Options{
+		EnableTLS:       true,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+
+	mapsName := []string{
+		connectionTupleByGoTLSMap,
+		goTLSConnByTupleMap,
+		goTLSReadArgsMap,
+		goTLSWriteArgsMap,
+	}
+	mapsInstances := make([]*ebpf.Map, len(mapsName))
+	for i, name := range mapsName {
+		m, ok, err := monitor.ebpfProgram.Manager.GetMap(name)
+		require.NoError(t, err)
+		require.True(t, ok, "map %s should exist", name)
+		mapsInstances[i] = m
+
+		require.Zero(t, utils.CountMapEntries(t, m), "map %s should be empty at start", name)
+	}
+
+	for j := 0; j < 10; j++ {
+		proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddrIPV4, true, false)
+		require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+
+		clients := getHTTPUnixClientArray(5, unixPath)
+		for i := 0; i < 10; i++ {
+			req, err := clients[getClientsIndex(i, len(clients))].Get("https://" + serverAddrIPV4 + "/200/hello")
+			require.NoError(t, err, "could not make request")
+			_ = req.Body.Close()
+		}
+		cancel()
+
+		for _, client := range clients {
+			client.CloseIdleConnections()
+		}
+	}
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for _, m := range mapsInstances {
+			count := utils.CountMapEntries(t, m)
+			assert.Zero(collect, count, "map %s should be empty after proxy exit", m.String())
+		}
+	}, 5*time.Second, 100*time.Millisecond, "maps should be empty after proxy exit")
+}
+
+func (s *usmHTTPSuite) TestDirectConsumerFunctionality() {
+	t := s.T()
+
+	// Skip test if kernel version doesn't support direct consumer
+	if !events.SupportsDirectConsumer() {
+		t.Skip("Direct consumer requires kernel >= 5.8.0")
+	}
+
+	for name, isIPv6 := range map[string]bool{"IPv4": false, "IPv6": true} {
+		t.Run(name, func(t *testing.T) {
+			s.testDirectConsumerFunctionality(t, isIPv6)
+		})
+	}
+}
+
+func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool) {
+	// Create configuration with direct consumer enabled
+	cfg := s.getCfg()
+	cfg.HTTPUseDirectConsumer = true
+
+	srvDoneFn := testutil.HTTPServer(t, getServerAddress(isIPv6), testutil.Options{
+		EnableTLS:       s.isTLS,
+		EnableKeepAlive: true,
+	})
+	t.Cleanup(srvDoneFn)
+
+	// Start the proxy server
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, getServerAddress(isIPv6), s.isTLS, isIPv6)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	if s.isTLS {
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+	}
+
+	t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })
+
+	// Make HTTP requests
+	clients := getHTTPUnixClientArray(2, unixPath)
+	for i := 0; i < 5; i++ {
+		client := clients[getClientsIndex(i, len(clients))]
+		req, err := client.Get(s.getSchemeURL(getServerAddress(isIPv6) + "/200/direct_consumer_test"))
+		require.NoError(t, err, "could not make request")
+		_ = req.Body.Close()
+	}
+
+	for _, client := range clients {
+		client.CloseIdleConnections()
+	}
+
+	// Verify HTTP stats are captured via direct consumer
+	expectedEndpoints := map[usmhttp.Key]int{
+		{
+			Path:   usmhttp.Path{Content: usmhttp.Interner.GetString("/200/direct_consumer_test")},
+			Method: usmhttp.MethodGet,
+		}: 5,
+	}
+
+	res := make(map[usmhttp.Key]int)
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
+			if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
+				count := stat.Data[200].Count
+				newKey := usmhttp.Key{
+					Path:   usmhttp.Path{Content: key.Path.Content},
+					Method: key.Method,
+				}
+				if _, ok := res[newKey]; !ok {
+					res[newKey] = count
+				} else {
+					res[newKey] += count
+				}
+			}
+		}
+
+		require.Equal(collect, len(expectedEndpoints), len(res), "expected endpoints count mismatch")
+
+		for key, count := range res {
+			value, ok := expectedEndpoints[key]
+			require.True(collect, ok, "expected endpoint mismatch")
+			require.Equal(collect, value, count, "expected endpoint count mismatch")
+		}
+	}, time.Second*5, time.Millisecond*100, "HTTP stats should be captured via direct consumer")
+
+	if t.Failed() {
+		for key := range expectedEndpoints {
+			if _, ok := res[key]; !ok {
+				t.Logf("key: %v was not found in res", key.Path.Content.Get())
+			}
+		}
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, "http_in_flight")
+	}
 }

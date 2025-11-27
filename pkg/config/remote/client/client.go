@@ -39,6 +39,9 @@ const (
 	recoveryInterval      = 2
 
 	maxMessageSize = 1024 * 1024 * 110 // 110MB, current backend limit
+
+	// number of update failed update attempts before reporting an error log
+	consecutiveFailuresThreshold = 5
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -48,8 +51,56 @@ type ConfigFetcher interface {
 
 // Listener defines the interface of a remote config listener
 type Listener interface {
+	// OnUpdate is called when new remote configuration data is available for processing.
+	// This method is the primary mechanism for delivering configuration updates to listeners.
+	//
+	// Parameters:
+	//   - configs: A map of configuration file paths to their raw configuration data.
+	//             The key is the configuration file path/identifier, and the value contains
+	//             the raw configuration content that needs to be processed by the listener.
+	//   - applyStateCallback: A callback function that must be called by the listener to report
+	//                        the success or failure of applying each configuration. This callback
+	//                        takes two parameters:
+	//                        * cfgPath: The path/identifier of the configuration being reported
+	//                        * status: The apply status indicating success, failure, or error details
+	//
+	// Behavior:
+	//   - Called only when there are actual configuration changes to process
+	//   - May be skipped if signature verification fails and ShouldIgnoreSignatureExpiration() returns false
+	//   - Listeners should process all provided configurations and report their apply status
+	//   - The applyStateCallback must be called for proper state tracking and error reporting
 	OnUpdate(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+
+	// OnStateChange is called when the remote config client's connectivity state changes.
+	// The parameter indicates the health state of the remote config service connection:
+	//   - true: The client has successfully connected/reconnected to the remote config service
+	//   - false: The client has encountered errors and lost connectivity to the remote config service
+	//
+	// This callback allows listeners to:
+	//   - React to service availability changes
+	//   - Implement fallback behavior when remote config is unavailable
+	//   - Adjust application behavior based on remote config service health
+	//
+	// Note: OnStateChange is only called after the first successful connection has been established.
+	// Initial connection attempts that fail will not trigger this callback until a successful
+	// connection is made, after which subsequent failures will trigger OnStateChange(false).
 	OnStateChange(bool)
+
+	// ShouldIgnoreSignatureExpiration determines whether this listener should continue to receive
+	// configuration updates even when TUF (The Update Framework) signature verification fails
+	// due to expired signatures.
+	//
+	// If it returns true the listener will continue to receive OnUpdate calls
+	// even when signatures, are expired.
+	//
+	// Security Considerations:
+	//   - Returning true bypasses an important security mechanism and should be used cautiously
+	//   - Only use true for configurations that are not security-sensitive
+	//
+	// Usage Context:
+	//   - Checked before calling OnUpdate when response.ConfigStatus != CONFIG_STATUS_OK
+	//   - Allows selective bypassing of signature expiration per listener
+	//   - Enables graceful degradation of service when signature infrastructure has issues
 	ShouldIgnoreSignatureExpiration() bool
 }
 
@@ -300,6 +351,11 @@ func (c *Client) Close() {
 	c.closeFn()
 }
 
+// GetClientID gets the client ID
+func (c *Client) GetClientID() string {
+	return c.ID
+}
+
 // UpdateApplyStatus updates the config's metadata to reflect its applied status
 func (c *Client) UpdateApplyStatus(cfgPath string, status state.ApplyStatus) {
 	c.state.UpdateApplyStatus(cfgPath, status)
@@ -371,41 +427,18 @@ func (c *Client) startFn() {
 // structure in startFn.
 func (c *Client) pollLoop() {
 	successfulFirstRun := false
-	// First run
-	err := c.update()
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			// Remote Configuration is disabled as the server isn't initialized
-			//
-			// As this is not a transient error (that would be codes.Unavailable),
-			// stop the client: it shouldn't keep contacting a server that doesn't
-			// exist.
-			log.Debugf("remote configuration isn't enabled, disabling client")
-			return
-		}
-
-		// As some clients may start before the core-agent server is up, we log the first error
-		// as an Info log as the race is expected. If the error persists, we log with error logs
-		log.Infof("retrying the first update of remote-config state (%v)", err)
-	} else {
-		successfulFirstRun = true
-	}
-
+	consecutiveFailures := 0
 	logLimit := log.NewLogLimit(5, time.Minute)
+	interval := 0 * time.Second
+
 	for {
-		interval := c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
-		if !successfulFirstRun && interval > time.Second {
-			// If we never managed to contact the RC service, we want to retry faster (max every second)
-			// to get a first state as soon as possible.
-			// Some products may not start correctly without a first state.
-			interval = time.Second
-		}
 		select {
 		case <-c.ctx.Done():
 			return
 		case <-time.After(interval):
 			err := c.update()
 			if err != nil {
+				consecutiveFailures++
 				if status.Code(err) == codes.Unimplemented {
 					// Remote Configuration is disabled as the server isn't initialized
 					//
@@ -420,7 +453,12 @@ func (c *Client) pollLoop() {
 					// As some clients may start before the core-agent server is up, we log the first error
 					// as an Info log as the race is expected. If the error persists, we log with error logs
 					if logLimit.ShouldLog() {
-						log.Infof("retrying the first update of remote-config state (%v)", err)
+						message := "retrying the first update of remote-config state (%v), consecutive failures: %d"
+						if consecutiveFailures >= consecutiveFailuresThreshold {
+							log.Errorf(message, err, consecutiveFailures)
+						} else {
+							log.Infof(message, err, consecutiveFailures)
+						}
 					}
 				} else {
 					c.m.Lock()
@@ -433,9 +471,10 @@ func (c *Client) pollLoop() {
 
 					c.lastUpdateError = err
 					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
-					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
+					log.Errorf("could not update remote-config state:%v; consecutive failures:%d", c.lastUpdateError, consecutiveFailures)
 				}
 			} else {
+				log.Debugf("update successful: successful_first_run:%t, consecutive failures:%d", successfulFirstRun, consecutiveFailures)
 				if c.lastUpdateError != nil {
 					c.m.Lock()
 					for _, productListeners := range c.listeners {
@@ -446,10 +485,25 @@ func (c *Client) pollLoop() {
 					c.m.Unlock()
 				}
 
-				c.lastUpdateError = nil
+				// record and report that the first update was successful
+				if !successfulFirstRun {
+					log.Infof("first update successful after %d attempts", consecutiveFailures)
+				}
 				successfulFirstRun = true
+				consecutiveFailures = 0
+
+				c.lastUpdateError = nil
 				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
+		}
+
+		// adjust poll interval
+		interval = c.pollInterval + c.backoffPolicy.GetBackoffDuration(c.backoffErrorCount)
+		if !successfulFirstRun && interval > time.Second {
+			// If we never managed to contact the RC service, we want to retry faster (max every second)
+			// to get a first state as soon as possible.
+			// Some products may not start correctly without a first state.
+			interval = time.Second
 		}
 	}
 }

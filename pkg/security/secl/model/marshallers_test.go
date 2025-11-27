@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 type testIntegerType interface {
@@ -50,9 +48,8 @@ func newTestInteger[T testIntegerType](value T) *testInteger[T] {
 }
 
 func TestMarshalProcCache(t *testing.T) {
-	const procCacheSize = 248
+	const procCacheSize = 176
 
-	testCgroupFlags := newTestInteger(uint64(1))
 	testCGroupFileInode := newTestInteger(uint64(123456789))
 	testCGroupFileMountID := newTestInteger(uint32(24))
 	testCGroupFilePathID := newTestInteger(uint32(808))
@@ -102,9 +99,7 @@ func TestMarshalProcCache(t *testing.T) {
 		{
 			name: "process-with-cgroup-key",
 			process: Process{
-				ContainerID: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 				CGroup: CGroupContext{
-					CGroupFlags: containerutils.CGroupFlags(testCgroupFlags.value),
 					CGroupFile: PathKey{
 						Inode:   testCGroupFileInode.value,
 						MountID: testCGroupFileMountID.value,
@@ -133,17 +128,6 @@ func TestMarshalProcCache(t *testing.T) {
 			},
 			bootTime: testBootTime,
 			expectedDataChunks: [][]byte{
-				{
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-				},
-				testCgroupFlags.binData,
 				testCGroupFileInode.binData,
 				testCGroupFileMountID.binData,
 				testCGroupFilePathID.binData,
@@ -181,10 +165,6 @@ func TestMarshalProcCache(t *testing.T) {
 		{
 			name: "process-without-cgroup-key",
 			process: Process{
-				ContainerID: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				CGroup: CGroupContext{
-					CGroupFlags: containerutils.CGroupFlags(testCgroupFlags.value),
-				},
 				FileEvent: FileEvent{
 					FileFields: FileFields{
 						PathKey: PathKey{
@@ -207,17 +187,6 @@ func TestMarshalProcCache(t *testing.T) {
 			},
 			bootTime: testBootTime,
 			expectedDataChunks: [][]byte{
-				{
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-					'0', '1', '2', '3', '4', '5', '6', '7',
-					'8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
-				},
-				testCgroupFlags.binData,
 				make([]byte, 8), // cgroup file inode
 				make([]byte, 4), // cgroup file mount id
 				make([]byte, 4), // cgroup file path id

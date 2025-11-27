@@ -45,7 +45,7 @@ func TestSignalEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "signal-sigusr1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "signal-sigusr1", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"signal", "sigusr1"}
 		envs := []string{}
 
@@ -68,7 +68,7 @@ func TestSignalEvent(t *testing.T) {
 		})
 	})
 
-	test.Run(t, "signal-eperm", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "signal-eperm", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"signal", "eperm"}
 		envs := []string{}
 

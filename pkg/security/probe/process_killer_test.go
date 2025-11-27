@@ -36,7 +36,7 @@ func (fpk *FakeProcessKillerOS) getProcesses(scope string, ev *model.Event, entr
 			path: ev.ProcessContext.FileEvent.PathnameStr,
 		},
 	}
-	if entry.ContainerID != "" && scope == "container" {
+	if entry.Process.ContainerContext.ContainerID != "" && scope == "container" {
 		kcs = append(kcs, []killContext{
 			{
 				pid:  int(ev.ProcessContext.Pid + 1),
@@ -152,13 +152,12 @@ func craftKillRule(id, scope string) *rules.Rule {
 
 func craftFakeEvent(containerID, executable string, pid uint32) *model.Event {
 	event := model.NewFakeEvent()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: containerutils.ContainerID(containerID),
-	}
 	event.ProcessCacheEntry = &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
-				ContainerID: containerutils.ContainerID(containerID),
+				ContainerContext: model.ContainerContext{
+					ContainerID: containerutils.ContainerID(containerID),
+				},
 				FileEvent: model.FileEvent{
 					PathnameStr: executable,
 				},

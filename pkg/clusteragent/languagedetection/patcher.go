@@ -31,6 +31,7 @@ import (
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
 
 const (
@@ -44,12 +45,13 @@ const (
 
 // LanguagePatcher defines an object that patches kubernetes resources with language annotations
 type languagePatcher struct {
-	ctx       context.Context
-	cancel    context.CancelFunc
-	k8sClient dynamic.Interface
-	store     workloadmeta.Component
-	logger    log.Component
-	queue     workqueue.TypedRateLimitingInterface[langUtil.NamespacedOwnerReference]
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	k8sClient             dynamic.Interface
+	store                 workloadmeta.Component
+	logger                log.Component
+	queue                 workqueue.TypedRateLimitingInterface[langUtil.NamespacedOwnerReference]
+	leaderElectionEnabled bool
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
@@ -60,11 +62,12 @@ func newLanguagePatcher(ctx context.Context, store workloadmeta.Component, logge
 	k8sClient := apiCl.DynamicCl
 
 	return &languagePatcher{
-		ctx:       ctx,
-		cancel:    cancel,
-		k8sClient: k8sClient,
-		store:     store,
-		logger:    logger,
+		ctx:                   ctx,
+		cancel:                cancel,
+		k8sClient:             k8sClient,
+		store:                 store,
+		logger:                logger,
+		leaderElectionEnabled: datadogConfig.GetBool("leader_election"),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.NewTypedItemExponentialFailureRateLimiter[langUtil.NamespacedOwnerReference](
 				datadogConfig.GetDuration("cluster_agent.language_detection.patcher.base_backoff"),
@@ -224,8 +227,32 @@ func (lp *languagePatcher) startProcessingPatchingRequests(ctx context.Context) 
 	}()
 }
 
+// isLeader checks if the current instance is the leader
+func (lp *languagePatcher) isLeader() bool {
+	if !lp.leaderElectionEnabled {
+		// If leader election is disabled, we're always the leader
+		return true
+	}
+
+	leaderEngine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		lp.logger.Errorf("Failed to get leader engine: %v", err)
+		// If we can't determine leader status, don't patch to be safe
+		return false
+	}
+
+	return leaderEngine.IsLeader()
+}
+
 func (lp *languagePatcher) processOwner(ctx context.Context, owner langUtil.NamespacedOwnerReference) error {
 	lp.logger.Tracef("Processing %s: %s/%s", owner.Kind, owner.Namespace, owner.Name)
+
+	// Check if we're the leader before processing patches
+	if !lp.isLeader() {
+		lp.logger.Tracef("Skipping patch for %s: %s/%s - not leader", owner.Kind, owner.Namespace, owner.Name)
+		Patches.Inc(owner.Kind, owner.Name, owner.Namespace, statusSkip)
+		return nil
+	}
 
 	var err error
 

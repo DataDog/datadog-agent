@@ -164,11 +164,16 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
 		tt.Run("default python version", func(tt *testing.T) {
-			expected := common.ExpectedPythonVersion3
+			// python is lazy loaded and not running as default
+			expected := common.ExpectedUnloadedPython
 			if t.ExpectPython2Installed() {
 				expected = common.ExpectedPythonVersion2
 			}
 			common.CheckAgentPython(tt, t.InstallTestClient, expected)
+
+			// this sets python_lazy_loading: false so we can check the version installed
+			common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
+			common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion3)
 		})
 
 		if t.ExpectPython2Installed() {
@@ -194,6 +199,8 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 				common.CheckCWSBehaviour(tt, t.InstallTestClient)
 			})
 		}
+
+		// TODO(ADP): Update this for Windows when we add Windows support to ADP.
 	})
 }
 
@@ -455,6 +462,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
 		})
 	}
+	windowsAgent.TestHasNoWorldWritablePaths(tt, t.host, []string{t.expectedConfigRoot})
 
 	// C:\Program Files\Datadog\Datadog Agent (InstallPath)
 	// doesn't exist after uninstall so don't need to test
@@ -605,6 +613,8 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 			"%s should not have permissions on %s", ddAgentUserIdentity, t.expectedInstallPath)
 	}
 	assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", t.expectedInstallPath)
+
+	windowsAgent.TestAgentHasNoWorldWritablePaths(tt, t.host)
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester

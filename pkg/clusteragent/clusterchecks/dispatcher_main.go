@@ -10,6 +10,8 @@ package clusterchecks
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -33,15 +36,19 @@ type dispatcher struct {
 	unscheduledCheckThresholdSeconds int64
 	extraTags                        []string
 	clcRunnersClient                 clusteragent.CLCRunnerClientInterface
-	advancedDispatching              bool
+	advancedDispatching              atomic.Bool
 	excludedChecks                   map[string]struct{}
 	excludedChecksFromDispatching    map[string]struct{}
 	rebalancingPeriod                time.Duration
+	ksmSharding                      *ksmShardingManager
+	ksmShardingMutex                 sync.Mutex          // Protects ksmShardedConfigs
+	ksmShardedConfigs                map[string][]string // Maps original config digest -> shard digests, protected by ksmShardingMutex
 }
 
 func newDispatcher(tagger tagger.Component) *dispatcher {
 	d := &dispatcher{
-		store: newClusterStore(),
+		store:             newClusterStore(),
+		ksmShardedConfigs: make(map[string][]string),
 	}
 	d.nodeExpirationSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.node_expiration_timeout")
 	d.unscheduledCheckThresholdSeconds = pkgconfigsetup.Datadog().GetInt64("cluster_checks.unscheduled_check_threshold")
@@ -59,6 +66,25 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 		log.Warnf("Cannot get global tags from the tagger: %v", err)
 	} else {
 		log.Debugf("Adding global tags to cluster check dispatcher: %v", d.extraTags)
+	}
+
+	hname, _ := hostname.Get(context.TODO())
+	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
+	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
+	if clusterTagValue != "" {
+		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
+			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
+		}
+		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
+	}
+
+	clusterIDTagValue, err := clustername.GetClusterID()
+	if err != nil {
+		log.Warnf("Failed to get cluster ID: %v", err)
+	}
+	if clusterIDTagValue != "" {
+		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
 	}
 
 	excludedChecks := pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks")
@@ -80,33 +106,37 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.rebalancingPeriod = pkgconfigsetup.Datadog().GetDuration("cluster_checks.rebalance_period")
-
-	hname, _ := hostname.Get(context.TODO())
-	clusterTagValue := clustername.GetClusterName(context.TODO(), hname)
-	clusterTagName := pkgconfigsetup.Datadog().GetString("cluster_checks.cluster_tag_name")
-	if clusterTagValue != "" {
-		if clusterTagName != "" && !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
-			d.extraTags = append(d.extraTags, fmt.Sprintf("%s:%s", clusterTagName, clusterTagValue))
-			log.Info("Adding both tags cluster_name and kube_cluster_name. You can use 'disable_cluster_name_tag_key' in the Agent config to keep the kube_cluster_name tag only")
-		}
-		d.extraTags = append(d.extraTags, tags.KubeClusterName+":"+clusterTagValue)
-	}
-
-	clusterIDTagValue, _ := clustername.GetClusterID()
-	if clusterIDTagValue != "" {
-		d.extraTags = append(d.extraTags, tags.OrchClusterID+":"+clusterIDTagValue)
-	}
-
-	d.advancedDispatching = pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
-	if !d.advancedDispatching {
+	advancedDispatchingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.advanced_dispatching_enabled")
+	if !advancedDispatchingEnabled {
 		return d
 	}
 
 	d.clcRunnersClient, err = clusteragent.GetCLCRunnerClient()
 	if err != nil {
 		log.Warnf("Cannot create CLC runners client, advanced dispatching will be disabled: %v", err)
-		d.advancedDispatching = false
+	} else {
+		d.advancedDispatching.Store(true)
 	}
+
+	// Initialize KSM sharding (requires advanced dispatching)
+	// Advanced dispatching is required for KSM sharding because it ensures shards are distributed across runners
+	ksmShardingEnabled := pkgconfigsetup.Datadog().GetBool("cluster_checks.ksm_sharding_enabled")
+	if ksmShardingEnabled {
+		// Validate advanced dispatching is actually enabled
+		if !d.advancedDispatching.Load() {
+			log.Warn("KSM resource sharding requires advanced dispatching (cluster_checks.advanced_dispatching_enabled=true). Disabling KSM sharding.")
+			ksmShardingEnabled = false
+		} else {
+			// KSM sharding configuration notes:
+			// - Namespace labels/annotations as tags require GLOBAL config (kubernetes_resources_labels_as_tags)
+			// - Check-specific labels_as_tags in KSM config is NOT supported with sharding
+			// - Sharding also breaks check-specific label_joins across different resource types
+			log.Info("KSM resource sharding enabled. For namespace labels/annotations as tags, check-specific config (labels_as_tags in KSM config) is not supported with sharding - use global kubernetes_resources_labels_as_tags instead.")
+		}
+	}
+
+	d.ksmSharding = newKSMShardingManager(ksmShardingEnabled)
+
 	return d
 }
 
@@ -142,6 +172,13 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 			d.addEndpointConfig(patched, c.NodeName)
 			continue
 		}
+
+		// Try to handle KSM sharding
+		if d.scheduleKSMCheck(c) {
+			// KSM check was sharded and scheduled, skip normal scheduling
+			continue
+		}
+
 		patched, err := d.patchConfiguration(c)
 		if err != nil {
 			log.Warnf("Cannot patch configuration %s: %s", c.Digest(), err)
@@ -157,6 +194,12 @@ func (d *dispatcher) Unschedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
+
+		// Check if this is a sharded KSM check and remove all shards
+		if d.unscheduleKSMCheck(c) {
+			continue // Sharded configs were removed, skip normal unscheduling
+		}
+
 		if c.NodeName != "" {
 			patched, err := d.patchEndpointsConfiguration(c)
 			if err != nil {
@@ -229,6 +272,37 @@ func (d *dispatcher) scanUnscheduledChecks() {
 	}
 }
 
+// UpdateAdvancedDispatchingMode checks if any node agents are in the pool
+// and disables advanced dispatching if found
+func (d *dispatcher) UpdateAdvancedDispatchingMode() {
+	if !d.advancedDispatching.Load() {
+		return
+	}
+
+	d.store.RLock()
+	defer d.store.RUnlock()
+
+	// Check if any node agents are in the pool
+	hasNodeAgent := false
+	for _, node := range d.store.nodes {
+		if node.nodetype == cctypes.NodeTypeNodeAgent {
+			hasNodeAgent = true
+			break
+		}
+	}
+
+	if hasNodeAgent {
+		d.disableAdvancedDispatching()
+	}
+}
+
+// disableAdvancedDispatching disables advanced dispatching mode
+func (d *dispatcher) disableAdvancedDispatching() {
+	if d.advancedDispatching.CompareAndSwap(true, false) {
+		log.Info("Node agents detected in cluster check pool, disabling advanced dispatching")
+	}
+}
+
 // run is the main management goroutine for the dispatcher
 func (d *dispatcher) run(ctx context.Context) {
 	d.store.Lock()
@@ -269,7 +343,7 @@ func (d *dispatcher) run(ctx context.Context) {
 			// Check for configs that have been dangling longer than expected
 			d.scanUnscheduledChecks()
 		case <-rebalanceTicker.C:
-			if d.advancedDispatching {
+			if d.advancedDispatching.Load() {
 				d.rebalance(false)
 			}
 		}

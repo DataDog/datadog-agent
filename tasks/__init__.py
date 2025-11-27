@@ -9,7 +9,9 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
+    agent_ci_api,
     ami,
+    auth,
     bench,
     buildimages,
     cluster_agent,
@@ -24,11 +26,13 @@ from tasks import (
     diff,
     docker_tasks,
     dogstatsd,
+    dyntest,
     ebpf,
     emacs,
     epforwarder,
     fakeintake,
     fips,
+    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
@@ -37,8 +41,10 @@ from tasks import (
     installer,
     invoke_unit_tests,
     issue,
+    k8s_versions,
     kmt,
     linter,
+    loader,
     macos,
     modules,
     msi,
@@ -69,6 +75,7 @@ from tasks import (
     testwasher,
     trace_agent,
     vim,
+    virustotal,
     vscode,
     winbuild,
     windows_dev_env,
@@ -166,8 +173,10 @@ ns.add_task(build_and_upload_fuzz)
 ns.add_task(lint_go)
 
 # add namespaced tasks to the root
+ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
+ns.add_collection(agent_ci_api)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
@@ -182,6 +191,7 @@ ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(vim)
 ns.add_collection(macos)
+ns.add_collection(dyntest)
 ns.add_collection(epforwarder)
 ns.add_collection(fips)
 ns.add_collection(go)
@@ -192,6 +202,7 @@ ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
+ns.add_collection(loader)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
@@ -200,6 +211,7 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
+ns.add_collection(full_host_profiler)
 ns.add_collection(sds)
 ns.add_collection(selinux)
 ns.add_collection(setup)
@@ -215,6 +227,7 @@ ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
+ns.add_collection(k8s_versions)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
@@ -231,6 +244,7 @@ ns.add_collection(windows_dev_env)
 ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
+ns.add_collection(virustotal)
 ns.configure(
     {
         "run": {

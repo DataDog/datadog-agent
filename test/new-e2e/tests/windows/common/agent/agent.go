@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
+	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -191,4 +191,29 @@ func GetInstallPathFromRegistry(host *components.RemoteHost) (string, error) {
 // GetConfigRootFromRegistry gets the config root from the registry, e.g. C:\ProgramData\Datadog
 func GetConfigRootFromRegistry(host *components.RemoteHost) (string, error) {
 	return windowsCommon.GetRegistryValue(host, RegistryKeyPath, "ConfigRoot")
+}
+
+// TestHasNoWorldWritablePaths tests that the given paths do not contain world-writable paths
+func TestHasNoWorldWritablePaths(t *testing.T, host *components.RemoteHost, paths []string) bool {
+	t.Helper()
+	return t.Run("no world writable paths", func(t *testing.T) {
+		t.Helper()
+		if testing.Short() {
+			// test takes ~90 seconds to run on Agent paths
+			t.Skip("skipping world writable files check in short mode")
+		}
+		worldWritableFiles, err := windowsCommon.FindWorldWritablePaths(host, paths)
+		require.NoError(t, err, "should check for world-writable files")
+		assert.Empty(t, worldWritableFiles, "paths %v should not contain world-writable files", paths)
+	})
+}
+
+// TestAgentHasNoWorldWritablePaths tests that the Agent install and config paths do not contain world-writable paths
+func TestAgentHasNoWorldWritablePaths(t *testing.T, host *components.RemoteHost) bool {
+	installPath, err := GetInstallPathFromRegistry(host)
+	require.NoError(t, err, "should get install path")
+	configRoot, err := GetConfigRootFromRegistry(host)
+	require.NoError(t, err, "should get config root")
+
+	return TestHasNoWorldWritablePaths(t, host, []string{installPath, configRoot})
 }

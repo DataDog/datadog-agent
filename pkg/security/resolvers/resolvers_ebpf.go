@@ -11,15 +11,15 @@ package resolvers
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
+
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dns"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -68,10 +68,12 @@ type EBPFResolvers struct {
 	SyscallCtxResolver   *syscallctx.Resolver
 	DNSResolver          *dns.Resolver
 	FileMetadataResolver *file.Resolver
+
+	SnapshotUsingListmount bool
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -98,7 +100,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(statsdClient)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +109,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	var versionResolver func(servicePath string) string
 	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
 		versionResolver = func(servicePath string) string {
-
 			if pkg := sbomResolver.ResolvePackage("", &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
 				return pkg.Version
 			}
@@ -141,7 +142,11 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.PathResolutionEnabled {
 		// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
 		// This means that we can remove mount entries that are still in use.
-		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, mount.ResolverOpts{UseProcFS: true})
+		resolverOpts := mount.ResolverOpts{
+			UseProcFS:              true,
+			SnapshotUsingListMount: config.Probe.SnapshotUsingListmount,
+		}
+		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, dentryResolver, resolverOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -195,24 +200,25 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	resolvers := &EBPFResolvers{
-		manager:              manager,
-		MountResolver:        mountResolver,
-		ContainerResolver:    containerResolver,
-		TimeResolver:         timeResolver,
-		UserGroupResolver:    userGroupResolver,
-		TagsResolver:         tagsResolver,
-		DentryResolver:       dentryResolver,
-		NamespaceResolver:    namespaceResolver,
-		CGroupResolver:       cgroupsResolver,
-		TCResolver:           tcResolver,
-		ProcessResolver:      processResolver,
-		PathResolver:         pathResolver,
-		SBOMResolver:         sbomResolver,
-		HashResolver:         hashResolver,
-		UserSessionsResolver: userSessionsResolver,
-		SyscallCtxResolver:   syscallctx.NewResolver(),
-		DNSResolver:          dnsResolver,
-		FileMetadataResolver: fileMetadataResolver,
+		manager:                manager,
+		MountResolver:          mountResolver,
+		ContainerResolver:      containerResolver,
+		TimeResolver:           timeResolver,
+		UserGroupResolver:      userGroupResolver,
+		TagsResolver:           tagsResolver,
+		DentryResolver:         dentryResolver,
+		NamespaceResolver:      namespaceResolver,
+		CGroupResolver:         cgroupsResolver,
+		TCResolver:             tcResolver,
+		ProcessResolver:        processResolver,
+		PathResolver:           pathResolver,
+		SBOMResolver:           sbomResolver,
+		HashResolver:           hashResolver,
+		UserSessionsResolver:   userSessionsResolver,
+		SyscallCtxResolver:     syscallctx.NewResolver(),
+		DNSResolver:            dnsResolver,
+		FileMetadataResolver:   fileMetadataResolver,
+		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
 	}
 
 	return resolvers, nil
@@ -250,7 +256,7 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 }
 
 // ResolveCGroupContext resolves the cgroup context from a cgroup path key
-func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags containerutils.CGroupFlags) (*model.CGroupContext, bool, error) {
+func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (*model.CGroupContext, bool, error) {
 	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
 		return cgroupContext, true, nil
 	}
@@ -261,10 +267,8 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey, cgroupFlags 
 	}
 
 	cgroupContext := &model.CGroupContext{
-		CGroupID:      containerutils.CGroupID(cgroup),
-		CGroupFlags:   containerutils.CGroupFlags(cgroupFlags),
-		CGroupFile:    pathKey,
-		CGroupManager: cgroupFlags.GetCGroupManager().String(),
+		CGroupID:   containerutils.CGroupID(cgroup),
+		CGroupFile: pathKey,
 	}
 
 	return cgroupContext, false, nil
@@ -321,6 +325,13 @@ func (r *EBPFResolvers) snapshot() error {
 		return createA < createB
 	})
 
+	err = r.MountResolver.SyncCache()
+
+	if err != nil {
+		seclog.Errorf("failed to sync cache from listmount: %v", err)
+		r.SnapshotUsingListmount = false
+	}
+
 	for _, proc := range processes {
 		ppid, err := proc.Ppid()
 		if err != nil {
@@ -330,14 +341,6 @@ func (r *EBPFResolvers) snapshot() error {
 		pid := uint32(proc.Pid)
 
 		if process.IsKThread(uint32(ppid), pid) {
-			continue
-		}
-
-		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if err = r.MountResolver.SyncCache(pid); err != nil {
-			if !os.IsNotExist(err) {
-				log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
-			}
 			continue
 		}
 
@@ -382,6 +385,9 @@ func (r *EBPFResolvers) Close() error {
 		fmt.Println(err)
 		return err
 	}
-
+	// clean up the user sessions resolver goroutine and resources
+	if r.UserSessionsResolver != nil {
+		r.UserSessionsResolver.Close()
+	}
 	return nil
 }

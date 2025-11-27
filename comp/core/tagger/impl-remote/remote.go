@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
+	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -25,6 +27,8 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -156,8 +160,12 @@ func newRemoteTagger(params tagger.RemoteParams, cfg config.Component, log log.C
 
 	// Override the default TLS config and auth token if provided
 	// This is useful for communicate with the cluster agent from cluster check runners
-	if params.OverrideTLSConfig != nil {
-		remotetagger.tlsConfig = params.OverrideTLSConfig
+	if params.OverrideTLSConfigGetter != nil {
+		tlsConfig, err := params.OverrideTLSConfigGetter()
+		if err != nil {
+			return nil, err
+		}
+		remotetagger.tlsConfig = tlsConfig
 	}
 	if params.OverrideAuthTokenGetter != nil {
 		// Retry 10 times to get the auth token
@@ -223,6 +231,24 @@ func start(remoteTagger *remoteTagger) error {
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
+				_, sPort, err := net.SplitHostPort(url)
+				if err != nil {
+					return nil, err
+				}
+
+				port, err := strconv.Atoi(sPort)
+				if err != nil {
+					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+				}
+
+				cid, err := socket.ParseVSockAddress(vsockAddr)
+				if err != nil {
+					return nil, err
+				}
+
+				return vsock.Dial(cid, uint32(port), &vsock.Config{})
+			}
 			return net.Dial("tcp", url)
 		}),
 	)
@@ -582,7 +608,7 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 
 			t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
 				Cardinality: pb.TagCardinality(t.filter.GetCardinality()),
-				StreamingID: uuid.New().String(),
+				StreamingID: fmt.Sprintf("%s:%s", flavor.GetFlavor(), uuid.New().String()),
 				Prefixes:    prefixes,
 			})
 

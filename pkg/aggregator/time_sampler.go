@@ -126,7 +126,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	return ss
 }
 
-func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
 	// Map to hold the expired contexts that will need to be deleted after the flush so that we stop sending zeros
 	contextMetricsFlusher := metrics.NewContextMetricsFlusher()
 
@@ -158,7 +158,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, bl
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, blocklist)
+		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, filterList)
 	})
 }
 
@@ -166,7 +166,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
-	blocklist *utilstrings.Blocklist,
+	filterList *utilstrings.Matcher,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -201,7 +201,8 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 		// it is the final stage before flushing the series to the serialisation
 		// part of the pipeline but also, here is a stage where all series have been
 		// generated & processed (even the ones generated from a histogram metric).
-		if blocklist != nil && blocklist.Test(serie.Name) {
+		if filterList != nil && filterList.Test(serie.Name) {
+			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
 		serieSink.Append(serie)
@@ -232,11 +233,11 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, blocklist *utilstrings.Blocklist, forceFlushAll bool) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
-	s.flushSeries(cutoffTime, series, blocklist, forceFlushAll)
+	s.flushSeries(cutoffTime, series, filterList, forceFlushAll)
 	s.flushSketches(cutoffTime, sketches, forceFlushAll)
 	// expiring contexts
 	s.contextResolver.expireContexts(int64(timestamp))

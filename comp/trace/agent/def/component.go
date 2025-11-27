@@ -10,10 +10,10 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -24,7 +24,7 @@ type Component interface {
 	// SetOTelAttributeTranslator sets the OTel attributes translator of the underlying trace agent.
 	SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	// ReceiveOTLPSpans forwards the OTLP spans to the underlying trace agent to process.
-	ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source
+	ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error)
 	// SendStatsPayload sends a stats payload to the Datadog backend.
 	SendStatsPayload(p *pb.StatsPayload)
 	// GetHTTPHandler returns the HTTP handler for the given endpoint.

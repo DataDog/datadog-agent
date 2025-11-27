@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/image"
@@ -25,6 +26,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/sbomutil"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -49,6 +51,12 @@ const imageEventActionSbom = events.Action("sbom")
 
 type resolveHook func(ctx context.Context, co container.InspectResponse) (string, error)
 
+type dependencies struct {
+	fx.In
+
+	FilterStore workloadfilter.Component
+}
+
 type collector struct {
 	id      string
 	store   workloadmeta.Component
@@ -67,14 +75,19 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
+
+	filterPausedContainers workloadfilter.FilterBundle
+	filterSBOMContainers   workloadfilter.FilterBundle
 }
 
 // NewCollector returns a new docker collector provider and an error
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
-			id:      collectorID,
-			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			id:                     collectorID,
+			catalog:                workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			filterPausedContainers: deps.FilterStore.GetContainerPausedFilters(),
+			filterSBOMContainers:   deps.FilterStore.GetContainerSBOMFilters(),
 		},
 	}, nil
 }
@@ -101,12 +114,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	filter, err := containers.GetPauseContainerFilter()
-	if err != nil {
-		log.Warnf("Can't get pause container filter, no filtering will be applied: %v", err)
-	}
-
-	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, filter)
+	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, c.filterPausedContainers)
 	if err != nil {
 		return err
 	}
@@ -116,7 +124,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		return err
 	}
 
-	err = c.generateEventsFromContainerList(ctx, filter)
+	err = c.generateEventsFromContainerList(ctx, c.filterPausedContainers)
 	if err != nil {
 		return err
 	}
@@ -178,7 +186,7 @@ func (c *collector) stream(ctx context.Context) {
 	}
 }
 
-func (c *collector) generateEventsFromContainerList(ctx context.Context, filter *containers.Filter) error {
+func (c *collector) generateEventsFromContainerList(ctx context.Context, filter workloadfilter.FilterBundle) error {
 	if c.store == nil {
 		return errors.New("Start was not called")
 	}
@@ -613,7 +621,12 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		}
 
 		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
-			sbom = existingImg.SBOM
+			oldSBOM, err := sbomutil.UncompressSBOM(existingImg.SBOM)
+			if err != nil {
+				log.Errorf("Failed to uncompress SBOM for image %s: %v", existingImg.ID, err)
+			} else {
+				sbom = oldSBOM
+			}
 		}
 	}
 
@@ -627,7 +640,12 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 	// not be able to inject them. For example, if we use the scanner from filesystem or
 	// if the `imgMeta` object does not contain all the metadata when it is sent.
 	// We add them here to make sure they are present.
-	sbom = util.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
+	sbom = sbomutil.UpdateSBOMRepoMetadata(sbom, imgInspect.RepoTags, imgInspect.RepoDigests)
+	csbom, err := sbomutil.CompressSBOM(sbom)
+	if err != nil {
+		log.Errorf("Failed to compress SBOM for image %s: %v", imgInspect.ID, err)
+		return nil, err
+	}
 
 	return &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
@@ -646,7 +664,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
 		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
-		SBOM:         sbom,
+		SBOM:         csbom,
 	}, nil
 }
 

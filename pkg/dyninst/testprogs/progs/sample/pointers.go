@@ -102,6 +102,12 @@ func testNilPointer(z *bool, a uint) {}
 //go:noinline
 func testPointerToPointer(u **int) {}
 
+type t []*t
+
+//nolint:all
+//go:noinline
+func testCycle(t *t) {}
+
 //nolint:all
 func executePointerFuncs() {
 	var u64F uint64 = 5
@@ -168,4 +174,5 @@ func executePointerFuncs() {
 	}
 	self.b = self
 	testPointerLoop(self)
+	testCycle(nil)
 }

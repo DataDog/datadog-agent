@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
+	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"go.uber.org/fx"
 )
 
@@ -21,5 +22,6 @@ func getPlatformModules() fx.Option {
 		fx.Invoke(func(_ windowseventlog.Component) {}),
 		winregistryimpl.Module(),
 		fx.Invoke(func(_ winregistry.Component) {}),
+		publishermetadatacachefx.Module(),
 	)
 }

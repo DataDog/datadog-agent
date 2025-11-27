@@ -23,7 +23,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_default_branch, get_file_modifications, get_staged_files
+from tasks.libs.common.git import get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
@@ -155,29 +155,37 @@ def update_go(_):
 
 # === PYTHON === #
 @task
-def python(ctx):
+def python(ctx, show_versions=False):
     """Lints Python files.
 
     See 'setup.cfg' and 'pyproject.toml' file for configuration. If
     running locally, you probably want to use the pre-commit instead.
+
+    Args:
+        show_versions: Show the versions of the linters that are being used.
     """
 
     print(
-        f"""Remember to set up pre-commit to lint your files before committing:
-    https://github.com/DataDog/datadog-agent/blob/{get_default_branch()}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
+        "Remember to set up pre-commit to lint your files before committing: "
+        "https://datadoghq.dev/datadog-agent/setup/optional/#pre-commit-hooks"
     )
+
+    if show_versions:
+        print(f"ruff version: {ctx.run('ruff --version', hide=True).stdout.strip()}")
+        print(f"vulture version: {ctx.run('vulture --version', hide=True).stdout.strip()}")
+        print(f"mypy version: {ctx.run('mypy --version', hide=True).stdout.strip()}")
 
     if running_in_ci():
         # We want to the CI to fail if there are any issues
-        ctx.run("ruff format --check .")
-        ctx.run("ruff check .")
+        ctx.run("ruff format --check --diff .")
+        ctx.run("ruff check --diff .")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")
         ctx.run("ruff check --fix .")
 
     ctx.run("vulture")
-    ctx.run("mypy")
+    ctx.run("mypy --warn-unused-configs")
 
 
 # === GITHUB === #
@@ -474,7 +482,7 @@ def list_parameters(_, type):
 
 
 @task
-def ssm_parameters(ctx, mode="all", folders=None):
+def ssm_parameters(ctx, mode="all", folders=None, exclude_folders=None):
     """Lints SSM parameters in the datadog-agent repository."""
 
     modes = ["env", "wrapper", "all"]
@@ -482,12 +490,16 @@ def ssm_parameters(ctx, mode="all", folders=None):
         raise Exit(f"Invalid mode: {mode}. Must be one of {modes}")
     if folders is None:
         lint_folders = [".github", ".gitlab", "test"]
+    if exclude_folders is None:
+        exclude_folders = ["test/e2e-framework"]
     else:
         lint_folders = folders.split(",")
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
     for filename in repo_files.stdout.split("\n"):
-        if any(filename.startswith(f) for f in lint_folders):
+        if any(filename.startswith(f) for f in lint_folders) and not any(
+            filename.startswith(f) for f in exclude_folders
+        ):
             calls = list_get_parameter_calls(filename)
             if calls:
                 error_files.extend(calls)
@@ -723,7 +735,7 @@ def filenames(ctx):
 
     print("Checking filename length")
     # Approximated length of the prefix of the repo during the windows release build
-    prefix_length = 160
+    prefix_length = 159
     # Maximum length supported by the win32 API
     max_length = 255
     for filename in files:

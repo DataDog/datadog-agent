@@ -75,6 +75,18 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 				}
 			}
 
+			if len(conf.CELSelector.KubeServices) > 0 {
+				svcFound = true
+				log.Info("Configs with CEL kube service selectors detected: Adding the 'kube service file' config provider")
+				detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeServicesFileRegisterName, Polling: false})
+			}
+
+			if len(conf.CELSelector.KubeEndpoints) > 0 {
+				epFound = true
+				log.Info("Configs with CEL kube endpoints selectors detected: Adding the 'kube endpoints file' config provider")
+				detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: names.KubeEndpointsFileRegisterName, Polling: true})
+			}
+
 			if svcFound && epFound {
 				break
 			}
@@ -109,10 +121,14 @@ func DiscoverComponentsFromEnv() ([]pkgconfigsetup.ConfigurationProviders, []pkg
 		return detectedProviders, detectedListeners
 	}
 
+	// Container environments include Docker, Containerd, Podman, and ECS sidecar mode
+	// Note: ECS in daemon mode (EC2 or Managed Instances) relies on Docker/Containerd detection
+	// Note: env.IsECSSidecarMode should only be called after env.DetectFeatures() has run,
+	// which is guaranteed by the defer in LoadDatadog*() functions during normal agent startup.
 	isContainerEnv := env.IsFeaturePresent(env.Docker) ||
 		env.IsFeaturePresent(env.Containerd) ||
 		env.IsFeaturePresent(env.Podman) ||
-		env.IsFeaturePresent(env.ECSFargate)
+		env.IsECSSidecarMode(pkgconfigsetup.Datadog())
 	isKubeEnv := env.IsFeaturePresent(env.Kubernetes)
 
 	if isContainerEnv || isKubeEnv {

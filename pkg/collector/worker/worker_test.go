@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -32,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type testCheck struct {
@@ -164,6 +162,9 @@ func TestWorkerInit(t *testing.T) {
 }
 
 func TestWorkerInitExpvarStats(t *testing.T) {
+	// Reset expvars before test
+	expvars.Reset()
+
 	checksTracker := &tracker.RunningChecksTracker{}
 	pendingChecksChan := make(chan check.Check, 1)
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
@@ -733,10 +734,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 				"config_id":        "my-config-01",
 			}
 			logComponent := logmock.New(t)
-			agentConfigComponent := fxutil.Test[config.Component](t, fx.Options(
-				config.MockModule(),
-				fx.Replace(config.MockParams{Overrides: agentConfigs}),
-			))
+			agentConfigComponent := config.NewMockWithOverrides(t, agentConfigs)
 			requires := haagentimpl.Requires{
 				Logger:      logComponent,
 				AgentConfig: agentConfigComponent,

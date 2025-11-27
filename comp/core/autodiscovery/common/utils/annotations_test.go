@@ -351,6 +351,7 @@ func TestBuildTemplates(t *testing.T) {
 		expectedConfigs     []integration.Config
 		ignoreAdTags        bool
 		checkTagCardinality string
+		expectsError        bool
 	}{
 		{
 			name:            "wrong number of checkNames",
@@ -358,6 +359,7 @@ func TestBuildTemplates(t *testing.T) {
 			inputInitConfig: [][]integration.Data{{integration.Data("")}},
 			inputInstances:  [][]integration.Data{{integration.Data("")}},
 			expectedConfigs: []integration.Config{},
+			expectsError:    true,
 		},
 		{
 			name:            "valid inputs",
@@ -468,7 +470,14 @@ func TestBuildTemplates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedConfigs, BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags, tt.checkTagCardinality))
+			templates, err := BuildTemplates(key, tt.inputCheckNames, tt.inputInitConfig, tt.inputInstances, tt.ignoreAdTags, tt.checkTagCardinality)
+
+			if tt.expectsError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expectedConfigs, templates)
+			}
 		})
 	}
 }

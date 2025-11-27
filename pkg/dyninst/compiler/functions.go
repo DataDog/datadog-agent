@@ -42,10 +42,16 @@ func (ChasePointers) String() string {
 // at given injection PC.
 type ProcessEvent struct {
 	baseFunctionID
+	ProbeID             uint32
 	InjectionPC         uint64
 	ThrottlerIdx        int
 	PointerChasingLimit uint32
+	CollectionSizeLimit uint32
+	StringSizeLimit     uint32
 	Frameless           bool
+	HasAssociatedReturn bool
+	EventKind           ir.EventKind
+	TopPCOffset         int8
 	EventRootType       *ir.EventRootType
 }
 

@@ -21,7 +21,7 @@ import (
 
 func TestStatusOut(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() ipc.HTTPClient {
 			return ipcmock.New(t).GetClient()
 		}),

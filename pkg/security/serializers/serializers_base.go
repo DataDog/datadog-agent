@@ -8,9 +8,12 @@
 package serializers
 
 import (
+	json "encoding/json"
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/google/gopacket"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -133,7 +136,9 @@ type NetworkContextSerializer struct {
 	// size is the size in bytes of the network event
 	Size uint32 `json:"size"`
 	// network_direction indicates if the packet was captured on ingress or egress
-	NetworkDirection string `json:"network_direction"`
+	NetworkDirection string `json:"network_direction,omitempty"`
+	// type is the type of the protocol of the network event
+	Type string `json:"type,omitempty"`
 }
 
 // AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request
@@ -258,12 +263,48 @@ type TLSContextSerializer struct {
 	Version string `json:"version,omitempty"`
 }
 
+// LayerSerializer defines a layer serializer
+type LayerSerializer struct {
+	Type string `json:"type"`
+	gopacket.Layer
+}
+
+// MarshalJSON marshals the layer serializer to JSON
+func (L *LayerSerializer) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(L.Layer)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(data) == 0 || data[0] != '{' {
+		return nil, nil
+	}
+
+	var v map[string]any
+	err = json.Unmarshal(data, &v)
+	if err != nil {
+		return nil, err
+	}
+	delete(v, "Contents")
+	delete(v, "Payload")
+
+	v["type"] = L.Type
+
+	data, err = json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 // RawPacketSerializer defines a raw packet serializer
 // easyjson:json
 type RawPacketSerializer struct {
 	*NetworkContextSerializer
 
 	TLSContext *TLSContextSerializer `json:"tls,omitempty"`
+	Dropped    *bool                 `json:"dropped,omitempty"`
+	Layers     []*LayerSerializer    `json:"layers,omitempty"`
 }
 
 // NetworkStatsSerializer defines a new network stats serializer
@@ -423,7 +464,7 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
@@ -432,7 +473,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
 			Variables:   newVariablesContext(event, rule, ""),
-			RuleContext: newRuleContext(event, rule),
+			RuleContext: newRuleContext(event, rule, scrubber),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
@@ -448,7 +489,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 		}
 	}
 
-	s.Category = model.GetEventTypeCategory(eventType.String())
+	s.Category = model.GetEventTypeCategory(eventType.String()).String()
 
 	switch eventType {
 	case model.ExitEventType:
@@ -462,7 +503,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule) *BaseEventSeri
 	return s
 }
 
-func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
+func newRuleContext(e *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) RuleContext {
 	if rule == nil {
 		return RuleContext{}
 	}
@@ -475,8 +516,21 @@ func newRuleContext(e *model.Event, rule *rules.Rule) RuleContext {
 		subExpr := MatchingSubExpr{
 			Offset: valuePos.Offset,
 			Length: valuePos.Length,
-			Value:  fmt.Sprintf("%v", valuePos.Value),
 			Field:  valuePos.Field,
+		}
+
+		value := valuePos.Value
+		switch value := value.(type) {
+		case []string:
+			scrubbedValues := make([]string, 0, len(value))
+			for _, elem := range value {
+				scrubbedValues = append(scrubbedValues, scrubber.ScrubLine(elem))
+			}
+			subExpr.Value = fmt.Sprintf("%v", scrubbedValues)
+		case string:
+			subExpr.Value = scrubber.ScrubLine(value)
+		default:
+			subExpr.Value = fmt.Sprintf("%v", value)
 		}
 		ruleContext.MatchingSubExprs = append(ruleContext.MatchingSubExprs, subExpr)
 	}
@@ -539,7 +593,8 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 
 // EventStringerWrapper an event stringer wrapper
 type EventStringerWrapper struct {
-	Event interface{} // can be model.Event or events.CustomEvent
+	Event    interface{} // can be model.Event or events.CustomEvent
+	Scrubber *utils.Scrubber
 }
 
 func (e EventStringerWrapper) String() string {
@@ -549,7 +604,7 @@ func (e EventStringerWrapper) String() string {
 	)
 	switch evt := e.Event.(type) {
 	case *model.Event:
-		data, err = MarshalEvent(evt, nil)
+		data, err = MarshalEvent(evt, nil, e.Scrubber)
 	case *events.CustomEvent:
 		data, err = MarshalCustomEvent(evt)
 	default:

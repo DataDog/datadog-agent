@@ -84,7 +84,7 @@ RUN apt full-upgrade -y \
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libseccomp2 tzdata adduser
+  && apt install --no-install-recommends -y iproute2 libseccomp2 tzdata adduser
 
 ARG WITH_JMX
 ARG WITH_JMX_FIPS
@@ -149,6 +149,7 @@ COPY install_info etc/datadog-agent/
 
 # Extract and cleanup:
 #   - unused systemd unit
+#   - unused installer binary
 #   - GPL sources for embedded software  # FIXME: move upstream
 #   - docs and manpages                  # FIXME: move upstream
 #   - static libraries                   # FIXME: move upstream
@@ -159,6 +160,8 @@ RUN --mount=from=artifacts,target=/artifacts \
  && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
+    opt/datadog-agent/embedded/bin/installer \
+    opt/datadog-agent/embedded/bin/dd-compile-policy \
     opt/datadog-agent/sources \
     opt/datadog-agent/embedded/share/doc \
     opt/datadog-agent/embedded/share/man \

@@ -2,7 +2,6 @@
 msi namespaced tasks
 """
 
-import glob
 import hashlib
 import mmap
 import os
@@ -19,7 +18,8 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
 # Windows only import
 try:
@@ -78,15 +78,13 @@ def _get_vs_build_command(cmd, vstudio_root=None):
     return cmd
 
 
-def _get_env(ctx, major_version='7', flavor=None):
-    env = load_dependencies(ctx)
+def _get_env(ctx, flavor=None):
+    env = get_effective_dependencies_env()
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
 
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     env['AGENT_FLAVOR'] = flavor
     env['AGENT_INSTALLER_OUTPUT_DIR'] = BUILD_OUTPUT_DIR
     env['NUGET_PACKAGES_DIR'] = NUGET_PACKAGES_DIR
@@ -94,7 +92,7 @@ def _get_env(ctx, major_version='7', flavor=None):
     # Used for installation directories registry keys
     # https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
     # TODO: How best to configure the OpenSSL version?
-    env['AGENT_OPENSSL_VERSION'] = "3.4"
+    env['AGENT_OPENSSL_VERSION'] = "3.5"
 
     return env
 
@@ -285,6 +283,18 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
+def _build_msstoreapps(ctx, env, configuration, arch, vstudio_root):
+    msstoreapps_sln = os.path.join(os.getcwd(), "tools", "windows", "MSStoreApps", "MSStoreApps.sln")
+    cmd = _get_vs_build_command(
+        f'msbuild "{msstoreapps_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        vstudio_root,
+    )
+    print(f"Building MSStoreApps: {cmd}")
+    succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
+    if not succeeded:
+        raise Exit("Failed to build MSStoreApps.", code=1)
+
+
 def _msi_output_name(env):
     if _is_fips_mode(env):
         return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
@@ -297,7 +307,6 @@ def build(
     ctx,
     vstudio_root=None,
     arch="x64",
-    major_version='7',
     flavor=None,
     debug=False,
     build_upgrade=False,
@@ -305,7 +314,7 @@ def build(
     """
     Build the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version, flavor=flavor)
+    env = _get_env(ctx, flavor=flavor)
     env['OMNIBUS_TARGET'] = 'main'
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
@@ -317,6 +326,14 @@ def build(
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
+
+    # Build MSStoreApps.dll
+    _build_msstoreapps(ctx, env, configuration, arch, vstudio_root)
+    msstoreapps_output = os.path.join(
+        os.getcwd(), "tools", "windows", "MSStoreApps", arch, configuration, "MSStoreApps.dll"
+    )
+    shutil.copy2(msstoreapps_output, AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'MSStoreApps.dll'))
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
@@ -371,9 +388,7 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     env = {}
     env['OMNIBUS_TARGET'] = 'installer'
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version="7", include_pipeline_id=True
-    )
+    env['PACKAGE_VERSION'] = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
     env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
     env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
     configuration = _msbuild_configuration(debug=debug)
@@ -404,11 +419,11 @@ def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
 
 
 @task
-def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
+def test(ctx, vstudio_root=None, arch="x64", debug=False):
     """
     Run the unit test for the MSI installer for the agent
     """
-    env = _get_env(ctx, major_version)
+    env = _get_env(ctx)
     configuration = _msbuild_configuration(debug=debug)
     build_outdir = build_out_dir(arch, configuration)
 
@@ -421,7 +436,7 @@ def test(ctx, vstudio_root=None, arch="x64", major_version='7', debug=False):
 
     # Generate the config file
     if not ctx.run(
-        f'dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="{build_outdir}\\datadog.yaml"',
+        f'dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="{build_outdir}\\datadog.yaml"',
         warn=True,
         env=env,
     ):
@@ -503,7 +518,7 @@ def get_msm_info(ctx):
     """
     Get the merge module info from the release.json
     """
-    env = load_dependencies(ctx)
+    env = get_effective_dependencies_env()
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:
@@ -588,8 +603,8 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
     Initialize the build environment with artifacts from a ref (default: main)
 
     Example:
-    dda inv msi.fetch_artifacts --ref main
-    dda inv msi.fetch_artifacts --ref 7.66.x
+    dda inv msi.fetch-artifacts --ref main
+    dda inv msi.fetch-artifacts --ref 7.66.x
     """
     if ref is None:
         ref = 'main'
@@ -598,19 +613,41 @@ def fetch_artifacts(ctx, ref: str | None = None) -> None:
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         download_latest_artifacts_for_ref(project, ref, tmp_dir)
-        tmp_dir = Path(tmp_dir) / "omnibus/pkg"
-        # extract datadog-agent*-x86_64.zip (glob) to C:\opt\datadog-agent
+        tmp_dir_path = Path(tmp_dir)
+
+        print(f"Downloaded artifacts to {tmp_dir_path}")
+
+        # Recursively search for the zip files
+        agent_zips = list(tmp_dir_path.glob("**/datadog-agent-*-x86_64.zip"))
+        installer_zips = list(tmp_dir_path.glob("**/datadog-installer-*-x86_64.zip"))
+
+        print(f"Found {len(agent_zips)} agent zip files")
+        print(f"Found {len(installer_zips)} installer zip files")
+
+        if not agent_zips and not installer_zips:
+            print("No zip files found. Directory contents:")
+            for path in tmp_dir_path.glob("**/*"):
+                if path.is_file():
+                    print(f"  {path}")
+            raise Exception("No zip files found in the downloaded artifacts")
+
+        # Extract agent zips
         dest = Path(r'C:\opt\datadog-agent')
-        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-agent-*-x86_64.zip')):
+        dest.mkdir(parents=True, exist_ok=True)
+        for zip_file in agent_zips:
             print(f"Extracting {zip_file} to {dest}")
             with zipfile.ZipFile(zip_file, "r") as zip_ref:
                 zip_ref.extractall(dest)
-        # extract datadog-installer-*.zip (glob) to C:\opt\datadog-installer
+
+        # Extract installer zips
         dest = Path(r'C:\opt\datadog-installer')
-        for zip_file in glob.glob(os.path.join(tmp_dir, 'datadog-installer-*-x86_64.zip')):
+        dest.mkdir(parents=True, exist_ok=True)
+        for zip_file in installer_zips:
             print(f"Extracting {zip_file} to {dest}")
             with zipfile.ZipFile(zip_file, "r") as zip_ref:
                 zip_ref.extractall(dest)
+
+        print("Extraction complete")
 
 
 def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_dir: str) -> None:

@@ -37,10 +37,10 @@ type Telemetry struct {
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *TLSCounter
 
-	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
-	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
-	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
-	aggregations                                                     *libtelemetry.Counter
+	dropped                                                                             *libtelemetry.Counter // this happens when statKeeper reaches capacity
+	rejected                                                                            *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
+	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters, invalidStatusCode *libtelemetry.Counter // this happens when the request doesn't have the expected format
+	aggregations                                                                        *libtelemetry.Counter
 
 	joiner telemetryJoiner
 }
@@ -67,6 +67,7 @@ func NewTelemetry(protocol string) *Telemetry {
 		unknownMethod:          metricGroup.NewCounter("malformed", "type:unknown-method", libtelemetry.OptStatsd),
 		invalidLatency:         metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
 		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
+		invalidStatusCode:      metricGroup.NewCounter("malformed", "type:invalid-status-code", libtelemetry.OptStatsd),
 
 		joiner: telemetryJoiner{
 			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptPrometheus),

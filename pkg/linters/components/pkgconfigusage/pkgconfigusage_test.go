@@ -15,6 +15,11 @@ import (
 )
 
 func TestAll(t *testing.T) {
+	// Set environment variables to prevent go commands from accessing
+	// the module cache concurrently, which can cause timeouts on macOS.
+	t.Setenv("GOPRIVATE", "*")
+	t.Setenv("GOPROXY", "off")
+
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get wd: %s", err)
@@ -37,5 +42,5 @@ func TestAll(t *testing.T) {
 	// We only care about parsing the test file and run the analyzer.
 	analyzer.RunDespiteErrors = true
 
-	analysistest.Run(t, testdata, analyzer, "comp/...")
+	analysistest.Run(t, testdata, analyzer, "./...")
 }

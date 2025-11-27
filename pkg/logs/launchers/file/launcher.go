@@ -3,10 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package file provides file-based log launchers
 package file
 
 import (
+	"context"
 	"regexp"
 	"slices"
 	"time"
@@ -25,6 +26,8 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/procfilestats"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
@@ -51,20 +54,48 @@ type Launcher struct {
 	// set to true if we want to use `ContainersLogsDir` to validate that a new
 	// pod log file is being attached to the correct containerID.
 	// Feature flag defaulting to false, use `logs_config.validate_pod_container_id`.
-	validatePodContainerID bool
-	scanPeriod             time.Duration
-	flarecontroller        *flareController.FlareController
-	tagger                 tagger.Component
+	validatePodContainerID  bool
+	scanPeriod              time.Duration
+	flarecontroller         *flareController.FlareController
+	tagger                  tagger.Component
+	filesChan               chan []*tailer.File
+	filesTailedBetweenScans []*tailer.File
+	// Stores pertinent information about old tailer when rotation occurs and fingerprinting isn't possible
+	oldInfoMap    map[string]*oldTailerInfo
+	fileOpener    opener.FileOpener
+	fingerprinter tailer.Fingerprinter
+}
+
+const (
+	// WildcardModeByName is the default mode and prioritizes files by name in reverse order
+	WildcardModeByName string = "by_name"
+	// WildcardModeByModificationTime prioritizes files by modification time
+	WildcardModeByModificationTime string = "by_modification_time"
+)
+
+type oldTailerInfo struct {
+	Pattern      *regexp.Regexp
+	InfoRegistry *status.InfoRegistry
 }
 
 // NewLauncher returns a new launcher.
-func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePodContainerID bool, scanPeriod time.Duration, wildcardMode string, flarecontroller *flareController.FlareController, tagger tagger.Component) *Launcher {
+func NewLauncher(
+	tailingLimit int,
+	tailerSleepDuration time.Duration,
+	validatePodContainerID bool,
+	scanPeriod time.Duration,
+	wildcardMode string,
+	flarecontroller *flareController.FlareController,
+	tagger tagger.Component,
+	fileOpener opener.FileOpener,
+	fingerprinter tailer.Fingerprinter,
+) *Launcher {
 
 	var wildcardStrategy fileprovider.WildcardSelectionStrategy
 	switch wildcardMode {
-	case "by_modification_time":
+	case WildcardModeByModificationTime:
 		wildcardStrategy = fileprovider.WildcardUseFileModTime
-	case "by_name":
+	case WildcardModeByName:
 		wildcardStrategy = fileprovider.WildcardUseFileName
 	default:
 		log.Warnf("Unknown wildcard mode specified: %q, defaulting to 'by_name' strategy.", wildcardMode)
@@ -83,6 +114,10 @@ func NewLauncher(tailingLimit int, tailerSleepDuration time.Duration, validatePo
 		scanPeriod:             scanPeriod,
 		flarecontroller:        flarecontroller,
 		tagger:                 tagger,
+		filesChan:              make(chan []*tailer.File, 1),
+		oldInfoMap:             make(map[string]*oldTailerInfo),
+		fileOpener:             fileOpener,
+		fingerprinter:          fingerprinter,
 	}
 }
 
@@ -110,6 +145,7 @@ func (s *Launcher) run() {
 		close(s.done)
 	}()
 
+	ctx, cancel := context.WithCancel(context.Background())
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -117,10 +153,25 @@ func (s *Launcher) run() {
 		case source := <-s.removedSources:
 			s.removeSource(source)
 		case <-scanTicker.C:
+
+			activeSourcesCopy := make([]*sources.LogSource, len(s.activeSources))
+			copy(activeSourcesCopy, s.activeSources)
+
+			// Clear files tailed between scans before starting new FilesToTail
+			s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
+
+			scanTicker.Stop()
+			go func() {
+				s.filesChan <- s.fileProvider.FilesToTail(ctx, s.validatePodContainerID, activeSourcesCopy, s.registry)
+			}()
+		case files := <-s.filesChan:
 			s.cleanUpRotatedTailers()
-			// check if there are new files to tail, tailers to stop and tailer to restart because of file rotation
-			s.scan()
+
+			s.resolveActiveTailers(files)
+			scanTicker.Reset(s.scanPeriod)
 		case <-s.stop:
+			// Cancel the context passed to fileProvider.FilesToTail
+			cancel()
 			// no more file should be tailed
 			s.cleanup()
 			return
@@ -142,14 +193,28 @@ func (s *Launcher) cleanup() {
 		s.tailers.Remove(tailer)
 	}
 	stopper.Stop()
+
+	// Clean up old info map to prevent memory leaks
+	s.oldInfoMap = make(map[string]*oldTailerInfo)
 }
 
-// scan checks all the files we're expected to tail, compares them to the currently tailed files,
-// and triggers the required updates.
-// For instance, when a file is logrotated, its tailer will keep tailing the rotated file.
-// The Scanner needs to stop that previous tailer, and start a new one for the new file.
-func (s *Launcher) scan() {
-	files := s.fileProvider.FilesToTail(s.validatePodContainerID, s.activeSources, s.registry)
+// resolveActiveTailers checks all the files we're expected to tail, compares them to the
+// currently tailed files, and triggers the required updates.  For instance,
+// when a file is logrotated, its tailer will keep tailing the rotated file.
+// The Scanner needs to stop that previous tailer, and start a new one for the
+// new file.
+func (s *Launcher) resolveActiveTailers(files []*tailer.File) {
+	// resolveActiveTailers() receives the files parameter from FilesToTail(),
+	// which is called in the main run loop of launcher. FilesToTail() is always
+	// executed concurrently.  It is therefore possible that addSource() can be
+	// called while FilesToTail() is still running. Since FilesToTail() is only
+	// passed a copy of activeSources it is possible that it would miss new
+	// sources added by addsource() therefore scan() would unschedule a tailer
+	// added during a concurrent scan.  In order to mitigate that possibility, any
+	// tailers started while FilesToTail() is running need to be merged with the
+	// result of FilesToTail() to prevent scan() from unscheudling them.
+	files = append(files, s.filesTailedBetweenScans...)
+	s.filesTailedBetweenScans = s.filesTailedBetweenScans[:0]
 	filesTailed := make(map[string]bool)
 	var allFiles []string
 
@@ -170,25 +235,40 @@ func (s *Launcher) scan() {
 		// when a tailer for a dead container is still tailing the file, and another
 		// tailer is tailing the file for the new container).
 		scanKey := file.GetScanKey()
-		tailer, isTailed := s.tailers.Get(scanKey)
-		if isTailed && tailer.IsFinished() {
+		tailered, isTailed := s.tailers.Get(scanKey)
+		if isTailed && tailered.IsFinished() {
 			// skip this tailer as it must be stopped
 			continue
 		}
 
 		// If the file is currently being tailed, check for rotation and handle it appropriately.
 		if isTailed {
-			didRotate, err := tailer.DidRotate()
-			if err != nil {
-				log.Debugf("failed to detect log rotation: %v", err)
-				continue
-			}
-			if didRotate {
-				// restart tailer because of file-rotation on file
-				succeeded := s.restartTailerAfterFileRotation(tailer, file)
-				if !succeeded {
-					// the setup failed, let's try to tail this file in the next scan
+			var didRotate bool
+			var err error
+
+			if s.fingerprinter.ShouldFileFingerprint(file) {
+				didRotate, err = tailered.DidRotateViaFingerprint(s.fingerprinter)
+				if err != nil {
+					didRotate = false
+				}
+				if didRotate {
+					s.rotateTailerWithoutRestart(tailered, file)
 					continue
+				}
+			} else {
+				didRotate, err = tailered.DidRotate()
+
+				if err != nil {
+					log.Debugf("failed to detect log rotation: %v", err)
+					continue
+				}
+				if didRotate {
+					// restart tailer because of file-rotation on file
+					succeeded := s.restartTailerAfterFileRotation(tailered, file)
+					if !succeeded {
+						// the setup failed, let's try to tail this file in the next scan
+						continue
+					}
 				}
 			}
 		} else {
@@ -203,7 +283,7 @@ func (s *Launcher) scan() {
 
 	for _, tailer := range s.tailers.All() {
 		// stop all tailers which have not been selected
-		_, shouldTail := filesTailed[tailer.GetId()]
+		_, shouldTail := filesTailed[tailer.GetID()]
 		if !shouldTail {
 			s.stopTailer(tailer)
 		}
@@ -212,22 +292,56 @@ func (s *Launcher) scan() {
 	tailersLen := s.tailers.Count()
 	log.Debugf("After stopping tailers, there are %d tailers running.\n", tailersLen)
 
+	lastIterationOldInfo := s.oldInfoMap
+	s.oldInfoMap = make(map[string]*oldTailerInfo)
+	// Pass 2 - Create new tailers for files that need to be tailed
 	for _, file := range files {
 		scanKey := file.GetScanKey()
-		isTailed := s.tailers.Contains(scanKey)
-		if !isTailed && tailersLen < s.tailingLimit {
-			// create a new tailer tailing from the beginning of the file if no offset has been recorded
-			succeeded := s.startNewTailer(file, config.Beginning)
-			if !succeeded {
-				// the setup failed, let's try to tail this file in the next scan
-				continue
-			}
-			tailersLen++
+		_, isTailed := s.tailers.Get(scanKey)
+		if isTailed {
 			filesTailed[scanKey] = true
 			continue
 		}
+
+		// Check if we have stored info for this file from a previous rotation
+		oldInfo, hasOldInfo := lastIterationOldInfo[scanKey]
+		var fingerprint *types.Fingerprint
+		var err error
+
+		if s.fingerprinter.ShouldFileFingerprint(file) {
+			// Check if this specific file should be fingerprinted
+			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
+			// Skip files with invalid fingerprints (Value == 0)
+			if (fingerprint != nil && !fingerprint.ValidFingerprint()) || err != nil {
+				// If fingerprint is invalid, persist the old info back into the map for future attempts
+				if hasOldInfo {
+					s.oldInfoMap[scanKey] = oldInfo
+				}
+				continue
+			}
+		} else {
+			// File is not fingerprinted, but we still want to forward fingerprinting config for status display
+			if fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file); fpConfig != nil {
+				fingerprint = &types.Fingerprint{
+					Value:  types.InvalidFingerprintValue,
+					Config: fpConfig,
+				}
+			}
+		}
+
+		if hasOldInfo {
+			if s.startNewTailerWithStoredInfo(file, config.ForceBeginning, oldInfo, fingerprint) {
+				// hasOldInfo is true when restarting a tailer after a file rotation, so start tailer from the beginning
+				filesTailed[scanKey] = true
+			}
+		} else {
+			// Normal case - no stored info
+			if s.startNewTailer(file, config.Beginning, fingerprint) {
+				filesTailed[scanKey] = true
+			}
+		}
 	}
-	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", tailersLen, s.tailingLimit)
+	log.Debugf("After starting new tailers, there are %d tailers running. Limit is %d.\n", s.tailers.Count(), s.tailingLimit)
 
 	// Check how many file handles the Agent process has open and log a warning if the process is coming close to the OS file limit
 	fileStats, err := procfilestats.GetProcessFileStats()
@@ -276,6 +390,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		log.Warnf("Could not collect files: %v", err)
 		return
 	}
+
 	for _, file := range files {
 		if s.tailers.Count() >= s.tailingLimit {
 			return
@@ -293,36 +408,127 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			continue
 		}
 
+		var fingerprint *types.Fingerprint
+		// Check if this specific file should be fingerprinted
+		if s.fingerprinter.ShouldFileFingerprint(file) {
+			fingerprint, err = s.fingerprinter.ComputeFingerprint(file)
+			if err != nil || !fingerprint.ValidFingerprint() {
+				continue
+			}
+		} else {
+			// File is not fingerprinted, but we still want to forward fingerprinting config for status display
+			if fpConfig := s.fingerprinter.GetEffectiveConfigForFile(file); fpConfig != nil {
+				fingerprint = &types.Fingerprint{
+					Value:  types.InvalidFingerprintValue,
+					Config: fpConfig,
+				}
+			}
+		}
+
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
 		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
 			source.Config.TailingMode = mode.String()
 		}
 
-		s.startNewTailer(file, mode)
+		newTailerStarted := s.startNewTailer(file, mode, fingerprint)
+		if newTailerStarted {
+			s.filesTailedBetweenScans = append(s.filesTailedBetweenScans, file)
+		}
 	}
 }
 
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise.
-func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool {
+func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, fingerprint *types.Fingerprint) bool {
 	if file == nil {
 		log.Debug("startNewTailer called with a nil file")
 		return false
 	}
 
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
-	tailer := s.createTailer(file, channel, monitor)
+	tailer := s.createTailer(file, channel, monitor, fingerprint)
 
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
 	}
 
 	log.Infof("Starting a new tailer for: %s (offset: %d, whence: %d) for tailer key %s", file.Path, offset, whence, file.GetScanKey())
+	err = tailer.Start(offset, whence)
+	if err != nil {
+		log.Warn(err)
+		return false
+	}
+
+	s.tailers.Add(tailer)
+	return true
+}
+
+// startNewTailerWithStoredInfo creates a new tailer using stored info from previous rotation
+func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.TailingMode, oldInfo *oldTailerInfo, fingerprint *types.Fingerprint) bool {
+	if file == nil {
+		log.Debug("startNewTailerWithStoredInfo called with a nil file")
+		return false
+	}
+
+	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
+
+	// Use stored InfoRegistry if available, otherwise create new one
+	var tailerInfo *status.InfoRegistry
+	if oldInfo.InfoRegistry != nil {
+		tailerInfo = oldInfo.InfoRegistry
+	} else {
+		tailerInfo = status.NewInfoRegistry()
+	}
+
+	// Create decoder with stored pattern if available
+	var decoderInstance decoder.Decoder
+	if oldInfo.Pattern != nil {
+		decoderInstance = decoder.NewDecoderFromSourceWithPattern(file.Source, oldInfo.Pattern, tailerInfo)
+	} else {
+		decoderInstance = decoder.NewDecoderFromSource(file.Source, tailerInfo)
+	}
+
+	tailerOptions := &tailer.TailerOptions{
+		OutputChan:      channel,
+		File:            file,
+		SleepDuration:   s.tailerSleepDuration,
+		Decoder:         decoderInstance,
+		Info:            tailerInfo,
+		TagAdder:        s.tagger,
+		CapacityMonitor: monitor,
+		Registry:        s.registry,
+		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
+		Rotated:         true,
+		FileOpener:      s.fileOpener,
+	}
+
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x", file.Path, fingerprint.Value)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
+
+	tailer := tailer.NewTailer(tailerOptions)
+	addFingerprintConfigToTailerInfo(tailer)
+
+	var offset int64
+	var whence int
+	mode := s.handleTailingModeChange(tailer.Identifier(), m)
+
+	offset, whence, err := Position(s.registry, tailer.Identifier(), mode, s.fingerprinter)
+	if err != nil {
+		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
+	}
+
+	log.Infof("Starting new tailer with stored info (pattern: %v) for: %s (offset: %d, whence: %d)",
+		oldInfo.Pattern != nil, file.Path, offset, whence)
 	err = tailer.Start(offset, whence)
 	if err != nil {
 		log.Warn(err)
@@ -361,13 +567,43 @@ func (s *Launcher) stopTailer(tailer *tailer.Tailer) {
 	s.tailers.Remove(tailer)
 }
 
+func (s *Launcher) rotateTailerWithoutRestart(oldTailer *tailer.Tailer, file *tailer.File) bool {
+	log.Info("Log rotation happened to ", file.Path)
+	oldTailer.StopAfterFileRotation()
+
+	// Remove the draining tailer from the active map; it will keep draining via rotatedTailers.
+	s.tailers.Remove(oldTailer)
+
+	oldRegexPattern := oldTailer.GetDetectedPattern()
+	oldInfoRegistry := oldTailer.GetInfo()
+
+	// Only store info if we're using checksum fingerprinting (where it will be retrieved)
+	if oldRegexPattern != nil || oldInfoRegistry != nil {
+		regexAndRegistry := &oldTailerInfo{
+			InfoRegistry: oldInfoRegistry,
+			Pattern:      oldRegexPattern,
+		}
+		s.oldInfoMap[file.GetScanKey()] = regexAndRegistry
+	}
+
+	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
+
+	return false // Will return false regardless and we will let scan() handle it
+}
+
 // restartTailer safely stops tailer and starts a new one
 // returns true if the new tailer is up and running, false if an error occurred
 func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file *tailer.File) bool {
 	log.Info("Log rotation happened to ", file.Path)
 	oldTailer.StopAfterFileRotation()
 
-	newTailer := s.createRotatedTailer(oldTailer, file, oldTailer.GetDetectedPattern())
+	// Remove the rotated tailer from the active container so a fresh tailer can
+	// be created for the new file while this one finishes draining the old file.
+	s.tailers.Remove(oldTailer)
+
+	oldRegexPattern := oldTailer.GetDetectedPattern()
+
+	newTailer := s.createRotatedTailer(oldTailer, file, oldRegexPattern, nil)
 	// force reading file from beginning since it has been log-rotated
 	err := newTailer.StartFromBeginning()
 	if err != nil {
@@ -379,11 +615,12 @@ func (s *Launcher) restartTailerAfterFileRotation(oldTailer *tailer.Tailer, file
 	// We will keep track of the rotated tailer until it is finished.
 	s.rotatedTailers = append(s.rotatedTailers, oldTailer)
 	s.tailers.Add(newTailer)
+
 	return true
 }
 
 // createTailer returns a new initialized tailer
-func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, capacityMonitor *metrics.CapacityMonitor) *tailer.Tailer {
+func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Message, capacityMonitor *metrics.CapacityMonitor, fingerprint *types.Fingerprint) *tailer.Tailer {
 	tailerInfo := status.NewInfoRegistry()
 
 	tailerOptions := &tailer.TailerOptions{
@@ -395,18 +632,52 @@ func (s *Launcher) createTailer(file *tailer.File, outputChan chan *message.Mess
 		TagAdder:        s.tagger,
 		CapacityMonitor: capacityMonitor,
 		Registry:        s.registry,
+		Fingerprint:     fingerprint,
+		Fingerprinter:   s.fingerprinter,
+		FileOpener:      s.fileOpener,
 	}
 
-	return tailer.NewTailer(tailerOptions)
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x", file.Path, fingerprint.Value)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
+
+	t := tailer.NewTailer(tailerOptions)
+	addFingerprintConfigToTailerInfo(t)
+	return t
 }
 
-func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp) *tailer.Tailer {
+func (s *Launcher) createRotatedTailer(t *tailer.Tailer, file *tailer.File, pattern *regexp.Regexp, fingerprint *types.Fingerprint) *tailer.Tailer {
 	tailerInfo := t.GetInfo()
 	channel, monitor := s.pipelineProvider.NextPipelineChanWithMonitor()
-	return t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, s.registry)
+	if fingerprint != nil {
+		log.Debugf("Creating new tailer for %s with fingerprint 0x%x (configuration: %v)", file.Path, fingerprint.Value, fingerprint.Config)
+	} else {
+		log.Debugf("Creating new tailer for %s with no fingerprint", file.Path)
+	}
+	newTailer := t.NewRotatedTailer(file, channel, monitor, decoder.NewDecoderFromSourceWithPattern(file.Source, pattern, tailerInfo), tailerInfo, s.tagger, fingerprint, s.fingerprinter, s.registry)
+	addFingerprintConfigToTailerInfo(newTailer)
+
+	return newTailer
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// addFingerprintConfigToTailerInfo adds fingerprint configuration info to the tailer's status display
+// using the configuration actually supplied to the tailer (from its fingerprint)
+func addFingerprintConfigToTailerInfo(t *tailer.Tailer) {
+	// Pull the actual config from the tailer's fingerprint
+	var config *types.FingerprintConfig
+	fingerprint := t.GetFingerprint()
+	if fingerprint != nil && fingerprint.Config != nil {
+		config = fingerprint.Config
+	}
+
+	// Always register config info, even if nil - the Info() method handles nil gracefully
+	configInfo := tailer.NewFingerprintConfigInfo(config)
+	t.GetInfo().Register(configInfo)
+}
+
+// CheckProcessTelemetry checks process file statistics and logs warnings about file handle usage
 func CheckProcessTelemetry(stats *procfilestats.ProcessFileStats) {
 	ratio := float64(stats.AgentOpenFiles) / float64(stats.OsFileLimit)
 	if ratio > 0.9 {

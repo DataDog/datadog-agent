@@ -128,6 +128,11 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Run discovery and dispatching
 		log.Info("Warmup phase finished, starting to serve configurations")
+
+		// Initial mode determination after warmup
+		h.dispatcher.UpdateAdvancedDispatchingMode()
+		log.Infof("Warmup finished, advanced dispatching mode: %v", h.dispatcher.advancedDispatching.Load())
+
 		dispatchCtx, dispatchCancel := context.WithCancel(ctx)
 		go h.runDispatch(dispatchCtx)
 

@@ -21,8 +21,11 @@ import (
 	"go.uber.org/fx/fxtest"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
@@ -46,23 +49,25 @@ var testOptions = fx.Options(
 	forwarderimpl.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
-	core.MockBundle(),
 	eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
+	telemetryimpl.MockModule(),
+	hostnameimpl.MockModule(),
 )
 
-func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {
+func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {
 	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Replace(config.MockParams{Overrides: agentConfigs}),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, agentConfigs) }),
 		fx.Populate(&component),
 		fx.Provide(func() statsd.ClientInterface {
 			return statsdClient
 		}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 	))
 	npCollector := component.(*npCollectorImpl)
 
@@ -71,7 +76,7 @@ func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any, statsdClient s
 	return app, npCollector
 }
 
-func createConns(numberOfConns int) []*model.Connection {
+func createConns(numberOfConns int) *model.Connections {
 	var conns []*model.Connection
 	for i := 0; i < numberOfConns; i++ {
 		conns = append(conns, &model.Connection{
@@ -80,10 +85,13 @@ func createConns(numberOfConns int) []*model.Connection {
 			Direction: model.ConnectionDirection_outgoing,
 		})
 	}
-	return conns
+
+	return &model.Connections{
+		Conns: conns,
+	}
 }
 
-func createBenchmarkConns(numberOfConns int, tcpPercent int) []*model.Connection {
+func createBenchmarkConns(numberOfConns int, tcpPercent int) *model.Connections {
 	port := rand.Intn(65535-1) + 1
 	connType := model.ConnectionType_udp
 	if rand.Intn(100) < tcpPercent {
@@ -98,7 +106,7 @@ func createBenchmarkConns(numberOfConns int, tcpPercent int) []*model.Connection
 			Type:      connType,
 		})
 	}
-	return conns
+	return &model.Connections{Conns: conns}
 }
 
 func randomPublicIP() string {

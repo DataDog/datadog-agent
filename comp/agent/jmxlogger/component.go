@@ -12,4 +12,5 @@ package jmxlogger
 type Component interface {
 	JMXInfo(v ...interface{})
 	JMXError(v ...interface{}) error
+	Flush()
 }

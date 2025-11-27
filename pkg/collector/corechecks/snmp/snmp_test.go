@@ -12,38 +12,37 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
-
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"go.uber.org/atomic"
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
+	snmpscanmanagermock "github.com/DataDog/datadog-agent/comp/snmpscanmanager/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"go.uber.org/atomic"
+	"go.uber.org/fx"
 )
 
 type deps struct {
@@ -877,6 +876,7 @@ profiles:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1002,10 +1002,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck(agentconfig.NewMock(t), nil)
-	check2 := newCheck(agentconfig.NewMock(t), nil)
-	check3 := newCheck(agentconfig.NewMock(t), nil)
-	checkSubnet := newCheck(agentconfig.NewMock(t), nil)
+	check1 := newCheck(agentconfig.NewMock(t), nil, nil)
+	check2 := newCheck(agentconfig.NewMock(t), nil, nil)
+	check3 := newCheck(agentconfig.NewMock(t), nil, nil)
+	checkSubnet := newCheck(agentconfig.NewMock(t), nil, nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1312,6 +1312,7 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
+	setupHostname(t)
 	mockConfig := configmock.New(t)
 	testDir := t.TempDir()
 	mockConfig.SetWithoutSource("run_path", testDir)
@@ -1547,6 +1548,7 @@ tags:
         "snmp_device:1.2.3.4"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.4",
@@ -1673,8 +1675,13 @@ tags:
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
 	}).Return(nilPacket, fmt.Errorf("device failure"))
+	sess.On("Get", []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+	}).Return(nilPacket, fmt.Errorf("device failure"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, fmt.Errorf("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0]`: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
@@ -1697,6 +1704,7 @@ tags:
         "snmp_device:1.2.3.5"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:127.0.0.0/30",
 		"device_id:default:1.2.3.5",
@@ -2015,6 +2023,7 @@ metric_tags:
         "snmp_device:%s"
       ],
       "tags": [
+        "agent_host:my-hostname",
         "agent_version:%s",
         "autodiscovery_subnet:10.10.0.0/30",
 		"device_id:%s",
@@ -2596,6 +2605,42 @@ community_string: public
 	// check Cancel does not panic when called with single check
 	// it shouldn't try to stop discovery
 	chk.Cancel()
+}
+
+func TestDeviceScansAreRequested(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+
+	scanManager := snmpscanmanagermock.Mock(t)
+	mockScanManager, ok := scanManager.(*snmpscanmanagermock.SnmpScanManagerMock)
+	assert.True(t, ok)
+
+	check1 := newCheck(agentconfig.NewMock(t), nil, mockScanManager)
+	check2 := newCheck(agentconfig.NewMock(t), nil, mockScanManager)
+
+	// language=yaml
+	rawInstanceConfig1 := []byte(`
+ip_address: 1.1.1.1
+`)
+	// language=yaml
+	rawInstanceConfig2 := []byte(`
+ip_address: 2.2.2.2
+namespace: namespace
+`)
+
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "1.1.1.1",
+	}, false).Once()
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "2.2.2.2",
+	}, false).Once()
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
+	assert.Nil(t, err)
+	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockScanManager.AssertExpectations(t)
 }
 
 // Wait for discovery to be completed

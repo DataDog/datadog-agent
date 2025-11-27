@@ -21,6 +21,9 @@ const (
 	ProductAPMTracing Product = "APM_TRACING"
 	// ProductLiveDebugging is the dynamic instrumentation product
 	ProductLiveDebugging = "LIVE_DEBUGGING"
+	// ProductLiveDebuggingSymbolDB manages the dynamic instrumentation product
+	// symbol database upload process.
+	ProductLiveDebuggingSymbolDB = "LIVE_DEBUGGING_SYMBOL_DB"
 	// ProductTesting1 is a testing product
 	ProductTesting1 Product = "TESTING1"
 	// ProductAgentTask is to receive agent task instruction, like a flare
@@ -35,6 +38,8 @@ const (
 	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 	// ProductDataStreamsLiveMessages is to capture messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
+	// ProductDataStreamsKafkaActions is to execute Kafka actions remotely
+	ProductDataStreamsKafkaActions = "DSM_KAFKA_ACTIONS"
 )
 
 // ProductListToString converts a product list to string list

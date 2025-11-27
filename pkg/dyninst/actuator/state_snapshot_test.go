@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,10 +28,11 @@ import (
 // stateUpdate is a struct that represents the changes to the state after an
 // event is processed. It's used to generate the output document.
 type stateUpdate struct {
-	CurrentlyLoading string         `yaml:"currently_loading,omitempty"`
-	QueuedPrograms   string         `yaml:"queued_programs,omitempty"`
-	Processes        map[any]string `yaml:"processes,omitempty"`
-	Programs         map[int]string `yaml:"programs,omitempty"`
+	CurrentlyLoading string            `yaml:"currently_loading,omitempty"`
+	QueuedPrograms   string            `yaml:"queued_programs,omitempty"`
+	Processes        map[any]string    `yaml:"processes,omitempty"`
+	Programs         map[int]string    `yaml:"programs,omitempty"`
+	Stats            map[string]string `yaml:"stats,omitempty"`
 }
 
 func TestSnapshot(t *testing.T) {
@@ -93,7 +95,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	}()
 
 	// Process each event
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -240,7 +242,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 	}
 	{
 		before, after := before.processes, after.processes
-		allIDs := make(map[processKey]bool)
+		allIDs := make(map[ProcessID]bool)
 		for id := range before {
 			allIDs[id] = true
 		}
@@ -251,12 +253,7 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
-			var key any
-			if id.tenantID != 0 {
-				key = fmt.Sprintf("t%d:%d", id.tenantID, id.PID)
-			} else {
-				key = int(id.PID)
-			}
+			key := int(id.PID)
 
 			var beforeState, afterState any
 			if beforeProc != nil {
@@ -312,13 +309,13 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			if beforeProg != nil {
 				beforeState = fmt.Sprintf(
 					"%s (proc %d)",
-					beforeProg.state.String(), beforeProg.PID,
+					beforeProg.state.String(), beforeProg.processID.PID,
 				)
 			}
 			if afterProg != nil {
 				afterState = fmt.Sprintf(
 					"%s (proc %d)",
-					afterProg.state.String(), afterProg.PID,
+					afterProg.state.String(), afterProg.processID.PID,
 				)
 			}
 
@@ -335,6 +332,21 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			}
 		}
 
+	}
+	{
+		before, after := before.Metrics().AsStats(), after.Metrics().AsStats()
+		keys := slices.Sorted(maps.Keys(before))
+		for _, key := range keys {
+			beforeVal := before[key]
+			afterVal := after[key]
+			if beforeVal == afterVal {
+				continue
+			}
+			if update.Stats == nil {
+				update.Stats = make(map[string]string)
+			}
+			update.Stats[key] = fmt.Sprintf("%v -> %v", beforeVal, afterVal)
+		}
 	}
 
 	return update

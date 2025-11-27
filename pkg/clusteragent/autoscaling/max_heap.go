@@ -101,11 +101,6 @@ func NewHashHeap(maxSize int, store *store) *HashHeap {
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
 // Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
 func (h *HashHeap) InsertIntoHeap(key, _sender string) {
-	// Already in heap, do not try to insert
-	if h.Exists(key) {
-		return
-	}
-
 	// Get object from store
 	podAutoscalerInternal, podAutoscalerInternalFound := h.store.Get(key)
 	if !podAutoscalerInternalFound {
@@ -123,6 +118,11 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string) {
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	// Already in heap, do not try to insert
+	if h.Keys[key] {
+		return
+	}
 
 	if h.MaxHeap.Len() >= h.maxSize {
 		top := h.MaxHeap.Peek()

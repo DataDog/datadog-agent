@@ -27,7 +27,7 @@ var defaultGenericResource = []k8sCollectors.GenericResource{
 		Name:         "endpointslices",
 		GroupVersion: "discovery.k8s.io/v1",
 		NodeType:     orchestrator.K8sEndpointSlice,
-		Stable:       false,
+		Stable:       true,
 	},
 }
 

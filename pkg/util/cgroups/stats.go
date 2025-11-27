@@ -27,21 +27,28 @@ type PSIStats struct {
 // cgroupv1: memory controller
 // cgroupv2: memory controller
 type MemoryStats struct {
-	UsageTotal   *uint64
-	Cache        *uint64
-	Swap         *uint64
-	RSS          *uint64
-	RSSHuge      *uint64
-	MappedFile   *uint64
-	Pgpgin       *uint64 // Number (no unit), cgroupv1 only
-	Pgpgout      *uint64 // Number (no unit), cgroupv1 only
-	Pgfault      *uint64 // Number (no unit)
-	Pgmajfault   *uint64 // Number (no unit)
-	InactiveAnon *uint64
-	ActiveAnon   *uint64
-	InactiveFile *uint64
-	ActiveFile   *uint64
-	Unevictable  *uint64
+	UsageTotal    *uint64
+	Cache         *uint64
+	Swap          *uint64
+	RSS           *uint64
+	RSSHuge       *uint64
+	Shmem         *uint64
+	FileMapped    *uint64
+	FileDirty     *uint64
+	FileWriteback *uint64
+	Pgpgin        *uint64 // Number (no unit), cgroupv1 only
+	Pgpgout       *uint64 // Number (no unit), cgroupv1 only
+	Pgfault       *uint64 // Number (no unit)
+	Pgmajfault    *uint64 // Number (no unit)
+	PageTables    *uint64 // cgroupv2 only
+	InactiveAnon  *uint64
+	ActiveAnon    *uint64
+	InactiveFile  *uint64
+	ActiveFile    *uint64
+	Unevictable   *uint64
+
+	RefaultAnon *uint64
+	RefaultFile *uint64
 
 	KernelMemory *uint64
 

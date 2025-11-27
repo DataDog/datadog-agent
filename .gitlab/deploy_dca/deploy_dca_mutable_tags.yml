@@ -10,7 +10,7 @@
     - export IMG_TAG_REFERENCE=${CLUSTER_AGENT_REPOSITORY}:${VERSION}
 
 # Base flavor
-deploy_containers-dca-rc:
+deploy_mutable_dca_tags-rc:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
@@ -19,7 +19,7 @@ deploy_containers-dca-rc:
   variables:
     IMG_NEW_TAGS: rc
 
-deploy_containers-dca-latest:
+deploy_mutable_dca_tags-latest:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:
@@ -28,16 +28,16 @@ deploy_containers-dca-latest:
   variables:
     IMG_NEW_TAGS: latest
 
-deploy_containers-dca_internal-rc:
+deploy_mutable_dca_tags_internal-rc:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - job: deploy_containers-dca_internal
+    - job: deploy_containers-dca_internal-rc
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc
 
-deploy_containers-dca_internal-latest:
+deploy_mutable_dca_tags_internal-latest:
   extends: .deploy_mutable_dca_tags-base
   rules: !reference [.on_deploy_internal_manual_final]
   needs:
@@ -55,7 +55,7 @@ deploy_containers-dca_internal-latest:
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${CLUSTER_AGENT_REPOSITORY}:${VERSION}-fips
 
-deploy_containers-dca-fips-latest:
+deploy_mutable_dca_tags-fips-latest:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_manual_final]
   needs:
@@ -64,7 +64,7 @@ deploy_containers-dca-fips-latest:
   variables:
     IMG_NEW_TAGS: latest-fips
 
-deploy_containers-dca-fips-rc:
+deploy_mutable_dca_tags-fips-rc:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_rc]
   needs:
@@ -73,16 +73,16 @@ deploy_containers-dca-fips-rc:
   variables:
     IMG_NEW_TAGS: rc-fips
 
-deploy_containers-dca-fips_internal-rc:
+deploy_mutable_dca_tags-fips_internal-rc:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - job: deploy_containers-dca-fips_internal
+    - job: deploy_containers-dca-fips_internal-rc
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc-fips
 
-deploy_containers-dca-fips_internal-latest:
+deploy_mutable_dca_tags-fips_internal-latest:
   extends: .deploy_mutable_dca_tags-fips-base
   rules: !reference [.on_deploy_internal_manual_final]
   needs:

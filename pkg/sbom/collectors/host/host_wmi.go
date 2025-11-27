@@ -12,15 +12,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/gopsutil/host"
 
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
 	host2 "github.com/shirou/gopsutil/v4/host"
 	"github.com/yusufpapurcu/wmi"
 )
@@ -47,50 +48,50 @@ type Report struct {
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
-func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
-	var components []cyclonedxgo.Component
+func (r *Report) ToCycloneDX() *cyclonedx_v1_4.Bom {
+	var components []*cyclonedx_v1_4.Component
 
-	osProperties := []cyclonedxgo.Property{
+	osProperties := []*cyclonedx_v1_4.Property{
 		{
 			Name:  "Platform",
-			Value: r.platform,
+			Value: pointer.Ptr(r.platform),
 		},
 		{
 			Name:  "Family",
-			Value: r.family,
+			Value: pointer.Ptr(r.family),
 		}, {
 			Name:  "Build",
-			Value: r.build,
+			Value: pointer.Ptr(r.build),
 		},
 		{
 			Name:  "Architecture",
-			Value: r.arch,
+			Value: pointer.Ptr(r.arch),
 		},
 	}
 
-	windowsComponent := cyclonedxgo.Component{
-		Type:       cyclonedxgo.ComponentTypeOS,
+	windowsComponent := &cyclonedx_v1_4.Component{
+		Type:       cyclonedx_v1_4.Classification_CLASSIFICATION_OPERATING_SYSTEM,
 		Name:       "windows",
 		Version:    r.version,
-		Properties: &osProperties,
+		Properties: osProperties,
 	}
 
 	components = append(components, windowsComponent)
 
 	hash := sha256.New()
 	for _, kb := range r.KBS {
-		components = append(components, cyclonedxgo.Component{
+		components = append(components, &cyclonedx_v1_4.Component{
 			Name: kb.HotFixID,
-			Type: cyclonedxgo.ComponentTypeFile,
+			Type: cyclonedx_v1_4.Classification_CLASSIFICATION_FILE,
 		})
 		hash.Write([]byte(kb.HotFixID))
 	}
 
 	r.hash = hash.Sum(nil)
 
-	return &cyclonedxgo.BOM{
-		Components: &components,
-	}, nil
+	return &cyclonedx_v1_4.Bom{
+		Components: components,
+	}
 }
 
 // ID returns the report identifier

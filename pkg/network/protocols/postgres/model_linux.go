@@ -134,7 +134,10 @@ func (e *EventWrapper) Parameters() string {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (e *EventWrapper) RequestLatency() float64 {
-	if uint64(e.Tx.Request_started) == 0 || uint64(e.Tx.Response_last_seen) == 0 {
+	if e.Tx.Request_started == 0 || e.Tx.Response_last_seen == 0 {
+		return 0
+	}
+	if e.Tx.Response_last_seen < e.Tx.Request_started {
 		return 0
 	}
 	return protocols.NSTimestampToFloat(e.Tx.Response_last_seen - e.Tx.Request_started)

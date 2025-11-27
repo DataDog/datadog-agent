@@ -153,3 +153,33 @@ func FuzzRemovePartialDockerMetadata(f *testing.F) {
 
 	})
 }
+
+// FuzzParseDockerStreamUntailored tests the docker stream parser with
+// completely arbitrary input data, without attempting to construct valid Docker
+// headers or timestamps. This complements the FuzzParseDockerStream test which
+// uses carefully crafted inputs.
+//
+// The purpose is to ensure the parser never panics regardless of input, testing
+// its robustness against malformed, corrupted, or completely random data that
+// might be encountered.
+func FuzzParseDockerStreamUntailored(f *testing.F) {
+	f.Add([]byte("\x01\x00\x00\x00\x00\x00\x00\x102018-06-14T18:27:03.246999277Z log message"))
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("a b c"))
+	f.Add([]byte("\x00\x01\x02\x03"))
+	f.Add([]byte("\xFF\xFE\xFD\xFC"))
+
+	parser := New("test-container")
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		msg := message.NewMessage(data, nil, "", 0)
+
+		// The only invariant: parser must not panic and must return a valid result
+		result, _ := parser.Parse(msg)
+
+		if result == nil {
+			t.Fatal("Parse returned nil")
+		}
+	})
+}

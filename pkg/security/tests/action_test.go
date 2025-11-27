@@ -225,14 +225,15 @@ func TestActionKillExcludeBinary(t *testing.T) {
 	}
 	defer test.Close()
 
+	sleepCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	killed := atomic.NewBool(false)
 
 	err = test.GetEventSent(t, func() error {
 		go func() {
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
 
-			cmd := exec.CommandContext(timeoutCtx, "sleep", "1234567")
+			cmd := exec.CommandContext(sleepCtx, "sleep", "1234567")
 			_ = cmd.Run()
 
 			killed.Store(true)
@@ -541,7 +542,7 @@ func TestActionKillDisarm(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "kill_action_disarm_executable",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id == ""`,
+			Expression: `exec.envs in ["TARGETTOKILL"] && process.container.id == ""`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
@@ -552,7 +553,7 @@ func TestActionKillDisarm(t *testing.T) {
 		},
 		{
 			ID:         "kill_action_disarm_container",
-			Expression: `exec.envs in ["TARGETTOKILL"] && container.id != ""`,
+			Expression: `exec.envs in ["TARGETTOKILL"] && process.container.id != ""`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Kill: &rules.KillDefinition{
@@ -604,7 +605,7 @@ func TestActionHash(t *testing.T) {
 		},
 		{
 			ID:         "hash_action_exec",
-			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec"`,
+			Expression: `exec.file.path == "{{.Root}}/test-hash-action-exec_touch"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Hash: &rules.HashDefinition{},
@@ -624,7 +625,10 @@ func TestActionHash(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	testExecutable, _, err := test.Path("test-hash-action-exec")
+	// it's important that this ends with `touch` because for example ubuntu 25.10
+	// uses the suffix to know which "function/utility" is running
+	// https://github.com/uutils/coreutils/blob/909da503713f39f8e36b1ff077841c9cc13d920b/src/bin/coreutils.rs#L60
+	testExecutable, _, err := test.Path("test-hash-action-exec_touch")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -739,7 +743,12 @@ func TestActionHash(t *testing.T) {
 	t.Run("exec", func(t *testing.T) {
 		test.msgSender.flush()
 		test.WaitSignal(t, func() error {
-			return exec.Command(testExecutable, "/tmp/aaa").Run()
+			cmd := exec.Command(testExecutable, "/tmp/aaa")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Logf("output: %s", string(out))
+			}
+			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action_exec")
 		})

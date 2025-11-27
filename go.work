@@ -1,4 +1,4 @@
-go 1.24.4
+go 1.24.10
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -7,7 +7,12 @@ godebug tlsmlkem=0
 
 use (
 	.
+	./pkg/util/hostinfo
+	./pkg/util/jsonquery
 	comp/api/api/def
+	comp/core/agenttelemetry/def
+	comp/core/agenttelemetry/fx
+	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
 	comp/core/flare/builder
@@ -22,7 +27,12 @@ use (
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
-	comp/core/secrets
+	comp/core/secrets/def
+	comp/core/secrets/fx
+	comp/core/secrets/impl
+	comp/core/secrets/mock
+	comp/core/secrets/noop-impl
+	comp/core/secrets/utils
 	comp/core/status
 	comp/core/status/statusimpl
 	comp/core/tagger/def
@@ -52,7 +62,6 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
-	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -80,6 +89,7 @@ use (
 	pkg/collector/check/defaults
 	pkg/config/create
 	pkg/config/env
+	pkg/config/helper
 	pkg/config/mock
 	pkg/config/model
 	pkg/config/nodetreemodel
@@ -105,8 +115,10 @@ use (
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
+	pkg/logs/types
 	pkg/logs/util/testutils
 	pkg/metrics
+	pkg/network/driver
 	pkg/network/payload
 	pkg/networkdevice/profile
 	pkg/networkpath/payload
@@ -116,7 +128,9 @@ use (
 	pkg/opentelemetry-mapping-go/otlp/attributes
 	pkg/opentelemetry-mapping-go/otlp/logs
 	pkg/opentelemetry-mapping-go/otlp/metrics
+	pkg/opentelemetry-mapping-go/otlp/rum
 	pkg/orchestrator/model
+	pkg/orchestrator/util
 	pkg/process/util/api
 	pkg/proto
 	pkg/remoteconfig/state
@@ -129,7 +143,6 @@ use (
 	pkg/telemetry
 	pkg/template
 	pkg/trace
-	pkg/trace/stats/oteltest
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
@@ -165,6 +178,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	test/e2e-framework
 	test/fakeintake
 	test/new-e2e
 	test/otel

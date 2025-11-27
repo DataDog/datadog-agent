@@ -9,12 +9,18 @@
 package probe
 
 import (
+	"crypto/sha256"
+	"fmt"
+	"net"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/args"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -171,26 +177,16 @@ func (fh *EBPFLessFieldHandlers) ResolveCGroupVersion(_ *model.Event, _ *model.C
 	return 0
 }
 
-// ResolveCGroupManager resolves the manager of the cgroup
-func (fh *EBPFLessFieldHandlers) ResolveCGroupManager(_ *model.Event, _ *model.CGroupContext) string {
-	return ""
-}
-
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
-}
-
-// ResolveContainerRuntime retrieves the container runtime managing the container
-func (fh *EBPFLessFieldHandlers) ResolveContainerRuntime(_ *model.Event, _ *model.ContainerContext) string {
-	return ""
+	return &ev.ProcessContext.ContainerContext, true
 }
 
 // ResolveContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerID(ev *model.Event, e *model.ContainerContext) string {
 	if len(e.ContainerID) == 0 {
 		if entry, _ := fh.ResolveProcessCacheEntry(ev, nil); entry != nil {
-			e.ContainerID = containerutils.ContainerID(entry.ContainerID)
+			e.ContainerID = containerutils.ContainerID(entry.ProcessContext.Process.ContainerContext.ContainerID)
 		}
 	}
 	return string(e.ContainerID)
@@ -216,7 +212,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.C
 
 // ResolveProcessContainerID resolves the container ID of the event
 func (fh *EBPFLessFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *model.Process) string {
-	return fh.ResolveContainerID(ev, ev.ContainerContext)
+	return fh.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 }
 
 // ResolveProcessCreatedAt resolves process creation time
@@ -352,14 +348,34 @@ func (fh *EBPFLessFieldHandlers) ResolvePackageName(_ *model.Event, e *model.Fil
 	return e.PkgName
 }
 
+// ResolvePackageVersion resolves the version of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageVersion(_ *model.Event, e *model.FileEvent) string {
+	return e.PkgVersion
+}
+
+// ResolvePackageEpoch resolves the epoch of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageEpoch(_ *model.Event, e *model.FileEvent) int {
+	return e.PkgEpoch
+}
+
+// ResolvePackageRelease resolves the release of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageRelease(_ *model.Event, e *model.FileEvent) string {
+	return e.PkgRelease
+}
+
 // ResolvePackageSourceVersion resolves the version of the source package of the package providing this file
 func (fh *EBPFLessFieldHandlers) ResolvePackageSourceVersion(_ *model.Event, e *model.FileEvent) string {
 	return e.PkgSrcVersion
 }
 
-// ResolvePackageVersion resolves the version of the package providing this file
-func (fh *EBPFLessFieldHandlers) ResolvePackageVersion(_ *model.Event, e *model.FileEvent) string {
-	return e.PkgVersion
+// ResolvePackageSourceEpoch resolves the epoch of the source package of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageSourceEpoch(_ *model.Event, e *model.FileEvent) int {
+	return e.PkgSrcEpoch
+}
+
+// ResolvePackageSourceRelease resolves the release of the source package of the package providing this file
+func (fh *EBPFLessFieldHandlers) ResolvePackageSourceRelease(_ *model.Event, e *model.FileEvent) string {
+	return e.PkgSrcRelease
 }
 
 // ResolveRights resolves the rights of a file
@@ -423,7 +439,8 @@ func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *mode
 }
 
 // ResolveUserSessionContext resolves and updates the provided user session context
-func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.UserSessionContext) {}
+func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.Event, _ *model.UserSessionContext) {
+}
 
 // ResolveProcessCmdArgv resolves the command line
 func (fh *EBPFLessFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
@@ -547,13 +564,71 @@ func (fh *EBPFLessFieldHandlers) ResolveAcceptHostnames(_ *model.Event, e *model
 }
 
 // ResolveSetSockOptFilterHash resolves the filter hash of a setsockopt event
-func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, _ *model.SetSockOptEvent) string {
-	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
-	return ""
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterHash(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterHash) == 0 {
+		h := sha256.New()
+		h.Write(e.RawFilter)
+		bs := h.Sum(nil)
+		e.FilterHash = fmt.Sprintf("%x", bs)
+		return e.FilterHash
+	}
+	return e.FilterHash
 }
 
 // ResolveSetSockOptFilterInstructions resolves the filter instructions of a setsockopt event
-func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, _ *model.SetSockOptEvent) string {
-	// Not implemented in EBPFLess mode, as we don't have access to the BPF verifier
-	return ""
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptFilterInstructions(_ *model.Event, e *model.SetSockOptEvent) string {
+	if len(e.FilterInstructions) == 0 {
+		raw := parseFilter(e)
+
+		instructions, allDecoded := bpf.Disassemble(raw)
+		if !allDecoded {
+			seclog.Warnf("failed to decode setsockopt filter instructions: %s", e.FilterHash)
+			return ""
+		}
+
+		for i, inst := range instructions {
+			e.FilterInstructions += fmt.Sprintf("%03d: %s\n", i, inst)
+		}
+
+		return e.FilterInstructions
+	}
+	return e.FilterInstructions
+}
+
+// ResolveSetSockOptUsedImmediates resolves the immediates in the bpf filter of a setsockopt event
+func (fh *EBPFLessFieldHandlers) ResolveSetSockOptUsedImmediates(_ *model.Event, e *model.SetSockOptEvent) []int {
+	if e.UsedImmediates != nil {
+		return e.UsedImmediates
+	}
+	raw := parseFilter(e)
+	var kValues []int
+	for _, inst := range raw {
+		// Check if we load or branch on a magic value
+		if !slices.Contains(kValues, int(inst.K)) {
+			kValues = append(kValues, int(inst.K))
+		}
+
+	}
+	e.UsedImmediates = kValues
+	return e.UsedImmediates
+}
+
+// ResolveCapabilitiesAttempted resolves the accumulated attempted capabilities of a capabilities event
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesAttempted(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveCapabilitiesUsed resolves the accumulated used capabilities of a capabilities event
+func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *model.CapabilitiesEvent) int {
+	return 0 // EBPFLess mode does not support capabilities usage reporting, so we return 0
+}
+
+// ResolveSSHClientIP resolves the ssh username of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
+	return net.IPNet{} // EBPFLess mode does not support SSH
+}
+
+// ResolveSSHPort resolves the public key of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0 //EBPFLess mode does not support SSH port
 }

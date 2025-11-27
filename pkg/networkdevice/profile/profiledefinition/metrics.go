@@ -74,9 +74,11 @@ type SymbolConfig struct {
 	MatchValue           string         `yaml:"match_value,omitempty" json:"match_value,omitempty"`
 	MatchPatternCompiled *regexp.Regexp `yaml:"-" json:"-"`
 
-	ScaleFactor      float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
-	Format           string  `yaml:"format,omitempty" json:"format,omitempty"`
-	ConstantValueOne bool    `yaml:"constant_value_one,omitempty" json:"constant_value_one,omitempty"`
+	ScaleFactor float64 `yaml:"scale_factor,omitempty" json:"scale_factor,omitempty"`
+	// RC doesn't support float64 values, so we use string for rc profiles.
+	ScaleFactorString string `yaml:"-" json:"scale_factor_string,omitempty"`
+	Format            string `yaml:"format,omitempty" json:"format,omitempty"`
+	ConstantValueOne  bool   `yaml:"constant_value_one,omitempty" json:"constant_value_one,omitempty"`
 
 	// `metric_type` is used for force the metric type
 	//   When empty, by default, the metric type is derived from SNMP OID value type.

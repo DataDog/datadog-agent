@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/fapolicyd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/integrations"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/packagemanager"
@@ -45,15 +46,17 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage = "datadog-agent"
-	agentSymlink = "/usr/bin/datadog-agent"
+	agentPackage     = "datadog-agent"
+	agentSymlink     = "/usr/bin/datadog-agent"
+	installerSymlink = "/usr/bin/datadog-installer"
 )
 
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
-		{Path: "/var/log/datadog", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 	}
@@ -61,7 +64,7 @@ var (
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
 	agentConfigPermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "managed", Owner: "root", Group: "root", Recursive: true},
+		{Path: "managed", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
@@ -98,14 +101,20 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service"},
 
 		UpstartMainService: "datadog-agent",
-		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security"},
+		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane"},
+	}
+
+	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
+	oldInstallerUnitPaths = file.Paths{
+		"datadog-installer-exp.service",
+		"datadog-installer.service",
 	}
 )
 
@@ -121,33 +130,42 @@ func installFilesystem(ctx HookContext) (err error) {
 		return fmt.Errorf("failed to create dd-agent user and group: %v", err)
 	}
 
-	// 2. Ensure config/log/package directories are created and have the correct permissions
-	if err = agentDirectories.Ensure(); err != nil {
+	// 2. Ensure config/run/log/package directories are created and have the correct permissions
+	if err = agentDirectories.Ensure(ctx); err != nil {
 		return fmt.Errorf("failed to create directories: %v", err)
 	}
-	if err = agentPackagePermissions.Ensure(ctx.PackagePath); err != nil {
+	if err = agentPackagePermissions.Ensure(ctx, ctx.PackagePath); err != nil {
 		return fmt.Errorf("failed to set package ownerships: %v", err)
 	}
-	if err = agentConfigPermissions.Ensure("/etc/datadog-agent"); err != nil {
+	if err = agentConfigPermissions.Ensure(ctx, "/etc/datadog-agent"); err != nil {
 		return fmt.Errorf("failed to set config ownerships: %v", err)
+	}
+	agentRunPath := file.Directory{Path: filepath.Join(ctx.PackagePath, "run"), Mode: 0755, Owner: "dd-agent", Group: "dd-agent"}
+	if err = agentRunPath.Ensure(ctx); err != nil {
+		return fmt.Errorf("failed to create run directory: %v", err)
 	}
 
 	// 3. Create symlinks
-	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
+	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "bin/agent/agent"), agentSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
-	if err = file.EnsureSymlink(filepath.Join(ctx.PackagePath, "embedded/bin/installer"), installerSymlink); err != nil {
+	if err = file.EnsureSymlink(ctx, filepath.Join(ctx.PackagePath, "embedded/bin/installer"), installerSymlink); err != nil {
 		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
 	// 4. Set up SELinux permissions
-	if err = selinux.SetAgentPermissions("/etc/datadog-agent", ctx.PackagePath); err != nil {
+	if err = selinux.SetAgentPermissions(ctx, "/etc/datadog-agent", ctx.PackagePath); err != nil {
 		log.Warnf("failed to set SELinux permissions: %v", err)
 	}
 
 	// 5. Handle install info
-	if err = installinfo.WriteInstallInfo(string(ctx.PackageType)); err != nil {
+	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
+	}
+
+	// 6. Remove old installer units if they exist
+	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
+		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
 	return nil
 }
@@ -159,25 +177,25 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 		span.Finish(err)
 	}()
 
-	err = agentPackageUninstallPaths.EnsureAbsent(ctx.PackagePath)
+	err = agentPackageUninstallPaths.EnsureAbsent(ctx, ctx.PackagePath)
 	if err != nil {
 		return fmt.Errorf("failed to remove package paths: %w", err)
 	}
-	err = agentConfigUninstallPaths.EnsureAbsent("/etc/datadog-agent")
+	err = agentConfigUninstallPaths.EnsureAbsent(ctx, "/etc/datadog-agent")
 	if err != nil {
 		return fmt.Errorf("failed to remove config paths: %w", err)
 	}
-	err = file.EnsureSymlinkAbsent(agentSymlink)
+	err = file.EnsureSymlinkAbsent(ctx, agentSymlink)
 	if err != nil {
 		return fmt.Errorf("failed to remove agent symlink: %w", err)
 	}
 
 	installerTarget, err := os.Readlink(installerSymlink)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read installer symlink: %w", err)
 	}
-	if strings.HasPrefix(installerTarget, ctx.PackagePath) {
-		err = file.EnsureSymlinkAbsent(installerSymlink)
+	if err == nil && strings.HasPrefix(installerTarget, ctx.PackagePath) {
+		err = file.EnsureSymlinkAbsent(ctx, installerSymlink)
 		if err != nil {
 			return fmt.Errorf("failed to remove installer symlink: %w", err)
 		}
@@ -195,6 +213,12 @@ func preInstallDatadogAgent(ctx HookContext) error {
 	}
 	if err := agentService.RemoveStable(ctx); err != nil {
 		log.Warnf("failed to remove stable unit: %s", err)
+	}
+	if ctx.PackageType == PackageTypeOCI {
+		// Must be called in the OCI preinst, before re-executing into the installer
+		if err := fapolicyd.SetAgentPermissions(ctx); err != nil {
+			return fmt.Errorf("failed to ensure host security context: %w", err)
+		}
 	}
 	return packagemanager.RemovePackage(ctx, agentPackage)
 }
@@ -622,6 +646,11 @@ func removeUnits(ctx HookContext, units ...string) error {
 }
 
 func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
+	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
+	if err != nil {
+		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
+		ambiantCapabilitiesSupported = true // Assume true if we can't check
+	}
 	var unitType embedded.SystemdUnitType
 	var unitsPath string
 	switch ctx.PackageType {
@@ -636,7 +665,7 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 		unitsPath = ociUnitsPath
 	}
 	for _, unit := range units {
-		content, err := embedded.GetSystemdUnit(unit, unitType)
+		content, err := embedded.GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
 		if err != nil {
 			return err
 		}
@@ -665,4 +694,12 @@ func reverseStringSlice(slice []string) []string {
 	copy(reversed, slice)
 	slices.Reverse(reversed)
 	return reversed
+}
+
+func isAmbiantCapabilitiesSupported() (bool, error) {
+	content, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return false, fmt.Errorf("failed to read /proc/self/status: %v", err)
+	}
+	return strings.Contains(string(content), "CapAmb:"), nil
 }

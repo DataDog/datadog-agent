@@ -73,7 +73,7 @@ func TestProcessAgentComponent(t *testing.T) {
 				statsd.MockModule(),
 				Module(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-				config.MockModule(),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
 				hostnameimpl.MockModule(),

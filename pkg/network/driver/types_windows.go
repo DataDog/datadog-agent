@@ -40,9 +40,10 @@ type FilterDefinition struct {
 	Protocol       uint64
 	Direction      uint64
 	InterfaceIndex uint64
+	Discard        uint64
 }
 
-const FilterDefinitionSize = 0x98
+const FilterDefinitionSize = 0xa0
 
 type FilterPacketHeader struct {
 	FilterVersion    uint64

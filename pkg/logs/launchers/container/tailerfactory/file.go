@@ -5,6 +5,8 @@
 
 //go:build kubelet || docker
 
+// Package tailerfactory implements the logic required to determine which kind
+// of tailer to use for a container-related LogSource, and to create that tailer.
 package tailerfactory
 
 // This file handles creating docker tailers which access the container runtime
@@ -14,26 +16,31 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var podLogsBasePath = "/var/log/pods"
-var dockerLogsBasePathNix = "/var/lib/docker"
-var dockerLogsBasePathWin = "c:\\programdata\\docker"
-var podmanRootfullLogsBasePath = "/var/lib/containers"
+var (
+	podLogsBasePath            = "/var/log/pods"
+	dockerLogsBasePathNix      = "/var/lib/docker"
+	dockerLogsBasePathWin      = "c:\\programdata\\docker"
+	podmanRootfullLogsBasePath = "/var/lib/containers"
+)
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
 // an error if it cannot do so (e.g., due to permission errors)
@@ -51,8 +58,13 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 	// The user configuration consulted is different depending on what we are
 	// logging.  Note that we assume that by the time we have gotten a source
 	// from AD, it is clear what we are logging.  The `Wait` here should return
-	// quickly.
-	logWhat := tf.cop.Wait(context.Background())
+	// quickly. But it doesn't if there is no docker socket, in case of Podman for example.
+	// Make expiring context to run detection on.
+	to := pkgconfigsetup.Datadog().GetDuration("logs_config.container_runtime_waiting_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), to)
+	defer cancel()
+
+	logWhat := tf.cop.Wait(ctx)
 
 	switch logWhat {
 	case containersorpods.LogContainers:
@@ -112,8 +124,21 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 
 	// check access to the file; if it is not readable, then returning an error will
 	// try to fall back to reading from a socket.
-	f, err := filesystem.OpenShared(path)
+	f, err := opener.OpenLogFile(path)
 	if err != nil {
+		// Check if this is a permission error and report to health platform
+		if isPermissionError(err) {
+			// Extract the base docker directory from the path
+			dockerDir := dockerLogsBasePathNix
+			if overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override"); len(overridePath) > 0 {
+				dockerDir = overridePath
+			} else if runtime.GOOS == "windows" {
+				dockerDir = dockerLogsBasePathWin
+			}
+
+			// Report the issue to health platform
+			tf.reportDockerPermissionIssue(dockerDir)
+		}
 		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
 		return nil, err
 	}
@@ -131,6 +156,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		Source:                      sourceName,
 		Tags:                        source.Config.Tags,
 		ProcessingRules:             source.Config.ProcessingRules,
+		FingerprintConfig:           source.Config.FingerprintConfig,
 		AutoMultiLine:               source.Config.AutoMultiLine,
 		AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
 		AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
@@ -240,6 +266,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			Source:                      sourceName,
 			Tags:                        source.Config.Tags,
 			ProcessingRules:             source.Config.ProcessingRules,
+			FingerprintConfig:           source.Config.FingerprintConfig,
 			AutoMultiLine:               source.Config.AutoMultiLine,
 			AutoMultiLineSampleSize:     source.Config.AutoMultiLineSampleSize,
 			AutoMultiLineMatchThreshold: source.Config.AutoMultiLineMatchThreshold,
@@ -311,4 +338,38 @@ func findK8sLogPath(pod *workloadmeta.KubernetesPod, containerName string) strin
 
 	log.Debugf("Using the latest kubernetes logs path for container %s", containerName)
 	return filepath.Join(podLogsBasePath, getPodDirectorySince1_14(pod), containerName, anyLogFile)
+}
+
+// isPermissionError checks if an error is permission-related using proper error type checking
+func isPermissionError(err error) bool {
+	return errors.Is(err, fs.ErrPermission) ||
+		errors.Is(err, syscall.EACCES) ||
+		errors.Is(err, syscall.EPERM)
+}
+
+// reportDockerPermissionIssue reports a Docker file tailing permission issue to the health platform
+func (tf *factory) reportDockerPermissionIssue(dockerDir string) {
+	hp, exists := tf.healthPlatform.Get()
+	if !exists {
+		return
+	}
+
+	// Report the issue with minimal context - health platform registry provides all metadata and remediation
+	err := hp.ReportIssue(
+		"logs-docker-file-permissions",
+		"Docker File Tailing Permissions",
+		&healthplatform.IssueReport{
+			IssueID: "docker-file-tailing-disabled",
+			Context: map[string]string{
+				"dockerDir": dockerDir,
+				"os":        runtime.GOOS,
+			},
+		},
+	)
+
+	if err != nil {
+		log.Warnf("Failed to report Docker permission issue to health platform: %v", err)
+	} else {
+		log.Infof("Reported Docker file tailing permission issue to health platform")
+	}
 }

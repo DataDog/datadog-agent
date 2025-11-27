@@ -8,6 +8,7 @@ package flare
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
@@ -50,6 +51,11 @@ func PrintConfigCheck(w io.Writer, cr integration.ConfigCheckResponse, withDebug
 				fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(adIdentifiers))
 				fmt.Fprintln(w, config.String())
 			}
+		}
+
+		if len(cr.Services) > 0 {
+			fmt.Fprintf(w, "\n=== %s (matched and unmatched) ===\n", color.MagentaString("Services"))
+			printServiceDetails(w, cr)
 		}
 	}
 }
@@ -160,6 +166,38 @@ func PrintClusterCheckConfig(w io.Writer, c integration.Config, checkName string
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
 	}
 	fmt.Fprintln(w, "===")
+}
+
+func printServiceDetails(w io.Writer, cr integration.ConfigCheckResponse) {
+	slices.SortFunc(cr.Services, func(a, b integration.ServiceResponse) int {
+		return strings.Compare(a.ServiceID, b.ServiceID)
+	})
+
+	for _, service := range cr.Services {
+		fmt.Fprintf(w, "\n%s: %s\n", color.BlueString("Service ID"), color.YellowString(service.ServiceID))
+		fmt.Fprintf(w, "ADIdentifiers:\n")
+		for _, id := range service.ADIdentifiers {
+			fmt.Fprintf(w, "- %s\n", id)
+		}
+		fmt.Fprintf(w, "Ready: %t\n", service.IsReady)
+
+		if service.Hostname != "" {
+			fmt.Fprintf(w, "Hostname: %s\n", service.Hostname)
+		}
+		if len(service.Hosts) > 0 {
+			fmt.Fprintf(w, "Hosts:\n")
+			for key, value := range service.Hosts {
+				fmt.Fprintf(w, "- %s: %s\n", key, value)
+			}
+		}
+		if len(service.Ports) > 0 {
+			fmt.Fprintf(w, "Ports: %s\n", strings.Join(service.Ports, ", "))
+		}
+		if service.PID > 0 {
+			fmt.Fprintf(w, "PID: %d\n", service.PID)
+		}
+		fmt.Fprintf(w, "Filters: metrics=%t, logs=%t\n", service.FiltersMetrics, service.FiltersLogs)
+	}
 }
 
 func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {

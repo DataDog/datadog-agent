@@ -99,10 +99,14 @@ var (
 	Kernel6_6 = kernel.VersionCode(6, 6, 0)
 	// Kernel6_7 is the KernelVersion representation of kernel version 6.7
 	Kernel6_7 = kernel.VersionCode(6, 7, 0)
+	// Kernel6_8 is the KernelVersion representation of kernel version 6.8
+	Kernel6_8 = kernel.VersionCode(6, 8, 0)
 	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
 	Kernel6_10 = kernel.VersionCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11
 	Kernel6_11 = kernel.VersionCode(6, 11, 0)
+	// Kernel6_14 is the KernelVersion representation of kernel version 6.14
+	Kernel6_14 = kernel.VersionCode(6, 14, 0)
 )
 
 // Version defines a kernel version helper
@@ -307,15 +311,21 @@ func (k *Version) IsAmazonLinux2023Kernel() bool {
 	return k.IsAmazonLinuxKernel() && k.OsRelease["VERSION_ID"] == "2023"
 }
 
+// IsRockyKernel returns whether the kernel is a Rocky Linux kernel
+func (k *Version) IsRockyKernel() bool {
+	return k.OsRelease["ID"] == "rocky"
+}
+
 // IsInRangeCloseOpen returns whether the kernel version is between the begin
 // version (included) and the end version (excluded)
 func (k *Version) IsInRangeCloseOpen(begin kernel.Version, end kernel.Version) bool {
 	return k.Code != 0 && begin <= k.Code && k.Code < end
 }
 
-// HasNoPreallocMapsInPerfEvent returns true if the kernel supports using non-preallocated maps in perf_event programs
+// HasSafeBPFMemoryAllocations returns true if the kernel supports using non-preallocated maps in perf_event programs
+// and considers using non-preallocated maps in tracing programs as safe
 // See https://github.com/torvalds/linux/commit/274052a2b0ab9f380ce22b19ff80a99b99ecb198
-func (k *Version) HasNoPreallocMapsInPerfEvent() bool {
+func (k *Version) HasSafeBPFMemoryAllocations() bool {
 	return k.Code >= Kernel6_1
 }
 

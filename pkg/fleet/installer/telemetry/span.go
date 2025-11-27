@@ -8,8 +8,10 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -65,10 +67,9 @@ func (s *Span) Finish(err error) {
 	s.span.Duration = time.Now().UnixNano() - s.span.Start
 	if err != nil {
 		s.span.Error = 1
-		s.span.Meta = map[string]string{
-			"error.message": err.Error(),
-			"error.stack":   string(debug.Stack()),
-		}
+		s.setTag("error.message", err.Error())
+		s.setTag("error.stack", string(debug.Stack()))
+		s.setTag("error.type", getRootErrorType(err))
 	}
 	globalTracer.finishSpan(s)
 }
@@ -95,6 +96,11 @@ func (s *Span) SetTag(key string, value interface{}) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.setTag(key, value)
+}
+
+// setTag sets the span on the tag, requires s.mu lock to be held
+func (s *Span) setTag(key string, value interface{}) {
 	if value == nil {
 		s.span.Meta[key] = "nil"
 	}
@@ -147,4 +153,15 @@ func getSpanIDsFromContext(ctx context.Context) (spanIDs, bool) {
 
 func setSpanIDsInContext(ctx context.Context, span *Span) context.Context {
 	return context.WithValue(ctx, spanKey, spanIDs{traceID: span.span.TraceID, spanID: span.span.SpanID})
+}
+
+func getRootErrorType(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	for u := errors.Unwrap(err); u != nil; u = errors.Unwrap(u) {
+		err = u
+	}
+	return reflect.TypeOf(err).String()
 }

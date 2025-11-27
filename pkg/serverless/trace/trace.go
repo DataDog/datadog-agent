@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -24,10 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -67,25 +71,20 @@ const tcpRemotePortMetaKey = "tcp.remote.port"
 // dnsAddressMetaKey is the key of the span meta containing the DNS address
 const dnsAddressMetaKey = "dns.address"
 
-// lambdaRuntimeUrlPrefix is the first part of a URL for a call to the Lambda runtime API. The value may be replaced if `AWS_LAMBDA_RUNTIME_API` is set.
-var lambdaRuntimeURLPrefix = "http://127.0.0.1:9001"
+// disableTraceStatsEnvVar is the environment variable to disable trace stats computation in serverless-init
+const disableTraceStatsEnvVar = "DD_SERVERLESS_INIT_DISABLE_TRACE_STATS"
 
-// lambdaExtensionURLPrefix is the first part of a URL for a call from the Datadog Lambda Library to the Lambda Extension
-const lambdaExtensionURLPrefix = "http://127.0.0.1:8124"
+// agentURLPrefix is the first part of a URL for internal agent communication (port 8124)
+const agentURLPrefix = "http://127.0.0.1:8124"
 
-// lambdaStatsDURLPrefix is the first part of a URL for a call from Statsd
-const lambdaStatsDURLPrefix = "http://127.0.0.1:8125"
+// statsDURLPrefix is the first part of a URL for a call from Statsd
+const statsDURLPrefix = "http://127.0.0.1:8125"
 
 // dnsNonRoutableAddressURLPrefix is the first part of a URL from the non-routable address for DNS traces
 const dnsNonRoutableAddressURLPrefix = "0.0.0.0"
 
 // dnsLocalHostAddressURLPrefix is the first part of a URL from the localhost address for DNS traces
 const dnsLocalHostAddressURLPrefix = "127.0.0.1"
-
-// awsXrayDaemonAddressURLPrefix is the first part of a URL from the _AWS_XRAY_DAEMON_ADDRESS for DNS traces
-const awsXrayDaemonAddressURLPrefix = "169.254.79.129"
-
-const invocationSpanResource = "dd-tracer-serverless-span"
 
 // Load loads the config from a file path
 func (l *LoadConfig) Load() (*config.AgentConfig, error) {
@@ -99,13 +98,11 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled               bool
-	LoadConfig            Load
-	LambdaSpanChan        chan<- *pb.Span
-	ColdStartSpanID       uint64
-	AzureContainerAppTags string
-	FunctionTags          string
-	RCService             *remoteconfig.CoreAgentService
+	Enabled             bool
+	LoadConfig          Load
+	AzureServerlessTags string
+	FunctionTags        string
+	RCService           *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -128,18 +125,21 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			tc.AzureContainerAppTags = args.AzureContainerAppTags
+			tc.AzureServerlessTags = args.AzureServerlessTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
-			ta.SpanModifier = &spanModifier{
-				coldStartSpanId: args.ColdStartSpanID,
-				lambdaSpanChan:  args.LambdaSpanChan,
-				ddOrigin:        getDDOrigin(),
-			}
-			ta.TracerPayloadModifier = &tracerPayloadModifier{
-				functionTags: args.FunctionTags,
+
+			// Check if trace stats should be disabled for serverless
+			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {
+				log.Debug("Trace stats computation disabled for serverless via DD_SERVERLESS_INIT_DISABLE_TRACE_STATS")
+				ta.Concentrator = &noopConcentrator{}
 			}
 
-			ta.DiscardSpan = filterSpanFromLambdaLibraryOrRuntime
+			ta.SpanModifier = &spanModifier{
+				ddOrigin: getDDOrigin(),
+			}
+			ta.TracerPayloadModifier = serverlessmodifier.NewTracerPayloadModifier(args.FunctionTags)
+
+			ta.DiscardSpan = filterSpan
 			startTraceAgentConfigEndpoint(args.RCService, tc)
 			go ta.Run()
 			return &serverlessTraceAgent{
@@ -154,7 +154,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 }
 
 func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc *config.AgentConfig) {
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) && rcService != nil {
 		statsdNoopClient := &statsd.NoOpClient{}
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
@@ -214,74 +214,62 @@ func (t *serverlessTraceAgent) GetSpanModifier() agent.SpanModifier {
 	return t.ta.SpanModifier
 }
 
-// filterSpanFromLambdaLibraryOrRuntime returns true if a span was generated by internal HTTP calls within the Datadog
-// Lambda Library or the Lambda runtime
-func filterSpanFromLambdaLibraryOrRuntime(span *pb.Span) bool {
-	// Filters out HTTP calls
+// filterSpan returns true if a span was generated by internal infrastructure calls
+// that should not be visible to customers (e.g., StatsD, internal DNS lookups, serverless agent communication)
+func filterSpan(span *pb.Span) bool {
+	// Filters out HTTP calls to internal infrastructure
 	if httpURL, ok := span.Meta[httpURLMetaKey]; ok {
-		if strings.HasPrefix(httpURL, lambdaExtensionURLPrefix) {
+		if strings.HasPrefix(httpURL, agentURLPrefix) {
 			log.Debugf("Detected span with http url %s, removing it", httpURL)
 			return true
 		}
 
-		if strings.HasPrefix(httpURL, lambdaStatsDURLPrefix) {
-			log.Debugf("Detected span with http url %s, removing it", httpURL)
-			return true
-		}
-
-		if strings.HasPrefix(httpURL, lambdaRuntimeURLPrefix) {
+		if strings.HasPrefix(httpURL, statsDURLPrefix) {
 			log.Debugf("Detected span with http url %s, removing it", httpURL)
 			return true
 		}
 	}
 
-	// Filers out TCP spans
+	// Filters out TCP spans to internal infrastructure
 	if tcpHost, ok := span.Meta[tcpRemoteHostMetaKey]; ok {
 		if tcpPort, ok := span.Meta[tcpRemotePortMetaKey]; ok {
-			tcpLambdaURLPrefix := fmt.Sprint("http://" + tcpHost + ":" + tcpPort)
-			if strings.HasPrefix(tcpLambdaURLPrefix, lambdaExtensionURLPrefix) {
-				log.Debugf("Detected span with tcp url %s, removing it", tcpLambdaURLPrefix)
+			tcpURLPrefix := fmt.Sprint("http://" + tcpHost + ":" + tcpPort)
+			if strings.HasPrefix(tcpURLPrefix, agentURLPrefix) {
+				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
 				return true
 			}
 
-			if strings.HasPrefix(tcpLambdaURLPrefix, lambdaStatsDURLPrefix) {
-				log.Debugf("Detected span with tcp url %s, removing it", tcpLambdaURLPrefix)
-				return true
-			}
-
-			if strings.HasPrefix(tcpLambdaURLPrefix, lambdaRuntimeURLPrefix) {
-				log.Debugf("Detected span with tcp url %s, removing it", tcpLambdaURLPrefix)
+			if strings.HasPrefix(tcpURLPrefix, statsDURLPrefix) {
+				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
 				return true
 			}
 		}
 	}
 
-	// Filters out DNS spans
+	// Filters out DNS spans to localhost and internal addresses
 	if dnsAddress, ok := span.Meta[dnsAddressMetaKey]; ok {
 		if strings.HasPrefix(dnsAddress, dnsNonRoutableAddressURLPrefix) ||
-			strings.HasPrefix(dnsAddress, dnsLocalHostAddressURLPrefix) ||
-			strings.HasPrefix(dnsAddress, awsXrayDaemonAddressURLPrefix) {
+			strings.HasPrefix(dnsAddress, dnsLocalHostAddressURLPrefix) {
 			log.Debugf("Detected span with dns url %s, removing it", dnsAddress)
 			return true
 		}
 	}
 
-	// Filter out the serverless span from the tracer
-	if span != nil && span.Resource == invocationSpanResource {
-		log.Debugf("Detected invocation span from tracer, removing it")
-		return true
-	}
 	return false
 }
 
 // getDDOrigin returns the value for the _dd.origin tag based on the cloud service type
 func getDDOrigin() string {
-	origin := ddOriginTagValue
-	if cloudServiceOrigin := cloudservice.GetCloudServiceType().GetOrigin(); cloudServiceOrigin != "local" {
-		origin = cloudServiceOrigin
-	}
-	return origin
+	return cloudservice.GetCloudServiceType().GetOrigin()
 }
+
+// noopConcentrator is a no-op implementation of agent.Concentrator interface
+type noopConcentrator struct{}
+
+func (c noopConcentrator) Start()              {}
+func (c noopConcentrator) Stop()               {}
+func (c noopConcentrator) Add(stats.Input)     {}
+func (c noopConcentrator) AddV1(stats.InputV1) {}
 
 type noopTraceAgent struct{}
 
@@ -292,9 +280,3 @@ func (t noopTraceAgent) SetTags(map[string]string)           {}
 func (t noopTraceAgent) SetTargetTPS(float64)                {}
 func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
 func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
-
-func init() {
-	if lambdaRuntime := os.Getenv("AWS_LAMBDA_RUNTIME_API"); lambdaRuntime != "" {
-		lambdaRuntimeURLPrefix = fmt.Sprintf("http://%s", lambdaRuntime)
-	}
-}

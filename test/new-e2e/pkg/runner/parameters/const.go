@@ -5,7 +5,7 @@
 
 package parameters
 
-import "github.com/DataDog/test-infra-definitions/components"
+import "github.com/DataDog/datadog-agent/test/e2e-framework/components"
 
 // StoreKey alias to string
 type StoreKey string
@@ -77,6 +77,10 @@ const (
 	MajorVersion StoreKey = "major_version"
 	// FIPS config flag parameter name
 	FIPS StoreKey = "fips"
+	// CoveragePipeline config flag parameter name
+	CoveragePipeline StoreKey = "coverage_pipeline"
+	// CoverageOutDir config flag parameter name
+	CoverageOutDir StoreKey = "coverage_out_dir"
 )
 
 const (

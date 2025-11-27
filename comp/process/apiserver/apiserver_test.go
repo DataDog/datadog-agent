@@ -16,12 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -42,10 +44,12 @@ func TestLifecycle(t *testing.T) {
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"process_config.cmd_port": port,
-		}}),
+		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"process_config.cmd_port": port,
+			})
+		}),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
 			status.Params{
@@ -57,7 +61,7 @@ func TestLifecycle(t *testing.T) {
 		settingsimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Populate(&ipcComp),
-		secretsimpl.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -76,10 +80,12 @@ func TestPostAuthentication(t *testing.T) {
 
 	_ = fxutil.Test[Component](t, fx.Options(
 		Module(),
-		core.MockBundle(),
-		fx.Replace(config.MockParams{Overrides: map[string]interface{}{
-			"process_config.cmd_port": port,
-		}}),
+		fx.Provide(func(t testing.TB) logcomp.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"process_config.cmd_port": port,
+			})
+		}),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(
 			status.Params{
@@ -91,7 +97,7 @@ func TestPostAuthentication(t *testing.T) {
 		settingsimpl.MockModule(),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Populate(&ipcComp),
-		secretsimpl.MockModule(),
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	))
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {

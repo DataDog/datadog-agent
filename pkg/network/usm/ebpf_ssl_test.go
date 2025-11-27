@@ -9,11 +9,13 @@ package usm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	nethttp "net/http"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
 	"time"
 	"unsafe"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -36,13 +37,20 @@ const (
 	addressOfHTTPPythonServer = "127.0.0.1:8001"
 )
 
+// setNativeTLSPeriodicTerminatedProcessesScanInterval sets the interval for the periodic scan of terminated processes in GoTLS.
+func setNativeTLSPeriodicTerminatedProcessesScanInterval(tb testing.TB, interval time.Duration) {
+	originalValue := nativeTLSScanTerminatedProcessesInterval
+	tb.Cleanup(func() {
+		nativeTLSScanTerminatedProcessesInterval = originalValue
+	})
+	nativeTLSScanTerminatedProcessesInterval = interval
+}
+
 func testArch(t *testing.T, arch string) {
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 
-	if !usmconfig.TLSSupported(cfg) {
-		t.Skip("shared library tracing not supported for this platform")
-	}
+	utils.SkipIfTLSUnsupported(t, cfg)
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
@@ -72,18 +80,33 @@ func TestArchArm64(t *testing.T) {
 	testArch(t, "arm64")
 }
 
+// findNonExistingPid finds a PID that doesn't exist on the system
+func findNonExistingPid(t *testing.T) int {
+	// Start from a high number to avoid common system PIDs
+	for pid := 100000; pid < 1000000; pid++ {
+		// On Linux, kill(pid, 0) returns 0 if process exists, -1 if it doesn't
+		if err := syscall.Kill(pid, 0); err != nil {
+			if errors.Is(err, syscall.ESRCH) { // No such process
+				return pid
+			}
+		}
+	}
+	t.Log("Failed to find a non-existing PID")
+	t.FailNow()
+	return 0
+}
+
 // TestSSLMapsCleaner verifies that SSL-related kernel maps are cleared correctly.
 // the map entry is deleted when the thread exits, also periodic map cleaner removes dead threads.
 func TestSSLMapsCleaner(t *testing.T) {
+	setNativeTLSPeriodicTerminatedProcessesScanInterval(t, time.Second)
 	// setup monitor
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
 	// test cleanup is faster without event stream, this test does not require event stream
 	cfg.EnableUSMEventStream = false
 
-	if !usmconfig.TLSSupported(cfg) {
-		t.Skip("SSL maps cleaner not supported for this platform")
-	}
+	utils.SkipIfTLSUnsupported(t, cfg)
 	// use the monitor and its eBPF manager to check and access SSL related maps
 	monitor := setupUSMTLSMonitor(t, cfg, reInitEventConsumer)
 	require.NotNil(t, monitor)
@@ -92,17 +115,19 @@ func TestSSLMapsCleaner(t *testing.T) {
 	cleanProtocolMaps(t, bioNewSocketArgsMap, monitor.ebpfProgram.Manager.Manager)
 
 	// find maps by names
+	sslPidKeyMaps := []string{sslReadArgsMap, sslReadExArgsMap, sslWriteArgsMap, sslWriteExArgsMap, bioNewSocketArgsMap}
 	maps := getMaps(t, monitor.ebpfProgram.Manager.Manager, sslPidKeyMaps)
 	require.Equal(t, len(maps), len(sslPidKeyMaps))
 
 	// add random pid to the maps
-	pid := 100
+	pid := findNonExistingPid(t)
 	addPidEntryToMaps(t, maps, pid)
 	checkPidExistsInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
 
 	// verify that map is empty after cleaning up terminated processes
-	cleanDeadPidsInSslMaps(t, monitor.ebpfProgram.Manager.Manager)
-	checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, pid)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		checkPidNotFoundInMaps(t, ct, monitor.ebpfProgram.Manager.Manager, maps, pid)
+	}, 10*time.Second, 1*time.Second, "pid was not removed from the maps after process exit")
 
 	// start dummy program and add its pid to the map
 	cmd, cancel := startDummyProgram(t)
@@ -112,7 +137,7 @@ func TestSSLMapsCleaner(t *testing.T) {
 	// verify exit of process cleans the map
 	cancel()
 	_ = cmd.Wait()
-	checkPidNotFoundInMaps(t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
+	checkPidNotFoundInMaps(t, t, monitor.ebpfProgram.Manager.Manager, maps, cmd.Process.Pid)
 }
 
 // getMaps returns eBPF maps searched by names.
@@ -162,7 +187,7 @@ func checkPidExistsInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.M
 }
 
 // checkPidNotFoundInMaps checks that pid does not exist in all provided maps.
-func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf.Map, pid int) {
+func checkPidNotFoundInMaps(originalT *testing.T, t require.TestingT, manager *manager.Manager, maps []*ebpf.Map, pid int) {
 	// make the key for single thread process when pid and tgid are the same
 	key := uint64(pid)<<32 | uint64(pid)
 
@@ -172,8 +197,8 @@ func checkPidNotFoundInMaps(t *testing.T, manager *manager.Manager, maps []*ebpf
 		require.NoError(t, err)
 
 		if findKeyInMap[uint64](m, key) {
-			t.Logf("pid '%d' was found in the map %q", pid, mapInfo.Name)
-			ebpftest.DumpMapsTestHelper(t, manager.DumpMaps, mapInfo.Name)
+			originalT.Logf("pid '%d' was found in the map %q", pid, mapInfo.Name)
+			ebpftest.DumpMapsTestHelper(originalT, manager.DumpMaps, mapInfo.Name)
 			t.FailNow()
 		}
 	}
@@ -197,21 +222,11 @@ func startDummyProgram(t *testing.T) (*exec.Cmd, context.CancelFunc) {
 	return cmd, cancel
 }
 
-// cleanDeadPidsInSslMap delete terminated pid entries in the SSL maps.
-func cleanDeadPidsInSslMaps(t *testing.T, manager *manager.Manager) {
-	for _, mapName := range sslPidKeyMaps {
-		err := deleteDeadPidsInMap(manager, mapName, nil)
-		require.NoError(t, err)
-	}
-}
-
 // TestSSLMapsCleanup verifies that the eBPF cleanup mechanism
 // correctly removes entries from the ssl_sock_by_ctx and ssl_ctx_by_tuple maps
 // when the TCP connection associated with a TLS session is closed.
 func TestSSLMapsCleanup(t *testing.T) {
-	if !usmconfig.TLSSupported(utils.NewUSMEmptyConfig()) {
-		t.Skip("TLS not supported for this setup")
-	}
+	utils.SkipIfTLSUnsupported(t, utils.NewUSMEmptyConfig())
 
 	cfg := utils.NewUSMEmptyConfig()
 	cfg.EnableNativeTLSMonitoring = true
@@ -294,5 +309,49 @@ func TestSSLMapsCleanup(t *testing.T) {
 		// Dump relevant maps on failure
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, sslSockByCtxMap, sslCtxByTupleMap)
 		t.FailNow()
+	}
+}
+
+// TestPIDKeyedMapNameUniqueness verifies that all PID-keyed TLS map names are unique
+// within their first 15 characters to prevent collisions from kernel truncation.
+//
+// eBPF map names are limited to 15 characters by the kernel (BPF_OBJ_NAME_LEN - 1).
+// The leak detection system searches maps by truncated names, so names like
+// "hash_map_name_10" and "hash_map_name_11" would collide as both truncate to
+// "hash_map_name_1".
+//
+// This test ensures we catch such collisions at compile/test time rather than
+// discovering them in production.
+func TestPIDKeyedMapNameUniqueness(t *testing.T) {
+	names := GetPIDKeyedTLSMapNames()
+	require.NotEmpty(t, names, "No PID-keyed map names found")
+
+	truncated := make(map[string]string)
+	for _, name := range names {
+		truncName := name
+		if len(name) > 15 {
+			truncName = name[:15]
+		}
+
+		if existing, found := truncated[truncName]; found {
+			t.Errorf("Map name collision detected:\n"+
+				"  Map 1: %q\n"+
+				"  Map 2: %q\n"+
+				"  Both truncate to: %q\n"+
+				"Map names must be unique within their first 15 characters due to kernel limitation (BPF_OBJ_NAME_LEN - 1).",
+				existing, name, truncName)
+		}
+		truncated[truncName] = name
+	}
+
+	// Log all truncated names for reference
+	t.Logf("Current PID-keyed TLS map names and their truncated forms:")
+	for _, name := range names {
+		if len(name) > 15 {
+			truncName := name[:15]
+			t.Logf("  %q -> %q (truncated)", name, truncName)
+		} else {
+			t.Logf("  %q (no truncation)", name)
+		}
 	}
 }

@@ -6,17 +6,18 @@
 package windowsevent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
+	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
 // AddRenderedInfoToMap renders event record fields using EvtFormatMessage and adds them to the map.
-func AddRenderedInfoToMap(m *Map, api evtapi.API, pm evtapi.EventPublisherMetadataHandle, event evtapi.EventRecordHandle) {
+func AddRenderedInfoToMap(m *Map, publisherMetadataCache publishermetadatacache.Component, providerName string, event evtapi.EventRecordHandle) {
 	var message, task, opcode, level string
 
-	message, _ = api.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageEvent)
-	task, _ = api.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageTask)
-	opcode, _ = api.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageOpcode)
-	level, _ = api.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageLevel)
+	message, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageEvent)
+	task, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageTask)
+	opcode, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageOpcode)
+	level, _ = publisherMetadataCache.FormatMessage(providerName, event, evtapi.EvtFormatMessageLevel)
 
 	_ = m.SetMessage(message)
 	_ = m.SetTask(task)

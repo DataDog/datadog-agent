@@ -1,0 +1,15 @@
+---
+issuer: https://token.actions.githubusercontent.com
+
+subject: repo:DataDog/datadog-agent:environment:main
+
+claim_pattern:
+  event_name: (workflow_dispatch|schedule)
+  ref: refs/heads/main
+  ref_protected: "true"
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/stale\.yml@refs/heads/main
+
+permissions:
+  actions: write
+  issues: write
+  pull_requests: write

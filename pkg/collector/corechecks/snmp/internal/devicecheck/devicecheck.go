@@ -45,6 +45,10 @@ import (
 
 const (
 	snmpLoaderTag           = "loader:core"
+	snmpRequestMetric       = "datadog.snmp.requests"
+	snmpGetRequestTag       = "request_type:get"
+	snmpGetBulkRequestTag   = "request_type:getbulk"
+	snmpGetNextReqestTag    = "request_type:getnext"
 	serviceCheckName        = "snmp.can_check"
 	deviceReachableMetric   = "snmp.device.reachable"
 	deviceUnreachableMetric = "snmp.device.unreachable"
@@ -53,7 +57,8 @@ const (
 	pingPacketLoss          = "networkdevice.ping.packet_loss"
 	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
 	deviceHostnamePrefix    = "device:"
-	checkDurationThreshold  = 30 // Thirty seconds
+	checkDurationThreshold  = 30  // Thirty seconds
+	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
 )
 
 type profileCache struct {
@@ -77,7 +82,7 @@ func (pc *profileCache) GetProfile() profiledefinition.ProfileDefinition {
 }
 
 func (pc *profileCache) Update(sysObjectID string, now time.Time, config *checkconfig.CheckConfig) (profiledefinition.ProfileDefinition, error) {
-	if pc.IsOutdated(sysObjectID, config.ProfileName, config.ProfileProvider.LastUpdated()) {
+	if pc.IsOutdated(sysObjectID, config.ProfileName, now, config.ProfileProvider.LastUpdated()) {
 		// we cache the value even if there's an error, because an error indicates that
 		// the ProfileProvider couldn't find a match for either config.ProfileName or
 		// the given sysObjectID, and we're going to have the same error if we call this
@@ -92,7 +97,7 @@ func (pc *profileCache) Update(sysObjectID string, now time.Time, config *checkc
 	return pc.GetProfile(), pc.err
 }
 
-func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, lastUpdate time.Time) bool {
+func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, now time.Time, lastUpdate time.Time) bool {
 	if pc.profile == nil {
 		return true
 	}
@@ -104,10 +109,31 @@ func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, lastU
 		// If we're auto-detecting profiles and the sysObjectID has changed, we're out of date.
 		return true
 	}
+	if now.Sub(pc.timestamp) > profileRefreshDelay*time.Second {
+		// If the profile refresh delay has been exceeded, we're out of date.
+		return true
+	}
 	// If we get here then either we're auto-detecting but the sysobjectid hasn't
 	// changed, or we have a static name; either way we're out of date if and only
 	// if the profile provider has updated.
 	return pc.timestamp.Before(lastUpdate)
+}
+
+func (pc *profileCache) RemoveMissingOIDs(values *valuestore.ResultValueStore) {
+	var scalarOIDs []string
+	var columnOIDs []string
+	for _, oid := range pc.scalarOIDs {
+		if values.ContainsScalarValue(oid) {
+			scalarOIDs = append(scalarOIDs, oid)
+		}
+	}
+	for _, oid := range pc.columnOIDs {
+		if values.ContainsColumnValues(oid) {
+			columnOIDs = append(columnOIDs, oid)
+		}
+	}
+	pc.scalarOIDs = scalarOIDs
+	pc.columnOIDs = columnOIDs
 }
 
 // DeviceCheck hold info necessary to collect info for a single device
@@ -116,6 +142,7 @@ type DeviceCheck struct {
 	sender                  *report.MetricSender
 	session                 session.Session
 	sessionFactory          session.Factory
+	oidBatchSizeOptimizers  *fetch.OidBatchSizeOptimizers
 	devicePinger            pinger.Pinger
 	sessionCloseErrorCount  *atomic.Uint64
 	savedDynamicTags        []string
@@ -147,6 +174,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 	d := DeviceCheck{
 		config:                  newConfig,
 		sessionFactory:          sessionFactory,
+		oidBatchSizeOptimizers:  fetch.NewOidBatchSizeOptimizers(newConfig.OidBatchSize),
 		devicePinger:            devicePinger,
 		sessionCloseErrorCount:  atomic.NewUint64(0),
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
@@ -230,6 +258,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
+		d.profileCache.RemoveMissingOIDs(values)
+
 		if !reflect.DeepEqual(d.savedDynamicTags, dynamicTags) {
 			d.savedDynamicTags = dynamicTags
 			d.writeTagsInCache()
@@ -239,7 +269,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
 
-	metricTags := append(tags, "dd.internal.resource:ndm_device_user_tags:"+d.GetDeviceID())
+	metricTags := append(tags, "dd.internal.resource:ndm_device:"+d.GetDeviceID())
 	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), metricTags)
 	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), metricTags)
 	if values != nil {
@@ -362,8 +392,8 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 
 	tags = append(tags, profile.StaticTags...)
 
-	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs, d.config.OidBatchSize,
-		d.config.BulkMaxRepetitions)
+	valuesStore, err := fetch.Fetch(d.session, d.profileCache.scalarOIDs, d.profileCache.columnOIDs,
+		d.oidBatchSizeOptimizers, d.config.BulkMaxRepetitions)
 	if log.ShouldLog(log.DebugLvl) {
 		log.Debugf("fetched values: %v", valuestore.ResultValueStoreAsString(valuesStore))
 	}
@@ -414,6 +444,9 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
+	d.sender.Gauge(snmpRequestMetric, float64(d.session.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI

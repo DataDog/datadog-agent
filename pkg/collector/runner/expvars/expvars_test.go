@@ -188,7 +188,7 @@ func TestExpvarsReset(t *testing.T) {
 	assert.NotNil(t, getRunnerExpvarMap(t).Get(runsExpvarKey))
 	assert.NotNil(t, getRunnerExpvarMap(t).Get(runningChecksExpvarKey))
 	assert.NotNil(t, getRunnerExpvarMap(t).Get(warningsExpvarKey))
-	assert.NotNil(t, getRunnerExpvarMap(t).Get(workersExpvarKey))
+	assert.NotNil(t, GetWorkers())
 
 	Reset()
 
@@ -199,7 +199,7 @@ func TestExpvarsReset(t *testing.T) {
 	assert.Nil(t, getRunnerExpvarMap(t).Get(runsExpvarKey))
 	assert.Nil(t, getRunnerExpvarMap(t).Get(runningChecksExpvarKey))
 	assert.Nil(t, getRunnerExpvarMap(t).Get(warningsExpvarKey))
-	assert.NotNil(t, getRunnerExpvarMap(t).Get(workersExpvarKey))
+	assert.NotNil(t, GetWorkers())
 }
 
 // TestExpvarsCheckStats includes tests of `AddCheckStats()`, `RemoveCheckStats()`, and

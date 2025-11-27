@@ -1,11 +1,12 @@
 # This file contains a mapping of DataDog Github teams to JIRA projects.
 # The DEFAULT_JIRA_PROJECT value is interpreted as "AGNTR".
 # Note that keys must be quoted because the '@' symbol is reserved in YAML.
+'@datadog/action-platform': ACTP
 '@datadog/agent-platform': ACIX
 '@datadog/documentation': DOCS
 '@datadog/container-integrations': CONTINT
 '@datadog/container-platform': CONTP
-'@datadog/container-ecosystems': CECO
+'@datadog/agent-onboarding': AGENTONB
 '@datadog/container-autoscaling': CASCL
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
@@ -18,16 +19,16 @@
 '@datadog/agent-log-pipelines': AGNTLOG
 '@datadog/agent-runtimes': AGENTRUN
 '@datadog/agent-configuration': AGENTCFG
-'@datadog/container-app': CAP
+'@datadog/kubernetes-experiences': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
 '@datadog/remote-config': RC
 '@datadog/fleet': FA
 '@datadog/agent-all': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
-'@datadog/networks': NPM
+'@datadog/cloud-network-monitoring': CNM
 '@datadog/universal-service-monitoring': USMON
-'@datadog/windows-agent': WINA
+'@datadog/windows-products': WINA
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
 '@datadog/agent-e2e-testing': ADXT
@@ -39,8 +40,7 @@
 '@datadog/database-monitoring': DBMON
 '@datadog/data-streams-monitoring': DSMON
 '@datadog/agent-cspm': SEC
-'@datadog/telemetry-and-analytics': AIT
-'@datadog/apm-trace-storage': APMTS
+'@datadog/apm-trace-storage': TDH
 '@datadog/asm-go': APPSEC
 '@datadog/agent-delivery': BARX
 '@datadog/agent-build': ABLD
@@ -48,3 +48,5 @@
 '@datadog/injection-platform': INPLAT
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
+'@datadog/synthetics-executing': SYNORG
+'@datadog/agent-health': AHEALTH

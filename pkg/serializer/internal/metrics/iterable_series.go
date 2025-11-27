@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -106,77 +105,50 @@ func describeItem(serie *metrics.Serie) string {
 	return fmt.Sprintf("name %q, %d points", serie.Name, len(serie.Points))
 }
 
-// MarshalSplitCompress uses the stream compressor to marshal and compress series payloads.
-// If a compressed payload is larger than the max, a new payload will be generated. This method returns a slice of
-// compressed protobuf marshaled MetricPayload objects.
-func (series *IterableSeries) MarshalSplitCompress(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (transaction.BytesPayloads, error) {
-	pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-	if err != nil {
-		return nil, err
-	}
-
-	err = pb.startPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
-	// the serie.NoIndex field.
-	for series.source.MoveNext() {
-		err = pb.writeSerie(series.source.Current())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// if the last payload has any data, flush it
-	err = pb.finishPayload()
-	if err != nil {
-		return nil, err
-	}
-
-	return pb.payloads, nil
+type serieWriter interface {
+	writeSerie(serie *metrics.Serie) error
+	startPayload() error
+	finishPayload() error
 }
 
-// MarshalSplitCompressMultiple uses the stream compressor to marshal and compress one series into three sets of payloads.
-// One set of payloads contains all metrics,
-// The seond contains only those that pass the provided MRF filter function.
-// The third contains only those that pass the provided autoscaling local failover filter function.
-// This function exists because we need a way to build both payloads in a single pass over the input data, which cannot be iterated over twice.
-func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Component, strategy compression.Component, filterFuncForMRF func(s *metrics.Serie) bool, filterFuncForAutoscaling func(s *metrics.Serie) bool) (transaction.BytesPayloads, transaction.BytesPayloads, transaction.BytesPayloads, error) {
-	pbs := make([]*PayloadsBuilder, 3) // 0: all, 1: MRF, 2: autoscaling
-	for i := range pbs {
-		bufferContext := marshaler.NewBufferContext()
-		pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy)
-		if err != nil {
-			return nil, nil, nil, err
+// MarshalSplitCompressPipelines uses the stream compressor to marshal and
+// compress series payloads, allowing multiple variants to be generated in a
+// single pass over the input data. If a compressed payload is larger than the
+// max, a new payload will be generated. This method returns a slice of
+// compressed protobuf marshaled MetricPayload objects.
+func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
+	pbs := make([]serieWriter, 0, len(pipelines))
+	var sw serieWriter
+	for pipelineConfig, pipelineContext := range pipelines {
+		if !pipelineConfig.V3 {
+			bufferContext := marshaler.NewBufferContext()
+			pb, err := series.NewPayloadsBuilder(bufferContext, config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = &pb
+			pbs = append(pbs, sw)
+		} else {
+			pb, err := newPayloadsBuilderV3WithConfig(config, strategy, pipelineConfig, pipelineContext)
+			if err != nil {
+				return err
+			}
+			sw = pb
+			pbs = append(pbs, sw)
 		}
-		pbs[i] = &pb
-
-		err = pbs[i].startPayload()
+		err := sw.startPayload()
 		if err != nil {
-			return nil, nil, nil, err
+			return err
 		}
 	}
+
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
-		err := pbs[0].writeSerie(series.source.Current())
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		if filterFuncForMRF(series.source.Current()) {
-			err = pbs[1].writeSerie(series.source.Current())
+		for _, pb := range pbs {
+			err := pb.writeSerie(series.source.Current())
 			if err != nil {
-				return nil, nil, nil, err
-			}
-		}
-
-		if filterFuncForAutoscaling(series.source.Current()) {
-			err = pbs[2].writeSerie(series.source.Current())
-			if err != nil {
-				return nil, nil, nil, err
+				return err
 			}
 		}
 	}
@@ -185,27 +157,31 @@ func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Compone
 	for i := range pbs {
 		err := pbs[i].finishPayload()
 		if err != nil {
-			return nil, nil, nil, err
+			return err
 		}
 	}
 
-	return pbs[0].payloads, pbs[1].payloads, pbs[2].payloads, nil
+	return nil
 }
 
 // NewPayloadsBuilder initializes a new PayloadsBuilder to be used for serializing series into a set of output payloads.
-func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (PayloadsBuilder, error) {
+func (series *IterableSeries) NewPayloadsBuilder(
+	bufferContext *marshaler.BufferContext,
+	config config.Component,
+	strategy compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) (PayloadsBuilder, error) {
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)
 
 	return PayloadsBuilder{
 		bufferContext: bufferContext,
-		config:        config,
 		strategy:      strategy,
 
 		compressor: nil,
 		buf:        buf,
 		ps:         ps,
-		payloads:   []*transaction.BytesPayload{},
 
 		pointsThisPayload: 0,
 		seriesThisPayload: 0,
@@ -213,19 +189,20 @@ func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.Buffer
 		maxPayloadSize:      config.GetInt("serializer_max_series_payload_size"),
 		maxUncompressedSize: config.GetInt("serializer_max_series_uncompressed_payload_size"),
 		maxPointsPerPayload: config.GetInt("serializer_max_series_points_per_payload"),
+
+		pipelineConfig:  pipelineConfig,
+		pipelineContext: pipelineContext,
 	}, nil
 }
 
 // PayloadsBuilder represents an in-progress serialization of a series into potentially multiple payloads.
 type PayloadsBuilder struct {
 	bufferContext *marshaler.BufferContext
-	config        config.Component
 	strategy      compression.Component
 
 	compressor *stream.Compressor
 	buf        *bytes.Buffer
 	ps         *molecule.ProtoStream
-	payloads   []*transaction.BytesPayload
 
 	pointsThisPayload int
 	seriesThisPayload int
@@ -233,6 +210,9 @@ type PayloadsBuilder struct {
 	maxPayloadSize      int
 	maxUncompressedSize int
 	maxPointsPerPayload int
+
+	pipelineConfig  PipelineConfig
+	pipelineContext *PipelineContext
 }
 
 // Prepare to write the next payload
@@ -289,6 +269,10 @@ func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
 	const serieMetadataOriginOriginService = 6
 	//                 |----|  'Origin' message
 	//                       |-----------| 'origin_service' field index
+
+	if !pb.pipelineConfig.Filter.Filter(serie) {
+		return nil
+	}
 
 	addToPayload := func() error {
 		err := pb.compressor.AddItem(pb.buf.Bytes())
@@ -490,105 +474,10 @@ func (pb *PayloadsBuilder) finishPayload() error {
 	}
 
 	if pb.seriesThisPayload > 0 {
-		pb.payloads = append(pb.payloads, transaction.NewBytesPayload(payload, pb.pointsThisPayload))
+		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
 	return nil
-}
-
-// MarshalJSON serializes timeseries to JSON so it can be sent to V1 endpoints
-// FIXME(maxime): to be removed when v2 endpoints are available
-func (series *IterableSeries) MarshalJSON() ([]byte, error) {
-	type SeriesWithMetadata struct {
-		*metrics.Serie
-		Metadata metrics.Metadata `json:"metadata,omitempty"`
-	}
-
-	seriesWithMetadata := make([]SeriesWithMetadata, 0)
-	for series.MoveNext() {
-		serie := series.source.Current()
-		serie.PopulateDeviceField()
-		serie.PopulateResources()
-
-		serieWithMetadata := SeriesWithMetadata{
-			Serie: serie,
-		}
-
-		if serie.Source != 0 {
-			serieWithMetadata.Metadata = metrics.Metadata{
-				Origin: metrics.Origin{
-					OriginProduct:       metricSourceToOriginProduct(serie.Source),
-					OriginSubProduct:    metricSourceToOriginCategory(serie.Source),
-					OriginProductDetail: metricSourceToOriginService(serie.Source),
-				},
-			}
-		}
-
-		seriesWithMetadata = append(seriesWithMetadata, serieWithMetadata)
-	}
-
-	data := map[string][]SeriesWithMetadata{
-		"series": seriesWithMetadata,
-	}
-	reqBody := &bytes.Buffer{}
-	err := json.NewEncoder(reqBody).Encode(data)
-	return reqBody.Bytes(), err
-}
-
-// SplitPayload breaks the payload into, at least, "times" number of pieces
-func (series *IterableSeries) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	seriesExpvar.Add("TimesSplit", 1)
-	tlmSeries.Inc("times_split")
-
-	// We need to split series without splitting metrics across multiple
-	// payload. So we first group series by metric name.
-	metricsPerName := map[string]Series{}
-	serieCount := 0
-	for series.MoveNext() {
-		s := series.source.Current()
-		serieCount++
-		metricsPerName[s.Name] = append(metricsPerName[s.Name], s)
-	}
-
-	// if we only have one metric name we cannot split further
-	if len(metricsPerName) == 1 {
-		seriesExpvar.Add("SplitMetricsTooBig", 1)
-		tlmSeries.Inc("split_metrics_too_big")
-		var metricName string
-		for k := range metricsPerName {
-			metricName = k
-		}
-		return nil, fmt.Errorf("Cannot split metric '%s' into %d payload (it contains %d series)", metricName, times, serieCount)
-	}
-
-	nbSeriesPerPayload := serieCount / times
-
-	payloads := []marshaler.AbstractMarshaler{}
-	current := Series{}
-	for _, m := range metricsPerName {
-		// If on metric is bigger than the targeted size we directly
-		// add it as a payload.
-		if len(m) >= nbSeriesPerPayload {
-			payloads = append(payloads, m)
-			continue
-		}
-
-		// Then either append to the current payload if "m" is small
-		// enough or flush the current payload and start a new one.
-		// This may result in more than twice the number of payloads
-		// asked for but is "good enough" and will loop only once
-		// through metricsPerName
-		if len(current)+len(m) < nbSeriesPerPayload {
-			current = append(current, m...)
-		} else {
-			payloads = append(payloads, current)
-			current = m
-		}
-	}
-	if len(current) != 0 {
-		payloads = append(payloads, current)
-	}
-	return payloads, nil
 }
 
 func encodeSerie(serie *metrics.Serie, stream *jsoniter.Stream) {

@@ -40,13 +40,13 @@ import (
 func ExamplePrintJSON() {
 	p := constructExampleProgram()
 
-	// Marshal to JSON
+	// Marshal to JSON.
 	data, err := PrintJSON(p)
 	if err != nil {
 		panic(err)
 	}
 
-	// Pretty print the JSON
+	// Pretty print the JSON.
 	var buf bytes.Buffer
 	json.Indent(&buf, data, "", "  ")
 	fmt.Println(buf.String())
@@ -58,11 +58,18 @@ func ExamplePrintJSON() {
 	//   "Subprograms": [],
 	//   "Types": [
 	//     {
+	//       "__kind": "PointerType",
+	//       "ID": 3,
+	//       "Name": "*Node",
+	//       "ByteSize": 8,
+	//       "Pointee": "1 StructureType Node"
+	//     },
+	//     {
 	//       "__kind": "StructureType",
 	//       "ID": 1,
 	//       "Name": "Node",
 	//       "ByteSize": 16,
-	//       "Fields": [
+	//       "RawFields": [
 	//         {
 	//           "Name": "value",
 	//           "Offset": 0,
@@ -81,19 +88,19 @@ func ExamplePrintJSON() {
 	//       "Name": "int",
 	//       "ByteSize": 8,
 	//       "GoKind": 2
-	//     },
-	//     {
-	//       "__kind": "PointerType",
-	//       "ID": 3,
-	//       "Name": "*Node",
-	//       "ByteSize": 8,
-	//       "Pointee": "1 StructureType Node"
 	//     }
 	//   ],
 	//   "MaxTypeID": 3,
-	//   "Issues": []
+	//   "Issues": [],
+	//   "GoModuledataInfo": {
+	//     "FirstModuledataAddr": "0xdeadbeef",
+	//     "TypesOffset": 1234
+	//   },
+	//   "CommonTypes": {
+	//     "G": "4 StructureType runtime.g",
+	//     "M": "5 StructureType runtime.m"
+	//   }
 	// }
-
 }
 
 func ExamplePrintYAML() {
@@ -110,11 +117,16 @@ func ExamplePrintYAML() {
 	// Probes: []
 	// Subprograms: []
 	// Types:
+	//     - __kind: PointerType
+	//       ID: 3
+	//       Name: '*Node'
+	//       ByteSize: 8
+	//       Pointee: 1 StructureType Node
 	//     - __kind: StructureType
 	//       ID: 1
 	//       Name: Node
 	//       ByteSize: 16
-	//       Fields:
+	//       RawFields:
 	//         - Name: value
 	//           Offset: 0
 	//           Type: 2 BaseType int
@@ -126,13 +138,12 @@ func ExamplePrintYAML() {
 	//       Name: int
 	//       ByteSize: 8
 	//       GoKind: 2
-	//     - __kind: PointerType
-	//       ID: 3
-	//       Name: '*Node'
-	//       ByteSize: 8
-	//       Pointee: 1 StructureType Node
 	// MaxTypeID: 3
 	// Issues: []
+	// GoModuledataInfo: {FirstModuledataAddr: "0xdeadbeef", TypesOffset: 1234}
+	// CommonTypes:
+	//     G: 4 StructureType runtime.g
+	//     M: 5 StructureType runtime.m
 }
 
 func constructExampleProgram() *ir.Program {
@@ -141,6 +152,26 @@ func constructExampleProgram() *ir.Program {
 		ID:        1,
 		MaxTypeID: 3,
 		Types:     make(map[ir.TypeID]ir.Type),
+		GoModuledataInfo: ir.GoModuledataInfo{
+			FirstModuledataAddr: 0xdeadbeef,
+			TypesOffset:         1234,
+		},
+		CommonTypes: ir.CommonTypes{
+			G: &ir.StructureType{
+				TypeCommon: ir.TypeCommon{
+					ID:       4,
+					Name:     "runtime.g",
+					ByteSize: 128,
+				},
+			},
+			M: &ir.StructureType{
+				TypeCommon: ir.TypeCommon{
+					ID:       5,
+					Name:     "runtime.m",
+					ByteSize: 128,
+				},
+			},
+		},
 	}
 
 	// Create a self-referential linked list node
@@ -150,7 +181,7 @@ func constructExampleProgram() *ir.Program {
 			Name:     "Node",
 			ByteSize: 16,
 		},
-		Fields: []ir.Field{
+		RawFields: []ir.Field{
 			{
 				Name:   "value",
 				Offset: 0,
@@ -168,7 +199,7 @@ func constructExampleProgram() *ir.Program {
 		},
 	}
 	p.Types[1] = nodeStruct
-	p.Types[2] = nodeStruct.Fields[0].Type
+	p.Types[2] = nodeStruct.RawFields[0].Type
 
 	// Create pointer to Node
 	nodePtr := &ir.PointerType{
@@ -182,7 +213,7 @@ func constructExampleProgram() *ir.Program {
 	p.Types[3] = nodePtr
 
 	// Complete the cycle
-	nodeStruct.Fields = append(nodeStruct.Fields, ir.Field{
+	nodeStruct.RawFields = append(nodeStruct.RawFields, ir.Field{
 		Name:   "next",
 		Offset: 8,
 		Type:   nodePtr,

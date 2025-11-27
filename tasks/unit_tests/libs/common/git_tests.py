@@ -9,6 +9,7 @@ from tasks.libs.common.git import (
     check_uncommitted_changes,
     get_commit_sha,
     get_current_branch,
+    get_full_ref_name,
     get_last_release_tag,
     get_staged_files,
     get_unstaged_files,
@@ -148,6 +149,17 @@ class TestGit(unittest.TestCase):
                     f"git rev-parse {'--short ' if test['short'] else ''}HEAD", hide=True
                 )
                 self.ctx_mock.run.reset_mock()
+
+    def test_full_ref_name(self):
+        self.assertEqual(get_full_ref_name("main"), "origin/main")
+        self.assertEqual(
+            get_full_ref_name("d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"), "d04e7dd6d5fc0ac2a8fb89bdce6ec97a3f210c7a"
+        )
+        self.assertEqual(get_full_ref_name("refs/heads/main"), "refs/heads/main")
+        self.assertEqual(get_full_ref_name("my/br4nch"), "origin/my/br4nch")
+        self.assertEqual(get_full_ref_name("origin/main"), "origin/main")
+        self.assertEqual(get_full_ref_name("origin/1234567890"), "origin/1234567890")
+        self.assertEqual(get_full_ref_name("refs/heads/1234567890"), "refs/heads/1234567890")
 
 
 class TestGetLastTag(unittest.TestCase):

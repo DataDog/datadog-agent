@@ -25,7 +25,10 @@ import (
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+const requestWithHeader = "datadog-agent-diagnose"
 
 func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
@@ -82,7 +85,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	domainResolvers, err := resolver.NewSingleDomainResolvers2(keysPerDomain)
 	if err != nil {
 		return []diagnose.Diagnosis{
 			{
@@ -146,7 +149,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 					logURL = endpointInfo.Endpoint.Route
 					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
 				} else {
-					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+					domain := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
 					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
 
@@ -204,11 +207,14 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 	url := createEndpointURL(domain, endpointInfo)
 
 	headers := map[string]string{
-		"Content-Type": endpointInfo.ContentType,
-		"DD-API-KEY":   apiKey,
+		"Content-Type":     endpointInfo.ContentType,
+		"DD-API-KEY":       apiKey,
+		"DD-Agent-Version": version.AgentVersion,
+		"User-Agent":       fmt.Sprintf("datadog-agent/%s", version.AgentVersion),
+		"X-Requested-With": requestWithHeader,
 	}
 
-	return sendPost(ctx, client, url, endpointInfo.Payload, headers)
+	return sendRequest(ctx, client, url, endpointInfo.Method, endpointInfo.Payload, headers)
 }
 
 // createEndpointUrl joins a domain with an endpoint

@@ -12,16 +12,12 @@ import (
 	"math"
 	"net"
 	"slices"
-	"strings"
 	"time"
 
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -185,6 +181,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorReportInternalPolicies bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
+	// SocketPath is the path to the socket that is used to communicate with system-probe
+	CmdSocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -235,8 +233,8 @@ type RuntimeSecurityConfig struct {
 	// ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation
 	// of activity dumps based on cgroups.
 	ActivityDumpTracedCgroupsCount int
-	// ActivityDumpCgroupsManagers defines the cgroup managers we generate dumps for.
-	ActivityDumpCgroupsManagers []string
+	// ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
+	ActivityDumpTraceSystemdCgroups bool
 
 	// ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this
 	// parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added
@@ -297,6 +295,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileMaxCount int
 	// SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	SecurityProfileDNSMatchMaxDepth int
+	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
+	SecurityProfileNodeEvictionTimeout time.Duration
 
 	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
 	SecurityProfileAutoSuppressionEnabled bool
@@ -343,8 +343,6 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
-	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
-	SBOMResolverAnalyzers []string
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -363,6 +361,8 @@ type RuntimeSecurityConfig struct {
 
 	// SysCtlEnabled defines if the sysctl event should be enabled
 	SysCtlEnabled bool
+	// SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
+	SysCtlEBPFEnabled bool
 	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
 	SysCtlSnapshotEnabled bool
 	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
@@ -422,8 +422,11 @@ type RuntimeSecurityConfig struct {
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 
-	// SendEventFromSystemProbe defines when the event are sent directly from system-probe
-	SendEventFromSystemProbe bool
+	// EventGRPCServer defines which process should be used to send events and activity dumps
+	EventGRPCServer string
+
+	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
+	SendPayloadsFromSystemProbe bool
 
 	// FileMetadataResolverEnabled defines if the file metadata is enabled
 	FileMetadataResolverEnabled bool
@@ -460,23 +463,38 @@ func NewConfig() (*Config, error) {
 func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	sysconfig.Adjust(pkgconfigsetup.SystemProbe())
 
-	eventTypeStrings := map[string]model.EventType{}
+	allEventTypes := make([]model.EventType, 0, model.MaxKernelEventType)
 
 	var eventType model.EventType
 	for i := uint64(0); i != uint64(model.MaxKernelEventType); i++ {
 		eventType = model.EventType(i)
-		eventTypeStrings[eventType.String()] = eventType
+		allEventTypes = append(allEventTypes, eventType)
 	}
 
 	// parseEventTypeStringSlice converts a string list to a list of event types
 	parseEventTypeStringSlice := func(eventTypes []string) []model.EventType {
 		var output []model.EventType
 		for _, eventTypeStr := range eventTypes {
-			if eventType := eventTypeStrings[eventTypeStr]; eventType != model.UnknownEventType {
-				output = append(output, eventType)
+			if eventTypeStr == "*" {
+				return allEventTypes
 			}
+			eventType, err := model.ParseEvalEventType(eventTypeStr)
+			if err != nil {
+				seclog.Errorf("failed to parse event type '%s': %v", eventTypeStr, err)
+				continue
+			}
+			if eventType == model.UnknownEventType {
+				seclog.Errorf("unknown event type '%s'", eventTypeStr)
+				continue
+			}
+			output = append(output, eventType)
 		}
 		return output
+	}
+
+	anomalyDetectionMinimumStablePeriods, err := parseEventTypeDurations(pkgconfigsetup.SystemProbe(), "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")
+	if err != nil {
+		return nil, err
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
@@ -492,6 +510,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		CmdSocketPath:        pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
@@ -520,12 +539,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// activity dump
 		ActivityDumpEnabled:                   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.enabled"),
+		ActivityDumpTraceSystemdCgroups:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.trace_systemd_cgroups"),
 		ActivityDumpCleanupPeriod:             pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cleanup_period"),
 		ActivityDumpTagsResolutionPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
 		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
 		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
 		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpCgroupsManagers:           pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.cgroup_managers"),
 		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
 		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
@@ -550,7 +569,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverAnalyzers:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sbom.analyzers"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -563,19 +581,21 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// SysCtl config parameter
 		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlEBPFEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.ebpf.enabled"),
 		SysCtlSnapshotEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
 		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
 		SysCtlSnapshotKernelCompilationFlags: map[string]uint8{},
 
 		// security profiles
-		SecurityProfileEnabled:          pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
-		SecurityProfileMaxImageTags:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
-		SecurityProfileDir:              pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:         pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
-		SecurityProfileDNSMatchMaxDepth: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
+		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
+		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
+		SecurityProfileCacheSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
+		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
+		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
+		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 
 		// auto suppression
 		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),
@@ -584,7 +604,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// anomaly detection
 		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
 		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
-		AnomalyDetectionMinimumStablePeriods:         parseEventTypeDurations(pkgconfigsetup.SystemProbe(), "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period"),
+		AnomalyDetectionMinimumStablePeriods:         anomalyDetectionMinimumStablePeriods,
 		AnomalyDetectionWorkloadWarmupPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
 		AnomalyDetectionUnstableProfileTimeThreshold: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
 		AnomalyDetectionUnstableProfileSizeThreshold: pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
@@ -617,8 +637,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
 
+		// event
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
+
 		// direct sender
-		SendEventFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
+		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
 
 		// FileMetadataResolverEnabled
 		FileMetadataResolverEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.file_metadata_resolver.enabled"),
@@ -650,6 +673,16 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (c *RuntimeSecurityConfig) IsSysctlEventEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlEBPFEnabled
+}
+
+// IsSysctlSnapshotEnabled returns whether the sysctl snapshot feature is enabled
+func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
+}
+
 // parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
 func parseIMDSIPv4() uint32 {
 	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
@@ -669,7 +702,7 @@ func isRemoteConfigEnabled() bool {
 		return false
 	}
 
-	if pkgconfigsetup.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
+	if configUtils.IsRemoteConfigEnabled(pkgconfigsetup.Datadog()) {
 		return true
 	}
 
@@ -678,12 +711,12 @@ func isRemoteConfigEnabled() bool {
 
 // IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
 // it's based on the configuration itself, but will default on true if
-// running on fargate
+// running in sidecar mode
 func IsEBPFLessModeEnabled() bool {
 	const cfgKey = "runtime_security_config.ebpfless.enabled"
-	// by default on fargate, we enable ebpfless mode
-	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
-		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+	// by default in sidecar mode, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsSidecar() {
+		seclog.Infof("Sidecar instance detected, enabling CWS ebpfless mode")
 		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
 	}
 
@@ -747,48 +780,18 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 	return nil
 }
 
-// ActivityDumpRemoteStorageEndpoints returns the list of activity dump remote storage endpoints parsed from the agent config
-func ActivityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeProtocol logsconfig.IntakeProtocol, intakeOrigin logsconfig.IntakeOrigin) (*logsconfig.Endpoints, error) {
-	logsConfig := logsconfig.NewLogsConfigKeys("runtime_security_config.activity_dump.remote_storage.endpoints.", pkgconfigsetup.Datadog())
-	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
-	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
-			endpoints, err = logsconfig.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("invalid endpoints: %w", err)
-	}
-
-	for _, status := range endpoints.GetStatus() {
-		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
-	}
-	return endpoints, nil
-}
-
-// ParseEvalEventType convert a eval.EventType (string) to its uint64 representation
-// the current algorithm is not efficient but allows us to reduce the number of conversion functions
-func ParseEvalEventType(eventType eval.EventType) model.EventType {
-	for i := uint64(0); i != uint64(model.MaxAllEventType); i++ {
-		if model.EventType(i).String() == eventType {
-			return model.EventType(i)
-		}
-	}
-
-	return model.UnknownEventType
-}
-
 // parseEventTypeDurations converts a map of durations indexed by event types
-func parseEventTypeDurations(cfg pkgconfigmodel.Config, prefix string) map[model.EventType]time.Duration {
+func parseEventTypeDurations(cfg pkgconfigmodel.Config, prefix string) (map[model.EventType]time.Duration, error) {
 	eventTypeMap := cfg.GetStringMap(prefix)
 	eventTypeDurations := make(map[model.EventType]time.Duration, len(eventTypeMap))
-	for eventType := range eventTypeMap {
-		eventTypeDurations[ParseEvalEventType(eventType)] = cfg.GetDuration(prefix + "." + eventType)
+	for eventTypeName := range eventTypeMap {
+		eventType, err := model.ParseEvalEventType(eventTypeName)
+		if err != nil {
+			return nil, err
+		}
+		eventTypeDurations[eventType] = cfg.GetDuration(prefix + "." + eventTypeName)
 	}
-	return eventTypeDurations
+	return eventTypeDurations, nil
 }
 
 // parseHashAlgorithmStringSlice converts a string list to a list of hash algorithms
@@ -803,12 +806,4 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
-}
-
-// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
-func GetFamilyAddress(path string) string {
-	if strings.HasPrefix(path, "/") {
-		return "unix"
-	}
-	return "tcp"
 }

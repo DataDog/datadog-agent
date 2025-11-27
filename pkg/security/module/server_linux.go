@@ -15,7 +15,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -185,25 +188,10 @@ func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityP
 	return nil, fmt.Errorf("monitor not configured")
 }
 
-// GetStatus returns the status of the module
-func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
-	var apiStatus api.Status
-	if a.selfTester != nil {
-		apiStatus.SelfTests = a.selfTester.GetStatus()
-	}
-	apiStatus.PoliciesStatus = a.policiesStatus
-
-	seclVariables := a.GetSECLVariables()
-	for _, seclVariable := range seclVariables {
-		apiStatus.SECLVariables = append(apiStatus.SECLVariables, seclVariable)
-	}
-
+func (a *APIServer) fillStatusPlatform(apiStatus *api.Status) error {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
-		status, err := p.GetConstantFetcherStatus()
-		if err != nil {
-			return nil, err
-		}
+		status := p.GetConstantFetcherStatus()
 
 		constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
 		for _, v := range status.Values {
@@ -233,8 +221,7 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 			}
 		}
 	}
-
-	return &apiStatus, nil
+	return nil
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests
@@ -283,4 +270,30 @@ func (a *APIServer) collectOSReleaseData() {
 
 	a.kernelVersion = kv.Code.String()
 	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
+}
+
+type sshSessionPatcher = *probe.SSHUserSessionPatcher
+
+// createSSHSessionPatcher creates an SSH session patcher for Linux
+func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher {
+	if ev.ProcessContext.UserSession.ID != 0 && ev.ProcessContext.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
+		// Access the EBPFProbe to get the UserSessionsResolver
+		if ebpfProbe, ok := p.PlatformProbe.(*probe.EBPFProbe); ok {
+			if model.UserSessionTypeStrings == nil {
+				model.InitUserSessionTypes()
+			}
+			// Create the user session context serializer
+			userSessionCtx := &serializers.UserSessionContextSerializer{
+				ID:          fmt.Sprintf("%x", ev.ProcessContext.UserSession.ID),
+				SessionType: model.UserSessionTypeStrings[usersession.Type(ev.ProcessContext.UserSession.SessionType)],
+				SSHPort:     ev.ProcessContext.UserSession.SSHPort,
+				SSHClientIP: ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
+			}
+			return probe.NewSSHUserSessionPatcher(
+				userSessionCtx,
+				ebpfProbe.Resolvers.UserSessionsResolver,
+			)
+		}
+	}
+	return nil
 }

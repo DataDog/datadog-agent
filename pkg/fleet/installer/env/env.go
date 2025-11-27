@@ -25,6 +25,7 @@ const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
 	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envOTelCollectorEnabled  = "DD_OTELCOLLECTOR_ENABLED"
 	envMirror                = "DD_INSTALLER_MIRROR"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
@@ -58,6 +59,7 @@ const (
 	envIastEnabled               = "DD_IAST_ENABLED"
 	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
 	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
+	envInfrastructureMode        = "DD_INFRASTRUCTURE_MODE"
 )
 
 // Windows MSI options
@@ -73,10 +75,11 @@ const (
 )
 
 var defaultEnv = Env{
-	APIKey:        "",
-	Site:          "datadoghq.com",
-	RemoteUpdates: false,
-	Mirror:        "",
+	APIKey:               "",
+	Site:                 "datadoghq.com",
+	RemoteUpdates:        false,
+	OTelCollectorEnabled: false,
+	Mirror:               "",
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -117,6 +120,8 @@ const (
 	APMInstrumentationEnabledDocker = "docker"
 	// APMInstrumentationEnabledHost enables APM instrumentation for the host.
 	APMInstrumentationEnabledHost = "host"
+	// APMInstrumentationEnabledIIS enables APM instrumentation for .NET applications running on IIS on Windows
+	APMInstrumentationEnabledIIS = "iis"
 	// APMInstrumentationNotSet is the default value when the environment variable is not set.
 	APMInstrumentationNotSet = "not_set"
 )
@@ -148,9 +153,11 @@ type InstallScriptEnv struct {
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey        string
-	Site          string
-	RemoteUpdates bool
+	APIKey               string
+	Site                 string
+	RemoteUpdates        bool
+	OTelCollectorEnabled bool
+	ConfigID             string
 
 	Mirror                      string
 	RegistryOverride            string
@@ -180,6 +187,8 @@ type Env struct {
 	HTTPProxy  string
 	HTTPSProxy string
 	NoProxy    string
+
+	InfrastructureMode string
 
 	IsCentos6 bool
 
@@ -219,9 +228,10 @@ func FromEnv() *Env {
 	}
 
 	return &Env{
-		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
-		RemoteUpdates: strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		APIKey:               getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:                 getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates:        strings.ToLower(os.Getenv(envRemoteUpdates)) == "true",
+		OTelCollectorEnabled: strings.ToLower(os.Getenv(envOTelCollectorEnabled)) == "true",
 
 		Mirror:                      getEnvOrDefault(envMirror, defaultEnv.Mirror),
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
@@ -270,6 +280,8 @@ func FromEnv() *Env {
 		HTTPProxy:  getProxySetting(envDDHTTPProxy, envHTTPProxy),
 		HTTPSProxy: getProxySetting(envDDHTTPSProxy, envHTTPSProxy),
 		NoProxy:    getProxySetting(envDDNoProxy, envNoProxy),
+
+		InfrastructureMode: os.Getenv(envInfrastructureMode),
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
@@ -322,6 +334,9 @@ func (e *Env) ToEnv() []string {
 	if e.RemoteUpdates {
 		env = append(env, envRemoteUpdates+"=true")
 	}
+	if e.OTelCollectorEnabled {
+		env = append(env, envOTelCollectorEnabled+"=true")
+	}
 	env = appendStringEnv(env, envMirror, e.Mirror, "")
 	env = appendStringEnv(env, envRegistryURL, e.RegistryOverride, "")
 	env = appendStringEnv(env, envRegistryAuth, e.RegistryAuthOverride, "")
@@ -348,6 +363,7 @@ func (e *Env) ToEnv() []string {
 	env = appendStringEnv(env, envHTTPProxy, e.HTTPProxy, "")
 	env = appendStringEnv(env, envHTTPSProxy, e.HTTPSProxy, "")
 	env = appendStringEnv(env, envNoProxy, e.NoProxy, "")
+	env = appendStringEnv(env, envInfrastructureMode, e.InfrastructureMode, "")
 	if e.IsFromDaemon {
 		env = append(env, envIsFromDaemon+"=true")
 		// This is a bit of a hack; as we should properly redirect the log level

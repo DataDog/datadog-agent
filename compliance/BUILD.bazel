@@ -1,0 +1,41 @@
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//compliance:license_csv.bzl", "license_csv")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "gather_licenses",
+    srcs = ["gather_licenses.py"],
+    visibility = ["//visibility:private"],
+    deps = ["//tasks:licenses"],
+)
+
+# Gather the licenses for dependencies that not built by omnibus any more.
+# The target is a temporary hack. In the future, it should becomg //pkg:agent.
+license_csv(
+    name = "licenses",
+    csv_out = "licenses.csv",
+    offers_out = "sources.txt",
+    tags = ["manual"],
+    target = "//deps:all_deps",
+)
+
+# We need to install sources.txt in /opt/datadog-agent/sources/.
+pkg_files(
+    name = "source_offers",
+    srcs = [":sources.txt"],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "sources",
+)
+
+pkg_install(
+    name = "install_source_offers",
+    srcs = [
+        ":source_offers",
+    ],
+)

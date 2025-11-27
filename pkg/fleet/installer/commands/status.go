@@ -138,10 +138,9 @@ type errorWithCode struct {
 func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
-	// The simplest thing here is to call ourselves with the daemon command
 	installerBinary, err := os.Executable()
 	if err != nil {
-		return response, fmt.Errorf("could not get installer binary path: %w", err)
+		return response, fmt.Errorf("error getting executable path: %w", err)
 	}
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -150,7 +149,7 @@ func getRCStatus() (remoteConfigState, error) {
 	cmd.Stderr = stderr
 	err = cmd.Run()
 	if err != nil {
-		return response, fmt.Errorf("error running \"datadog-installer daemon rc-status\" (is the daemon running?): %s", stderr.String())
+		return response, fmt.Errorf("error getting RC status (is the daemon running?): %s", stderr.String())
 	}
 
 	err = json.Unmarshal(stdout.Bytes(), &response)

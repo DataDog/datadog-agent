@@ -14,21 +14,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	ctrUtil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // computeEvents converts Containerd events into Datadog events
-func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender, fil *containers.Filter) {
+func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.Sender) {
 	for _, e := range events {
 		split := strings.Split(e.Topic, "/")
 		if len(split) != 3 {
@@ -37,7 +38,8 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		if split[1] == "images" && fil.IsExcluded(nil, "", e.ID, "") {
+		filterableContainerImage := workloadfilter.CreateContainerImage(e.ID)
+		if split[1] == "images" && c.containerFilter.IsExcluded(filterableContainerImage) {
 			continue
 		}
 
@@ -111,19 +113,21 @@ type subscriber struct {
 	CollectionTimestamp int64
 	running             bool
 	client              ctrUtil.ContainerdItf
+	pauseFilter         workloadfilter.FilterBundle
 
 	isCacheConfigValid bool
 	imageSizeCache     map[string]map[string]int64 // namespace -> image -> size
 	imageSizeCacheLock sync.RWMutex
 }
 
-func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string) *subscriber {
+func createEventSubscriber(name string, client ctrUtil.ContainerdItf, f []string, pauseFilter workloadfilter.FilterBundle) *subscriber {
 	return &subscriber{
 		Name:                name,
 		CollectionTimestamp: time.Now().Unix(),
 		Filters:             f,
 		client:              client,
 		imageSizeCache:      make(map[string]map[string]int64),
+		pauseFilter:         pauseFilter,
 	}
 }
 
@@ -191,7 +195,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		// "pause" one, and in that case, we store its ID in this set so when a
 		// delete event arrives we know if it corresponds to a "pause" container.
 		var err error
-		pauseContainers, err = pauseContainersIDs(s.client)
+		pauseContainers, err = s.pauseContainersIDs()
 		if err != nil {
 			return fmt.Errorf("can't get pause containers: %v", err)
 		}
@@ -218,18 +222,10 @@ func (s *subscriber) run(ctx context.Context) error {
 					// sandbox, we'll assume it's not. It's better to send an event
 					// that we should have ignored rather than not sending an event
 					// that shouldn't have been ignored.
-					isSandbox := false
 					container, err := s.client.Container(message.Namespace, create.ID)
 					if err != nil {
 						log.Warnf("error getting container: %v", err)
-					} else {
-						isSandbox, err = s.client.IsSandbox(message.Namespace, container)
-						if err != nil {
-							log.Warnf("error checking if container is sandbox: %v", err)
-						}
-					}
-
-					if isSandbox {
+					} else if s.shouldMarkAsPause(message.Namespace, container) {
 						pauseContainers.add(message.Namespace, create.ID)
 						continue
 					}
@@ -469,8 +465,9 @@ func getEventType(topic string) string {
 }
 
 // Returns a set indexed by namespace and containerID
-func pauseContainersIDs(client ctrUtil.ContainerdItf) (setPauseContainers, error) {
+func (s *subscriber) pauseContainersIDs() (setPauseContainers, error) {
 	pauseContainers := newSetPauseContainers()
+	client := s.client
 
 	namespaces, err := ctrUtil.NamespacesToWatch(context.TODO(), client)
 	if err != nil {
@@ -484,17 +481,27 @@ func pauseContainersIDs(client ctrUtil.ContainerdItf) (setPauseContainers, error
 		}
 
 		for _, container := range containersInNamespace {
-			isSandbox, err := client.IsSandbox(namespace, container)
-
-			// If there's an error, the container could have been deleted. When
-			// there's an error assume that the container is not sandbox.
-			if err == nil && isSandbox {
+			if s.shouldMarkAsPause(namespace, container) {
 				pauseContainers.add(namespace, container.ID())
 			}
 		}
 	}
 
 	return pauseContainers, nil
+}
+
+func (s *subscriber) shouldMarkAsPause(namespace string, container containerd.Container) bool {
+	client := s.client
+	pauseFilter := s.pauseFilter
+
+	info, err := client.Info(namespace, container)
+	if err != nil {
+		return false
+	}
+
+	isSandbox, err := client.IsSandbox(namespace, container)
+	filterableContainer := workloadfilter.CreateContainerImage(info.Image)
+	return (err == nil && isSandbox) || pauseFilter.IsExcluded(filterableContainer)
 }
 
 func (s *subscriber) GetImageSizes() map[string]map[string]int64 {

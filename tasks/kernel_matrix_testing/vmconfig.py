@@ -14,7 +14,12 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.kmt_os import Linux, get_kmt_os
 from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_platforms
-from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, destroy_stack, stack_exists
+from tasks.kernel_matrix_testing.stacks import (
+    check_and_get_stack,
+    create_stack,
+    destroy_stack,
+    stack_exists,
+)
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
@@ -285,6 +290,9 @@ def empty_config(file_path: str):
 
 
 def get_distribution_mappings() -> dict[str, str]:
+    """
+    Get a mapping of distribution names to the canonical name.
+    """
     platforms = get_platforms()
     distro_mappings: dict[str, str] = {}
     alternative_spellings = {"amzn": ["amazon", "al"]}
@@ -301,6 +309,7 @@ def get_distribution_mappings() -> dict[str, str]:
 
             distro_mappings[name] = name  # Direct name
             distro_mappings[name.replace('.', '')] = name  # Allow name without dots
+            distro_mappings[name.replace('_', '')] = name  # Allow name without underscores
             for alt in platinfo.get("alt_version_names", []):
                 distro_mappings[alt] = name  # Alternative version names map directly to the main name
 
@@ -316,8 +325,11 @@ def get_distribution_mappings() -> dict[str, str]:
                 for alt in alternative_spellings.get(os_id, []):
                     distro_mappings[f"{alt}_{version}"] = name
 
-                name_no_minor_version = f"{os_id}_{version.split('.')[0]}"
-                mapping_candidates[name_no_minor_version].add(name)
+                # Add also a possible mapping without the minor version, which will only be added
+                # if it's unique
+                mapping_candidates[f"{os_id}_{version.split('.')[0]}"].add(name)
+                mapping_candidates[f"{os_id}{version.split('.')[0]}"].add(name)
+                mapping_candidates[f"{os_id}-{version.split('.')[0]}"].add(name)
 
     # Add candidates that didn't have any duplicates
     for name, candidates in mapping_candidates.items():
@@ -328,13 +340,25 @@ def get_distribution_mappings() -> dict[str, str]:
 
 
 def list_possible() -> list[str]:
-    distros = list(get_distribution_mappings().keys())
+    """
+    List all possible vm-defs
+    """
+    distr_mappings = get_distribution_mappings()
+    platforms = get_platforms()
+    distros = list(distr_mappings.keys())
     archs: list[str] = list(ARCH_AMD64.spellings) + list(ARCH_ARM64.spellings) + [local_arch]
 
     result: list[str] = []
     possible = list(itertools.product(["custom"], kernels, archs)) + list(itertools.product(["distro"], distros, archs))
-    for p in possible:
-        result.append(f"{p[0]}-{p[1]}-{p[2]}")
+    for recipe, kernel, arch in possible:
+        # For distros, ensure that the kernel name is actually valid for the architecture
+        if recipe == "distro":
+            canonical_name = distr_mappings[kernel]
+            arch_name = Arch.from_str(arch).kmt_arch
+            if canonical_name not in platforms[arch_name]:
+                continue
+
+        result.append(f"{recipe}-{kernel}-{arch}")
 
     return result
 
@@ -414,6 +438,10 @@ def get_kernel_config(
         arch = Arch.local().kmt_arch
 
     url_base = platforms["url_base"]
+
+    if version not in platforms[arch]:
+        raise Exit(f"image {version} not found in platform information for {arch}")
+
     platinfo = platforms[arch][version]
     if "image" not in platinfo or "image_version" not in platinfo:
         raise Exit(f"image not found in platform information for {version}")
@@ -562,7 +590,7 @@ def url_to_fspath(url: str) -> str:
     filename = os.path.basename(source.path)
     filename = xz_suffix_removed(os.path.basename(source.path))
 
-    return f"file://{os.path.join(get_kmt_os().rootfs_dir,filename)}"
+    return f"file://{os.path.join(get_kmt_os().rootfs_dir, filename)}"
 
 
 def image_source_to_path(vmset: VMSetDict):
@@ -764,7 +792,7 @@ def gen_config_for_stack(
 
     if setup == "remote":
         for vmset in vm_config["vmsets"]:
-            if vmset["arch"] == "local":
+            if vmset.get("arch") == "local":
                 raise Exit(
                     "KMT initialized for remote only usage. Local VMs not supported. To use KMT locally run `dda inv -e kmt.init`"
                 )
@@ -859,7 +887,7 @@ def gen_config(
 
     print("Generated VMSets with tags:")
     for vmset in vm_config["vmsets"]:
-        tags = vmset["tags"]
+        tags = vmset.get("tags", [])
         tags.sort()
         print(f"- {', '.join(tags)}")
 
@@ -893,7 +921,7 @@ def get_image_age(manifest_path: str) -> str:
     return "Unknown"
 
 
-def has_checksum_changed(url_base: str, rootfs_dir: str, image: str, branch: str) -> bool:
+def has_checksum_changed(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str) -> bool:
     import requests
 
     if requests is None:
@@ -925,7 +953,7 @@ def has_checksum_changed(url_base: str, rootfs_dir: str, image: str, branch: str
     return False
 
 
-def is_image_up_to_date_hash(url_base: str, rootfs_dir: str, image: str, branch: str) -> str:
+def is_image_up_to_date_hash(url_base: str, rootfs_dir: PathOrStr, image: str, branch: str) -> str:
     try:
         needs_update = has_checksum_changed(url_base, rootfs_dir, image, branch)
         return CROSS if needs_update else TICK

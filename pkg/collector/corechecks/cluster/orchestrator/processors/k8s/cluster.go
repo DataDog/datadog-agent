@@ -58,6 +58,11 @@ func NewClusterProcessor() *ClusterProcessor {
 func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interface{}) (processResult processors.ProcessResult, processed int, err error) {
 	processed = -1
 
+	processResult = processors.ProcessResult{
+		MetadataMessages: []model.MessageBody{},
+		ManifestMessages: []model.MessageBody{},
+	}
+
 	defer processors.RecoverOnPanic()
 
 	// Cluster information is an aggregation of node list data.
@@ -190,8 +195,9 @@ func (p *ClusterProcessor) Process(ctx processors.ProcessorContext, list interfa
 					Tags: pctx.GetCollectorTags(),
 				},
 			},
-			Tags:         pctx.Cfg.ExtraTags,
-			AgentVersion: ctx.GetAgentVersion(),
+			Tags:            pctx.Cfg.ExtraTags,
+			AgentVersion:    ctx.GetAgentVersion(),
+			OriginCollector: model.OriginCollector_datadogAgent,
 		},
 	}
 	processResult = processors.ProcessResult{

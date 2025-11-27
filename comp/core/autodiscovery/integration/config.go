@@ -73,6 +73,12 @@ type Config struct {
 	// see ADIdentifiers.  (optional)
 	AdvancedADIdentifiers []AdvancedADIdentifier `json:"advanced_ad_identifiers"` // (include in digest: false)
 
+	// CELSelector is the list of CEL-based selectors for this integration. (optional)
+	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: false)
+
+	// Internal field to Autodiscovery, not serialized
+	matchingProgram MatchingProgram // (include in digest: false)
+
 	// Provider is the name of the config provider that issued the config.  If
 	// this is "", then the config is a service config, representing a service
 	// discovered by a listener.
@@ -107,6 +113,20 @@ type Config struct {
 	// LogsExcluded is whether logs collection is disabled (set by container
 	// listeners only)
 	LogsExcluded bool `json:"logs_excluded"` // (include in digest: false)
+
+	// PodNamespace is the k8s namespace for the container being monitored if any
+	PodNamespace string `json:"pod_namespace"` // (include in digest: false)
+
+	// ImageName is the container image name if any
+	ImageName string `json:"image_name"` // (include in digest: false)
+}
+
+// MatchingProgram is an interface for matching objects against filter rules.
+type MatchingProgram interface {
+	// IsMatched returns true if the object matches the filter rules
+	IsMatched(obj workloadfilter.Filterable) bool
+	// GetTargetType returns the target resource type of the program
+	GetTargetType() workloadfilter.ResourceType
 }
 
 // CommonInstanceConfig holds the reserved fields for the yaml instance data
@@ -168,6 +188,11 @@ func (c *Config) String() string {
 
 	rawConfig["check_name"] = c.Name
 
+	celString := c.CELSelector.String()
+	if celString != "" {
+		rawConfig["cel_selector"] = celString
+	}
+
 	yaml.Unmarshal(c.InitConfig, &initConfig) //nolint:errcheck
 	rawConfig["init_config"] = initConfig
 
@@ -192,6 +217,21 @@ func (c *Config) String() string {
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
+}
+
+// IsMatched returns true if the given object matches the filtering program of the config.
+// Note: this method should only be used within the autodiscovery component.
+func (c *Config) IsMatched(obj workloadfilter.Filterable) bool {
+	// If there's no matching program, then the config already matches w/ AD identifiers
+	if c.matchingProgram == nil {
+		return true
+	}
+	return c.matchingProgram.IsMatched(obj)
+}
+
+// SetMatchingProgram sets the matching program for the config.
+func (c *Config) SetMatchingProgram(p MatchingProgram) {
+	c.matchingProgram = p
 }
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,

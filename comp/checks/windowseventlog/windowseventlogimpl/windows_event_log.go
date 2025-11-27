@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build windows
+
 // Package windowseventlogimpl provides the Windows Event Log check component
 package windowseventlogimpl
 
@@ -15,6 +17,7 @@ import (
 	check "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -32,8 +35,9 @@ type dependencies struct {
 
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
-	LogsComponent option.Option[logsAgent.Component]
-	Config        configComponent.Component
+	LogsComponent          option.Option[logsAgent.Component]
+	Config                 configComponent.Component
+	PublisherMetadataCache publishermetadatacache.Component
 
 	Lifecycle fx.Lifecycle
 }
@@ -41,7 +45,7 @@ type dependencies struct {
 func newComp(deps dependencies) windowseventlog.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			core.RegisterCheck(check.CheckName, check.Factory(deps.LogsComponent, deps.Config))
+			core.RegisterCheck(check.CheckName, check.Factory(deps.LogsComponent, deps.Config, deps.PublisherMetadataCache))
 			return nil
 		},
 	})

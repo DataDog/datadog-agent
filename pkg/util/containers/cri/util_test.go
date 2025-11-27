@@ -19,8 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	fakeremote "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
+	"k8s.io/cri-client/pkg/fake"
 )
 
 func TestCRIUtilInit(t *testing.T) {
@@ -59,11 +58,11 @@ func TestCRIUtilListContainerStats(t *testing.T) {
 // createAndStartFakeRemoteRuntime creates and starts fakeremote.RemoteRuntime.
 // It returns the RemoteRuntime, endpoint on success.
 // Users should call fakeRuntime.Stop() to cleanup the server.
-func createAndStartFakeRemoteRuntime(t *testing.T) (*fakeremote.RemoteRuntime, string) {
-	endpoint, err := fakeremote.GenerateEndpoint()
+func createAndStartFakeRemoteRuntime(t *testing.T) (*fake.RemoteRuntime, string) {
+	endpoint, err := fake.GenerateEndpoint()
 	require.NoError(t, err)
 
-	fakeRuntime := fakeremote.NewFakeRemoteRuntime()
+	fakeRuntime := fake.NewFakeRemoteRuntime()
 
 	err = fakeRuntime.Start(endpoint)
 	require.NoError(t, err)

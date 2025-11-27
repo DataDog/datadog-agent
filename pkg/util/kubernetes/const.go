@@ -25,6 +25,8 @@ const (
 	KubeAppPartOfLabelKey = "app.kubernetes.io/part-of"
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
+	// ArgoRolloutLabelKey is the label key of that is present when the resource is managed by Argo Rollouts
+	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
 	// RcIDAnnotKey is the key of the RC ID annotation
 	RcIDAnnotKey = "admission.datadoghq.com/rc.id"
@@ -94,6 +96,10 @@ const (
 	StorageClassKind = "StorageClass"
 	// VerticalPodAutoscalerKind represents the VerticalPodAutoscaler object kind
 	VerticalPodAutoscalerKind = "VerticalPodAutoscaler"
+	// RolloutAPIVersion represents the Argo Rollout API version
+	RolloutAPIVersion = "argoproj.io/v1alpha1"
+	// RolloutKind represents the Argo Rollout object kind
+	RolloutKind = "Rollout"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

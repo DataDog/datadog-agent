@@ -27,7 +27,7 @@ var (
 type Handler struct{}
 
 // GetState not implemented
-func (h *Handler) GetState() (types.StateResponse, error) {
+func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	return types.StateResponse{}, ErrNotCompiled
 }
 

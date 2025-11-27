@@ -7,15 +7,14 @@
 package winazurehost
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/resources/azure"
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/compute"
-	"github.com/DataDog/test-infra-definitions/scenarios/azure/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/compute"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	installer "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components/datadog-installer"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -149,19 +148,6 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		env.Agent = nil
-	}
-
-	if params.installerOptions != nil {
-		installer, err := installer.NewInstaller(&azureEnv, host, params.installerOptions...)
-		if err != nil {
-			return err
-		}
-		err = installer.Export(ctx, &env.Installer.Output)
-		if err != nil {
-			return err
-		}
-	} else {
-		env.Installer = nil
 	}
 
 	return nil

@@ -206,10 +206,24 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		}
 
 		// 3.b and 3.c: Check if this configuration is either new or has been modified
+		newConfigMetadata, err := newConfigMetadata(parsedPath, targetFileMetadata)
+		if err != nil {
+			return nil, err
+		}
+
 		storedMetadata, exists := r.metadata.Load(path)
 		if exists {
 			m, ok := storedMetadata.(Metadata)
-			if ok && hashesEqual(targetFileMetadata.Hashes, m.Hashes) {
+			changed := hashesEqual(targetFileMetadata.Hashes, m.Hashes)
+			if ok && changed && m.Version == newConfigMetadata.Version {
+				continue
+			} else if ok && changed {
+				// The version has changed, even though there are no changes to the file. Since business logic code
+				// only operates on config bodies, we don't want to trigger a callback, but we do want to report the new version
+				// as part of the RC update process so that it is visible in REDAPL. Since we're not sending this to the
+				// business logic code, we need to preserve the previous apply status.
+				newConfigMetadata.ApplyStatus = m.ApplyStatus
+				result.metadata[path] = newConfigMetadata
 				continue
 			}
 		}
@@ -233,15 +247,11 @@ func (r *Repository) Update(update Update) ([]string, error) {
 		//
 		// Note: We don't have to worry about extra fields as mentioned
 		// in the RFC because the encoding/json library handles that for us.
-		m, err := newConfigMetadata(parsedPath, targetFileMetadata)
+		config, err := parseConfig(parsedPath.Product, raw, newConfigMetadata)
 		if err != nil {
 			return nil, err
 		}
-		config, err := parseConfig(parsedPath.Product, raw, m)
-		if err != nil {
-			return nil, err
-		}
-		result.metadata[path] = m
+		result.metadata[path] = newConfigMetadata
 		result.changed[parsedPath.Product][path] = config
 		result.productsUpdated[parsedPath.Product] = true
 	}
@@ -318,6 +328,27 @@ func (r *Repository) applyUpdateResult(_ Update, result updateResult) {
 	}
 	for path, metadata := range result.metadata {
 		r.metadata.Store(path, metadata)
+		// Also update the embedded Metadata in the stored config object, if present
+		if parsedPath, err := parseConfigPath(path); err == nil {
+			if productConfigs, ok := r.configs[parsedPath.Product]; ok {
+				if existing, exists := productConfigs[path]; exists {
+					switch c := existing.(type) {
+					case RawConfig:
+						c.Metadata = metadata
+						productConfigs[path] = c
+					case ASMFeaturesConfig:
+						c.Metadata = metadata
+						productConfigs[path] = c
+					case ConfigASMDD:
+						c.Metadata = metadata
+						productConfigs[path] = c
+					case ASMDataConfig:
+						c.Metadata = metadata
+						productConfigs[path] = c
+					}
+				}
+			}
+		}
 	}
 
 	// 5.b Clean up the cache of any removed configs

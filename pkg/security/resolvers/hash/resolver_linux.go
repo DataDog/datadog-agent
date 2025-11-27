@@ -161,7 +161,7 @@ func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model
 	event.FieldHandlers.ResolveFilePath(event, file)
 
 	process := event.ProcessContext.Process
-	resolver.HashFileEvent(event.GetEventType(), process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(event.GetEventType(), process.ContainerContext.ContainerID, process.Pid, file)
 
 	return file.Hashes
 }
@@ -173,7 +173,7 @@ func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *mode
 		return nil
 	}
 
-	resolver.HashFileEvent(eventType, process.ContainerID, process.Pid, file)
+	resolver.HashFileEvent(eventType, process.ContainerContext.ContainerID, process.Pid, file)
 
 	return file.Hashes
 }
@@ -293,8 +293,14 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	)
 	for _, pidCandidate := range rootPIDs {
 		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
-		if mode, size, fkey, lastErr = getFileInfo(path); !mode.IsRegular() {
+		mode, size, fkey, lastErr = getFileInfo(path)
+		if lastErr != nil {
 			continue
+		}
+
+		if !mode.IsRegular() {
+			// the file is not regular, break out early and the error will be reported in the `if f == nil` check
+			break
 		}
 
 		if _, ok := failedCache[fkey]; ok {
@@ -303,10 +309,13 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		}
 
 		f, lastErr = os.Open(path)
-		if lastErr == nil {
-			break
+		if lastErr != nil {
+			failedCache[fkey] = struct{}{}
+			continue
 		}
-		failedCache[fkey] = struct{}{}
+
+		// we manage to open the file
+		break
 	}
 	if lastErr != nil {
 		rateReservation.Cancel()

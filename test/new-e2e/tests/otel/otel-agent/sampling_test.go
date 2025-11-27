@@ -10,7 +10,7 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -26,8 +26,14 @@ type samplingTestSuite struct {
 var samplingConfig string
 
 func TestOTelAgentSampling(t *testing.T) {
+	values := `
+datadog:
+  otelCollector:
+    useStandaloneImage: false
+`
 	t.Parallel()
 	e2e.Run(t, &samplingTestSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(awskubernetes.WithAgentOptions(
+		kubernetesagentparams.WithHelmValues(values),
 		kubernetesagentparams.WithOTelAgent(),
 		kubernetesagentparams.WithOTelConfig(samplingConfig)))))
 }

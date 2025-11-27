@@ -1,9 +1,8 @@
 name "python3"
 
-default_version "3.12.11"
+default_version "3.13.7"
 
 unless windows?
-  dependency "libxcrypt"
   dependency "libffi"
   dependency "zlib"
   dependency "bzip2"
@@ -14,7 +13,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "7b8d59af8216044d2313de8120bfc2cc00a9bd2e542f15795e1d616c51faf3d6"
+       :sha256 => "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2"
 
 relative_path "Python-#{version}"
 
@@ -32,7 +31,7 @@ build do
 
     if mac_os_x?
       python_configure_options.push("--enable-ipv6",
-                            "--with-universal-archs=intel",
+                            "--with-universal-archs=#{arm_target? ? "universal2" : "intel"}",
                             "--enable-shared")
     elsif linux_target?
       python_configure_options.push("--enable-shared",
@@ -56,11 +55,11 @@ build do
     # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
     # compiler we use would end up being available in the system/docker image used by customers
     if linux_target? && env["CC"]
-      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     if linux_target? && env["CXX"]
-      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-3.12-*-linux-gnu/Makefile", :env => env
+      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
       command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
     end
     delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
@@ -68,8 +67,6 @@ build do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
   else
-    dependency "vc_redist_14"
-
     ###############################
     # Setup openssl dependency... #
     ###############################
@@ -123,11 +120,6 @@ build do
     # We can also remove the DLLs that were put there by the python build since they won't be loaded anyway
     delete "#{windows_safe_path(python_3_embedded)}\\DLLs\\libcrypto-3.dll"
     delete "#{windows_safe_path(python_3_embedded)}\\DLLs\\libssl-3.dll"
-    # Generate libpython3XY.a for MinGW tools
-    # https://docs.python.org/3/whatsnew/3.8.html
-    major, minor, _ = version.split(".")
-    command "gendef #{windows_safe_path(python_3_embedded)}\\python#{major}#{minor}.dll"
-    command "dlltool --dllname python#{major}#{minor}.dll --def python#{major}#{minor}.def --output-lib #{windows_safe_path(python_3_embedded)}\\libs\\libpython#{major}#{minor}.a"
 
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"

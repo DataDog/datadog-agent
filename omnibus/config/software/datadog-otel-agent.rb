@@ -24,10 +24,17 @@ build do
 
     # set GOPATH on the omnibus source dir for this software
     gopath = Pathname.new(project_dir) + '../../../..'
+    flavor_arg = ENV['AGENT_FLAVOR']
 
+    # include embedded path (mostly for `pkg-config` binary)
+    #
+    # with_embedded_path prepends the embedded path to the PATH from the global environment
+    # in particular it ignores the PATH from the environment given as argument
+    # so we need to call it before setting the PATH
+    env = with_embedded_path()
     env = {
         'GOPATH' => gopath.to_path,
-        'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+        'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
         "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
@@ -38,17 +45,43 @@ build do
         env["GOMODCACHE"] = gomodcache.to_path
     end
 
-    # include embedded path (mostly for `pkg-config` binary)
-    env = with_standard_compiler_flags(with_embedded_path(env))
+    env = with_standard_compiler_flags(env)
 
-    conf_dir = "/etc/datadog-agent"
+    if fips_mode?
+      if windows_target?
+        msgoroot = ENV['MSGO_ROOT']
+        if msgoroot.nil? || msgoroot.empty?
+          raise "MSGO_ROOT not set"
+        end
+        if !File.exist?("#{msgoroot}\\bin\\go.exe")
+          raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
+        end
+        env["GOROOT"] = msgoroot
+        env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+      else
+        msgoroot = "/usr/local/msgo"
+        env["GOROOT"] = msgoroot
+        env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+      end
+    end
+
+    if windows_target?
+      conf_dir = "#{install_dir}/etc/datadog-agent"
+    else
+      conf_dir = "/etc/datadog-agent"
+    end
     embedded_bin_dir = "#{install_dir}/embedded/bin"
 
     mkdir conf_dir
     mkdir embedded_bin_dir
 
-    command "dda inv -- -e otel-agent.build", :env => env
-    copy 'bin/otel-agent/otel-agent', embedded_bin_dir
+    command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    if windows_target?
+      copy 'bin/otel-agent/otel-agent.exe', embedded_bin_dir
+    else
+      copy 'bin/otel-agent/otel-agent', embedded_bin_dir
+    end
 
     move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
 end

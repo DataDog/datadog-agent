@@ -9,7 +9,7 @@
     - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
     - export IMG_TAG_REFERENCE=${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}
 
-deploy_containers-cws-instrumentation-rc-mutable:
+deploy_mutable_cws_instrumentation_tags-rc:
   extends: .deploy_mutable_cws_instrumentation_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
@@ -18,7 +18,7 @@ deploy_containers-cws-instrumentation-rc-mutable:
   variables:
     IMG_NEW_TAGS: rc
 
-deploy_containers-cws-instrumentation-latest:
+deploy_mutable_cws_instrumentation_tags-latest:
   extends: .deploy_mutable_cws_instrumentation_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:

@@ -9,37 +9,41 @@ package discovery
 
 import (
 	"fmt"
+	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type discoveryCache struct {
-	groups              []*v1.APIGroup
-	resources           []*v1.APIResourceList
-	filled              bool
-	collectorForVersion map[collectorVersion]struct{}
+// DiscoveryCache is a cache for the discovery collector.
+type DiscoveryCache struct {
+	Groups              []*v1.APIGroup
+	Resources           []*v1.APIResourceList
+	Filled              bool
+	CollectorForVersion map[CollectorVersion]struct{}
 }
 
-type collectorVersion struct {
-	version string
-	name    string
+// CollectorVersion represents a group version of a collector with its kind.
+type CollectorVersion struct {
+	GroupVersion string
+	Kind         string
 }
 
-//nolint:revive // TODO(CAPP) Fix revive linter
+// DiscoveryCollector stores all the discovered resources and their versions.
 type DiscoveryCollector struct {
-	cache discoveryCache
+	cache DiscoveryCache
 }
 
-//nolint:revive // TODO(CAPP) Fix revive linter
+// NewDiscoveryCollectorForInventory returns a new DiscoveryCollector instance.
 func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	dc := &DiscoveryCollector{
-		cache: discoveryCache{collectorForVersion: map[collectorVersion]struct{}{}},
+		cache: DiscoveryCache{CollectorForVersion: map[CollectorVersion]struct{}{}},
 	}
 	err := dc.fillCache()
 	if err != nil {
@@ -47,29 +51,36 @@ func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	}
 	return dc
 }
+
+// fillCache adds all the discovered resources and their versions to the cache.
 func (d *DiscoveryCollector) fillCache() error {
-	if !d.cache.filled {
+	if !d.cache.Filled {
 		var err error
-		d.cache.groups, d.cache.resources, err = GetServerGroupsAndResources()
+		d.cache.Groups, d.cache.Resources, err = GetServerGroupsAndResources()
 		if err != nil {
 			return err
 		}
 
-		if len(d.cache.resources) == 0 {
+		if len(d.cache.Resources) == 0 {
 			return fmt.Errorf("failed to discover resources from API groups")
 		}
-		for _, list := range d.cache.resources {
+		for _, list := range d.cache.Resources {
 			for _, resource := range list.APIResources {
-				cv := collectorVersion{
-					version: list.GroupVersion,
-					name:    resource.Name,
+				cv := CollectorVersion{
+					GroupVersion: list.GroupVersion,
+					Kind:         resource.Name,
 				}
-				d.cache.collectorForVersion[cv] = struct{}{}
+				d.cache.CollectorForVersion[cv] = struct{}{}
 			}
 		}
-		d.cache.filled = true
+		d.cache.Filled = true
 	}
 	return nil
+}
+
+// SetCache sets the cache for the DiscoveryCollector. This is useful for testing purposes
+func (d *DiscoveryCollector) SetCache(cache DiscoveryCache) {
+	d.cache = cache
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
@@ -113,10 +124,10 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 	if err != nil {
 		return nil, err
 	}
-	if resource == "clusters" {
+	if resource == utilTypes.ClusterName {
 		return d.isSupportClusterCollector(collector, collectorInventory)
 	}
-	if resource == "terminated-pods" {
+	if resource == utilTypes.TerminatedPodName {
 		return d.isSupportTerminatedPodCollector(collector, collectorInventory)
 	}
 
@@ -124,9 +135,9 @@ func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersi
 }
 
 func (d *DiscoveryCollector) isSupportCollector(collector collectors.K8sCollector) (collectors.K8sCollector, error) {
-	if _, ok := d.cache.collectorForVersion[collectorVersion{
-		version: collector.Metadata().Version,
-		name:    collector.Metadata().Name,
+	if _, ok := d.cache.CollectorForVersion[CollectorVersion{
+		GroupVersion: collector.Metadata().Version,
+		Kind:         collector.Metadata().Name,
 	}]; ok {
 		return collector, nil
 	}
@@ -157,4 +168,77 @@ func (d *DiscoveryCollector) isSupportTerminatedPodCollector(collector collector
 	}
 	return collector, nil
 
+}
+
+// List returns a list of CollectorVersion for the given group, version, and kind.
+// An empty string for any argument means it can match any value.
+func (d *DiscoveryCollector) List(group, version, kind string) []CollectorVersion {
+	var result []CollectorVersion
+
+	// Construct groupVersion prefix for matching
+	var groupVersion string
+	if group == "" {
+		groupVersion = version
+	} else {
+		groupVersion = fmt.Sprintf("%s/%s", group, version)
+	}
+
+	for cv := range d.cache.CollectorForVersion {
+		// Skip "/status" entries
+		if strings.HasSuffix(cv.Kind, "/status") {
+			continue
+		}
+
+		// Match version prefix
+		if !strings.HasPrefix(cv.GroupVersion, groupVersion) {
+			continue
+		}
+
+		// If kind is specified, only include matching name
+		if kind != "" && cv.Kind != kind {
+			continue
+		}
+
+		result = append(result, cv)
+	}
+
+	return result
+}
+
+// OptimalVersion returns the best available version for a given group.
+func (d *DiscoveryCollector) OptimalVersion(groupName, preferredVersion string, fallbackVersions []string) (string, bool) {
+	supportedVersions := d.getSupportedVersions(groupName)
+	if len(supportedVersions) == 0 {
+		return "", false
+	}
+
+	// Try preferred version first
+	if preferredVersion != "" && supportedVersions[preferredVersion] {
+		return preferredVersion, true
+	}
+
+	// Try fallback versions in order
+	for _, version := range fallbackVersions {
+		if version != "" && supportedVersions[version] {
+			return version, true
+		}
+	}
+
+	return "", false
+}
+
+// getSupportedVersions returns a map of supported versions for the given group.
+func (d *DiscoveryCollector) getSupportedVersions(groupName string) map[string]bool {
+	for _, group := range d.cache.Groups {
+		if group.Name == groupName {
+			supportedVersions := make(map[string]bool, len(group.Versions))
+			for _, version := range group.Versions {
+				if version.Version != "" {
+					supportedVersions[version.Version] = true
+				}
+			}
+			return supportedVersions
+		}
+	}
+	return nil
 }

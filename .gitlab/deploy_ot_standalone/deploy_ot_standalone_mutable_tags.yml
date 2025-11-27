@@ -9,7 +9,7 @@
     - if [[ "$OTEL_AGENT_REPOSITORY" == "" ]]; then export OTEL_AGENT_REPOSITORY="otel-agent"; fi
     - export IMG_TAG_REFERENCE=${OTEL_AGENT_REPOSITORY}:${VERSION}
 
-deploy_containers-ot-standalone-rc:
+deploy_mutable_ot_standalone_tags-rc:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
@@ -18,7 +18,7 @@ deploy_containers-ot-standalone-rc:
   variables:
     IMG_NEW_TAGS: rc
 
-deploy_containers-ot-standalone-latest:
+deploy_mutable_ot_standalone_tags-latest:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:
@@ -27,16 +27,16 @@ deploy_containers-ot-standalone-latest:
   variables:
     IMG_NEW_TAGS: latest
 
-deploy_containers-ot-standalone_internal-rc:
+deploy_mutable_ot_standalone_tags_internal-rc:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_internal_rc]
   needs:
-    - job: deploy_containers-ot-standalone_internal
+    - job: deploy_containers-ot-standalone_internal-rc
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc
 
-deploy_containers-ot-standalone_internal-latest:
+deploy_mutable_ot_standalone_tags_internal-latest:
   extends: .deploy_mutable_ot_standalone_tags-base
   rules: !reference [.on_deploy_internal_manual_final]
   needs:

@@ -6,6 +6,7 @@
 include:
   - .gitlab/source_test/common.yml # Included first for shared definitions
   - .gitlab/source_test/ebpf.yml
+  - .gitlab/source_test/kmt_tasks.yml
   - .gitlab/source_test/linux.yml
   - .gitlab/source_test/macos.yml
   - .gitlab/source_test/windows.yml

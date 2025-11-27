@@ -64,16 +64,20 @@ func TestMount(t *testing.T) {
 	var mntID uint32
 	t.Run("mount", func(t *testing.T) {
 		err = test.GetProbeEvent(func() error {
-			// Test mount
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
 			mntID = event.Mount.MountID
-
 			if !assert.Equal(t, "mount", event.GetType(), "wrong event type") {
 				return true
+			}
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 			}
 
 			// filter by pid
@@ -246,7 +250,7 @@ func TestMountPropagated(t *testing.T) {
 	})
 }
 
-func TestMountSnapshot(t *testing.T) {
+func testMountSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	//      / testDrive
@@ -325,7 +329,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer tmpfsMountA.unmount(0)
 	defer bindMountA.unmount(0)
 
-	test, err := newTestModule(t, nil, nil, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
+	test, err := newTestModule(t, nil, nil, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}), withForceReload())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,6 +351,7 @@ func TestMountSnapshot(t *testing.T) {
 	pid := utils.Getpid()
 
 	mounts, err := kernel.ParseMountInfoFile(int32(pid))
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +362,7 @@ func TestMountSnapshot(t *testing.T) {
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
 
-		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
+		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), pid)
 		if err != nil {
 			t.Error(err)
 			return
@@ -370,7 +375,7 @@ func TestMountSnapshot(t *testing.T) {
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
 
-		mountPointPath, mountSource, mountOrigin, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
+		mountPointPath, mountSource, mountOrigin, err := mountResolver.ResolveMountPath(mount.MountID, pid)
 		if err != nil {
 			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
 		}
@@ -396,6 +401,19 @@ func TestMountSnapshot(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1|2|4|8, mntResolved)
+}
+
+func TestMountSnapshotListmount(t *testing.T) {
+	SkipIfNotAvailable(t)
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
+	testMountSnapshot(t)
+}
+
+func TestMountSnapshotProcfs(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "false")
+	testMountSnapshot(t)
 }
 
 func TestMountEvent(t *testing.T) {
@@ -427,7 +445,7 @@ func TestMountEvent(t *testing.T) {
 		},
 		{
 			ID:         "test_mount_in_container_root",
-			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && container.id != ""`,
+			Expression: `mount.mountpoint.path == "/host_root" && mount.source.path == "/" && mount.fs_type != "overlay" && process.container.id != ""`,
 		},
 	}
 
@@ -464,6 +482,12 @@ func TestMountEvent(t *testing.T) {
 			}
 			return tmpfsMount.unmount(syscall.MNT_FORCE)
 		}, func(event *model.Event, rule *rules.Rule) {
+			if !ebpfLessEnabled {
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
+			}
 			assertTriggeredRule(t, rule, "test_mount_tmpfs")
 			assertFieldEqual(t, event, "mount.mountpoint.path", tmpfsMountPointPath)
 			assertFieldEqual(t, event, "mount.fs_type", "tmpfs")
@@ -490,6 +514,12 @@ func TestMountEvent(t *testing.T) {
 			return bindMount.unmount(syscall.MNT_FORCE)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_mount_bind")
+			if !ebpfLessEnabled {
+				assert.Equal(t, false, event.Mount.Detached, "Mount should not be detached")
+				assert.Equal(t, true, event.Mount.Visible, "Mount should be visible")
+				assert.Equal(t, model.MountOriginEvent, event.Mount.Origin, "Incorrect mount source")
+				assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
+			}
 			assertFieldEqual(t, event, "mount.mountpoint.path", bindMountPointPath)
 			assertFieldEqual(t, event, "mount.source.path", bindMountSourcePath)
 			assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
@@ -503,14 +533,19 @@ func TestMountEvent(t *testing.T) {
 	})
 
 	const dockerMountDest = "/host_root"
-	wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
-	if err != nil {
-		t.Skip("Skipping mounts in containers tests: Docker not available")
-		return
-	}
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		wrapperTruePositive, err := newDockerCmdWrapper("/", dockerMountDest, "alpine", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err
@@ -524,7 +559,8 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.mountpoint.path", "/host_root")
 			assertFieldEqual(t, event, "mount.source.path", "/")
 			assertFieldNotEqual(t, event, "mount.fs_type", "overlay")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 
 			test.validateMountSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")
@@ -533,16 +569,21 @@ func TestMountEvent(t *testing.T) {
 		})
 	})
 
-	legitimateSourcePath := testDrive.Path("legitimate_source")
-	if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
-		t.Fatal(err)
-	}
-	wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Run("mount-in-container-legitimate", func(t *testing.T) {
+		if _, err := whichNonFatal("docker"); err != nil {
+			t.Skip("Skip test where docker is unavailable")
+		}
+
+		legitimateSourcePath := testDrive.Path("legitimate_source")
+		if err = os.Mkdir(legitimateSourcePath, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		wrapperFalsePositive, err := newDockerCmdWrapper(legitimateSourcePath, dockerMountDest, "alpine", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+
 		err = test.GetSignal(t, func() error {
 			if _, err := wrapperFalsePositive.start(); err != nil {
 				return err
@@ -553,6 +594,7 @@ func TestMountEvent(t *testing.T) {
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			t.Errorf("shouldn't get an event: event %s matched rule %s", test.debugEvent(event), rule.Expression)
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Mount namespace inode not captured")
 		})
 		if err == nil {
 			t.Error("shouldn't get an event")

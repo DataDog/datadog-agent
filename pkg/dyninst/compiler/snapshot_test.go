@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
-	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
 var rewriteFromEnv = func() bool {
@@ -55,11 +55,10 @@ func runTest(
 ) {
 	binPath := testprogs.MustGetBinary(t, caseName, cfg)
 	probeDefs := testprogs.MustGetProbeDefinitions(t, caseName)
-	elfFile, err := safeelf.Open(binPath)
+	probeDefs = slices.DeleteFunc(probeDefs, testprogs.HasIssueTag)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
-	obj, err := object.NewElfObject(elfFile)
-	require.NoError(t, err)
-	defer func() { require.NoError(t, elfFile.Close()) }()
+	defer func() { _ = obj.Close() }()
 	ir, err := irgen.GenerateIR(1, obj, probeDefs)
 	require.NoError(t, err)
 	require.Empty(t, ir.Issues)
@@ -81,9 +80,13 @@ func runTest(
 			t.GetID(), t.GetByteSize(), metadata.FunctionLoc[ProcessType{Type: t}]))
 	}
 
-	outputFile := path.Join(snapshotDir, caseName+"."+cfg.String()+".sm.txt")
+	const outputFileSuffix = ".sm.txt"
+	outputFilePrefix := caseName + "." + cfg.String()
+	outputFileName := outputFilePrefix + outputFileSuffix
+	outputFile := path.Join(snapshotDir, outputFileName)
 	if *rewrite {
-		tmpFile, err := os.CreateTemp(snapshotDir, "sm.c")
+		outputFileTmpPattern := ".tmp." + outputFilePrefix + ".*" + outputFileSuffix
+		tmpFile, err := os.CreateTemp(snapshotDir, outputFileTmpPattern)
 		require.NoError(t, err)
 		name := tmpFile.Name()
 		defer func() { _ = os.Remove(name) }()

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,7 +74,7 @@ host_aliases:
 	assert.Contains(v.T(), output, "Owner: dd-agent")
 	assert.Contains(v.T(), output, "Group: dd-agent")
 	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
-	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases/0'")
+	assert.Regexp(v.T(), `- 'alias_secret':\n\s+- used in 'datadog\.yaml' configuration in entry 'host_aliases/0'`, output)
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }

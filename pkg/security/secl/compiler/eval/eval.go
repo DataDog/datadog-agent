@@ -36,16 +36,14 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string, state *State) (Field, Field, RegisterID, error) {
-	if state.regexpCache.arraySubscriptFindRE == nil {
-		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
-	}
-	if state.regexpCache.arraySubscriptReplaceRE == nil {
-		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	}
+var (
+	arraySubscriptFindRE    = regexp.MustCompile(`\[([^\]]*)\]`)
+	arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+)
 
+func extractField(field string) (Field, Field, RegisterID, error) {
 	var regID RegisterID
-	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
+	ids := arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
@@ -56,8 +54,8 @@ func extractField(field string, state *State) (Field, Field, RegisterID, error) 
 		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
-	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
+	resField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
 	return resField, itField, regID, nil
 }
@@ -78,7 +76,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident, state)
+	field, itField, regID, err := extractField(*obj.Ident)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -179,7 +177,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		if !ok {
 			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
-		return evaluatorFromVariable(varName, array.Pos, opts)
+		return evaluatorFromVariable(varName, array.Pos, opts, state)
 	} else if array.CIDR != nil {
 		var values CIDRValues
 		if err := values.AppendCIDR(*array.CIDR); err != nil {
@@ -224,7 +222,7 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
 	if variable != nil {
@@ -271,15 +269,20 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (inte
 
 	}
 
+	evaluator, err := state.model.GetEvaluator(varname, "", 0)
+	if err == nil {
+		return evaluator, pos, nil
+	}
+
 	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts)
+			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts, state)
 			if err != nil {
 				return err
 			}
@@ -357,17 +360,41 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 // StringEqualsWrapper makes use of operator overrides
 func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
-	var err error
+	var opOverrides []*OpOverrides
 
-	if a.OpOverrides != nil && a.OpOverrides.StringEquals != nil {
-		evaluator, err = a.OpOverrides.StringEquals(a, b, state)
-	} else if b.OpOverrides != nil && b.OpOverrides.StringEquals != nil {
-		evaluator, err = b.OpOverrides.StringEquals(a, b, state)
-	} else {
-		evaluator, err = StringEquals(a, b, state)
+	if len(a.OpOverrides) > 0 {
+		opOverrides = a.OpOverrides
+	} else if len(b.OpOverrides) > 0 {
+		opOverrides = b.OpOverrides
 	}
-	if err != nil {
-		return nil, err
+
+	for _, opOverride := range opOverrides {
+		if opOverride.StringEquals != nil {
+			eval, err := opOverride.StringEquals(a, b, state)
+			if err != nil {
+				return nil, err
+			}
+
+			if evaluator != nil {
+				or, err := Or(evaluator, eval, state)
+				if err != nil {
+					return nil, err
+				}
+				evaluator = or
+			} else {
+				evaluator = eval
+			}
+		}
+	}
+
+	// if evaluator is still nil at this point this means no override has been applied
+	// in this case we use the default implementation
+	if evaluator == nil {
+		var err error
+		evaluator, err = StringEquals(a, b, state)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return evaluator, nil
@@ -376,17 +403,41 @@ func StringEqualsWrapper(a *StringEvaluator, b *StringEvaluator, state *State) (
 // StringArrayContainsWrapper makes use of operator overrides
 func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
-	var err error
+	var opOverrides []*OpOverrides
 
-	if a.OpOverrides != nil && a.OpOverrides.StringArrayContains != nil {
-		evaluator, err = a.OpOverrides.StringArrayContains(a, b, state)
-	} else if b.OpOverrides != nil && b.OpOverrides.StringArrayContains != nil {
-		evaluator, err = b.OpOverrides.StringArrayContains(a, b, state)
-	} else {
-		evaluator, err = StringArrayContains(a, b, state)
+	if len(a.OpOverrides) > 0 {
+		opOverrides = a.OpOverrides
+	} else if len(b.OpOverrides) > 0 {
+		opOverrides = b.OpOverrides
 	}
-	if err != nil {
-		return nil, err
+
+	for _, opOverride := range opOverrides {
+		if opOverride.StringArrayContains != nil {
+			eval, err := opOverride.StringArrayContains(a, b, state)
+			if err != nil {
+				return nil, err
+			}
+
+			if evaluator != nil {
+				or, err := Or(evaluator, eval, state)
+				if err != nil {
+					return nil, err
+				}
+				evaluator = or
+			} else {
+				evaluator = eval
+			}
+		}
+	}
+
+	// if evaluator is still nil at this point this means no override has been applied
+	// in this case we use the default implementation
+	if evaluator == nil {
+		var err error
+		evaluator, err = StringArrayContains(a, b, state)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return evaluator, nil
@@ -395,15 +446,39 @@ func StringArrayContainsWrapper(a *StringEvaluator, b *StringArrayEvaluator, sta
 // stringValuesContainsWrapper makes use of operator overrides
 func stringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
-	var err error
+	var opOverrides []*OpOverrides
 
-	if a.OpOverrides != nil && a.OpOverrides.StringValuesContains != nil {
-		evaluator, err = a.OpOverrides.StringValuesContains(a, b, state)
-	} else {
-		evaluator, err = StringValuesContains(a, b, state)
+	if len(a.OpOverrides) > 0 {
+		opOverrides = a.OpOverrides
 	}
-	if err != nil {
-		return nil, err
+
+	for _, opOverride := range opOverrides {
+		if opOverride.StringValuesContains != nil {
+			eval, err := opOverride.StringValuesContains(a, b, state)
+			if err != nil {
+				return nil, err
+			}
+
+			if evaluator != nil {
+				or, err := Or(evaluator, eval, state)
+				if err != nil {
+					return nil, err
+				}
+				evaluator = or
+			} else {
+				evaluator = eval
+			}
+		}
+	}
+
+	// if evaluator is still nil at this point this means no override has been applied
+	// in this case we use the default implementation
+	if evaluator == nil {
+		var err error
+		evaluator, err = StringValuesContains(a, b, state)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return evaluator, nil
@@ -412,15 +487,39 @@ func stringValuesContainsWrapper(a *StringEvaluator, b *StringValuesEvaluator, s
 // stringArrayMatchesWrapper makes use of operator overrides
 func stringArrayMatchesWrapper(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 	var evaluator *BoolEvaluator
-	var err error
+	var opOverrides []*OpOverrides
 
-	if a.OpOverrides != nil && a.OpOverrides.StringArrayMatches != nil {
-		evaluator, err = a.OpOverrides.StringArrayMatches(a, b, state)
-	} else {
-		evaluator, err = StringArrayMatches(a, b, state)
+	if len(a.OpOverrides) > 0 {
+		opOverrides = a.OpOverrides
 	}
-	if err != nil {
-		return nil, err
+
+	for _, opOverride := range opOverrides {
+		if opOverride.StringArrayMatches != nil {
+			eval, err := opOverride.StringArrayMatches(a, b, state)
+			if err != nil {
+				return nil, err
+			}
+
+			if evaluator != nil {
+				or, err := Or(evaluator, eval, state)
+				if err != nil {
+					return nil, err
+				}
+				evaluator = or
+			} else {
+				evaluator = eval
+			}
+		}
+	}
+
+	// if evaluator is still nil at this point this means no override has been applied
+	// in this case we use the default implementation
+	if evaluator == nil {
+		var err error
+		evaluator, err = StringArrayMatches(a, b, state)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return evaluator, nil
@@ -478,6 +577,14 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			}
 			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
 		}
+
+		if cmpBool, ok := cmp.(*BoolEvaluator); ok {
+			cmp, err = Unary(cmpBool, state)
+			if err != nil {
+				return nil, obj.Pos, err
+			}
+		}
+
 		return cmp, obj.Pos, nil
 	case *ast.BitOperation:
 		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
@@ -1243,39 +1350,43 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 		return nodeToEvaluator(obj.Next, opts, state)
 
 	case *ast.Unary:
-		if obj.Op != nil {
-			unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
-			if err != nil {
-				return nil, pos, err
-			}
-
-			switch *obj.Op {
-			case "!", "not":
-				unaryBool, ok := unary.(*BoolEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Bool)
-				}
-
-				return Not(unaryBool, state), obj.Pos, nil
-			case "-":
-				unaryInt, ok := unary.(*IntEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
-				}
-
-				return Minus(unaryInt, state), pos, nil
-			case "^":
-				unaryInt, ok := unary.(*IntEvaluator)
-				if !ok {
-					return nil, pos, NewTypeError(pos, reflect.Int)
-				}
-
-				return IntNot(unaryInt, state), pos, nil
-			}
-			return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
+		if obj.UnaryWithOp != nil {
+			return nodeToEvaluator(obj.UnaryWithOp, opts, state)
 		}
 
 		return nodeToEvaluator(obj.Primary, opts, state)
+
+	case *ast.UnaryWithOp:
+		unary, pos, err = nodeToEvaluator(obj.Unary, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+
+		switch *obj.Op {
+		case "!", "not":
+			unaryBool, ok := unary.(*BoolEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Bool)
+			}
+
+			return Not(unaryBool, state), obj.Pos, nil
+		case "-":
+			unaryInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			return Minus(unaryInt, state), pos, nil
+		case "^":
+			unaryInt, ok := unary.(*IntEvaluator)
+			if !ok {
+				return nil, pos, NewTypeError(pos, reflect.Int)
+			}
+
+			return IntNot(unaryInt, state), pos, nil
+		}
+		return nil, pos, NewOpUnknownError(obj.Pos, *obj.Op)
+
 	case *ast.Primary:
 		switch {
 		case obj.Ident != nil:
@@ -1291,7 +1402,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
-			return evaluatorFromVariable(varname, obj.Pos, opts)
+			return evaluatorFromVariable(varname, obj.Pos, opts, state)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
@@ -1303,7 +1414,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			// contains variables
 			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
-				return stringEvaluatorFromVariable(str, obj.Pos, opts)
+				return stringEvaluatorFromVariable(str, obj.Pos, opts, state)
 			}
 
 			return &StringEvaluator{

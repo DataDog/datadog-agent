@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !race && kubeapiserver
+//go:build kubeapiserver
 
 package controllers
 
@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -27,6 +26,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+
+	datadogclientmock "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -415,8 +416,9 @@ func TestAutoscalerController(t *testing.T) {
 	// Process and submit to the Global Store
 	assertProcessAndSubmitFunc := func(c *assert.CollectT) {
 		hctrl.toStore.m.Lock()
+		defer hctrl.toStore.m.Unlock()
+		// len(st) must be checked with the lock held to avoid race conditions
 		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
 		assert.NotEmpty(c, st)
 		assert.Len(c, st, 1)
 		// Not comparing timestamps to avoid flakyness.
@@ -468,8 +470,9 @@ func TestAutoscalerController(t *testing.T) {
 		assert.NoError(c, err)
 		assert.Len(c, storedExternal.External, 0)
 		hctrl.toStore.m.Lock()
+		defer hctrl.toStore.m.Unlock()
+		// len(st) must be checked with the lock held to avoid race conditions
 		st := hctrl.toStore.data
-		hctrl.toStore.m.Unlock()
 		assert.NotNil(c, st)
 		assert.Len(c, st, 0, "Len should be nil", "current len:", len(st))
 	}

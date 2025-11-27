@@ -229,6 +229,7 @@ typedef struct _filterDefinition
     uint64_t        protocol;
     uint64_t        direction;
     uint64_t        interfaceIndex;
+    uint64_t        discard;
 } FILTER_DEFINITION;
 
 

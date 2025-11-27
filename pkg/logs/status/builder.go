@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package status provides log agent status information
 package status
 
 import (
@@ -123,7 +123,7 @@ func (b *Builder) getTailers() []Tailer {
 		info := tailer.GetInfo().Rendered()
 
 		tailerStatus = append(tailerStatus, Tailer{
-			Id:   tailer.GetId(),
+			ID:   tailer.GetID(),
 			Type: tailer.GetType(),
 			Info: info,
 		})

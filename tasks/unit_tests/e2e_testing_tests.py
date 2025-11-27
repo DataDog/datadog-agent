@@ -3,6 +3,7 @@ import unittest
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
+from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.new_e2e_tests import post_process_output, pretty_print_logs, write_result_to_log_files
 
 
@@ -113,3 +114,87 @@ class TestWriteResultToLogFiles(unittest.TestCase):
 
             files = set(os.listdir(tmpdir))
             self.assertSetEqual(files, {'mypackage.garfield.log', 'mypackage.bd_tomtom.log', 'mypackage.bd_nana.log'})
+
+
+class TestFilterOnlyLeafTests(unittest.TestCase):
+    def test_basic(self):
+        tests = {
+            ("mypackage", "TestParent"),
+            ("mypackage", "TestParent/Child1"),
+            ("mypackage", "TestParent/Child2"),
+            ("mypackage", "TestParent/SubParent"),
+            ("mypackage", "TestParent/SubParent/GrandChild"),
+        }
+
+        leaf_tests = filter_only_leaf_tests(tests)
+        expected_leaf_tests = {
+            ("mypackage", "TestParent/Child1"),
+            ("mypackage", "TestParent/Child2"),
+            ("mypackage", "TestParent/SubParent/GrandChild"),
+        }
+        self.assertSetEqual(leaf_tests, expected_leaf_tests)
+
+    def test_multiple_packages(self):
+        tests = {
+            ("mypackage", "TestParent"),
+            ("mypackage", "TestParent/Child"),
+            ("otherpackage", "TestParent"),
+            ("otherpackage", "TestParent/Child"),
+        }
+        leaf_tests = filter_only_leaf_tests(tests)
+        expected_leaf_tests = {
+            ("mypackage", "TestParent/Child"),
+            ("otherpackage", "TestParent/Child"),
+        }
+        self.assertSetEqual(leaf_tests, expected_leaf_tests)
+
+    def test_deep_hierarchy(self):
+        tests = {
+            ("mypackage", "TestParent"),
+            ("mypackage", "TestParent/Child1"),
+            ("mypackage", "TestParent/Child1/GrandChild"),
+            ("mypackage", "TestParent/Child1/GrandChild/GrandGrandChild"),
+            ("mypackage", "TestParent/Child2"),
+            ("mypackage", "TestParent/Child3"),
+            ("mypackage", "TestParent/Child3/GrandChild"),
+        }
+        leaf_tests = filter_only_leaf_tests(tests)
+        expected_leaf_tests = {
+            ("mypackage", "TestParent/Child1/GrandChild/GrandGrandChild"),
+            ("mypackage", "TestParent/Child3/GrandChild"),
+            ("mypackage", "TestParent/Child2"),
+        }
+        self.assertSetEqual(leaf_tests, expected_leaf_tests)
+
+
+class TestCreateTestSelectionGotestRegex(unittest.TestCase):
+    def test_empty(self):
+        self.assertEqual(create_test_selection_gotest_regex([]), "")
+
+    def test_single(self):
+        self.assertEqual(create_test_selection_gotest_regex(["TestFoo"]), '"^(?:TestFoo)$"')
+
+    def test_multiple_flat(self):
+        self.assertEqual(create_test_selection_gotest_regex(["TestFoo", "TestBar"]), '"^(?:TestBar|TestFoo)$"')
+
+    def test_nested(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestFoo", "TestBar/Baz"]), '"^(?:TestBar|TestFoo)$/^(?:Baz)$"'
+        )
+
+    def test_multiple_nested(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestFoo", "TestBar/Ba", "TestBar/Baz"]),
+            '"^(?:TestBar|TestFoo)$/^(?:Ba|Baz)$"',
+        )
+
+    def test_deep_nesting(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestA/B/C", "TestA/B/D", "TestX/Y"]),
+            '"^(?:TestA|TestX)$/^(?:B|Y)$/^(?:C|D)$"',
+        )
+
+    def test_segments_with_overlap(self):
+        self.assertEqual(
+            create_test_selection_gotest_regex(["TestA/B", "TestA/C", "TestB/B"]), '"^(?:TestA|TestB)$/^(?:B|C)$"'
+        )

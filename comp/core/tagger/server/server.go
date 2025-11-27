@@ -116,7 +116,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	defer s.throttler.Release(tk)
 
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
-	log.Debugf("cluster tagger has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
+	log.Debugf("tagger server has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
 	if err != nil {
 		log.Errorf("Failed to subscribe to tagger for subscription %q", subscriptionID)
 		return err
@@ -162,7 +162,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 			if initBurst {
 				initBurst = false
 				s.throttler.Release(tk)
-				log.Infof("cluster tagger has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
+				log.Infof("tagger server has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
 			}
 
 		case <-out.Context().Done():

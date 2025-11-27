@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,8 +21,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"stream-logs", "--type", "foo", "--duration", "10s", "--output", "output.log"},
 		streamLogs,
-		func(cliParams *CliParams, _ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
+		func(cliParams *CliParams, _ core.BundleParams) {
 			require.Equal(t, "foo", cliParams.filters.Type)
 			require.Equal(t, 10*time.Second, cliParams.Duration)
 			require.Equal(t, "output.log", cliParams.FilePath)

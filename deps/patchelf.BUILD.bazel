@@ -1,0 +1,28 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_license//rules:license.bzl", "license")
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-3.0"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+
+cc_binary(
+    name = "patchelf",
+    srcs = glob([
+        "src/*.cc",
+        "src/*.h",
+    ]),
+    copts = [
+        "-std=c++17",
+    ],
+    linkopts = [
+        "-lstdc++",
+    ],
+    local_defines = [
+        "D_FILE_OFFSET_BITS=64",
+    ],
+    visibility = ["//visibility:public"],
+)

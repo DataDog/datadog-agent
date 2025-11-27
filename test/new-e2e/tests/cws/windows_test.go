@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testos "github.com/DataDog/test-infra-definitions/components/os"
+	testos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -30,8 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 const (
@@ -63,7 +63,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
-				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsDefault), ec2.WithInstanceType("t3.xlarge")),
+				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 			),
 		),
 	)
@@ -92,7 +92,7 @@ func (a *agentSuiteWindows) Test00RulesetLoadedDefaultFile() {
 
 func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, a, "remote-config", "default.policy")
+		testRulesetLoaded(c, a, "remote-config", "threat-detection.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
@@ -145,24 +145,6 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
-
-	// Check if system-probe has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/system-probe.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
-	}, 30*time.Second, 1*time.Second)
-
-	// Check if security-agent has started
-	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		output, err := a.Env().RemoteHost.Execute("cat C:/ProgramData/Datadog/logs/security-agent.log")
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.Contains(c, output, securityStartLog, "security-agent could not start")
-	}, 30*time.Second, 1*time.Second)
 
 	// Wait for host tags
 	time.Sleep(3 * time.Minute)

@@ -30,12 +30,27 @@ func DefaultProgOpts() ProgOpts {
 	return ProgOpts{}
 }
 
-// BPFFilterToInsts compile a bpf filter expression
-func BPFFilterToInsts(_ int, _ string, _ ProgOpts) (asm.Instructions, error) {
+// WithProgPrefix sets the prefix for the program name
+func (opts *ProgOpts) WithProgPrefix(_ string) *ProgOpts {
+	return opts
+}
+
+// WithGetCurrentCgroupID sets if the program should use the get_current_cgroup_id function
+func (opts *ProgOpts) WithGetCurrentCgroupID(_ bool) *ProgOpts {
+	return opts
+}
+
+// FilterToInsts compile a bpf filter expression
+func FilterToInsts(_ int, _ Filter, _ ProgOpts) (asm.Instructions, error) {
 	return asm.Instructions{}, errors.New("not supported")
 }
 
 // FiltersToProgramSpecs returns list of program spec from raw packet filters definitions
 func FiltersToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
+	return nil, errors.New("not supported")
+}
+
+// DropActionsToProgramSpecs returns list of program spec from raw packet filters definitions
+func DropActionsToProgramSpecs(_, _ int, _ []Filter, _ ProgOpts) ([]*ebpf.ProgramSpec, error) {
 	return nil, errors.New("not supported")
 }

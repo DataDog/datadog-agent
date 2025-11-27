@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -89,7 +90,7 @@ var projectIDFetcher = cachedfetch.Fetcher{
 		if err != nil {
 			return "", fmt.Errorf("unable to retrieve project ID from GCE: %s", err)
 		}
-		return projectID, err
+		return projectID, nil
 	},
 }
 
@@ -204,6 +205,60 @@ func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+var ccridFetcher = cachedfetch.Fetcher{
+	Name: "GCP CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		projectID, err := projectIDFetcher.FetchString(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		instanceName, err := nameFetcher.FetchString(ctx)
+		if err != nil {
+			return "", fmt.Errorf("could not query GCP instance name: %s", err)
+		}
+
+		zone, err := getResponse(ctx, metadataURL+"/instance/zone")
+		if err != nil {
+			return "", fmt.Errorf("could not query instance/zone GCP API: %s", err)
+		}
+		// zone will be in the format of 'projects/PROJECT_NUM/zones/ZONE'
+		zoneSplit := strings.Split(zone, "/")
+		if len(zoneSplit) != 4 {
+			return "", fmt.Errorf("Unknown zone name from GCP API: expecting 'projects/PROJECT_NUM/zones/ZONE' but got '%s", zone)
+		}
+		zoneName := zoneSplit[3]
+
+		return fmt.Sprintf("//compute.googleapis.com/projects/%s/zones/%s/instances/%s", projectID, zoneName, instanceName), nil
+	},
+}
+
+// GetHostCCRID return the CCRID for the current instance
+func GetHostCCRID(ctx context.Context) (string, error) {
+	return ccridFetcher.FetchString(ctx)
+}
+
+var instanceTypeFetcher = cachedfetch.Fetcher{
+	Name: "GCP Instance Type",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		machineType, err := getResponse(ctx, metadataURL+"/instance/machine-type")
+		if err != nil {
+			return "", fmt.Errorf("unable to retrieve machine type from GCE: %s", err)
+		}
+		// machine-type is returned as "projects/PROJECT_NUM/zones/ZONE/machineTypes/MACHINE_TYPE"
+		parts := strings.Split(machineType, "/")
+		if len(parts) != 6 {
+			return "", fmt.Errorf("unexpected machine-type format from GCP API: got '%s', expected 'projects/PROJECT_NUM/zones/ZONE/machineTypes/MACHINE_TYPE'", machineType)
+		}
+		return parts[5], nil
+	},
+}
+
+// GetInstanceType returns the instance / machine type of the current GCE instance
+func GetInstanceType(ctx context.Context) (string, error) {
+	return instanceTypeFetcher.FetchString(ctx)
+}
+
 func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
 	result, err := getResponse(ctx, endpoint)
 	if err != nil {
@@ -216,7 +271,7 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 

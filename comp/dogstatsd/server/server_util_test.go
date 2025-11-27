@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -77,11 +76,11 @@ func fulfillDeps(t testing.TB) serverDeps {
 
 func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{}) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, overrides) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: overrides,
-		}),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
@@ -114,11 +113,11 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 // Be careful when using this functionality, as server start instantiates many internal components to non-nil values
 func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *server) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
-		core.MockBundle(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		serverdebugimpl.MockModule(),
-		fx.Replace(configComponent.MockParams{
-			Overrides: cfg,
-		}),
 		fx.Supply(Params{Serverless: false}),
 		replaymock.MockModule(),
 		pidmapimpl.Module(),

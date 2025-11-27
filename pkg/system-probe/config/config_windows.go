@@ -39,9 +39,24 @@ func ValidateSocketAddress(sockAddress string) error {
 	return nil
 }
 
+// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+func eBPFMapPreallocationSupported() bool {
+	return false
+}
+
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	return true
+}
+
+// RedisMonitoringSupported returns false on windows as eBPF is not supported
+func RedisMonitoringSupported() bool {
+	return false
+}
+
+// HTTP2MonitoringSupported returns false on windows as eBPF is not supported
+func HTTP2MonitoringSupported() bool {
+	return false
 }
 
 func allowPrebuiltEbpfFallback(_ model.Config) {

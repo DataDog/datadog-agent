@@ -10,18 +10,20 @@ package v1
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/gorilla/mux"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 const testNode = "test_node"
@@ -120,6 +122,69 @@ func TestGetNodeAnnotations(t *testing.T) {
 				require.Equal(t, tt.body, resp)
 			}
 
+		})
+	}
+}
+
+func TestGetNodeUID(t *testing.T) {
+	// mock workloadmeta and populate it with a single node entry
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mockStore.Set(&workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   "/nodes//" + testNode,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			UID: "uid-12345",
+		},
+	})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		getNodeUID(w, r, mockStore)
+	})
+
+	tests := []struct {
+		name   string
+		node   string
+		status int
+		body   map[string]string
+	}{
+		{
+			name:   "existing node returns uid",
+			node:   testNode,
+			status: http.StatusOK,
+			body:   map[string]string{"uid": "uid-12345"},
+		},
+		{
+			name:   "missing node returns not found",
+			node:   "not-there",
+			status: http.StatusInternalServerError,
+			body:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", fmt.Sprintf("/uid/node/%s", tt.node), nil)
+			req = mux.SetURLVars(req, map[string]string{"nodeName": tt.node})
+
+			respw := httptest.NewRecorder()
+
+			handler.ServeHTTP(respw, req)
+
+			require.Equal(t, tt.status, respw.Code)
+
+			if tt.body != nil {
+				var resp map[string]string
+				err := json.Unmarshal(respw.Body.Bytes(), &resp)
+				if err != nil {
+					t.Fatal(err)
+				}
+				require.Equal(t, tt.body, resp)
+			}
 		})
 	}
 }

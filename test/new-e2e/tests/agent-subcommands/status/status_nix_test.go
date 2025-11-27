@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -89,5 +89,7 @@ func (v *linuxStatusSuite) TestChecksMetadataUnix() {
 }
 
 func (v *linuxStatusSuite) TestDefaultInstallStatus() {
+	// wake up the trace-agent
+	v.Env().RemoteHost.NewHTTPClient().Get("http://localhost:8126/services")
 	v.testDefaultInstallStatus([]string{"Status: Not running or unreachable"}, nil)
 }

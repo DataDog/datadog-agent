@@ -24,12 +24,10 @@ import (
 	"time"
 
 	"github.com/prometheus/procfs"
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -45,29 +43,29 @@ import (
 
 // getServices call the /discovery/services endpoint. It will perform a /proc scan
 // to get the list of running pids and use them as the pids query param.
-func getServices(t require.TestingT, url string) *model.ServicesEndpointResponse {
+func getServices(t require.TestingT, url string) *model.ServicesResponse {
 	location := url + "/" + string(config.DiscoveryModule) + pathServices
 	params := &core.Params{
-		Pids: getRunningPids(t),
+		NewPids: getRunningPids(t),
 	}
 
-	return makeRequest[model.ServicesEndpointResponse](t, location, params)
+	return makeRequest[model.ServicesResponse](t, location, params)
 }
 
 // Check that we get (only) listening processes for all expected protocols using the services endpoint.
 func TestServicesBasic(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPIDs []int
 	var unexpectedPIDs []int
-	expectedPorts := make(map[int]int)
+	exceptedTCPPorts := make(map[int]int)
+	exceptedUDPPorts := make(map[int]int)
 
 	startTCP := func(proto string) {
 		f, server := startTCPServer(t, proto, "")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
-		expectedPorts[cmd.Process.Pid] = server.Port
+		exceptedTCPPorts[cmd.Process.Pid] = server.Port
 
 		f, _ = startTCPClient(t, proto, server)
 		cmd = startProcessWithFile(t, f)
@@ -78,7 +76,7 @@ func TestServicesBasic(t *testing.T) {
 		f, server := startUDPServer(t, proto, ":8083")
 		cmd := startProcessWithFile(t, f)
 		expectedPIDs = append(expectedPIDs, cmd.Process.Pid)
-		expectedPorts[cmd.Process.Pid] = server.Port
+		exceptedUDPPorts[cmd.Process.Pid] = server.Port
 
 		f, _ = startUDPClient(t, proto, server)
 		cmd = startProcessWithFile(t, f)
@@ -101,8 +99,12 @@ func TestServicesBasic(t *testing.T) {
 		for _, pid := range expectedPIDs {
 			require.Contains(collect, seen, pid)
 			assert.Equal(collect, seen[pid].PID, pid)
-			assert.Greater(collect, seen[pid].StartTimeMilli, uint64(0))
-			require.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
+			if expectedTCPPort, ok := exceptedTCPPorts[pid]; ok {
+				require.Contains(collect, seen[pid].TCPPorts, uint16(expectedTCPPort))
+			}
+			if expectedUDPPort, ok := exceptedUDPPorts[pid]; ok {
+				require.Contains(collect, seen[pid].UDPPorts, uint16(expectedUDPPort))
+			}
 		}
 		for _, pid := range unexpectedPIDs {
 			assert.NotContains(collect, seen, pid)
@@ -113,10 +115,11 @@ func TestServicesBasic(t *testing.T) {
 // Check that we get all listening ports for a process using the services endpoint
 func TestServicesPorts(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
-	var expectedPorts []uint16
-	var unexpectedPorts []uint16
+	var expectedTCPPorts []uint16
+	var expectedUDPPorts []uint16
+	var unexpectedTCPPorts []uint16
+	var unexpectedUDPPorts []uint16
 
 	startTCP := func(proto string) {
 		serverf, server := startTCPServer(t, proto, "")
@@ -124,8 +127,8 @@ func TestServicesPorts(t *testing.T) {
 		clientf, client := startTCPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
 
-		expectedPorts = append(expectedPorts, uint16(server.Port))
-		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
+		expectedTCPPorts = append(expectedTCPPorts, uint16(server.Port))
+		unexpectedTCPPorts = append(unexpectedTCPPorts, uint16(client.Port))
 	}
 
 	startUDP := func(proto string) {
@@ -134,12 +137,12 @@ func TestServicesPorts(t *testing.T) {
 		clientf, client := startUDPClient(t, proto, server)
 		t.Cleanup(func() { clientf.Close() })
 
-		expectedPorts = append(expectedPorts, uint16(server.Port))
-		unexpectedPorts = append(unexpectedPorts, uint16(client.Port))
+		expectedUDPPorts = append(expectedUDPPorts, uint16(server.Port))
+		unexpectedUDPPorts = append(unexpectedUDPPorts, uint16(client.Port))
 
 		ephemeralf, ephemeral := startUDPServer(t, proto, "")
 		t.Cleanup(func() { _ = ephemeralf.Close() })
-		unexpectedPorts = append(unexpectedPorts, uint16(ephemeral.Port))
+		unexpectedUDPPorts = append(unexpectedUDPPorts, uint16(ephemeral.Port))
 	}
 
 	startTCP("tcp4")
@@ -147,22 +150,27 @@ func TestServicesPorts(t *testing.T) {
 	startUDP("udp4")
 	startUDP("udp6")
 
-	expectedPortsMap := make(map[uint16]struct{}, len(expectedPorts))
+	expectedTCPPortsMap := make(map[uint16]struct{}, len(expectedTCPPorts))
+	expectedUDPPortsMap := make(map[uint16]struct{}, len(expectedUDPPorts))
 
 	pid := os.Getpid()
 	resp := getServices(t, discovery.url)
 	svc := findService(pid, resp.Services)
 	require.NotNilf(t, svc, "could not find service for pid %v", pid)
 
-	for _, port := range expectedPorts {
-		expectedPortsMap[port] = struct{}{}
-		assert.Contains(t, svc.Ports, port)
+	for _, port := range expectedTCPPorts {
+		expectedTCPPortsMap[port] = struct{}{}
+		assert.Contains(t, svc.TCPPorts, port)
 	}
-	for _, port := range unexpectedPorts {
-		// An unexpected port number can also be expected since UDP and TCP and
-		// v4 and v6 are all in the same list. Just skip the extra check in that
-		// case since it should be rare.
-		if _, alsoExpected := expectedPortsMap[port]; alsoExpected {
+	for _, port := range expectedUDPPorts {
+		expectedUDPPortsMap[port] = struct{}{}
+		assert.Contains(t, svc.UDPPorts, port)
+	}
+	for _, port := range unexpectedTCPPorts {
+		// An unexpected port number can also be expected since v4 and v6 are
+		// in the same list. Just skip the extra check in that case since it
+		// should be rare.
+		if _, alsoExpected := expectedTCPPortsMap[port]; alsoExpected {
 			continue
 		}
 
@@ -170,15 +178,23 @@ func TestServicesPorts(t *testing.T) {
 		// the test infrastructure opens a listening TCP socket on an ephimeral
 		// port, and since we mix the different protocols we could find that on
 		// the unexpected port list.
-		if slices.Contains(svc.Ports, port) {
-			t.Logf("unexpected port %v also found", port)
+		if slices.Contains(svc.TCPPorts, port) {
+			t.Logf("unexpected TCP port %v also found", port)
+		}
+	}
+	for _, port := range unexpectedUDPPorts {
+		if _, alsoExpected := expectedUDPPortsMap[port]; alsoExpected {
+			continue
+		}
+
+		if slices.Contains(svc.UDPPorts, port) {
+			t.Logf("unexpected UDP port %v also found", port)
 		}
 	}
 }
 
 func TestServicesPortsLimits(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	var expectedPorts []int
 
@@ -205,17 +221,16 @@ func TestServicesPortsLimits(t *testing.T) {
 	svc := findService(pid, resp.Services)
 	require.NotNilf(t, svc, "could not find service for pid %v", pid)
 
-	assert.Contains(t, svc.Ports, uint16(8081))
-	assert.Contains(t, svc.Ports, uint16(8082))
-	assert.Len(t, svc.Ports, maxNumberOfPorts)
+	assert.Contains(t, svc.TCPPorts, uint16(8081))
+	assert.Contains(t, svc.TCPPorts, uint16(8082))
+	assert.Len(t, svc.TCPPorts, maxNumberOfPorts)
 	for i := range maxNumberOfPorts - 2 {
-		assert.Contains(t, svc.Ports, uint16(expectedPorts[i]))
+		assert.Contains(t, svc.TCPPorts, uint16(expectedPorts[i]))
 	}
 }
 
 func TestServicesServiceName(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	trMeta := tracermetadata.TracerMetadata{
 		SchemaVersion:  1,
@@ -245,6 +260,8 @@ func TestServicesServiceName(t *testing.T) {
 	cmd.Dir = "/tmp/"
 	cmd.Env = append(cmd.Env, "OTHER_ENV=test")
 	cmd.Env = append(cmd.Env, "DD_SERVICE=foo😀bar")
+	cmd.Env = append(cmd.Env, "DD_ENV=my😀dd-env")
+	cmd.Env = append(cmd.Env, "DD_VERSION=my😀dd-version")
 	cmd.Env = append(cmd.Env, "YET_OTHER_ENV=test")
 	err = cmd.Start()
 	require.NoError(t, err)
@@ -258,11 +275,12 @@ func TestServicesServiceName(t *testing.T) {
 		svc = findService(pid, resp.Services)
 		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
 
-		// Non-ASCII character removed due to normalization.
-		assert.Equal(collect, "foo_bar", svc.DDService)
+		assert.Equal(collect, "foo😀bar", svc.UST.Service)
+		assert.Equal(collect, "my😀dd-env", svc.UST.Env)
+		assert.Equal(collect, "my😀dd-version", svc.UST.Version)
+
 		assert.Equal(collect, "sleep", svc.GeneratedName)
 		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
-		assert.False(collect, svc.DDServiceInjected)
 	}, 30*time.Second, 100*time.Millisecond)
 
 	// Verify tracer metadata
@@ -270,77 +288,136 @@ func TestServicesServiceName(t *testing.T) {
 	assert.Equal(t, string(language.Go), svc.Language)
 }
 
-func testServicesCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
-	// Changing permissions
-	require.NoError(t, os.Chmod(script, 0o755))
-
-	commandLineArgs := append(commandWrapper, script)
-	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
-	// Running the binary in the background
-	require.NoError(t, cmd.Start())
-
-	var proc *process.Process
-	var err error
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		require.NoError(collect, err)
-
-		// If we wrap the script with `sh -c`, we can have differences between a
-		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
-		// while locally it can be a symbolic link to dash.
-		//
-		// In the dash case, we will see 2 processes `sh -c script.py` and a
-		// sub-process `python3 script.py`, while in the bash case we will see
-		// only `python3 script.py` (after initially potentially seeing `sh -c
-		// script.py` before the process execs). We need to check for the
-		// command line arguments of the process to make sure we are looking at
-		// the right process.
-		cmdline, err := proc.Cmdline()
-		require.NoError(t, err)
-		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-			var children []*process.Process
-			children, err = proc.Children()
-			require.NoError(collect, err)
-			require.Len(collect, children, 1)
-			proc = children[0]
-		}
-	}, 10*time.Second, 100*time.Millisecond)
-
-	t.Cleanup(func() { _ = proc.Kill() })
-
+// TestServicesTracerMetadataWithoutPorts checks that processes with tracer metadata
+// are discovered even when they have no open listening ports.
+func TestServicesTracerMetadataWithoutPorts(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
-	pid := int(proc.Pid)
+	trMeta := tracermetadata.TracerMetadata{
+		SchemaVersion:  1,
+		RuntimeID:      "test-runtime-id-noports",
+		TracerLanguage: "python",
+		ServiceName:    "background-worker",
+	}
+	data, err := trMeta.MarshalMsg(nil)
+	require.NoError(t, err)
+
+	createTracerMemfd(t, data)
+
+	// Create a process WITHOUT any listening ports - just a simple sleep
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	cmd.Env = append(cmd.Env, "DD_SERVICE=background-worker")
+	cmd.Env = append(cmd.Env, "DD_ENV=test-env")
+	cmd.Env = append(cmd.Env, "DD_VERSION=1.0.0")
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+
+	// Eventually to give the processes time to start
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.Services)
-		require.NotNilf(collect, startEvent, "could not find service for pid %v", pid)
-		assert.True(collect, validator(*startEvent))
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+
+		// Verify the service was discovered even without ports
+		assert.Empty(collect, svc.TCPPorts, "should have no TCP ports")
+		assert.Empty(collect, svc.UDPPorts, "should have no UDP ports")
+
+		// Verify UST fields from environment variables
+		assert.Equal(collect, "background-worker", svc.UST.Service)
+		assert.Equal(collect, "test-env", svc.UST.Env)
+		assert.Equal(collect, "1.0.0", svc.UST.Version)
+
+		// Verify basic service info
+		assert.Equal(collect, "sleep", svc.GeneratedName)
+		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
 	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify tracer metadata
+	assert.Equal(t, []tracermetadata.TracerMetadata{trMeta}, svc.TracerMetadata)
+	assert.Equal(t, string(language.Python), svc.Language)
 }
 
-func TestServicesPythonFromBashScript(t *testing.T) {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-	pythonScriptPath := filepath.Join(curDir, "testdata", "script.py")
+// TestServicesLogsWithoutPorts checks that processes with open log files
+// are discovered even when they have no listening ports or tracer metadata.
+func TestServicesLogsWithoutPorts(t *testing.T) {
+	discovery := setupDiscoveryModule(t)
 
-	t.Run("PythonFromBashScript", func(t *testing.T) {
-		testServicesCaptureWrappedCommands(t, pythonScriptPath, []string{"sh", "-c"}, func(service model.Service) bool {
-			return service.Language == string(language.Python)
-		})
+	// Create a temporary log file path
+	logFile, err := os.CreateTemp("/tmp", "test-service-*.log")
+	require.NoError(t, err)
+	logFilePath := logFile.Name()
+	logFile.Close()
+	t.Cleanup(func() {
+		os.Remove(logFilePath)
 	})
-	t.Run("DirectPythonScript", func(t *testing.T) {
-		testServicesCaptureWrappedCommands(t, pythonScriptPath, nil, func(service model.Service) bool {
-			return service.Language == string(language.Python)
-		})
-	})
+
+	// Open the file with O_WRONLY | O_APPEND flags (required for log file detection)
+	logFd, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_APPEND, 0644)
+	require.NoError(t, err)
+
+	// Write something to the log to make it more realistic
+	_, err = logFd.WriteString("Service started\n")
+	require.NoError(t, err)
+
+	// Disable close-on-exec so the sleep process inherits the log file
+	disableCloseOnExec(t, logFd)
+
+	// Create a process WITHOUT any listening ports or tracer metadata
+	// but WITH an open log file
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() { cancel() })
+
+	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	cmd.Dir = "/tmp/"
+	err = cmd.Start()
+	require.NoError(t, err)
+
+	// Close the log file in the parent process (the test)
+	// The child process (sleep) still has it open
+	logFd.Close()
+
+	pid := cmd.Process.Pid
+	var svc *model.Service
+
+	// Eventually to give the processes time to start
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resp := getServices(collect, discovery.url)
+		svc = findService(pid, resp.Services)
+		require.NotNilf(collect, svc, "could not find service for pid %v", pid)
+
+		// Verify the service was discovered even without ports or tracer metadata
+		assert.Empty(collect, svc.TCPPorts, "should have no TCP ports")
+		assert.Empty(collect, svc.UDPPorts, "should have no UDP ports")
+		assert.Empty(collect, svc.TracerMetadata, "should have no tracer metadata")
+
+		// Verify the log file is present
+		assert.NotEmpty(collect, svc.LogFiles, "should have log files")
+
+		// Verify basic service info
+		assert.Equal(collect, "sleep", svc.GeneratedName)
+		assert.Equal(collect, string(usm.CommandLine), svc.GeneratedNameSource)
+	}, 30*time.Second, 100*time.Millisecond)
+
+	// Verify at least one log file path contains our temp file name
+	found := false
+	logFileName := filepath.Base(logFilePath)
+	for _, lf := range svc.LogFiles {
+		if strings.Contains(lf, logFileName) {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected to find log file %s in LogFiles: %v", logFileName, svc.LogFiles)
 }
 
 func TestServicesAPMInstrumentationProvided(t *testing.T) {
-	curDir, err := testutil.CurDir()
-	assert.NoError(t, err)
-
 	testCases := map[string]struct {
 		commandline []string // The command line of the fake server
 		language    language.Language
@@ -361,15 +438,10 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 			commandline: []string{"java", "-javaagent:/path/to/datadog-java-agent.jar", "-jar", "foo.jar"},
 			language:    language.Java,
 		},
-		"node": {
-			commandline: []string{"node", filepath.Join(curDir, "testdata", "server.js")},
-			language:    language.Node,
-		},
 	}
 
 	serverDir := buildFakeServer(t)
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -390,39 +462,11 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 				require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
 
 				assert.Equal(collect, startEvent.PID, pid)
-				assert.Greater(collect, startEvent.StartTimeMilli, uint64(0))
 				assert.Equal(collect, string(test.language), startEvent.Language)
-				assert.Equal(collect, string(apm.Provided), startEvent.APMInstrumentation)
+				assert.Equal(collect, true, startEvent.APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
-}
-
-func TestServicesCommandLineSanitization(t *testing.T) {
-	serverDir := buildFakeServer(t)
-	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	bin := filepath.Join(serverDir, "node")
-
-	actualCommandLine := []string{bin, "--password", "secret", strings.Repeat("A", maxCommandLine*10)}
-	sanitizedCommandLine := []string{bin, "--password", "********", "placeholder"}
-	sanitizedCommandLine[3] = strings.Repeat("A", maxCommandLine-(len(bin)+len(sanitizedCommandLine[1])+len(sanitizedCommandLine[2])))
-
-	cmd := exec.CommandContext(ctx, bin, actualCommandLine[1:]...)
-	require.NoError(t, cmd.Start())
-
-	pid := cmd.Process.Pid
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.Services)
-		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
-		assert.Equal(collect, sanitizedCommandLine, startEvent.CommandLine)
-	}, 30*time.Second, 100*time.Millisecond)
 }
 
 func TestServicesNodeDocker(t *testing.T) {
@@ -434,7 +478,6 @@ func TestServicesNodeDocker(t *testing.T) {
 	require.NoError(t, err)
 
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	pid := int(nodeJSPID)
 
@@ -445,10 +488,9 @@ func TestServicesNodeDocker(t *testing.T) {
 
 		// test@... changed to test_... due to normalization.
 		assert.Equal(collect, svc.PID, pid)
-		assert.Greater(collect, svc.StartTimeMilli, uint64(0))
 		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
-		assert.Equal(collect, "provided", svc.APMInstrumentation)
+		assert.Equal(collect, false, svc.APMInstrumentation)
 		assert.Equal(collect, "web_service", svc.Type)
 	}, 30*time.Second, 100*time.Millisecond)
 }
@@ -496,7 +538,6 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 			require.NoError(t, err)
 
 			discovery := setupDiscoveryModule(t)
-			discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 			pid := cmd.Process.Pid
 			require.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -506,9 +547,8 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				svc := findService(pid, resp.Services)
 				require.NotNilf(collect, svc, "could not find start event for pid %v", pid)
 				assert.Equal(collect, svc.PID, pid)
-				assert.Greater(collect, svc.StartTimeMilli, uint64(0))
 				assert.Equal(collect, string(test.language), svc.Language)
-				assert.Equal(collect, string(apm.Provided), svc.APMInstrumentation)
+				assert.Equal(collect, true, svc.APMInstrumentation)
 			}, 30*time.Second, 100*time.Millisecond)
 		})
 	}
@@ -517,7 +557,6 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 // Check that we can get listening processes in other namespaces using the services endpoint.
 func TestServicesNamespaces(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	// Needed when changing namespaces
 	runtime.LockOSThread()
@@ -571,7 +610,7 @@ func TestServicesNamespaces(t *testing.T) {
 
 		for _, pid := range pids {
 			require.Contains(collect, seen, pid)
-			assert.Contains(collect, seen[pid].Ports, uint16(expectedPorts[pid]))
+			assert.Contains(collect, seen[pid].TCPPorts, uint16(expectedPorts[pid]))
 		}
 	}, 30*time.Second, 100*time.Millisecond)
 }
@@ -579,7 +618,6 @@ func TestServicesNamespaces(t *testing.T) {
 // Check that we are able to find services inside Docker containers using the services endpoint.
 func TestServicesDocker(t *testing.T) {
 	discovery := setupDiscoveryModule(t)
-	discovery.mockTimeProvider.EXPECT().Now().Return(mockedTime).AnyTimes()
 
 	dir, _ := testutil.CurDir()
 	scanner, err := globalutils.NewScanner(regexp.MustCompile("Serving.*"), globalutils.NoPattern)
@@ -618,7 +656,7 @@ func TestServicesDocker(t *testing.T) {
 	// Assert events
 	svc := findService(pid1111, resp.Services)
 	require.NotNilf(t, svc, "could not find start event for pid %v", pid1111)
-	require.Contains(t, svc.Ports, uint16(1234))
+	require.Contains(t, svc.TCPPorts, uint16(1234))
 	require.Contains(t, svc.GeneratedName, "http.server")
 	require.Contains(t, svc.GeneratedNameSource, string(usm.CommandLine))
 	require.Contains(t, svc.Type, "web_service")

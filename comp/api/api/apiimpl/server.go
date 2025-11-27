@@ -12,7 +12,6 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,7 +20,7 @@ import (
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(5, log.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(5, log.ErrorLvl)
 
 	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 
@@ -66,10 +65,7 @@ func (server *apiServer) startServers() error {
 	}
 
 	// start the IPC server
-	if ipcServerPort := server.cfg.GetInt("agent_ipc.port"); ipcServerPort > 0 {
-		ipcServerHost := server.cfg.GetString("agent_ipc.host")
-		ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
-
+	if _, ipcServerHostPort, enabled := getIPCServerAddressPort(); enabled {
 		if err := server.startIPCServer(ipcServerHostPort, tmf); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
 			server.stopServers()

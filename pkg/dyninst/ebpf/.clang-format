@@ -1,0 +1,39 @@
+# Clang-Format configuration for eBPF C sources in this directory.
+# Captures current conventions: 2-space indent, K&R braces, no include
+# reordering, unlimited column width, do not reflow comments, pointer
+# stars bound to the type, and non-indented case labels.
+
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 2
+UseTab: Never
+IndentCaseLabels: false
+IndentPPDirectives: None
+
+# Braces and short constructs
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Line breaking and alignment
+ColumnLimit: 0
+AlignAfterOpenBracket: Align
+AlignOperands: true
+BinPackArguments: true
+BinPackParameters: true
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+PenaltyBreakBeforeFirstCallParameter: 1000000
+
+# Spacing
+PointerAlignment: Left
+SpaceBeforeParens: ControlStatements
+
+# Includes and comments
+SortIncludes: false
+IncludeBlocks: Preserve
+ReflowComments: false
+AlignTrailingComments: false
+

@@ -24,6 +24,11 @@ var (
 	stagingRootDirector []byte
 	//go:embed staging.config.json
 	stagingRootConfig []byte
+
+	//go:embed gov.director.json
+	govRootDirector []byte
+	//go:embed gov.config.json
+	govRootConfig []byte
 )
 
 // EmbeddedRoot is an embedded root with its version parsed
@@ -52,6 +57,8 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 	switch site {
 	case "datad0g.com":
 		return NewEmbeddedRoot(stagingRootDirector)
+	case "ddog-gov.com":
+		return NewEmbeddedRoot(govRootDirector)
 	default:
 		return NewEmbeddedRoot(prodRootDirector)
 	}
@@ -66,6 +73,8 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 	switch site {
 	case "datad0g.com":
 		return NewEmbeddedRoot(stagingRootConfig)
+	case "ddog-gov.com":
+		return NewEmbeddedRoot(govRootConfig)
 	default:
 		return NewEmbeddedRoot(prodRootConfig)
 	}
