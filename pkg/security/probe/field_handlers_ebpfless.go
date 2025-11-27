@@ -300,17 +300,17 @@ func (fh *EBPFLessFieldHandlers) ResolveFileMetadataIsGarbleObfuscated(_ *model.
 }
 
 // ResolveK8SGroups resolves the k8s groups of the event
-func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.UserSessionContext) []string {
+func (fh *EBPFLessFieldHandlers) ResolveK8SGroups(_ *model.Event, e *model.K8SSessionContext) []string {
 	return e.K8SGroups
 }
 
 // ResolveK8SUID resolves the k8s UID of the event
-func (fh *EBPFLessFieldHandlers) ResolveK8SUID(_ *model.Event, e *model.UserSessionContext) string {
+func (fh *EBPFLessFieldHandlers) ResolveK8SUID(_ *model.Event, e *model.K8SSessionContext) string {
 	return e.K8SUID
 }
 
 // ResolveK8SUsername resolves the k8s username of the event
-func (fh *EBPFLessFieldHandlers) ResolveK8SUsername(_ *model.Event, e *model.UserSessionContext) string {
+func (fh *EBPFLessFieldHandlers) ResolveK8SUsername(_ *model.Event, e *model.K8SSessionContext) string {
 	return e.K8SUsername
 }
 
@@ -439,8 +439,8 @@ func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *mode
 	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
 }
 
-// ResolveUserSessionContext resolves and updates the provided user session context
-func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.Event, _ *model.UserSessionContext) {
+// ResolveK8SUserSessionContext resolves and updates the provided user session context
+func (fh *EBPFLessFieldHandlers) ResolveK8SUserSessionContext(_ *model.Event, _ *model.K8SSessionContext) {
 }
 
 // ResolveProcessCmdArgv resolves the command line
@@ -625,11 +625,26 @@ func (fh *EBPFLessFieldHandlers) ResolveCapabilitiesUsed(_ *model.Event, _ *mode
 }
 
 // ResolveSSHClientIP resolves the ssh username of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.UserSessionContext) net.IPNet {
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientIP(_ *model.Event, _ *model.SSHSessionContext) net.IPNet {
 	return net.IPNet{} // EBPFLess mode does not support SSH
 }
 
-// ResolveSSHPort resolves the public key of the event
-func (fh *EBPFLessFieldHandlers) ResolveSSHPort(_ *model.Event, _ *model.UserSessionContext) int {
-	return 0 //EBPFLess mode does not support SSH port
+// ResolveSSHClientPort resolves the public key of the event
+func (fh *EBPFLessFieldHandlers) ResolveSSHClientPort(_ *model.Event, _ *model.SSHSessionContext) int {
+	return 0 // EBPFLess mode does not support SSH port
+}
+
+// ResolveSessionType resolves the session type of the event
+func (fh *EBPFLessFieldHandlers) ResolveSessionType(_ *model.Event, _ *model.UserSessionContext) int {
+	return 0
+}
+
+// ResolveSessionID resolves the session id of the event
+func (fh *EBPFLessFieldHandlers) ResolveSessionID(_ *model.Event, _ *model.UserSessionContext) string {
+	return ""
+}
+
+// ResolveSessionIdentity resolves the user of the event
+func (fh *EBPFLessFieldHandlers) ResolveSessionIdentity(_ *model.Event, _ *model.UserSessionContext) string {
+	return ""
 }

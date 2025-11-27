@@ -202,7 +202,15 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 
 	memPools.ensureInit(deps.Telemetry)
 	p.streamHandlers = newStreamCollection(sysCtx, deps.Telemetry, cfg)
-	p.consumer = newCudaEventConsumer(sysCtx, p.streamHandlers, p.eventHandler, p.ringBuffer, p.cfg, deps.Telemetry)
+	p.consumer = newCudaEventConsumer(cudaEventConsumerDependencies{
+		sysCtx:         sysCtx,
+		cfg:            cfg,
+		telemetry:      deps.Telemetry,
+		processMonitor: deps.ProcessMonitor,
+		streamHandlers: p.streamHandlers,
+		eventHandler:   p.eventHandler,
+		ringFlusher:    p.ringBuffer,
+	})
 	p.statsGenerator = newStatsGenerator(sysCtx, p.streamHandlers, deps.Telemetry)
 
 	if err = p.start(); err != nil {
