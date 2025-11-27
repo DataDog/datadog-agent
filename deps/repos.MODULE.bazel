@@ -57,6 +57,7 @@ single_version_override(
     patch_strip = 1,
     patches = [
         "//bazel/patches:rules_foreign_cc/0000-expose-pc-files.patch",
+        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
     ],
 )
 
