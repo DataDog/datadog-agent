@@ -67,8 +67,5 @@ func NewFailHandle(flags uint32, handleType driver.HandleType) (driver.Handle, e
 	return &TestDriverHandleFail{}, nil
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
-func TestSetFlowFiltersFail(t *testing.T) {
-	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
-	return
+func TestSetFlowFiltersFail(*testing.T) {
 }

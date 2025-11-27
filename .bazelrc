@@ -31,6 +31,7 @@ common:windows --noexperimental_convenience_symlinks --shell_executable=C:/tools
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
 common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_instance_name=remote-caching/datadog-agent
+common:cache --remote_local_fallback  # best-effort on transient connection errors (no such host)
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
 

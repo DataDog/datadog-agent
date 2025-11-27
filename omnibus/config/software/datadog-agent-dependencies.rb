@@ -31,7 +31,15 @@ dependency "systemd" if linux_target?
 dependency 'libpcap' if linux_target? and !heroku_target? # system-probe dependency
 
 # Include traps db file in snmp.d/traps_db/
-dependency 'snmp-traps'
+# TODO: Fix rules_pkg so install works.
+if windows_target?
+  dependency 'snmp-traps'
+else
+  build do
+      command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir='#{install_dir}'",
+          env: { BUILD_WORKSPACE_DIRECTORY: "." }
+  end
+end
 
 dependency 'datadog-agent-integrations-py3'
 
