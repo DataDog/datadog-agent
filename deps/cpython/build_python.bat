@@ -58,6 +58,9 @@ if ERRORLEVEL 1 exit /b %ERRORLEVEL%
 :: Needed to avoid xcopy from failing when copying files out of this dir
 for %%F in (%OPENSSL_DIR%) do set OPENSSL_DIR=%%~fF
 
+:: Copy OpenSSL files to where the layout script expects them.
+:: The Python build would do this itself when SkipCopySSLDLL is not set,
+:: since we enabled that, we need to now copy them manually
 xcopy /f %OPENSSL_DIR%*.lib %build_outdir%\
 xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 

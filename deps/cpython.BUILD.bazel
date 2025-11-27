@@ -26,12 +26,14 @@ python_externals = {
     for dep, version in python_externals.items()
 ]
 
+# This sets up OpenSSL files in a layout such as the Python build system for Windows expects
 copy_to_directory(
     name = "openssl-bin_win_dir",
     srcs = ["@openssl"],
     # TODO(team:agent-build): Single source of truth for dependency versions
     out = "openssl-bin-3.5.4/amd64",
     include_external_repositories = ["*openssl*"],
+    # This reproduces the expected layout (libs at root, includes under `include`)
     root_paths = [
         "openssl/bin",
         "openssl/lib",
