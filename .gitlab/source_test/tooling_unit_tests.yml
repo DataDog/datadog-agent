@@ -10,3 +10,15 @@ invoke_unit_tests:
   script:
     - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
     - dda inv -- -e invoke-unit-tests.run
+
+invoke_unit_tests_windows:
+  stage: source_test
+  tags: ["windows-v2:2022"]
+  needs: []
+  # rules:
+    # - !reference [.on_invoke_tasks_changes]
+  script:
+    - $ErrorActionPreference = "Stop"
+    - pip3 install dda
+    - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
+    - dda inv -- -e invoke-unit-tests.run
