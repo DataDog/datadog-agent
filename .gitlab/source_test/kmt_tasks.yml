@@ -12,10 +12,11 @@
           - .gitlab/source_test/kmt_tasks.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
+    - token="$(dda inv -- auth.gitlab --repo test-infra-definitions)"
+    - git config --global url."https://gitlab-ci-token:${token}@gitlab.ddbuild.io/DataDog/".insteadOf "git@github.com:"
     # Avoid rate limits when running kmt.init (pulumi queries the Github API to get the releases of plugins)
     - export GITHUB_TOKEN=$(dda inv github.get-token-from-app)
-    - export KMT_TEST_INFRA_DEFINITIONS_PATH="$(go env GOPATH)"/src/github.com/DataDog/test-infra-definitions
+    - export KMT_TEST_INFRA_DEFINITIONS_PATH="$(go env GOPATH)"/src/github.com/DataDog/datadog-agent/test/e2e-framework
     - dda inv -- kmt.init --remote-setup-only --skip-ssh-setup --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --images ""
     - export PATH=$PATH:$HOME/.pulumi/bin  # Simulate a shell restart, required for the check
     - dda inv -- kmt.selfcheck --remote-setup-only --exclude-requirements $KMT_EXCLUDE_REQUIREMENTS --show-flare-for-failures

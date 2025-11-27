@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
-	"github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 
 	kubeClient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"

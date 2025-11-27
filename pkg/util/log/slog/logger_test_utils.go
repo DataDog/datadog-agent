@@ -9,6 +9,7 @@ package slog
 
 import (
 	"io"
+	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -17,6 +18,16 @@ import (
 
 // defaultMsgFormat is the default message format for the logger.
 const defaultMsgFormat = "{{Ns}} [{{Level}}] {{.msg}}\n"
+
+// Default returns a default logger.
+func Default() types.LoggerInterface {
+	// the default seelog logger is an asynchronous loop logger, prints to stdout,
+	// with the default format
+	formatter := formatters.Template(defaultMsgFormat)
+	stdoutHandler := handlers.NewFormat(formatter, os.Stdout)
+	asyncHandler := handlers.NewAsync(stdoutHandler)
+	return NewWrapperWithCloseAndFlush(asyncHandler, asyncHandler.Flush, asyncHandler.Close)
+}
 
 // LoggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level, and a template format.
 func LoggerFromWriterWithMinLevelAndFormat(output io.Writer, minLevel types.LogLevel, tmplFormat string) (types.LoggerInterface, error) {

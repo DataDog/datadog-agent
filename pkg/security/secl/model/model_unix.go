@@ -58,7 +58,6 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 // genaccessors
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
@@ -190,10 +189,9 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	}
 }
 
-// Key returns a unique key for the entity
-func (cg *CGroupContext) Key() (string, bool) {
-	cgrpID := string(cg.CGroupID)
-	return cgrpID, cgrpID != ""
+// Hash returns a unique key for the entity
+func (cg *CGroupContext) Hash() string {
+	return string(cg.CGroupID)
 }
 
 // ParentScope returns the parent entity scope
@@ -373,9 +371,6 @@ type Process struct {
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
 	SymlinkBasenameStr string              `field:"-"`
 
-	// cache version
-	ScrubbedArgvResolved bool `field:"-"`
-
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
@@ -399,9 +394,9 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
 }
 
 // ParentScope returns the parent entity scope
@@ -514,20 +509,23 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32   `field:"-"`
-	MountIDUnique  uint64   `field:"-"`
-	Device         uint32   `field:"-"`
-	ParentPathKey  PathKey  `field:"-"`
-	Children       []uint32 `field:"-"`
-	RootPathKey    PathKey  `field:"-"`
-	BindSrcMountID uint32   `field:"-"`
-	FSType         string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string   `field:"-"`
-	RootStr        string   `field:"-"`
-	Path           string   `field:"-"`
-	Origin         uint32   `field:"-"`
-	Detached       bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	MountID              uint32   `field:"-"`
+	MountIDUnique        uint64   `field:"-"`
+	Device               uint32   `field:"-"`
+	ParentPathKey        PathKey  `field:"-"`
+	Children             []uint32 `field:"-"`
+	RootPathKey          PathKey  `field:"-"`
+	BindSrcMountID       uint32   `field:"-"`
+	BindSrcMountIDUnique uint64   `field:"-"`
+	ParentMountIDUnique  uint64   `field:"-"`
+	FSType               string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr        string   `field:"-"`
+	RootStr              string   `field:"-"`
+	Path                 string   `field:"-"`
+	Origin               uint32   `field:"-"`
+	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	NamespaceInode       uint32   `field:"-"`
 }
 
 // MountEvent represents a mount event

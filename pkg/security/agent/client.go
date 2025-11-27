@@ -9,7 +9,9 @@ package agent
 import (
 	"context"
 	"fmt"
+	"net"
 	"runtime"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -19,7 +21,9 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 	"github.com/golang/protobuf/ptypes/empty"
+	"github.com/mdlayher/vsock"
 )
 
 // RuntimeSecurityCmdClient is used to send request to security module
@@ -194,7 +198,7 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 		return nil, err
 	}
 
-	family := common.GetFamilyAddress(cmdSocketPath)
+	family, cmdSocketPath := socket.GetSocketAddress(cmdSocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
@@ -232,7 +236,7 @@ func (c *RuntimeSecurityEventClient) Close() {
 func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 
-	family := common.GetFamilyAddress(socketPath)
+	family := socket.GetFamilyAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, fmt.Errorf("unix sockets are not supported on Windows")
@@ -241,8 +245,7 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 		socketPath = fmt.Sprintf("unix://%s", socketPath)
 	}
 
-	conn, err := grpc.NewClient(
-		socketPath,
+	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
 		grpc.WithConnectParams(grpc.ConnectParams{
@@ -250,7 +253,28 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 				BaseDelay: time.Second,
 				MaxDelay:  time.Second,
 			},
+		}),
+	}
+
+	if family == "vsock" {
+		cmdPort, parseErr := strconv.Atoi(socketPath)
+		if parseErr != nil {
+			return nil, fmt.Errorf("invalid vsock socket path '%s'", socketPath)
+		}
+
+		if cmdPort <= 0 {
+			return nil, fmt.Errorf("invalid port '%s' for vsock", socketPath)
+		}
+
+		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))
+	}
+
+	conn, err := grpc.NewClient(
+		socketPath,
+		opts...,
+	)
 	if err != nil {
 		return nil, err
 	}

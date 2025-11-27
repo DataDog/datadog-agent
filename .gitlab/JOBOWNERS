@@ -154,6 +154,7 @@ integration_tests_windows*    @DataDog/windows-products
 integration_tests_otel        @DataDog/opentelemetry-agent
 docker_image_build_otel       @DataDog/opentelemetry-agent
 build_otel_agent_*            @DataDog/opentelemetry-agent
+build_host_profiler_*         @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 ddot_byoc_*                   @DataDog/opentelemetry-agent
 datadog_otel_components_ocb_build  @DataDog/opentelemetry-agent
 docker_integration_tests      @DataDog/container-integrations
@@ -174,6 +175,7 @@ e2e_pre_test*                     @DataDog/agent-devx
 new-e2e*                          @DataDog/multiple
 go_e2e_test_binaries              @DataDog/agent-devx
 dynamic_test-evaluate-e2e         @DataDog/agent-devx
+all-artifacts                     @DataDog/agent-devx
 
 # Kernel matrix testing
 upload_dependencies*              @DataDog/ebpf-platform
