@@ -45,25 +45,35 @@ func TestUmount(t *testing.T) {
 	fmt.Println("Created new mount at", mountDir, mountID)
 
 	found := false
-	fmt.Println("START")
+	fmt.Println("Start")
 	err = test.GetProbeEvent(func() error {
 		err = unix.Unmount(mountDir, syscall.MNT_DETACH)
-		_ = unix.Close(fd)
+		if err != nil {
+			fmt.Println("Error unmounting", err)
+		}
+		err = unix.Close(fd)
+
+		if err != nil {
+			fmt.Println("Error closing", err)
+		}
 		return nil
 	}, func(event *model.Event) bool {
-		// Check if mount id is correct
-		fmt.Println("EVENT", event.GetType())
 		if event.GetType() != "finalize_umount" {
 			return false
 		}
+
 		fmt.Println("Found MountID", event.FinalizedUmount.MountID)
 		if event.FinalizedUmount.MountID != mountID {
-			found = true
 			return false
 		}
-
+		fmt.Printf("Correct mountid=%d found.\n", event.FinalizedUmount.MountID)
+		found = true
 		return true
 	}, 3*time.Second, model.FileFinalizedUmountEventType)
-	fmt.Println("FINISH")
-	assert.True(t, found, "expected file finalized umount event")
+	fmt.Println("Finish")
+	if err != nil {
+		fmt.Println("Error getting probe event", err)
+	}
+
+	assert.True(t, found, "expected mount was never detached")
 }
