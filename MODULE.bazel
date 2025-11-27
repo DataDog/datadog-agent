@@ -164,7 +164,13 @@ include("//deps:repos.MODULE.bazel")
 include("//deps/acl:acl.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/compile_policy:compile_policy.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/gstatus:gstatus.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/openssl3:openssl3.MODULE.bazel")

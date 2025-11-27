@@ -62,12 +62,11 @@ type checkTelemetry struct {
 }
 
 type checkTelemetryMetrics struct {
-	metricsSent                  telemetry.Counter
-	duplicateMetrics             telemetry.Counter
-	activeMetrics                telemetry.Gauge
-	missingContainerGpuMapping   telemetry.Counter
-	multipleContainersGpuMapping telemetry.Counter
-	deviceCount                  telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
+	metricsSent                telemetry.Counter
+	duplicateMetrics           telemetry.Counter
+	activeMetrics              telemetry.Gauge
+	missingContainerGpuMapping telemetry.Counter
+	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
 // Factory creates a new check factory
@@ -99,12 +98,11 @@ func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
 
 func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 	return &checkTelemetryMetrics{
-		metricsSent:                  tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
-		activeMetrics:                tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
-		duplicateMetrics:             tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
-		missingContainerGpuMapping:   tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
-		multipleContainersGpuMapping: tm.NewCounter(CheckName, "multiple_containers_gpu_mapping", []string{"device"}, "Number of devices assigned to multiple containers"),
-		deviceCount:                  tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
+		metricsSent:                tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of GPU metrics sent"),
+		activeMetrics:              tm.NewGauge(CheckName, "active_metrics", nil, "Number of active metrics"),
+		duplicateMetrics:           tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate metrics removed from NVML collectors due to priority de-duplication"),
+		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching GPU device"),
+		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of GPU devices"),
 	}
 }
 
@@ -278,7 +276,7 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
+func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 	allPhysicalDevices, err := c.deviceCache.AllPhysicalDevices()
 	if err != nil {
 		if logLimitCheck.ShouldLog() {
@@ -286,7 +284,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 		}
 		return nil
 	}
-	gpuToContainers := make(map[string]*workloadmeta.Container, len(allPhysicalDevices))
+	gpuToContainers := make(map[string][]*workloadmeta.Container, len(allPhysicalDevices))
 
 	for _, container := range c.wmeta.ListContainersWithFilter(containers.HasGPUs) {
 		if containers.IsDatadogAgentContainer(c.wmeta, container) {
@@ -303,13 +301,7 @@ func (c *Check) getGPUToContainersMap() map[string]*workloadmeta.Container {
 		// we also assume that each device can be assigned to only one container, and we store only the first one
 		for _, device := range containerDevices {
 			deviceID := device.GetDeviceInfo().UUID
-			// the device was assigned to multiple containers concurrently, we don't support this case, but we update internal telemetry
-			if _, exists := gpuToContainers[deviceID]; exists {
-				c.telemetry.metrics.multipleContainersGpuMapping.Inc(deviceID)
-			} else {
-				gpuToContainers[deviceID] = container
-			}
-
+			gpuToContainers[deviceID] = append(gpuToContainers[deviceID], container)
 		}
 	}
 
@@ -321,7 +313,7 @@ type deviceMetricsCollection struct {
 	totalCount       int                                      // total number of metrics across all collectors
 }
 
-func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*workloadmeta.Container, currentExecutionTime time.Time) error {
+func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
 	err := c.ensureInitCollectors()
 	if err != nil {
 		return fmt.Errorf("failed to initialize NVML collectors: %w", err)
@@ -361,12 +353,12 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 		//filter out same metric with lower priority
 		deduplicatedMetrics := nvidia.RemoveDuplicateMetrics(deviceData.collectorMetrics)
 		c.telemetry.metrics.duplicateMetrics.Add(float64(deviceData.totalCount-len(deduplicatedMetrics)), deviceUUID)
-		deviceContainer := gpuToContainersMap[deviceUUID]
+		deviceContainers := gpuToContainersMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
-			if err := c.emitSingleMetric(&metric, snd, currentExecutionTime, deviceContainer, deviceTags); err != nil {
+			if err := c.emitSingleMetric(&metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}
@@ -375,14 +367,16 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string]*wo
 	return multiErr
 }
 
-func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainer *workloadmeta.Container, deviceTags []string) error {
+func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
 	var multiErr error
 
 	metricWorkloads := metric.AssociatedWorkloads
 
 	// Metrics with no associated workloads are assumed to apply to all workloads on the device.
-	if len(metricWorkloads) == 0 && deviceContainer != nil {
-		metricWorkloads = []workloadmeta.EntityID{deviceContainer.EntityID}
+	if len(metricWorkloads) == 0 {
+		for _, deviceContainer := range deviceContainers {
+			metricWorkloads = append(metricWorkloads, deviceContainer.EntityID)
+		}
 	}
 
 	metricTags := []string{}

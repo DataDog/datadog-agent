@@ -15,7 +15,11 @@ end
 
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
-dependency "dd-compile-policy" if linux_target? and !heroku_target?
+if linux_target? and !heroku_target?
+  build do
+    command_on_repo_root "bazelisk run -- //deps/compile_policy:install --destdir='#{install_dir}'"
+  end
+end
 
 # Bundled cacerts file (is this a good idea?)
 dependency 'cacerts'
