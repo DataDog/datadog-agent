@@ -20,13 +20,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func TestSnapshot(t *testing.T) {
+func TestReplay(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	t.Run("host-event", func(t *testing.T) {
 		ruleDefs := []*rules.RuleDefinition{
 			{
-				ID:         "test_rule_snapshot_host",
+				ID:         "test_rule_replay_host",
 				Expression: `exec.comm in ["testsuite"]`,
 			},
 		}
@@ -35,7 +35,7 @@ func TestSnapshot(t *testing.T) {
 
 		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
 			ruleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
-				assertTriggeredRule(t, r, "test_rule_snapshot_host")
+				assertTriggeredRule(t, r, "test_rule_replay_host")
 				testMod.validateExecSchema(t, e)
 				validateProcessContext(t, e)
 
@@ -63,7 +63,7 @@ func TestSnapshot(t *testing.T) {
 	t.Run("container-event", func(t *testing.T) {
 		ruleDefs := []*rules.RuleDefinition{
 			{
-				ID:         "test_rule_snapshot_container",
+				ID:         "test_rule_replay_container",
 				Expression: `exec.comm in ["sleep"] && process.argv in ["123"] && process.container.id != ""`,
 			},
 		}
@@ -101,7 +101,7 @@ func TestSnapshot(t *testing.T) {
 
 		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
 			ruleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
-				assertTriggeredRule(t, r, "test_rule_snapshot_container")
+				assertTriggeredRule(t, r, "test_rule_replay_container")
 				testMod.validateExecSchema(t, e)
 				validateProcessContext(t, e)
 				gotEvent.Store(true)
@@ -119,15 +119,11 @@ func TestSnapshot(t *testing.T) {
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
 	})
 
-	t.Run("snapshot-only-event", func(t *testing.T) {
+	t.Run("replay-event", func(t *testing.T) {
 		ruleDefs := []*rules.RuleDefinition{
 			{
-				ID:         "test_rule_snapshot_only",
-				Expression: `event.source == "snapshot" && exec.comm in ["sleep"]`,
-			},
-			{
-				ID:         "test_rule_snapshot_exclude",
-				Expression: `event.source != "snapshot" && exec.comm in ["sleep"]`,
+				ID:         "test_rule_replay",
+				Expression: `event.source == "replay" && exec.comm in ["sleep"]`,
 			},
 		}
 
@@ -163,7 +159,7 @@ func TestSnapshot(t *testing.T) {
 
 		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
 			ruleMatchHandler: func(testMod *testModule, e *model.Event, r *rules.Rule) {
-				assertTriggeredRule(t, r, "test_rule_snapshot_only")
+				assertTriggeredRule(t, r, "test_rule_replay")
 				testMod.validateExecSchema(t, e)
 				validateProcessContext(t, e)
 				gotEvent.Store(true)
@@ -176,6 +172,6 @@ func TestSnapshot(t *testing.T) {
 		defer test.Close()
 		defer cmd.Cancel()
 
-		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from snapshot")
+		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from replay")
 	})
 }
