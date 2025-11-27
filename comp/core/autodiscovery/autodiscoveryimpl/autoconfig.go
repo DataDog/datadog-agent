@@ -223,7 +223,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 }
 
 func (ac *AutoConfig) refreshConfig(origin string) {
-	rawConfig, resolvedConfigs, found := ac.cfgMgr.configsForSecretRefresh(origin)
+	rawConfig, resolvedConfigs, found := ac.cfgMgr.getConfigByDigest(origin)
 	if !found {
 		log.Warnf("no active config found for secret origin %s", origin)
 		return

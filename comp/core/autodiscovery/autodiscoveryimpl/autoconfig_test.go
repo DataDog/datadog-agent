@@ -221,6 +221,9 @@ func (suite *AutoConfigTestSuite) TestRefreshConfig() {
 	changes := ac.processNewConfig(raw)
 	ac.applyChanges(changes)
 
+	// Increment the resolver call count so the next trigger uses the refreshed secrets.
+	mockResolver.callCount = 2
+
 	require.Eventually(suite.T(), func() bool {
 		mockScheduler.mutex.RLock()
 		defer mockScheduler.mutex.RUnlock()
@@ -231,6 +234,7 @@ func (suite *AutoConfigTestSuite) TestRefreshConfig() {
 	mockScheduler.mutex.RLock()
 	for _, cfg := range mockScheduler.scheduled {
 		resolvedBefore = cfg
+		break
 	}
 	mockScheduler.mutex.RUnlock()
 
@@ -239,9 +243,17 @@ func (suite *AutoConfigTestSuite) TestRefreshConfig() {
 	require.Eventually(suite.T(), func() bool {
 		mockScheduler.mutex.RLock()
 		defer mockScheduler.mutex.RUnlock()
-		_, ok := mockScheduler.scheduled[resolvedBefore.Digest()]
-		return len(mockScheduler.scheduled) == 1 && ok
-	}, 2*time.Second, 20*time.Millisecond, "expected refreshed config to remain scheduled")
+		if len(mockScheduler.unscheduled) != 1 {
+			return false
+		}
+		return mockScheduler.unscheduled[0].Digest() == resolvedBefore.Digest()
+	}, 2*time.Second, 20*time.Millisecond, "expected the old config to be unscheduled")
+
+	require.Eventually(suite.T(), func() bool {
+		mockScheduler.mutex.RLock()
+		defer mockScheduler.mutex.RUnlock()
+		return len(mockScheduler.scheduled) == 1
+	}, 2*time.Second, 20*time.Millisecond, "expected the new refreshed config to be scheduled")
 }
 
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
@@ -622,6 +634,12 @@ func TestGetUnresolvedConfigs(t *testing.T) {
 			returnedError:  nil,
 		},
 		{
+			expectedData:   []byte{},
+			expectedOrigin: "",
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+		{
 			expectedData:   []byte("param1: ENC[foo]\n"),
 			expectedOrigin: "",
 			returnedData:   []byte("param1: foo\n"),
@@ -698,6 +716,12 @@ func TestDecryptConfig(t *testing.T) {
 			returnedError:  nil,
 		},
 		{
+			expectedData:   []byte{},
+			expectedOrigin: "",
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+		{
 			expectedData:   []byte("param1: ENC[foo]\n"),
 			expectedOrigin: "",
 			returnedData:   []byte("param1: foo\n"),
@@ -744,6 +768,18 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			expectedData:   []byte("foo: ENC[bar]"),
 			expectedOrigin: "",
 			returnedData:   []byte("foo: barDecoded"),
+			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte{},
+			expectedOrigin: "",
+			returnedData:   []byte{},
+			returnedError:  nil,
+		},
+		{
+			expectedData:   []byte{},
+			expectedOrigin: "",
+			returnedData:   []byte{},
 			returnedError:  nil,
 		},
 		{
