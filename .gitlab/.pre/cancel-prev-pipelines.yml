@@ -10,5 +10,4 @@ cancel-prev-pipelines:
     - !reference [.on_dev_branches]
     - when: on_success
   script:
-    - echo "Author $CI_COMMIT_AUTHOR is $CI_COMMIT_AUTHOR_EMAIL, $CI_COMMIT_AUTHOR_USERNAME"
     - dda inv -- pipeline.auto-cancel-previous-pipelines

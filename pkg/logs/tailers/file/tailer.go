@@ -477,3 +477,8 @@ func (t *Tailer) GetType() string {
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
 }
+
+// GetFingerprint returns the tailer's fingerprint
+func (t *Tailer) GetFingerprint() *logstypes.Fingerprint {
+	return t.fingerprint
+}

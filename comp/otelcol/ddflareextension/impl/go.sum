@@ -36,8 +36,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0/go.mod h1:HKpQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U+0KMqAA0KcU=
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
-github.com/DataDog/agent-payload/v5 v5.0.175 h1:iyzhnBKD8tTFCmOyA6Gllja2irXy+d+wEMvwDd5m4uc=
-github.com/DataDog/agent-payload/v5 v5.0.175/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
+github.com/DataDog/agent-payload/v5 v5.0.176 h1:mDTP7q0pvIAGfqbnQ4HwqMkamo04+Zf6EAK2xyhfP/U=
+github.com/DataDog/agent-payload/v5 v5.0.176/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
 github.com/DataDog/datadog-api-client-go/v2 v2.49.0 h1:44ltl4mpJCtUdBLvOvXcCcvNewB+beDesZaoQYZqjCc=
 github.com/DataDog/datadog-api-client-go/v2 v2.49.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
@@ -51,8 +51,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
-github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 h1:uX4ZqokylxBI67r+AN09CiFY+s8Frmf33YZlyqIMBc4=
-github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
+github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3 h1:92RG43PJUX0unYAdqtNWeQMKigUDK7tpV3iHeeby2e4=
+github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3/go.mod h1:QGomve/3EbYfi58jADS97U2OKfsxqh2pWemuT0azbdk=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
 github.com/DataDog/zstd v1.5.7/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -578,8 +578,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumul
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.140.1/go.mod h1:HRIaREk1wmELjjFqA17ALS0EpRudtmL85J+G5vGICpo=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.140.1 h1:eV+ogmxqGFfPDz7n0JLcEnJAqlRDAwRikGaM41Ho8Tw=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.140.1/go.mod h1:os51v799F5dj0YN1g/xUr/WrsYrwDbVbSlVL4sLGCmU=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.140.1 h1:zVIQm9UFqwZ6xQnZjdKXKmRMD3+iY8sy1eJ9kjJ27FY=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.140.1/go.mod h1:e/ZVSkLhZ8qQJC1oi/runS0zG0HzG1MmrYss2gJq9KM=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.140.1 h1:BfzDWrF6jIjSyiEYpO3U84FH7Pes+cepJy4jiKfk55Q=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.140.1/go.mod h1:dJWHfMFUzwWtdRVA91YvKyCexo7nM86UNEveCoF9ki0=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.140.1 h1:JnMoU0u3T/zK/pOkRusYuBF5kspdYvaUKDsRl4smUE8=
@@ -824,8 +822,6 @@ go.opentelemetry.io/collector/consumer/xconsumer v0.140.0 h1:VTTybtJLbGN6aGw1bB7
 go.opentelemetry.io/collector/consumer/xconsumer v0.140.0/go.mod h1:CtwSgAXVisCEJ+ElKeDa0yDo/Oie7l1vWAx1elFyWZc=
 go.opentelemetry.io/collector/exporter v1.46.0 h1:wCNH6dyG/PFtN40Q4ZCPWXgPuoX44cT9U4TuNVcLUvw=
 go.opentelemetry.io/collector/exporter v1.46.0/go.mod h1:EiNU4i+iG0n1FQBkWkwS7Nzd+vjlKsefy1bLHj913EU=
-go.opentelemetry.io/collector/exporter/debugexporter v0.140.0 h1:HQKp5FoUIVAPMHGx42zYuVP8jN3ZWUeMIsGBXZrTlto=
-go.opentelemetry.io/collector/exporter/debugexporter v0.140.0/go.mod h1:qlKig6kWTr0EvbcOKbe0ueeUxfNeTbNf2pCORzyJRVw=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.140.0 h1:Euh2mfLhZoPgccNY++PfX0H3aFwthVFjR38x4RllXcM=
 go.opentelemetry.io/collector/exporter/exporterhelper v0.140.0/go.mod h1:0WQCcouhn/efm75++yuzhNj51Q+8kR3HrGDLGjoUrso=
 go.opentelemetry.io/collector/exporter/exporterhelper/xexporterhelper v0.140.0 h1:jyw54m867IaPktvM5tU7T2vA3TY8/9M1de81mvJYa2A=
@@ -868,8 +864,6 @@ go.opentelemetry.io/collector/internal/testutil v0.140.0 h1:OgvGiltSMMzFg3I48quB
 go.opentelemetry.io/collector/internal/testutil v0.140.0/go.mod h1:YAD9EAkwh/l5asZNbEBEUCqEjoL1OKMjAMoPjPqH76c=
 go.opentelemetry.io/collector/otelcol v0.140.0 h1:vFrqrxA7MeGsc09WTZGzePwMh05dNKUmZkGH4lGYr/U=
 go.opentelemetry.io/collector/otelcol v0.140.0/go.mod h1:2t7Nd4gau1WBLqgdDKvGwRxmGl5R0xDxKv8iPVXpLFg=
-go.opentelemetry.io/collector/otelcol/otelcoltest v0.140.0 h1:aqqx7oW6ZcBajSxYzuoiZ1gF96S5u8NxyGQOFbUNUG4=
-go.opentelemetry.io/collector/otelcol/otelcoltest v0.140.0/go.mod h1:s+10HJ9sbdSKFgImN7iv2T4Wp5OhvaHSyFLHabJYeRs=
 go.opentelemetry.io/collector/pdata v1.46.0 h1:XzhnIWNtc/gbOyFiewRvybR4s3phKHrWxL3yc/wVLDo=
 go.opentelemetry.io/collector/pdata v1.46.0/go.mod h1:D2e3BWCUC/bUg29WNzCDVN7Ab0Gzk7hGXZL2pnrDOn0=
 go.opentelemetry.io/collector/pdata/pprofile v0.140.0 h1:b9TZ6UnyzsT/ERQw2VKGi/NYLtKSmjG7cgQuc9wZt5s=
