@@ -52,9 +52,9 @@ type configManager interface {
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
 
-	// configsForSecretRefresh returns the raw config paired with the resolved
+	// getConfigByDigest returns the raw config paired with the resolved
 	// configs currently scheduled for the given origin digest.
-	configsForSecretRefresh(origin string) (integration.Config, []integration.Config, bool)
+	getConfigByDigest(origin string) (integration.Config, []integration.Config, bool)
 
 	// removeActiveConfig removes the raw config digest from the active map so it can be reprocessed.
 	removeActiveConfig(digest string)
@@ -441,10 +441,10 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	return resolvedConfig, true
 }
 
-// configsForSecretRefresh retrieves the raw config plus the resolved configs we
+// getConfigByDigest retrieves the raw config plus the resolved configs we
 // previously scheduled for the provided origin digest. It returns false if the
 // digest is unknown or nothing is currently scheduled for it.
-func (cm *reconcilingConfigManager) configsForSecretRefresh(origin string) (integration.Config, []integration.Config, bool) {
+func (cm *reconcilingConfigManager) getConfigByDigest(origin string) (integration.Config, []integration.Config, bool) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 

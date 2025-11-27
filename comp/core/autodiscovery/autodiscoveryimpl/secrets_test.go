@@ -30,6 +30,7 @@ type MockSecretResolver struct {
 	t         *testing.T
 	scenarios []mockSecretScenario
 	callback  secrets.SecretChangeCallback
+	callCount int
 }
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
@@ -42,6 +43,9 @@ func (m *MockSecretResolver) Resolve(data []byte, origin string, _ string, _ str
 	}
 	for n, scenario := range m.scenarios {
 		if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
+			if m.scenarios[n].called != m.callCount {
+				continue
+			}
 			m.scenarios[n].called++
 			return scenario.returnedData, scenario.returnedError
 		}
@@ -70,7 +74,7 @@ func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 
 func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	for _, scenario := range m.scenarios {
-		if scenario.called != 0 {
+		if scenario.called != 0 && scenario.called != 2 {
 			return false
 		}
 	}
@@ -115,6 +119,34 @@ func makeScenariosForConfig(conf integration.Config) []mockSecretScenario {
 			returnedData:   []byte("param4: log"),
 			returnedError:  nil,
 		},
+		{
+			expectedData:   []byte("param1: ENC[foo]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param1: foo_new"),
+			returnedError:  nil,
+			called:         2,
+		},
+		{
+			expectedData:   []byte("param2: ENC[bar]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param2: bar_new"),
+			returnedError:  nil,
+			called:         2,
+		},
+		{
+			expectedData:   []byte("param3: ENC[met]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param3: met_new"),
+			returnedError:  nil,
+			called:         2,
+		},
+		{
+			expectedData:   []byte("param4: ENC[log]"),
+			expectedOrigin: digest,
+			returnedData:   []byte("param4: log_new"),
+			returnedError:  nil,
+			called:         2,
+		},
 	}
 }
 
@@ -124,7 +156,6 @@ var makeSharedScenarios = func() []mockSecretScenario {
 
 func TestSecretResolve(t *testing.T) {
 	mockResolve := &MockSecretResolver{t: t, scenarios: makeSharedScenarios()}
-
 	newConfig, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
 	require.NoError(t, err)
 
