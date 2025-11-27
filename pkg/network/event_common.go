@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 const (
@@ -114,10 +115,17 @@ type BufferedData struct {
 	buffer *ClientBuffer
 }
 
+// ContainerID uniquely represents a container. Nil represents the host.
+type ContainerID = *intern.Value
+
+// ResolvConf is an interned string representing the contents of resolv.conf
+type ResolvConf = *utilintern.StringValue
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]dns.Hostname
+	ResolvConfs                 map[ContainerID]ResolvConf
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	KernelHeaderFetchResult     int32

@@ -1099,13 +1099,17 @@ func TestGetRuleEventType(t *testing.T) {
 		}
 
 		event := model.NewFakeEvent()
-		fieldEventType, _, _, err := event.GetFieldMetadata("open.file.name")
+		fieldEventType, _, _, isArray, err := event.GetFieldMetadata("open.file.name")
 		if err != nil {
 			t.Fatal("should get a field event type")
 		}
 
 		if eventType != fieldEventType {
 			t.Fatal("unexpected event type")
+		}
+
+		if isArray {
+			t.Fatal("shouldn't be an array")
 		}
 	})
 
