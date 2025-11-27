@@ -41,13 +41,6 @@ var (
 		},
 		{
 			Type:                   "file",
-			Path:                   "/databricks/spark/logs/*.out",
-			Source:                 "spark_output",
-			Service:                "databricks",
-			AutoMultiLineDetection: config.BoolToPtr(true),
-		},
-		{
-			Type:                   "file",
 			Path:                   "/databricks/driver/logs/stderr",
 			Source:                 "driver_stderr",
 			Service:                "databricks",
