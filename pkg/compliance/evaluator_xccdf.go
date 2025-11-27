@@ -100,7 +100,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 		}
 
 		os.Setenv("OSCAP_PROBE_ROOT", hostRoot)
-		defer os.Unsetenv("OSCAP_PROBE_ROOT")
+		defer func() { _ = os.Unsetenv("OSCAP_PROBE_ROOT") }()
 	}
 
 	args := []string{}
