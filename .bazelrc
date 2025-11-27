@@ -21,8 +21,10 @@ common:macos --strategy=sandboxed
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
 # For whatever reason if convenience symlinks are present, the build fails on Windows.
-# Disabling them for now.
-common:windows --noexperimental_convenience_symlinks
+# shell_executable doesn't affect action keys. It can be both an advantage and a disadvantage.
+# For instance, if we need to have some special behavior in bash we can add it, however, in some cases
+# it may lead to cache poisoning.
+common:windows --noexperimental_convenience_symlinks --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
@@ -35,6 +37,7 @@ common:cache --remote_timeout=60
 # CI config ------------------------------------------------------------------------------------------------------------
 common:ci --config=cache
 common:ci --test_output=errors # Print test setup errors to the job output instead of only capturing them in test.log
+common --experimental_ui_max_stdouterr_bytes=1073741819
 
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc

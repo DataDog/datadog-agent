@@ -157,6 +157,7 @@ type Env struct {
 	Site                 string
 	RemoteUpdates        bool
 	OTelCollectorEnabled bool
+	ConfigID             string
 
 	Mirror                      string
 	RegistryOverride            string

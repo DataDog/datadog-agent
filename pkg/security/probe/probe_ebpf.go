@@ -864,7 +864,7 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) 
 
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
-	logTraceEvent(event.GetEventType(), event)
+	p.probe.logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
 	p.profileManager.LookupEventInProfiles(event)
@@ -911,7 +911,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		p.profileManager.ProcessEvent(event)
 	}
-	p.monitors.ProcessEvent(event)
+	p.monitors.ProcessEvent(event, p.probe.scrubber)
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -945,7 +945,7 @@ func (p *EBPFProbe) GetMonitors() *EBPFMonitors {
 // EventMarshallerCtor returns the event marshaller ctor
 func (p *EBPFProbe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
 	return func() events.EventMarshaler {
-		return serializers.NewEventSerializer(event, nil)
+		return serializers.NewEventSerializer(event, nil, p.probe.scrubber)
 	}
 }
 
@@ -1201,7 +1201,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.PIDContext.Pid)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -1216,7 +1216,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ProcessContext.Process.ContainerContext.ContainerID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, event.PIDContext.Pid)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -1278,7 +1278,6 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		}
 		exists := p.Resolvers.ProcessResolver.ApplyExitEntry(event, newEntryCb)
 		if exists {
-			p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 			// update action reports
 			p.processKiller.HandleProcessExited(event)
 			p.fileHasher.HandleProcessExited(event)
@@ -2346,7 +2345,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	if ev.GetEventType() == model.FileMoveMountEventType {
 		err = p.Resolvers.MountResolver.InsertMoved(*m)
 	} else {
-		err = p.Resolvers.MountResolver.Insert(*m, 0)
+		err = p.Resolvers.MountResolver.Insert(*m)
 	}
 
 	if err != nil {
@@ -3202,6 +3201,14 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameFileFpath, "struct file", "f_path")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDentryDSb, "struct dentry", "d_sb")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntNs, "struct mount", "mnt_ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMntNamespaceNs, "struct mnt_namespace", "ns")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNsCommonInum, "struct ns_common", "inum")
+
+	if kv.Code >= kernel.Kernel6_8 {
+		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameMountMntIDUnique, "struct mount", "mnt_id_unique")
+	}
+
 	if kv.Code >= kernel.Kernel5_3 {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal")
 	}
@@ -3390,7 +3397,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
-				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
+				dump := NewCoreDump(action.Def.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil, p.probe.scrubber))
 				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
 				event := events.NewCustomEvent(model.UnknownEventType, dump)
 

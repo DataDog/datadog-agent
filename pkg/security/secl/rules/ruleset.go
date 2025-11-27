@@ -300,7 +300,7 @@ func (rs *RuleSet) GetDiscardersReport() (*DiscardersReport, error) {
 	errFieldNotFound := &eval.ErrFieldNotFound{}
 
 	for field := range rs.opts.SupportedDiscarders {
-		eventType, _, _, err := event.GetFieldMetadata(field)
+		eventType, _, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			return nil, err
 		}
@@ -391,8 +391,32 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 
 						actionDef.Set.Value = variableValue
 					}
+
+					if actionDef.Set.Field != "" {
+						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+						if err != nil {
+							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+							continue
+						}
+
+						var valueIsArray bool
+						variableValueKind := reflect.TypeOf(variableValue).Kind()
+						if variableValueKind == reflect.Slice {
+							variableValueKind = reflect.TypeOf(variableValue).Elem().Kind()
+							valueIsArray = true
+						}
+						if variableValueKind != kind {
+							errs = multierror.Append(errs, fmt.Errorf("value and field have different types for variable '%s' (%s != %s)", actionDef.Set.Name, variableValueKind.String(), kind.String()))
+							continue
+						}
+
+						if fieldIsArray != valueIsArray && !actionDef.Set.Append {
+							errs = multierror.Append(errs, fmt.Errorf("value and field cardinality mismatch for variable '%s': field '%s' is an array, but append is not set for variable '%s' with value '%v'", actionDef.Set.Name, actionDef.Set.Field, actionDef.Set.Name, variableValue))
+							continue
+						}
+					}
 				} else if actionDef.Set.Field != "" {
-					_, kind, goType, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					_, kind, goType, _, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
 						continue
@@ -610,7 +634,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				fieldEventType, _, _, err := ev.GetFieldMetadata(field)
+				fieldEventType, _, _, _, err := ev.GetFieldMetadata(field)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", field, err)
 				}
@@ -1098,6 +1122,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		if len(policy.Macros) == 0 && len(policy.Rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
 			errs = multierror.Append(errs, &ErrPolicyLoad{
 				Name:    policy.Info.Name,
+				Type:    policy.Info.Type,
 				Version: policy.Info.Version,
 				Source:  policy.Info.Source,
 				Err:     ErrPolicyIsEmpty,
