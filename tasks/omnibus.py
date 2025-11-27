@@ -342,9 +342,12 @@ def build(
                     ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
                     bundle_dir.cleanup()
             elif ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
-                send_cache_mutation_event(
-                    ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
-                )
+                try:
+                    send_cache_mutation_event(
+                        ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                    )
+                except Exception as e:
+                    print("Failed to send cache mutation event:", e)
 
     # Output duration information for different steps
     print("Build component timing:")
@@ -353,7 +356,10 @@ def build(
         if name in durations:
             print(f"{name}: {durations[name].duration}")
 
-    send_build_metrics(ctx, durations['Omnibus'].duration)
+    try:
+        send_build_metrics(ctx, durations['Omnibus'].duration)
+    except Exception as e:
+        print("Failed to send metrics:", e)
 
 
 @task
