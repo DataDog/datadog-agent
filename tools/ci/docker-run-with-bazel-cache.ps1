@@ -12,6 +12,9 @@ if (-not (($acl = Get-Acl $diskCache).Access | Where-Object { -not $_.IsInherite
     Set-Acl $diskCache $acl
     Get-ChildItem $diskCache -Recurse | ForEach-Object { Set-Acl $_.FullName $acl }
 }
+# Temporarily reverted to the pre-fix behavior (C:\bob back on the container's own scratch VHDX, no bind
+# mount) so the new disk diagnostics in bazel:test:windows-amd64's POWERSHELL_SCRIPT can capture the
+# original disk-full failure if it recurs. Re-apply the $CI_PROJECT_DIR bind mount once we've observed it.
 & docker run --rm `
     --storage-opt "size=100GB" `
     --env=BAZELISK_HOME `
