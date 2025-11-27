@@ -625,18 +625,18 @@ func TestPolicyMonitorPolicyState(t *testing.T) {
 						Status: PolicyStatusPartiallyFiltered,
 						Rules: []*RuleState{
 							{
+								ID:         "rule_b",
+								Expression: `exec.file.path == "/etc/foo/baz"`,
+								Status:     "loaded",
+								Filters:    []string{"os == \"windows\""},
+							},
+							{
 								ID:         "rule_a",
 								Expression: `exec.file.path == "/etc/foo/bar"`,
 								Status:     "filtered",
 								Message:    "none of the rule filters matched the host or configuration of this agent",
 								FilterType: string(rules.FilterTypeRuleFilter),
 								Filters:    []string{"os == \"linux\""},
-							},
-							{
-								ID:         "rule_b",
-								Expression: `exec.file.path == "/etc/foo/baz"`,
-								Status:     "loaded",
-								Filters:    []string{"os == \"windows\""},
 							},
 						},
 					},
