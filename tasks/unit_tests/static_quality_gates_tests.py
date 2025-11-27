@@ -677,6 +677,60 @@ class TestQualityGatesIntegration(unittest.TestCase):
                 parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
                 self.assertIn("Test infra error message", str(cm.exception))
 
+    @patch.dict(
+        'os.environ',
+        {
+            'CI_COMMIT_REF_NAME': 'pikachu',
+            'CI_COMMIT_BRANCH': 'mq-working-branch-test',
+            'CI_COMMIT_REF_SLUG': 'pikachu',
+            'CI_COMMIT_SHORT_SHA': '1234567890',
+            'CI_COMMIT_SHA': '1234567890abcdef',
+            'BUCKET_BRANCH': 'main',
+            'OMNIBUS_PACKAGE_DIR': '/opt/datadog-agent',
+            'CI_PIPELINE_ID': '71580015',
+        },
+    )
+    @patch("tasks.static_quality_gates.gates.PackageArtifactMeasurer._find_package_paths", new=MagicMock())
+    @patch(
+        "tasks.static_quality_gates.gates.PackageArtifactMeasurer._calculate_package_sizes",
+        new=MagicMock(return_value=(50 * 1024 * 1024, 50 * 1024 * 1024)),
+    )
+    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_wire_size", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.DockerArtifactMeasurer._calculate_image_disk_size", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
+    @patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports", new=MagicMock())
+    @patch(
+        "tasks.static_quality_gates.gates_reporter.QualityGateOutputFormatter.print_summary_table",
+        new=MagicMock(),
+    )
+    @patch("tasks.quality_gates.display_pr_comment", new=MagicMock())
+    def test_parse_and_trigger_gates_merge_queue_single_gate(self):
+        """Test that merge queue only runs a single gate (the first one)"""
+        ctx = MockContext(
+            run={
+                "datadog-ci tag --level job --tags static_quality_gates:\"restart\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done"),
+                "datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done"),
+            }
+        )
+
+        # Call parse_and_trigger_gates with a config that has 3 gates
+        # The test config file has 3 gates: agent_suse_amd64, agent_deb_amd64, docker_agent_amd64
+        parse_and_trigger_gates(ctx, "tasks/unit_tests/testdata/quality_gate_config_test.yml")
+
+        # Verify that only the first gate (agent_suse_amd64) was executed by checking
+        # that _calculate_package_sizes was called only once (for package gates)
+        # and _calculate_image_wire_size was never called (for docker gates)
+        from tasks.static_quality_gates.gates import DockerArtifactMeasurer, PackageArtifactMeasurer
+
+        # Package measurer should be called once (for the first gate)
+        package_measure_calls = PackageArtifactMeasurer._calculate_package_sizes.call_count
+        self.assertEqual(package_measure_calls, 1, f"Expected 1 package gate to run, but {package_measure_calls} ran")
+
+        # Docker measurer should not be called at all
+        docker_wire_calls = DockerArtifactMeasurer._calculate_image_wire_size.call_count
+        self.assertEqual(docker_wire_calls, 0, f"Expected 0 docker gates to run, but {docker_wire_calls} ran")
+
 
 class TestQualityGatesConfigUpdate(unittest.TestCase):
     def test_one_gate_update(self):

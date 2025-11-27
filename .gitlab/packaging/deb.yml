@@ -41,7 +41,6 @@ include:
 agent_deb-x64-a7:
   extends: [.package_deb_common, .package_deb_x86]
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   needs: ["datadog-agent-7-x64"]
   variables:

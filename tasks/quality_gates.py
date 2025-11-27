@@ -148,6 +148,11 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     )
     gate_list = QualityGateFactory.create_gates_from_config(config_path)
 
+    # If it's a merge queue branch, we only run the first gate
+    # to check the size of the deb package.
+    if "mq-working-branch" in os.environ.get("CI_COMMIT_BRANCH"):
+        gate_list = [gate_list[0]]
+
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'
     print(color_message(f"Starting {len(gate_list)} quality gates...", "cyan"))

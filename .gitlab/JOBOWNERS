@@ -162,6 +162,7 @@ trace_agent_integration_tests @DataDog/agent-apm
 
 # Functional test
 static_quality_gates                           @DataDog/agent-build
+static_quality_gate_mq                         @DataDog/agent-build
 manual_gate_threshold_update                   @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
