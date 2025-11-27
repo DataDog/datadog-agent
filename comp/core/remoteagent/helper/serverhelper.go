@@ -42,7 +42,6 @@ type UnimplementedRemoteAgentServer struct {
 
 	// communication components
 	ipcComp         ipc.Component
-	agentClient     pbcore.AgentSecureClient
 	sessionID       string
 	sessionIDMutex  sync.RWMutex
 	agentIpcAddress string
@@ -73,12 +72,6 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		return nil, err
 	}
 
-	agentClient, err := newAgentSecureClient(ipcComp, agentIpcAddress)
-	if err != nil {
-		log.Errorf("failed to create agent client: %v", err)
-		return nil, err
-	}
-
 	remoteAgentServer := &UnimplementedRemoteAgentServer{
 		ipcComp:                ipcComp,
 		log:                    log,
@@ -86,7 +79,6 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 		agentIpcAddress:        agentIpcAddress,
 		agentFlavor:            agentFlavor,
 		displayName:            displayName,
-		agentClient:            agentClient,
 		listener:               listener,
 		grpcServer:             nil,
 		defaultRefreshInterval: 5 * time.Second,
@@ -187,10 +179,16 @@ func (s *UnimplementedRemoteAgentServer) start() {
 				sessionID := s.sessionID
 				s.sessionIDMutex.RUnlock()
 
+				agentClient, agentConn, err := newAgentSecureClient(s.ipcComp, s.agentIpcAddress)
+				if err != nil {
+					s.log.Errorf("failed to create agent client: %v", err)
+					continue
+				}
+
 				if sessionID == "" {
 					// Registration mode: try to register
 					s.log.Debug("Session ID is empty, entering registration loop")
-					sessionID, refreshInterval, err := s.registerWithAgent()
+					sessionID, refreshInterval, err := s.registerWithAgent(agentClient)
 					if err != nil {
 						// Registration failed, use exponential backoff for next retry
 						backoffDuration := registrationBackoff.NextBackOff()
@@ -209,7 +207,7 @@ func (s *UnimplementedRemoteAgentServer) start() {
 					ticker.Reset(refreshInterval)
 				} else {
 					// Refresh mode: try to refresh registration
-					err := s.refreshRegistration()
+					err := s.refreshRegistration(agentClient)
 					if err != nil {
 						s.log.Warnf("failed to refresh registration with Core Agent: %v, entering registration loop", err)
 						s.sessionIDMutex.Lock()
@@ -220,6 +218,7 @@ func (s *UnimplementedRemoteAgentServer) start() {
 						ticker.Reset(registrationBackoff.NextBackOff())
 					}
 				}
+				agentConn.Close()
 			}
 		}
 
@@ -232,20 +231,20 @@ func (s *UnimplementedRemoteAgentServer) stop() {
 	s.log.Debug("remoteAgentServer stopped")
 }
 
-func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string) (pbcore.AgentSecureClient, error) {
+func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string) (pbcore.AgentSecureClient, *grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(agentIpcAddress,
 		grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return pbcore.NewAgentSecureClient(conn), nil
+	return pbcore.NewAgentSecureClient(conn), conn, nil
 }
 
 // registerWithAgent handles the registration logic with the Core Agent
-func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Duration, error) {
+func (s *UnimplementedRemoteAgentServer) registerWithAgent(client pbcore.AgentSecureClient) (string, time.Duration, error) {
 	registerReq := &pbcore.RegisterRemoteAgentRequest{
 		Flavor:         s.agentFlavor,
 		DisplayName:    s.displayName,
@@ -258,7 +257,7 @@ func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Durat
 	ctx, cancel := context.WithTimeout(context.Background(), s.queryTimeout)
 	defer cancel()
 
-	resp, err := s.agentClient.RegisterRemoteAgent(ctx, registerReq)
+	resp, err := client.RegisterRemoteAgent(ctx, registerReq)
 	if err != nil {
 		s.log.Debugf("failed to register remote agent: %v", err)
 		return "", 0, err
@@ -280,11 +279,11 @@ func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Durat
 }
 
 // refreshRegistration handles the refresh logic with the Core Agent
-func (s *UnimplementedRemoteAgentServer) refreshRegistration() error {
+func (s *UnimplementedRemoteAgentServer) refreshRegistration(client pbcore.AgentSecureClient) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.queryTimeout)
 	defer cancel()
 
-	_, err := s.agentClient.RefreshRemoteAgent(ctx, &pbcore.RefreshRemoteAgentRequest{SessionId: s.sessionID})
+	_, err := client.RefreshRemoteAgent(ctx, &pbcore.RefreshRemoteAgentRequest{SessionId: s.sessionID})
 	if err != nil {
 		return err
 	}
