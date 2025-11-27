@@ -39,7 +39,7 @@ func (mr *NoOpResolver) SyncCacheFromListMount() error {
 }
 
 // Delete a mount from the cache
-func (mr *NoOpResolver) Delete(_ uint32) error {
+func (mr *NoOpResolver) Delete(_ uint32, _ uint64) error {
 	return nil
 }
 
@@ -64,7 +64,7 @@ func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32) (string, model.Moun
 }
 
 // ResolveMount returns the mount
-func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, errors.New("not available")
 }
 

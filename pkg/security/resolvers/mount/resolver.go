@@ -36,7 +36,7 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 2 * time.Second
+	redemptionTime                       = 20 * time.Second
 	// mounts LRU limit: 100000 mounts
 	mountsLimit       = 100000
 	danglingListLimit = 2000
@@ -232,7 +232,7 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 		}
 	} else {
 		getMount = func(mountid uint32) *model.Mount {
-			m, _ := mr.mounts.Get(mountid)
+			m, _ := mr.mounts.Get(mountid, true)
 			return m
 		}
 	}
@@ -295,17 +295,17 @@ func (mr *Resolver) moveToRedemption(mount *model.Mount, time time.Time) {
 	mr.mounts.Remove(mount.MountID)
 }
 
-// Delete a mount from the cache
-func (mr *Resolver) Delete(mountID uint32) error {
+// Delete a mount from the cache. Set mountIDUnique to 0 if you don't have a unique mount id.
+func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if mountID == 0 {
 		seclog.Warnf("Trying to delete mountid=0")
 		return fmt.Errorf("Tried to delete mountid=0")
 	}
-
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	if m, exists := mr.mounts.Get(mountID); exists {
+	m, exists := mr.mounts.Get(mountID)
+	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
 		seclog.Warnf("tried to delete non-existant mount id %d", m)
@@ -320,7 +320,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, _, _, err := mr.resolveMount(mountID, pid)
+	mount, _, _, err := mr.resolveMount(mountID, pid, true)
 	if err != nil {
 		return model.UnknownFS, err
 	}
@@ -433,22 +433,30 @@ func (mr *Resolver) getDangling() string {
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	entry, exists := mr.redemption.Get(mountID)
-	if !exists || time.Since(entry.insertedAt) > redemptionTime {
+	if !exists {
+		return nil
+	}
+	if time.Since(entry.insertedAt) > redemptionTime {
+		mr.redemption.Remove(mountID)
 		return nil
 	}
 	return entry.mount
 }
 
-func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
+func (mr *Resolver) lookupByMountID(mountID uint32, useRedemption bool) *model.Mount {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		return mount
 	}
 
-	return mr.getFromRedemption(mountID)
+	if useRedemption {
+		return mr.getFromRedemption(mountID)
+	}
+
+	return nil
 }
 
-func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
-	mount := mr.lookupByMountID(mountID)
+func (mr *Resolver) lookupMount(mountID uint32, useRedemption bool) (*model.Mount, model.MountSource, model.MountOrigin) {
+	mount := mr.lookupByMountID(mountID, useRedemption)
 
 	if mount == nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
@@ -462,7 +470,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID)
+	mount, source, origin := mr.lookupMount(mountID, true)
 	if mount == nil {
 		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
@@ -526,7 +534,7 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.
 }
 
 func (mr *Resolver) resolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mount, source, origin, err := mr.resolveMount(mountID, pid)
+	mount, source, origin, err := mr.resolveMount(mountID, pid, true)
 	if err != nil {
 		return "", source, origin, err
 	}
@@ -572,34 +580,36 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMount(mountID, pid)
+	return mr.resolveMount(mountID, pid, dontUseRedemptionAndSync)
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMount(mountID uint32, pid uint32, useRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID)
+	mount, source, origin := mr.lookupMount(mountID, useRedemptionAndSync)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
-	if err := mr.syncPidNamespace(pid); err != nil {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
-	}
+	if useRedemptionAndSync {
+		if err := mr.syncPidNamespace(pid); err != nil {
+			return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+		}
 
-	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
-		mr.procHitsStats.Inc()
-		return mount, model.MountSourceMountID, mount.Origin, nil
+		if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
+			mr.procHitsStats.Inc()
+			return mount, model.MountSourceMountID, mount.Origin, nil
+		}
+		mr.procMissStats.Inc()
 	}
-	mr.procMissStats.Inc()
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
