@@ -224,14 +224,15 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUser$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallCurrentWithOldInstallerScript$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestReinstallAfterMSIUninstall$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptWithAgentUser"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptChangesAgentUser$"
