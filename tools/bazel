@@ -14,6 +14,11 @@ if [ -n "${CI:-}" ]; then
     exit 2
   fi
 
+  if [ -d /Users/ec2-user ]; then
+    find /Users/ec2-user/cache/DataDog/datadog-agent -mindepth 1 -name 'bazel*' -exec rm -rv {} + || true
+    find /Users/ec2-user/cache/DataDog/datadog-agent || true
+  fi
+
   # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
   cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
 common --config=ci

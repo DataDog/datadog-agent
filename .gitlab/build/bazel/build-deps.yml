@@ -16,11 +16,13 @@ bazel:build-deps:linux-arm64:
 
 bazel:build-deps:macos-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
+  parallel: 50
   script:
     - bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64
 
 bazel:build-deps:macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
+  parallel: 50
   script:
     - bazel build //deps/... --platforms=//bazel/platforms:macos_arm64
 
