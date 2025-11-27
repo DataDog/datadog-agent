@@ -86,6 +86,10 @@ func (k KubeNodeTagsProvider) getNodeInfoTags(ctx context.Context) ([]string, er
 		tags = append(tags, extractTags(nodeLabels, k.getNodeLabelsAsTags())...)
 	}
 
+	if nodeLabels[kubernetes.AutoscalingLabelKey] != "" {
+		tags = append(tags, kubernetes.ClusterAutoscalerTagName+":datadog")
+	}
+
 	return tags, nil
 }
 
@@ -97,8 +101,7 @@ func (k KubeNodeTagsProvider) getNodeLabelsAsTags() map[string]string {
 
 func getDefaultLabelsToTags() map[string]string {
 	return map[string]string{
-		NormalizedRoleLabel:            kubernetes.KubeNodeRoleTagName,
-		kubernetes.AutoscalingLabelKey: kubernetes.AutoscalingTagName,
+		NormalizedRoleLabel: kubernetes.KubeNodeRoleTagName,
 	}
 }
 

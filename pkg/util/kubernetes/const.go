@@ -30,8 +30,8 @@ const (
 
 	// AutoscalingLabelKey is the label key that is present when the resource is managed by Datadog Autoscaling
 	AutoscalingLabelKey = "autoscaling.datadoghq.com/managed"
-	// AutoscalingTagName is the autoscaling label tag name
-	AutoscalingTagName = "datadog_autoscaling_managed"
+	// ClusterAutoscalerTagName is the autoscaling label tag name
+	ClusterAutoscalerTagName = "kube_cluster_autoscaler"
 
 	// RcIDAnnotKey is the key of the RC ID annotation
 	RcIDAnnotKey = "admission.datadoghq.com/rc.id"
