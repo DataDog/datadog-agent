@@ -11,7 +11,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"sync"
+
+	"github.com/cihub/seelog"
 )
 
 var _ slog.Handler = (*Async)(nil)
@@ -61,6 +64,14 @@ func (h *Async) writeList(queue list.List) {
 		msg := e.Value.(msg)
 		err := h.innerHandler.Handle(msg.ctx, msg.record)
 		if err != nil {
+			if runtime.GOOS == "windows" {
+				f, err := os.OpenFile("C:\\ProgramData\\Datadog\\logs\\logger-errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err == nil {
+					_, _ = f.WriteString(fmt.Sprintf("slog handler error: %v\n", err))
+					_ = f.Close()
+				}
+			}
+			seelog.Errorf("slog handler error: %v", err)
 			fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
 		}
 	}

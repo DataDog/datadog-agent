@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
@@ -89,6 +91,14 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 
 	err := w.handler.Handle(context.Background(), r)
 	if err != nil {
+		if runtime.GOOS == "windows" {
+			f, err := os.OpenFile("C:\\ProgramData\\Datadog\\logs\\logger-errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err == nil {
+				_, _ = f.WriteString(fmt.Sprintf("slog handler error: %v\n", err))
+				_ = f.Close()
+			}
+		}
+		seelog.Errorf("slog handler error: %v", err)
 		fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
 	}
 }

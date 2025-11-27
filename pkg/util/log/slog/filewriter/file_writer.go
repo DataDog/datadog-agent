@@ -30,10 +30,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/cihub/seelog"
 )
 
 // File and directory permitions.
@@ -458,5 +461,13 @@ func tryRemoveFile(filePath string) (err error) {
 }
 
 func reportInternalError(err error) {
+	if runtime.GOOS == "windows" {
+		f, err := os.OpenFile("C:\\ProgramData\\Datadog\\logs\\logger-errors.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err == nil {
+			_, _ = f.WriteString(fmt.Sprintf("log internal error: %s\n", err))
+			_ = f.Close()
+		}
+	}
+	seelog.Errorf("log internal error: %s", err)
 	fmt.Fprintf(os.Stderr, "log internal error: %s\n", err)
 }
