@@ -557,23 +557,25 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	return finalConfig, nil
 }
 
-// This section restricts which secrets will trigger a notification when refreshed. We want to notify for secret in all
-// integrations but only for a subset in Agent configuration files (datadog.yaml, system-probe.yaml or
-// security-agent.yaml).
-// The reason being that we can restart an integration as a whole while we can't restart part of the Agent. This means
-// that the code base need to react to any change from the Agent configuration. Right now, only API and APP key refresh
-// is supported. So we only notify when a secret from Agent configuration is linked to an API or APP key (we want to
-// keep the in memory configuration in sync with the code).
+// Secret Refresh Notifications
+// =============================
+// Integrations: Notify for ALL secret changes (they can restart independently)
+// Agent configs: Notify ONLY for secrets in allowListPaths (only certain settings support live refresh)
+//
+// Why the difference? Integrations can restart to apply any secret change. The Agent cannot
+// partially restart, so we only notify for settings the code can update in-memory (currently
+// just API/APP keys).
 //
 // To be noted: we send one notification per secret+origin unique pair.
 var (
-	// A list of origin for which we check the allowlistPaths. Any origin different from the following list will
+	// A list of origin for which we check the allowListPaths. Any origin different from the following list will
 	// create notifications.
 	allowListOrigin = []string{
 		"datadog.yaml",
 		"system-probe.yaml",
+		"security-agent.yaml",
 	}
-	// allowlistPaths restricts what config settings may be updated. Any secrets linked to a settings containing any of the
+	// allowListPaths restricts what config settings may be updated. Any secrets linked to a settings containing any of the
 	// following strings will be refreshed.
 	//
 	// For example, allowing "additional_endpoints" will trigger notifications for:
@@ -583,7 +585,7 @@ var (
 	//   - ...
 	//
 	// NOTE: Related feature to `AuthorizedConfigPathsCore` in `comp/api/api/def/component.go`
-	allowlistPaths = []string{
+	allowListPaths = []string{
 		"api_key",
 		"app_key",
 		"additional_endpoints",
@@ -603,7 +605,7 @@ func secretMatchesAllowlist(secretCtx secretContext) bool {
 		return true
 	}
 
-	for _, allowedKey := range allowlistPaths {
+	for _, allowedKey := range allowListPaths {
 		if slices.Contains(secretCtx.path, allowedKey) {
 			return true
 		}

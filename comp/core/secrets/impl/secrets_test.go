@@ -648,11 +648,11 @@ func TestRefreshAllowlist(t *testing.T) {
 		changes = append(changes, fmt.Sprintf("%s", newValue))
 	})
 
-	originalAllowlistPaths := allowlistPaths
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	originalAllowlistPaths := allowListPaths
+	defer func() { allowListPaths = originalAllowlistPaths }()
 
 	// only allow api_key config setting to change
-	allowlistPaths = []string{"api_key"}
+	allowListPaths = []string{"api_key"}
 
 	// Refresh means nothing changes because allowlist doesn't allow it
 	_, err := resolver.Refresh(true)
@@ -660,7 +660,7 @@ func TestRefreshAllowlist(t *testing.T) {
 	assert.Equal(t, changes, []string{})
 
 	// now allow the config setting under scrutiny to change
-	allowlistPaths = []string{"setting"}
+	allowListPaths = []string{"setting"}
 
 	// Refresh sees the change to the handle
 	_, err = resolver.Refresh(true)
@@ -741,9 +741,9 @@ func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
 	require.Equal(t, testMultiUsageConfResolved, string(resolved))
 
 	// set the allowlist so that only 1 of the settings matches, the 2nd does not
-	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = []string{"instances"}
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	originalAllowlistPaths := allowListPaths
+	allowListPaths = []string{"instances"}
+	defer func() { allowListPaths = originalAllowlistPaths }()
 
 	// subscribe to changes made during Refresh, keep track of updated setting paths
 	changedPaths := []string{}
@@ -769,9 +769,9 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)
 
-	originalAllowlistPaths := allowlistPaths
-	allowlistPaths = []string{"setting"}
-	defer func() { allowlistPaths = originalAllowlistPaths }()
+	originalAllowlistPaths := allowListPaths
+	allowListPaths = []string{"setting"}
+	defer func() { allowListPaths = originalAllowlistPaths }()
 
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
