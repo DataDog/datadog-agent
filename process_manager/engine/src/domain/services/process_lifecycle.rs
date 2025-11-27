@@ -135,7 +135,8 @@ impl ProcessLifecycleService {
         // 5. Update process state to running
         process.increment_run_count(); // Track how many times process has been started
         process.mark_running(spawn_result.pid)?;
-        process.reset_failures(); // Successfully started, reset consecutive failures
+        // Note: Don't reset failures here - failures should only reset after
+        // successful runtime (runtime_success_sec) or clean exit (exit code 0)
         self.repository.save(process.clone()).await?;
 
         // 6. Register with supervisor for coordinated monitoring (exit + health)

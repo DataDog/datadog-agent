@@ -99,6 +99,19 @@ impl HealthMonitoringService {
                             start_period = health_check.start_period,
                             "In start period, skipping health check"
                         );
+                        
+                        // Set health status to Starting during start_period
+                        if process.health_status() != HealthStatus::Starting {
+                            let mut updated_process = process.clone();
+                            updated_process.update_health_status(HealthStatus::Starting);
+                            if let Err(e) = repository.save(updated_process).await {
+                                error!(
+                                    process_id = %process_id,
+                                    error = %e,
+                                    "Failed to save Starting health status"
+                                );
+                            }
+                        }
                         continue;
                     }
                 }
@@ -185,6 +198,20 @@ impl HealthMonitoringService {
                     name = %process.name(),
                     "Health check passed"
                 );
+
+                // If runtime_success_sec is 0 (disabled), use health check success to reset failures
+                // This allows health checks to serve as the "successful run" indicator
+                if updated_process.runtime_success_sec() == 0
+                    && updated_process.consecutive_failures() > 0
+                {
+                    info!(
+                        process_id = %process_id,
+                        name = %process.name(),
+                        previous_failures = updated_process.consecutive_failures(),
+                        "Health check passed with runtime_success_sec=0 - resetting failure counter"
+                    );
+                    updated_process.reset_failures();
+                }
             }
 
             // Save updated process

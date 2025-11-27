@@ -79,6 +79,62 @@ impl ProcessSupervisionService {
                 health_monitor.start_monitoring(process.id());
             }
         }
+
+        // Start runtime success timer to reset failures after stable run
+        self.start_runtime_success_timer(process);
+    }
+
+    /// Spawn a background task that resets failure counter after runtime_success_sec
+    /// This ensures exponential backoff resets once a process has been running stably
+    fn start_runtime_success_timer(&self, process: &crate::domain::Process) {
+        let runtime_success_sec = process.runtime_success_sec();
+        if runtime_success_sec == 0 {
+            return; // Disabled
+        }
+
+        let process_id = process.id();
+        let process_name = process.name().to_string();
+        let repository = self.repository.clone();
+
+        tokio::spawn(async move {
+            // Wait for the runtime success threshold
+            tokio::time::sleep(std::time::Duration::from_secs(runtime_success_sec)).await;
+
+            // Check if process is still running and reset failures
+            match repository.find_by_id(&process_id).await {
+                Ok(Some(mut proc)) => {
+                    if proc.is_running() && proc.consecutive_failures() > 0 {
+                        info!(
+                            process = %process_name,
+                            runtime_success_sec = runtime_success_sec,
+                            previous_failures = proc.consecutive_failures(),
+                            "Process running stably - resetting failure counter"
+                        );
+                        proc.reset_failures();
+                        if let Err(e) = repository.save(proc).await {
+                            error!(
+                                process = %process_name,
+                                error = %e,
+                                "Failed to save process after resetting failures"
+                            );
+                        }
+                    }
+                }
+                Ok(None) => {
+                    debug!(
+                        process = %process_name,
+                        "Process no longer exists, skipping runtime success check"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        process = %process_name,
+                        error = %e,
+                        "Failed to load process for runtime success check"
+                    );
+                }
+            }
+        });
     }
 
     /// Start the supervision loop
@@ -156,13 +212,34 @@ impl ProcessSupervisionService {
         process.mark_exited(event.exit_code)?;
 
         // Track failures for restart logic (only for spontaneous exits)
+        // Check runtime success threshold: if process ran long enough, reset failures
+        let runtime_was_successful = if let Some(started_at) = process.started_at() {
+            if let Ok(runtime) = started_at.elapsed() {
+                runtime.as_secs() >= process.runtime_success_sec()
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         if process.state() == ProcessState::Failed {
-            warn!(
-                process = %process.name(),
-                exit_code = event.exit_code,
-                "Process exited with failure"
-            );
-            process.increment_failures();
+            if runtime_was_successful {
+                info!(
+                    process = %process.name(),
+                    exit_code = event.exit_code,
+                    runtime_success_sec = process.runtime_success_sec(),
+                    "Process failed but ran long enough - resetting failure counter"
+                );
+                process.reset_failures();
+            } else {
+                warn!(
+                    process = %process.name(),
+                    exit_code = event.exit_code,
+                    "Process exited with failure"
+                );
+                process.increment_failures();
+            }
         } else if process.state() == ProcessState::Exited {
             info!(
                 process = %process.name(),
@@ -316,7 +393,8 @@ impl ProcessSupervisionService {
                     "Process restarted successfully"
                 );
                 process.mark_running(spawn_result.pid)?;
-                process.reset_failures(); // Successful restart resets failures
+                // Note: Don't reset failures here - failures should only reset after
+                // successful runtime (runtime_success_sec) or clean exit (exit code 0)
                 self.repository.save(process.clone()).await?;
 
                 // Register for monitoring (exit + health)

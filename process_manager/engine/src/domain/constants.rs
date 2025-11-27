@@ -26,6 +26,11 @@ pub const DEFAULT_START_LIMIT_INTERVAL_SEC: u64 = 10;
 /// Exponential backoff base for restart delays
 pub const RESTART_BACKOFF_BASE: u32 = 2;
 
+/// Default runtime success threshold in seconds
+/// 0 means disabled - use health check success to reset failures instead
+/// If > 0, process is considered "successful" after running this long
+pub const DEFAULT_RUNTIME_SUCCESS_SEC: u64 = 0;
+
 /// Default CPU limit in millicores (1 core = 1000 millicores)
 pub const DEFAULT_CPU_LIMIT_MILLIS: u64 = 1000;
 

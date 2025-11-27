@@ -24,9 +24,10 @@ pub struct Process {
     restart_policy: RestartPolicy,
 
     // Restart timing configuration
-    restart_sec: u64,           // Delay before restart (seconds)
-    restart_max_delay_sec: u64, // Maximum delay for exponential backoff (seconds)
-    consecutive_failures: u32,  // Count of consecutive failed restarts
+    restart_sec: u64,            // Delay before restart (seconds)
+    restart_max_delay_sec: u64,  // Maximum delay for exponential backoff (seconds)
+    runtime_success_sec: u64,    // Runtime threshold to consider "successful" and reset failures
+    consecutive_failures: u32,   // Count of consecutive failed restarts
 
     // Start limit protection (prevent restart thrashing)
     start_limit_burst: u32,        // Max starts within interval
@@ -149,6 +150,7 @@ impl Process {
             restart_policy: RestartPolicy::default(),
             restart_sec: DEFAULT_RESTART_DELAY_SEC,
             restart_max_delay_sec: DEFAULT_RESTART_MAX_DELAY_SEC,
+            runtime_success_sec: DEFAULT_RUNTIME_SUCCESS_SEC,
             consecutive_failures: 0, // No failures initially
             start_limit_burst: DEFAULT_START_LIMIT_BURST,
             start_limit_interval_sec: DEFAULT_START_LIMIT_INTERVAL_SEC,
@@ -251,6 +253,10 @@ impl Process {
 
     pub fn restart_max_delay_sec(&self) -> u64 {
         self.restart_max_delay_sec
+    }
+
+    pub fn runtime_success_sec(&self) -> u64 {
+        self.runtime_success_sec
     }
 
     pub fn consecutive_failures(&self) -> u32 {
@@ -772,6 +778,7 @@ impl Process {
         cloned.restart_policy = self.restart_policy;
         cloned.restart_sec = self.restart_sec;
         cloned.restart_max_delay_sec = self.restart_max_delay_sec;
+        cloned.runtime_success_sec = self.runtime_success_sec;
         cloned.start_limit_burst = self.start_limit_burst;
         cloned.start_limit_interval_sec = self.start_limit_interval_sec;
 
@@ -855,6 +862,7 @@ pub struct ProcessBuilder {
     restart: Option<RestartPolicy>,
     restart_sec: Option<u64>,
     restart_max_delay_sec: Option<u64>,
+    runtime_success_sec: Option<u64>,
     start_limit_burst: Option<u32>,
     start_limit_interval_sec: Option<u64>,
     working_dir: Option<String>,
@@ -903,6 +911,7 @@ impl ProcessBuilder {
             restart: None,
             restart_sec: None,
             restart_max_delay_sec: None,
+            runtime_success_sec: None,
             start_limit_burst: None,
             start_limit_interval_sec: None,
             working_dir: None,
@@ -970,6 +979,13 @@ impl ProcessBuilder {
     /// Set maximum restart delay in seconds (for exponential backoff)
     pub fn restart_max_delay_sec(mut self, seconds: u64) -> Self {
         self.restart_max_delay_sec = Some(seconds);
+        self
+    }
+
+    /// Set runtime success threshold in seconds
+    /// If process runs longer than this, consecutive failures counter resets
+    pub fn runtime_success_sec(mut self, seconds: u64) -> Self {
+        self.runtime_success_sec = Some(seconds);
         self
     }
 
@@ -1188,6 +1204,9 @@ impl ProcessBuilder {
         }
         if let Some(restart_max_delay_sec) = self.restart_max_delay_sec {
             process.restart_max_delay_sec = restart_max_delay_sec;
+        }
+        if let Some(runtime_success_sec) = self.runtime_success_sec {
+            process.runtime_success_sec = runtime_success_sec;
         }
         if let Some(start_limit_burst) = self.start_limit_burst {
             process.start_limit_burst = start_limit_burst;
