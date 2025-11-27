@@ -36,6 +36,9 @@ func TestAgentConfig(t *testing.T) {
 // TestConfigUpgradeSuccessful tests that the Agent's config can be upgraded
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
+	configRoot := windowsagent.DefaultConfigRoot
+	configBackupRoot := windowsagent.DefaultConfigRoot + "-exp"
+
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -45,6 +48,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", true)
+
+	// collect permissions snapshot before config experiment
+	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	configSDDLBeforeExperiment := perms.SDDL
 
 	// Act
 	config := installerwindows.ConfigExperiment{
@@ -64,18 +72,31 @@ func (s *testAgentConfigSuite) TestConfigUpgradeSuccessful() {
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_to_console", false).
 		HasDDAgentUserFileAccess()
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configBackupRoot)
+	s.Require().NoError(err, "should get security info for config backup root")
+	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "backup dir permissions should be the same as the config dir permissions")
 
 	// Promote config experiment
 	s.mustPromoteConfigExperiment(config)
 
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
-		WithValueEqual("log_to_console", false)
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess().
+		NoDirExists(configBackupRoot) // backup dir should be deleted
+
+	// assert that the config dir permissions have not changed
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
 
 // TestConfigUpgradeFailure tests that the Agent's config can be rolled back
 // through the experiment (start/promote) workflow.
 func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
+	configRoot := windowsagent.DefaultConfigRoot
+	configBackupRoot := windowsagent.DefaultConfigRoot + "-exp"
+
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -85,6 +106,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_level", "debug")
+
+	// collect permissions snapshot before config experiment
+	perms, err := windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	configSDDLBeforeExperiment := perms.SDDL
 
 	// Act
 	config := installerwindows.ConfigExperiment{
@@ -118,7 +144,8 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 	s.Require().Host(s.Env().RemoteHost).
 		HasARunningDatadogAgentService().RuntimeConfig("--all").
 		WithValueEqual("log_level", "debug").
-		HasDDAgentUserFileAccess()
+		HasDDAgentUserFileAccess().
+		NoDirExists(configBackupRoot) // backup dir should be deleted
 
 	// backend will send stop experiment now
 	s.WaitForDaemonToStop(func() {
@@ -126,6 +153,11 @@ func (s *testAgentConfigSuite) TestConfigUpgradeFailure() {
 		s.Require().NoError(err, "daemon should stop cleanly")
 		s.AssertSuccessfulConfigStopExperiment()
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+
+	// assert that the config dir permissions have not changed
+	perms, err = windowscommon.GetSecurityInfoForPath(s.Env().RemoteHost, configRoot)
+	s.Require().NoError(err, "should get security info for config root")
+	s.Require().Equal(configSDDLBeforeExperiment, perms.SDDL, "config dir permissions should not have changed")
 }
 
 // TestConfigUpgradeNewAgents tests that config experiments can enable security agent and system probe
@@ -383,6 +415,111 @@ func (s *testAgentConfigSuite) TestConfigAltDir() {
 		DirExists(altInstallPath).
 		HasDDAgentUserFileAccess().
 		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
+		WithValueEqual("InstallPath", altInstallPath+`\`)
+}
+
+func (s *testAgentConfigSuite) TestConfigCustomUser() {
+	// Arrange
+	agentUser := "customuser"
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installCurrentAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+	)
+	// sanity check that the agent is running as the custom user
+	identity, err := windowscommon.GetIdentityForUser(s.Env().RemoteHost, agentUser)
+	s.Require().NoError(err)
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+
+	// Assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	s.mustStartConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false)
+
+	// Promote config experiment
+	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("all").
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess(agentUser).
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
+		HasAService("datadogagent").
+		WithIdentity(identity)
+}
+
+func (s *testAgentConfigSuite) TestConfigCustomUserAndAltDir() {
+	// Arrange
+	altConfigRoot := `C:\ddconfig`
+	altInstallPath := `C:\ddinstall`
+	agentUser := "customuser"
+	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
+	s.setAgentConfigWithAltDir(altConfigRoot)
+	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
+	s.installCurrentAgentVersion(
+		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
+		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
+		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
+	)
+
+	// Assert that setup was successful
+	s.AssertSuccessfulConfigPromoteExperiment("empty")
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", true)
+
+	// Act
+	config := installerwindows.ConfigExperiment{
+		ID: "config-1",
+		Files: []installerwindows.ConfigExperimentFile{
+			{
+				Path:     "/datadog.yaml",
+				Contents: json.RawMessage(`{"log_to_console": false}`),
+			},
+		},
+	}
+
+	// Start config experiment
+	s.mustStartConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("--all").
+		WithValueEqual("log_to_console", false)
+
+	// Promote config experiment
+	s.mustPromoteConfigExperiment(config)
+
+	s.Require().Host(s.Env().RemoteHost).
+		HasARunningDatadogAgentService().RuntimeConfig("all").
+		WithValueEqual("log_to_console", false).
+		HasDDAgentUserFileAccess(agentUser).
+		HasRegistryKey(consts.RegistryKeyPath).
+		WithValueEqual("installedUser", agentUser).
 		WithValueEqual("ConfigRoot", altConfigRoot+`\`).
 		WithValueEqual("InstallPath", altInstallPath+`\`)
 }

@@ -129,6 +129,7 @@ type Tailer struct {
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
 	fingerprint     *logstypes.Fingerprint
+	fingerprinter   Fingerprinter
 	registry        auditor.Registry
 	CapacityMonitor *metrics.CapacityMonitor
 	fileOpener      opener.FileOpener
@@ -143,8 +144,9 @@ type TailerOptions struct {
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
-	Fingerprint     *logstypes.Fingerprint   //Optional
-	Registry        auditor.Registry         //Required
+	Fingerprint     *logstypes.Fingerprint   // Optional
+	Fingerprinter   Fingerprinter            // Required
+	Registry        auditor.Registry         // Required
 	CapacityMonitor *metrics.CapacityMonitor // Required
 	FileOpener      opener.FileOpener        // Required
 }
@@ -203,6 +205,7 @@ func NewTailer(opts *TailerOptions) *Tailer {
 		bytesRead:                    bytesRead,
 		movingSum:                    movingSum,
 		fingerprint:                  opts.Fingerprint,
+		fingerprinter:                opts.Fingerprinter,
 		CapacityMonitor:              opts.CapacityMonitor,
 		registry:                     opts.Registry,
 		fileOpener:                   opts.FileOpener,
@@ -231,6 +234,7 @@ func (t *Tailer) NewRotatedTailer(
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
 	fingerprint *logstypes.Fingerprint,
+	fingerprinter Fingerprinter,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
@@ -243,6 +247,7 @@ func (t *Tailer) NewRotatedTailer(
 		TagAdder:        tagAdder,
 		CapacityMonitor: capacityMonitor,
 		Fingerprint:     fingerprint,
+		Fingerprinter:   fingerprinter,
 		Registry:        registry,
 		FileOpener:      t.fileOpener,
 	}
@@ -471,4 +476,9 @@ func (t *Tailer) GetType() string {
 // GetInfo returns the tailer's status info registry
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
+}
+
+// GetFingerprint returns the tailer's fingerprint
+func (t *Tailer) GetFingerprint() *logstypes.Fingerprint {
+	return t.fingerprint
 }

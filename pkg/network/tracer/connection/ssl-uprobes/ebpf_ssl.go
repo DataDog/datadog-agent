@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+// Package ssluprobes contains the attachment logic for TLS cert collecting uprobes
 package ssluprobes
 
 import (

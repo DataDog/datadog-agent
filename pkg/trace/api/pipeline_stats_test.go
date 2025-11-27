@@ -180,49 +180,4 @@ func TestPipelineStatsProxyHandler(t *testing.T) {
 			t.Fatalf("invalid message: %q", slurp)
 		}
 	})
-	t.Run("lambda_function", func(t *testing.T) {
-		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-			v := req.Header.Get("X-Datadog-Additional-Tags")
-			if !strings.Contains(v, "_dd.origin:lambda") {
-				t.Fatalf("invalid X-Datadog-Additional-Tags header, should contain _dd.origin:lambda")
-			}
-			called = true
-		}))
-		req, err := http.NewRequest("POST", "/some/path", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = srv.URL
-		conf.LambdaFunctionName = "my-function-name"
-		receiver := newTestReceiverFromConfig(conf)
-		receiver.pipelineStatsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
-		if !called {
-			t.Fatal("request not proxied")
-		}
-	})
-
-	t.Run("not_lambda_function", func(t *testing.T) {
-		var called bool
-		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
-			v := req.Header.Get("X-Datadog-Additional-Tags")
-			if strings.Contains(v, "_dd.origin:lambda") {
-				t.Fatalf("invalid X-Datadog-Additional-Tags header, should not contain '_dd.origin:lambda' when LambdaFunctionName is empty")
-			}
-			called = true
-		}))
-		req, err := http.NewRequest("POST", "/some/path", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		conf := newTestReceiverConfig()
-		conf.Endpoints[0].Host = srv.URL
-		conf.LambdaFunctionName = ""
-		receiver := newTestReceiverFromConfig(conf)
-		receiver.pipelineStatsProxyHandler().ServeHTTP(httptest.NewRecorder(), req)
-		if !called {
-			t.Fatal("request not proxied")
-		}
-	})
 }

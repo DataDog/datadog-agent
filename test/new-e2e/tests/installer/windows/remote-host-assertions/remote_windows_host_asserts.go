@@ -246,11 +246,18 @@ func (r *RemoteWindowsHostAssertions) HasDatadogInstaller() *RemoteWindowsInstal
 // HasDDAgentUserFileAccess verifies that ddagentuser has appropriate permissions
 // on key Agent files and directories. This is to verify that config updates
 // or upgrades haven't broken file permissions.
-func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess() *RemoteWindowsHostAssertions {
+func (r *RemoteWindowsHostAssertions) HasDDAgentUserFileAccess(args ...string) *RemoteWindowsHostAssertions {
 	r.context.T().Helper()
 
+	var agentUserName string
+	if len(args) > 0 {
+		agentUserName = args[0]
+	} else {
+		agentUserName = windowsagent.DefaultAgentUserName
+	}
+
 	// Get ddagentuser identity
-	ddAgentUser, err := common.GetIdentityForUser(r.remoteHost, windowsagent.DefaultAgentUserName)
+	ddAgentUser, err := common.GetIdentityForUser(r.remoteHost, agentUserName)
 	r.require.NoError(err, "should get ddagentuser identity")
 
 	// Get config root from registry

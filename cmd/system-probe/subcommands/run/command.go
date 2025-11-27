@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
@@ -106,7 +107,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
 					return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))
 				}),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 				fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 				secretsnoopfx.Module(),
 				statsd.Module(),
@@ -157,6 +158,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				remotehostnameimpl.Module(),
 				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 				remoteagentfx.Module(),
+				fxinstrumentation.Module(),
 			)
 		},
 	}
@@ -291,7 +293,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		fx.Provide(func(_ config.Component) sysprobeconfigimpl.Params {
 			return sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))
 		}),
-		fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
 		rcclientimpl.Module(),

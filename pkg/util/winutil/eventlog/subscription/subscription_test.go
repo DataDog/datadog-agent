@@ -1042,6 +1042,7 @@ func (s *GetEventsTestSuite) TestStartStopRestart_RetainsBookmarkWithSaver() {
 	// Start subscription
 	err = sub.Start()
 	require.NoError(s.T(), err)
+	defer sub.Stop()
 
 	// Verify initial Load was called
 	mockSaver.AssertExpectations(s.T())
@@ -1133,6 +1134,7 @@ func (s *GetEventsTestSuite) TestStartStopRestart_NoSaver() {
 	// Start subscription
 	err = sub.Start()
 	require.NoError(s.T(), err)
+	defer sub.Stop()
 
 	// Read all events
 	_, err = getEventHandles(s.T(), s.ti, sub, s.numEvents)

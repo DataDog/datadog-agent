@@ -16,8 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 )
 
 //go:embed agent_api_key_values.yaml
