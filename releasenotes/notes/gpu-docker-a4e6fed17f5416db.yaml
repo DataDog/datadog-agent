@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    gpu: fixed some bugs with possibly incorrect container/process tags for Docker workloads
+    GPU: Fixed some bugs that could cause incorrect container/process tags for Docker workloads.
