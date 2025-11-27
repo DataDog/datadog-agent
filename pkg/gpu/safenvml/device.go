@@ -99,6 +99,8 @@ type SafeDevice interface {
 	GetSupportedEventTypes() (uint64, error)
 	// RegisterEvents registers the device for events to be waited in the given set
 	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
+	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
+	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
 }
 
 // DeviceEventData holds basic information about a device event

@@ -430,13 +430,15 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 		if err != nil {
 			return err
 		}
-		os.Stdout.Write(buffer.Bytes())
+		// TODO: should check if Write returned an error
+		_, _ = os.Stdout.Write(buffer.Bytes())
 	case "protobuf":
 		buffer, err := diff.EncodeSecDumpProtobuf()
 		if err != nil {
 			return err
 		}
-		os.Stdout.Write(buffer.Bytes())
+		// TODO: should check if Write returned an error
+		_, _ = os.Stdout.Write(buffer.Bytes())
 	case "json":
 		buffer, err := diff.EncodeJSON("  ")
 		if err != nil {

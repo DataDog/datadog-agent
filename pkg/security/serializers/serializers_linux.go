@@ -1476,8 +1476,8 @@ func (e *EventSerializer) MarshalJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, rule *rules.Rule) ([]byte, error) {
-	s := NewEventSerializer(event, rule)
+func MarshalEvent(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) ([]byte, error) {
+	s := NewEventSerializer(event, rule, scrubber)
 	return utils.MarshalEasyJSON(s)
 }
 
@@ -1487,9 +1487,9 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, rule *rules.Rule) *EventSerializer {
+func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Scrubber) *EventSerializer {
 	s := &EventSerializer{
-		BaseEventSerializer:   NewBaseEventSerializer(event, rule),
+		BaseEventSerializer:   NewBaseEventSerializer(event, rule, scrubber),
 		UserContextSerializer: newUserContextSerializer(event),
 		DDContextSerializer:   newDDContextSerializer(event),
 	}

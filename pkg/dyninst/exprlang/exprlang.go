@@ -30,6 +30,14 @@ type RefExpr struct {
 
 func (re *RefExpr) expr() {}
 
+// GetMemberExpr represents a member access expression (e.g., obj.field).
+type GetMemberExpr struct {
+	Base   Expr
+	Member string
+}
+
+func (gme *GetMemberExpr) expr() {}
+
 // UnsupportedExpr represents an expression type that is not yet supported.
 type UnsupportedExpr struct {
 	Operation string
@@ -124,6 +132,67 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &RefExpr{Ref: refValue}, nil
+	case "getmember":
+		// Handle both lowercase and camelCase variants.
+		// Read the array argument [baseExpr, "memberName"]
+		arrStart, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read getmember array start: %w", err)
+		}
+		if kind := arrStart.Kind(); kind != '[' {
+			return nil, fmt.Errorf("parse error: malformed getmember: got token %v (%v), expected [", arrStart, kind)
+		}
+
+		// Read base expression (first element) - use ReadValue to get the complete JSON value
+		baseExprJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read getmember base expression: %w", err)
+		}
+
+		// Parse base expression recursively using the bytes returned by ReadValue
+		baseExpr, err := Parse(baseExprJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse getmember base expression: %w", err)
+		}
+
+		// Read comma separator (should be next token after ReadValue)
+		nextToken, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read getmember separator: %w", err)
+		}
+		var memberName string
+		switch nextKind := nextToken.Kind(); nextKind {
+		case ',':
+			// Comma found, read member name
+			memberToken, err := dec.ReadToken()
+			if err != nil {
+				return nil, fmt.Errorf("parse error: failed to read getmember member name: %w", err)
+			}
+			if kind := memberToken.Kind(); kind != '"' {
+				return nil, fmt.Errorf("parse error: malformed getmember: member name must be string, got %v (%v)", memberToken, kind)
+			}
+			memberName = memberToken.String()
+		case '"':
+			// No comma, member name is next token
+			memberName = nextToken.String()
+		default:
+			return nil, fmt.Errorf("parse error: malformed getmember: expected comma or string, got %v (%v)", nextToken, nextKind)
+		}
+
+		// Read array closing bracket
+		arrEnd, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read getmember array end: %w", err)
+		}
+		if kind := arrEnd.Kind(); kind != ']' {
+			return nil, fmt.Errorf("parse error: malformed getmember: got token %v (%v), expected ]", arrEnd, kind)
+		}
+
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+
+		return &GetMemberExpr{Base: baseExpr, Member: memberName}, nil
 	default:
 		// Read the argument for unsupported operations.
 		// We track the offset before and after reading the argument value

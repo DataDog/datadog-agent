@@ -349,10 +349,7 @@ func getHealth() ([]byte, error) {
 }
 
 func getECSMeta() ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-
-	ecsMeta, err := ecs.NewECSMeta(ctx)
+	ecsMeta, err := ecs.GetClusterMeta()
 	if err != nil {
 		return nil, err
 	}

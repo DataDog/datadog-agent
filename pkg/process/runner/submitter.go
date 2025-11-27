@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	//nolint:revive // TODO(PROC) Fix revive linter
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -47,7 +46,7 @@ type Submitter interface {
 
 var _ Submitter = &CheckSubmitter{}
 
-type submitFunc func(transaction.BytesPayloads, http.Header) (chan defaultforwarder.Response, error)
+type submitFunc func(transaction.BytesPayloads, http.Header) (chan forwarder.Response, error)
 
 //nolint:revive // TODO(PROC) Fix revive linter
 type CheckSubmitter struct {

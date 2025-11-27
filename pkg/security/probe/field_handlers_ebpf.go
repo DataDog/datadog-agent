@@ -92,7 +92,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *model.
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, &ev.ProcessContext.ContainerContext)
+		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
@@ -100,7 +100,7 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 		f.MountPath = mountPath
 		f.MountSource = source
 		f.MountOrigin = origin
-		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext, &ev.ProcessContext.ContainerContext)
+		err = fh.resolvers.PathResolver.ResolveMountAttributes(f, &ev.PIDContext)
 		if err != nil && f.PathResolutionError == nil {
 			seclog.Warnf("error while resolving the attributes for mountid %d: %s", f.MountID, err)
 			ev.SetPathResolutionError(f, err)
@@ -128,7 +128,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.Fil
 		if f.IsFileless() {
 			f.Filesystem = model.TmpFS
 		} else {
-			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, f.FileFields.Device, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
+			fs, err := fh.resolvers.MountResolver.ResolveFilesystem(f.FileFields.MountID, ev.PIDContext.Pid)
 			if err != nil {
 				ev.SetPathResolutionError(f, err)
 			}
@@ -178,7 +178,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 		return "/"
 	}
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
+		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -191,7 +191,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 // ResolveMountSourcePath resolves a mount source path
 func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
+		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -209,7 +209,7 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 // ResolveMountRootPath resolves a mount root path
 func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountRootPath) == 0 {
-		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID)
+		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, ev.PIDContext.Pid)
 		if err != nil {
 			e.MountRootPathResolutionError = err
 			return ""
@@ -587,7 +587,7 @@ func (fh *EBPFFieldHandlers) ResolveCGroupID(ev *model.Event, cont *model.CGroup
 // ResolveCGroupVersion resolves the version of the cgroup API
 func (fh *EBPFFieldHandlers) ResolveCGroupVersion(ev *model.Event, e *model.CGroupContext) int {
 	if e.CGroupVersion == 0 {
-		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, 0, ev.PIDContext.Pid, ev.ProcessContext.ContainerContext.ContainerID); filesystem == "cgroup2" {
+		if filesystem, _ := fh.resolvers.MountResolver.ResolveFilesystem(e.CGroupFile.MountID, ev.PIDContext.Pid); filesystem == "cgroup2" {
 			e.CGroupVersion = 2
 		} else {
 			e.CGroupVersion = 1

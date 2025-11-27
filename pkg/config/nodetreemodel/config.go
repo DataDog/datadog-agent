@@ -21,8 +21,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -837,17 +835,6 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
 	}
 	c.envKeyReplacer = r
-}
-
-// UnmarshalKey unmarshals the data for the given key
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	return errors.New("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
 }
 
 // MergeConfig merges in another config

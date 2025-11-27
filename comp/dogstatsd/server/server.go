@@ -12,6 +12,7 @@ import (
 	"expvar"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -466,7 +467,7 @@ func (s *server) start(context.Context) error {
 	forwardHost := s.config.GetString("statsd_forward_host")
 	forwardPort := s.config.GetInt("statsd_forward_port")
 	if forwardHost != "" && forwardPort != 0 {
-		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
+		forwardAddress := net.JoinHostPort(forwardHost, strconv.Itoa(forwardPort))
 		con, err := net.Dial("udp", forwardAddress)
 		if err != nil {
 			s.log.Warnf("Could not connect to statsd forward host : %s", err)
@@ -628,10 +629,16 @@ func (s *server) handleMessages() {
 	}
 
 	// init the metric names filterlist
+	filterlist := s.config.GetStringSlice("metric_filterlist")
+	filterlistPrefix := s.config.GetBool("metric_filterlist_match_prefix")
+	if len(filterlist) == 0 {
+		filterlist = s.config.GetStringSlice("statsd_metric_blocklist")
+		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
+	}
 
 	s.localFilterListConfig = localFilterListConfig{
-		metricNames: s.config.GetStringSlice("statsd_metric_blocklist"),
-		matchPrefix: s.config.GetBool("statsd_metric_blocklist_match_prefix"),
+		metricNames: filterlist,
+		matchPrefix: filterlistPrefix,
 	}
 	s.restoreFilterListFromLocalConfig()
 }

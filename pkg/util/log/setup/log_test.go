@@ -15,7 +15,7 @@ import (
 )
 
 func TestSeelogConfig(t *testing.T) {
-	cfg := seelogCfg.NewSeelogConfig("TEST", "off", "common", "", "", false)
+	cfg := seelogCfg.NewSeelogConfig("TEST", "off", "common", "", "", false, nil, nil)
 	cfg.EnableConsoleLog(true)
 	cfg.EnableFileLogging("/dev/null", 123, 456)
 
