@@ -14,6 +14,7 @@ from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 DEFAULT_FUZZING_SLACK_CHANNEL = "agent-fuzz-findings"
+GO_BUILD_TAGS = "test,linux_bpf,nvml,amd64,zlib,zstd"
 
 
 def get_slack_channel_for_directory(directory_path: str) -> str:
@@ -88,7 +89,7 @@ def build_and_upload_fuzz(
             build_file = "fuzz.test"
 
             print(f'Building {pkgname}/{func} for {git_sha}...')
-            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags=test,linux_bpf,nvml,amd64'
+            fuzz_build_cmd = f'go test . -c -fuzz={func}$ -o {build_file} -cover -tags={GO_BUILD_TAGS}'
             try:
                 ctx.run(fuzz_build_cmd)
             except Exception as e:
