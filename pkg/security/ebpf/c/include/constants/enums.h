@@ -21,6 +21,7 @@ enum event_type
 
     EVENT_MOUNT,
     EVENT_UMOUNT,
+    EVENT_FINALIZED_UMOUNT,
     EVENT_FORK,
     EVENT_EXEC,
     EVENT_EXIT,

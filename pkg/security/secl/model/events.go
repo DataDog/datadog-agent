@@ -45,6 +45,8 @@ const (
 	FileMountEventType
 	// FileUmountEventType Umount event
 	FileUmountEventType
+	// FileFinalizedUmountEventType Finalized umount event (When the mount finally gets detached)
+	FileFinalizedUmountEventType
 	// ForkEventType Fork event
 	ForkEventType
 	// ExecEventType Exec event
@@ -214,6 +216,8 @@ func (t EventType) String() string {
 		return "mount"
 	case FileUmountEventType:
 		return "umount"
+	case FileFinalizedUmountEventType:
+		return "finalize_umount"
 	case FileSetXAttrEventType:
 		return "setxattr"
 	case FileRemoveXAttrEventType:

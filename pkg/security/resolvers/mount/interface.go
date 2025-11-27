@@ -17,6 +17,7 @@ type ResolverInterface interface {
 	IsMountIDValid(mountID uint32) (bool, error)
 	SyncCache() error
 	Delete(mountID uint32) error
+	DeleteFinal(mountID uint32) error
 	ResolveFilesystem(mountID uint32, pid uint32) (string, error)
 	Insert(m model.Mount) error
 	InsertMoved(m model.Mount) error
