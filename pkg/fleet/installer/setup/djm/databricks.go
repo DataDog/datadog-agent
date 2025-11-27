@@ -41,6 +41,13 @@ var (
 		},
 		{
 			Type:                   "file",
+			Path:                   "/var/log/databricks-driver-logs/stdout",
+			Source:                 "driver_stdout",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:                   "file",
 			Path:                   "/databricks/driver/logs/stderr",
 			Source:                 "driver_stderr",
 			Service:                "databricks",
