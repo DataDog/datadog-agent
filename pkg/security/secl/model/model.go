@@ -272,9 +272,9 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
 }
 
-// IsSnapshotEvent returns true if the event is generated from a snapshot replay
-func (e *Event) IsSnapshotEvent() bool {
-	return e.Flags&EventFlagsIsSnapshot > 0
+// IsEventFromReplay returns true if the event is generated from a replay
+func (e *Event) IsEventFromReplay() bool {
+	return e.Flags&EventFlagsFromReplay > 0
 }
 
 // AddToFlags adds a flag to the event
