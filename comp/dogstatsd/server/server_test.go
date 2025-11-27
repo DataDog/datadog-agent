@@ -373,7 +373,7 @@ func TestDogstatsdServerSetsAndResetsRCFilterlist(t *testing.T) {
 
 	// RC Sends two metrics
 	updates := map[string]state.RawConfig{
-		"metric_filterlist": state.RawConfig{
+		"metric_filterlist": {
 			Config: []byte(
 				"{\"blocked_metrics\":{\"by_name\":{\"values\":[{\"created_at\":1751045727,\"metric_name\":\"ning.nong\"},{\"created_at\":1754328117,\"metric_name\":\"wiggle.wiggle\"}]}},\"policy_name\":\"test\"}",
 			),
@@ -390,7 +390,7 @@ func TestDogstatsdServerSetsAndResetsRCFilterlist(t *testing.T) {
 
 	// RC Sends an empty list, we should reset to the original configured list
 	updates = map[string]state.RawConfig{
-		"metric_filterlist": state.RawConfig{
+		"metric_filterlist": {
 			Config: []byte(
 				"{\"blocked_metrics\":{\"by_name\":{\"values\":[]}},\"policy_name\":\"test\"}",
 			),
