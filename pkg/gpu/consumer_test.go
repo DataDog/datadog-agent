@@ -37,11 +37,11 @@ func (m *mockFlusher) Flush() {
 type mockProcessMonitor struct {
 }
 
-func (m *mockProcessMonitor) SubscribeExit(callback func(uint32)) func() {
+func (m *mockProcessMonitor) SubscribeExit(_ func(uint32)) func() {
 	return func() {}
 }
 
-func (m *mockProcessMonitor) SubscribeExec(callback func(uint32)) func() {
+func (m *mockProcessMonitor) SubscribeExec(_ func(uint32)) func() {
 	return func() {}
 }
 
