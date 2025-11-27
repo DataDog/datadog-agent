@@ -31,7 +31,7 @@ func NewTaskVerifier(keysManager remoteconfig.KeysManager, config *config.Config
 
 func (t *TaskVerifier) UnwrapTaskFromSignedEnvelope(envelope *privateactionspb.RemoteConfigSignatureEnvelope) (*types.Task, error) {
 	if envelope == nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("task is missing signed enveloppe"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("task is missing signed envelope"))
 	}
 
 	if len(envelope.Data) == 0 {
