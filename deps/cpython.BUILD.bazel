@@ -2,6 +2,9 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files")
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -86,14 +89,140 @@ run_binary(
     visibility = ["//visibility:public"],
 )
 
+filegroup(
+    name = "all",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+UNIX_BINS = [
+    "python3",
+    "pip3",
+    "python3.13"
+]
+
+configure_make(
+    name = "python_unix",
+    configure_options = [
+        "--enable-ipv6",
+        "--with-ensurepip=yes",
+        "--enable-shared",
+        "--without-static-libpython",
+        "--with-dbmliborder=",
+        # Fixes an issue with __DATE__ being set to undefined `redacted`
+        # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
+        "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
+        "--with-openssl=$$EXT_BUILD_DEPS/openssl",
+        "--with-openssl-rpath=yes",
+        "--enable-optimizations",
+    ] + select({
+        "@@//:macos_arm64": ["--with-universal-archs=universal2"],
+        "@@//:macos_x86_64": ["--with-universal-archs=intel"],
+        "//conditions:default": [],
+    }),
+    copts = [
+        "-O3",
+    ],
+    env = {
+        "OPT": "-DNDEBUG -fwrapv",
+        # manually provide some dependencies cflags/ldflags instead of
+        # relying on pkg-config
+        "ZLIB_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
+        "ZLIB_LIBS": "-lz",
+        "BZIP2_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
+        "BZIP2_LIBS": "-lbz2",
+        # Ensure we don't use the system provided .pc
+        "PKG_CONFIG_LIBDIR": "/does/not/exist",
+    } | select({
+            "@platforms//os:macos": {
+                # https://github.com/bazelbuild/bazel/issues/5127
+                "AR": "ar",
+            },
+            "//conditions:default": {},
+    }),
+    lib_source = ":all",
+    # The single dollar sign here isn't a typo, using 2 seems to confuse rules_foreign_cc's substitution
+    # This is meant to allow python to find its dependency during its modules import test.
+    # We will use the install_dir rpath later on
+    linkopts = ["-Wl,-rpath", "$EXT_BUILD_DEPS/lib"],
+    out_binaries = UNIX_BINS,
+    out_data_dirs = [
+        "lib",
+    ],
+    out_include_dir = "include",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@libffi//:ffi",
+        "@openssl//:openssl",
+        # "@libyaml",
+        # "@sqlite3",
+        "@zlib//:zlib",
+        "@bzip2//:libbz2",
+        "@xz//:liblzma",
+    ],
+    dynamic_deps = [
+        "@zlib//:z",
+        "@bzip2//:bz2",
+    ],
+    targets = [
+        # Build in parallel but install without parallel execution
+        # (see https://github.com/python/cpython/issues/109796)
+        "-j 16",
+        "install"
+    ],
+)
+
+pkg_files(
+    name = "install_files_win",
+    srcs = [":python_win"],
+    renames = {
+        "python_win": REMOVE_BASE_DIRECTORY,
+    },
+)
+
+filegroup(
+    name = "libs_unix",
+    srcs = [":python_unix"],
+    output_group = "lib",
+)
+
+filegroup(
+    name = "headers_unix",
+    srcs = [":python_unix"],
+    output_group = "include",
+)
+
+[
+    filegroup(
+        name = "bins_unix_" + bin,
+        srcs = [":python_unix"],
+        output_group = bin,
+    )
+    for bin in UNIX_BINS
+]
+
+pkg_files(
+    name = "install_libs_unix",
+    srcs = [":libs_unix"],
+)
+
+pkg_files(
+    name = "install_headers_unix",
+    srcs = [":headers_unix"],
+)
+
+pkg_files(
+    name = "install_bins_unix",
+    srcs = [":bins_unix_" + bin for bin in UNIX_BINS],
+    prefix = "bin",
+    attributes = pkg_attributes("0755")
+)
+
 pkg_files(
     name = "install_files",
     srcs = select({
         "@platforms//os:windows": [":python_win"],
-    }),
-    renames = {
-        "python_win": REMOVE_BASE_DIRECTORY,
-    },
+        "//conditions:default": []
+    })
 )
 
 pkg_install(
@@ -102,6 +231,10 @@ pkg_install(
         "@platforms//os:windows": [
             "@openssl//:openssl_exe_file",
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            ":install_libs_unix",
+            ":install_headers_unix",
+            ":install_bins_unix",
+        ],
     }),
 )
