@@ -22,6 +22,7 @@
     mkdir -p $GOMODCACHE
 
 .agent_dmg:
+  extends: .bazel:defs:cache:omnibus-transition
   stage: package_build
   needs: ["go_mod_tidy_check"]
   rules:
@@ -45,8 +46,6 @@
     NOTARIZATION_ATTEMPTS: 3
     NOTARIZATION_WAIT_TIME: 15s
   timeout: 2h
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
   before_script:
     # Since there is no virtualization on the macOS runners, we need to unmount the Agent dmg volume to avoid conflicts
     - sudo umount /Volumes/Agent || true
