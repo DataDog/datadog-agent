@@ -49,4 +49,9 @@ if [[ $# -gt 0 && ${#extra_args[@]} -gt 0 ]]; then
   set -- "${args[@]}"
 fi
 
+if [ -d /Users/ec2-user ]; then
+  find /Users/ec2-user/cache/DataDog/datadog-agent -mindepth 1 -name 'bazel*' -exec rm -rv {} + || true
+  find /Users/ec2-user/cache/DataDog/datadog-agent || true
+fi
+
 exec "$BAZEL_REAL" "$@"
