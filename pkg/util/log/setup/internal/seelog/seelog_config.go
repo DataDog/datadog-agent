@@ -201,7 +201,8 @@ type seelogHandler struct {
 	handler seelog.LoggerInterface
 }
 
-func (h *seelogHandler) Handle(ctx context.Context, r stdslog.Record) error {
+//nolint:revive
+func (h *seelogHandler) Handle(_ context.Context, r stdslog.Record) error {
 	switch types.FromSlogLevel(r.Level) {
 	case types.TraceLvl:
 		h.handler.Trace(r.Message)
@@ -222,14 +223,17 @@ func (h *seelogHandler) Handle(ctx context.Context, r stdslog.Record) error {
 	return nil
 }
 
+//nolint:revive
 func (h *seelogHandler) WithAttrs([]stdslog.Attr) stdslog.Handler {
 	return h
 }
 
+//nolint:revive
 func (h *seelogHandler) WithGroup(string) stdslog.Handler {
 	return h
 }
 
+//nolint:revive
 func (h *seelogHandler) Enabled(context.Context, stdslog.Level) bool {
 	return true
 }
