@@ -143,4 +143,23 @@ func TestRuleBucket_AddRule_Order(t *testing.T) {
 
 		assertOrder(t, bucket, []string{"E1", "E2", "E3", "N2", "N1"})
 	})
+
+	t.Run("test5", func(t *testing.T) {
+		bucket := &RuleBucket{}
+
+		n1 := newOrderTestRule(t, "N1", CustomPolicyType, "", 500)
+		n2 := newOrderTestRule(t, "N2", CustomPolicyType, "", 999)
+		n3 := newOrderTestRule(t, "N3", DefaultPolicyType, "", 500)
+		n4 := newOrderTestRule(t, "N4", DefaultPolicyType, "", 999)
+		n5 := newOrderTestRule(t, "N5", DefaultPolicyType, "", 100)
+
+		// Add in mixed order
+		for _, r := range []*Rule{n1, n2, n3, n4, n5} {
+			if err := bucket.AddRule(r); err != nil {
+				t.Error(err)
+			}
+		}
+
+		assertOrder(t, bucket, []string{"N4", "N3", "N5", "N2", "N1"})
+	})
 }

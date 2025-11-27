@@ -692,10 +692,10 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 
 func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 	var rawPacketFilters []rawpacket.Filter
-	for id, rule := range rs.GetRules() {
+	for _, rule := range rs.GetRules() {
 		for _, field := range rule.GetFieldValues("packet.filter") {
 			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
-				RuleID:    id,
+				RuleID:    rule.Def.ID,
 				BPFFilter: field.Value.(string),
 				Policy:    rawpacket.PolicyAllow,
 			})
