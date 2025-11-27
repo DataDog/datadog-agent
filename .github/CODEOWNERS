@@ -128,6 +128,7 @@
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx
 /.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-build
+/.gitlab/binary_build/host_profiler.yml              @DataDog/opentelemetry-agent @DataDog/profiling-full-host @DataDog/agent-build
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
 
@@ -260,6 +261,7 @@
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
 /cmd/system-probe/subcommands/ebpf/     @DataDog/ebpf-platform @DataDog/universal-service-monitoring
+/cmd/system-probe/subcommands/compliance/     @DataDog/agent-cspm
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
