@@ -614,7 +614,8 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	// TODO: check if error must trigger a specific flow
+	_ = i.close()
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {

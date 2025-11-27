@@ -322,7 +322,7 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 	defer p.Unlock()
 
 	var err error
-	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, &event.ProcessContext.ContainerContext); err != nil {
+	if err := p.ResolveNewProcessCacheEntry(event.ProcessCacheEntry); err != nil {
 		var errResolution *spath.ErrPathResolution
 		if errors.As(err, &errResolution) {
 			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
@@ -424,7 +424,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		entry.FileEvent.MountVisible = true
 		entry.FileEvent.MountDetached = false
 		// resolve container path with the MountEBPFResolver
-		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.FileEvent.Device, entry.Process.Pid, containerID)
+		entry.FileEvent.Filesystem, err = p.mountResolver.ResolveFilesystem(entry.Process.FileEvent.MountID, entry.Process.Pid)
 		if err != nil {
 			seclog.Debugf("snapshot failed for mount %d with pid %d : couldn't get the filesystem: %s", entry.Process.FileEvent.MountID, proc.Pid, err)
 		}
@@ -738,7 +738,7 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool, ne
 	return nil
 }
 
-func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
+func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
 		pathnameStr, mountPath string
 		source                 model.MountSource
@@ -747,7 +747,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		maxDepthRetry          = 3
 	)
 	for maxDepthRetry > 0 {
-		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
+		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext)
 		if err == nil {
 			return pathnameStr, mountPath, source, origin, nil
 		}
@@ -764,7 +764,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 }
 
 // SetProcessPath resolves process file path
-func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
+func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.ProcessCacheEntry) (string, error) {
 	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
@@ -777,7 +777,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	if fileEvent.Inode == 0 {
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
-	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
+	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
@@ -785,7 +785,7 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	fileEvent.MountPath = mountPath
 	fileEvent.MountSource = source
 	fileEvent.MountOrigin = origin
-	err = p.pathResolver.ResolveMountAttributes(fileEvent, &pce.PIDContext, ctrCtx)
+	err = p.pathResolver.ResolveMountAttributes(fileEvent, &pce.PIDContext)
 	if err != nil {
 		seclog.Warnf("Failed to resolve mount attributes for mount id %d: %s", fileEvent.MountID, err)
 	}
@@ -810,7 +810,7 @@ func (p *EBPFResolver) SetProcessSymlink(entry *model.ProcessCacheEntry) {
 // SetProcessFilesystem resolves process file system
 func (p *EBPFResolver) SetProcessFilesystem(entry *model.ProcessCacheEntry) (string, error) {
 	if entry.FileEvent.MountID != 0 {
-		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.FileEvent.Device, entry.Pid, entry.Process.ContainerContext.ContainerID)
+		fs, err := p.mountResolver.ResolveFilesystem(entry.FileEvent.MountID, entry.Pid)
 		if err != nil {
 			return "", err
 		}
@@ -854,13 +854,13 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 }
 
 // ResolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
-func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) error {
-	if _, err := p.SetProcessPath(&entry.FileEvent, entry, ctrCtx); err != nil {
+func (p *EBPFResolver) ResolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
+	if _, err := p.SetProcessPath(&entry.FileEvent, entry); err != nil {
 		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
 	}
 
 	if entry.HasInterpreter() {
-		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, entry, ctrCtx); err != nil {
+		if _, err := p.SetProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
 			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
 		}
 	} else {
@@ -940,11 +940,7 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64, newE
 		entry.Process.ContainerContext.ContainerID = containerID
 	}
 
-	// resolve paths and other context fields
-	ctrCtx := model.ContainerContext{
-		ContainerID: entry.Process.ContainerContext.ContainerID, // only use to get workload pids (instead of resolve pid namespace :/)
-	}
-	if err = p.ResolveNewProcessCacheEntry(entry, &ctrCtx); err != nil {
+	if err = p.ResolveNewProcessCacheEntry(entry); err != nil {
 		if newEntryCb != nil {
 			newEntryCb(entry, err)
 		}

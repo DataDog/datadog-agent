@@ -60,14 +60,6 @@ _ZLIB_PUBLIC_HEADERS = [
     "zlib.h",
 ]
 
-config_setting(
-    name = "mingw_gcc_compiler",
-    flag_values = {
-        "@bazel_tools//tools/cpp:compiler": "mingw-gcc",
-    },
-    visibility = [":__subpackages__"],
-)
-
 cc_library(
     name = "zlib",
     srcs = [
@@ -101,17 +93,8 @@ cc_library(
         "-I.",
         "-Wall",
     ] + select({
-        ":mingw_gcc_compiler": [
-            "-fpermissive",
-        ],
         "@platforms//os:windows": [
-            "-fpermissive",
-            "/O2",
-            "/wd4127",  # conditional expression is constant
-            "/wd4242",  # possible loss of data
-            "/wd4244",  # possible loss of data
-            "/wd4711",  # it inlined a function
-            "/wd5045",  # padding bytes inserted
+            "-O2",
         ],
         "@platforms//os:macos": [
             "-fPIC",

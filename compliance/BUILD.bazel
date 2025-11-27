@@ -1,5 +1,5 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_attributes", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//compliance:license_csv.bzl", "license_csv")
 
@@ -17,6 +17,7 @@ py_binary(
 license_csv(
     name = "licenses",
     csv_out = "licenses.csv",
+    licenses_dir = "licenses_dir",
     offers_out = "sources.txt",
     tags = ["manual"],
     target = "//deps:all_deps",
@@ -33,9 +34,33 @@ pkg_files(
     prefix = "sources",
 )
 
+# Turn the copied licenses into a target we can feed to other rules.
+filegroup(
+    name = "copied_license_dir",
+    srcs = [":licenses"],
+    output_group = "licenses",
+)
+
+# This silliness is to strip the directory name of the license
+# TreeArtifact.
+filter_directory(
+    name = "license_dir_stripped",
+    src = ":copied_license_dir",
+    outdir_name = "LICENSES",
+    strip_prefix = ".",
+)
+
+# You would expect that filter_directory returns something usuable to pkg_* rules.
+# It does not, so we have to wrap it.
+pkg_files(
+    name = "license_copies",
+    srcs = [":license_dir_stripped"],
+)
+
 pkg_install(
-    name = "install_source_offers",
+    name = "install_licenses",
     srcs = [
+        ":license_copies",
         ":source_offers",
     ],
 )

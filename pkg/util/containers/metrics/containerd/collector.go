@@ -19,7 +19,6 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/containerd"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	//nolint:revive // TODO(CINT) Fix revive linter
@@ -110,7 +109,7 @@ func (c *containerdCollector) GetContainerStats(containerNS, containerID string,
 	var OCISpec *oci.Spec
 	info, err := c.client.Info(containerNS, container)
 	if err == nil {
-		OCISpec, err = c.client.Spec(containerNS, info, containerd.DefaultAllowedSpecMaxSize)
+		OCISpec, err = c.client.Spec(containerNS, info, cutil.DefaultAllowedSpecMaxSize)
 	}
 
 	if err == nil {

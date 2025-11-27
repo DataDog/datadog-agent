@@ -24,7 +24,7 @@ const (
 // the same as in the probes.h file
 var LibsetToLibSuffixes = map[Libset][]string{
 	LibsetCrypto: {"libssl", "crypto", "gnutls"},
-	LibsetGPU:    {"libcudart"},
+	LibsetGPU:    {"libcudart", "libcuda"},
 	LibsetLibc:   {"libc"},
 }
 

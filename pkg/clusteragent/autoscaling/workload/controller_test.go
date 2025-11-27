@@ -960,7 +960,8 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 				Fallback: &datadoghq.DatadogFallbackPolicy{
 					Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
 						Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
-							{Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType}},
+							{Type: datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType},
+						},
 					},
 				},
 			},
@@ -980,10 +981,10 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 					{
-						Type:                 datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
-						CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
-						PodResource:          &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
-						ContainerResource:    nil,
+						Type:              datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
+						CustomQuery:       &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
+						PodResource:       &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
+						ContainerResource: nil,
 					},
 				},
 			},
@@ -1012,9 +1013,9 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 					{
-						Type:                 datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
-						PodResource:          &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
-						CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
+						Type:        datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType,
+						PodResource: &datadoghqcommon.DatadogPodAutoscalerPodResourceObjective{},
+						CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
 					},
 				},
 			},
@@ -1023,9 +1024,9 @@ func TestValidateAutoscalerObjectives(t *testing.T) {
 			spec: datadoghq.DatadogPodAutoscalerSpec{
 				Objectives: []datadoghqcommon.DatadogPodAutoscalerObjective{
 					{
-						Type:                 datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
-						ContainerResource:    &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{},
-						CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
+						Type:              datadoghqcommon.DatadogPodAutoscalerContainerResourceObjectiveType,
+						ContainerResource: &datadoghqcommon.DatadogPodAutoscalerContainerResourceObjective{},
+						CustomQuery:       &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{},
 					},
 				},
 			},

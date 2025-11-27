@@ -34,7 +34,7 @@ def expected_golangci_lint_repo_v(ctx: Context) -> str:
     """
     Returns the installed golangci-lint version by parsing the internal/tools/go.mod file.
     """
-    mod_name = "github.com/golangci/golangci-lint"
+    mod_name = "github.com/golangci/golangci-lint/v2"
     go_mod_json = json.loads(ctx.run(f"go mod edit -json {GOLANGCI_LINT_VPATH}", hide=True).stdout)
     for mod in go_mod_json['Require']:
         if mod['Path'] == mod_name:
@@ -56,7 +56,7 @@ def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:
     debug_flag = "--debug" if debug else ""
     cmd = f"golangci-lint version {debug_flag}"
     version_output = ctx.run(cmd, hide=True).stdout
-    return version_output if debug else version_output.split(' ')[3]
+    return version_output if debug else version_output.split(' ')[3].rsplit("-", 1)[0]
 
 
 def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False) -> bool:

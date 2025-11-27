@@ -86,6 +86,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetVirtualizationMode"),
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
+		toNativeName("GetMemoryErrorCounter"),
 	}
 }
 

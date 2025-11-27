@@ -5,11 +5,10 @@
 
 //go:build windows
 
-package olreader
-
-// the olreader (OverlappedReader) provides a generic interface for
-// doing overlapped reads from a particular handle.  The handle is assumed
+// Package olreader (OverlappedReader) provides a generic interface for
+// doing overlapped reads from a particular handle. The handle is assumed
 // to be a DataDog driver handle.
+package olreader
 
 /*
 #include <stdlib.h>

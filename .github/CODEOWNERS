@@ -261,6 +261,7 @@
 /cmd/system-probe/subcommands/runtime/  @DataDog/agent-security
 /cmd/system-probe/subcommands/usm/      @DataDog/universal-service-monitoring
 /cmd/system-probe/subcommands/ebpf/     @DataDog/ebpf-platform @DataDog/universal-service-monitoring
+/cmd/system-probe/subcommands/compliance/     @DataDog/agent-cspm
 /cmd/systray/                           @DataDog/windows-products
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm

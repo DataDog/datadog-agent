@@ -391,6 +391,15 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 			}
 		}
 
+		hasPidTag := false
+		for _, tag := range usageMetricTags {
+			if strings.HasPrefix(tag, "pid:") {
+				hasPidTag = true
+				break
+			}
+		}
+		assert.True(c, hasPidTag, "no tag starting with 'pid:' found in usage metric tags")
+
 		if len(usageMetricTags) > 0 {
 			// Ensure we get the limit metric with the same tags as the usage one
 			limitMetrics, err := v.caps.FakeIntake().Client().FilterMetrics("gpu.core.limit", client.WithTags[*aggregator.MetricSeries](usageMetricTags))

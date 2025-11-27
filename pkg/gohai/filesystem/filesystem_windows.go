@@ -135,7 +135,7 @@ func getFileSystemInfo() ([]MountInfo, error) {
 			status, _, _ := findNext.Call(fh,
 				uintptr(unsafe.Pointer(&buf[0])),
 				uintptr(bufsize))
-			if 0 == status {
+			if status == 0 {
 				moreData = false
 			}
 		}

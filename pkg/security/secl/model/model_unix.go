@@ -509,20 +509,23 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32   `field:"-"`
-	MountIDUnique  uint64   `field:"-"`
-	Device         uint32   `field:"-"`
-	ParentPathKey  PathKey  `field:"-"`
-	Children       []uint32 `field:"-"`
-	RootPathKey    PathKey  `field:"-"`
-	BindSrcMountID uint32   `field:"-"`
-	FSType         string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string   `field:"-"`
-	RootStr        string   `field:"-"`
-	Path           string   `field:"-"`
-	Origin         uint32   `field:"-"`
-	Detached       bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	MountID              uint32   `field:"-"`
+	MountIDUnique        uint64   `field:"-"`
+	Device               uint32   `field:"-"`
+	ParentPathKey        PathKey  `field:"-"`
+	Children             []uint32 `field:"-"`
+	RootPathKey          PathKey  `field:"-"`
+	BindSrcMountID       uint32   `field:"-"`
+	BindSrcMountIDUnique uint64   `field:"-"`
+	ParentMountIDUnique  uint64   `field:"-"`
+	FSType               string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr        string   `field:"-"`
+	RootStr              string   `field:"-"`
+	Path                 string   `field:"-"`
+	Origin               uint32   `field:"-"`
+	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	NamespaceInode       uint32   `field:"-"`
 }
 
 // MountEvent represents a mount event

@@ -196,7 +196,8 @@ func (ifr *incrementalFileReader) Init(f *os.File) error {
 	ifr.ino = inodeOf(st)
 	_, err = ifr.f.Seek(ifr.offset, io.SeekStart)
 	if err != nil {
-		ifr.close(false)
+		// Comment: already in an error path
+		_ = ifr.close(false)
 		ifr.f = nil
 	}
 	return err
@@ -404,7 +405,7 @@ func (ifr *incrementalFileReader) reloadIfRotated() error {
 		}
 		f, err := os.Open(ifr.path)
 		if err != nil {
-			ifr.close(false)
+			_ = ifr.close(false)
 			ifr.f = nil
 			return err
 		}

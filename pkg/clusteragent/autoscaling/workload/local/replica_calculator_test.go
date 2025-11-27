@@ -1550,11 +1550,9 @@ func TestCalculateHorizontalRecommendations(t *testing.T) {
 	}
 	customQueryObjective := datadoghqcommon.DatadogPodAutoscalerObjective{
 		Type: datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType,
-		CustomQueryObjective: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
-			Query: datadoghqcommon.DatadogPodAutoscalerTimeseriesFormulaRequest{
-				Formulas: []datadoghqcommon.DatadogPodAutoscalerQueryFormula{{
-					Formula: "query1",
-				}},
+		CustomQuery: &datadoghqcommon.DatadogPodAutoscalerCustomQueryObjective{
+			Request: datadoghqcommon.DatadogPodAutoscalerTimeseriesFormulaRequest{
+				Formula: "query1",
 				Queries: []datadoghqcommon.DatadogPodAutoscalerTimeseriesQuery{{
 					Source: datadoghqcommon.DatadogPodAutoscalerMetricsDataSourceMetrics,
 					Name:   "a",
