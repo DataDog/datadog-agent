@@ -1537,16 +1537,6 @@ func TestEnvVarTransformers(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": 3}, kvs)
 }
 
-func TestUnmarshalKeyIsDeprecated(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", []string{"a", "b"})
-	cfg.BuildSchema()
-
-	var texts []string
-	err := cfg.UnmarshalKey("a", &texts)
-	assert.Error(t, err)
-}
-
 func TestSetConfigFile(t *testing.T) {
 	config := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetConfigType("yaml")

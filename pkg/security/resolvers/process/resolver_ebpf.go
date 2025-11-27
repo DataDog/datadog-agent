@@ -1031,17 +1031,20 @@ func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
 func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+	if pr.ArgsEntry == nil || pr.ArgsEntry.ScrubbedResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
 
 	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
+		pr.ArgsEntry.Lock()
+		defer pr.ArgsEntry.Unlock()
+
 		// replace with the scrubbed version
 		argv := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
-	pr.ScrubbedArgvResolved = true
+	pr.ArgsEntry.ScrubbedResolved = true
 
 	return GetProcessArgv(pr)
 }

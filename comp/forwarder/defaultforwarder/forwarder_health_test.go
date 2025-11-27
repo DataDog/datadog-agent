@@ -68,6 +68,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.datadoghq.eu":               {utils.NewAPIKeys("path", "api_key4")},
 		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
 		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
+		"https://app.xxxx99.datadoghq.com":       {utils.NewAPIKeys("path", "api_key5")},
 		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "api_key6")},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
 		"https://app.datadoghq.internal": {utils.NewAPIKeys("path", "api_key7")},
@@ -77,13 +78,14 @@ func TestComputeDomainsURL(t *testing.T) {
 	}
 
 	expectedMap := map[string][]string{
-		"https://api.datadoghq.com":      {"api_key1", "api_key2", "api_key3"},
-		"https://api.datadoghq.eu":       {"api_key4"},
-		"https://api.us2.datadoghq.com":  {"api_key5", "api_key6"},
-		"https://api.xx9.datadoghq.com":  {"api_key5"},
-		"https://api.datadoghq.internal": {"api_key7"},
-		"https://app.myproxy.com":        {"api_key8"},
-		"https://api.ddog-gov.com":       {"api_key9", "api_key10"},
+		"https://api.datadoghq.com":        {"api_key1", "api_key2", "api_key3"},
+		"https://api.datadoghq.eu":         {"api_key4"},
+		"https://api.us2.datadoghq.com":    {"api_key5", "api_key6"},
+		"https://api.xx9.datadoghq.com":    {"api_key5"},
+		"https://api.xxxx99.datadoghq.com": {"api_key5"},
+		"https://api.datadoghq.internal":   {"api_key7"},
+		"https://app.myproxy.com":          {"api_key8"},
+		"https://api.ddog-gov.com":         {"api_key9", "api_key10"},
 	}
 
 	// just sort the expected map for easy comparison
