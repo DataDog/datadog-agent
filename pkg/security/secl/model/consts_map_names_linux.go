@@ -66,7 +66,6 @@ var bpfMapNames = []string{
 	"memfd_tracking",
 	"mmap_flags_appr",
 	"mmap_protection",
-	"mount_ref",
 	"mprotect_req_pr",
 	"mprotect_vm_pro",
 	"netdevice_looku",
