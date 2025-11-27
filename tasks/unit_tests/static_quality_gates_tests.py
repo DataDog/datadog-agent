@@ -947,6 +947,10 @@ class TestSoftGatesFunctionality(unittest.TestCase):
             'CI_PIPELINE_ID': '12345',
         },
     )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
+    )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
     @patch(
         "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
@@ -990,6 +994,10 @@ static_quality_gate_iot_agent_deb_amd64:
             'CI_PIPELINE_ID': '12345',
         },
     )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
+    )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
     @patch(
         "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
@@ -1030,6 +1038,10 @@ static_quality_gate_agent_deb_amd64:
             'OMNIBUS_PACKAGE_DIR': '/test/packages',
             'CI_PIPELINE_ID': '12345',
         },
+    )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
     )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
     @patch(
@@ -1082,6 +1094,10 @@ static_quality_gate_agent_deb_amd64:
             'CI_PIPELINE_ID': '12345',
         },
     )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
+    )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog", new=MagicMock())
     @patch(
         "tasks.static_quality_gates.gates.PackageArtifactMeasurer.measure",
@@ -1130,6 +1146,10 @@ static_quality_gate_agent_deb_amd64:
             'CI_PIPELINE_ID': '12345',
         },
     )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
+    )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
     @patch(
         "tasks.static_quality_gates.gates.DockerArtifactMeasurer.measure",
@@ -1172,6 +1192,10 @@ static_quality_gate_docker_dogstatsd_arm64:
             'OMNIBUS_PACKAGE_DIR': '/test/packages',
             'CI_PIPELINE_ID': '12345',
         },
+    )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
     )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
     @patch(
@@ -1218,6 +1242,10 @@ static_quality_gate_docker_cws_instrumentation_arm64:
             'OMNIBUS_PACKAGE_DIR': '/test/packages',
             'CI_PIPELINE_ID': '12345',
         },
+    )
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
     )
     @patch("tasks.static_quality_gates.gates.GateMetricHandler.send_metrics_to_datadog")
     @patch(
