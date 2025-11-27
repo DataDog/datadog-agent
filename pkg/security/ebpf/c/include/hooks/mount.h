@@ -600,20 +600,18 @@ HOOK_SYSCALL_EXIT(move_mount) {
 
     return 0;
 }
-HOOK_ENTRY("umount_mnt")
-int hook_umount_mnt(ctx_t *ctx) {
-    struct mount *mnt = (struct mount *)CTX_PARM1(ctx);
-    u32 mnt_id = get_mount_mount_id(mnt);
-    bpf_printk("umount_mnt :: Mount id is: %d", mnt_id);
-
-    return 0;
-}
 
 HOOK_ENTRY("cleanup_mnt")
 int hook_cleanup_mnt(ctx_t *ctx) {
     struct mount *mnt = (struct mount *)CTX_PARM1(ctx);
     u32 mnt_id = get_mount_mount_id(mnt);
     bpf_printk("cleanup_mnt :: Mount id is: %d", mnt_id);
+
+    struct finalized_umount_event_t event = {
+        .mount_id = mnt_id,
+    };
+
+    send_event(ctx, EVENT_FINALIZED_UMOUNT, event);
 
     return 0;
 }
