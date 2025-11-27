@@ -415,7 +415,7 @@ func createStatelessAPIs() []apiCallInfo {
 						Value: float64(count),
 						Type:  metrics.CountType,
 						Tags: []string{
-							fmt.Sprintf("memory_location:%s", memoryLocationName),
+							"memory_location:" + memoryLocationName,
 						},
 					}}, 0, nil
 				},

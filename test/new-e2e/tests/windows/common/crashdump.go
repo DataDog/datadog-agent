@@ -201,15 +201,16 @@ func DownloadSystemCrashDump(host *components.RemoteHost, systemCrashDumpFile st
 
 // EnableDriverVerifier enables standard verifier checks on the specified kernel drivers. Requires a reboot.
 func EnableDriverVerifier(host *components.RemoteHost, kernelDrivers []string) (string, error) {
-	var driverList string
+	var driverListBuilder strings.Builder
 
 	for _, driverName := range kernelDrivers {
 		if !strings.HasSuffix(driverName, ".sys") {
-			driverList += driverName + ".sys "
+			driverListBuilder.WriteString(driverName + ".sys ")
 		} else {
-			driverList += driverName + " "
+			driverListBuilder.WriteString(driverName + " ")
 		}
 	}
+	driverList := driverListBuilder.String()
 
 	fmt.Println("Enabling driver verifier for: ", driverList)
 

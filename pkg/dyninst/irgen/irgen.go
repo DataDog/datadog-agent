@@ -1920,7 +1920,7 @@ func findStructSizeAndMemberOffset(
 		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
 	}
 	if !entry.Children {
-		return 0, 0, fmt.Errorf("struct type has no children")
+		return 0, 0, errors.New("struct type has no children")
 	}
 	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
 	if err != nil {
@@ -1936,7 +1936,7 @@ func findStructSizeAndMemberOffset(
 			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
 		}
 		if child == nil {
-			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
+			return 0, 0, errors.New("unexpected EOF while reading struct type")
 		}
 		if child.Tag == 0 {
 			break
@@ -3155,7 +3155,7 @@ func resolveExpression(
 			if ptrType, ok := currentType.(*ir.PointerType); ok {
 				// Check for void pointer.
 				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
-					return ir.Expression{}, fmt.Errorf(
+					return ir.Expression{}, errors.New(
 						"cannot dereference void pointer",
 					)
 				}
@@ -3242,7 +3242,7 @@ func resolveExpression(
 		if ptrType, ok := currentType.(*ir.PointerType); ok {
 			// Check for void pointer.
 			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
-				return ir.Expression{}, fmt.Errorf(
+				return ir.Expression{}, errors.New(
 					"cannot dereference void pointer",
 				)
 			}

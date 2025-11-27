@@ -395,10 +395,12 @@ func (h *Host) fs() map[string]FileInfo {
 		"/run/utmp",
 		"/tmp",
 	}
-	cmd := "sudo find / "
+	var cmdBuilder strings.Builder
+	cmdBuilder.WriteString("sudo find / ")
 	for _, dir := range ignoreDirs {
-		cmd += fmt.Sprintf("-path '%s' -prune -o ", dir)
+		fmt.Fprintf(&cmdBuilder, "-path '%s' -prune -o ", dir)
 	}
+	cmd := cmdBuilder.String()
 	cmd += `-printf '%p\\|//%s\\|//%TY-%Tm-%Td %TH:%TM:%TS\\|//%f\\|//%m\\|//%u\\|//%g\\|//%y\\|//%l\n' 2>/dev/null`
 	output := h.remote.MustExecute(cmd + " || true")
 	lines := strings.Split(output, "\n")

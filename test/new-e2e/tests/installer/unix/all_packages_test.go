@@ -419,10 +419,12 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
 		playbookStringSuffix += fmt.Sprintf("    datadog_yum_repo: \"https://%s/%s/%s/\"\n", defaultRepoEnv["TESTING_YUM_URL"], defaultRepoEnv["TESTING_YUM_VERSION_PATH"], archi)
 	}
 	if len(environments) > 0 {
-		playbookStringPrefix += "      environment:\n"
+		var envBuilder strings.Builder
+		envBuilder.WriteString("      environment:\n")
 		for _, env := range environments {
-			playbookStringPrefix += fmt.Sprintf("        %s\n", env)
+			fmt.Fprintf(&envBuilder, "        %s\n", env)
 		}
+		playbookStringPrefix += envBuilder.String()
 	}
 
 	playbookString := playbookStringPrefix + playbookStringSuffix

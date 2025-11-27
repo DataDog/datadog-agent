@@ -14,6 +14,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -100,9 +101,10 @@ func (pn *ProcessNode) AppendChild(node *ProcessNode) {
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
-	label := tableHeader
+	var builder strings.Builder
+	builder.WriteString(tableHeader)
 
-	label += "<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">"
+	builder.WriteString("<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">")
 	var cmd string
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
 		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
@@ -113,23 +115,23 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	if len(cmd) > 100 {
 		cmd = cmd[:100] + " ..."
 	}
-	label += html.EscapeString(cmd)
-	label += "</FONT></TD></TR>"
+	builder.WriteString(html.EscapeString(cmd))
+	builder.WriteString("</FONT></TD></TR>")
 
 	if len(pn.Process.FileEvent.PkgName) != 0 {
-		label += "<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>"
+		builder.WriteString("<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>")
 	}
 	// add hashes
 	if len(pn.Process.FileEvent.Hashes) > 0 {
-		label += "<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>"
+		builder.WriteString("<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>")
 		for _, h := range pn.Process.FileEvent.Hashes {
-			label += "<TR><TD></TD><TD>" + h + "</TD></TR>"
+			builder.WriteString("<TR><TD></TD><TD>" + h + "</TD></TR>")
 		}
 	} else {
-		label += "<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>"
+		builder.WriteString("<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>")
 	}
-	label += "</TABLE>>"
-	return label
+	builder.WriteString("</TABLE>>")
+	return builder.String()
 }
 
 // nolint: unused

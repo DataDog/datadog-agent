@@ -425,10 +425,7 @@ func TestProcessContext(t *testing.T) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// size overflow
-		var long string
-		for i := 0; i != 1024; i++ {
-			long += "a"
-		}
+		long := strings.Repeat("a", 1024)
 		args = append(args, long)
 
 		test.WaitSignal(t, func() error {
@@ -571,11 +568,7 @@ func TestProcessContext(t *testing.T) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// size overflow
-		var long string
-		for i := 0; i != 1024; i++ {
-			long += "a"
-		}
-		long += "="
+		long := strings.Repeat("a", 1024) + "="
 		envs = append(envs, long)
 
 		if kind == dockerWrapperType {

@@ -43,7 +43,7 @@ func WaitForFlowsToAccumulate(aggregator *FlowAggregator, timeoutDuration time.D
 		select {
 		// Got a timeout! fail with a timeout error
 		case <-timeout:
-			return fmt.Errorf("timeout error waiting for events")
+			return errors.New("timeout error waiting for events")
 		// Got a tick, we should check on doSomething()
 		case <-ticker.C:
 			// more hacky mutex locking, need to verify that flows accumulated by reading shared memory

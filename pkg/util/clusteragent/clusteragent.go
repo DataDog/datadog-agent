@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -484,13 +485,18 @@ func buildQueryList(path string, key string, list []string) (string, error) {
 
 	encodedKey := url.QueryEscape(key)
 
+	var builder strings.Builder
+	builder.WriteString(path)
 	for i, val := range list {
 		encodedVal := url.QueryEscape(val)
 		if i == 0 {
-			path = path + fmt.Sprintf("?%s=%s", encodedKey, encodedVal) // first parameter starts with a ?
+			builder.WriteString("?") // first parameter starts with a ?
 		} else {
-			path = path + fmt.Sprintf("&%s=%s", encodedKey, encodedVal) // the rest start with &
+			builder.WriteString("&") // the rest start with &
 		}
+		builder.WriteString(encodedKey)
+		builder.WriteString("=")
+		builder.WriteString(encodedVal)
 	}
-	return path, nil
+	return builder.String(), nil
 }

@@ -13,6 +13,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"strings"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -103,17 +104,17 @@ func makeStableMetricMap(metrics []*dto.Metric) map[string]*dto.Metric {
 
 	metricMap := make(map[string]*dto.Metric)
 	for _, m := range metrics {
-		tagsKey := ""
+		var tagsKeyBuilder strings.Builder
 
 		// sort by names and values before insertion
 		origTags := m.GetLabel()
 		if len(origTags) > 0 {
 			for _, t := range cloneLabelsSorted(origTags) {
-				tagsKey += makeLabelPairKey(t)
+				tagsKeyBuilder.WriteString(makeLabelPairKey(t))
 			}
 		}
 
-		metricMap[tagsKey] = m
+		metricMap[tagsKeyBuilder.String()] = m
 	}
 
 	return metricMap
