@@ -48,7 +48,6 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 }
 
 // NumItems returns the number of items in our matcher list.
-// Used for tests.
 func (m *Matcher) NumItems() int {
 	return len(m.data)
 }
