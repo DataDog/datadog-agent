@@ -238,9 +238,7 @@ func TestIsCreatedByDatadog(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := isCreatedByDatadog(tt.labels)
-			if result != tt.expected {
-				t.Errorf("isCreatedByDatadog() = %v, want %v", result, tt.expected)
-			}
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

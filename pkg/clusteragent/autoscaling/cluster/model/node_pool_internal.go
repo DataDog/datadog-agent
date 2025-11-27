@@ -143,7 +143,7 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 	metadataLabels := map[string]string{}
 
 	// Convert domain labels into requirements
-	reqs := []karpenterv1.NodeSelectorRequirementWithMinValues{}
+	reqs := make([]karpenterv1.NodeSelectorRequirementWithMinValues, 0, len(n.labels)+1)
 	for k, v := range n.labels {
 
 		// Don't include long-deprecated labels

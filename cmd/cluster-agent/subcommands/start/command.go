@@ -502,11 +502,11 @@ func start(log log.Component,
 
 	if config.GetBool("autoscaling.cluster.enabled") {
 		if rcClient == nil {
-			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
+			return errors.New("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
 		if err := cluster.StartClusterAutoscaling(mainCtx, clusterID, clusterName, le.IsLeader, apiCl, rcClient, demultiplexer); err != nil {
-			return fmt.Errorf("Error while starting cluster autoscaling: %v", err)
+			return fmt.Errorf("Error while starting cluster autoscaling: %w", err)
 		}
 	}
 
