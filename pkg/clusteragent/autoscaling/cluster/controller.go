@@ -110,7 +110,7 @@ func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscalin
 		return autoscaling.ProcessResult{}
 	}
 
-	// Try to get NodePool from cluster
+	// Try to get Datadog-managed NodePool from cluster
 	nodePool := &karpenterv1.NodePool{}
 	npUnstr, err := c.Lister.Get(name)
 	if err == nil {

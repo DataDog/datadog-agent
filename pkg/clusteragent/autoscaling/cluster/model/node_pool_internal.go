@@ -10,6 +10,7 @@ package model
 import (
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	_ "github.com/aws/karpenter-provider-aws/pkg/apis/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,9 +28,6 @@ type NodePoolInternal struct {
 	// Name matches name of NodePool
 	name string `json:"name"`
 
-	// nodePoolHash is hash of NodePoolSpec
-	nodePoolHash string `json:"target_hash"` // TODO utilize once this is part of payload
-
 	// recommendedInstanceTypes is list of recommended instance types
 	recommendedInstanceTypes []string `json:"recommended_instance_types"`
 
@@ -38,6 +36,15 @@ type NodePoolInternal struct {
 
 	// taints is a list of node taints that correspond to the NodePool
 	taints []corev1.Taint `json:"taints"`
+
+	// targetName is the user-created NodePool the Datadog-managed NodePool is derived from
+	targetName string `json:"target_name"`
+
+	// targetHash is hash of the user-created NodePoolSpec
+	targetHash string `json:"target_hash"` // TODO utilize once this is part of payload
+
+	// targetWeight is weight of the user-created NodePoolSpec
+	targetWeight *int32 `json:"target_weight"`
 }
 
 func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolInternal {
@@ -46,6 +53,9 @@ func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolIn
 		recommendedInstanceTypes: v.RecommendedInstanceTypes,
 		labels:                   convertLabels(v.Labels),
 		taints:                   convertTaints(v.Taints),
+		targetName:               v.TargetName,
+		targetHash:               v.TargetHash,
+		targetWeight:             v.TargetWeight,
 	}
 }
 
@@ -71,11 +81,6 @@ func (n *NodePoolInternal) Name() string {
 	return n.name
 }
 
-// NodePoolHash returns the nodePoolHash of the NodePoolInternal
-func (n *NodePoolInternal) NodePoolHash() string {
-	return n.nodePoolHash
-}
-
 // RecommendedInstanceTypes returns the recommendedInstanceTypes of the NodePoolInternal
 func (n *NodePoolInternal) RecommendedInstanceTypes() []string {
 	return n.recommendedInstanceTypes
@@ -89,6 +94,21 @@ func (n *NodePoolInternal) Labels() map[string]string {
 // Taints returns the taints of the NodePoolInternal
 func (n *NodePoolInternal) Taints() []corev1.Taint {
 	return n.taints
+}
+
+// TargetName returns the targetName of the NodePoolInternal
+func (n *NodePoolInternal) TargetName() string {
+	return n.targetName
+}
+
+// TargetHash returns the targetHash of the NodePoolInternal
+func (n *NodePoolInternal) TargetHash() string {
+	return n.targetHash
+}
+
+// TargetWeight returns the targetWeight of the NodePoolInternal
+func (n *NodePoolInternal) TargetWeight() int32 {
+	return *n.targetWeight
 }
 
 func convertLabels(input []*kubeAutoscaling.DomainLabels) map[string]string {
@@ -164,7 +184,7 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 	// Add autoscaling label
 	metadataLabels[kubernetes.AutoscalingLabelKey] = "true"
 
-	return karpenterv1.NodePoolSpec{
+	npSpec := karpenterv1.NodePoolSpec{
 		Template: karpenterv1.NodeClaimTemplate{
 			ObjectMeta: karpenterv1.ObjectMeta{
 				Labels: metadataLabels,
@@ -182,6 +202,17 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 			},
 		},
 	}
+
+	if n.TargetWeight != nil {
+		if n.TargetWeight() >= 0 && n.TargetWeight() < 100 {
+			weight := n.TargetWeight() + 1
+			npSpec.Weight = &weight
+		} else {
+			log.Warnf("TargetWeight is invalid: %v for Target NodePool: %s", n.TargetWeight(), n.TargetName())
+		}
+	}
+
+	return npSpec
 }
 
 // BuildNodePoolPatch is used to construct JSON patch
