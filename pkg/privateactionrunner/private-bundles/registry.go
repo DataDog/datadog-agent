@@ -6,6 +6,7 @@
 package privatebundles
 
 import (
+	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles/com/datadoghq/kubernetes/apiextensions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -13,11 +14,15 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry() *Registry {
+func NewRegistry(
+) *Registry {
 	return &Registry{
-		Bundles: map[string]types.Bundle{},
+		Bundles: map[string]types.Bundle{
+			"com.datadoghq.kubernetes.apiextensions": com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
+		},
 	}
 }
+
 
 func (r *Registry) GetBundle(fqn string) types.Bundle {
 	return r.Bundles[fqn]
