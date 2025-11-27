@@ -1272,6 +1272,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
+	config.BindEnvAndSetDefault("log_use_slog", false)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -2477,8 +2478,8 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	log.Warnf("FIPS mode is enabled! All communication to DataDog will be routed to the local FIPS proxy on '%s' starting from port %d", localAddress, portRangeStart)
 
 	// Disabling proxy to make sure all data goes directly to the FIPS proxy
-	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
+	_ = os.Unsetenv("HTTP_PROXY")
+	_ = os.Unsetenv("HTTPS_PROXY")
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"

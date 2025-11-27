@@ -358,7 +358,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
-				var variableValue interface{} = actionDef.Set.DefaultValue
+				var variableValue = actionDef.Set.DefaultValue
 				if variableValue == nil {
 					variableValue = actionDef.Set.Value
 				}
