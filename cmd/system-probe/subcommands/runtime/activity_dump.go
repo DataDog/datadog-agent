@@ -10,7 +10,6 @@ package runtime
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -430,15 +429,13 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 		if err != nil {
 			return err
 		}
-		// TODO: should check if Write returned an error
-		_, _ = os.Stdout.Write(buffer.Bytes())
+		fmt.Print(buffer.String())
 	case "protobuf":
 		buffer, err := diff.EncodeSecDumpProtobuf()
 		if err != nil {
 			return err
 		}
-		// TODO: should check if Write returned an error
-		_, _ = os.Stdout.Write(buffer.Bytes())
+		fmt.Print(buffer.String())
 	case "json":
 		buffer, err := diff.EncodeJSON("  ")
 		if err != nil {
