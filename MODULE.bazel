@@ -167,6 +167,9 @@ include("//deps/acl:acl.MODULE.bazel")
 include("//deps/cpython:cpython.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/openssl3:openssl3.MODULE.bazel")
 
 # buildifier: leave-alone
