@@ -152,6 +152,29 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		closeFuncs = append(closeFuncs, func() { syslogReceiver.Close() })
 	}
 
+	if c.logfile != "" {
+		// create a seelog logger which only logs to a file
+		// for debugging purposes
+		cfg := Config{
+			logfile:      c.logfile + ".seelog",
+			maxsize:      c.maxsize,
+			maxrolls:     c.maxrolls,
+			loggerName:   c.loggerName,
+			format:       c.format,
+			jsonFormat:   c.jsonFormat,
+			commonFormat: c.commonFormat,
+			logLevel:     c.logLevel,
+		}
+		cfgStr, err := cfg.Render()
+		if err == nil {
+			seelogLogger, err := seelog.LoggerFromConfigAsString(cfgStr)
+			if err == nil {
+				handlerList = append(handlerList, &seelogHandler{handler: seelogLogger})
+				closeFuncs = append(closeFuncs, func() { seelogLogger.Close() })
+			}
+		}
+	}
+
 	// level handler -> async handler -> multi handler
 	multiHandler := handlers.NewMulti(handlerList...)
 	asyncHandler := handlers.NewAsync(multiHandler)
@@ -172,6 +195,43 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 	logger := slog.NewWrapperWithCloseAndFlush(levelHandler, asyncHandler.Flush, closeFunc)
 
 	return logger, nil
+}
+
+type seelogHandler struct {
+	handler seelog.LoggerInterface
+}
+
+func (h *seelogHandler) Handle(ctx context.Context, r stdslog.Record) error {
+	switch types.FromSlogLevel(r.Level) {
+	case types.TraceLvl:
+		h.handler.Trace(r.Message)
+	case types.DebugLvl:
+		h.handler.Debug(r.Message)
+	case types.InfoLvl:
+		h.handler.Info(r.Message)
+	case types.WarnLvl:
+		_ = h.handler.Warn(r.Message)
+	case types.ErrorLvl:
+		_ = h.handler.Error(r.Message)
+	case types.CriticalLvl:
+		_ = h.handler.Critical(r.Message)
+	case types.Off:
+	default:
+		return fmt.Errorf("unknown log level: %d", r.Level)
+	}
+	return nil
+}
+
+func (h *seelogHandler) WithAttrs([]stdslog.Attr) stdslog.Handler {
+	return h
+}
+
+func (h *seelogHandler) WithGroup(string) stdslog.Handler {
+	return h
+}
+
+func (h *seelogHandler) Enabled(context.Context, stdslog.Level) bool {
+	return true
 }
 
 // commonSyslogFormatter formats the syslog message in the common format
