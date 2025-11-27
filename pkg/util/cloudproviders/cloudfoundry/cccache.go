@@ -190,9 +190,12 @@ func (ccc *CCCache) getLockForResource(resourceName, guid string) *sync.RWMutex 
 	ccc.RUnlock()
 
 	if !ok {
-		mu = &sync.RWMutex{}
 		ccc.Lock()
-		ccc.locksByGUID[lockID] = mu
+		var exists bool
+		if mu, exists = ccc.locksByGUID[lockID]; !exists {
+			mu = &sync.RWMutex{}
+			ccc.locksByGUID[lockID] = mu
+		}
 		ccc.Unlock()
 	}
 	return mu
@@ -203,21 +206,15 @@ func (ccc *CCCache) getLockForResource(resourceName, guid string) *sync.RWMutex 
 func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
 	var resource T
 
-	// check if the cccache is still warming up
+	// check if the cccache is still warming up and read from cache
 	ccc.RLock()
 	updatedOnce := !ccc.lastUpdated.IsZero()
-	ccc.RUnlock()
-
 	if !updatedOnce {
+		ccc.RUnlock()
 		return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
 	}
-
-	resourceLock := ccc.getLockForResource(resourceName, guid)
-
-	// check cache
-	resourceLock.RLock()
 	resource, ok := cache[guid]
-	resourceLock.RUnlock()
+	ccc.RUnlock()
 
 	if ok {
 		return resource, nil
@@ -227,23 +224,29 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 		return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
 	}
 
+	// Use per-GUID lock to prevent duplicate API fetches for the same resource
+	resourceLock := ccc.getLockForResource(resourceName, guid)
 	resourceLock.Lock()
 	defer resourceLock.Unlock()
 
-	// check cache again in case it was updated when the resource was locked
+	// check cache again under global RLock in case it was updated
+	ccc.RLock()
 	resource, ok = cache[guid]
+	ccc.RUnlock()
 	if ok {
 		return resource, nil
 	}
 
-	// fetch the resource from the CAPI
+	// fetch the resource from the CAPI (without holding locks)
 	fetchedResource, err := fetchFn(guid)
 	if err != nil {
 		return fetchedResource, err
 	}
 
-	// update cache
+	// update cache under global Lock
+	ccc.Lock()
 	cache[guid] = fetchedResource
+	ccc.Unlock()
 
 	return fetchedResource, nil
 }
@@ -289,7 +292,11 @@ func (ccc *CCCache) GetCFApplications() ([]*CFApplication, error) {
 
 // GetProcesses returns all processes for the given app guid in the cache
 func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
-	processes, err := getResource(ccc, "Processes", appGUID, ccc.processesByAppGUID, ccc.fetchProcessesByAppGUID)
+	ccc.RLock()
+	processesByAppGUID := ccc.processesByAppGUID
+	ccc.RUnlock()
+
+	processes, err := getResource(ccc, "Processes", appGUID, processesByAppGUID, ccc.fetchProcessesByAppGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +305,11 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 
 // GetCFApplication looks for a CF application with the given GUID in the cache
 func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
-	cfapp, err := getResource(ccc, "CFApplication", guid, ccc.cfApplicationsByGUID, ccc.fetchCFApplicationByGUID)
+	ccc.RLock()
+	cfApplicationsByGUID := ccc.cfApplicationsByGUID
+	ccc.RUnlock()
+
+	cfapp, err := getResource(ccc, "CFApplication", guid, cfApplicationsByGUID, ccc.fetchCFApplicationByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +330,11 @@ func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 
 // GetApp looks for an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
-	app, err := getResource(ccc, "App", guid, ccc.appsByGUID, ccc.ccAPIClient.GetV3AppByGUID)
+	ccc.RLock()
+	appsByGUID := ccc.appsByGUID
+	ccc.RUnlock()
+
+	app, err := getResource(ccc, "App", guid, appsByGUID, ccc.ccAPIClient.GetV3AppByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +343,11 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 
 // GetSpace looks for a space with the given GUID in the cache
 func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
-	space, err := getResource(ccc, "Space", guid, ccc.spacesByGUID, ccc.ccAPIClient.GetV3SpaceByGUID)
+	ccc.RLock()
+	spacesByGUID := ccc.spacesByGUID
+	ccc.RUnlock()
+
+	space, err := getResource(ccc, "Space", guid, spacesByGUID, ccc.ccAPIClient.GetV3SpaceByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +356,11 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 
 // GetOrg looks for an org with the given GUID in the cache
 func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
-	org, err := getResource(ccc, "Org", guid, ccc.orgsByGUID, ccc.ccAPIClient.GetV3OrganizationByGUID)
+	ccc.RLock()
+	orgsByGUID := ccc.orgsByGUID
+	ccc.RUnlock()
+
+	org, err := getResource(ccc, "Org", guid, orgsByGUID, ccc.ccAPIClient.GetV3OrganizationByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -700,22 +723,51 @@ func (ccc *CCCache) readData() {
 		cfApplicationsByGUID = ccc.prepareCFApplications(appsByGUID, processesByAppGUID, spacesByGUID, orgsByGUID, sidecarsByAppGUID)
 	}
 
-	// put new data in cache
+	// update cache in-place instead of swapping entire maps
 	ccc.Lock()
 	defer ccc.Unlock()
 
-	ccc.segmentBySpaceGUID = segmentBySpaceGUID
-	ccc.segmentByOrgGUID = segmentByOrgGUID
-	ccc.sidecarsByAppGUID = sidecarsByAppGUID
-	ccc.appsByGUID = appsByGUID
-	ccc.spacesByGUID = spacesByGUID
-	ccc.orgsByGUID = orgsByGUID
-	ccc.orgQuotasByGUID = orgQuotasByGUID
-	ccc.processesByAppGUID = processesByAppGUID
-	ccc.cfApplicationsByGUID = cfApplicationsByGUID
+	ccc.appsByGUID = updateMapInPlace(ccc.appsByGUID, appsByGUID)
+	ccc.spacesByGUID = updateMapInPlace(ccc.spacesByGUID, spacesByGUID)
+	ccc.orgsByGUID = updateMapInPlace(ccc.orgsByGUID, orgsByGUID)
+	ccc.orgQuotasByGUID = updateMapInPlace(ccc.orgQuotasByGUID, orgQuotasByGUID)
+	ccc.processesByAppGUID = updateMapInPlace(ccc.processesByAppGUID, processesByAppGUID)
+	ccc.sidecarsByAppGUID = updateMapInPlace(ccc.sidecarsByAppGUID, sidecarsByAppGUID)
+	ccc.segmentBySpaceGUID = updateMapInPlace(ccc.segmentBySpaceGUID, segmentBySpaceGUID)
+	ccc.segmentByOrgGUID = updateMapInPlace(ccc.segmentByOrgGUID, segmentByOrgGUID)
+	ccc.cfApplicationsByGUID = updateMapInPlace(ccc.cfApplicationsByGUID, cfApplicationsByGUID)
+
 	firstUpdate := ccc.lastUpdated.IsZero()
 	ccc.lastUpdated = time.Now()
 	if firstUpdate {
 		close(ccc.updatedOnce)
 	}
+}
+
+// updateMapInPlace updates the cache map in-place with new data.
+// It adds new entries, updates existing ones, and removes entries that are no longer present.
+// If newData is nil, the cache is returned unchanged (to handle fetch failures gracefully).
+// If cache is nil, it initializes and returns a new map with the newData content.
+func updateMapInPlace[K comparable, V any](cache map[K]V, newData map[K]V) map[K]V {
+	if newData == nil {
+		return cache
+	}
+
+	if cache == nil {
+		cache = make(map[K]V, len(newData))
+	}
+
+	// Remove entries that no longer exist
+	for key := range cache {
+		if _, exists := newData[key]; !exists {
+			delete(cache, key)
+		}
+	}
+
+	// Add or update entries
+	for key, value := range newData {
+		cache[key] = value
+	}
+
+	return cache
 }
