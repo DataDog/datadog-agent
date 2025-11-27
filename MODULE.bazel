@@ -171,6 +171,7 @@ include("//deps/openssl3:openssl3.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
+include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
 
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
