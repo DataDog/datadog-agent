@@ -94,7 +94,7 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 	rng := rand.New(rand.NewSource(seed))
 
 	pts := &propertyTestState{
-		sm:               newState(),
+		sm:               newState(CircuitBreakerConfig{}),
 		processIDCounter: 1000,
 		rng:              rng,
 	}
@@ -341,7 +341,6 @@ func (pts *propertyTestState) completeRandomEffect() event {
 		} else {
 			return eventProgramLoadingFailed{
 				programID: eff.programID,
-				err:       fmt.Errorf("mock loading failure"),
 			}
 		}
 
@@ -359,7 +358,6 @@ func (pts *propertyTestState) completeRandomEffect() event {
 			return eventProgramAttachingFailed{
 				programID: eff.programID,
 				processID: eff.processID,
-				err:       fmt.Errorf("mock attaching failure"),
 			}
 		}
 

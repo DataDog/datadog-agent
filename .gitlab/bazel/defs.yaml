@@ -33,17 +33,19 @@
   extends: .linux_arm64
 
 .bazel:runner:macos-amd64:
-  tags: [ "macos:ventura-amd64", "specific:true" ]
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
 
 .bazel:runner:macos-arm64:
-  tags: [ "macos:ventura-arm64", "specific:true" ]
+  tags: [ "macos:sonoma-arm64", "specific:true" ]
 
 .bazel:runner:windows-amd64:
   extends: .windows_docker_default
   timeout: 60m # pulling images alone can take more than 30m
+  cache: []
   variables:
     ARCH: x64
     GIT_DEPTH: 2
+    XDG_CACHE_HOME: c:\bzl
   script:
     - |-
       $FailFast = @'
@@ -54,6 +56,7 @@
       Invoke-Expression $FailFast
       $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($POWERSHELL_SCRIPT))
       $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
+      New-Item -ItemType Directory -Path "$XDG_CACHE_HOME" -Force | Out-Null
     - >-
       docker run
       --env=BAZELISK_HOME
@@ -61,10 +64,9 @@
       --env=BAZEL_OUTPUT_USER_ROOT
       --env=BAZEL_REPO_CONTENTS_CACHE
       --env=CI_PROJECT_DIR
-      --env=RUNNER_TEMP_PROJECT_DIR
       --rm
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
-      --volume="${RUNNER_TEMP_PROJECT_DIR}:$RUNNER_TEMP_PROJECT_DIR"
+      --volume="${XDG_CACHE_HOME}:$XDG_CACHE_HOME"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
       powershell -NonInteractive -NoLogo -NoProfile -InputFormat Text -OutputFormat Text -EncodedCommand $EncodedCommand

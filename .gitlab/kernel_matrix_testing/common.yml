@@ -133,8 +133,8 @@
   extends:
     - .kmt_ec2_location_us_east_1
   stage: kernel_matrix_testing_prepare
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  needs: ["go_deps", "go_tools_deps"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  needs: ["go_deps", "go_tools_deps", "go_e2e_deps"]
   tags: ["arch:amd64", "specific:true"]
   variables:
     AWS_REGION: us-east-1
@@ -155,6 +155,8 @@
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.retrieve_linux_go_e2e_deps]
+    - !reference [.retrieve_linux_pulumi_plugins]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH || true
@@ -206,7 +208,7 @@
 
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   before_script:
     - !reference [.kmt_new_profile]

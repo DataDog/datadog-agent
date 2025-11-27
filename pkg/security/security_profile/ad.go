@@ -528,7 +528,7 @@ workloadLoop:
 		}
 
 		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
-			seclog.Warnf("%v", err)
+			seclog.Debugf("%v", err)
 		}
 	}
 }
@@ -640,7 +640,7 @@ func (m *Manager) HandleCGroupTracingEvent(event *model.CgroupTracingEvent) {
 	}
 
 	if err := m.startDumpWithConfig(event.ContainerContext.ContainerID, event.CGroupContext, event.ConfigCookie, event.Config); err != nil {
-		seclog.Warnf("%v", err)
+		seclog.Debugf("%v", err)
 	}
 }
 
@@ -677,7 +677,7 @@ func (m *Manager) syncTracedCgroups() {
 
 		if err = m.activityDumpsConfigMap.Lookup(&event.ConfigCookie, &event.Config); err != nil {
 			// this config doesn't exist anymore, mark for deletion
-			seclog.Warnf("config not found for inode (%v): %v", cgroupInode, err)
+			seclog.Debugf("config not found for inode (%v): %v", cgroupInode, err)
 			cgroupsToDelete = append(cgroupsToDelete, cgroupInode)
 			continue
 		}

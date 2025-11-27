@@ -12,6 +12,7 @@ issues:
     - pkg/serverless/trace/inferredspan/constants.go # TODO: fox revive exported const error
 
   exclude-dirs:
+    - test/e2e-framework #TODO: fix linter on test-infra-definitions later on
     - pkg/proto/patches
     - pkg/security/utils/lru
     - pkg/template
@@ -20,7 +21,6 @@ issues:
   exclude:
     - "Error return value of `io.WriteString` is not checked" # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
     - "Error return value of `pem.Encode` is not checked" # 'errcheck' errors in test/integration/utils/certificates.go
-    - "exported: exported const Exec should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/process/events/model/model_common.go
     - "exported: exported const APIName should have comment \\(or a comment on this block\\) or be unexported" # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
     - "unnecessary conversion" # 'unconvert' errors in test/integration/utils/certificates_test.go
     - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
@@ -62,6 +62,11 @@ issues:
     - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
     - text: ".IsSet is deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead"
+      linters: [staticcheck]
+    # Endpoints and EndpointSubsets are deprecated in Kubernetes v1.33+. We need to work on a migration path.
+    - text: "Endpoints is deprecated: This API is deprecated in v1.33+"
+      linters: [staticcheck]
+    - text: "EndpointSubset is deprecated: This API is deprecated in v1.33+"
       linters: [staticcheck]
     # Treat this list as a TODO for fixing issues with pkgconfigusage custom linter
     # DO NOT ADD NEW ENTRIES
@@ -312,6 +317,9 @@ issues:
       linters:
         - pkgconfigusage
     - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
+      linters:
+        - pkgconfigusage
+    - path: comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go
       linters:
         - pkgconfigusage
     - path: comp/forwarder/defaultforwarder/blocked_endpoints.go

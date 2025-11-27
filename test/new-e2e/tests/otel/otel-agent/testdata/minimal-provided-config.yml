@@ -20,7 +20,6 @@ exporters:
       key: "${env:DD_API_KEY}"
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -48,6 +47,9 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
+    orchestrator_explorer:
+      cluster_name: ""
+      enabled: false
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -99,7 +101,6 @@ receivers:
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         traces_url_path: /v1/traces
         write_timeout: 0s

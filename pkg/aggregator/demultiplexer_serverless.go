@@ -12,6 +12,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -53,7 +54,8 @@ type ServerlessDemultiplexer struct {
 func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, endpoints, forwarderTimeout)
+	secrets := secretsnoop.NewComponent().Comp
+	forwarder, err := forwarder.NewSyncForwarder(pkgconfigsetup.Datadog(), logger, secrets, endpoints, forwarderTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -183,9 +185,10 @@ func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(_ metrics.Metric
 	panic("not implemented.")
 }
 
-// SetTimeSamplersFilterList is not supported in the Serverless Agent implementation.
-func (d *ServerlessDemultiplexer) SetTimeSamplersFilterList(filterList *utilstrings.Matcher) {
-	d.statsdWorker.filterListChan <- filterList
+// SetSamplersFilterList is not supported in the Serverless Agent implementation.
+// Serverless does not run checks, so we don't need to set any filter list on checks here.
+func (d *ServerlessDemultiplexer) SetSamplersFilterList(_filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
+	d.statsdWorker.filterListChan <- histoFilterList
 }
 
 // Serializer returns the shared serializer

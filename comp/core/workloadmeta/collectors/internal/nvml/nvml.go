@@ -10,12 +10,14 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/errors"
@@ -32,11 +34,13 @@ const (
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
 type collector struct {
-	id                      string
-	catalog                 workloadmeta.AgentType
-	store                   workloadmeta.Component
-	seenUUIDs               map[string]struct{}
-	reportedDriverNotLoaded bool
+	id                                 string
+	catalog                            workloadmeta.AgentType
+	store                              workloadmeta.Component
+	seenUUIDs                          map[string]struct{}
+	seenPIDsToGPUs                     map[int][]string // PID -> GPU UUIDs
+	reportedDriverNotLoaded            bool
+	integrateWithWorkloadmetaProcesses bool
 }
 
 func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, error) {
@@ -147,14 +151,27 @@ func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml
 	}
 }
 
+// newCollector creates a new collector with the default values, useful for testing.
+func newCollector(store workloadmeta.Component, config config.Component) *collector {
+	collector := &collector{
+		id:             collectorID,
+		catalog:        workloadmeta.NodeAgent,
+		seenUUIDs:      map[string]struct{}{},
+		seenPIDsToGPUs: make(map[int][]string),
+		store:          store,
+	}
+
+	if config != nil {
+		collector.integrateWithWorkloadmetaProcesses = config.GetBool("gpu.integrate_with_workloadmeta_processes")
+	}
+
+	return collector
+}
+
 // NewCollector returns a kubelet CollectorProvider that instantiates its collector
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(config config.Component) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: &collector{
-			id:        collectorID,
-			catalog:   workloadmeta.NodeAgent,
-			seenUUIDs: map[string]struct{}{},
-		},
+		Collector: newCollector(nil, config),
 	}, nil
 }
 
@@ -215,6 +232,7 @@ func (c *collector) Pull(_ context.Context) error {
 
 	// add/update current devices
 	currentUUIDs := map[string]struct{}{}
+	pidToGPUs := make(map[int][]string) // PID -> GPU UUIDs
 	var events []workloadmeta.CollectorEvent
 	for _, dev := range allDevices {
 		gpu, err := c.getGPUDeviceInfo(dev)
@@ -223,13 +241,19 @@ func (c *collector) Pull(_ context.Context) error {
 			return err
 		}
 
-		event := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+		uuid := dev.GetDeviceInfo().UUID
+		currentUUIDs[uuid] = struct{}{}
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNVML,
 			Type:   workloadmeta.EventTypeSet,
 			Entity: gpu,
+		})
+
+		if c.integrateWithWorkloadmetaProcesses {
+			for _, pid := range gpu.ActivePIDs {
+				pidToGPUs[pid] = append(pidToGPUs[pid], uuid)
+			}
 		}
-		events = append(events, event)
-		currentUUIDs[dev.GetDeviceInfo().UUID] = struct{}{}
 	}
 
 	// remove previous devices that are no more available
@@ -239,7 +263,7 @@ func (c *collector) Pull(_ context.Context) error {
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
+			Source: workloadmeta.SourceNVML,
 			Type:   workloadmeta.EventTypeUnset,
 			Entity: &workloadmeta.GPU{
 				EntityID: workloadmeta.EntityID{
@@ -252,9 +276,64 @@ func (c *collector) Pull(_ context.Context) error {
 
 	c.seenUUIDs = currentUUIDs
 
+	if c.integrateWithWorkloadmetaProcesses {
+		events = append(events, c.createProcessEvents(pidToGPUs)...)
+	}
+
 	c.store.Notify(events)
 
 	return nil
+}
+
+func (c *collector) createProcessEvents(pidToGPUs map[int][]string) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(pidToGPUs))
+
+	// Create events for active processes
+	for pid, uuids := range pidToGPUs {
+		var gpuEntityIDs []workloadmeta.EntityID
+		for _, uuid := range uuids {
+			gpuEntityIDs = append(gpuEntityIDs, workloadmeta.EntityID{
+				Kind: workloadmeta.KindGPU,
+				ID:   uuid,
+			})
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNVML,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   strconv.Itoa(int(pid)),
+				},
+				Pid:  int32(pid),
+				GPUs: gpuEntityIDs,
+			},
+		})
+	}
+
+	// Remove inactive processes. Because we use SourceNVML for the Process entities, workloadmeta
+	// will not remove the process if it has been added by another source.
+	for pid := range c.seenPIDsToGPUs {
+		if _, stillActive := pidToGPUs[pid]; stillActive {
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceNVML,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   strconv.Itoa(int(pid)),
+				},
+			},
+		})
+	}
+
+	c.seenPIDsToGPUs = pidToGPUs
+
+	return events
 }
 
 func (c *collector) GetID() string {

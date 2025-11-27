@@ -7,6 +7,8 @@
 package opener
 
 import (
+	"path/filepath"
+
 	"github.com/spf13/afero"
 
 	internalOpener "github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
@@ -17,6 +19,7 @@ import (
 type FileOpener interface {
 	OpenLogFile(path string) (afero.File, error)
 	OpenShared(path string) (afero.File, error)
+	Abs(path string) (string, error)
 }
 
 // NewFileOpener creates a new FileOpener
@@ -39,4 +42,9 @@ func (f *fileOpenerImpl) OpenLogFile(path string) (afero.File, error) {
 // OpenShared utilizes an os-specific implementation to open a generic file in a shared mode.
 func (f *fileOpenerImpl) OpenShared(path string) (afero.File, error) {
 	return filesystem.OpenShared(path)
+}
+
+// Abs returns the absolute path of the file (wrapper around filepath.Abs)
+func (f *fileOpenerImpl) Abs(path string) (string, error) {
+	return filepath.Abs(path)
 }

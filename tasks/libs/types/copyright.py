@@ -29,7 +29,6 @@ PATH_EXCLUSION_REGEX = [
     # These are auto-generated files but without headers to indicate it
     '/vendor/',
     '/pkg/clusteragent/autoscaling/custommetrics/api/generated/',
-    '/pkg/process/events/model/.*_gen.go',
     '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
     '/pkg/proto/pbgo/core/.*_gen(_test){,1}.go',
     '/pkg/proto/pbgo/trace/.*_gen(_test){,1}.go',
