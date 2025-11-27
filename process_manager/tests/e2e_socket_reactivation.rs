@@ -1,14 +1,34 @@
 mod common;
 
+use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
+/// Create a config directory with process and socket files
+fn create_socket_config_dir(
+    service_name: &str,
+    socket_name: &str,
+    process_config: &str,
+    socket_config: &str,
+) -> String {
+    let config_dir = format!("/tmp/socket-react-{}.d", std::process::id());
+    fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+
+    // Write process config
+    let process_path = format!("{}/{}.yaml", config_dir, service_name);
+    fs::write(&process_path, process_config).expect("Failed to write process config");
+
+    // Write socket config
+    let socket_path = format!("{}/{}.socket.yaml", config_dir, socket_name);
+    fs::write(&socket_path, socket_config).expect("Failed to write socket config");
+
+    config_dir
+}
+
 #[test]
 fn test_socket_activation_tcp_reactivation_after_crash() {
-    let temp_dir = common::setup_temp_dir();
-
     // Use unique port for this test
     let test_socket_port = common::get_socket_test_port() + 1000; // Offset to avoid daemon port conflicts
 
@@ -16,32 +36,32 @@ fn test_socket_activation_tcp_reactivation_after_crash() {
     let script_path =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("socket_echo_server.py");
 
-    let config_path = temp_dir.path().join("config.yaml");
-    let config_content = format!(
+    let process_config = format!(
         r#"
-processes:
-  echo-server:
-    command: /usr/bin/python3
-    args: ["{}"]
-    working_dir: /tmp
-    auto_start: false  # Socket activation starts this
-    process_type: simple
-    restart: never  # No restart policy, only socket activation
-    stdout: /tmp/echo-stdout.log
-    stderr: /tmp/echo-stderr.log
-
-sockets:
-  echo-tcp:
-    listen_stream: "127.0.0.1:{}"
-    service: echo-server
-    accept: false  # Accept=no: pass listening socket to single instance
+command: /usr/bin/python3
+args: ["{}"]
+working_dir: /tmp
+auto_start: false  # Socket activation starts this
+process_type: simple
+restart: never  # No restart policy, only socket activation
+stdout: /tmp/echo-stdout.log
+stderr: /tmp/echo-stderr.log
 "#,
-        script_path.display(),
+        script_path.display()
+    );
+
+    let socket_config = format!(
+        r#"
+listen_stream: "127.0.0.1:{}"
+service: echo-server
+accept: false  # Accept=no: pass listening socket to single instance
+"#,
         test_socket_port
     );
-    std::fs::write(&config_path, config_content).unwrap();
 
-    let _daemon = common::setup_daemon_with_config_file(config_path.to_str().unwrap());
+    let config_dir = create_socket_config_dir("echo-server", "echo-tcp", &process_config, &socket_config);
+
+    let _daemon = common::setup_daemon_with_config_dir(&config_dir);
 
     // Give daemon time to initialize sockets
     std::thread::sleep(Duration::from_secs(3));
@@ -187,34 +207,33 @@ fn test_socket_activation_unix_reactivation_after_crash() {
     let script_path =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("socket_echo_server_unix.py");
 
-    let config_path = temp_dir.path().join("config.yaml");
-    let config_content = format!(
+    let process_config = format!(
         r#"
-processes:
-  echo-unix:
-    command: /usr/bin/python3
-    args: ["{}"]
-    working_dir: /tmp
-    auto_start: false
-    process_type: simple
-    restart: never
-    stdout: /tmp/echo-unix-stdout.log
-    stderr: /tmp/echo-unix-stderr.log
-
-sockets:
-  echo-unix-socket:
-    listen_unix: "{}"
-    service: echo-unix
-    accept: false
-    socket_mode: 438  # 0666
+command: /usr/bin/python3
+args: ["{}"]
+working_dir: /tmp
+auto_start: false
+process_type: simple
+restart: never
+stdout: /tmp/echo-unix-stdout.log
+stderr: /tmp/echo-unix-stderr.log
 "#,
-        script_path.display(),
+        script_path.display()
+    );
+
+    let socket_config = format!(
+        r#"
+listen_unix: "{}"
+service: echo-unix
+accept: false
+socket_mode: "666"
+"#,
         socket_path.display()
     );
 
-    std::fs::write(&config_path, config_content).unwrap();
+    let config_dir = create_socket_config_dir("echo-unix", "echo-unix-socket", &process_config, &socket_config);
 
-    let _daemon = common::setup_daemon_with_config_file(config_path.to_str().unwrap());
+    let _daemon = common::setup_daemon_with_config_dir(&config_dir);
 
     // Give daemon time to initialize sockets
     std::thread::sleep(Duration::from_secs(3));
@@ -291,40 +310,38 @@ sockets:
 
 #[test]
 fn test_socket_activation_multiple_crashes_and_reactivations() {
-    let temp_dir = common::setup_temp_dir();
-
     // Use unique port for this test
     let test_socket_port = common::get_socket_test_port() + 2000; // Different offset
 
     let script_path =
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("socket_echo_server.py");
 
-    let config_path = temp_dir.path().join("config.yaml");
-    let config_content = format!(
+    let process_config = format!(
         r#"
-processes:
-  multi-echo:
-    command: /usr/bin/python3
-    args: ["{}"]
-    working_dir: /tmp
-    auto_start: false
-    process_type: simple
-    restart: never
-    stdout: /tmp/multi-echo-stdout.log
-    stderr: /tmp/multi-echo-stderr.log
-
-sockets:
-  multi-tcp:
-    listen_stream: "127.0.0.1:{}"
-    service: multi-echo
-    accept: false
+command: /usr/bin/python3
+args: ["{}"]
+working_dir: /tmp
+auto_start: false
+process_type: simple
+restart: never
+stdout: /tmp/multi-echo-stdout.log
+stderr: /tmp/multi-echo-stderr.log
 "#,
-        script_path.display(),
+        script_path.display()
+    );
+
+    let socket_config = format!(
+        r#"
+listen_stream: "127.0.0.1:{}"
+service: multi-echo
+accept: false
+"#,
         test_socket_port
     );
-    std::fs::write(&config_path, config_content).unwrap();
 
-    let _daemon = common::setup_daemon_with_config_file(config_path.to_str().unwrap());
+    let config_dir = create_socket_config_dir("multi-echo", "multi-tcp", &process_config, &socket_config);
+
+    let _daemon = common::setup_daemon_with_config_dir(&config_dir);
 
     // Give daemon time to initialize sockets
     std::thread::sleep(Duration::from_secs(3));

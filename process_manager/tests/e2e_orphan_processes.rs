@@ -1,5 +1,5 @@
 use pm_e2e_tests::{
-    cleanup_daemon, run_cli, run_cli_full, setup_daemon, setup_daemon_with_config_file,
+    cleanup_daemon, run_cli, run_cli_full, setup_daemon, setup_daemon_with_config_dir,
     setup_temp_dir,
 };
 
@@ -82,30 +82,29 @@ except KeyboardInterrupt:
         .status()
         .expect("Failed to make script executable");
 
-    // Create the process via CLI with resource limits to ensure cgroup is created
+    // Create config directory with process config (direct ProcessConfig format)
     // (cgroups provide the most reliable way to track and kill all descendants)
-    let config_path = temp_dir.path().join("config.yaml");
+    let config_dir = temp_dir.path().join("config.d");
+    fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+    
+    let config_path = config_dir.join(format!("{}.yaml", process_name));
     let config = format!(
         r#"
-processes:
-  {}:
-    command: python3
-    args:
-      - {}
-    auto_start: true
-    resources:
-      limits:
-        pids: 100  # Add resource limit to trigger cgroup creation
+command: python3
+args:
+  - {}
+auto_start: true
+resource_limits:
+  pids: 100  # Add resource limit to trigger cgroup creation
 "#,
-        process_name,
         script_path.display()
     );
     fs::write(&config_path, config).expect("Failed to write config");
 
-    // Start daemon with config (this will create and start the process)
+    // Start daemon with config directory (this will create and start the process)
     // Daemon cleanup handled by guard
     thread::sleep(Duration::from_millis(500)); // Wait for cleanup
-    let _daemon = setup_daemon_with_config_file(config_path.to_str().unwrap());
+    let _daemon = setup_daemon_with_config_dir(config_dir.to_str().unwrap());
 
     // Wait for daemon and process to start
     thread::sleep(Duration::from_secs(2));

@@ -1,5 +1,7 @@
 //! Configuration loading from YAML files
-//! Supports both single-file and directory-based configuration
+//!
+//! Only directory-based configuration is supported (`/etc/pm/processes.d/*.yaml`).
+//! Each YAML file represents ONE process, with the process name derived from the filename.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -348,26 +350,41 @@ impl Config {
     }
 }
 
-/// Load processes from a configuration path (file or directory)
+/// Load processes from a configuration directory
+///
+/// Only directory-based configuration is supported. Each YAML file in the directory
+/// represents one process, with the process name derived from the filename.
+///
+/// # Example
+/// ```text
+/// /etc/pm/processes.d/
+/// ├── datadog-agent.yaml      # Process name: "datadog-agent"
+/// ├── trace-agent.yaml        # Process name: "trace-agent"
+/// └── process-agent.yaml      # Process name: "process-agent"
+/// ```
 pub fn load_config_from_path(config_path: &str) -> Result<Vec<(String, ProcessConfig)>, String> {
     let path = Path::new(config_path);
 
     if path.is_dir() {
         load_from_directory(config_path)
     } else if path.is_file() {
-        load_from_file(config_path)
+        Err(format!(
+            "Single-file configuration is not supported: '{}'\n\n\
+            Please use directory-based configuration instead.\n\
+            Create a directory (e.g., /etc/pm/processes.d/) with one YAML file per process:\n\n\
+            Example:\n\
+              /etc/pm/processes.d/\n\
+              ├── my-service.yaml     # Process name derived from filename\n\
+              └── another-service.yaml\n\n\
+            Each file should contain the process configuration directly (no 'processes:' wrapper).",
+            config_path
+        ))
     } else {
         Err(format!(
-            "Configuration path does not exist: {}",
+            "Configuration directory does not exist: {}",
             config_path
         ))
     }
-}
-
-/// Load processes from a single YAML file
-fn load_from_file(config_path: &str) -> Result<Vec<(String, ProcessConfig)>, String> {
-    let config = Config::load(config_path)?;
-    Ok(config.processes.into_iter().collect())
 }
 
 /// Load processes from a directory of YAML files
@@ -479,29 +496,34 @@ fn load_single_process_file_with_name(
     ))
 }
 
-/// Load sockets from a configuration path (file or directory)
+/// Load sockets from a configuration directory
 ///
-/// For files: loads all sockets from the single config file
-/// For directories: loads .socket.yaml files (systemd-style)
+/// Loads .socket.yaml files from the directory (systemd-style naming convention).
+///
+/// # Example
+/// ```text
+/// /etc/pm/processes.d/
+/// ├── web.socket.yaml         # Socket name: "web"
+/// └── api.socket.yaml         # Socket name: "api"
+/// ```
 pub fn load_sockets_from_path(config_path: &str) -> Result<Vec<(String, SocketConfig)>, String> {
     let path = Path::new(config_path);
 
     if path.is_dir() {
         load_sockets_from_directory(config_path)
     } else if path.is_file() {
-        load_sockets_from_file(config_path)
+        Err(format!(
+            "Single-file socket configuration is not supported: '{}'\n\n\
+            Please use directory-based configuration with .socket.yaml files.\n\
+            Example: /etc/pm/processes.d/my-service.socket.yaml",
+            config_path
+        ))
     } else {
         Err(format!(
-            "Configuration path does not exist: {}",
+            "Configuration directory does not exist: {}",
             config_path
         ))
     }
-}
-
-/// Load sockets from a single YAML file
-fn load_sockets_from_file(config_path: &str) -> Result<Vec<(String, SocketConfig)>, String> {
-    let config = Config::load(config_path)?;
-    Ok(config.sockets.into_iter().collect())
 }
 
 /// Load sockets from a directory of .socket.yaml files (systemd-style)
@@ -615,29 +637,25 @@ fn load_single_socket_file_with_name(path: &str) -> Result<(Option<String>, Sock
     ))
 }
 
-/// Determine configuration path using precedence rules
+/// Determine configuration directory path using precedence rules
 ///
 /// Precedence (first match wins):
-/// 1. DD_PM_CONFIG_PATH environment variable
+/// 1. DD_PM_CONFIG_DIR environment variable
 /// 2. /etc/pm/processes.d/ (if directory exists)
-/// 3. /etc/pm/processes.yaml (if file exists)
-/// 4. None (start empty)
+/// 3. None (start empty)
+///
+/// Note: Single-file configuration is not supported.
 pub fn get_default_config_path() -> Option<String> {
-    // 1. Check DD_PM_CONFIG_PATH environment variable
-    if let Ok(path) = std::env::var("DD_PM_CONFIG_PATH") {
+    // 1. Check DD_PM_CONFIG_DIR environment variable
+    if let Ok(path) = std::env::var("DD_PM_CONFIG_DIR") {
         return Some(path);
     }
 
-    // 2. Convention: prefer directory over file
+    // 2. Default directory
     if Path::new("/etc/pm/processes.d").is_dir() {
         return Some("/etc/pm/processes.d".to_string());
     }
 
-    // 3. Fallback: single file
-    if Path::new("/etc/pm/processes.yaml").is_file() {
-        return Some("/etc/pm/processes.yaml".to_string());
-    }
-
-    // 4. No config found
+    // 3. No config found
     None
 }

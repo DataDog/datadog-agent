@@ -115,18 +115,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     info!("Application layer initialized (9 use cases with supervisor coordination)");
 
-    // 2.5. Load configuration if available
-    let config_path = match (&config.config_file, &config.config_dir) {
-        (Some(path), None) => {
-            info!(config_file = %path, "Using config from DD_PM_CONFIG_FILE");
-            Some(path.clone())
-        }
-        (None, Some(path)) => {
+    // 2.5. Load configuration if available (directory-based only)
+    let config_path = match &config.config_dir {
+        Some(path) => {
             info!(config_dir = %path, "Using config from DD_PM_CONFIG_DIR");
             Some(path.clone())
         }
-        (None, None) => get_default_config_path(),
-        (Some(_), Some(_)) => unreachable!("validate() should have caught this"),
+        None => get_default_config_path(),
     };
 
     if let Some(ref path) = config_path {
@@ -159,7 +154,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Load sockets from config
         load_sockets_from_config(config_path.as_ref().unwrap(), socket_manager.clone()).await;
     } else {
-        info!("No configuration found, starting without processes or sockets");
+        info!(
+            "No configuration directory found. \
+            Set DD_PM_CONFIG_DIR or create /etc/pm/processes.d/ to auto-load processes."
+        );
     }
 
     // 2.75. Start socket activation event handler
@@ -469,11 +467,9 @@ async fn handle_socket_activation_events(
     info!("Socket activation event handler stopped");
 }
 
-/// Load sockets from configuration file or directory
+/// Load sockets from configuration directory
 ///
-/// Supports two modes:
-/// - Single file: loads all sockets from the config file
-/// - Directory: loads .socket.yaml files (systemd-style)
+/// Loads .socket.yaml files from the directory (systemd-style naming convention).
 async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketActivationService>) {
     use pm_engine::infrastructure::config::load_sockets_from_path;
     use std::path::PathBuf;

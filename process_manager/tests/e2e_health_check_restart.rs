@@ -78,28 +78,29 @@ except Exception as e:
         fs::set_permissions(&server_script, perms).unwrap();
     }
 
-    // Create YAML config with liveness probe
-    let config_path = temp_dir.path().join("config.yaml");
+    // Create config directory with process config (direct ProcessConfig format)
+    let config_dir = temp_dir.path().join("config.d");
+    fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+    
+    let config_path = config_dir.join("test-server.yaml");
     let config_content = format!(
         r#"
-processes:
-  test-server:
-    command: python3
-    args:
-      - {}
-      - {}
-    working_dir: {}
-    auto_start: true
-    restart: on-failure
-    restart_sec: 1
-    health_check:
-      type: http
-      endpoint: http://localhost:{}/
-      interval: 2
-      timeout: 1
-      retries: 2
-      start_period: 5
-      restart_after: 3  # Kill after 3 consecutive failures
+command: python3
+args:
+  - {}
+  - {}
+working_dir: {}
+auto_start: true
+restart: on-failure
+restart_sec: 1
+health_check:
+  type: http
+  endpoint: http://localhost:{}/
+  interval: 2
+  timeout: 1
+  retries: 2
+  start_period: 5
+  restart_after: 3  # Kill after 3 consecutive failures
 "#,
         server_script.to_str().unwrap(),
         server_port,
@@ -109,8 +110,8 @@ processes:
 
     fs::write(&config_path, config_content).expect("Failed to write config");
 
-    // Start daemon with config
-    let _daemon = setup_daemon_with_config_file(config_path.to_str().unwrap());
+    // Start daemon with config directory
+    let _daemon = setup_daemon_with_config_dir(config_dir.to_str().unwrap());
     thread::sleep(Duration::from_secs(3)); // Wait for daemon to load config and start process
 
     // Verify process is running and healthy
@@ -239,27 +240,28 @@ except Exception as e:
         fs::set_permissions(&server_script, perms).unwrap();
     }
 
-    // Create YAML config with health check but restart_after=0
-    let config_path = temp_dir.path().join("config.yaml");
+    // Create config directory with process config (direct ProcessConfig format)
+    let config_dir = temp_dir.path().join("config.d");
+    fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+    
+    let config_path = config_dir.join("test-server-no-restart.yaml");
     let config_content = format!(
         r#"
-processes:
-  test-server-no-restart:
-    command: python3
-    args:
-      - {}
-      - {}
-    working_dir: {}
-    auto_start: true
-    restart: on-failure
-    health_check:
-      type: http
-      endpoint: http://localhost:{}/
-      interval: 2
-      timeout: 1
-      retries: 2
-      start_period: 3
-      restart_after: 0  # NEVER restart on health failure (informational only)
+command: python3
+args:
+  - {}
+  - {}
+working_dir: {}
+auto_start: true
+restart: on-failure
+health_check:
+  type: http
+  endpoint: http://localhost:{}/
+  interval: 2
+  timeout: 1
+  retries: 2
+  start_period: 3
+  restart_after: 0  # NEVER restart on health failure (informational only)
 "#,
         server_script.to_str().unwrap(),
         server_port,
@@ -269,8 +271,8 @@ processes:
 
     fs::write(&config_path, config_content).expect("Failed to write config");
 
-    // Start daemon
-    let _daemon = setup_daemon_with_config_file(config_path.to_str().unwrap());
+    // Start daemon with config directory
+    let _daemon = setup_daemon_with_config_dir(config_dir.to_str().unwrap());
     thread::sleep(Duration::from_secs(3)); // Wait for daemon to load and start
 
     // Check if process is running
@@ -392,27 +394,29 @@ except Exception as e:
         fs::set_permissions(&server_script, perms).unwrap();
     }
 
-    let config_path = temp_dir.path().join("config.yaml");
+    // Create config directory with process config (direct ProcessConfig format)
+    let config_dir = temp_dir.path().join("config.d");
+    fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+    
+    let config_path = config_dir.join("test-recovery.yaml");
     let config_content = format!(
         r#"
-processes:
-  test-recovery:
-    command: python3
-    args:
-      - {}
-      - {}
-    working_dir: {}
-    auto_start: true
-    restart: on-failure
-    restart_sec: 1
-    health_check:
-      type: http
-      endpoint: http://localhost:{}/
-      interval: 2
-      timeout: 1
-      retries: 2
-      start_period: 5  # Longer start period to avoid false failures during startup
-      restart_after: 5  # Need 5 failures to trigger restart
+command: python3
+args:
+  - {}
+  - {}
+working_dir: {}
+auto_start: true
+restart: on-failure
+restart_sec: 1
+health_check:
+  type: http
+  endpoint: http://localhost:{}/
+  interval: 2
+  timeout: 1
+  retries: 2
+  start_period: 5  # Longer start period to avoid false failures during startup
+  restart_after: 5  # Need 5 failures to trigger restart
 "#,
         server_script.to_str().unwrap(),
         server_port,
@@ -422,7 +426,7 @@ processes:
 
     fs::write(&config_path, config_content).expect("Failed to write config");
 
-    let _daemon = setup_daemon_with_config_file(config_path.to_str().unwrap());
+    let _daemon = setup_daemon_with_config_dir(config_dir.to_str().unwrap());
     thread::sleep(Duration::from_secs(7)); // Wait for health check start_period (5s) + buffer
 
     // Check if process is running

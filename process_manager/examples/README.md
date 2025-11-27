@@ -2,15 +2,21 @@
 
 This directory contains example YAML configuration files demonstrating various features of the Process Manager.
 
+> **Note**: The process manager only supports **directory-based configuration**.
+> Each process is defined in its own YAML file, with the process name derived from the filename.
+
 ## Quick Start
 
 ```bash
-# Start daemon with a config file
-./target/release/daemon --config examples/simple-webserver.yaml
+# Create a config directory and copy examples
+mkdir -p /etc/pm/processes.d/
+cp examples/simple-webserver.yaml /etc/pm/processes.d/
 
-# Or use environment variable
-export PM_CONFIG_PATH=examples/simple-webserver.yaml
-./target/release/daemon
+# Start daemon (auto-detects /etc/pm/processes.d/ or use DD_PM_CONFIG_DIR)
+DD_PM_CONFIG_DIR=/etc/pm/processes.d dd-procmgrd
+
+# Or for testing with the examples directory
+DD_PM_CONFIG_DIR=examples/directory-config dd-procmgrd
 ```
 
 ## Example Files
@@ -124,149 +130,166 @@ Demonstrates the `dd-procmgr update` command with:
 
 ## Configuration Reference
 
+### Directory Structure
+
+```
+/etc/pm/processes.d/
+├── my-service.yaml       # Process name: "my-service"
+├── worker.yaml           # Process name: "worker"
+├── api.socket.yaml       # Socket for api service
+└── database.yaml         # Process name: "database"
+```
+
 ### Basic Structure
 
+Each YAML file defines ONE process. The process name is derived from the filename.
+
+**Example: `/etc/pm/processes.d/my-service.yaml`**
 ```yaml
-processes:
-  process-name:
-    # Required
-    command: /path/to/executable
+# Process name is "my-service" (from filename)
 
-    # Optional
-    args: ["arg1", "arg2"]
-    working_dir: /path/to/workdir
-    auto_start: false  # Start immediately when daemon loads config
+# Required
+command: /path/to/executable
 
-    # Restart policy
-    restart: never|always|on-failure|on-success
-    restart_sec: 1                # Base delay between restarts
-    restart_max_delay: 60         # Max delay cap (exponential backoff)
+# Optional
+args: ["arg1", "arg2"]
+working_dir: /path/to/workdir
+auto_start: false  # Start immediately when daemon loads config
 
-    # Start limits (prevent restart loops)
-    start_limit_burst: 5          # Max restarts
-    start_limit_interval: 300     # Within this time window (seconds)
+# Restart policy
+restart: never|always|on-failure|on-success
+restart_sec: 1                # Base delay between restarts
+restart_max_delay: 60         # Max delay cap (exponential backoff)
 
-    # Output redirection
-    stdout: /path/to/stdout.log   # Or "inherit" or "null"
-    stderr: /path/to/stderr.log   # Or "inherit" or "null"
+# Start limits (prevent restart loops)
+start_limit_burst: 5          # Max restarts
+start_limit_interval: 300     # Within this time window (seconds)
 
-    # Timeouts
-    timeout_start_sec: 90         # Max time to wait for start
-    timeout_stop_sec: 90          # Max time for graceful stop
+# Output redirection
+stdout: /path/to/stdout.log   # Or "inherit" or "null"
+stderr: /path/to/stderr.log   # Or "inherit" or "null"
 
-    # Kill signal
-    kill_signal: SIGTERM|SIGINT|SIGKILL|SIGQUIT|SIGHUP|SIGUSR1|SIGUSR2
+# Timeouts
+timeout_start_sec: 90         # Max time to wait for start
+timeout_stop_sec: 90          # Max time for graceful stop
 
-    # Exit status
-    success_exit_status: [0, 1]   # Which exit codes are "success"
+# Kill signal
+kill_signal: SIGTERM|SIGINT|SIGKILL|SIGQUIT|SIGHUP|SIGUSR1|SIGUSR2
 
-    # Execution hooks
-    exec_start_pre: ["cmd1", "cmd2"]    # Before start
-    exec_start_post: ["cmd1", "cmd2"]   # After start
-    exec_stop_post: ["cmd1", "cmd2"]    # After stop
+# Exit status
+success_exit_status: [0, 1]   # Which exit codes are "success"
 
-    # User/Group (requires root daemon)
-    user: username
-    group: groupname
+# Execution hooks
+exec_start_pre: ["cmd1", "cmd2"]    # Before start
+exec_start_post: ["cmd1", "cmd2"]   # After start
+exec_stop_post: ["cmd1", "cmd2"]    # After stop
 
-    # Dependencies
-    after: [process1, process2]         # Start order
-    before: [process3]                  # Reverse ordering
-    requires: [process1]                # Hard dependency
-    wants: [process2]                   # Soft dependency
+# User/Group (requires root daemon)
+user: username
+group: groupname
 
-    # Process type
-    process_type: simple|oneshot|forking|notify
+# Dependencies (reference other process names)
+after: [process1, process2]         # Start order
+before: [process3]                  # Reverse ordering
+requires: [process1]                # Hard dependency
+wants: [process2]                   # Soft dependency
 
-    # Environment
-    env:
-      KEY1: value1
-      KEY2: value2
-    
-    # Environment file (systemd EnvironmentFile=)
-    environment_file: /path/to/env/file  # Or prefix with '-' to ignore if missing
-    
-    # PID file (systemd PIDFile=)
-    pidfile: /var/run/process.pid  # Automatically cleaned up on stop
+# Process type
+process_type: simple|oneshot|forking|notify
+
+# Environment
+env:
+  KEY1: value1
+  KEY2: value2
+
+# Environment file (systemd EnvironmentFile=)
+environment_file: /path/to/env/file  # Or prefix with '-' to ignore if missing
+
+# PID file (systemd PIDFile=)
+pidfile: /var/run/process.pid  # Automatically cleaned up on stop
 ```
 
 ## Common Patterns
 
 ### Web Application Stack
 
+Each process in its own file under `/etc/pm/processes.d/`:
+
+**database.yaml:**
 ```yaml
-processes:
-  database:
-    command: postgres
-    restart: always
+command: postgres
+restart: always
+```
 
-  cache:
-    command: redis-server
-    after: [database]
-    restart: always
+**cache.yaml:**
+```yaml
+command: redis-server
+after: [database]
+restart: always
+```
 
-  api:
-    command: /usr/bin/api-server
-    after: [database, cache]
-    requires: [database, cache]
-    restart: always
+**api.yaml:**
+```yaml
+command: /usr/bin/api-server
+after: [database, cache]
+requires: [database, cache]
+restart: always
+```
 
-  frontend:
-    command: nginx
-    after: [api]
-    requires: [api]
-    restart: always
+**frontend.yaml:**
+```yaml
+command: nginx
+after: [api]
+requires: [api]
+restart: always
 ```
 
 ### Background Worker
 
+**worker.yaml:**
 ```yaml
-processes:
-  worker:
-    command: python3
-    args: ["worker.py"]
-    restart: on-failure
-    restart_sec: 5
-    start_limit_burst: 10
-    env:
-      QUEUE_URL: redis://localhost
-      WORKER_THREADS: "4"
+command: python3
+args: ["worker.py"]
+restart: on-failure
+restart_sec: 5
+start_limit_burst: 10
+env:
+  QUEUE_URL: redis://localhost
+  WORKER_THREADS: "4"
 ```
 
 ### Database Migration (Oneshot)
 
+**migrate.yaml:**
 ```yaml
-processes:
-  migrate:
-    command: /usr/bin/migrate
-    args: ["up"]
-    process_type: oneshot
-    success_exit_status: [0]
+command: /usr/bin/migrate
+args: ["up"]
+process_type: oneshot
+success_exit_status: [0]
 ```
 
 ### Cron-like Periodic Job
 
+**cleanup.yaml:**
 ```yaml
-processes:
-  cleanup:
-    command: /usr/bin/cleanup-script
-    restart: on-success
-    restart_sec: 3600  # Run every hour
-    process_type: oneshot
+command: /usr/bin/cleanup-script
+restart: on-success
+restart_sec: 3600  # Run every hour
+process_type: oneshot
 ```
 
 ## Tips
 
-1. **Start Simple**: Begin with `simple-webserver.yaml` and add features as needed
+1. **Start Simple**: Begin with a single process file and add more as needed
 
 2. **Test Locally**: Test configs with a local daemon before deploying:
    ```bash
-   ./target/release/daemon --config examples/your-config.yaml
+   DD_PM_CONFIG_DIR=./my-configs dd-procmgrd
    ```
 
 3. **Check Logs**: Enable debug logging to troubleshoot:
    ```bash
-   RUST_LOG=debug ./target/release/daemon --config your-config.yaml
+   DD_PM_LOG_LEVEL=debug DD_PM_CONFIG_DIR=./my-configs dd-procmgrd
    ```
 
 4. **Dependencies**: Use both `after` and `requires` for strong dependencies:
@@ -290,11 +313,19 @@ processes:
 Test your config with:
 
 ```bash
-# Dry run - check syntax
-./target/release/daemon --config examples/your-config.yaml &
+# Create a test directory with your config
+mkdir -p /tmp/test-config
+cp my-service.yaml /tmp/test-config/
+
+# Start daemon with test config
+DD_PM_CONFIG_DIR=/tmp/test-config dd-procmgrd &
 PID=$!
 sleep 2
-./target/release/cli list
+
+# Check that process was loaded
+dd-procmgr list
+
+# Cleanup
 kill $PID
 ```
 

@@ -1,4 +1,4 @@
-use pm_e2e_tests::{run_cli_full, setup_daemon_with_config_file};
+use pm_e2e_tests::{run_cli_full, setup_daemon_with_config_dir};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -11,36 +11,38 @@ fn unique_config_name() -> String {
     format!("test-resources-{}", timestamp % 1000000)
 }
 
+/// Create a config directory with a single process config file
+fn create_config_dir(process_name: &str, config_content: &str) -> (String, String) {
+    let unique_id = unique_config_name();
+    let config_dir = format!("/tmp/{}-config.d", unique_id);
+    std::fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+    
+    let config_path = format!("{}/{}.yaml", config_dir, process_name);
+    std::fs::write(&config_path, config_content).expect("Failed to write config");
+    
+    (config_dir, config_path)
+}
+
 #[test]
 fn test_e2e_resource_limits_yaml() {
     let unique_id = unique_config_name();
     let process_name = format!("sleep-limited-{}", unique_id);
 
-    // Create config with resource limits
-    let config_path = format!("/tmp/{}.yaml", unique_id);
-    let config_content = format!(
-        r#"
-processes:
-  {name}:
-    command: sleep
-    args: ["300"]
-    auto_start: true
-    resources:
-      requests:
-        cpu: 500m
-        memory: 128M
-      limits:
-        cpu: 1000m
-        memory: 256M
-        pids: 50
-      oom_score_adj: 100
-"#,
-        name = process_name
-    );
-    std::fs::write(&config_path, config_content).expect("Failed to write config");
+    // Create config with resource limits (direct ProcessConfig format)
+    let config_content = r#"
+command: sleep
+args: ["300"]
+auto_start: true
+resource_limits:
+  cpu: 1000m
+  memory: 256M
+  pids: 50
+"#;
 
-    // Start daemon with config
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    let (config_dir, _) = create_config_dir(&process_name, config_content);
+
+    // Start daemon with config directory
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
 
     // Give daemon more time to load config and auto-start processes
     sleep(Duration::from_secs(3));
@@ -61,6 +63,7 @@ processes:
         println!("  - Process failed to start due to missing cgroups v2 support");
         println!("  - Insufficient permissions for resource limits");
         println!("Skipping test as environment may not support resource limits");
+        std::fs::remove_dir_all(&config_dir).ok();
         return;
     }
 
@@ -128,7 +131,7 @@ processes:
     sleep(Duration::from_millis(500));
 
     // Cleanup
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     // Daemon cleanup handled by guard
 }
 
@@ -137,28 +140,22 @@ fn test_e2e_resource_limits_with_usage() {
     let unique_id = unique_config_name();
     let process_name = format!("busy-limited-{}", unique_id);
 
-    // Create config with a process that uses some memory
-    let config_path = format!("/tmp/{}.yaml", unique_id);
-    let config_content = format!(
-        r#"
-processes:
-  {name}:
-    command: sh
-    args:
-      - "-c"
-      - "echo Starting; i=0; while [ $i -lt 1000 ]; do i=$((i+1)); sleep 0.01; done"
-    auto_start: true
-    resources:
-      limits:
-        memory: 50M
-        cpu: 2000m
-"#,
-        name = process_name
-    );
-    std::fs::write(&config_path, config_content).expect("Failed to write config");
+    // Create config with a process that uses some memory (direct ProcessConfig format)
+    let config_content = r#"
+command: sh
+args:
+  - "-c"
+  - "echo Starting; i=0; while [ $i -lt 1000 ]; do i=$((i+1)); sleep 0.01; done"
+auto_start: true
+resource_limits:
+  memory: 50M
+  cpu: 2000m
+"#;
+
+    let (config_dir, _) = create_config_dir(&process_name, config_content);
 
     // Start daemon
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
 
     // Give daemon more time to load config and auto-start processes
     sleep(Duration::from_secs(3));
@@ -203,7 +200,7 @@ processes:
     // Cleanup
     run_cli_full(&["stop", &process_name]);
     sleep(Duration::from_millis(500));
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     // Daemon cleanup handled by guard
 }
 
@@ -212,22 +209,17 @@ fn test_e2e_resource_limits_no_limits() {
     let unique_id = unique_config_name();
     let process_name = format!("sleep-unlimited-{}", unique_id);
 
-    // Create config WITHOUT resource limits
-    let config_path = format!("/tmp/{}.yaml", unique_id);
-    let config_content = format!(
-        r#"
-processes:
-  {name}:
-    command: sleep
-    args: ["60"]
-    auto_start: true
-"#,
-        name = process_name
-    );
-    std::fs::write(&config_path, config_content).expect("Failed to write config");
+    // Create config WITHOUT resource limits (direct ProcessConfig format)
+    let config_content = r#"
+command: sleep
+args: ["60"]
+auto_start: true
+"#;
+
+    let (config_dir, _) = create_config_dir(&process_name, config_content);
 
     // Start daemon
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
 
     // Give daemon more time to load config and auto-start processes
     sleep(Duration::from_secs(3));
@@ -255,6 +247,6 @@ processes:
     // Cleanup
     run_cli_full(&["stop", &process_name]);
     sleep(Duration::from_millis(500));
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     // Daemon cleanup handled by guard
 }

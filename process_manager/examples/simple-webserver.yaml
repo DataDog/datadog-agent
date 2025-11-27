@@ -1,12 +1,12 @@
 # Simple web server example
 # Demonstrates: Basic process with restart policy
+#
+# Place this file in your config directory (e.g., /etc/pm/processes.d/)
+# The process name will be derived from the filename: simple-webserver
 
-processes:
-  webserver:
-    command: python3
-    args: ["-m", "http.server", "8080"]
-    restart: always
-    working_dir: /tmp
-    stdout: /tmp/webserver.log
-    stderr: /tmp/webserver-error.log
-
+command: python3
+args: ["-m", "http.server", "8080"]
+restart: always
+working_dir: /tmp
+stdout: /tmp/webserver.log
+stderr: /tmp/webserver-error.log

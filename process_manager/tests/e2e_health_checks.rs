@@ -1,6 +1,6 @@
 use pm_e2e_tests::{
     create_and_start_process, delete_process, get_test_port, run_cli_full, setup_daemon,
-    setup_daemon_with_config_file, stop_process,
+    setup_daemon_with_config_dir, stop_process,
 };
 use std::process::{Command, Stdio};
 use std::thread;
@@ -299,34 +299,36 @@ fn test_e2e_health_check_yaml_config() {
     // Use unique port for YAML config test
     let yaml_port = 64000 + (get_test_port() % 1000);
 
-    // Create a temporary YAML config with health check using unique port
+    // Create config directory with process config (direct ProcessConfig format)
+    let config_dir = format!("/tmp/test_health_config_{}.d", std::process::id());
+    std::fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+
     let config_content = format!(
         r#"
-processes:
-  yaml_health_test:
-    command: python3
-    args:
-      - -c
-      - "import socket; s=socket.socket(); s.bind(('127.0.0.1',{})); s.listen(1); import time; time.sleep(30)"
-    restart: never
-    health_check:
-      type: tcp
-      host: 127.0.0.1
-      port: {}
-      interval: 2
-      timeout: 1
-      retries: 2
-      start_period: 1
-    auto_start: true
+command: python3
+args:
+  - -c
+  - "import socket; s=socket.socket(); s.bind(('127.0.0.1',{})); s.listen(1); import time; time.sleep(30)"
+restart: never
+health_check:
+  type: tcp
+  host: 127.0.0.1
+  port: {}
+  interval: 2
+  timeout: 1
+  retries: 2
+  start_period: 1
+auto_start: true
 "#,
         yaml_port, yaml_port
     );
 
-    let config_path = format!("/tmp/test_health_config_{}.yaml", std::process::id());
+    // Process name derived from filename
+    let config_path = format!("{}/yaml_health_test.yaml", config_dir);
     std::fs::write(&config_path, config_content).expect("Failed to write config");
 
-    // Use setup_daemon_with_config instead of manual daemon spawn
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    // Use setup_daemon_with_config_dir
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
 
     thread::sleep(Duration::from_secs(3));
 
@@ -355,7 +357,7 @@ processes:
     // Cleanup
     let _ = run_cli_full(&["stop", "yaml_health_test"]);
     let _ = run_cli_full(&["delete", "yaml_health_test", "--force"]);
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     // Daemon cleanup handled by guard
 }
 

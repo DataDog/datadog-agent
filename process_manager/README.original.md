@@ -78,14 +78,11 @@ Binaries will be in `target/release/`:
 # Dual mode (Unix socket + TCP - for Docker/remote access)
 ./target/release/dd-procmgrd --tcp --grpc-port 50051
 
-# With config file
-./target/release/dd-procmgrd --config-file /etc/pm/processes.yaml
-
-# With config directory (systemd-like, one file per process)
+# With config directory (one file per process, process name derived from filename)
 ./target/release/dd-procmgrd --config-dir /etc/pm/processes.d
 
 # Using environment variable (useful for custom paths)
-DD_PM_CONFIG_PATH=/custom/path/config.yaml ./target/release/dd-procmgrd
+DD_PM_CONFIG_DIR=/custom/path/processes.d ./target/release/dd-procmgrd
 
 # With debug logging (recommended for development - silences gRPC noise)
 RUST_LOG=debug,h2=off,tower=off ./target/release/dd-procmgrd --config-dir /etc/pm/processes.d
@@ -100,11 +97,10 @@ RUST_LOG=debug,h2=off,tower=off ./target/release/dd-procmgrd --config-dir /etc/p
 - **Dual Mode** (`--tcp` flag): Both Unix socket AND TCP simultaneously - Best for Docker containers
 
 **Configuration Precedence** (first match wins):
-1. `--config-file` or `--config-dir` CLI flag (mutually exclusive)
-2. `DD_PM_CONFIG_PATH` environment variable
+1. `--config-dir` CLI flag
+2. `DD_PM_CONFIG_DIR` environment variable
 3. `/etc/pm/processes.d/` (if directory exists)
-4. `/etc/pm/processes.yaml` (if file exists)
-5. No config (start empty, warn)
+4. No config (start empty, warn)
 
 **Log Levels:** `trace` (most verbose) > `debug` > `info` (default) > `warn` > `error` (least verbose)
 
@@ -557,54 +553,69 @@ processes:
 
 **Defaults:** `start_limit_burst: 5`, `start_limit_interval: 300`
 
-## 📝 Configuration File
+## 📝 Configuration Directory
+
+The process manager uses directory-based configuration. Each process is defined in its own YAML file within the configuration directory. The process name is derived from the filename (without the `.yaml` extension).
+
+### Directory Structure
+
+```
+/etc/pm/processes.d/
+├── web-server.yaml         # Process name: "web-server"
+├── background-job.yaml     # Process name: "background-job"
+└── api-service.yaml        # Process name: "api-service"
+```
 
 ### Full Example (YAML)
 
 ```yaml
-# processes.yaml
-processes:
-  web_server:
-    command: "python3"
-    args: ["-m", "http.server", "8080"]
-    auto_start: true                    # Start on daemon startup
-    restart: "always"                   # Restart policy
+# /etc/pm/processes.d/web-server.yaml
+# Process name derived from filename: "web-server"
 
-    # Restart delay with exponential backoff
-    restart_sec: 2                      # Wait 2 seconds before first restart
-    restart_max_delay: 60               # Cap exponential backoff at 60 seconds
+command: "python3"
+args: ["-m", "http.server", "8080"]
+auto_start: true                    # Start on daemon startup
+restart: "always"                   # Restart policy
 
-    # Start limits (prevents infinite restart loops)
-    start_limit_burst: 5                # Max 5 restarts
-    start_limit_interval: 300           # Within 300 seconds (5 minutes)
+# Restart delay with exponential backoff
+restart_sec: 2                      # Wait 2 seconds before first restart
+restart_max_delay: 60               # Cap exponential backoff at 60 seconds
 
-    working_dir: "/var/www"             # Working directory (optional)
-    env:                                # Environment variables (optional)
-      DEBUG: "true"
-      PORT: "8080"
+# Start limits (prevents infinite restart loops)
+start_limit_burst: 5                # Max 5 restarts
+start_limit_interval: 300           # Within 300 seconds (5 minutes)
 
-  background_job:
-    command: "sleep"
-    args: ["60"]
-    auto_start: false
-    restart: "on-failure"
+working_dir: "/var/www"             # Working directory (optional)
+env:                                # Environment variables (optional)
+  DEBUG: "true"
+  PORT: "8080"
+```
 
-    # Custom restart settings
-    restart_sec: 5
-    restart_max_delay: 120
+```yaml
+# /etc/pm/processes.d/background-job.yaml
+command: "sleep"
+args: ["60"]
+auto_start: false
+restart: "on-failure"
 
-    # More lenient start limits
-    start_limit_burst: 10
-    start_limit_interval: 600
+# Custom restart settings
+restart_sec: 5
+restart_max_delay: 120
 
-  api_service:
-    command: "./my-service"
-    auto_start: true
-    restart: "always"
-    working_dir: "/opt/app"
-    env:
-      LOG_LEVEL: "info"
-      DATABASE_URL: "postgres://localhost/mydb"
+# More lenient start limits
+start_limit_burst: 10
+start_limit_interval: 600
+```
+
+```yaml
+# /etc/pm/processes.d/api-service.yaml
+command: "./my-service"
+auto_start: true
+restart: "always"
+working_dir: "/opt/app"
+env:
+  LOG_LEVEL: "info"
+  DATABASE_URL: "postgres://localhost/mydb"
 ```
 
 ### Configuration Fields
@@ -633,13 +644,13 @@ All operations are logged with structured context for easy troubleshooting.
 
 ```bash
 # Info level (default) - normal operations
-./target/release/daemon processes.yaml
+./target/release/dd-procmgrd --config-dir /etc/pm/processes.d
 
 # Debug level - detailed diagnostics
-RUST_LOG=debug ./target/release/daemon processes.yaml
+RUST_LOG=debug ./target/release/dd-procmgrd --config-dir /etc/pm/processes.d
 
 # Specific module
-RUST_LOG=pm_engine=debug ./target/release/daemon processes.yaml
+RUST_LOG=pm_engine=debug ./target/release/dd-procmgrd --config-dir /etc/pm/processes.d
 ```
 
 ### What Gets Logged
@@ -1261,7 +1272,7 @@ watch -n 1 './target/release/cli list'
 Enable debug logging to see all internal operations:
 
 ```bash
-RUST_LOG=debug ./target/release/daemon processes.yaml
+RUST_LOG=debug ./target/release/dd-procmgrd --config-dir /etc/pm/processes.d
 ```
 
 ### Metrics to Watch
@@ -1283,7 +1294,7 @@ Use the gRPC API to integrate with your monitoring systems:
 ### Process won't start
 - Check if start limit was exceeded: Look for `crashed` state
 - View detailed info: `./target/release/cli describe <id>`
-- Check logs: `RUST_LOG=debug ./target/release/daemon processes.yaml`
+- Check logs: `RUST_LOG=debug ./target/release/dd-procmgrd --config-dir /etc/pm/processes.d`
 - Ensure command and name are valid (both required)
 
 ### Process won't stop
@@ -1317,11 +1328,11 @@ ERROR pm_engine: Start limit exceeded - marking as crashed
 - Check consecutive failures: `./target/release/cli describe <id>`
 
 ### Config file not loading
-- Check the file path and that it exists
-- Verify YAML syntax
+- Check the directory path and that it exists
+- Verify YAML syntax in each file
 - Check daemon logs for parsing errors
-- Ensure you're passing the config path: `./target/release/daemon processes.yaml`
-- Verify `command` field is present (required)
+- Ensure you're passing the config directory: `./target/release/dd-procmgrd --config-dir /etc/pm/processes.d`
+- Verify `command` field is present (required) in each process file
 
 ### Can't delete process
 - Processes must be stopped first (not in `running` or `starting` state)

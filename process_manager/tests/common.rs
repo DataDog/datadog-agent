@@ -403,12 +403,12 @@ fn start_daemon_internal(mut cmd: Command, description: &str, _sleep_secs: u64) 
 /// // Start daemon with defaults (Unix socket)
 /// let daemon = DaemonBuilder::new().build();
 ///
-/// // Start daemon with custom configuration
+/// // Start daemon with custom configuration directory
 /// let daemon = DaemonBuilder::new()
 ///     .transport_mode("tcp")
 ///     .grpc_port(55123)
 ///     .log_level("trace")
-///     .config_file("/tmp/test.yaml")
+///     .config_dir("/tmp/processes.d")
 ///     .build();
 /// ```
 #[allow(dead_code)]
@@ -419,7 +419,6 @@ pub struct DaemonBuilder {
     grpc_socket: Option<String>,
     rest_socket: Option<String>,
     enable_rest: Option<bool>,
-    config_file: Option<String>,
     config_dir: Option<String>,
     log_level: Option<String>,
 }
@@ -442,7 +441,6 @@ impl DaemonBuilder {
             grpc_socket: None,
             rest_socket: None,
             enable_rest: None,
-            config_file: None,
             config_dir: None,
             log_level: None,
         }
@@ -484,13 +482,7 @@ impl DaemonBuilder {
         self
     }
 
-    /// Set config file path
-    pub fn config_file(mut self, path: &str) -> Self {
-        self.config_file = Some(path.to_string());
-        self
-    }
-
-    /// Set config directory path
+    /// Set config directory path (only directory-based configuration is supported)
     pub fn config_dir(mut self, path: &str) -> Self {
         self.config_dir = Some(path.to_string());
         self
@@ -515,10 +507,7 @@ impl DaemonBuilder {
             // TCP mode: use the existing start_daemon_internal
             let mut cmd = Command::new(get_daemon_binary());
 
-            // Apply config file/dir if specified
-            if let Some(file) = self.config_file {
-                cmd.env("DD_PM_CONFIG_FILE", file);
-            }
+            // Apply config directory if specified
             if let Some(dir) = self.config_dir {
                 cmd.env("DD_PM_CONFIG_DIR", dir);
             }
@@ -555,9 +544,6 @@ impl DaemonBuilder {
             cmd.env("DD_PM_TRANSPORT_MODE", "unix");
             cmd.env("DD_PM_GRPC_SOCKET", &socket_path);
 
-            if let Some(file) = self.config_file {
-                cmd.env("DD_PM_CONFIG_FILE", file);
-            }
             if let Some(dir) = self.config_dir {
                 cmd.env("DD_PM_CONFIG_DIR", dir);
             }
@@ -740,21 +726,6 @@ impl CliBuilder {
 pub fn setup_daemon() -> DaemonGuard {
     let cmd = Command::new(get_daemon_binary());
     start_daemon_internal(cmd, "Daemon started", 2);
-    DaemonGuard { _private: () }
-}
-
-/// Setup and start the daemon with a config file (with unique port)
-/// Returns an RAII guard that ensures cleanup on drop (even on panic)
-#[allow(dead_code)]
-pub fn setup_daemon_with_config_file(config_path: &str) -> DaemonGuard {
-    let mut cmd = Command::new(get_daemon_binary());
-    cmd.env("DD_PM_CONFIG_FILE", config_path);
-    let port = start_daemon_internal(
-        cmd,
-        &format!("Daemon started with config file: {}", config_path),
-        2,
-    );
-    println!("Daemon port: {}", port);
     DaemonGuard { _private: () }
 }
 
@@ -1052,34 +1023,6 @@ pub fn setup_temp_dir() -> tempfile::TempDir {
     tempfile::TempDir::new().expect("Failed to create temp directory")
 }
 
-/// Deprecated: Use setup_daemon_with_config_file() for normal tests
-/// Setup daemon with explicit port and config, return process handle for manual cleanup
-/// Only use this for infrastructure tests that need manual port/process control
-#[allow(dead_code)]
-#[deprecated(
-    since = "0.1.0",
-    note = "Use setup_daemon_with_config_file() instead. Only use this for daemon infrastructure tests."
-)]
-pub fn setup_daemon_with_port_and_config(port: u16, config_path: &str) -> std::process::Child {
-    let mut cmd = Command::new(get_daemon_binary());
-    // Configure daemon via environment variables (no CLI args)
-    cmd.env("DD_PM_CONFIG_FILE", config_path)
-        .env("DD_PM_TRANSPORT_MODE", "tcp")
-        .env("DD_PM_GRPC_PORT", port.to_string())
-        .env("DD_PM_GRPC_SOCKET", unique_socket_path(port))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    let daemon = cmd.spawn().expect("Failed to start daemon");
-    let daemon_pid = daemon.id();
-
-    println!(
-        "Daemon started with config: {} (PID: {}, port: {})",
-        config_path, daemon_pid, port
-    );
-
-    daemon
-}
 
 /// Cleanup daemon process handle
 #[allow(dead_code)]

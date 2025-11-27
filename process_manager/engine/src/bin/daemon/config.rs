@@ -34,10 +34,7 @@ pub struct DaemonConfig {
     /// Enable REST API
     pub enable_rest: bool,
 
-    /// Config file path
-    pub config_file: Option<String>,
-
-    /// Config directory path
+    /// Config directory path (only directory-based configuration is supported)
     pub config_dir: Option<String>,
 
     /// Log level
@@ -66,7 +63,6 @@ impl DaemonConfig {
             rest_socket: env::var("DD_PM_REST_SOCKET")
                 .unwrap_or_else(|_| DEFAULT_REST_SOCKET.to_string()),
             enable_rest: Self::parse_bool("DD_PM_ENABLE_REST", DEFAULT_ENABLE_REST),
-            config_file: env::var("DD_PM_CONFIG_FILE").ok(),
             config_dir: env::var("DD_PM_CONFIG_DIR").ok(),
             log_level: Self::parse_log_level(),
         }
@@ -107,8 +103,25 @@ impl DaemonConfig {
 
     /// Validate configuration
     pub fn validate(&self) -> Result<(), String> {
-        if self.config_file.is_some() && self.config_dir.is_some() {
-            return Err("Cannot specify both DD_PM_CONFIG_FILE and DD_PM_CONFIG_DIR".to_string());
+        // Validate config_dir exists if specified
+        if let Some(ref dir) = self.config_dir {
+            let path = std::path::Path::new(dir);
+            if !path.exists() {
+                return Err(format!(
+                    "Configuration directory does not exist: {}\n\n\
+                    Create the directory and add process configuration files:\n\
+                    Example: {}/my-service.yaml",
+                    dir, dir
+                ));
+            }
+            if !path.is_dir() {
+                return Err(format!(
+                    "DD_PM_CONFIG_DIR must be a directory, not a file: {}\n\n\
+                    Single-file configuration is not supported.\n\
+                    Please use directory-based configuration with one YAML file per process.",
+                    dir
+                ));
+            }
         }
         Ok(())
     }
@@ -216,13 +229,29 @@ mod tests {
     }
 
     #[test]
-    fn test_validation() {
+    fn test_validation_nonexistent_dir() {
         let _lock = ENV_MUTEX.lock().unwrap();
         let mut config = DaemonConfig::from_env();
         assert!(config.validate().is_ok());
 
-        config.config_file = Some("/etc/pm/config.yaml".to_string());
-        config.config_dir = Some("/etc/pm/conf.d".to_string());
-        assert!(config.validate().is_err());
+        // Non-existent directory should fail validation
+        config.config_dir = Some("/nonexistent/path/that/does/not/exist".to_string());
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("Configuration directory does not exist"));
+    }
+
+    #[test]
+    fn test_validation_file_instead_of_dir() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let mut config = DaemonConfig::from_env();
+
+        // Using a file path instead of directory should fail
+        config.config_dir = Some("/etc/passwd".to_string()); // Common file that exists
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must be a directory"));
     }
 }

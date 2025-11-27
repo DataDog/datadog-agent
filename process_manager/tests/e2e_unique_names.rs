@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use pm_e2e_tests::{
     create_process, delete_process, extract_process_id, run_cli, run_cli_full, setup_daemon,
-    setup_daemon_with_config_file, start_process, stop_process, unique_process_name,
+    setup_daemon_with_config_dir, start_process, stop_process, unique_process_name,
 };
 
 #[test]
@@ -146,16 +146,19 @@ fn test_e2e_operations_by_name_and_uuid() {
 
 #[test]
 fn test_e2e_yaml_loaded_process_prevents_duplicate_cli_create() {
-    // Create YAML config with a process
-    let yaml_content = r#"processes:
-  yaml-app:
-    command: sleep
-    args: ["500"]
+    // Create config directory with a process (direct ProcessConfig format)
+    let config_dir = "/tmp/test-yaml-unique.d";
+    std::fs::create_dir_all(config_dir).unwrap();
+    
+    // Process name derived from filename: yaml-app.yaml -> "yaml-app"
+    let yaml_content = r#"
+command: sleep
+args: ["500"]
 "#;
-    std::fs::write("/tmp/test-yaml-unique.yaml", yaml_content).unwrap();
+    std::fs::write(format!("{}/yaml-app.yaml", config_dir), yaml_content).unwrap();
 
-    // Start daemon WITH config (this loads yaml-app)
-    let _daemon = setup_daemon_with_config_file("/tmp/test-yaml-unique.yaml");
+    // Start daemon WITH config directory (this loads yaml-app)
+    let _daemon = setup_daemon_with_config_dir(config_dir);
     thread::sleep(Duration::from_secs(2));
 
     // Verify YAML process was loaded
@@ -193,60 +196,57 @@ fn test_e2e_yaml_loaded_process_prevents_duplicate_cli_create() {
 
     // Clean up
     delete_process("yaml-app");
-    std::fs::remove_file("/tmp/test-yaml-unique.yaml").ok();
+    std::fs::remove_dir_all(config_dir).ok();
 
     // Daemon cleanup handled by guard
 }
 
 #[test]
-fn test_e2e_yaml_with_duplicate_keys_rejected() {
-    // Use unique filename to avoid conflicts with other tests
-    let yaml_path = format!("/tmp/test-dup-keys-{}.yaml", std::process::id());
+fn test_e2e_yaml_with_invalid_syntax_rejected() {
+    // Use unique directory to avoid conflicts with other tests
+    let config_dir = format!("/tmp/test-invalid-yaml-{}.d", std::process::id());
+    std::fs::create_dir_all(&config_dir).unwrap();
 
-    // Create YAML config with duplicate keys (invalid YAML)
-    let yaml_content = r#"processes:
-  app:
-    command: sleep
-    args: ["100"]
-  app:
-    command: echo
-    args: ["hello"]
+    // Create YAML config with invalid syntax
+    let yaml_content = r#"
+command: sleep
+args: ["100"]
+invalid_field_that_doesnt_exist: true
+  malformed: yaml
+    syntax: error
 "#;
-    std::fs::write(&yaml_path, yaml_content).unwrap();
+    std::fs::write(format!("{}/bad-app.yaml", config_dir), yaml_content).unwrap();
 
-    // Start daemon WITH duplicate config - should log error but start successfully
-    let _daemon = setup_daemon_with_config_file(&yaml_path);
+    // Start daemon WITH invalid config - should log error but start successfully
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
     thread::sleep(Duration::from_millis(1000)); // Longer wait for CI
 
-    // Daemon should have started but NO processes should be loaded
-    // The duplicate key error should prevent the config from loading
+    // Daemon should have started but invalid process should not be loaded
     let list_output = run_cli(&["list"]);
 
-    // More specific check: should NOT have "app" process from the bad config
-    // (may have other processes from create_process below, but not "app")
+    // More specific check: should NOT have "bad-app" process from the bad config
     let lines: Vec<&str> = list_output.lines().collect();
-    let has_app_process = lines.iter().any(|line| {
-        // Check if any line starts with "app " (the process name column)
-        line.trim_start().starts_with("app ")
+    let has_bad_app_process = lines.iter().any(|line| {
+        line.trim_start().starts_with("bad-app ")
     });
 
     assert!(
-        !has_app_process,
-        "Should NOT have 'app' process from bad config. List output:\n{}",
+        !has_bad_app_process,
+        "Should NOT have 'bad-app' process from bad config. List output:\n{}",
         list_output
     );
 
     // Verify we can still create processes via CLI (daemon is functional)
-    create_process("test-dup-process", "sleep", &["200"]);
+    create_process("test-valid-process", "sleep", &["200"]);
     let list_output2 = run_cli(&["list"]);
     assert!(
-        list_output2.contains("test-dup-process"),
+        list_output2.contains("test-valid-process"),
         "Should be able to create processes via CLI"
     );
 
     // Clean up
-    delete_process("test-dup-process");
-    std::fs::remove_file(&yaml_path).ok();
+    delete_process("test-valid-process");
+    std::fs::remove_dir_all(&config_dir).ok();
 
     // Daemon cleanup handled by guard
 }

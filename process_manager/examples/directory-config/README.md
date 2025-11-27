@@ -1,14 +1,14 @@
 # Directory-Based Configuration (Systemd-Style)
 
-This example demonstrates how to use directory-based configuration for processes and sockets, similar to systemd's approach.
+The process manager uses **directory-based configuration only**. Each process and socket is defined in its own YAML file, similar to systemd's approach.
 
 ## Directory Structure
 
 ```
 /etc/pm/processes.d/
-├── web.yaml              # Process definition
+├── web.yaml              # Process definition (name: "web")
 ├── web.socket.yaml       # Socket definition for web
-├── worker.yaml           # Another process
+├── worker.yaml           # Another process (name: "worker")
 └── api.socket.yaml       # Socket for a different service
 ```
 
@@ -16,6 +16,7 @@ This example demonstrates how to use directory-based configuration for processes
 
 - **Modular**: Each process and socket in its own file
 - **Systemd-compatible**: Familiar structure for sysadmins
+- **Safe updates**: Modifying one process doesn't risk breaking others
 - **Easy to manage**: Add/remove services by adding/removing files
 - **Clear ownership**: One file per unit, easy to track changes
 
@@ -24,7 +25,7 @@ This example demonstrates how to use directory-based configuration for processes
 ### Process Files
 - `<name>.yaml` or `<name>.yml`
 - Example: `web.yaml`, `worker.yaml`
-- The filename becomes the process name (unless overridden in YAML)
+- **The filename becomes the process name**
 
 ### Socket Files
 - `<name>.socket.yaml` or `<name>.socket.yml`
@@ -42,36 +43,20 @@ See the example files in this directory:
 
 ```bash
 # Start daemon with directory-based config
-dd-procmgrd --config-dir /etc/pm/processes.d
+DD_PM_CONFIG_DIR=/etc/pm/processes.d dd-procmgrd
 
-# Or set as default
-export DD_PM_CONFIG_PATH=/etc/pm/processes.d
+# Or let it auto-detect (defaults to /etc/pm/processes.d if it exists)
 dd-procmgrd
 ```
 
-## Comparison with Single-File Config
-
-### Single File (`/etc/pm/processes.yaml`)
-```yaml
-processes:
-  web:
-    command: /usr/bin/python3
-    args: ["-m", "http.server"]
-  worker:
-    command: /usr/bin/worker
-
-sockets:
-  web-socket:
-    service: web
-    listen_stream: "0.0.0.0:8080"
-```
-
-### Directory-Based (`/etc/pm/processes.d/`)
+## Example Process Configuration
 
 **web.yaml:**
 ```yaml
+# Process name is "web" (from filename)
 command: /usr/bin/python3
 args: ["-m", "http.server"]
+restart: always
 ```
 
 **web.socket.yaml:**
@@ -82,20 +67,8 @@ listen_stream: "0.0.0.0:8080"
 
 **worker.yaml:**
 ```yaml
+# Process name is "worker" (from filename)
 command: /usr/bin/worker
+restart: on-failure
 ```
-
-## When to Use Directory vs. Single File
-
-### Use Directory-Based When:
-- Managing many services (5+)
-- Services are managed by different teams/repos
-- You want systemd-style organization
-- Services are added/removed frequently
-
-### Use Single-File When:
-- Small number of services (< 5)
-- All services are tightly coupled
-- You want to see everything in one place
-- Simpler deployment (single file to manage)
 

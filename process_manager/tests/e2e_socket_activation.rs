@@ -1,18 +1,29 @@
 use pm_e2e_tests::{
-    get_socket_test_port, process_exists_by_name, run_cli_full, setup_daemon_with_config_file,
+    get_socket_test_port, process_exists_by_name, run_cli_full, setup_daemon_with_config_dir,
     unique_process_name, unique_test_path,
 };
 use std::thread::sleep;
 use std::time::Duration;
 
-/// Write config file and ensure it's synced to disk before returning
-fn write_config_sync(path: &str, content: &str) {
-    std::fs::write(path, content).expect("Failed to write config");
-    // Ensure file is flushed to disk
-    std::fs::File::open(path)
-        .expect("Failed to open config")
-        .sync_all()
-        .expect("Failed to sync config");
+/// Create a config directory with process and socket files
+fn create_config_dir_with_socket(
+    service_name: &str,
+    socket_name: &str,
+    process_config: &str,
+    socket_config: &str,
+) -> String {
+    let config_dir = unique_test_path("socket-config", ".d");
+    std::fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+
+    // Write process config
+    let process_path = format!("{}/{}.yaml", config_dir, service_name);
+    std::fs::write(&process_path, process_config).expect("Failed to write process config");
+
+    // Write socket config
+    let socket_path = format!("{}/{}.socket.yaml", config_dir, socket_name);
+    std::fs::write(&socket_path, socket_config).expect("Failed to write socket config");
+
+    config_dir
 }
 
 #[test]
@@ -21,28 +32,25 @@ fn test_e2e_tcp_socket_activation() {
     let port = get_socket_test_port();
     let service_name = unique_process_name();
 
-    // Create a test config with socket activation
-    let config_content = format!(
-        r#"
-sockets:
-  {}:
-    listen_stream: "127.0.0.1:{}"
-    service: {}
-    accept: false
+    // Create config directory with process and socket files
+    let process_config = r#"
+command: sleep
+args: ["30"]
+auto_start: false
+"#;
 
-processes:
-  {}:
-    command: sleep
-    args: ["30"]
-    auto_start: false
+    let socket_config = format!(
+        r#"
+listen_stream: "127.0.0.1:{}"
+service: {}
+accept: false
 "#,
-        socket_name, port, service_name, service_name
+        port, service_name
     );
 
-    let config_path = unique_test_path("test-tcp-socket-activation", ".yaml");
-    write_config_sync(&config_path, &config_content);
+    let config_dir = create_config_dir_with_socket(&service_name, &socket_name, process_config, &socket_config);
 
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
     sleep(Duration::from_secs(3));
 
     // Verify process was created from config
@@ -50,7 +58,7 @@ processes:
 
     if code != 0 || stdout.is_empty() {
         // CLI connection issue - skip rest of test
-        std::fs::remove_file(&config_path).ok();
+        std::fs::remove_dir_all(&config_dir).ok();
         return;
     }
 
@@ -100,7 +108,7 @@ processes:
     }
 
     // Daemon cleanup handled by guard
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
 }
 
 #[test]
@@ -110,28 +118,25 @@ fn test_e2e_socket_config_loading() {
     let service_name = unique_process_name();
     let port = get_socket_test_port();
 
-    let config_content = format!(
-        r#"
-sockets:
-  {}:
-    listen_stream: "127.0.0.1:{}"
-    service: {}
-    accept: false
+    let process_config = r#"
+command: sleep
+args: ["10"]
+auto_start: false
+"#;
 
-processes:
-  {}:
-    command: sleep
-    args: ["10"]
-    auto_start: false
+    let socket_config = format!(
+        r#"
+listen_stream: "127.0.0.1:{}"
+service: {}
+accept: false
 "#,
-        socket_name, port, service_name, service_name
+        port, service_name
     );
 
-    let config_path = unique_test_path("test-socket-config-loading", ".yaml");
-    write_config_sync(&config_path, &config_content);
+    let config_dir = create_config_dir_with_socket(&service_name, &socket_name, process_config, &socket_config);
 
-    // Start daemon with config
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    // Start daemon with config directory
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
 
     // Give it time to load config (increased for parallel execution)
     sleep(Duration::from_secs(3));
@@ -144,7 +149,7 @@ processes:
     );
 
     // Clean up
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     // Daemon cleanup handled by guard
 }
 
@@ -157,46 +162,51 @@ fn test_e2e_socket_yaml_parsing() {
     let tcp_service = unique_process_name();
     let unix_service = unique_process_name();
 
-    let config_content = format!(
+    // Create config directory with multiple processes and sockets
+    let config_dir = unique_test_path("socket-yaml-parsing", ".d");
+    std::fs::create_dir_all(&config_dir).expect("Failed to create config dir");
+
+    // TCP service process
+    let tcp_process_config = r#"
+command: sleep
+args: ["60"]
+auto_start: false
+"#;
+    std::fs::write(format!("{}/{}.yaml", config_dir, tcp_service), tcp_process_config).unwrap();
+
+    // Unix service process
+    let unix_process_config = r#"
+command: sleep
+args: ["60"]
+auto_start: false
+"#;
+    std::fs::write(format!("{}/{}.yaml", config_dir, unix_service), unix_process_config).unwrap();
+
+    // TCP socket
+    let tcp_socket_config = format!(
         r#"
-sockets:
-  {}:
-    listen_stream: "127.0.0.1:{}"
-    service: {}
-    accept: false
-
-  {}:
-    listen_unix: "{}"
-    service: {}
-    accept: false
-    socket_mode: 0o660
-
-processes:
-  {}:
-    command: sleep
-    args: ["60"]
-    auto_start: false
-
-  {}:
-    command: sleep
-    args: ["60"]
-    auto_start: false
+listen_stream: "127.0.0.1:{}"
+service: {}
+accept: false
 "#,
-        tcp_socket_name,
-        tcp_port,
-        tcp_service,
-        unix_socket_name,
-        unix_path,
-        unix_service,
-        tcp_service,
-        unix_service
+        tcp_port, tcp_service
     );
+    std::fs::write(format!("{}/{}.socket.yaml", config_dir, tcp_socket_name), tcp_socket_config).unwrap();
 
-    let config_path = unique_test_path("test-socket-yaml-parsing", ".yaml");
-    write_config_sync(&config_path, &config_content);
+    // Unix socket
+    let unix_socket_config = format!(
+        r#"
+listen_unix: "{}"
+service: {}
+accept: false
+socket_mode: "660"
+"#,
+        unix_path, unix_service
+    );
+    std::fs::write(format!("{}/{}.socket.yaml", config_dir, unix_socket_name), unix_socket_config).unwrap();
 
-    // Start daemon with config
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    // Start daemon with config directory
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
     sleep(Duration::from_secs(4)); // Increased from 3s to give socket activation more time
 
     // Check both processes exist
@@ -212,7 +222,7 @@ processes:
     );
 
     // Clean up
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     std::fs::remove_file(&unix_path).ok();
     // Daemon cleanup handled by guard
 }
@@ -228,32 +238,32 @@ fn test_e2e_accept_yes_multiple_instances() {
     let service_name = unique_process_name();
     let port = get_socket_test_port();
 
-    // Create config with Accept=yes
-    let config_path = unique_test_path("test-accept-yes", ".yaml");
-    let config_content = format!(
-        r#"
-processes:
-  {service}:
-    command: sh
-    args:
-      - "-c"
-      - "echo 'Instance PID: $$' >&3; sleep 10"  # Longer sleep to catch them running
-    auto_start: false
+    // Create config directory with process and socket files
+    let config_dir = unique_test_path("test-accept-yes", ".d");
+    std::fs::create_dir_all(&config_dir).expect("Failed to create config dir");
 
-sockets:
-  {socket}:
-    listen_stream: "127.0.0.1:{port}"
-    service: {service}
-    accept: true
+    let process_config = r#"
+command: sh
+args:
+  - "-c"
+  - "echo 'Instance PID: $$' >&3; sleep 10"  # Longer sleep to catch them running
+auto_start: false
+"#;
+    std::fs::write(format!("{}/{}.yaml", config_dir, service_name), process_config).unwrap();
+
+    let socket_config = format!(
+        r#"
+listen_stream: "127.0.0.1:{port}"
+service: {service}
+accept: true
 "#,
         service = service_name,
-        socket = socket_name,
         port = port
     );
-    write_config_sync(&config_path, &config_content);
+    std::fs::write(format!("{}/{}.socket.yaml", config_dir, socket_name), socket_config).unwrap();
 
     // Start daemon
-    let _daemon = setup_daemon_with_config_file(&config_path);
+    let _daemon = setup_daemon_with_config_dir(&config_dir);
     thread::sleep(Duration::from_secs(3));
 
     // Make first connection (retry up to 5 times if socket not ready yet)
@@ -339,6 +349,6 @@ sockets:
     drop(stream2);
 
     // Clean up
-    std::fs::remove_file(&config_path).ok();
+    std::fs::remove_dir_all(&config_dir).ok();
     // Daemon cleanup handled by guard
 }
