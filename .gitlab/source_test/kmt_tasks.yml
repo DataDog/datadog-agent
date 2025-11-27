@@ -45,3 +45,5 @@ test_kmt_local_setup_macos:
     # - PulumiPlugins: no github tokens in the macos runner and the plugins download fails with rate limits sometimes
     # - MacBasePackages: brew fails to update in the CI
     KMT_EXCLUDE_REQUIREMENTS: "Docker,Compiler,UserInDockerGroup,AWSConfig,PulumiPlugins,MacBasePackages"
+    # TODO(agent-devx): Remove this once we have authanywhere on macos runners
+    DDA_DISABLE_FEATURE_FLAGS: "true"

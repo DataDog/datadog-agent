@@ -12,6 +12,10 @@ def is_enabled(ctx: Context, feature: str, verbose: bool = False) -> bool:  # no
     """
     Performs a dda feature flag check and returns whether a feature is enabled or not.
     """
+
+    if os.getenv("DDA_DISABLE_FEATURE_FLAGS"):
+        return False
+
     verbose = verbose or os.getenv("VERBOSE_FEATURE_FLAGS")
 
     try:
