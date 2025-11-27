@@ -153,10 +153,23 @@ register_toolchains("@pythons_hub//:all")
 #########################
 
 # Make our 3rd parties depencency repositories known
+# bazel mod tidy command adds a new line between includes.
+# buildifier eliminates them. If we treat mod tidy as a code formatter
+# for MODULE.bazel, we need to leave-alone the includes so that buildifier
+# doesn't fail nor re-format them.
+# buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/openssl3:openssl3.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
