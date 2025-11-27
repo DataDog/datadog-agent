@@ -55,7 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.74.0-devel // indirect
-  github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.74.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.74.0-devel // indirect
