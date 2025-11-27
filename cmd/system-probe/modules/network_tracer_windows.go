@@ -8,8 +8,8 @@
 package modules
 
 import (
-	"time"
 	"os"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
