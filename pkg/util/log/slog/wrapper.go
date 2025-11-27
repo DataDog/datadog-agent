@@ -98,7 +98,7 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 				_ = f.Close()
 			}
 		}
-		seelog.Errorf("slog handler error: %v", err)
+		_ = seelog.Errorf("slog handler error: %v", err)
 		fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
 	}
 }

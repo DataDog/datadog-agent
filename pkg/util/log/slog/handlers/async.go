@@ -71,7 +71,7 @@ func (h *Async) writeList(queue list.List) {
 					_ = f.Close()
 				}
 			}
-			seelog.Errorf("slog handler error: %v", err)
+			_ = seelog.Errorf("slog handler error: %v", err)
 			fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
 		}
 	}

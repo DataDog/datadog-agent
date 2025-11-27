@@ -468,6 +468,6 @@ func reportInternalError(err error) {
 			_ = f.Close()
 		}
 	}
-	seelog.Errorf("log internal error: %s", err)
+	_ = seelog.Errorf("log internal error: %s", err)
 	fmt.Fprintf(os.Stderr, "log internal error: %s\n", err)
 }

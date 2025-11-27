@@ -171,7 +171,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 			if err == nil {
 				handlerList = append(handlerList, &seelogHandler{handler: seelogLogger})
 				closeFuncs = append(closeFuncs, func() { seelogLogger.Close() })
-				seelog.ReplaceLogger(seelogLogger)
+				_ = seelog.ReplaceLogger(seelogLogger)
 			}
 		}
 	}
