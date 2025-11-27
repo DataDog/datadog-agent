@@ -103,11 +103,6 @@ type cachedOriginCounter struct {
 	errCnt telemetry.SimpleCounter
 }
 
-type localFilterListConfig struct {
-	metricNames []string
-	matchPrefix bool
-}
-
 // Server represent a Dogstatsd server
 type server struct {
 	log    log.Component
@@ -167,7 +162,6 @@ type server struct {
 	originTelemetry bool
 
 	enrichConfig
-	localFilterListConfig
 
 	wmeta option.Option[workloadmeta.Component]
 
@@ -632,25 +626,31 @@ func (s *server) handleMessages() {
 	if len(filterlist) == 0 {
 		filterlist = s.config.GetStringSlice("statsd_metric_blocklist")
 		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
+
+		if len(filterlist) > 0 {
+			s.config.Set("metric_filterlist", filterlist, model.SourceAgentRuntime)
+			s.config.Set("metric_filterlist_match_prefix", filterlistPrefix, model.SourceAgentRuntime)
+
+			s.config.Set("statsd_metric_blocklist", []string{}, model.SourceAgentRuntime)
+			s.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceAgentRuntime)
+		}
 	}
 
-	s.localFilterListConfig = localFilterListConfig{
-		metricNames: filterlist,
-		matchPrefix: filterlistPrefix,
-	}
 	s.restoreFilterListFromLocalConfig()
 }
 
 func (s *server) restoreFilterListFromLocalConfig() {
 	s.log.Debug("Restoring filterlist with local config.")
 
-	s.tlmFilterListUpdates.Inc()
-	s.tlmFilterListSize.Set(float64(len(s.localFilterListConfig.metricNames)))
+	filterList := s.config.GetStringSlice("metric_filterlist")
+	filterListPrefix := s.config.GetBool("metric_filterlist_match_prefix")
 
-	s.SetFilterList(
-		s.localFilterListConfig.metricNames,
-		s.localFilterListConfig.matchPrefix,
-	)
+	s.tlmFilterListUpdates.Inc()
+	s.tlmFilterListSize.Set(float64(len(filterList)))
+
+	fmt.Println("\033[035m", "Setting filterlist", filterList, "\033[0m")
+
+	s.SetFilterList(filterList, filterListPrefix)
 }
 
 func (s *server) UDPLocalAddr() string {
