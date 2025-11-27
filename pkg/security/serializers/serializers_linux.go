@@ -1006,7 +1006,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 func serializeK8sContext(e *model.Event, ctx *model.UserSessionContext, userSessionContextSerializer *UserSessionContextSerializer) {
 	e.FieldHandlers.ResolveK8SUserSessionContext(e, &ctx.K8SSessionContext)
-	userSessionContextSerializer.K8SSessionID = fmt.Sprintf("%x", ctx.K8SSessionID)
+	userSessionContextSerializer.K8SSessionID = strconv.FormatUint(uint64(ctx.K8SSessionID), 16)
 	userSessionContextSerializer.K8SUsername = ctx.K8SUsername
 	userSessionContextSerializer.K8SUID = ctx.K8SUID
 	userSessionContextSerializer.K8SGroups = ctx.K8SGroups
@@ -1029,7 +1029,7 @@ func serializeSSHContext(ctx *model.UserSessionContext, userSessionContextSerial
 		sshAuthMethod = ""
 	}
 
-	userSessionContextSerializer.SSHSessionID = fmt.Sprintf("%x", ctx.SSHSessionID)
+	userSessionContextSerializer.SSHSessionID = strconv.FormatUint(uint64(ctx.SSHSessionID), 16)
 	userSessionContextSerializer.SSHClientPort = ctx.SSHClientPort
 	userSessionContextSerializer.SSHClientIP = sshClientIP
 	userSessionContextSerializer.SSHAuthMethod = sshAuthMethod

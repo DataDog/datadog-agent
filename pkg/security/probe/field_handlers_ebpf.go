@@ -17,6 +17,7 @@ import (
 	"net/netip"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -1073,9 +1074,9 @@ func (fh *EBPFFieldHandlers) ResolveSessionID(e *model.Event, evtCtx *model.User
 	fh.ResolveK8SUserSessionContext(e, &evtCtx.K8SSessionContext)
 	var sessionID string
 	if evtCtx.K8SSessionID != 0 {
-		sessionID = fmt.Sprintf("%x", evtCtx.K8SSessionID)
+		sessionID = strconv.FormatUint(uint64(evtCtx.K8SSessionID), 16)
 	} else if evtCtx.SSHSessionID != 0 {
-		sessionID = fmt.Sprintf("%x", evtCtx.SSHSessionID)
+		sessionID = strconv.FormatUint(uint64(evtCtx.SSHSessionID), 16)
 	} else {
 		sessionID = ""
 	}

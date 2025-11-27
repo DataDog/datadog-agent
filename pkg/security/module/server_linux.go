@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -284,7 +285,7 @@ func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher 
 			}
 			// Create the user session context serializer
 			userSessionCtx := &serializers.SSHSessionContextSerializer{
-				SSHSessionID:  fmt.Sprintf("%x", ev.ProcessContext.UserSession.SSHSessionID),
+				SSHSessionID:  strconv.FormatUint(uint64(ev.ProcessContext.UserSession.SSHSessionID), 16),
 				SSHClientPort: ev.ProcessContext.UserSession.SSHClientPort,
 				SSHClientIP:   ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
 			}
