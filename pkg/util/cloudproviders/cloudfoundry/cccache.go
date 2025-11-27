@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-community/go-cfclient/v2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,7 +90,7 @@ type CCCache struct {
 	segmentBySpaceGUID   map[string]*cfclient.IsolationSegment
 	segmentByOrgGUID     map[string]*cfclient.IsolationSegment
 	appsBatchSize        int
-	locksByGUID          map[string]*sync.RWMutex
+	requestGroup         singleflight.Group
 }
 
 // CCClientI is an interface for a Cloud Foundry Client that queries the Cloud Foundry API
@@ -147,7 +148,6 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 	globalCCCache.serveNozzleData = serveNozzleData
 	globalCCCache.sidecarsTags = sidecarsTags
 	globalCCCache.segmentsTags = segmentsTags
-	globalCCCache.locksByGUID = make(map[string]*sync.RWMutex)
 
 	go globalCCCache.start()
 
@@ -179,28 +179,6 @@ func (ccc *CCCache) UpdatedOnce() <-chan struct{} {
 	return ccc.updatedOnce
 }
 
-func (ccc *CCCache) getLockForResource(resourceName, guid string) *sync.RWMutex {
-	// Note: even though `guid` is globally unique, in our case we have a collision between two resources
-	// cfclient.V3App and CFapplications since they represent the same underlying resource
-	// we need to use a lockID in the form `resourceName/guid` to prevent deadlocks
-	lockID := resourceName + "/" + guid
-
-	ccc.RLock()
-	mu, ok := ccc.locksByGUID[lockID]
-	ccc.RUnlock()
-
-	if !ok {
-		ccc.Lock()
-		var exists bool
-		if mu, exists = ccc.locksByGUID[lockID]; !exists {
-			mu = &sync.RWMutex{}
-			ccc.locksByGUID[lockID] = mu
-		}
-		ccc.Unlock()
-	}
-	return mu
-}
-
 // getResource looks up the given resourceName/GUID in the CCCache
 // If not found and refreshOnCacheMiss is enabled, it will use the fetchFn function to fetch the resource from the CAPI
 func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[string]T, fetchFn func(string) (T, error)) (T, error) {
@@ -224,31 +202,40 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 		return resource, fmt.Errorf("could not find resource '%s' with guid '%s' in cloud controller cache, consider enabling `refreshCacheOnMiss`", resourceName, guid)
 	}
 
-	// Use per-GUID lock to prevent duplicate API fetches for the same resource
-	resourceLock := ccc.getLockForResource(resourceName, guid)
-	resourceLock.Lock()
-	defer resourceLock.Unlock()
+	// Note: even though `guid` is globally unique, in our case we have a collision between two resources
+	// cfclient.V3App and CFapplications since they represent the same underlying resource
+	// we need to use a key in the form `resourceName/guid` to prevent collisions
+	key := resourceName + "/" + guid
 
-	// check cache again under global RLock in case it was updated
-	ccc.RLock()
-	resource, ok = cache[guid]
-	ccc.RUnlock()
-	if ok {
-		return resource, nil
-	}
+	// Use singleflight to prevent duplicate API fetches for the same resource
+	val, err, _ := ccc.requestGroup.Do(key, func() (interface{}, error) {
+		// check cache again under global RLock in case it was updated by another request
+		ccc.RLock()
+		resource, ok := cache[guid]
+		ccc.RUnlock()
+		if ok {
+			return resource, nil
+		}
 
-	// fetch the resource from the CAPI (without holding locks)
-	fetchedResource, err := fetchFn(guid)
+		// fetch the resource from the CAPI (without holding locks)
+		fetchedResource, err := fetchFn(guid)
+		if err != nil {
+			return fetchedResource, err
+		}
+
+		// update cache under global Lock
+		ccc.Lock()
+		cache[guid] = fetchedResource
+		ccc.Unlock()
+
+		return fetchedResource, nil
+	})
+
 	if err != nil {
-		return fetchedResource, err
+		return resource, err
 	}
 
-	// update cache under global Lock
-	ccc.Lock()
-	cache[guid] = fetchedResource
-	ccc.Unlock()
-
-	return fetchedResource, nil
+	return val.(T), nil
 }
 
 // GetOrgs returns all orgs in the cache
