@@ -180,7 +180,7 @@ type EBPFProbe struct {
 
 	// snapshot
 	ruleSetVersion    uint64
-	playSnapShotState *atomic.Bool
+	replayEventsState *atomic.Bool
 
 	// Setsockopt and BPF Filter
 	BPFFilterTruncated *atomic.Uint64
@@ -775,8 +775,8 @@ func (p *EBPFProbe) addRawPacketActionFilter(actionFilter rawpacket.Filter) erro
 
 // Start the probe
 func (p *EBPFProbe) Start() error {
-	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.playSnapshot(true)
+	// Apply rules to the already stored data before starting the event stream to avoid concurrency issues
+	p.replayEvents(true)
 
 	// start new tc classifier loop
 	go p.startSetupNewTCClassifierLoop()
@@ -789,16 +789,12 @@ func (p *EBPFProbe) Start() error {
 	return p.eventStream.Start(&p.wg)
 }
 
-// PlaySnapshot plays a snapshot
-func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
+func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
 	var events []*model.Event
 
 	entryToEvent := func(entry *model.ProcessCacheEntry) {
-		if entry.Source != model.ProcessCacheEntryFromSnapshot {
-			return
-		}
 		entry.Retain()
 
 		event := p.newEBPFPooledEventFromPCE(entry)
@@ -807,7 +803,7 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 		}
 
-		event.AddToFlags(model.EventFlagsIsSnapshot)
+		event.AddToFlags(model.EventFlagsFromReplay)
 
 		events = append(events, event)
 
@@ -819,7 +815,6 @@ func (p *EBPFProbe) playSnapshot(notifyConsumers bool) {
 				events = append(events, bindEvent)
 			}
 		}
-
 	}
 
 	p.Walk(entryToEvent)
@@ -1081,9 +1076,9 @@ func (p *EBPFProbe) regularUnmarshalEvent(bu BinaryUnmarshaler, eventType model.
 // handleEvent processes raw eBPF events received from the kernel, unmarshaling and dispatching them appropriately.
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	// handle play snapshot
-	if p.playSnapShotState.Swap(false) {
+	if p.replayEventsState.Swap(false) {
 		// do not notify consumers as we are replaying the snapshot after a ruleset reload
-		p.playSnapshot(false)
+		p.replayEvents(false)
 	}
 
 	var (
@@ -2510,7 +2505,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 
 	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
 	if p.ruleSetVersion != 0 {
-		p.playSnapShotState.Store(true)
+		p.replayEventsState.Store(true)
 	}
 
 	p.ruleSetVersion++
@@ -2903,7 +2898,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		cancelFnc:            cancelFnc,
 		tcRequests:           make(chan tcClassifierRequest, 16),
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
-		playSnapShotState:    atomic.NewBool(false),
+		replayEventsState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
