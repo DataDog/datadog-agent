@@ -421,7 +421,7 @@
 /pkg/metrics/metricsource.go            @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-metric-pipelines @DataDog/agent-integrations
-/pkg/serverless/                        @DataDog/serverless @Datadog/serverless-azure-gcp
+/pkg/serverless/                        @DataDog/serverless @DataDog/serverless-azure-gcp
 /pkg/status/                            @DataDog/agent-configuration
 /pkg/status/health                      @DataDog/agent-runtimes
 /pkg/status/collector                   @DataDog/agent-runtimes
@@ -724,7 +724,7 @@
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/integration/                      @DataDog/serverless @Datadog/serverless-azure-gcp
+/test/integration/                      @DataDog/serverless @DataDog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
