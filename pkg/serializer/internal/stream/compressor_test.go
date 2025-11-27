@@ -64,6 +64,31 @@ func TestCompressorSimple(t *testing.T) {
 	}
 }
 
+func TestCompressorLimits(t *testing.T) {
+	mockConfig := mock.New(t)
+	mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
+	maxPayloadSize := mockConfig.GetInt("serializer_max_payload_size")
+	maxUncompressedSize := mockConfig.GetInt("serializer_max_uncompressed_payload_size")
+
+	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: mockConfig}).Comp
+	c, err := NewCompressor(
+		&bytes.Buffer{}, &bytes.Buffer{},
+		maxPayloadSize, maxUncompressedSize,
+		[]byte("headerheader"), []byte("footerfooter"), []byte(","), compressor)
+
+	require.NoError(t, err)
+
+	for c.AddItem([]byte("contentontent")) == nil {
+	}
+
+	p, err := c.Close()
+	require.NoError(t, err)
+	require.Less(t, len(p), maxPayloadSize)
+	d, err := compressor.Decompress(p)
+	require.NoError(t, err)
+	require.Less(t, len(d), maxUncompressedSize)
+}
+
 // With an empty payload, AddItem should never return "ErrPayloadFull"
 // ErrItemTooBig is a more appropriate error code if the item cannot
 // be added to an empty compressor
