@@ -43,7 +43,7 @@
 .bazel:defs:cache:windows:
   extends: .bazel:defs
   variables:
-    XDG_CACHE_HOME: c:\bzl
+    XDG_CACHE_HOME: c:/bzl
 
 .bazel:runner:linux-amd64:
   extends: .bazel:defs:cache:persistent
