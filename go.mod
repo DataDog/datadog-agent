@@ -975,6 +975,17 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
+// github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
+replace (
+	k8s.io/api => k8s.io/api v0.34.1
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.34.1
+	k8s.io/apimachinery => k8s.io/apimachinery v0.34.1
+	k8s.io/client-go => k8s.io/client-go v0.34.1
+	k8s.io/component-base => k8s.io/component-base v0.34.1
+	k8s.io/apiserver => k8s.io/apiserver v0.34.1
+	k8s.io/kms => k8s.io/kms v0.34.1
+)
+
 // TODO(songy23): remove this once https://github.com/kubernetes/apiserver/commit/b887c9ebecf558a2001fc5c5dbd5c87fd672500c is brought to agent
 replace go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.60.0
 
