@@ -8,7 +8,7 @@ pkg_files(
     srcs = ["@snmp_traps//file"],
     attributes = pkg_attributes(
         group = "root",
-        mode = "0555",
+        mode = "0644",
         owner = "root",
     ),
     prefix = select({

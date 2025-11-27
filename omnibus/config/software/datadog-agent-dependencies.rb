@@ -33,7 +33,8 @@ dependency 'libpcap' if linux_target? and !heroku_target? # system-probe depende
 # Include traps db file in snmp.d/traps_db/
 build do
     # TODO(agent-build): Should this be linux/macos only?
-    command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run -- //deps/snmp_traps:install --destdir='#{install_dir}'",
+        env: { BUILD_WORKSPACE_DIRECTORY: "." }
 end
 
 dependency 'datadog-agent-integrations-py3'
