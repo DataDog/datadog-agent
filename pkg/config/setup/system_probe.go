@@ -350,6 +350,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
 
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "enabled"), true)
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "max_containers_tracked"), 1024)
+
 	cfg.BindEnvAndSetDefault(join(compNS, "enabled"), false)
 
 	// enable/disable use of root net namespace
@@ -405,6 +408,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
+
+	cfg.BindEnvAndSetDefault(join(netNS, "direct_send"), false)
 }
 
 func join(pieces ...string) string {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -36,6 +37,7 @@ type dependencies struct {
 	Logger                log.Component
 	ConnectionsForwarders connectionsforwarder.Component
 	Lc                    compdef.Lifecycle
+	Secrets               secrets.Component
 }
 
 type forwardersComp struct {
@@ -70,6 +72,7 @@ func newForwarders(deps dependencies) (forwarders.Component, error) {
 }
 
 func createForwarder(deps dependencies, options *defaultforwarder.Options) defaultforwarder.Component {
+	options.Secrets = deps.Secrets
 	return defaultforwarder.NewForwarder(deps.Config, deps.Logger, deps.Lc, false, options).Comp
 }
 

@@ -16,34 +16,70 @@ func Test_deviceScan_isSuccess(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name           string
-		deviceScan     deviceScan
-		expectedResult bool
+		name              string
+		deviceScan        deviceScan
+		expectedIsSuccess bool
 	}{
 		{
 			name: "is not success",
 			deviceScan: deviceScan{
 				DeviceIP:   "10.0.0.1",
-				ScanStatus: failedStatus,
+				ScanStatus: failedScan,
 				ScanEndTs:  now,
 			},
-			expectedResult: false,
+			expectedIsSuccess: false,
 		},
 		{
 			name: "is success",
 			deviceScan: deviceScan{
 				DeviceIP:   "10.0.0.1",
-				ScanStatus: successStatus,
+				ScanStatus: successScan,
 				ScanEndTs:  now,
 			},
-			expectedResult: true,
+			expectedIsSuccess: true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			isSuccess := test.deviceScan.isSuccess()
-			assert.Equal(t, test.expectedResult, isSuccess)
+			assert.Equal(t, test.expectedIsSuccess, isSuccess)
+		})
+	}
+}
+
+func Test_deviceScan_isFailed(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name             string
+		deviceScan       deviceScan
+		expectedIsFailed bool
+	}{
+		{
+			name: "is not failed",
+			deviceScan: deviceScan{
+				DeviceIP:   "10.0.0.1",
+				ScanStatus: successScan,
+				ScanEndTs:  now,
+			},
+			expectedIsFailed: false,
+		},
+		{
+			name: "is failed",
+			deviceScan: deviceScan{
+				DeviceIP:   "10.0.0.1",
+				ScanStatus: failedScan,
+				ScanEndTs:  now,
+			},
+			expectedIsFailed: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			isFailed := test.deviceScan.isFailed()
+			assert.Equal(t, test.expectedIsFailed, isFailed)
 		})
 	}
 }

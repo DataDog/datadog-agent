@@ -1,0 +1,15 @@
+{{- if or (gt .pendingScanCount 0) (gt .successScanCount 0) .failedScanIPs }}
+  Device Scans
+  ============
+  Pending scans count: {{ .pendingScanCount }}
+  Successful scans count: {{ .successScanCount }}
+
+{{- if .failedScanIPs }}
+  Failed scans IPs:
+{{- range $ip := .failedScanIPs }}
+    - {{ $ip }}
+{{- end }}
+{{- else }}
+  No failed scans.
+{{- end }}
+{{- end -}}

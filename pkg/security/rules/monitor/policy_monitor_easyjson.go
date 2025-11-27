@@ -1241,6 +1241,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.Name = string(in.String())
 		case "version":
 			out.Version = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		case "source":
 			out.Source = string(in.String())
 		case "replace_policy_id":
@@ -1268,6 +1270,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 		const prefix string = ",\"version\":"
 		out.RawString(prefix)
 		out.String(string(in.Version))
+	}
+	if in.Type != "" {
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
 	}
 	{
 		const prefix string = ",\"source\":"
@@ -1782,6 +1789,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 			out.Name = string(in.String())
 		case "version":
 			out.Version = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		case "source":
 			out.Source = string(in.String())
 		case "replace_policy_id":
@@ -1837,6 +1846,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 		const prefix string = ",\"version\":"
 		out.RawString(prefix)
 		out.String(string(in.Version))
+	}
+	if in.Type != "" {
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
 	}
 	{
 		const prefix string = ",\"source\":"

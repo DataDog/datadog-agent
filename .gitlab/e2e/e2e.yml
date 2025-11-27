@@ -546,6 +546,8 @@ new-e2e-alp:
     TEAM: agent-log-pipelines
   # Temporary for #incident-44744
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -574,6 +576,7 @@ new-e2e-cws:
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-discovery:
   extends: .new_e2e_template
@@ -797,6 +800,7 @@ new-e2e-ha-agent-failover:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -963,6 +967,7 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
   allow_failure: true
 
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
@@ -985,6 +990,7 @@ all-artifacts: # This job is used to collect all artifacts needed in the flake f
   artifacts:
     paths:
       - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
     expire_in: 1 day
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

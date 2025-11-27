@@ -1,20 +1,18 @@
 module github.com/DataDog/datadog-agent/test/new-e2e
 
-go 1.24.9
-
-toolchain go1.24.10
+go 1.24.10
 
 // Do not upgrade Pulumi plugins to versions different from `test-infra-definitions`.
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.175
+	github.com/DataDog/agent-payload/v5 v5.0.176
 	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.67.0
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.59.0
-	github.com/DataDog/datadog-agent/pkg/version v0.67.0
+	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
@@ -54,7 +52,7 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
-	github.com/BurntSushi/toml v1.4.1-0.20240526193622-a339e1f7089c // indirect
+	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/proto v0.67.0
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -182,7 +180,7 @@ require (
 	github.com/skeema/knownhosts v1.3.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/texttheater/golang-levenshtein v1.0.1 // indirect
 	github.com/tinylib/msgp v1.5.0 // indirect
@@ -252,7 +250,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.67.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.60.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.67.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.10 // indirect
@@ -264,8 +262,8 @@ require (
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/colorprofile v0.3.0 // indirect
-	github.com/charmbracelet/x/ansi v0.8.0 // indirect
+	github.com/charmbracelet/colorprofile v0.3.1 // indirect
+	github.com/charmbracelet/x/ansi v0.9.2 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cheggaaa/pb v1.0.29 // indirect
@@ -299,7 +297,7 @@ require (
 	github.com/nats-io/nats.go v1.41.1 // indirect
 	github.com/nats-io/nkeys v0.4.10 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/onsi/ginkgo/v2 v2.23.3 // indirect
+	github.com/onsi/ginkgo/v2 v2.26.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
@@ -314,6 +312,7 @@ require (
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.10 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
@@ -398,7 +397,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../comp/otelcol/otlp/components/connector/datadogconnector
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ../../comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../comp/otelcol/otlp/components/exporter/serializerexporter
@@ -419,6 +417,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../pkg/config/nodetreemodel

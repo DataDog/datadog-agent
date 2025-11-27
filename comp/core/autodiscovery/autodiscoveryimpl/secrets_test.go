@@ -58,7 +58,7 @@ func (m *MockSecretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback)
 	m.callback = cb
 }
 
-func (m *MockSecretResolver) Refresh() (string, error) {
+func (m *MockSecretResolver) Refresh(_ bool) (string, error) {
 	return "", nil
 }
 

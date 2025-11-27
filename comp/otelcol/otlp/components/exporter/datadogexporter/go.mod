@@ -42,7 +42,7 @@ require (
 require go.yaml.in/yaml/v2 v2.4.3 // indirect
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.175 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.176 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.73.0-rc.5 // indirect
@@ -68,6 +68,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.73.0-rc.5 // indirect
@@ -126,7 +127,7 @@ require (
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
-	github.com/DataDog/viper v1.14.1-0.20251008075154-b33ffa9792d9 // indirect
+	github.com/DataDog/viper v1.14.1-0.20251117172501-5b5dc463bad3 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -148,7 +149,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.7.0-rc.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
@@ -199,7 +200,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tinylib/msgp v1.5.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
@@ -312,7 +313,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl => ../../../../../../comp/otelcol/ddprofilingextension/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline => ../../../../../../comp/otelcol/logsagentpipeline
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl => ../../../../../../comp/otelcol/logsagentpipeline/logsagentpipelineimpl
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/connector/datadogconnector => ../../../../../../comp/otelcol/otlp/components/connector/datadogconnector
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ../../../../../../comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ../../../../../../comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ../../../../../../comp/otelcol/otlp/components/metricsclient
@@ -332,6 +332,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../../../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../../../../pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ../../../../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../../../../pkg/config/nodetreemodel
