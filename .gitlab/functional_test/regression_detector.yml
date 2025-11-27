@@ -316,7 +316,7 @@ single-machine-performance-regression_detector:
   variables:
     SMP_TEAM_NAME: agent
     SMP_API_URL: api_url
-    SMP_VERSION: 0.25.1
+    SMP_VERSION: v0.25.1
     BOT_LOGIN: bot_login
     BOT_TOKEN: bot_token
 
