@@ -1,17 +1,21 @@
 ---
 .windows_msi_base:
   stage: package_build
-  extends: .windows_docker_default
+  extends: [.windows_docker_default, .bazel:defs:cache:windows]  # the latter for `bazel run @openssl//:install`
   needs: ["go_deps"]
   script:
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
+    - mkdir "$XDG_CACHE_HOME" -Force | Out-Null
     - >
       docker run --rm
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -e CI=true
+      -v "${XDG_CACHE_HOME}:$XDG_CACHE_HOME"
+      -e XDG_CACHE_HOME
+      -e BAZELISK_HOME
+      -e CI
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e CI_JOB_ID=${CI_JOB_ID}
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
