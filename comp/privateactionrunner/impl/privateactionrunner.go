@@ -31,8 +31,12 @@ type privateactionrunnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
+	r, err := runners.NewWorkflowRunner()
+	if err != nil {
+		return Provides{}, err
+	}
 	runner := &privateactionrunnerImpl{
-		WorkflowRunner: runners.NewWorkflowRunner(),
+		WorkflowRunner: r,
 	}
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
@@ -44,9 +48,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (p *privateactionrunnerImpl) Start(ctx context.Context) error {
-	return p.WorkflowRunner.Start(ctx)
+	p.WorkflowRunner.Start(ctx)
+	return nil
 }
 
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
-	return p.WorkflowRunner.Close(ctx)
+	p.WorkflowRunner.Close(ctx)
+	return nil
 }

@@ -10,8 +10,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/private-bundles"
@@ -19,10 +22,7 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
-	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 )
 
 type WorkflowRunner struct {
@@ -36,25 +36,23 @@ type WorkflowRunner struct {
 }
 
 func NewWorkflowRunner(
-	ctx context.Context,
-	configuration *config.Config,
+// ctx context.Context,
+// configuration *config.Config,
 ) (*WorkflowRunner, error) {
-	keyManager, err := remoteconfig.New(ctx, configuration)
-	if err != nil {
-		return nil, err
-	}
-	log.FromContext(ctx).Info("Remote config client created")
-	taskVerifier := taskverifier.NewTaskVerifier(keyManager, configuration)
+	//keyManager, err := remoteconfig.New(ctx, configuration)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//log.FromContext(ctx).Info("Remote config client created")
+	//taskVerifier := taskverifier.NewTaskVerifier(keyManager, configuration)
 
 	return &WorkflowRunner{
-		registry: privatebundles.NewRegistry(
-		),
-		opmsClient: opms.NewClient(configuration),
-		resolver: resolver.NewPrivateCredentialResolver(
-		),
-		config:       configuration,
-		keysManager:  keyManager,
-		taskVerifier: taskVerifier,
+		//registry:     privatebundles.NewRegistry(),
+		//opmsClient:   opms.NewClient(configuration),
+		//resolver:     resolver.NewPrivateCredentialResolver(),
+		//config:       configuration,
+		//keysManager:  keyManager,
+		//taskVerifier: taskVerifier,
 	}, nil
 }
 
