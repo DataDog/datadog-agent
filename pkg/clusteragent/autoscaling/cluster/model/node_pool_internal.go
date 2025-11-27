@@ -26,25 +26,25 @@ const (
 
 type NodePoolInternal struct {
 	// Name matches name of NodePool
-	name string `json:"name"`
+	name string
 
 	// recommendedInstanceTypes is list of recommended instance types
-	recommendedInstanceTypes []string `json:"recommended_instance_types"`
+	recommendedInstanceTypes []string
 
 	// labels is a map of Node labels that correspond to the NodePool
-	labels map[string]string `json:"labels"`
+	labels map[string]string
 
 	// taints is a list of node taints that correspond to the NodePool
-	taints []corev1.Taint `json:"taints"`
+	taints []corev1.Taint
 
 	// targetName is the user-created NodePool the Datadog-managed NodePool is derived from
-	targetName string `json:"target_name"`
+	targetName string
 
 	// targetHash is hash of the user-created NodePoolSpec
-	targetHash string `json:"target_hash"` // TODO utilize once this is part of payload
+	targetHash string // TODO utilize once this is part of payload
 
 	// targetWeight is weight of the user-created NodePoolSpec
-	targetWeight *int32 `json:"target_weight"`
+	targetWeight *int32
 }
 
 func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolInternal {
@@ -71,7 +71,6 @@ func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpe
 		},
 		Spec: buildNodePoolSpec(n, nodeClassName),
 	}
-
 }
 
 // Getters
@@ -107,8 +106,8 @@ func (n *NodePoolInternal) TargetHash() string {
 }
 
 // TargetWeight returns the targetWeight of the NodePoolInternal
-func (n *NodePoolInternal) TargetWeight() int32 {
-	return *n.targetWeight
+func (n *NodePoolInternal) TargetWeight() *int32 {
+	return n.targetWeight
 }
 
 func convertLabels(input []*kubeAutoscaling.DomainLabels) map[string]string {
@@ -133,11 +132,10 @@ func convertTaints(input []*kubeAutoscaling.Taints) []corev1.Taint {
 	return output
 }
 
-var deprecatedLabels = sets.New[string]("beta.kubernetes.io/arch", "beta.kubernetes.io/os")
+var deprecatedLabels = sets.New("beta.kubernetes.io/arch", "beta.kubernetes.io/os")
 
 // buildNodePoolSpec is used for creating new NodePools
 func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.NodePoolSpec {
-
 	wellKnownLabels := karpenterv1.WellKnownLabels
 
 	metadataLabels := map[string]string{}
@@ -203,12 +201,13 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 		},
 	}
 
-	if n.TargetWeight != nil {
-		if n.TargetWeight() >= 0 && n.TargetWeight() < 100 {
-			weight := n.TargetWeight() + 1
-			npSpec.Weight = &weight
+	if n.TargetWeight() != nil {
+		targetWeight := *n.TargetWeight()
+		if targetWeight >= 0 && targetWeight < 100 {
+			targetWeight++
+			npSpec.Weight = &targetWeight
 		} else {
-			log.Warnf("TargetWeight is invalid: %v for Target NodePool: %s", n.TargetWeight(), n.TargetName())
+			log.Warnf("TargetWeight is invalid: %v for Target NodePool: %s", targetWeight, n.TargetName())
 		}
 	}
 
@@ -216,10 +215,9 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 }
 
 // BuildNodePoolPatch is used to construct JSON patch
-func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]interface{} {
-
+func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]any {
 	// Build requirements patch, only updating values for the instance types
-	updatedRequirements := []map[string]interface{}{}
+	updatedRequirements := []map[string]any{}
 	instanceTypeLabelExists := false
 	for _, r := range np.Spec.Template.Spec.Requirements {
 		if r.Key == corev1.LabelInstanceTypeStable {
@@ -228,7 +226,7 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 			r.Values = npi.recommendedInstanceTypes
 		}
 
-		updatedRequirements = append(updatedRequirements, map[string]interface{}{
+		updatedRequirements = append(updatedRequirements, map[string]any{
 			"key":      r.Key,
 			"operator": string(r.Operator),
 			"values":   r.Values,
@@ -236,27 +234,27 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	}
 
 	if !instanceTypeLabelExists {
-		updatedRequirements = append(updatedRequirements, map[string]interface{}{
+		updatedRequirements = append(updatedRequirements, map[string]any{
 			"key":      corev1.LabelInstanceTypeStable,
 			"operator": "In",
 			"values":   npi.recommendedInstanceTypes,
 		})
 	}
 
-	return map[string]interface{}{
-		"metadata": map[string]interface{}{
-			"labels": map[string]interface{}{
+	return map[string]any{
+		"metadata": map[string]any{
+			"labels": map[string]any{
 				datadogModifiedLabelKey: "true",
 			},
 		},
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
+		"spec": map[string]any{
+			"template": map[string]any{
+				"metadata": map[string]any{
 					"labels": map[string]string{
 						kubernetes.AutoscalingLabelKey: "true",
 					},
 				},
-				"spec": map[string]interface{}{
+				"spec": map[string]any{
 					"requirements": updatedRequirements,
 				},
 			},

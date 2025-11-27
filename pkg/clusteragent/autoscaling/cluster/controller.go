@@ -153,7 +153,7 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 			}
 		}
 	} else {
-		if isCreatedByDatadog(nodePool.GetLabels()) {
+		if nodePool != nil && isCreatedByDatadog(nodePool.GetLabels()) {
 			// Not present in store, and the cluster NodePool is fully managed, then delete the NodePool
 			if err := c.deleteNodePool(ctx, name); err != nil {
 				log.Errorf("Error deleting NodePool: %v", err)

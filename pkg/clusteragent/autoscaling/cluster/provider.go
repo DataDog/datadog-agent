@@ -31,7 +31,6 @@ func StartClusterAutoscaling(
 	rcClient RcClient,
 	senderManager sender.SenderManager,
 ) error {
-
 	if apiCl == nil {
 		return fmt.Errorf("Impossible to start cluster autoscaling without valid APIClient")
 	}
@@ -51,10 +50,10 @@ func StartClusterAutoscaling(
 	}
 
 	sender, err := senderManager.GetSender("cluster_autoscaling")
-	sender.DisableDefaultHostname(true)
 	if err != nil {
 		return fmt.Errorf("unable to start local telemetry for cluster autoscaling: %w", err)
 	}
+	sender.DisableDefaultHostname(true)
 
 	controller, err := NewController(clock, clusterID, eventRecorder, rcClient, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, storeUpdated, sender)
 	if err != nil {
