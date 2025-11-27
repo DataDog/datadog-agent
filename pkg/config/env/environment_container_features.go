@@ -37,4 +37,7 @@ const (
 	PodResources Feature = "podresources"
 	// NVML library present for GPU detection
 	NVML Feature = "nvml"
+	// NonstandardCRIRuntime is a fallback value for when customers supply a CRI compliant runtime via the
+	// cri_socket_path configuration field
+	NonstandardCRIRuntime = "nonstandard-cri-runtime"
 )

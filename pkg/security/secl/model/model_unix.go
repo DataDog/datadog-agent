@@ -371,9 +371,6 @@ type Process struct {
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
 	SymlinkBasenameStr string              `field:"-"`
 
-	// cache version
-	ScrubbedArgvResolved bool `field:"-"`
-
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
