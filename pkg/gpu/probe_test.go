@@ -108,7 +108,7 @@ func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) 
 		hasGlobalStreams := probe.streamHandlers.globalStreamsCount() == 1 && handlers.global != nil && len(handlers.global.pendingMemorySpans) > 0
 		hasNonGlobalStreams := probe.streamHandlers.streamsCount() == 1 && handlers.stream != nil && len(handlers.stream.pendingKernelSpans) > 0
 		return hasGlobalStreams && hasNonGlobalStreams
-	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.deps.StreamHandlers)
+	}, 3*time.Second, 100*time.Millisecond, "stream and global handlers not found: existing is %v", probe.consumer.deps.streamHandlers)
 
 	// Check that we're receiving the events we expect
 	telemetryMock, ok := probe.deps.Telemetry.(telemetry.Mock)

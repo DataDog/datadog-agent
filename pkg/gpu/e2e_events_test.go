@@ -153,7 +153,7 @@ loop:
 
 	// Now let's check the stats generator and see the output
 	statsGen, _, _ := getStatsGeneratorForTest(t)
-	statsGen.streamHandlers = consumer.deps.StreamHandlers // Replace the streamHandlers with the ones from the consumer
+	statsGen.streamHandlers = consumer.deps.streamHandlers // Replace the streamHandlers with the ones from the consumer
 
 	// Tell the generator the last generation time is before the start of our first event
 	statsGen.lastGenerationKTime = int64(startTs - 1)

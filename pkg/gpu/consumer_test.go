@@ -74,13 +74,13 @@ func newTestCudaEventConsumer(t testing.TB, ctx *systemContext, cfg *config.Conf
 	}
 
 	return newCudaEventConsumer(cudaEventConsumerDependencies{
-		SysCtx:         ctx,
-		Cfg:            cfg,
-		Telemetry:      options.telemetry,
-		ProcessMonitor: &mockProcessMonitor{},
-		StreamHandlers: handlers,
-		EventHandler:   options.eventHandler,
-		RingFlusher:    &mockFlusher{},
+		sysCtx:         ctx,
+		cfg:            cfg,
+		telemetry:      options.telemetry,
+		processMonitor: &mockProcessMonitor{},
+		streamHandlers: handlers,
+		eventHandler:   options.eventHandler,
+		ringFlusher:    &mockFlusher{},
 	})
 }
 

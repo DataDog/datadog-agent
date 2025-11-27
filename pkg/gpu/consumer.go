@@ -58,20 +58,20 @@ type cudaEventConsumerTelemetry struct {
 }
 
 type cudaEventConsumerDependencies struct {
-	// SysCtx is the system context
-	SysCtx *systemContext
-	// Cfg is the configuration
-	Cfg *config.Config
-	// Telemetry is the telemetry component
-	Telemetry telemetry.Component
-	// ProcessMonitor allows subscribing to process start and exit events
-	ProcessMonitor uprobes.ProcessMonitor
-	// StreamHandlers holds all the stream handlers for the different streams
-	StreamHandlers *streamCollection
-	// EventHandler is the event handler for eBPF events
-	EventHandler ddebpf.EventHandler
-	// RingFlusher allows flushing the ring buffer
-	RingFlusher perf.Flusher
+	// sysCtx is the system context
+	sysCtx *systemContext
+	// cfg is the configuration
+	cfg *config.Config
+	// telemetry is the telemetry component
+	telemetry telemetry.Component
+	// processMonitor allows subscribing to process start and exit events
+	processMonitor uprobes.ProcessMonitor
+	// streamHandlers holds all the stream handlers for the different streams
+	streamHandlers *streamCollection
+	// eventHandler is the event handler for eBPF events
+	eventHandler ddebpf.EventHandler
+	// ringFlusher allows flushing the ring buffer
+	ringFlusher perf.Flusher
 }
 
 // newCudaEventConsumer creates a new CUDA event consumer.
@@ -80,7 +80,7 @@ func newCudaEventConsumer(deps cudaEventConsumerDependencies) *cudaEventConsumer
 		deps:               deps,
 		closed:             make(chan struct{}),
 		processExitChannel: make(chan uint32, processExitChannelSize),
-		telemetry:          newCudaEventConsumerTelemetry(deps.Telemetry),
+		telemetry:          newCudaEventConsumerTelemetry(deps.telemetry),
 		debugCollector:     newEventCollector(),
 	}
 }
@@ -125,7 +125,7 @@ func (c *cudaEventConsumer) Start() {
 
 	// Send events to the main event loop asynchronously, so that all process handling is done in the same goroutine.
 	// That way we avoid race conditions between the process monitor and the event consumer.
-	cleanupExit := c.deps.ProcessMonitor.SubscribeExit(func(pid uint32) {
+	cleanupExit := c.deps.processMonitor.SubscribeExit(func(pid uint32) {
 		select {
 		case c.processExitChannel <- pid:
 		default:
@@ -139,8 +139,8 @@ func (c *cudaEventConsumer) Start() {
 	c.wg.Add(1)
 	go func() {
 		c.running.Store(true)
-		processSync := time.NewTicker(c.deps.Cfg.ScanProcessesInterval)
-		ringBufferFlush := time.NewTicker(c.deps.Cfg.RingBufferFlushInterval)
+		processSync := time.NewTicker(c.deps.cfg.ScanProcessesInterval)
+		ringBufferFlush := time.NewTicker(c.deps.cfg.RingBufferFlushInterval)
 
 		defer func() {
 			cleanupExit()
@@ -154,8 +154,8 @@ func (c *cudaEventConsumer) Start() {
 			c.running.Store(false)
 		}()
 
-		dataChannel := c.deps.EventHandler.DataChannel()
-		lostChannel := c.deps.EventHandler.LostChannel()
+		dataChannel := c.deps.eventHandler.DataChannel()
+		lostChannel := c.deps.eventHandler.LostChannel()
 		for {
 			select {
 			case <-c.closed:
@@ -163,9 +163,9 @@ func (c *cudaEventConsumer) Start() {
 			case <-health.C:
 			case <-processSync.C:
 				c.checkClosedProcesses()
-				c.deps.SysCtx.cleanOld()
+				c.deps.sysCtx.cleanOld()
 			case <-ringBufferFlush.C:
-				c.deps.RingFlusher.Flush()
+				c.deps.ringFlusher.Flush()
 			case pid, ok := <-c.processExitChannel:
 				if !ok {
 					return
@@ -264,7 +264,7 @@ func handleTypedEvent[K any](c *cudaEventConsumer, handler func(*K), eventType g
 
 func (c *cudaEventConsumer) handleStreamEvent(header *gpuebpf.CudaEventHeader, data unsafe.Pointer, dataLen int) error {
 	eventType := gpuebpf.CudaEventType(header.Type)
-	streamHandler, err := c.deps.StreamHandlers.getStream(header)
+	streamHandler, err := c.deps.streamHandlers.getStream(header)
 
 	if err != nil {
 		if logLimitProbe.ShouldLog() {
@@ -295,17 +295,17 @@ func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
 
 func (c *cudaEventConsumer) handleSetDevice(csde *gpuebpf.CudaSetDeviceEvent) {
 	pid, tid := getPidTidFromHeader(&csde.Header)
-	c.deps.SysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+	c.deps.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
 }
 
 func (c *cudaEventConsumer) handleVisibleDevicesSet(vds *gpuebpf.CudaVisibleDevicesSetEvent) {
 	pid, _ := getPidTidFromHeader(&vds.Header)
 
-	c.deps.SysCtx.setUpdatedVisibleDevicesEnvVar(int(pid), unix.ByteSliceToString(vds.Devices[:]))
+	c.deps.sysCtx.setUpdatedVisibleDevicesEnvVar(int(pid), unix.ByteSliceToString(vds.Devices[:]))
 }
 
 func (c *cudaEventConsumer) handleDeviceSync(event *gpuebpf.CudaSetDeviceEvent) error {
-	streams, err := c.deps.StreamHandlers.getActiveDeviceStreams(&event.Header)
+	streams, err := c.deps.streamHandlers.getActiveDeviceStreams(&event.Header)
 	if err != nil {
 		return fmt.Errorf("cannot get streams for the active device: %w", err)
 	}
@@ -339,19 +339,19 @@ func (c *cudaEventConsumer) handleGlobalEvent(header *gpuebpf.CudaEventHeader, d
 // handleProcessExit is called when a process exits. It marks all streams for that process as ended. Should only be called
 // from the main event loop.
 func (c *cudaEventConsumer) handleProcessExit(pid uint32) {
-	c.deps.StreamHandlers.markProcessStreamsAsEnded(pid)
+	c.deps.streamHandlers.markProcessStreamsAsEnded(pid)
 }
 
 func (c *cudaEventConsumer) checkClosedProcesses() {
 	seenPIDs := make(map[uint32]struct{})
-	_ = kernel.WithAllProcs(c.deps.Cfg.ProcRoot, func(pid int) error {
+	_ = kernel.WithAllProcs(c.deps.cfg.ProcRoot, func(pid int) error {
 		seenPIDs[uint32(pid)] = struct{}{}
 		return nil
 	})
 
-	for _, handler := range c.deps.StreamHandlers.allStreams() {
+	for _, handler := range c.deps.streamHandlers.allStreams() {
 		if _, ok := seenPIDs[handler.metadata.pid]; !ok {
-			c.deps.StreamHandlers.markProcessStreamsAsEnded(handler.metadata.pid)
+			c.deps.streamHandlers.markProcessStreamsAsEnded(handler.metadata.pid)
 		}
 	}
 }
