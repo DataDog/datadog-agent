@@ -17,15 +17,14 @@ import (
 	"strings"
 	"time"
 
-
-	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
-	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 )
 
 const (
@@ -302,7 +301,6 @@ func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	response := createHealthCheckData(resHeaders)
 	return response, nil
 }
-
 
 func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error {
 	u := &url.URL{

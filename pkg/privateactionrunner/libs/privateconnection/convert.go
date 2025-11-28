@@ -11,7 +11,6 @@ import (
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
-
 func NewPlainTextToken(segments []string, value string) *privateactionspb.ConnectionToken {
 	return &privateactionspb.ConnectionToken{
 		NameSegments: segments,

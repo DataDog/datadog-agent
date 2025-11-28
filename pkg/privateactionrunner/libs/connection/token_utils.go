@@ -72,4 +72,3 @@ func GetSingleToken[T ConnectionToken](tokens []T) T {
 	}
 	return tokens[0]
 }
-

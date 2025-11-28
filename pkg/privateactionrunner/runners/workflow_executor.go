@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
-	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 )
 
 type Loop struct {
