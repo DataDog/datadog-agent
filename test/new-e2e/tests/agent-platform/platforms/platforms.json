@@ -1,0 +1,96 @@
+{
+    "windows-server": {
+        "x86_64": {
+            "2025": "ami-09f85146dab651f57",
+            "2022": "ami-0f40d13eed4e2984b",
+            "2019": "ami-0aa3a933ef4f92e7f",
+            "2016": "ami-0a8c291ba356e2d30"
+        }
+    },
+    "ubuntu": {
+        "x86_64": {
+            "24-04": "ami-02a834c8d12137c1a",
+            "23-04": "ami-0678166b28393f632",
+            "22-04": "ami-034c78fea880f31ac",
+            "20-04": "ami-0a8dbf608ab91bb92",
+            "18-04-cuda-510driver-510": "ami-0d654f72cdca08713",
+            "18-04-cuda-430driver-430": "ami-0f642af1bfaed0cab",
+            "18-04": "ami-06473583a7662bef9",
+            "16-04": "ami-04eb382b52911e3e6"
+        },
+        "arm64": {
+            "24-04": "ami-0bc4fc321d2a6eb00",
+            "23-04": "ami-08016c27cbd27b9c8",
+            "22-04": "ami-0c15da24234701907",
+            "21-04": "ami-094fac0268033d591",
+            "20-04": "ami-04507ec025265eec5",
+            "18-04": "ami-0192fdc641da884b3"
+        }
+    },
+    "suse": {
+        "x86_64": {
+            "15-4": "ami-0764a3565b5bf00b1",
+            "12": "ami-03156e5f7e99be519"
+        },
+        "arm64": {
+            "15-4": "ami-0fbdfaf93f0149b5f"
+        }
+    },
+    "redhat": {
+        "x86_64": {
+            "9": "ami-049d0bc4f55d67468"
+        },
+        "arm64": {
+            "9": "ami-02f29ffb78c3895a6"
+        }
+    },
+    "macos": {
+        "x86_64": {
+            "sonoma": "ami-0866a76585ccd1bb3"
+        },
+        "arm64": {
+            "sonoma": "ami-08bec343c3579f247"
+        }
+    },
+    "fedora": {
+        "x86_64": {
+            "40": "ami-071b21056efabdd3a"
+        },
+        "arm64": {
+            "42": "ami-0d758dc844a3c4448"
+        }
+    },
+    "debian": {
+        "x86_64": {
+            "12": "ami-0dc5e612ae181148d",
+            "11": "ami-0628b7a2a5a25ccb4",
+            "10": "ami-0711dfb2e7e7e6a44"
+        },
+        "arm64": {
+            "12": "ami-03d9afbfab28f6db3",
+            "11": "ami-03637b8b2ae7fe9d5",
+            "10": "ami-0578262b53edfe83a"
+        }
+    },
+    "amazon-linux": {
+        "x86_64": {
+            "2023": "ami-007ba4e9b1746b7c4",
+            "2018": "ami-07b9d28dbbb331410",
+            "2": "ami-06b6fa130cb18e389"
+        },
+        "arm64": {
+            "2023": "ami-024668b73e53023be",
+            "2": "ami-06756ece825397a0a"
+        }
+    },
+    "amazon-linux-ecs": {
+        "x86_64": {
+            "2023": "ami-0da3143aabc59d0a7",
+            "2": "ami-0d4d0ccfaf8c1c94f"
+        },
+        "arm64": {
+            "2023": "ami-07718c184eb4cf878",
+            "2": "ami-0aae84f3ff83a8b76"
+        }
+    }
+}
