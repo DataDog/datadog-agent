@@ -12,12 +12,12 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/common"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -291,7 +291,7 @@ func createDatabricksLogBindMounts(s *common.Setup) {
 			continue
 		}
 
-		if err := syscall.Mount(source, mountPoint, "bind", syscall.MS_BIND, ""); err != nil {
+		if err := unix.Mount(source, mountPoint, "bind", unix.MS_BIND, ""); err != nil {
 			log.Warnf("Failed to create bind mount %s -> %s: %v", source, mountPoint, err)
 			s.Span.SetTag(fmt.Sprintf("bind_mount_error.%s", mountPoint), err.Error())
 		} else {
