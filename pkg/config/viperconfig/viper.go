@@ -26,7 +26,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/viper"
-	mapstructure "github.com/go-viper/mapstructure/v2"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -658,21 +657,6 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.configSources[model.SourceEnvVar].SetEnvKeyReplacer(r)
 	c.Viper.SetEnvKeyReplacer(r)
 	c.envKeyReplacer = r
-}
-
-// UnmarshalKey wraps Viper for concurrent access
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-
-	decodeOptions := []viper.DecoderConfigOption{}
-	for _, opt := range opts {
-		decodeOptions = append(decodeOptions, viper.DecoderConfigOption(opt))
-	}
-
-	return c.Viper.UnmarshalKey(key, rawVal, decodeOptions...)
 }
 
 // ReadInConfig wraps Viper for concurrent access
