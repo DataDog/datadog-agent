@@ -173,6 +173,8 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 			return nil, fmt.Errorf("invalid port '%s' for vsock", cfg.SocketPath)
 		}
 
+		socketPath = "passthrough:target"
+		seclog.Infof("adding vsock dialer to connect to security agent on port %d", cmdPort)
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))
