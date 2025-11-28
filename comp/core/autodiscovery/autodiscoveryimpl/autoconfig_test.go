@@ -23,6 +23,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -39,7 +40,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -176,7 +177,7 @@ type AutoConfigTestSuite struct {
 
 // SetupSuite saves the original listener registry
 func (suite *AutoConfigTestSuite) SetupSuite() {
-	cfg := mock.New(suite.T())
+	cfg := configmock.New(suite.T())
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"debug",
@@ -473,6 +474,9 @@ func TestResolveTemplate(t *testing.T) {
 	})
 
 	t.Run("CEL Identifier on Container", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("logs_config.container_collect_all", true)
+
 		// Setup container tied to a pod
 		wmetaPod := listeners.CreateDummyPod("pod-name", "pod-ns", nil)
 		wmetaCtn := listeners.CreateDummyContainer("container-name", "container-image")
@@ -503,14 +507,34 @@ func TestResolveTemplate(t *testing.T) {
 		ac.applyChanges(ac.processNewConfig(tpl))
 		assert.Equal(t, 2, countLoadedConfigs(ac))
 
+		// CCA
+		tpl = utils.AddContainerCollectAllConfigs([]integration.Config{}, "container-image")[0]
+		ac.applyChanges(ac.processNewConfig(tpl))
+		assert.Equal(t, 3, countLoadedConfigs(ac))
+		activeConfigs := ac.GetAllConfigs()
+		activeConfigNames := make([]string, 0, len(activeConfigs))
+		for _, cfg := range activeConfigs {
+			activeConfigNames = append(activeConfigNames, cfg.Name)
+		}
+		expectedConfigNames := []string{"container-check-1", "container-check-2", "container_collect_all"}
+		assert.ElementsMatch(t, expectedConfigNames, activeConfigNames)
+
 		// AD Identifier + CEL matching
 		tpl = integration.Config{
 			Name:          "container-check-3",
 			ADIdentifiers: []string{"container-image"},
+			LogsConfig:    []byte(`{"source":"test-source"}`),
 			CELSelector:   workloadfilter.Rules{Containers: []string{`container.pod.name.matches("pod-name")`}},
 		}
-		ac.applyChanges(ac.processNewConfig(tpl))
+		logsConfigChanges := ac.processNewConfig(tpl)
+		ac.applyChanges(logsConfigChanges)
 		assert.Equal(t, 3, countLoadedConfigs(ac))
+
+		// Should override the generic container_collect_all check config
+		activeConfigs = ac.GetAllConfigs()
+		for _, cfg := range activeConfigs {
+			assert.NotEqual(t, "container_collect_all", cfg.Name)
+		}
 
 		// Bad AD Identifier + CEL matching
 		tpl = integration.Config{
@@ -521,10 +545,11 @@ func TestResolveTemplate(t *testing.T) {
 		ac.applyChanges(ac.processNewConfig(tpl))
 		assert.Equal(t, 3, countLoadedConfigs(ac))
 
-		// Test service deletion
+		// Test config deletion
 		ac.processRemovedConfigs(changes.Schedule)
 		assert.Equal(t, 2, countLoadedConfigs(ac))
 
+		// Test service deletion
 		ac.processDelService(service)
 		assert.Equal(t, 0, countLoadedConfigs(ac))
 	})

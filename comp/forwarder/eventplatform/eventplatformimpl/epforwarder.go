@@ -187,6 +187,18 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
 		},
 		{
+			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
+			category:                      "Network Config Management",
+			contentType:                   logshttp.JSONContentType,
+			endpointsConfigPrefix:         "network_config_management.forwarder.",
+			hostnameEndpointPrefix:        "ndm-intake.",
+			intakeTrackType:               "ndmconfig",
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+		},
+		{
 			eventType:                     eventplatform.EventTypeContainerLifecycle,
 			category:                      "Container",
 			contentType:                   logshttp.ProtobufContentType,

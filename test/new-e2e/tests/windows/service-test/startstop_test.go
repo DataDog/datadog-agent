@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
@@ -73,6 +73,8 @@ const defaultTimeoutScale = 1
 
 // Default scaling of timeouts for tests with driver verifier. This needs to be generous.
 const driverVerifierTimeoutScale = 10
+
+type onServiceStateMismatch func(host *components.RemoteHost, serviceName, actual string)
 
 // TestServiceBehaviorAgentCommandNoFIM tests the service behavior when controlled by Agent commands
 func TestNoFIMServiceBehaviorAgentCommand(t *testing.T) {
@@ -178,7 +180,7 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 
 	// ensure all services are running
 	s.startAgent()
-	s.requireAllServicesState("Running")
+	s.requireAllServicesState("Running", nil)
 
 	services := []string{
 		// stop dependent services first since stopping them won't affect other services
@@ -200,7 +202,7 @@ func (s *powerShellServiceCommandSuite) TestStopTimeout() {
 	}
 
 	// test all services are stopped
-	s.assertAllServicesState("Stopped")
+	s.assertAllServicesState("Stopped", nil)
 
 	// check there are no unexpected exit messages in System event log
 	// hard stop timeout should set SERVICE_STOPPED before exiting, so
@@ -227,7 +229,7 @@ func (s *powerShellServiceCommandSuite) TestHardExitEventLogEntry() {
 	})
 	host := s.Env().RemoteHost
 	s.startAgent()
-	s.requireAllServicesState("Running")
+	s.requireAllServicesState("Running", nil)
 
 	// kill the agent
 	for _, serviceName := range s.runningUserServices() {
@@ -401,7 +403,7 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 	kernel := s.getInstalledKernelServices()
 	// check that the system probe is not running
 	for _, service := range s.disabledServices {
-		s.assertServiceState("Stopped", service)
+		s.assertServiceState("Stopped", service, nil)
 
 		// verify that we only try user services
 		if !slices.Contains(kernel, service) {
@@ -410,7 +412,7 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 			s.Require().NoError(err, fmt.Sprintf("should start %s", service))
 
 			// verify that service returns to stopped state
-			s.assertServiceState("Stopped", service)
+			s.assertServiceState("Stopped", service, nil)
 		}
 	}
 
@@ -448,12 +450,29 @@ type baseStartStopSuite struct {
 // TestAgentStartsAllServices tests that starting the agent starts all services (as enabled)
 func (s *baseStartStopSuite) TestAgentStartsAllServices() {
 	s.startAgent()
-	s.requireAllServicesState("Running")
+	s.requireAllServicesState("Running", nil)
 }
 
 // TestAgentStopsAllServices tests that stopping the agent stops all services
 func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 	host := s.Env().RemoteHost
+	unexpectedRestartedServices := make(map[string]int)
+
+	// this callback checks whether a service that is suppose to stop unexpectedly restarted.
+	onServiceUnexpectedRestart := func(host *components.RemoteHost, serviceName, actual string) {
+		if actual == "Running" {
+			if _, found := unexpectedRestartedServices[serviceName]; !found {
+				// the service is still running or unexpectedly restarted, check again on the next try.
+				unexpectedRestartedServices[serviceName] = 0
+			} else if unexpectedRestartedServices[serviceName] == 0 {
+				// still running, try stop only once.
+				unexpectedRestartedServices[serviceName] = 1
+				s.T().Errorf(`Service "%s" unexpectedly restarted, explicitly stopping it`, serviceName)
+				cmd := fmt.Sprintf(`sc.exe stop "%s"`, serviceName)
+				host.Execute(cmd)
+			}
+		}
+	}
 
 	// run the test multiple times to ensure the agent can be started and stopped repeatedly
 	N := 10
@@ -465,14 +484,14 @@ func (s *baseStartStopSuite) TestAgentStopsAllServices() {
 		s.T().Logf("Test iteration %d/%d", i, N)
 
 		s.startAgent()
-		s.requireAllServicesState("Running")
+		s.requireAllServicesState("Running", nil)
 
 		// stop the agent
 		err := s.stopAgentCommand(host)
 		s.Require().NoError(err, "should stop the datadogagent service")
 
 		// ensure all services are stopped
-		s.requireAllServicesState("Stopped")
+		s.requireAllServicesState("Stopped", onServiceUnexpectedRestart)
 
 		// ensure there are no errors in the event log from the agent services
 		entries, err := s.getAgentEventLogErrorsAndWarnings()
@@ -671,9 +690,9 @@ func (s *baseStartStopSuite) startAgent() {
 	s.Require().NoError(err, "should start the agent")
 }
 
-func (s *baseStartStopSuite) requireAllServicesState(expected string) {
+func (s *baseStartStopSuite) requireAllServicesState(expected string, onMismatch onServiceStateMismatch) {
 	// ensure all services are running
-	s.assertAllServicesState(expected)
+	s.assertAllServicesState(expected, onMismatch)
 
 	if s.T().Failed() {
 		// stop test if not all services are running
@@ -692,18 +711,18 @@ func (s *baseStartStopSuite) assertNonExpectedServiceState(expected string) {
 	expectedServices := s.runningServices()
 	for _, serviceName := range s.getInstalledServices() {
 		if !slices.Contains(expectedServices, serviceName) {
-			s.assertServiceState(expected, serviceName)
+			s.assertServiceState(expected, serviceName, nil)
 		}
 	}
 }
 
-func (s *baseStartStopSuite) assertAllServicesState(expected string) {
+func (s *baseStartStopSuite) assertAllServicesState(expected string, onMismatch onServiceStateMismatch) {
 	for _, serviceName := range s.runningServices() {
-		s.assertServiceState(expected, serviceName)
+		s.assertServiceState(expected, serviceName, onMismatch)
 	}
 }
 
-func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string) {
+func (s *baseStartStopSuite) assertServiceState(expected string, serviceName string, onMismatch onServiceStateMismatch) {
 	host := s.Env().RemoteHost
 	s.EventuallyWithExponentialBackoff(func() error {
 		status, err := windowsCommon.GetServiceStatus(host, serviceName)
@@ -711,7 +730,11 @@ func (s *baseStartStopSuite) assertServiceState(expected string, serviceName str
 			return err
 		}
 		if status != expected {
-			return fmt.Errorf("%s should be %s", serviceName, expected)
+			if onMismatch != nil {
+				onMismatch(host, serviceName, status)
+			}
+
+			return fmt.Errorf("%s should be %s, actual %s", serviceName, expected, status)
 		}
 		return nil
 	}, (2*s.timeoutScale)*time.Minute, 60*time.Second, "%s should be in the expected state", serviceName)

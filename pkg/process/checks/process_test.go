@@ -26,6 +26,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -36,7 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil/mocks"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	metricsmock "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -102,12 +102,13 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	// Workload filter
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	filter := filterStore.GetContainerPausedFilters()
+
 	// Finally, container provider
-	filter, err := containers.GetPauseContainerFilter()
-	assert.NoError(t, err)
 	return proccontainers.NewContainerProvider(metricsProvider, metadataProvider, filter, fakeTagger)
 }
 

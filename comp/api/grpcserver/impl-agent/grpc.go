@@ -87,9 +87,15 @@ func (s *server) BuildServer() http.Handler {
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	// Use the convenience function that combines metrics and auth interceptors
-	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
-		grpc_auth.UnaryServerInterceptor(authInterceptor),
-		grpc_auth.StreamServerInterceptor(authInterceptor),
+	var opts []googleGrpc.ServerOption
+	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
+		opts = append(opts,
+			googleGrpc.UnaryInterceptor(grpcutil.CombinedUnaryServerInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor))),
+			googleGrpc.StreamInterceptor(grpcutil.CombinedStreamServerInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor))),
+		)
+	}
+
+	opts = append(opts,
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),
 		googleGrpc.MaxRecvMsgSize(maxMessageSize),
 		googleGrpc.MaxSendMsgSize(maxMessageSize),

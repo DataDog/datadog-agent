@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
+	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,6 +28,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -228,6 +231,24 @@ func start(remoteTagger *remoteTagger) error {
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
+				_, sPort, err := net.SplitHostPort(url)
+				if err != nil {
+					return nil, err
+				}
+
+				port, err := strconv.Atoi(sPort)
+				if err != nil {
+					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+				}
+
+				cid, err := socket.ParseVSockAddress(vsockAddr)
+				if err != nil {
+					return nil, err
+				}
+
+				return vsock.Dial(cid, uint32(port), &vsock.Config{})
+			}
 			return net.Dial("tcp", url)
 		}),
 	)

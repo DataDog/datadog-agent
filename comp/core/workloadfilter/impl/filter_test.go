@@ -256,6 +256,73 @@ func TestCombinedFilter(t *testing.T) {
 	assert.Equal(t, true, res)
 }
 
+func TestContainerAutodiscoveryFilterScopes(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    string
+		scope     workloadfilter.Scope
+		container *workloadfilter.Container
+		expected  bool
+	}{
+		{
+			name: "Global include interact with logs exclude",
+			config: `
+container_include: ["kube_namespace:default"]
+container_exclude_logs: ["name:nginx"]
+`,
+			scope: workloadfilter.LogsFilter,
+			container: workloadmetafilter.CreateContainer(
+				&workloadmeta.Container{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "nginx",
+					},
+				},
+				workloadmetafilter.CreatePod(
+					&workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "default",
+						},
+					},
+				),
+			),
+			expected: true,
+		},
+		{
+			name: "Global include interact with metrics exclude",
+			config: `
+container_include: ["image:agent"]
+container_exclude_metrics: ["kube_namespace:datadog-agent"]
+`,
+			scope: workloadfilter.MetricsFilter,
+			container: workloadmetafilter.CreateContainer(
+				&workloadmeta.Container{
+					Image: workloadmeta.ContainerImage{
+						RawName: "agent",
+					},
+				},
+				workloadmetafilter.CreatePod(
+					&workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "datadog-agent",
+						},
+					},
+				),
+			),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.NewFromYAML(t, tt.config)
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetContainerAutodiscoveryFilters(tt.scope)
+			res := filterBundle.IsExcluded(tt.container)
+			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
+		})
+	}
+}
+
 func TestContainerSBOMFilter(t *testing.T) {
 
 	tests := []struct {
@@ -988,6 +1055,46 @@ cel_workload_exclude:
 		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.ContainerCELLogs)}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, false, filterBundle.IsExcluded(container))
+	})
+}
+
+func TestCELWorkloadExcludeFilteringRuntimeErrors(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    pods:
+      - "100"
+- products:
+    - metrics
+  rules:
+    pods:
+      - "pod.annotations['non-existent-key'] != 'x'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	pod := workloadmetafilter.CreatePod(
+		&workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "my-pod",
+				Namespace: "test",
+			},
+		},
+	)
+
+	t.Run("Nonexistent annotation on pod", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+
+	t.Run("Non-boolean result on rule", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELGlobal)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
 	})
 }
 

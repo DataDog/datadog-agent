@@ -86,3 +86,27 @@ func TestGetHostCCRID(t *testing.T) {
 	assert.Equal(t, lastRequest.URL.Path, "/opc/v2/instance/id")
 	assert.Equal(t, lastRequest.Header.Get("Authorization"), "Bearer Oracle")
 }
+
+func TestGetInstanceType(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("cloud_provider_metadata", []string{"oracle"})
+
+	ctx := context.Background()
+	expected := "VM.Standard.E5.Flex"
+	var lastRequest *http.Request
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		io.WriteString(w, expected)
+		lastRequest = r
+	}))
+	defer ts.Close()
+
+	defer func(url string) { metadataURL = url }(metadataURL)
+	metadataURL = ts.URL
+
+	instanceType, err := GetInstanceType(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, expected, instanceType)
+	assert.Equal(t, lastRequest.URL.Path, "/opc/v2/instance/shape")
+	assert.Equal(t, lastRequest.Header.Get("Authorization"), "Bearer Oracle")
+}

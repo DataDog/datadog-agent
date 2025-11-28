@@ -47,8 +47,8 @@ type Config struct {
 	// DiskCacheConfig is the configuration for the disk cache for debug info.
 	DiskCacheConfig object.DiskCacheConfig
 
-	// ProcessSyncDisabled disables the process sync for the module.
-	ProcessSyncDisabled bool
+	// CircuitBreakerConfig is the configuration for the circuit breaker enforcing probe cpu-limits.
+	CircuitBreakerConfig actuator.CircuitBreakerConfig
 
 	TestingKnobs struct {
 		LoaderOptions             []loader.Option
@@ -56,19 +56,6 @@ type Config struct {
 		ProcessSubscriberOverride func(ProcessSubscriber) ProcessSubscriber
 		TombstoneSleepKnobs       tombstone.WaitTestingKnobs
 	}
-}
-
-// erasedActuator is an erased type for an Actuator.
-type erasedActuator[A Actuator[AT], AT ActuatorTenant] struct {
-	a A
-}
-
-func (e *erasedActuator[A, AT]) NewTenant(name string, rt actuator.Runtime) ActuatorTenant {
-	return e.a.NewTenant(name, rt)
-}
-
-func (e *erasedActuator[A, AT]) Shutdown() error {
-	return e.a.Shutdown()
 }
 
 // NewConfig creates a new Config object.
@@ -85,10 +72,11 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
-		SymDBCacheDir:          "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb_uploads",
-		ProbeTombstoneFilePath: "/var/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger_probes_tombstone.json",
+		SymDBCacheDir:          "/tmp/datadog-agent/system-probe/dynamic-instrumentation/symdb-uploads",
+		ProbeTombstoneFilePath: "/tmp/datadog-agent/system-probe/dynamic-instrumentation/debugger-probes-tombstone.json",
 		DiskCacheEnabled:       cacheEnabled,
 		DiskCacheConfig:        cacheConfig,
+		CircuitBreakerConfig:   getCircuitBreakerConfig(),
 	}
 	return c, nil
 }
@@ -126,6 +114,20 @@ func getDebugInfoDiskCacheConfig() (
 	cacheConfig.RequiredDiskSpaceBytes = requiredDiskSpaceBytes
 	cacheConfig.RequiredDiskSpacePercent = cfg.GetFloat64(key("required_disk_space_percent"))
 	return
+}
+
+func getCircuitBreakerConfig() actuator.CircuitBreakerConfig {
+	cfg := pkgconfigsetup.SystemProbe()
+	sysconfig.Adjust(cfg)
+	key := func(k string) string {
+		return sysconfig.FullKeyPath(diNS, "circuit_breaker", k)
+	}
+	return actuator.CircuitBreakerConfig{
+		Interval:          cfg.GetDuration(key("interval")),
+		PerProbeCPULimit:  cfg.GetFloat64(key("per_probe_cpu_limit")),
+		AllProbesCPULimit: cfg.GetFloat64(key("all_probes_cpu_limit")),
+		InterruptOverhead: cfg.GetDuration(key("interrupt_overhead")),
+	}
 }
 
 func withPath(u url.URL, path string) string {

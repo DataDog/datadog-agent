@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -166,7 +167,12 @@ func (s *Setup) installPackage(name string, url string) (err error) {
 	span.SetTopLevel()
 
 	s.Out.WriteString(fmt.Sprintf("Installing %s...\n", name))
-	err = s.installer.Install(ctx, url, nil)
+	if runtime.GOOS == "windows" && name == DatadogAgentPackage {
+		// TODO(WINA-2018): Add support for skipping the installation of the core Agent if it is already installed
+		err = s.installer.ForceInstall(ctx, url, nil)
+	} else {
+		err = s.installer.Install(ctx, url, nil)
+	}
 	if err != nil {
 		return err
 	}

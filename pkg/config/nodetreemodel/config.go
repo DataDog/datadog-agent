@@ -21,8 +21,6 @@ import (
 
 	"go.uber.org/atomic"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -668,17 +666,18 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return true
 }
 
-func hasNoneDefaultsLeaf(node InnerNode) bool {
+func hasNonDefaultLeaf(node InnerNode) bool {
 	// We're on an InnerNode, we need to check if any child leaf are not defaults
 	for _, name := range node.ChildrenKeys() {
 		child, _ := node.GetChild(name)
 		if leaf, ok := child.(LeafNode); ok {
-			if leaf.Source().IsGreaterThan(model.SourceDefault) {
+			// Leaf has to be on a non-default layer and have a non-nil value
+			if leaf.Source().IsGreaterThan(model.SourceDefault) && leaf.Get() != nil {
 				return true
 			}
 			continue
 		}
-		if hasNoneDefaultsLeaf(child.(InnerNode)) {
+		if hasNonDefaultLeaf(child.(InnerNode)) {
 			return true
 		}
 	}
@@ -706,11 +705,42 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	}
 	// if key is a leaf, we just check the source
 	if leaf, ok := curr.(LeafNode); ok {
-		return leaf.Source().IsGreaterThan(model.SourceDefault)
+		return leaf.Source().IsGreaterThan(model.SourceDefault) && leaf.Get() != nil
 	}
 
 	// if the key was an InnerNode we need to check all the inner leaf node to check if one was set by the user
-	return hasNoneDefaultsLeaf(curr.(InnerNode))
+	return hasNonDefaultLeaf(curr.(InnerNode))
+}
+
+func isInnerOrLeafWithNilValue(node Node) bool {
+	if node == missingLeaf {
+		return false
+	}
+	if _, isInner := node.(InnerNode); isInner {
+		return true
+	}
+	if leaf, isLeaf := node.(LeafNode); isLeaf {
+		return leaf.Get() == nil
+	}
+	return false
+}
+
+// HasSection returns true if the setting is either an inner node,
+// or a leaf node with a nil value
+func (c *ntmConfig) HasSection(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, src := range model.Sources {
+		if src == model.SourceDefault {
+			continue
+		}
+		tree, _ := c.getTreeBySource(src)
+		if isInnerOrLeafWithNilValue(c.nodeAtPathFromNode(key, tree)) {
+			return true
+		}
+	}
+	return false
 }
 
 // AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
@@ -805,17 +835,6 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
 	}
 	c.envKeyReplacer = r
-}
-
-// UnmarshalKey unmarshals the data for the given key
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
 }
 
 // MergeConfig merges in another config

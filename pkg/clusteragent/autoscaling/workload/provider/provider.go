@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -88,8 +89,28 @@ func StartWorkloadAutoscaling(
 		go localRecommender.Run(ctx)
 	}
 
-	externalRecommender := external.NewRecommender(podWatcher, store, clusterName)
+	externalTLSConfig := buildExternalRecommenderTLSConfig(pkgconfigsetup.Datadog())
+	externalRecommender, err := external.NewRecommender(ctx, clock, podWatcher, store, clusterName, externalTLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start workload autoscaling external recommender: %w", err)
+	}
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {
+	caFile := cfg.GetString("autoscaling.workload.external_recommender.tls.ca_file")
+	certFile := cfg.GetString("autoscaling.workload.external_recommender.tls.cert_file")
+	keyFile := cfg.GetString("autoscaling.workload.external_recommender.tls.key_file")
+
+	if caFile == "" && certFile == "" && keyFile == "" {
+		return nil
+	}
+
+	return &external.TLSFilesConfig{
+		CAFile:   caFile,
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	}
 }

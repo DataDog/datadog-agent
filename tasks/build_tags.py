@@ -14,6 +14,19 @@ from invoke import task
 
 from tasks.flavor import AgentFlavor
 
+# Common build tags, added on all builds
+COMMON_TAGS = {
+    # removes the import to golang.org/x/net/trace in google.golang.org/grpc,
+    # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
+    "grpcnotrace",
+    # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
+    # which makes the agent significantly smaller.
+    # This can be removed when we start using containerd v2.1 or later.
+    "no_dynamic_plugins",
+    # Remove some dependencies from Trivy to reduce binary size.
+    "trivy_no_javadb",
+}
+
 # ALL_TAGS lists all available build tags.
 # Used to remove unknown tags from provided tag lists.
 ALL_TAGS = {
@@ -21,21 +34,15 @@ ALL_TAGS = {
     "clusterchecks",
     "consul",
     "containerd",
-    # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
-    # which makes the agent significantly smaller.
-    # This can be removed when we start using containerd v2.1 or later.
-    "no_dynamic_plugins",
     "cri",
     "crio",
+    # Opt out of the ASM build requirements of dd-trace-go
     "datadog.no_waf",
     "docker",
     "ec2",
     "etcd",
     "fargateprocess",
     "goexperiment.systemcrypto",  # used for FIPS mode
-    # removes the import to golang.org/x/net/trace in google.golang.org/grpc,
-    # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
-    "grpcnotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -62,14 +69,13 @@ ALL_TAGS = {
     "systemprobechecks",  # used to include system-probe based checks in the agent build
     "test",  # used for unit-tests
     "trivy",
-    "trivy_no_javadb",
     "wmi",
     "zk",
     "zlib",
     "zstd",
     "cel",
     "cws_instrumentation_injector_only",  # used for building cws-instrumentation with only the injector code
-}
+}.union(COMMON_TAGS)
 
 ### Tag inclusion lists
 
@@ -77,15 +83,13 @@ ALL_TAGS = {
 AGENT_TAGS = {
     "consul",
     "containerd",
-    "no_dynamic_plugins",
     "cri",
-    "crio",
     "datadog.no_waf",
+    "crio",
     "docker",
     "ec2",
     "etcd",
     "fargateprocess",
-    "grpcnotrace",
     "jetson",
     "jmx",
     "kubeapiserver",
@@ -102,7 +106,6 @@ AGENT_TAGS = {
     "systemd",
     "systemprobechecks",
     "trivy",
-    "trivy_no_javadb",
     "zk",
     "zlib",
     "zstd",
@@ -113,7 +116,6 @@ AGENT_TAGS = {
 AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     {
         "containerd",
-        "no_dynamic_plugins",
         "cri",
         "crio",
         "docker",
@@ -142,7 +144,6 @@ FIPS_TAGS = {"goexperiment.systemcrypto", "requirefips"}
 CLUSTER_AGENT_TAGS = {
     "clusterchecks",
     "datadog.no_waf",
-    "grpcnotrace",
     "kubeapiserver",
     "orchestrator",
     "zlib",
@@ -152,28 +153,26 @@ CLUSTER_AGENT_TAGS = {
 }
 
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
-CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "grpcnotrace", "cel"}
+CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks", "cel"}
 
 # DOGSTATSD_TAGS lists the tags needed when building dogstatsd
-DOGSTATSD_TAGS = {"containerd", "grpcnotrace", "no_dynamic_plugins", "docker", "kubelet", "podman", "zlib", "zstd"}
+DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 
 # IOT_AGENT_TAGS lists the tags needed when building the IoT agent
-IOT_AGENT_TAGS = {"grpcnotrace", "jetson", "systemd", "zlib", "zstd"}
+IOT_AGENT_TAGS = {"jetson", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "kubelet"}
+INSTALLER_TAGS = {"ec2"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = {
     "containerd",
-    "no_dynamic_plugins",
     "cri",
     "crio",
     "datadog.no_waf",
     "ec2",
     "docker",
     "fargateprocess",
-    "grpcnotrace",
     "kubelet",
     "netcgo",
     "podman",
@@ -185,7 +184,6 @@ PROCESS_AGENT_TAGS = {
 PROCESS_AGENT_HEROKU_TAGS = {
     "datadog.no_waf",
     "fargateprocess",
-    "grpcnotrace",
     "netcgo",
     "zlib",
     "zstd",
@@ -196,7 +194,6 @@ SECURITY_AGENT_TAGS = {
     "netcgo",
     "datadog.no_waf",
     "docker",
-    "grpcnotrace",
     "zlib",
     "zstd",
     "ec2",
@@ -205,22 +202,18 @@ SECURITY_AGENT_TAGS = {
 # SBOMGEN_TAGS lists the tags necessary to build sbomgen
 SBOMGEN_TAGS = {
     "trivy",
-    "trivy_no_javadb",
-    "grpcnotrace",
-    "no_dynamic_plugins",
     "containerd",
     "docker",
     "crio",
 }
 
 # SERVERLESS_TAGS lists the tags necessary to build serverless
-SERVERLESS_TAGS = {"grpcnotrace", "serverless", "otlp"}
+SERVERLESS_TAGS = {"serverless", "otlp"}
 
 # SYSTEM_PROBE_TAGS lists the tags necessary to build system-probe
 SYSTEM_PROBE_TAGS = {
     "datadog.no_waf",
     "ec2",
-    "grpcnotrace",
     "linux_bpf",
     "netcgo",
     "npm",
@@ -234,8 +227,6 @@ SYSTEM_PROBE_TAGS = {
 TRACE_AGENT_TAGS = {
     "docker",
     "containerd",
-    "grpcnotrace",
-    "no_dynamic_plugins",
     "datadog.no_waf",
     "kubeapiserver",
     "kubelet",
@@ -248,7 +239,6 @@ TRACE_AGENT_TAGS = {
 TRACE_AGENT_HEROKU_TAGS = TRACE_AGENT_TAGS.difference(
     {
         "containerd",
-        "no_dynamic_plugins",
         "docker",
         "kubeapiserver",
         "kubelet",
@@ -282,7 +272,7 @@ WINDOWS_EXCLUDE_TAGS = {
 }
 
 # List of tags to always remove when building on Darwin/macOS
-DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "no_dynamic_plugins", "nvml", "cri", "crio"}
+DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "nvml", "cri", "crio"}
 
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
@@ -311,9 +301,16 @@ build_tags = {
         "loader": LOADER_TAGS,
         "full-host-profiler": FULL_HOST_PROFILER_TAGS,
         # Test setups
-        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDE_TAGS),
     },
@@ -333,6 +330,7 @@ build_tags = {
         # Test setups
         "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "otel-agent": OTEL_AGENT_TAGS.union(FIPS_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
@@ -361,6 +359,7 @@ def compute_build_tags_for_flavor(
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
+    platform: str | None = None,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -372,7 +371,7 @@ def compute_build_tags_for_flavor(
     Then, remove from these the provided list of tags to exclude.
     """
     build_include = (
-        get_default_build_tags(build=build, flavor=flavor)
+        get_default_build_tags(build=build, flavor=flavor, platform=platform)
         if build_include is None
         else filter_incompatible_tags(build_include.split(","))
     )
@@ -420,6 +419,7 @@ def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform: str
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
+    include = include.union(COMMON_TAGS)
     return sorted(filter_incompatible_tags(include, platform=platform))
 
 

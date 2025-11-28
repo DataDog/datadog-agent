@@ -6,7 +6,7 @@
 package components
 
 import (
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 )
 
 // KubernetesAgent is an agent running in a Kubernetes cluster

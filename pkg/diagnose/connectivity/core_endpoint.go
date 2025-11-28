@@ -85,7 +85,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 	}
 
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+	domainResolvers, err := resolver.NewSingleDomainResolvers2(keysPerDomain)
 	if err != nil {
 		return []diagnose.Diagnosis{
 			{
@@ -149,7 +149,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 					logURL = endpointInfo.Endpoint.Route
 					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
 				} else {
-					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+					domain := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
 					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
 
