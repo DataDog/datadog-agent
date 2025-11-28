@@ -488,3 +488,13 @@ func TestLoggingToClosedWrapperDoesNotCallHandler(t *testing.T) {
 	// Verify that handler was never called (no records logged)
 	assert.Empty(t, handler.records, "handler should not be called after wrapper is closed")
 }
+
+func TestRecordTimeZone(t *testing.T) {
+	t.Setenv("TZ", "EST")
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	wrapper.Info("test message")
+	record := handler.lastRecord()
+	assert.Equal(t, "EST", record.Time.Location().String())
+}
