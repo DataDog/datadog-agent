@@ -194,11 +194,16 @@ def assign_team_label(_, pr_id=-1):
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
+    # Fetch the team first, and early return if no team is found
+    teams = _get_teams(gh.get_pr_files(pr_id))
+    if teams == []:
+        print('No team found')
+        return
 
+    # Check for 'team/' labels
     labels = gh.get_pr_labels(pr_id)
     has_triage = False
     has_team = False
-
     for label in labels:
         if label.startswith('team/'):
             if label != 'team/triage':
@@ -208,15 +213,9 @@ def assign_team_label(_, pr_id=-1):
 
     if has_triage:
         _remove_pr_label(gh, pr_id, 'team/triage')
+
     if has_team:
         return
-
-    # Find team
-    teams = _get_teams(gh.get_pr_files(pr_id))
-    if teams == []:
-        print('No team found')
-        return
-
     _assign_pr_team_labels(gh, pr_id, teams)
 
 

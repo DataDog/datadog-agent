@@ -141,6 +141,12 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         self.make_test(changed_files, expected_labels, pr_labels=['team/triage', 'team/team-a'])
 
+    def test_no_remove_triage_label(self):
+        changed_files = ['idonotexist']
+        expected_labels = ['team/triage']
+
+        self.make_test(changed_files, expected_labels, pr_labels=['team/triage'])
+
 
 class TestExtractQADescriptionFromPR(unittest.TestCase):
     def test_extract_qa_description(self):
