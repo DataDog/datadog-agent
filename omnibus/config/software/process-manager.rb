@@ -33,7 +33,7 @@ build do
     copy 'process_manager/target/release/dd-procmgr', "#{install_dir}/bin/dd-procmgr"
 
     # Create process manager config directory and copy config files
-    etc_dir = "/etc/pm"
+    etc_dir = "/etc/datadog-agent/process-manager"
     mkdir "#{etc_dir}/processes.d"
     copy 'process_manager/examples/datadog-agent.yaml', "#{etc_dir}/processes.d/datadog-agent.yaml"
     copy 'process_manager/examples/datadog-agent-trace.yaml', "#{etc_dir}/processes.d/datadog-agent-trace.yaml"
