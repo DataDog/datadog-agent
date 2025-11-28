@@ -242,9 +242,15 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
+func (e *Event) initProcessEventTypes() {
+	e.Exec.Process = &e.BaseEvent.ProcessContext.Process
+	e.Exit.Process = &e.BaseEvent.ProcessContext.Process
+}
+
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
+	e.initProcessEventTypes()
 }
 
 // IsSavedByActivityDumps return whether saved by AD
