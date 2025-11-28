@@ -164,7 +164,7 @@ func TestRuleMerge(t *testing.T) {
 	}
 
 	t.Run("override", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule"]
+		rule := rs.GetRuleByID("test_rule")
 		if rule == nil {
 			t.Fatal("failed to find test_rule in ruleset")
 		}
@@ -181,14 +181,14 @@ func TestRuleMerge(t *testing.T) {
 	})
 
 	t.Run("enabled-disabled", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule_foo"]
+		rule := rs.GetRuleByID("test_rule_foo")
 		if rule == nil {
 			t.Fatal("expected test_rule_foo to be loaded now")
 		}
 	})
 
 	t.Run("disabled-enabled", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule_bar"]
+		rule := rs.GetRuleByID("test_rule_bar")
 		if rule == nil {
 			t.Fatal("expected test_rule_bar to be loaded")
 		}
@@ -297,7 +297,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
+	rule := rs.GetRuleByID("test_rule")
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
@@ -1630,8 +1630,8 @@ func TestRuleErrorLoading(t *testing.T) {
 	assert.Len(t, err.Errors, 1)
 	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
 
-	assert.Contains(t, rs.rules, "testA")
-	assert.NotContains(t, rs.rules, "testB")
+	assert.Contains(t, rs.ListRuleIDs(), "testA")
+	assert.NotContains(t, rs.ListRuleIDs(), "testB")
 }
 
 func TestRuleAgentConstraint(t *testing.T) {
@@ -1770,9 +1770,9 @@ func TestRuleAgentConstraint(t *testing.T) {
 	for _, exp := range expected {
 		t.Run(exp.ruleID, func(t *testing.T) {
 			if exp.expectedLoad {
-				assert.Contains(t, rs.rules, exp.ruleID)
+				assert.Contains(t, rs.ListRuleIDs(), exp.ruleID)
 			} else {
-				assert.NotContains(t, rs.rules, exp.ruleID)
+				assert.NotContains(t, rs.ListRuleIDs(), exp.ruleID)
 			}
 		})
 	}
@@ -2419,7 +2419,7 @@ func TestActionSetVariableLength(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
-		policyType   PolicyType
+		policyType   InternalPolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -2476,12 +2476,10 @@ rules:
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				Rules:  map[string][]*PolicyRule{},
-				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2517,28 +2515,25 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				Rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "",
-								Disabled:   true,
-							},
-							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
-							},
-							Accepted: true,
+				Rules: []*PolicyRule{
+					{
+						Def: &RuleDefinition{
+							ID:         "rule_test",
+							Expression: "",
+							Disabled:   true,
 						},
+						Policy: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						},
+						Accepted: true,
 					},
 				},
-				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2558,28 +2553,25 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				Rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "open.file.path == \"/etc/gshadow\"",
-								Combine:    OverridePolicy,
-							},
-							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
-							},
-							Accepted: true,
+				Rules: []*PolicyRule{
+					{
+						Def: &RuleDefinition{
+							ID:         "rule_test",
+							Expression: "open.file.path == \"/etc/gshadow\"",
+							Combine:    OverridePolicy,
 						},
+						Policy: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						},
+						Accepted: true,
 					},
 				},
-				Macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2589,9 +2581,9 @@ broken
 			r := strings.NewReader(tt.args.fileContent)
 
 			info := &PolicyInfo{
-				Name:   tt.args.name,
-				Source: tt.args.source,
-				Type:   tt.args.policyType,
+				Name:         tt.args.name,
+				Source:       tt.args.source,
+				InternalType: tt.args.policyType,
 			}
 
 			got, err := LoadPolicy(info, r, tt.args.macroFilters, tt.args.ruleFilters)
