@@ -8,7 +8,7 @@
 package checks
 
 import (
-	"fmt"
+	"errors"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	// difference between methods for collecting macOS platform, kernel version
@@ -43,7 +43,7 @@ func patchCPUInfo(gopsutilCPUInfo []cpu.InfoStat) ([]cpu.InfoStat, error) {
 	physicalCoreCount := int(cpuInfo.Cores)
 	threadCount, err := macosStatsProvider.getThreadCount()
 	if err != nil {
-		return nil, fmt.Errorf("could not get thread count")
+		return nil, errors.New("could not get thread count")
 	}
 
 	cpuStat := make([]cpu.InfoStat, 0, physicalCoreCount)

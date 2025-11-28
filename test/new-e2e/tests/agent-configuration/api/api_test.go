@@ -68,7 +68,7 @@ func (endpointInfo *agentEndpointInfo) httpRequest(authtoken string) (*http.Requ
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authtoken))
+	req.Header.Set("Authorization", "Bearer "+authtoken)
 	return req, nil
 }
 

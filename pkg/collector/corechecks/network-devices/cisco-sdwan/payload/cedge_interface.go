@@ -6,6 +6,7 @@
 package payload
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -84,7 +85,7 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 
 	return devicemetadata.InterfaceMetadata{
 		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP), // VmanageSystemIP is the device's System IP from vManage
-		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
+		IDTags:      []string{"interface:" + itf.Ifname},
 		Index:       index,
 		Name:        itf.Ifname,
 		Description: itf.Description,
@@ -151,7 +152,7 @@ func isEmptyCEdgeIP(ip string) bool {
 func parseCEdgeIP(ip string) (string, error) {
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil || ipAddr.IsUnspecified() {
-		return "", fmt.Errorf("invalid ip address")
+		return "", errors.New("invalid ip address")
 	}
 	return ipAddr.String(), nil
 }
@@ -159,7 +160,7 @@ func parseCEdgeIP(ip string) (string, error) {
 func parseMask(mask string) (int32, error) {
 	ipMask := net.ParseIP(mask)
 	if ipMask == nil {
-		return 0, fmt.Errorf("invalid mask")
+		return 0, errors.New("invalid mask")
 	}
 	parsedMask := net.IPMask(ipMask.To4())
 	prefixLen, _ := parsedMask.Size()

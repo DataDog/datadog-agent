@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -3886,7 +3885,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 		traceAgent.setFirstTraceTags(root)
 		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
 		assert.Equal(t, cfg.InstallSignature.InstallType, root.Meta[tagInstallType])
-		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), root.Meta[tagInstallTime])
+		assert.Equal(t, strconv.FormatInt(cfg.InstallSignature.InstallTime, 10), root.Meta[tagInstallTime])
 
 		// Also make sure the tags are only set once per agent instance,
 		// calling setFirstTraceTags on another span by the same agent should have no effect
@@ -3918,7 +3917,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 		traceAgent.setFirstTraceTags(differentServiceRoot)
 		assert.Equal(t, cfg.InstallSignature.InstallID, differentServiceRoot.Meta[tagInstallID])
 		assert.Equal(t, cfg.InstallSignature.InstallType, differentServiceRoot.Meta[tagInstallType])
-		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), differentServiceRoot.Meta[tagInstallTime])
+		assert.Equal(t, strconv.FormatInt(cfg.InstallSignature.InstallTime, 10), differentServiceRoot.Meta[tagInstallTime])
 	})
 
 	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())

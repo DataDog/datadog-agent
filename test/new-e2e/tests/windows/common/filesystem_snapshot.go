@@ -73,10 +73,11 @@ func NewFileSystemSnapshot(host *components.RemoteHost, pathsToIgnore []string) 
 	}
 
 	// quote each path and join with commas
-	pattern := ""
+	var patternBuilder strings.Builder
 	for _, ignorePath := range pathsToIgnore {
-		pattern += fmt.Sprintf(`'%s',`, ignorePath)
+		fmt.Fprintf(&patternBuilder, `'%s',`, ignorePath)
 	}
+	pattern := patternBuilder.String()
 
 	// PowerShell list syntax
 	pattern = fmt.Sprintf(`@(%s)`, strings.Trim(pattern, ","))

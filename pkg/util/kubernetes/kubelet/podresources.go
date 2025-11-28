@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 
@@ -42,7 +43,7 @@ type ContainerKey struct {
 func NewPodResourcesClient(config config.Component) (*PodResourcesClient, error) {
 	podResourcesSocket := config.GetString("kubernetes_kubelet_podresources_socket")
 	if podResourcesSocket == "" {
-		return nil, fmt.Errorf("kubernetes_kubelet_podresources_socket is not set")
+		return nil, errors.New("kubernetes_kubelet_podresources_socket is not set")
 	}
 
 	socketPrefix := "unix://"
