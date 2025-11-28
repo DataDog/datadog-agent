@@ -42,14 +42,20 @@ const (
 	sandboxSecondaryAz = "subnet-8ee8b1c6"
 	sandboxBackupAz    = "subnet-3f5db45b"
 
-	datadogAgentQAEnv = "aws/agent-qa"
-	sandboxEnv        = "aws/sandbox"
-	ec2TagsEnvVar     = "RESOURCE_TAGS"
+	agentSandboxPrimaryAz   = "subnet-0a15f3482cd3f9820"
+	agentSandboxSecondaryAz = "subnet-091570395d476e9ce"
+	agentSandboxBackupAz    = "subnet-003831c49a10df3dd"
+
+	datadogAgentQAEnv      = "aws/agent-qa"
+	sandboxEnv             = "aws/sandbox"
+	datadogAgentSandboxEnv = "aws/agent-sandbox"
+	ec2TagsEnvVar          = "RESOURCE_TAGS"
 )
 
 var availabilityZones = map[string][]string{
-	datadogAgentQAEnv: {agentQAPrimaryAZ, agentQASecondaryAZ, agentQABackupAZ},
-	sandboxEnv:        {sandboxPrimaryAz, sandboxSecondaryAz, sandboxBackupAz},
+	datadogAgentQAEnv:      {agentQAPrimaryAZ, agentQASecondaryAZ, agentQABackupAZ},
+	sandboxEnv:             {sandboxPrimaryAz, sandboxSecondaryAz, sandboxBackupAz},
+	datadogAgentSandboxEnv: {agentSandboxPrimaryAz, agentSandboxSecondaryAz, agentSandboxBackupAz},
 }
 
 // EnvOpts are the options for the system-probe scenario
