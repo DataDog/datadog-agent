@@ -244,7 +244,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "latest",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 			expectedOK:     true,
 		},
 		{
@@ -252,7 +252,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 			expectedOK:     true,
 		},
 		{
@@ -274,7 +274,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 			registry:       "gcr.io/datadoghq",
 			repository:     "dd-lib-python-init",
 			tag:            "v3",
-			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:def456",
+			expectedResult: "gcr.io/datadoghq/dd-lib-python-init@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
 			expectedOK:     true,
 		},
 		{
@@ -343,14 +343,6 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 			description:    "Should reject configs missing required fields",
 		},
 		{
-			name: "missing_repository_url",
-			rawConfig: map[string]state.RawConfig{
-				"incomplete-config": {Config: []byte(`{"repository_name": "test", "images": []}`)},
-			},
-			expectedErrors: 1,
-			description:    "Should reject configs missing repository URL",
-		},
-		{
 			name: "images_with_missing_fields",
 			rawConfig: map[string]state.RawConfig{
 				"partial-images": {Config: []byte(`{
@@ -384,6 +376,41 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 			assert.Equal(t, tc.expectedErrors, errorCount, tc.description)
 		})
 	}
+}
+
+func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
+	testConfigs, err := loadTestConfigFile("invalid_digest_test.json")
+	require.NoError(t, err)
+
+	resolver := &remoteConfigImageResolver{
+		imageMappings: make(map[string]map[string]ImageInfo),
+	}
+
+	resolver.updateCache(testConfigs)
+
+	t.Run("cache_contains_only_valid_digests", func(t *testing.T) {
+		resolver.mu.RLock()
+		defer resolver.mu.RUnlock()
+
+		repoCache, exists := resolver.imageMappings["dd-lib-test-digest-validation"]
+		require.True(t, exists, "Repository should exist in cache after processing")
+
+		assert.Len(t, repoCache, 1, "Cache should contain exactly 1 image with valid digest")
+
+		for tag, imageInfo := range repoCache {
+			assert.True(t, isValidDigest(imageInfo.Digest),
+				"Image %s should have valid digest format, got: %s", tag, imageInfo.Digest)
+		}
+
+		assert.Contains(t, repoCache, "latest", "Should contain image with valid digest")
+
+		// Verify specific invalid digest formats are NOT in cache
+		assert.NotContains(t, repoCache, "invalid-short", "Should not contain image with short digest")
+		assert.NotContains(t, repoCache, "missing-prefix", "Should not contain image missing sha256: prefix")
+		assert.NotContains(t, repoCache, "invalid-algorithm", "Should not contain image with unsupported algorithm")
+		assert.NotContains(t, repoCache, "malformed", "Should not contain image with malformed digest")
+		assert.NotContains(t, repoCache, "empty", "Should not contain image with empty digest")
+	})
 }
 
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {

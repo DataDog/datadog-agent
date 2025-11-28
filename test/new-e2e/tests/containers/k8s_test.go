@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -1350,6 +1350,47 @@ func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string,
 			}, volumeMounts["datadog-auto-instrumentation"])
 		}
 	}
+}
+
+func (suite *k8sSuite) TestAdmissionControllerExcludesSystemNamespaces() {
+	ctx := context.Background()
+
+	suite.Run("webhooks should not mutate pods in kube-system namespace", func() {
+		// Get a pod from kube-system namespace
+		pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("kube-system").List(ctx, metav1.ListOptions{})
+		suite.Require().NoError(err)
+		suite.Require().NotEmpty(pods.Items, "No pods found in kube-system namespace")
+
+		// Verify the pod does NOT have admission controller mutations
+		suite.Run("should not have config env injected", func() {
+			for _, pod := range pods.Items {
+				env := make(map[string]string)
+				for _, container := range pod.Spec.Containers {
+					for _, envVar := range container.Env {
+						env[envVar.Name] = envVar.Value
+					}
+				}
+
+				// These env vars should NOT be present in kube-system pods
+				suite.NotContainsf(env, "DD_AGENT_HOST", "DD_AGENT_HOST should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_ENTITY_ID", "DD_ENTITY_ID should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_DOGSTATSD_URL", "DD_DOGSTATSD_URL should not be injected in kube-system resource %v", pod.Name)
+				suite.NotContainsf(env, "DD_TRACE_AGENT_URL", "DD_TRACE_AGENT_URL should not be injected in kube-system resource %v", pod.Name)
+			}
+		})
+
+		suite.Run("should not have datadog volumes mounted", func() {
+			for _, pod := range pods.Items {
+				volumeNames := make(map[string]bool)
+				for _, volume := range pod.Spec.Volumes {
+					volumeNames[volume.Name] = true
+				}
+
+				suite.NotContainsf(volumeNames, "datadog", "datadog volume should not be mounted in kube-system resource %v", pod.Name)
+				suite.NotContainsf(volumeNames, "datadog-auto-instrumentation", "APM library volume should not be mounted in kube-system resource %v", pod.Name)
+			}
+		})
+	})
 }
 
 func (suite *k8sSuite) TestContainerImage() {

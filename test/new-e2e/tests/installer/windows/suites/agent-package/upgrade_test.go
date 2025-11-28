@@ -574,6 +574,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 
 // TestDowngradeWithMissingInstallSource tests that a downgrade will succeed even if the original install source is missing
 func (s *testAgentUpgradeSuite) TestDowngradeWithMissingInstallSource() {
+	s.T().Skip("Skipping test due to removal of update install source custom action")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()

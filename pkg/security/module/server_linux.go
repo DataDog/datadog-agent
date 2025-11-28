@@ -15,7 +15,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -267,4 +269,30 @@ func (a *APIServer) collectOSReleaseData() {
 
 	a.kernelVersion = kv.Code.String()
 	a.distribution = fmt.Sprintf("%s - %s", kv.OsRelease["ID"], kv.OsRelease["VERSION_ID"])
+}
+
+type sshSessionPatcher = *probe.SSHUserSessionPatcher
+
+// createSSHSessionPatcher creates an SSH session patcher for Linux
+func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher {
+	// Check if SSH session exists
+	if ev.ProcessContext.UserSession.SSHSessionID != 0 {
+		// Access the EBPFProbe to get the UserSessionsResolver
+		if ebpfProbe, ok := p.PlatformProbe.(*probe.EBPFProbe); ok {
+			if model.UserSessionTypeStrings == nil {
+				model.InitUserSessionTypes()
+			}
+			// Create the user session context serializer
+			userSessionCtx := &serializers.SSHSessionContextSerializer{
+				SSHSessionID:  fmt.Sprintf("%x", ev.ProcessContext.UserSession.SSHSessionID),
+				SSHClientPort: ev.ProcessContext.UserSession.SSHClientPort,
+				SSHClientIP:   ev.ProcessContext.UserSession.SSHClientIP.IP.String(),
+			}
+			return probe.NewSSHUserSessionPatcher(
+				userSessionCtx,
+				ebpfProbe.Resolvers.UserSessionsResolver,
+			)
+		}
+	}
+	return nil
 }

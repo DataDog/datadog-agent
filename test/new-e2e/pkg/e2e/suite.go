@@ -92,7 +92,7 @@
 //		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 //		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 //		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
-//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+//		"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 //	)
 //
 //	type subTestSuite struct {
@@ -146,7 +146,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/cenkalti/backoff/v4"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,8 +154,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components"
+	"github.com/cenkalti/backoff/v4"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -711,8 +712,11 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
-	if bs.coverage {
-		bs.SaveCoverage(bs.coverageOutDir)
+	if bs.coverage && !bs.params.disableCoverage {
+		err := bs.SaveCoverage(bs.coverageOutDir)
+		if err != nil {
+			bs.T().Errorf("fatal errors were encounterned while computing coverage: %v", err)
+		}
 
 		bs.attachMetadataToCoverage(bs.coverageOutDir)
 	}
@@ -749,7 +753,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
 			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
+			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false,cancel_first=bool:true", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				bs.T().Logf("WARNING: Unable to destroy stack %s: %s", stackName, out)
@@ -777,7 +781,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // It is called by TearDownSuite if the coverage is enabled.
 // It can be manually called by the test suite if needed.
 // If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
-func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
+func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
 		// Create coverage folder if it doesn't exist
 		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
@@ -789,14 +793,15 @@ func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) {
 			}
 		}
 		result, err := coverageEnv.Coverage(coverageFolder)
-		if err != nil {
-			bs.T().Logf("WARNING: Coverage failed: %v", err)
-		}
 		bs.T().Logf("Coverage result: %s", result)
+		if err != nil {
+			return err
+		}
 	} else {
 		bs.T().Logf("WARNING: Coverage is enabled but the environment does not implement the Coverageable interface")
-		return
+		return nil
 	}
+	return nil
 }
 
 func (bs *BaseSuite[Env]) attachMetadataToCoverage(coverageDir string) {

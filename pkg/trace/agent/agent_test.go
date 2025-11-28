@@ -8,6 +8,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -34,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
 	"github.com/DataDog/datadog-agent/pkg/trace/event"
 	"github.com/DataDog/datadog-agent/pkg/trace/filters"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
@@ -129,6 +131,23 @@ func (m *mockTracerPayloadModifier) Modify(tp *pb.TracerPayload) {
 	m.lastPayload = tp
 }
 
+type mockContainerTagsBuffer struct {
+	containertagsbuffer.NoOpTagsBuffer
+	enabled    bool
+	returnTags []string
+	returnErr  error
+	pending    bool
+}
+
+func (m *mockContainerTagsBuffer) IsEnabled() bool {
+	return m.enabled
+}
+
+func (m *mockContainerTagsBuffer) AsyncEnrichment(_ string, cb func([]string, error), _ int64) bool {
+	cb(m.returnTags, m.returnErr)
+	return m.pending
+}
+
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
 // desired string
 func TestFormatTrace(t *testing.T) {
@@ -187,7 +206,7 @@ func TestStopWaits(t *testing.T) {
 	// Use select to avoid blocking if channel is closed
 	payload := &api.Payload{
 		TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 	}
 
 	select {
@@ -196,9 +215,9 @@ func TestStopWaits(t *testing.T) {
 	case <-ctx.Done():
 		// Context cancelled before we could send
 		t.Fatal("Context cancelled before payload could be sent")
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(2000 * time.Millisecond):
 		// Timeout - this shouldn't happen in normal operation.
-		// 500ms is used to allow worker goroutines to start and be ready
+		// 2000ms is used to allow worker goroutines to start and be ready
 		t.Fatal("Timeout sending payload to agent")
 	}
 
@@ -247,7 +266,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 
 		assert := assert.New(t)
@@ -277,7 +296,7 @@ func TestProcess(t *testing.T) {
 
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 
 		assert := assert.New(t)
@@ -317,7 +336,7 @@ func TestProcess(t *testing.T) {
 		}
 		agnt.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 
 		assert.Equal(t, 5555.0, span.Metrics["request.secret"])
@@ -2120,7 +2139,7 @@ func TestProbSamplerSetsChunkPriority(t *testing.T) {
 		conf:                 cfg,
 	}
 
-	keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, _ := a.traceSampling(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep)
 	// In order to ensure intake keeps this chunk we must override whatever priority was previously set on this chunk
 	// This is especially an issue for incoming OTLP spans where the chunk priority may have the "unset" value of -128
@@ -2373,14 +2392,14 @@ func TestSampleTrace(t *testing.T) {
 			}
 			a.SamplerMetrics.Add(a.NoPrioritySampler, a.ErrorsSampler, a.PrioritySampler, a.RareSampler)
 			tt.expectStatsd(statsd)
-			keep, _ := a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.traceSampling(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			metrics.Report()
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
 			tt.expectStatsdWithFeature(statsd)
-			keep, _ = a.traceSampling(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.traceSampling(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			metrics.Report()
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
@@ -2505,12 +2524,12 @@ func TestSample(t *testing.T) {
 			conf:              cfg,
 		}
 		t.Run(name, func(t *testing.T) {
-			keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ := a.sample(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keep, keep)
 			assert.Equal(t, !tt.keep, tt.trace.TraceChunk.DroppedTrace)
 			cfg.Features["error_rare_sample_tracer_drop"] = struct{}{}
 			defer delete(cfg.Features, "error_rare_sample_tracer_drop")
-			keep, _ = a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &tt.trace)
+			keep, _ = a.sample(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &tt.trace)
 			assert.Equal(t, tt.keepWithFeature, keep)
 			assert.Equal(t, !tt.keepWithFeature, tt.trace.TraceChunk.DroppedTrace)
 		})
@@ -2542,7 +2561,7 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 		SamplerMetrics:    sampler.NewMetrics(statsd),
 		conf:              cfg,
 	}
-	keep, _ := a.sample(now, info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, _ := a.sample(now, info.NewReceiverStats(true).GetTagStats(info.Tags{}), &pt)
 	assert.False(t, keep)
 	assert.Empty(t, pt.Root.Metrics["_dd.analyzed"])
 }
@@ -2610,7 +2629,7 @@ func TestPartialSamplingFree(t *testing.T) {
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 	agnt.Process(&api.Payload{
 		TracerPayload: tracerPayload,
-		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 	})
 	runtime.GC()
 	runtime.ReadMemStats(&m)
@@ -2827,7 +2846,7 @@ func runTraceProcessingBenchmark(b *testing.B, c *config.AgentConfig) {
 	for i := 0; i < b.N; i++ {
 		ta.Process(&api.Payload{
 			TracerPayload: testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(10, 8)),
-			Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
 		})
 	}
 }
@@ -3468,7 +3487,7 @@ func TestSampleWithPriorityNone(t *testing.T) {
 	}
 	// before := traceutil.CopyTraceChunk(pt.TraceChunk)
 	before := pt.TraceChunk.ShallowCopy()
-	keep, numEvents := agnt.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), &pt)
+	keep, numEvents := agnt.sample(time.Now(), info.NewReceiverStats(true).GetTagStats(info.Tags{}), &pt)
 	assert.True(t, keep) // Score Sampler should keep the trace.
 	assert.False(t, pt.TraceChunk.DroppedTrace)
 	assert.Equal(t, before, pt.TraceChunk)
@@ -3827,7 +3846,7 @@ func TestSingleSpanPlusAnalyticsEvents(t *testing.T) {
 	var b bytes.Buffer
 	oldLogger := log.SetLogger(log.NewBufferLogger(&b))
 	defer func() { log.SetLogger(oldLogger) }()
-	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats().GetTagStats(info.Tags{}), payload)
+	keep, numEvents := traceAgent.sample(time.Now(), info.NewReceiverStats(true).GetTagStats(info.Tags{}), payload)
 	assert.Equal(t, "[WARN] Detected both analytics events AND single span sampling in the same trace. Single span sampling wins because App Analytics is deprecated.", b.String())
 	assert.False(t, keep) //The sampling decision was FALSE but the trace itself is marked as not dropped
 	assert.False(t, payload.TraceChunk.DroppedTrace)
@@ -4050,4 +4069,198 @@ func TestUpdateAPIKey(t *testing.T) {
 	agnt.UpdateAPIKey("test", "foo")
 	tw := agnt.TraceWriter.(*mockTraceWriter)
 	assert.Equal(t, "foo", tw.apiKey)
+}
+
+func TestAgentWriteTagsBufferedChunks(t *testing.T) {
+	tests := []struct {
+		name             string
+		containerID      string
+		bufferEnabled    bool
+		inputTags        map[string]string
+		bufferReturnTags []string
+		bufferReturnErr  error
+		expectAsyncCall  bool
+		verifyTags       func(t *testing.T, writtenTags map[string]string)
+	}{
+		{
+			name:            "fast path no containerID",
+			containerID:     "",
+			bufferEnabled:   true,
+			expectAsyncCall: false,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:            "fast path buffer disabled",
+			containerID:     "cid-123",
+			bufferEnabled:   false,
+			expectAsyncCall: false,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:             "async enrichment success",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{"image:nginx", "env:prod"},
+			expectAsyncCall:  true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.Contains(t, tags, tagContainersTags)
+				assert.Equal(t, "image:nginx,env:prod", tags[tagContainersTags])
+			},
+		},
+		{
+			name:            "enrichment error",
+			containerID:     "cid-123",
+			bufferEnabled:   true,
+			bufferReturnErr: errors.New("timeout"),
+			expectAsyncCall: true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:             "empty tags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{},
+			expectAsyncCall:  true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.NotContains(t, tags, tagContainersTags)
+			},
+		},
+		{
+			name:             "keeps other existing non containertags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			inputTags:        map[string]string{"existing": "value"},
+			bufferReturnTags: []string{"new:tag"},
+			expectAsyncCall:  true,
+			verifyTags: func(t *testing.T, tags map[string]string) {
+				assert.Equal(t, "value", tags["existing"])
+				assert.Equal(t, "new:tag", tags[tagContainersTags])
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockWriter := &mockTraceWriter{}
+			mockBuffer := &mockContainerTagsBuffer{
+				enabled:    tt.bufferEnabled,
+				returnTags: tt.bufferReturnTags,
+				pending:    tt.expectAsyncCall,
+			}
+
+			agent := &Agent{
+				TraceWriter:         mockWriter,
+				ContainerTagsBuffer: mockBuffer,
+			}
+
+			payload := &writer.SampledChunks{
+				Size: 1024,
+				TracerPayload: &pb.TracerPayload{
+					ContainerID: tt.containerID,
+					Tags:        tt.inputTags,
+				},
+			}
+
+			agent.writeChunks(payload)
+
+			assert.Len(t, mockWriter.payloads, 1, "should have written exactly 1 chunk")
+			tt.verifyTags(t, mockWriter.payloads[0].TracerPayload.Tags)
+			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
+}
+
+func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
+	tests := []struct {
+		name                  string
+		containerID           string
+		bufferEnabled         bool
+		inputTags             map[string]string
+		bufferReturnTags      []string
+		bufferReturnErr       error
+		expectAsyncCall       bool
+		expectedContainerTags string
+	}{
+		{
+			name:            "fast path no containerID",
+			containerID:     "",
+			bufferEnabled:   true,
+			expectAsyncCall: false,
+		},
+		{
+			name:            "fast path buffer disabled",
+			containerID:     "cid-123",
+			bufferEnabled:   false,
+			expectAsyncCall: false,
+		},
+		{
+			name:                  "async enrichment success",
+			containerID:           "cid-123",
+			bufferEnabled:         true,
+			bufferReturnTags:      []string{"image:nginx", "env:prod"},
+			expectAsyncCall:       true,
+			expectedContainerTags: "image:nginx,env:prod",
+		},
+		{
+			name:            "enrichment error",
+			containerID:     "cid-123",
+			bufferEnabled:   true,
+			bufferReturnErr: errors.New("timeout"),
+			expectAsyncCall: true,
+		},
+		{
+			name:             "empty tags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{},
+			expectAsyncCall:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockWriter := &mockTraceWriter{}
+			mockBuffer := &mockContainerTagsBuffer{
+				enabled:    tt.bufferEnabled,
+				returnTags: tt.bufferReturnTags,
+				pending:    tt.expectAsyncCall,
+			}
+
+			agent := &Agent{
+				TraceWriterV1:       mockWriter,
+				ContainerTagsBuffer: mockBuffer,
+			}
+
+			payload := &writer.SampledChunksV1{
+				Size: 1024,
+				TracerPayload: &idx.InternalTracerPayload{
+					Strings:    idx.NewStringTable(),
+					Attributes: make(map[uint32]*idx.AnyValue),
+				},
+			}
+			for k, v := range tt.inputTags {
+				payload.TracerPayload.SetStringAttribute(k, v)
+			}
+			if tt.containerID != "" {
+				payload.TracerPayload.SetContainerID(tt.containerID)
+			}
+			agent.writeChunksV1(payload)
+
+			assert.Len(t, mockWriter.payloadsV1, 1, "should have written exactly 1 chunk")
+			tp := mockWriter.payloadsV1[0].TracerPayload
+			containerTags, hasContainerTags := tp.GetAttributeAsString(tagContainersTags)
+			if tt.expectedContainerTags == "" {
+				assert.False(t, hasContainerTags)
+			} else {
+				assert.Equal(t, tt.expectedContainerTags, containerTags)
+			}
+			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
 }

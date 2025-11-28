@@ -22,10 +22,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type roundTripperMock func(*http.Request) (*http.Response, error)
@@ -491,6 +492,48 @@ func TestEVPProxyForwarder(t *testing.T) {
 		assert.Equal(t, "Allowed-Header", proxyreq.Header.Get("DD-CI-PROVIDER-NAME"))
 		assert.NotContains(t, proxyreq.Header, "Unexpected-Header")
 		assert.NotContains(t, proxyreq.Header, "X-Datadog-EVP-Subdomain")
+		assert.NotContains(t, proxyreq.Header, "X-Datadog-Error-Tracking-Standalone")
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("error-tracking-standalone-header-added", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.ErrorTrackingStandalone = true
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		assert.Contains(t, proxyreq.Header, "X-Datadog-Error-Tracking-Standalone")
+		assert.Equal(t, "", logs)
+	})
+
+	t.Run("error-tracking-standalone-header-exists", func(t *testing.T) {
+		stats.Reset()
+
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.ErrorTrackingStandalone = true
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "orig")
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
+
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		resp.Body.Close()
+		require.Len(t, proxyreqs, 1)
+		proxyreq := proxyreqs[0]
+		assert.Equal(t, proxyreq.Header.Get("X-Datadog-Error-Tracking-Standalone"), "true")
 		assert.Equal(t, "", logs)
 	})
 }

@@ -608,10 +608,17 @@ func findCertificatesInStore(storeHandle windows.Handle, subjectFilters []string
 				}
 			}
 
+			certThumbprint, err := getCertThumbprint(certContext)
+			if err != nil {
+				log.Errorf("Error getting certificate thumbprint: %v", err)
+				continue
+			}
+
 			certificates = append(certificates, certInfo{
 				Certificate:      cert,
 				TrustStatusError: trustStatusError,
 				ChainPolicyError: chainPolicyError,
+				Thumbprint:       certThumbprint,
 			})
 		}
 	}

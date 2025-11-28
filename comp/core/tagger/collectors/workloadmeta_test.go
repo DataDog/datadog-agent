@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -2829,9 +2830,34 @@ func TestHandleProcess(t *testing.T) {
 		serviceNameFromDD = "my-service"
 		envFromDD         = "production"
 		versionFromDD     = "1.2.3"
+		gpuUUID           = "gpu-uuid-123"
+		gpuVendor         = "NVIDIA"
+		gpuDevice         = "Tesla V100"
+		gpuDriverVersion  = "525.60.13"
+		gpuVirtMode       = "none"
 	)
 
-	collector := &WorkloadMetaCollector{}
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	// Add GPU entity to store for GPU-related tests
+	store.Set(&workloadmeta.GPU{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindGPU,
+			ID:   gpuUUID,
+		},
+		Vendor:             gpuVendor,
+		Device:             gpuDevice,
+		DriverVersion:      gpuDriverVersion,
+		VirtualizationMode: gpuVirtMode,
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	tests := []struct {
 		name            string
@@ -3096,6 +3122,12 @@ func TestHandleProcess(t *testing.T) {
 							ServiceEnv: "test",
 						},
 						{
+							// These will be skipped because they match the UST tags
+							ServiceName:    serviceNameFromDD,
+							ServiceEnv:     envFromDD,
+							ServiceVersion: versionFromDD,
+						},
+						{
 							ServiceName:    "second-tracer-service",
 							ServiceEnv:     envFromDD,
 							ServiceVersion: "2.0.0",
@@ -3109,29 +3141,136 @@ func TestHandleProcess(t *testing.T) {
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
 					fmt.Sprintf("env:%s", envFromDD),
-					"env:dev",
-					"env:test",
 					"framework:express",
 					"runtime:nodejs",
+					"tracer_service_env:dev",
+					"tracer_service_env:test",
+					"tracer_service_name:first-tracer-service",
+					"tracer_service_name:second-tracer-service",
+					"tracer_service_version:1.0.0",
+					"tracer_service_version:2.0.0",
 					fmt.Sprintf("service:%s", serviceNameFromDD),
-					"service:first-tracer-service",
-					"service:second-tracer-service",
 					fmt.Sprintf("version:%s", versionFromDD),
-					"version:1.0.0",
-					"version:2.0.0",
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
 					fmt.Sprintf("env:%s", envFromDD),
-					"env:dev",
-					"env:test",
 					fmt.Sprintf("service:%s", serviceNameFromDD),
-					"service:first-tracer-service",
-					"service:second-tracer-service",
 					fmt.Sprintf("version:%s", versionFromDD),
-					"version:1.0.0",
-					"version:2.0.0",
+				},
+			},
+		},
+		{
+			name: "process with GPU reference but no service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   gpuUUID,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("gpu_device:%s", strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_"))),
+					fmt.Sprintf("gpu_driver_version:%s", gpuDriverVersion),
+					fmt.Sprintf("gpu_uuid:%s", strings.ToLower(gpuUUID)),
+					fmt.Sprintf("gpu_vendor:%s", strings.ToLower(gpuVendor)),
+					fmt.Sprintf("gpu_virtualization_mode:%s", gpuVirtMode),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags:         []string{},
+			},
+		},
+		{
+			name: "process with GPU reference and service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   gpuUUID,
+					},
+				},
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("gpu_device:%s", strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_"))),
+					fmt.Sprintf("gpu_driver_version:%s", gpuDriverVersion),
+					fmt.Sprintf("gpu_uuid:%s", strings.ToLower(gpuUUID)),
+					fmt.Sprintf("gpu_vendor:%s", strings.ToLower(gpuVendor)),
+					fmt.Sprintf("gpu_virtualization_mode:%s", gpuVirtMode),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+			},
+		},
+		{
+			name: "process with GPU reference but GPU entity not found in store",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   "non-existent-gpu",
+					},
+				},
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					fmt.Sprintf("env:%s", envFromDD),
+					fmt.Sprintf("service:%s", serviceNameFromDD),
+					fmt.Sprintf("version:%s", versionFromDD),
 				},
 			},
 		},
@@ -3152,78 +3291,6 @@ func TestHandleProcess(t *testing.T) {
 				require.Len(t, result, 1)
 				assertTagInfoEqual(t, tt.expectedTagInfo, result[0])
 			}
-		})
-	}
-}
-
-func TestParseProcessTags(t *testing.T) {
-	tests := []struct {
-		name         string
-		processTags  string
-		expectedTags []string
-	}{
-		{
-			name:        "valid comma-separated tags",
-			processTags: "entrypoint.name:com.example.App,service.type:tomcat,service.framework:spring",
-			expectedTags: []string{
-				"entrypoint.name:com.example.App",
-				"service.framework:spring",
-				"service.type:tomcat",
-			},
-		},
-		{
-			name:        "single tag",
-			processTags: "entrypoint.workdir:app",
-			expectedTags: []string{
-				"entrypoint.workdir:app",
-			},
-		},
-		{
-			name:         "empty string",
-			processTags:  "",
-			expectedTags: []string{},
-		},
-		{
-			name:        "tags with spaces",
-			processTags: " service.runtime : java-17 , entrypoint.name : com.app.Main ",
-			expectedTags: []string{
-				"entrypoint.name:com.app.Main",
-				"service.runtime:java-17",
-			},
-		},
-		{
-			name:        "tag with colon in value",
-			processTags: "url:http://example.com:8080",
-			expectedTags: []string{
-				"url:http://example.com:8080",
-			},
-		},
-		{
-			name:         "malformed tag without colon",
-			processTags:  "invalid_tag,service.type:nginx",
-			expectedTags: []string{"service.type:nginx"},
-		},
-		{
-			name:         "tags with empty keys or values",
-			processTags:  ":value,key:,service.runtime:python3.9",
-			expectedTags: []string{"service.runtime:python3.9"},
-		},
-		{
-			name:         "empty tag entries",
-			processTags:  "service.framework:django,,entrypoint.name:manage.py,",
-			expectedTags: []string{"entrypoint.name:manage.py", "service.framework:django"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tagList := taglist.NewTagList()
-			parseProcessTags(tagList, tt.processTags)
-
-			low, _, _, _ := tagList.Compute()
-			sort.Strings(low)
-			sort.Strings(tt.expectedTags)
-			assert.Equal(t, tt.expectedTags, low)
 		})
 	}
 }

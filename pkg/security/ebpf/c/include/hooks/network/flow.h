@@ -148,8 +148,9 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
 
         #if defined(DEBUG_NETWORK_FLOW)
+        print_route(&key);
         print_route_entry(&value);
-        bpf_printk("|--> new flow registered !", value.pid, key.netns);
+        bpf_printk("|--> new flow registered ! %d, %lu", value.pid, key.netns);
         #endif
     }
     return 0;
@@ -236,8 +237,8 @@ int hook_nf_ct_delete(ctx_t *ctx) {
 
 #if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("nf_ct_delete");
-    bpf_printk(" - src p:%d a:%lu a:%lu", orig.flow.sport, orig.flow.saddr[0], orig.flow.saddr[1]);
-    bpf_printk(" - dst p:%d a:%lu a:%lu", orig.flow.dport, orig.flow.daddr[0], orig.flow.daddr[1]);
+    bpf_printk(" - src p:%d a:%lu a:%lu", orig.flow.tcp_udp.sport, orig.flow.saddr[0], orig.flow.saddr[1]);
+    bpf_printk(" - dst p:%d a:%lu a:%lu", orig.flow.tcp_udp.dport, orig.flow.daddr[0], orig.flow.daddr[1]);
 #endif
 
     // clean up entries in the conntrack map

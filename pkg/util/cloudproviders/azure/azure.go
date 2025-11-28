@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -94,6 +95,23 @@ func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+var instanceTypeFetcher = cachedfetch.Fetcher{
+	Name: "Azure Instance Type",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		instanceType, err := getResponse(ctx,
+			metadataURL+"/metadata/instance/compute/vmSize?api-version=2021-02-01&format=text")
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure instance type: %s", err)
+		}
+		return instanceType, nil
+	},
+}
+
+// GetInstanceType returns the instance type as reported by Azure instance metadata.
+func GetInstanceType(ctx context.Context) (string, error) {
+	return instanceTypeFetcher.FetchString(ctx)
+}
+
 func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
 	result, err := getResponse(ctx, endpoint)
 	if err != nil {
@@ -106,7 +124,7 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 

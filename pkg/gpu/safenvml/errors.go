@@ -61,3 +61,9 @@ func IsTimeout(err error) bool {
 	var nvmlErr *NvmlAPIError
 	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_TIMEOUT)
 }
+
+// IsDriverNotLoaded checks if an error indicates that the driver is not loaded
+func IsDriverNotLoaded(err error) bool {
+	var nvmlErr *NvmlAPIError
+	return err != nil && errors.As(err, &nvmlErr) && errors.Is(nvmlErr.NvmlErrorCode, nvml.ERROR_DRIVER_NOT_LOADED)
+}

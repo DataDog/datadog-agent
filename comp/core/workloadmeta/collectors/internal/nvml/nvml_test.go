@@ -9,6 +9,8 @@ package nvml
 
 import (
 	"context"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -23,11 +25,7 @@ func TestPull(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMock()
 
-	c := &collector{
-		id:      collectorID,
-		catalog: workloadmeta.NodeAgent,
-		store:   wmetaMock,
-	}
+	c := newCollector(wmetaMock, nil)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -90,11 +88,7 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
 	nvmlMock := testutil.GetBasicNvmlMock()
 
-	c := &collector{
-		id:      collectorID,
-		catalog: workloadmeta.NodeAgent,
-		store:   wmetaMock,
-	}
+	c := newCollector(wmetaMock, nil)
 
 	ddnvml.WithMockNVML(t, nvmlMock)
 
@@ -132,4 +126,180 @@ func TestGpuProcessInfoUpdate(t *testing.T) {
 	for _, gpu := range gpus {
 		require.Equal(t, expectedActivePIDs, gpu.ActivePIDs)
 	}
+}
+
+func TestProcessEntities(t *testing.T) {
+	processInfo := make(map[string][]nvml.ProcessInfo)
+
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithProcessInfoCallback(func(uuid string) ([]nvml.ProcessInfo, nvml.Return) {
+		return processInfo[uuid], nvml.SUCCESS
+	}))
+
+	c := newCollector(wmetaMock, nil)
+	c.integrateWithWorkloadmetaProcesses = true
+
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	// Pull first, we have no process info so we should have no Process entities
+	c.Pull(context.Background())
+
+	processes := wmetaMock.ListProcesses()
+	require.Equal(t, 0, len(processes))
+
+	// Add process info for the first GPU
+	pid0 := int32(1234)
+	processInfo[testutil.GPUUUIDs[0]] = []nvml.ProcessInfo{
+		{Pid: uint32(pid0), UsedGpuMemory: 100},
+	}
+
+	// Pull again, we should have one Process entity
+	c.Pull(context.Background())
+	processes = wmetaMock.ListProcesses()
+	require.Equal(t, 1, len(processes))
+	require.Equal(t, testutil.GPUUUIDs[0], processes[0].GPUs[0].ID)
+	require.Equal(t, pid0, processes[0].Pid)
+
+	// Add a new process that's using the second and third GPUs, while the one for the first GPU is still present
+	pid1 := int32(5678)
+	processInfo[testutil.GPUUUIDs[1]] = []nvml.ProcessInfo{
+		{Pid: uint32(pid1), UsedGpuMemory: 200},
+	}
+	processInfo[testutil.GPUUUIDs[2]] = []nvml.ProcessInfo{
+		{Pid: uint32(pid1), UsedGpuMemory: 300},
+	}
+
+	// Pull again, we should have two Process entities, one for the first GPU and one for the second and third GPUs
+	c.Pull(context.Background())
+	processes = wmetaMock.ListProcesses()
+	require.Equal(t, 2, len(processes))
+
+	foundPid0, foundPid1 := false, false
+	for _, process := range processes {
+		if process.Pid == pid0 {
+			foundPid0 = true
+			require.Equal(t, 1, len(process.GPUs))
+			require.Equal(t, testutil.GPUUUIDs[0], process.GPUs[0].ID)
+		} else if process.Pid == pid1 {
+			foundPid1 = true
+			require.Equal(t, 2, len(process.GPUs))
+			require.True(t, slices.Contains(testutil.GPUUUIDs, process.GPUs[0].ID))
+			require.True(t, slices.Contains(testutil.GPUUUIDs, process.GPUs[1].ID))
+		}
+	}
+	require.True(t, foundPid0, "Process with PID %d not found", pid0)
+	require.True(t, foundPid1, "Process with PID %d not found", pid1)
+
+	// Now remove the process info for the first GPU
+	processInfo[testutil.GPUUUIDs[0]] = []nvml.ProcessInfo{}
+
+	// Pull again, we should have one Process entity, for the second and third GPUs
+	c.Pull(context.Background())
+	processes = wmetaMock.ListProcesses()
+	require.Equal(t, 1, len(processes))
+	require.Equal(t, testutil.GPUUUIDs[1], processes[0].GPUs[0].ID)
+	require.Equal(t, pid1, processes[0].Pid)
+	require.Equal(t, 2, len(processes[0].GPUs))
+	require.True(t, slices.Contains(testutil.GPUUUIDs, processes[0].GPUs[0].ID))
+	require.True(t, slices.Contains(testutil.GPUUUIDs, processes[0].GPUs[1].ID))
+
+	// Now remove the process info for the second and third GPUs
+	processInfo[testutil.GPUUUIDs[1]] = []nvml.ProcessInfo{}
+	processInfo[testutil.GPUUUIDs[2]] = []nvml.ProcessInfo{}
+
+	// Pull again, we should have no Process entities
+	c.Pull(context.Background())
+	processes = wmetaMock.ListProcesses()
+	require.Equal(t, 0, len(processes))
+}
+
+func TestProcessEntityMerging(t *testing.T) {
+	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	pid := int32(1234)
+	procinfo := []nvml.ProcessInfo{
+		{Pid: uint32(pid), UsedGpuMemory: 100},
+	}
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithDeviceCount(1),
+		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
+			return procinfo, nvml.SUCCESS
+		}))
+
+	c := newCollector(wmetaMock, nil)
+	c.integrateWithWorkloadmetaProcesses = true
+
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	// First, create Process entity from GPU collector
+	c.Pull(context.Background())
+
+	gpus := wmetaMock.ListGPUs()
+	require.Len(t, gpus, 1)
+
+	// Verify Process entity from GPU collector
+	gpuProcess, err := wmetaMock.GetProcess(pid)
+	require.NoError(t, err)
+	require.NotNil(t, gpuProcess)
+	require.NotEmpty(t, gpuProcess.GPUs)
+
+	// Now create Process entity from service discovery
+	serviceDiscoveryProcess := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(pid)),
+		},
+		Pid: pid,
+		Service: &workloadmeta.Service{
+			GeneratedName: "test-service",
+			TCPPorts:      []uint16{8080},
+		},
+	}
+
+	// Notify store with service discovery source
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{
+		{
+			Source: workloadmeta.SourceServiceDiscovery,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: serviceDiscoveryProcess,
+		},
+	})
+
+	// Verify merged Process entity
+	mergedProcess, err := wmetaMock.GetProcess(pid)
+	require.NoError(t, err)
+	require.NotNil(t, mergedProcess)
+	// Should have GPU field from GPU collector
+	require.NotEmpty(t, mergedProcess.GPUs)
+	// Should have Service data from service discovery
+	require.NotNil(t, mergedProcess.Service)
+	require.Equal(t, "test-service", mergedProcess.Service.GeneratedName)
+	require.Equal(t, []uint16{8080}, mergedProcess.Service.TCPPorts)
+
+	// Now remove the PID from GPU ActivePIDs
+	procinfo = []nvml.ProcessInfo{}
+
+	// Pull again to trigger unset event from SourceNVML
+	c.Pull(context.Background())
+
+	// Verify Process entity still exists (because service discovery still has it)
+	stillExistingProcess, err := wmetaMock.GetProcess(pid)
+	require.NoError(t, err)
+	require.NotNil(t, stillExistingProcess, "Process entity should still exist after GPU removal")
+	// GPU field should be nil since SourceNVML unset it
+	require.Empty(t, stillExistingProcess.GPUs, "GPU field should be empty after SourceNVML unset")
+	// Service data should still be present from service discovery
+	require.NotNil(t, stillExistingProcess.Service)
+	require.Equal(t, "test-service", stillExistingProcess.Service.GeneratedName)
+	require.Equal(t, []uint16{8080}, stillExistingProcess.Service.TCPPorts)
+
+	// Check that the process gets removed from the store once the unset from service discovery is sent
+	wmetaMock.Notify([]workloadmeta.CollectorEvent{
+		{
+			Source: workloadmeta.SourceServiceDiscovery,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: serviceDiscoveryProcess,
+		},
+	})
+	processes := wmetaMock.ListProcesses()
+	require.Equal(t, 0, len(processes))
 }

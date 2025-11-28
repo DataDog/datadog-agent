@@ -111,6 +111,13 @@ func CreateTargetDir() (string, error) {
 
 // WaitForResult wait for self test results
 func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.RuleID)) {
+	t.Lock()
+	isClosed := t.isClosed
+	t.Unlock()
+	if isClosed {
+		return
+	}
+
 	for timeout := range t.selfTestRunning {
 		timer := time.After(timeout)
 
@@ -149,6 +156,11 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 		}
 
 		t.Lock()
+		if t.isClosed {
+			t.Unlock()
+			return
+		}
+
 		for _, selfTest := range t.selfTests {
 			id := selfTest.GetRuleDefinition().ID
 
@@ -199,10 +211,10 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 	}
 
 	pInfo := &rules.PolicyInfo{
-		Name:       policyName,
-		Source:     policySource,
-		Type:       rules.SelftestPolicy,
-		IsInternal: true,
+		Name:         policyName,
+		Source:       policySource,
+		InternalType: rules.SelftestPolicyType,
+		IsInternal:   true,
 	}
 
 	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
@@ -239,14 +251,14 @@ type selfTestEvent struct {
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *probe.Probe) bool {
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, probe *probe.Probe) bool {
 	if t.waitingForEvent.Load() && rule.Policy.Source == policySource {
 		ev, ok := event.(*model.Event)
 		if !ok {
 			return true
 		}
 
-		s := serializers.NewEventSerializer(ev, rule)
+		s := serializers.NewEventSerializer(ev, rule, probe.GetScrubber())
 		if s == nil {
 			return false
 		}

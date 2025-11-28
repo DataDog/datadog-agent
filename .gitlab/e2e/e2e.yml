@@ -3,12 +3,15 @@
 # Contains test jobs based on the new-e2e tests framework
 .new_e2e_template:
   stage: e2e
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs:
     - !reference [.needs_new_e2e_template]
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
+    - !reference [.retrieve_linux_pulumi_plugins]
+    - !reference [.retrieve_linux_go_tools_deps]
+    - dda inv -- -e install-tools
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |
@@ -89,7 +92,7 @@
     - export IS_DEV_BRANCH="$(dda inv -- -e pipeline.is-dev-branch)"
     - DYNAMIC_TESTS_BREAKGLASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DYNAMIC_TESTS_BREAKGLASS value) || exit $?; export DYNAMIC_TESTS_BREAKGLASS
     - |
-      if [ "$DYNAMIC_TESTS_BREAKGLASS" = "true" ] || [ "$IS_DEV_BRANCH" = "false" ] || [ RUN_E2E_TESTS == "on" ]; then
+      if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
     - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
@@ -116,11 +119,11 @@
     reports:
       annotations:
         - $EXTERNAL_LINKS_PATH
-  retry: !reference [.retry_only_infra_failure, retry]
 
 .needs_new_e2e_template:
   - go_e2e_deps
   - go_e2e_test_binaries
+  - go_tools_deps
   - job: new-e2e-base-coverage
     optional: true
 
@@ -129,6 +132,7 @@ new-e2e-base-coverage:
   needs:
     - go_e2e_deps
     - go_e2e_test_binaries
+    - go_tools_deps
     - agent_deb-x64-a7
   rules:
     - !reference [.except_mergequeue]
@@ -142,6 +146,7 @@ new-e2e-base:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
+    - go_tools_deps
     - go_e2e_test_binaries
     - agent_deb-x64-a7
   rules:
@@ -157,7 +162,7 @@ new-e2e-base:
 # This job runs early in the pipeline and creates artifacts that can be reused by test jobs
 go_e2e_test_binaries:
   stage: binary_build
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
@@ -235,6 +240,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
       - EXTRA_PARAMS: --run TestECSSuite
@@ -246,6 +252,7 @@ new-e2e-containers-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
+    - go_tools_deps
   rules:
     - !reference [.on_container_or_e2e_changes]
     - !reference [.manual]
@@ -259,6 +266,8 @@ new-e2e-containers-eks-init:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-containers-eks:
   extends: .new_e2e_template_needs_container_deploy
@@ -274,6 +283,8 @@ new-e2e-containers-eks:
     EXTRA_PARAMS: --run TestEKSSuite
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
@@ -303,7 +314,6 @@ new-e2e-agent-runtimes:
     TARGETS: ./tests/agent-runtimes
     TEAM: agent-runtimes
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -314,7 +324,6 @@ new-e2e-agent-subcommands:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-configuration
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "Test(Linux|Windows)StatusSuite"
@@ -377,7 +386,6 @@ new-e2e-windows-service-test:
     TARGETS: ./tests/windows/service-test
     TEAM: windows-products
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestServiceBehaviorAgentCommand
@@ -405,7 +413,6 @@ new-e2e-windows-certificate:
     TARGETS: ./tests/windows/windows-certificate
     TEAM: windows-products
     EXTRA_PARAMS: --run "TestRemoteCertificates$"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -416,7 +423,6 @@ new-e2e-language-detection:
     TARGETS: ./tests/language-detection
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
@@ -454,6 +460,7 @@ new-e2e-npm-eks-init:
   extends: .new_e2e_template
   needs:
     - go_e2e_deps
+    - go_tools_deps
   rules:
     - !reference [.on_npm_or_e2e_changes]
     - !reference [.manual]
@@ -467,6 +474,8 @@ new-e2e-npm-eks-init:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-npm-eks:
   extends: .new_e2e_template
@@ -484,6 +493,8 @@ new-e2e-npm-eks:
     EXTRA_PARAMS: --run "TestEKSVMSuite"
     E2E_PRE_INITIALIZED: "true"
     ON_NIGHTLY_FIPS: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-npm:
   extends: .new_e2e_template
@@ -533,6 +544,10 @@ new-e2e-alp:
   variables:
     TARGETS: ./tests/agent-log-pipelines
     TEAM: agent-log-pipelines
+  # Temporary for #incident-44744
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-cws:
   extends: .new_e2e_template
@@ -553,13 +568,15 @@ new-e2e-cws:
     # ON_NIGHTLY_FIPS: "true"
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestAgentSuite(EC2|GCP)
+      - EXTRA_PARAMS: --run TestAgentSuiteEC2
+      - EXTRA_PARAMS: --run TestAgentSuiteGCP
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-discovery:
   extends: .new_e2e_template
@@ -590,7 +607,6 @@ new-e2e-process:
     TARGETS: ./tests/process
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-orchestrator:
   extends:
@@ -600,7 +616,7 @@ new-e2e-orchestrator:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/orchestrator
-    TEAM: container-app
+    TEAM: kubernetes-experiences
     ON_NIGHTLY_FIPS: "true"
   timeout: 55m
 
@@ -625,6 +641,41 @@ new-e2e-apm:
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteUDS
       - EXTRA_PARAMS: --run TestVMFakeintakeSuiteTCP
 
+.new_e2e_fleet_template:
+  extends: .new_e2e_template
+  rules:
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
+    - deploy_installer_oci
+    - deploy_agent_oci
+    - deploy_ddot_oci
+    - qa_installer_script_linux
+    - qa_installer_script_windows
+  variables:
+    TEAM: fleet
+    E2E_USE_AWS_PROFILE: "false"
+    MAX_RETRIES_FLAG: "--max-retries=3"
+    TARGETS: ./tests/fleet
+
+new-e2e-fleet-config:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetConfig
+
+new-e2e-fleet-upgrade:
+  extends: .new_e2e_fleet_template
+  variables:
+    EXTRA_PARAMS: --run TestFleetUpgrade
+
 new-e2e-installer-script:
   extends: .new_e2e_template
   rules:
@@ -647,7 +698,6 @@ new-e2e-installer-script:
     FLEET_INSTALL_METHOD: "install_script"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-installer:
   extends: .new_e2e_template
@@ -662,9 +712,12 @@ new-e2e-installer:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_linux
+    - qa_installer_script_windows
+    - deploy_ddot_oci
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
@@ -672,7 +725,6 @@ new-e2e-installer:
     E2E_LOGS_PROCESSING_TEST_DEPTH: 2
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-installer-ansible:
   extends: .new_e2e_template
@@ -687,15 +739,16 @@ new-e2e-installer-ansible:
     - deploy_rpm_testing-a7_x64
     - deploy_suse_rpm_testing_arm64-a7
     - deploy_suse_rpm_testing_x64-a7
+    - deploy_windows_testing-a7
     - deploy_installer_oci
     - deploy_agent_oci
+    - qa_installer_script_windows
   variables:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
@@ -735,7 +788,6 @@ new-e2e-ha-agent:
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --skip TestHAAgentFailoverSuite
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-ha-agent-failover:
   extends: .new_e2e_template_needs_deb_x64
@@ -748,6 +800,7 @@ new-e2e-ha-agent-failover:
     ON_NIGHTLY_FIPS: "true"
     EXTRA_PARAMS: --run TestHAAgentFailoverSuite
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-netpath:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -772,7 +825,6 @@ new-e2e-windows-systemprobe:
   variables:
     TARGETS: ./tests/sysprobe-functional
     TEAM: windows-products
-    REMOTE_STACK_CLEANING: "true"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestUSMAutoTaggingSuite
@@ -790,7 +842,6 @@ new-e2e-windows-security-agent:
   variables:
     TARGETS: ./tests/security-agent-functional
     TEAM: windows-products
-    REMOTE_STACK_CLEANING: "true"
 
 new-e2e-otel-eks-init:
   stage: e2e_init
@@ -800,6 +851,7 @@ new-e2e-otel-eks-init:
     - !reference [.manual]
   needs:
     - go_e2e_deps
+    - go_tools_deps
   variables:
     TARGETS: ./tests/otel
     TEAM: otel
@@ -810,6 +862,8 @@ new-e2e-otel-eks-init:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-otel-eks:
   extends: .new_e2e_template
@@ -827,6 +881,8 @@ new-e2e-otel-eks:
     EXTRA_PARAMS: --run "TestOTelAgentIA(EKS|USTEKS)"
     TEAM: otel
     E2E_PRE_INITIALIZED: "true"
+  retry: !reference [.retry_only_infra_failure, retry]
+
 
 new-e2e-otel:
   extends: .new_e2e_template
@@ -902,7 +958,6 @@ new-e2e-gpu:
     TEAM: ebpf-platform
     E2E_PULUMI_LOG_LEVEL: 10 # incident-33572
     ON_NIGHTLY_FIPS: "true"
-    REMOTE_STACK_CLEANING: "true"
   needs: # list of required jobs. By default gitlab waits for any previous jobs.
     - !reference [.new_e2e_template_needs_container_deploy, needs]
     - agent_deb-x64-a7 # agent 7 debian package
@@ -912,7 +967,31 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUK8sSuiteUbuntu2204"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver510"
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
+  retry: !reference [.retry_only_infra_failure, retry]
+  allow_failure: true
 
+all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
+  stage: e2e
+  tags: ["arch:amd64", "specific:true"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.on_deploy_nightly_repo_branch]
+    - !reference [.manual]
+  needs:
+    - agent_deb-x64-a7
+    - agent_deb-x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7-fips
+    - windows_msi_and_bosh_zip_x64-a7
+    - agent_rpm-x64-a7
+    - agent_suse-x64-a7
+  script:
+    - exit 0
+  artifacts:
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+      - $OMNIBUS_PACKAGE_DIR_SUSE
+    expire_in: 1 day
 generate-flakes-finder-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   stage: e2e
@@ -920,7 +999,9 @@ generate-flakes-finder-pipeline:
     - !reference [.except_disable_e2e_tests]
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
+  dependencies: [compute_gitlab_ci_config]
   needs:
+    - all-artifacts
     - compute_gitlab_ci_config
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -973,6 +1054,7 @@ generate-fips-e2e-pipeline:
     - !reference [.on_deploy_nightly_repo_branch]
     - !reference [.manual]
   needs:
+    - all-artifacts
     - agent_deb-x64-a7-fips
     - agent_deb-x64-a7
     - windows_msi_and_bosh_zip_x64-a7-fips
@@ -1023,7 +1105,7 @@ trigger-fips-e2e:
     strategy: depend
 
 new-e2e-cleanup-on-failure:
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   stage: e2e_cleanup
   dependencies: [go_e2e_deps]

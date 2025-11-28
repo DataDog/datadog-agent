@@ -38,6 +38,8 @@ type Options struct {
 	ReadTimeout         time.Duration
 	WriteTimeout        time.Duration
 	SlowResponse        time.Duration
+	CertPath            string
+	KeyPath             string
 }
 
 func isNetIPV4TCPTimestampEnabled(t *testing.T) bool {

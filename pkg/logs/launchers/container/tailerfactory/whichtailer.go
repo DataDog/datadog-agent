@@ -39,8 +39,13 @@ func (tf *factory) whichTailer(source *sources.LogSource) whichTailer {
 	// The user configuration consulted is different depending on what we are
 	// logging.  Note that we assume that by the time we have gotten a source
 	// from AD, it is clear what we are logging.  The `Wait` here should return
-	// quickly.
-	logWhat := tf.cop.Wait(context.Background())
+	// quickly. But it doesn't if there is no docker socket, in case of Podman for example.
+	// Make expiring context to run detection on.
+	to := pkgconfigsetup.Datadog().GetDuration("logs_config.container_runtime_waiting_timeout")
+	ctx, cancel := context.WithTimeout(context.Background(), to)
+	defer cancel()
+
+	logWhat := tf.cop.Wait(ctx)
 
 	switch logWhat {
 	case containersorpods.LogContainers:

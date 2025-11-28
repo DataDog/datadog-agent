@@ -485,3 +485,74 @@ func TestEnableCertCollection(t *testing.T) {
 		assert.Equal(t, true, cfg.EnableCertCollection)
 	})
 }
+
+func TestEnableCertCollectionMapCleanerInterval(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, 30*time.Second, cfg.CertCollectionMapCleanerInterval)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("network_config.cert_collection_map_cleaner_interval", 60*time.Second)
+		cfg := New()
+
+		assert.Equal(t, 60*time.Second, cfg.CertCollectionMapCleanerInterval)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_NETWORK_CONFIG_CERT_COLLECTION_MAP_CLEANER_INTERVAL", "42s")
+		cfg := New()
+
+		assert.Equal(t, 42*time.Second, cfg.CertCollectionMapCleanerInterval)
+	})
+}
+
+func TestEnableContainerStore(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableContainerStore)
+	})
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.enabled", true)
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableContainerStore)
+	})
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_CONTAINER_STORE_ENABLED", "true")
+		cfg := New()
+
+		assert.Equal(t, true, cfg.EnableContainerStore)
+	})
+}
+
+func TestMaxContainersTracked(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.Equal(t, 1024, cfg.MaxContainersTracked)
+	})
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("event_monitoring_config.network_process.container_store.max_containers_tracked", 42)
+		cfg := New()
+
+		assert.Equal(t, 42, cfg.MaxContainersTracked)
+	})
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_EVENT_MONITORING_CONFIG_NETWORK_PROCESS_CONTAINER_STORE_MAX_CONTAINERS_TRACKED", "42")
+		cfg := New()
+
+		assert.Equal(t, 42, cfg.MaxContainersTracked)
+	})
+}

@@ -31,9 +31,6 @@ var processDiscoveryCheckConfigStr string
 //go:embed config/process_check_in_core_agent.yaml
 var processCheckInCoreAgentConfigStr string
 
-//go:embed config/process_check_in_core_agent_wlm_process_collector.yaml
-var processCheckInCoreAgentWLMProcessCollectorConfigStr string
-
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
 
@@ -363,6 +360,14 @@ func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool
 
 	assertProcesses(t, procs, withIOStats, process)
 	assertManualContainerCheck(t, check, expectedContainers...)
+}
+
+// assertManualRTProcessCheck asserts that the realtime manual check output contains at least one process stat
+func assertManualRTProcessCheck(t require.TestingT, check string) {
+	var rt agentmodel.CollectorRealTime
+	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
+	require.NoError(t, err)
+	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check

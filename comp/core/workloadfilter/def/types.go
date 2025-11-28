@@ -6,7 +6,10 @@
 package workloadfilter
 
 import (
-	typedef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def/proto"
+	"fmt"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 // RuleBundle defines rules that apply to specific products
@@ -77,6 +80,42 @@ func GetAllResourceTypes() []ResourceType {
 	}
 }
 
+// Rules defines the rules for filtering different resource types.
+type Rules struct {
+	Containers    []string `yaml:"containers" json:"containers"`
+	Processes     []string `yaml:"processes" json:"processes"`
+	Pods          []string `yaml:"pods" json:"pods"`
+	KubeServices  []string `yaml:"kube_services" json:"kube_services"`
+	KubeEndpoints []string `yaml:"kube_endpoints" json:"kube_endpoints"`
+}
+
+// String returns a string representation of the Rules struct, only showing non-empty fields.
+func (r Rules) String() string {
+	var parts []string
+
+	if len(r.Containers) > 0 {
+		parts = append(parts, fmt.Sprintf("containers:%v", r.Containers))
+	}
+	if len(r.Processes) > 0 {
+		parts = append(parts, fmt.Sprintf("processes:%v", r.Processes))
+	}
+	if len(r.Pods) > 0 {
+		parts = append(parts, fmt.Sprintf("pods:%v", r.Pods))
+	}
+	if len(r.KubeServices) > 0 {
+		parts = append(parts, fmt.Sprintf("kube_services:%v", r.KubeServices))
+	}
+	if len(r.KubeEndpoints) > 0 {
+		parts = append(parts, fmt.Sprintf("kube_endpoints:%v", r.KubeEndpoints))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
 // Scope defines the scope of the filters.
 type Scope string
 
@@ -125,7 +164,7 @@ type Filterable interface {
 
 // Container represents a filterable container object.
 type Container struct {
-	*typedef.FilterContainer
+	*core.FilterContainer
 	Owner Filterable
 }
 
@@ -153,20 +192,24 @@ func (c *Container) GetAnnotations() map[string]string {
 
 // CreateContainerImage creates a Filterable Container Image object.
 // This is used only for container image filtering
-func CreateContainerImage(name string) *Container {
+func CreateContainerImage(reference string) *Container {
 	return &Container{
-		FilterContainer: &typedef.FilterContainer{
-			Image: name,
+		FilterContainer: &core.FilterContainer{
+			Image: &core.FilterImage{
+				Reference: reference,
+			},
 		},
 	}
 }
 
 // CreateContainer creates a Filterable Container object from a name, image and an (optional) owner.
-func CreateContainer(id, name, img string, owner Filterable) *Container {
-	c := &typedef.FilterContainer{
-		Id:    id,
-		Name:  name,
-		Image: img,
+func CreateContainer(id, name, reference string, owner Filterable) *Container {
+	c := &core.FilterContainer{
+		Id:   id,
+		Name: name,
+		Image: &core.FilterImage{
+			Reference: reference,
+		},
 	}
 
 	setContainerOwner(c, owner)
@@ -178,7 +221,7 @@ func CreateContainer(id, name, img string, owner Filterable) *Container {
 }
 
 // setContainerOwner sets the owner field in the FilterContainer based on the owner type.
-func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
+func setContainerOwner(c *core.FilterContainer, owner Filterable) {
 	if owner == nil {
 		return
 	}
@@ -186,7 +229,7 @@ func setContainerOwner(c *typedef.FilterContainer, owner Filterable) {
 	switch o := owner.(type) {
 	case *Pod:
 		if o != nil && o.FilterPod != nil {
-			c.Owner = &typedef.FilterContainer_Pod{
+			c.Owner = &core.FilterContainer_Pod{
 				Pod: o.FilterPod,
 			}
 		}
@@ -221,7 +264,7 @@ const (
 
 // Pod represents a pod object.
 type Pod struct {
-	*typedef.FilterPod
+	*core.FilterPod
 }
 
 var _ Filterable = &Pod{}
@@ -239,7 +282,7 @@ func (p *Pod) Type() ResourceType {
 // CreatePod creates a Filterable Pod object.
 func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
 	return &Pod{
-		FilterPod: &typedef.FilterPod{
+		FilterPod: &core.FilterPod{
 			Id:          id,
 			Name:        name,
 			Namespace:   namespace,
@@ -268,13 +311,13 @@ const (
 
 // Service represents a filterable service object.
 type Service struct {
-	*typedef.FilterKubeService
+	*core.FilterKubeService
 }
 
 // CreateService creates a Filterable Service object
 func CreateService(name, namespace string, annotations map[string]string) *Service {
 	return &Service{
-		FilterKubeService: &typedef.FilterKubeService{
+		FilterKubeService: &core.FilterKubeService{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
@@ -314,13 +357,13 @@ const (
 
 // Endpoint represents a filterable endpoint object.
 type Endpoint struct {
-	*typedef.FilterKubeEndpoint
+	*core.FilterKubeEndpoint
 }
 
 // CreateEndpoint creates a Filterable Endpoint object
 func CreateEndpoint(name, namespace string, annotations map[string]string) *Endpoint {
 	return &Endpoint{
-		FilterKubeEndpoint: &typedef.FilterKubeEndpoint{
+		FilterKubeEndpoint: &core.FilterKubeEndpoint{
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
@@ -360,7 +403,7 @@ const (
 
 // Process represents a filterable process object.
 type Process struct {
-	*typedef.FilterProcess
+	*core.FilterProcess
 }
 
 var _ Filterable = &Process{}
@@ -380,10 +423,17 @@ func (p *Process) Type() ResourceType {
 	return ProcessType
 }
 
+// SetLogFile updates the log file path on an existing Process.
+func (p *Process) SetLogFile(logFile string) {
+	p.FilterProcess.LogFile = logFile
+}
+
 // ProcessFilter defines the type of process filter.
 type ProcessFilter int
 
 // Defined Process filter kinds.
 const (
 	LegacyProcessExcludeList ProcessFilter = iota
+	ProcessCELLogs
+	ProcessCELGlobal
 )

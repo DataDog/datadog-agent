@@ -9,18 +9,14 @@
 package workloadfilterimpl
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -258,6 +254,73 @@ func TestCombinedFilter(t *testing.T) {
 	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
 	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, true, res)
+}
+
+func TestContainerAutodiscoveryFilterScopes(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    string
+		scope     workloadfilter.Scope
+		container *workloadfilter.Container
+		expected  bool
+	}{
+		{
+			name: "Global include interact with logs exclude",
+			config: `
+container_include: ["kube_namespace:default"]
+container_exclude_logs: ["name:nginx"]
+`,
+			scope: workloadfilter.LogsFilter,
+			container: workloadmetafilter.CreateContainer(
+				&workloadmeta.Container{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "nginx",
+					},
+				},
+				workloadmetafilter.CreatePod(
+					&workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "default",
+						},
+					},
+				),
+			),
+			expected: true,
+		},
+		{
+			name: "Global include interact with metrics exclude",
+			config: `
+container_include: ["image:agent"]
+container_exclude_metrics: ["kube_namespace:datadog-agent"]
+`,
+			scope: workloadfilter.MetricsFilter,
+			container: workloadmetafilter.CreateContainer(
+				&workloadmeta.Container{
+					Image: workloadmeta.ContainerImage{
+						RawName: "agent",
+					},
+				},
+				workloadmetafilter.CreatePod(
+					&workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "datadog-agent",
+						},
+					},
+				),
+			),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.NewFromYAML(t, tt.config)
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetContainerAutodiscoveryFilters(tt.scope)
+			res := filterBundle.IsExcluded(tt.container)
+			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
+		})
+	}
 }
 
 func TestContainerSBOMFilter(t *testing.T) {
@@ -511,83 +574,6 @@ func TestContainerFilterInitializationError(t *testing.T) {
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
 		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
-	})
-}
-
-type errorInclProgram struct{}
-
-func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
-}
-
-func (p errorInclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-type errorExclProgram struct{}
-
-func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
-}
-
-func (p errorExclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-func TestProgramErrorHandling(t *testing.T) {
-	mockConfig := configmock.New(t)
-	filterStore := newFilterStoreObject(t, mockConfig)
-
-	container := workloadmetafilter.CreateContainer(
-		&workloadmeta.Container{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: "error-case",
-			},
-		},
-		nil,
-	)
-	precedenceFilters := [][]workloadfilter.ContainerFilter{
-		{workloadfilter.LegacyContainerMetrics},
-	}
-
-	t.Run("Include with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &workloadfilterStore{
-			config:              filterStore.config,
-			log:                 filterStore.log,
-			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram {
-				return &errorInclProgram{}
-			})
-
-		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
-		res := filterBundle.GetResult(container)
-		assert.Equal(t, workloadfilter.Included, res)
-	})
-
-	t.Run("Exclude with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &workloadfilterStore{
-			config:              filterStore.config,
-			log:                 filterStore.log,
-			telemetry:           filterStore.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterProgramFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ *catalog.FilterConfig, _ log.Component) program.FilterProgram {
-				return &errorExclProgram{}
-			})
-
-		filterBundle := errorFilter.GetContainerFilters(precedenceFilters)
-		res := filterBundle.GetResult(container)
-		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 }
 
@@ -1069,5 +1055,123 @@ cel_workload_exclude:
 		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.ContainerCELLogs)}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, false, filterBundle.IsExcluded(container))
+	})
+}
+
+func TestCELWorkloadExcludeFilteringRuntimeErrors(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    pods:
+      - "100"
+- products:
+    - metrics
+  rules:
+    pods:
+      - "pod.annotations['non-existent-key'] != 'x'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	pod := workloadmetafilter.CreatePod(
+		&workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "my-pod",
+				Namespace: "test",
+			},
+		},
+	)
+
+	t.Run("Nonexistent annotation on pod", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+
+	t.Run("Non-boolean result on rule", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELGlobal)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+}
+
+func TestCELProcessLogsFiltering(t *testing.T) {
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    processes:
+      - "process.args.exists(arg, arg == 'ignore-me')"
+- products: ["logs"]
+  rules:
+    processes:
+      - "process.name == 'nginx'"
+      - "process.cmdline.contains('-jar app.jar')"
+      - "process.name == 'redis-server' && process.log_file.startsWith('/private/')"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{
+		workloadfilter.ProcessCELLogs,
+		workloadfilter.ProcessCELGlobal}})
+	assert.Nil(t, filterBundle.GetErrors())
+
+	t.Run("CEL exclude process by name", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "nginx",
+			Cmdline: []string{"nginx", "-g", "daemon off;"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by cmdline", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "java",
+			Cmdline: []string{"java", "-jar", "app.jar"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by args", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "foobar",
+			Cmdline: []string{"ignore-me", "--foo", "bar"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with no matching rule", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with non-excluded log file", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		process.SetLogFile("/public/foo.log")
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude log file", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		process.SetLogFile("/private/foo.log")
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
 	})
 }

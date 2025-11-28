@@ -2,16 +2,15 @@
   "employee/K8S_INJECTION_DD/1.dd-lib-python-init.json/config":
     {
       "repository_name": "dd-lib-python-init",
-      "repository_url": "gcr.io/datadoghq/dd-lib-python-init",
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:abc123",
+          "digest": "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
           "canonical_version": "3.1.0"
         },
         {
           "tag": "3",
-          "digest": "sha256:def456",
+          "digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
           "canonical_version": "3.0.0"
         }
       ]
@@ -19,16 +18,15 @@
   "employee/K8S_INJECTION_DD/2.dd-lib-java-init.json/config":
     {
       "repository_name": "dd-lib-java-init",
-      "repository_url": "gcr.io/datadoghq/dd-lib-java-init",
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:ghi789",
+          "digest": "sha256:fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
           "canonical_version": "1.5.2"
         },
         {
           "tag": "1",
-          "digest": "sha256:java456",
+          "digest": "sha256:0987654321fedcba0987654321fedcba0987654321fedcba0987654321fedcba",
           "canonical_version": "1.0.0"
         }
       ]
@@ -36,16 +34,15 @@
   "employee/K8S_INJECTION_DD/3.dd-lib-js-init.json/config":
     {
       "repository_name": "dd-lib-js-init",
-      "repository_url": "gcr.io/datadoghq/dd-lib-js-init",
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:js123",
+          "digest": "sha256:123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "canonical_version": "5.2.1"
         },
         {
           "tag": "5",
-          "digest": "sha256:js456",
+          "digest": "sha256:456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01",
           "canonical_version": "5.0.0"
         }
       ]
@@ -53,16 +50,15 @@
   "employee/K8S_INJECTION_DD/1.apm-inject.json/config":
     {
       "repository_name": "apm-inject",
-      "repository_url": "gcr.io/datadoghq/apm-inject",
       "images": [
         {
           "tag": "latest",
-          "digest": "sha256:inject123",
+          "digest": "sha256:1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
           "canonical_version": "0.2.1"
         },
         {
           "tag": "0",
-          "digest": "sha256:inject456",
+          "digest": "sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
           "canonical_version": "0.2.1"
         }
       ]

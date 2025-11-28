@@ -8,60 +8,46 @@
 package program
 
 import (
-	"fmt"
+	"time"
 
-	filterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/google/cel-go/cel"
 )
 
-// CELProgram is a structure that holds two CEL programs:
-// one for inclusion (higher priority) and one for exclusion (lower priority).
+// CELProgram is a structure that holds a CEL program for exclusion.
 type CELProgram struct {
 	Name                 string
-	Include              cel.Program
 	Exclude              cel.Program
 	InitializationErrors []error
 }
 
 var _ FilterProgram = &CELProgram{}
 
-// Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (p CELProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []error) {
-	var errs []error
-	if p.Include != nil {
-		out, _, err := p.Include.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
-		if err == nil {
-			res, ok := out.Value().(bool)
-			if ok {
-				if res {
-					return filterdef.Included, nil
-				}
-			} else {
-				errs = append(errs, fmt.Errorf("include (%s) result not bool: %v", p.Name, out.Value()))
-			}
-		} else {
-			errs = append(errs, fmt.Errorf("include (%s) eval error: %w", p.Name, err))
-		}
-	}
+var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
+// Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
+func (p CELProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	if p.Exclude != nil {
 		out, _, err := p.Exclude.Eval(map[string]any{string(entity.Type()): entity.Serialize()})
 		if err == nil {
 			res, ok := out.Value().(bool)
 			if ok {
 				if res {
-					return filterdef.Excluded, nil
+					return workloadfilter.Excluded
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("exclude (%s) result not bool: %v", p.Name, out.Value()))
+				if logLimiter.ShouldLog() {
+					log.Warnf(`filter '%s' from 'cel_workload_exclude' failed to convert value to bool: %v`, p.Name, out.Value())
+				}
 			}
 		} else {
-			errs = append(errs, fmt.Errorf("exclude (%s) eval error: %w", p.Name, err))
+			log.Debugf(`filter '%s' from 'cel_workload_exclude' failed to evaluate: %v`, p.Name, err)
 		}
 	}
 
-	return filterdef.Unknown, errs
+	return workloadfilter.Unknown
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program

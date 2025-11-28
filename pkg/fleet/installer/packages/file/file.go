@@ -13,11 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
-	"strconv"
 	"sync"
 
+	userpkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 )
 
@@ -81,7 +80,7 @@ func (d Directory) Ensure(ctx context.Context) (err error) {
 	span.SetTag("group", d.Group)
 	span.SetTag("mode", d.Mode)
 
-	uid, gid, err := getUserAndGroup(d.Owner, d.Group)
+	uid, gid, err := getUserAndGroup(ctx, d.Owner, d.Group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}
@@ -156,7 +155,7 @@ func (p Permission) Ensure(ctx context.Context, rootPath string) (err error) {
 	}
 	for _, file := range files {
 		if p.Owner != "" && p.Group != "" {
-			if err := chown(file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
+			if err := chown(ctx, file, p.Owner, p.Group); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("error changing file ownership: %w", err)
 			}
 		}
@@ -209,30 +208,22 @@ func EnsureSymlinkAbsent(ctx context.Context, target string) (err error) {
 	return nil
 }
 
-func getUserAndGroup(username, group string) (uid, gid int, err error) {
-	// This is not thread-safe, but we assume that the user and group won't change during the execution of the program.
+func getUserAndGroup(ctx context.Context, username, group string) (uid, gid int, err error) {
+	// Use internal user package GetUserID and GetGroupID, caching as before for efficiency
 	uidRaw, uidOk := userCache.Load(username)
 	if !uidOk {
-		rawUID, err := user.Lookup(username)
+		uidRaw, err = userpkg.GetUserID(ctx, username)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error looking up user: %w", err)
-		}
-		uidRaw, err = strconv.Atoi(rawUID.Uid)
-		if err != nil {
-			return 0, 0, fmt.Errorf("error converting UID to int: %w", err)
+			return 0, 0, fmt.Errorf("error getting user ID for %s: %w", username, err)
 		}
 		userCache.Store(username, uidRaw)
 	}
 
 	gidRaw, gidOk := groupCache.Load(group)
 	if !gidOk {
-		rawGID, err := user.LookupGroup(group)
+		gidRaw, err = userpkg.GetGroupID(ctx, group)
 		if err != nil {
-			return 0, 0, fmt.Errorf("error looking up group: %w", err)
-		}
-		gidRaw, err = strconv.Atoi(rawGID.Gid)
-		if err != nil {
-			return 0, 0, fmt.Errorf("error converting GID to int: %w", err)
+			return 0, 0, fmt.Errorf("error getting group ID for %s: %w", group, err)
 		}
 		groupCache.Store(group, gidRaw)
 	}
@@ -249,8 +240,8 @@ func getUserAndGroup(username, group string) (uid, gid int, err error) {
 	return uid, gid, nil
 }
 
-func chown(path string, username string, group string) (err error) {
-	uid, gid, err := getUserAndGroup(username, group)
+func chown(ctx context.Context, path string, username string, group string) (err error) {
+	uid, gid, err := getUserAndGroup(ctx, username, group)
 	if err != nil {
 		return fmt.Errorf("error getting user and group IDs: %w", err)
 	}

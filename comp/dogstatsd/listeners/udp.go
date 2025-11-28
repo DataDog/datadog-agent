@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,7 +70,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		// Listen to all network interfaces
 		url = fmt.Sprintf(":%s", port)
 	} else {
-		url = net.JoinHostPort(pkgconfigsetup.GetBindHostFromConfig(cfg), port)
+		url = net.JoinHostPort(configutils.GetBindHost(cfg), port)
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", url)

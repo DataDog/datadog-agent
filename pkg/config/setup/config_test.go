@@ -8,7 +8,6 @@ package setup
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -190,38 +189,6 @@ func TestDDHostnameFileEnvVar(t *testing.T) {
 	testConfig := newTestConf(t)
 
 	assert.Equal(t, "somefile", testConfig.Get("hostname_file"))
-}
-
-func TestIsCloudProviderEnabled(t *testing.T) {
-	config := newTestConf(t)
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws", "gcp", "azure", "alibaba", "tencent"})
-	assert.True(t, IsCloudProviderEnabled("AWS", config))
-	assert.True(t, IsCloudProviderEnabled("GCP", config))
-	assert.True(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.True(t, IsCloudProviderEnabled("Azure", config))
-	assert.True(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"aws"})
-	assert.True(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.False(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
-	assert.False(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.True(t, IsCloudProviderEnabled("Tencent", config))
-
-	config.SetWithoutSource("cloud_provider_metadata", []string{})
-	assert.False(t, IsCloudProviderEnabled("AWS", config))
-	assert.False(t, IsCloudProviderEnabled("GCP", config))
-	assert.False(t, IsCloudProviderEnabled("Alibaba", config))
-	assert.False(t, IsCloudProviderEnabled("Azure", config))
-	assert.False(t, IsCloudProviderEnabled("Tencent", config))
 }
 
 func TestEnvNestedConfig(t *testing.T) {
@@ -663,12 +630,6 @@ external_config:
 	assert.Equal(config.GetSource("dd_url"), pkgconfigmodel.SourceAgentRuntime)
 }
 
-func TestGetValidHostAliasesWithConfig(t *testing.T) {
-	config := newTestConf(t)
-	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
-	assert.EqualValues(t, getValidHostAliasesWithConfig(config), []string{"foo"})
-}
-
 func TestNetworkDevicesNamespace(t *testing.T) {
 	datadogYaml := `
 network_devices:
@@ -694,9 +655,9 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 16*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 70*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 30*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
@@ -1009,26 +970,6 @@ func TestComputeStatsBySpanKindEnv(t *testing.T) {
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
 }
 
-func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
-	// EMPTY configuration
-	testConfig := newTestConf(t)
-	require.Equal(t, map[string]bool{}, GetRemoteConfigurationAllowedIntegrations(testConfig))
-
-	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_ALLOW_LIST", "[\"POSTgres\", \"redisDB\"]")
-	testConfig = newTestConf(t)
-	require.Equal(t,
-		map[string]bool{"postgres": true, "redisdb": true},
-		GetRemoteConfigurationAllowedIntegrations(testConfig),
-	)
-
-	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_BLOCK_LIST", "[\"mySQL\", \"redisDB\"]")
-	testConfig = newTestConf(t)
-	require.Equal(t,
-		map[string]bool{"postgres": true, "redisdb": false, "mysql": false},
-		GetRemoteConfigurationAllowedIntegrations(testConfig),
-	)
-}
-
 func TestLanguageDetectionSettings(t *testing.T) {
 	testConfig := newTestConf(t)
 	require.False(t, testConfig.GetBool("language_detection.enabled"))
@@ -1096,82 +1037,6 @@ func TestClusterCheckDefaults(t *testing.T) {
 	conf := newTestConf(t)
 	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
 	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
-}
-
-func TestProxyNotLoaded(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTP := "http://localhost:1234"
-	proxyHTTPS := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-	assert.Equal(t, 0, len(proxyHTTPConfig))
-	assert.Equal(t, 0, len(proxyHTTPSConfig))
-}
-
-func TestProxyLoadedFromEnvVars(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTP := "http://localhost:1234"
-	proxyHTTPS := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
-
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, proxyHTTP, proxyHTTPConfig)
-	assert.Equal(t, proxyHTTPS, proxyHTTPSConfig)
-}
-
-func TestProxyLoadedFromConfigFile(t *testing.T) {
-	t.Skip()
-
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	tempDir := t.TempDir()
-	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
-
-	conf.AddConfigPath(tempDir)
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, "http://localhost:1234", proxyHTTPConfig)
-	assert.Equal(t, "https://localhost:1234", proxyHTTPSConfig)
-}
-
-func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
-	conf := newTestConf(t)
-	t.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
-
-	proxyHTTPEnvVar := "http://localhost:1234"
-	proxyHTTPSEnvVar := "https://localhost:1234"
-	t.Setenv("DD_PROXY_HTTP", proxyHTTPEnvVar)
-	t.Setenv("DD_PROXY_HTTPS", proxyHTTPSEnvVar)
-
-	tempDir := t.TempDir()
-	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
-
-	conf.AddConfigPath(tempDir)
-	LoadDatadog(conf, secretsmock.New(t), []string{})
-
-	proxyHTTPConfig := conf.GetString("proxy.http")
-	proxyHTTPSConfig := conf.GetString("proxy.https")
-
-	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
-	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
 }
 
 var testExampleConf = []byte(`
@@ -1392,7 +1257,7 @@ use_proxy_for_cloud_metadata: true
 	err := loadCustom(config, nil)
 	assert.NoError(t, err)
 
-	err = ResolveSecrets(config, resolver, "unit_test")
+	err = resolveSecrets(config, resolver, "unit_test")
 	require.NoError(t, err)
 
 	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
@@ -1443,19 +1308,10 @@ additional_endpoints:
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
 	assert.NoError(t, err)
 
-	expectedYaml := `additional_endpoints:
-  "0": apple
-  "1": banana
-  "2": cherry
-process_config:
-  run_in_core_agent:
-    enabled: false
-use_proxy_for_cloud_metadata: true
-`
-	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutDefault())
-	assert.NoError(t, err)
-	yamlText := string(yamlConf)
-	assert.Equal(t, expectedYaml, yamlText)
+	assert.Equal(t,
+		map[string]string{"0": "apple", "1": "banana", "2": "cherry"},
+		config.GetStringMapString("additional_endpoints"),
+	)
 }
 
 func TestServerlessConfigNumComponents(t *testing.T) {
@@ -1548,8 +1404,10 @@ func TestENVAdditionalKeysToScrubber(t *testing.T) {
 	// Test that the scrubber is correctly configured with the expected keys
 	cfg := newEmptyMockConf(t)
 
-	data := `scrubber.additional_keys:
-- yet_another_key
+	data := `
+scrubber:
+  additional_keys:
+  - yet_another_key
 flare_stripped_keys:
 - some_other_key`
 

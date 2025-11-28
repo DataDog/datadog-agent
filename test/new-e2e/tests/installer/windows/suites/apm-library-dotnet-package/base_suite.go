@@ -90,3 +90,12 @@ func (s *baseIISSuite) getLibraryPathFromInstrumentedIIS() string {
 	s.Require().NoErrorf(err, "failed to get content from site: %s", output)
 	return strings.TrimSpace(output)
 }
+
+func (s *baseIISSuite) assertSuccessfulPromoteExperiment(version string) {
+	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
+		HasPackage("datadog-apm-library-dotnet").
+		WithStableVersionMatchPredicate(func(actual string) {
+			s.Require().Contains(actual, version)
+		}).
+		WithExperimentVersionEqual("")
+}

@@ -170,7 +170,11 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
 			tags, _ = p.tagger.Tag(cID, types.HighCardinality)
 
-			tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+			// The pod can be nil here if it's deleted from wmeta after getting
+			// the samples
+			if pod != nil {
+				tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+			}
 		}
 
 		if len(tags) == 0 {
@@ -301,6 +305,17 @@ func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricF
 		tags = utils.ConcatenateTags(tags, p.Config.Tags)
 
 		if metricName != "" {
+			// This is necessary because this metric (kubernetes.memory.limits)
+			// is reported by this provider AND the kubelet provider.
+			// Without this tag it reports as two series;
+			// one with kube_static_cpus:N/A and one with kube_static_cpus:true/false
+			if strings.Contains(metricName, "memory.limits") {
+				pod := p.getPodByMetricLabel(sample.Metric)
+				if pod != nil {
+					tags = common.AppendKubeStaticCPUsTag(p.store, pod.QOSClass, cID, tags)
+				}
+			}
+
 			sender.Gauge(metricName, float64(sample.Value), "", tags)
 		}
 

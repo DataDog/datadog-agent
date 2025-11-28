@@ -7,19 +7,16 @@
 
 package module
 
-import "github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
-import "github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+import (
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+)
 
 type procRuntimeID struct {
-	procmon.ProcessID
+	process.ID
 	service       string
 	version       string
 	environment   string
 	runtimeID     string
-	gitInfo       *procmon.GitInfo
-	containerInfo *procmon.ContainerInfo
-}
-
-type testingKnobs struct {
-	scraperUpdatesCallback func([]rcscrape.ProcessUpdate)
+	gitInfo       *process.GitInfo
+	containerInfo *process.ContainerInfo
 }

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -160,11 +159,10 @@ func (m *MockCollector) AddEventReceiver(_ collector.EventReceiver) {
 }
 
 func TestSchedule_AllChecksAllowed(t *testing.T) {
-	// Test that when allowedChecks is empty, all checks are scheduled
+	// Test that when not in basic mode, all checks are scheduled
 	mockCollector := &MockCollector{}
 	s := &CheckScheduler{
 		collector:      option.New[collector.Component](mockCollector),
-		allowedChecks:  map[string]struct{}{}, // Empty = all checks allowed
 		configToChecks: make(map[string][]checkid.ID),
 	}
 	s.addLoader(&MockCoreLoader{})
@@ -180,52 +178,8 @@ func TestSchedule_AllChecksAllowed(t *testing.T) {
 			Instances:  []integration.Data{integration.Data("{}")},
 			InitConfig: integration.Data("{}"),
 		},
-	}
-
-	s.Schedule(configs)
-
-	// All checks should be run
-	assert.Len(t, mockCollector.RunCheckCalls, 2)
-	assert.Equal(t, "cpu", mockCollector.RunCheckCalls[0].(*MockCheck).Name)
-	assert.Equal(t, "disk", mockCollector.RunCheckCalls[1].(*MockCheck).Name)
-}
-
-func TestSchedule_InfraBasicMode_Filtering(t *testing.T) {
-	// Test that in infra basic mode, only allowed checks are scheduled and blocked checks are skipped
-	mockCollector := &MockCollector{}
-	s := &CheckScheduler{
-		collector: option.New[collector.Component](mockCollector),
-		allowedChecks: map[string]struct{}{
-			"cpu":    {},
-			"memory": {},
-		},
-		configToChecks: make(map[string][]checkid.ID),
-	}
-	s.addLoader(&MockCoreLoader{})
-
-	configs := []integration.Config{
 		{
-			Name:       "cpu", // Allowed
-			Instances:  []integration.Data{integration.Data("{}")},
-			InitConfig: integration.Data("{}"),
-		},
-		{
-			Name:       "disk", // Not in allowed list
-			Instances:  []integration.Data{integration.Data("{}")},
-			InitConfig: integration.Data("{}"),
-		},
-		{
-			Name:       "memory", // Allowed
-			Instances:  []integration.Data{integration.Data("{}")},
-			InitConfig: integration.Data("{}"),
-		},
-		{
-			Name:       "docker", // Container check, blocked in basic mode
-			Instances:  []integration.Data{integration.Data("{}")},
-			InitConfig: integration.Data("{}"),
-		},
-		{
-			Name:       "kubernetes_apiserver", // Kubernetes check, blocked in basic mode
+			Name:       "custom_check", // Test custom_.* pattern
 			Instances:  []integration.Data{integration.Data("{}")},
 			InitConfig: integration.Data("{}"),
 		},
@@ -233,8 +187,9 @@ func TestSchedule_InfraBasicMode_Filtering(t *testing.T) {
 
 	s.Schedule(configs)
 
-	// Only cpu and memory should be run, others should be skipped
-	require.Len(t, mockCollector.RunCheckCalls, 2)
-	assert.Equal(t, "cpu", mockCollector.RunCheckCalls[0].(*MockCheck).Name)
-	assert.Equal(t, "memory", mockCollector.RunCheckCalls[1].(*MockCheck).Name)
+	// All checks should be run when not in basic mode
+	assert.Len(t, mockCollector.RunCheckCalls, len(configs))
+	for i, c := range configs {
+		assert.Equal(t, c.Name, mockCollector.RunCheckCalls[i].(*MockCheck).Name)
+	}
 }

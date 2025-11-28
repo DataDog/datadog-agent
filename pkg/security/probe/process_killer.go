@@ -298,7 +298,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 	// if a rule with a kill container scope is triggered outside a container,
 	// don't kill anything
-	containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
+	containerID := ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 	if containerID == "" && scope == "container" {
 		return false
 	}

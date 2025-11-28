@@ -54,7 +54,7 @@ const (
 	resourceName      = "resource_name"
 	functionTarget    = "build_function_target"
 	functionSignature = "function_signature_type"
-	cloudRunPrefix    = "gpc.run"
+	cloudRunPrefix    = "gcp.run"
 )
 
 var metadataHelperFunc = GetMetaData
@@ -149,13 +149,13 @@ func (c *CloudRun) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for CloudRun
-func (c *CloudRun) Init() error {
+func (c *CloudRun) Init(_ interface{}) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for CloudRun
-func (c *CloudRun) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix), 1.0, c.GetSource(), agent)
+func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix), 1.0, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events

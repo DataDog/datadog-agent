@@ -31,19 +31,8 @@ end
 relative_path "util-linux-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  patch source: "static-assert.patch", env: env # define static_assert in xxhash.h, since it's not defined in our old glibc's assert.h
-
-  configure_options = [
-    "--disable-nls",
-    "--disable-asciidoc",
-    "--disable-all-programs",
-    "--enable-libblkid",
-    "--disable-static",
-  ]
-  configure(*configure_options, env: env)
-
-  make "-j #{workers}", env: env
-  make "-j #{workers} install", env: env
+  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
+    " #{install_dir}/embedded/lib/libblkid.so"
 end

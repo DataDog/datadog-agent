@@ -86,6 +86,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetVirtualizationMode"),
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
+		toNativeName("GetMemoryErrorCounter"),
 	}
 }
 
@@ -320,7 +321,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 
 	ret := lib.Init()
 	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return fmt.Errorf("error initializing NVML library: %s", nvml.ErrorString(ret))
+		return NewNvmlAPIErrorOrNil("Init", ret)
 	}
 
 	// Populate and verify critical capabilities

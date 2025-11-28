@@ -41,7 +41,7 @@ func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestInstallDotnetLibraryPackag
 }
 
 func (s *testDotnetLibraryInstallSuiteWithoutIIS) TestMSIInstallDotnetLibraryFailsWithoutIIS() {
-	version := "3.19.0-pipeline.67351320.beta.sha-c05ddfb1-1"
+	version := "3.19.0-pipeline.67351320.beta.sha-c05ddfb1"
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=iis"),
 		// TODO: remove override once image is published in prod

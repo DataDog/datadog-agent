@@ -10,13 +10,11 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 2
-          Kind: Entry
+        - Kind: Entry
           Type: 105 EventRootType Probe[main.callMe]
           InjectionPoints: [{PC: "0x4a804e", Frameless: false}]
           Condition: null
-        - ID: 1
-          Kind: Return
+        - Kind: Return
           Type: 106 EventRootType Probe[main.callMe]Return
           InjectionPoints: [{PC: "0x4a80f2", Frameless: false}]
           Condition: null

@@ -164,11 +164,16 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 		common.CheckIntegrationInstall(tt, t.InstallTestClient)
 
 		tt.Run("default python version", func(tt *testing.T) {
-			expected := common.ExpectedPythonVersion3
+			// python is lazy loaded and not running as default
+			expected := common.ExpectedUnloadedPython
 			if t.ExpectPython2Installed() {
 				expected = common.ExpectedPythonVersion2
 			}
 			common.CheckAgentPython(tt, t.InstallTestClient, expected)
+
+			// this sets python_lazy_loading: false so we can check the version installed
+			common.SetAgentPythonMajorVersion(tt, t.InstallTestClient, "3")
+			common.CheckAgentPython(tt, t.InstallTestClient, common.ExpectedPythonVersion3)
 		})
 
 		if t.ExpectPython2Installed() {
@@ -194,6 +199,8 @@ func (t *Tester) runTestsForKitchenCompat(tt *testing.T) {
 				common.CheckCWSBehaviour(tt, t.InstallTestClient)
 			})
 		}
+
+		// TODO(ADP): Update this for Windows when we add Windows support to ADP.
 	})
 }
 

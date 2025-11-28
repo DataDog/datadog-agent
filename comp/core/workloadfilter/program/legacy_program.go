@@ -18,13 +18,15 @@ type LegacyFilterProgram struct {
 	InitializationErrors []error
 }
 
+var _ FilterProgram = &LegacyFilterProgram{}
+
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (n LegacyFilterProgram) Evaluate(entity workloadfilter.Filterable) (workloadfilter.Result, []error) {
+func (n LegacyFilterProgram) Evaluate(entity workloadfilter.Filterable) workloadfilter.Result {
 	if n.Filter == nil {
-		return workloadfilter.Unknown, nil
+		return workloadfilter.Unknown
 	}
 	annotations, name, image, namespace := getLegacyFilterValues(entity)
-	return n.Filter.GetResult(annotations, name, image, namespace), nil
+	return n.Filter.GetResult(annotations, name, image, namespace)
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program
@@ -35,7 +37,7 @@ func (n LegacyFilterProgram) GetInitializationErrors() []error {
 func getLegacyFilterValues(entity workloadfilter.Filterable) (annotations map[string]string, name, image, namespace string) {
 	switch o := entity.(type) {
 	case *workloadfilter.Container:
-		return o.GetAnnotations(), o.GetName(), o.GetImage(), o.GetPod().GetNamespace()
+		return o.GetAnnotations(), o.GetName(), o.GetImage().GetReference(), o.GetPod().GetNamespace()
 	case *workloadfilter.Pod:
 		return o.GetAnnotations(), "", "", o.GetNamespace()
 	case *workloadfilter.Service:

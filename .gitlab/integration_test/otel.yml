@@ -37,33 +37,46 @@ docker_image_build_otel:
     - !reference [.login_to_docker_readonly]
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
-    - docker build --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME --build-arg DDA_VERSION=$DDA_VERSION --tag agent-byoc:latest -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
-    - OT_AGENT_IMAGE_NAME=agent-byoc OT_AGENT_TAG=latest python3 /tmp/otel-ci/otel_agent_build_tests.py
+    - |
+      docker build \
+      --build-arg AGENT_VERSION=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      --tag agent-byoc:latest \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
+    - |
+      OT_AGENT_IMAGE_NAME=agent-byoc \
+      OT_AGENT_TAG=latest python3 \
+      /tmp/otel-ci/otel_agent_build_tests.py
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
 
-datadog_otel_components_ocb_build:
-  stage: integration_test
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
-  needs: ["go_deps"]
-  artifacts:
-    paths:
-      - ocb-output.log
-      - otelcol-custom.log
-      - flare-info.log
-    when: always
-  before_script:
-    - !reference [.retrieve_linux_go_deps]
-  script:
-    - echo "Building custom collector with datadog components"
-    - test/otel/testdata/ocb_build_script.sh
-    - echo "see artifacts for job logs"
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  timeout: 15 minutes
+# TODO(songy23): re-enable datadog_otel_components_ocb_build after OSS DD exporter adopts https://github.com/DataDog/datadog-agent/pull/42542
+# datadog_otel_components_ocb_build:
+#   stage: integration_test
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+#   tags: ["arch:amd64", "specific:true"]
+#   needs: ["go_deps"]
+#   artifacts:
+#     paths:
+#       - ocb-output.log
+#       - otelcol-custom.log
+#       - flare-info.log
+#     when: always
+#   before_script:
+#     - !reference [.retrieve_linux_go_deps]
+#   script:
+#     - echo "Building custom collector with datadog components"
+#     - test/otel/testdata/ocb_build_script.sh
+#     - echo "see artifacts for job logs"
+#   rules:
+#     - !reference [.except_mergequeue]
+#     - when: on_success
+#   timeout: 15 minutes
 
 # Test that the BYOC packages can be built with the existing Dockerfile
 ddot_byoc_package_build_test_rpm:
@@ -80,13 +93,16 @@ ddot_byoc_package_build_test_rpm:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
-        --target artifact \
-        --output type=local,dest=./ \
-        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
-        --build-arg PACKAGE_TYPE=rpm \
-        --build-arg AGENT_VERSION=$AGENT_VERSION \
-        --build-arg DDA_VERSION=$DDA_VERSION \
-        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+      --target artifact \
+      --output type=local,dest=./ \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
+      --build-arg PACKAGE_TYPE=rpm \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
     - |
       RPM_PATH=ddot-byoc/datadog-agent-ddot-byoc-${AGENT_VERSION}-1.x86_64.rpm
       if [ ! -f "$RPM_PATH" ]; then
@@ -112,13 +128,16 @@ ddot_byoc_package_build_test_deb:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
-        --target artifact \
-        --output type=local,dest=./ \
-        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
-        --build-arg PACKAGE_TYPE=deb \
-        --build-arg AGENT_VERSION=$AGENT_VERSION \
-        --build-arg DDA_VERSION=$DDA_VERSION \
-        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+      --target artifact \
+      --output type=local,dest=./ \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
+      --build-arg PACKAGE_TYPE=deb \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
     - |
       DEB_PATH=ddot-byoc/datadog-agent-ddot-byoc_${AGENT_VERSION}_amd64.deb
       if [ ! -f "$DEB_PATH" ]; then
@@ -150,13 +169,16 @@ ddot_byoc_binary_build_test_ubuntu2004:
     - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - |
       docker build \
-        --target artifact \
-        --output type=local,dest=./ \
-        --build-arg AGENT_BRANCH=$CI_COMMIT_REF_NAME \
-        --build-arg AGENT_VERSION=$AGENT_VERSION \
-        --build-arg UBUNTU_VERSION=20.04 \
-        --build-arg DDA_VERSION=$DDA_VERSION \
-        -f /tmp/otel-ci/Dockerfile.agent-otel /tmp/otel-ci
+      --target artifact \
+      --output type=local,dest=./ \
+      --build-arg AGENT_VERSION=$AGENT_VERSION \
+      --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
+      --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
+      --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
+      --build-arg UBUNTU_VERSION=20.04 \
+      --build-arg DDA_VERSION=$DDA_VERSION \
+      -f /tmp/otel-ci/Dockerfile.agent-otel \
+      /tmp/otel-ci
     - |
       BIN_PATH=ddot-byoc/otel-agent
       if [ ! -f "$BIN_PATH" ]; then

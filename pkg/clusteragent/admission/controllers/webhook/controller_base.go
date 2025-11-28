@@ -189,7 +189,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	apm, err := autoinstrumentation.NewMutatorWithFilter(config, wmeta, imageResolver)
+	apm, err := autoinstrumentation.NewTargetMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}
@@ -202,7 +202,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
 		apm,
 	)
-	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
+	return autoinstrumentation.NewWebhook(config.Webhook, wmeta, mutator)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

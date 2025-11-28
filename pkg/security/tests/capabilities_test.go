@@ -33,6 +33,10 @@ func TestCapabilitiesEvent(t *testing.T) {
 		return !kv.HasBPFForEachMapElemHelper()
 	})
 
+	checkKernelCompatibility(t, "no override_creds/restore_creds", func(kv *kernel.Version) bool {
+		return kv.Code >= kernel.Kernel6_14
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_capabilities_used_exec_flush",

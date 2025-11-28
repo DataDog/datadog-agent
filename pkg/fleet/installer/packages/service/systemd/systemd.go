@@ -105,7 +105,7 @@ func DisableUnit(ctx context.Context, unit string) error {
 		return nil
 	}
 
-	err := telemetry.CommandContext(ctx, "systemctl", "disable", unit).Run()
+	err := telemetry.CommandContext(ctx, "systemctl", "disable", "--force", unit).Run()
 	exitErr := &exec.ExitError{}
 	if !errors.As(err, &exitErr) {
 		return err
@@ -151,7 +151,7 @@ func IsRunning() (running bool, err error) {
 
 // JournaldLogs returns the logs for a given unit since a given time
 func JournaldLogs(ctx context.Context, unit string, since time.Time) (string, error) {
-	journalctlCmd := exec.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
+	journalctlCmd := telemetry.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
 	stdout, err := journalctlCmd.Output()
 	if err != nil {
 		return "", err

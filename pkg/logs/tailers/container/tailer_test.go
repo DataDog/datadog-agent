@@ -77,19 +77,13 @@ func (m *mockReaderSleep) Close() error {
 	return nil
 }
 
-func NewTestDecoder() *decoder.Decoder {
-	return &decoder.Decoder{
-		InputChan: make(chan *message.Message),
-	}
-}
-
 func NewTestTailer(reader io.ReadCloser, unsafeReader io.ReadCloser, cancelFunc context.CancelFunc) *Tailer {
 	containerID := "1234567890abcdef"
 	source := sources.NewLogSource("foo", nil)
 	tailer := &Tailer{
 		ContainerID: containerID,
 		outputChan:  make(chan *message.Message, 100),
-		decoder:     NewTestDecoder(),
+		decoder:     decoder.NewMockDecoder(),
 		unsafeLogReader: func(ctx context.Context, t time.Time) (io.ReadCloser, error) { //nolint
 			return unsafeReader, nil
 		},

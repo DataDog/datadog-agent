@@ -44,7 +44,6 @@
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
-  retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -62,14 +61,12 @@ tests_linux-x64-py3:
     CONDA_ENV: ddpy3
 
 tests_nodetreemodel:
-  # Tests are currently not passing
-  # They are being fixed, and we want to track progress on this work
   extends:
     - .rtloader_tests
     - .linux_tests
     - .linux_x64
   after_script:
-    # Don't upload junit results, which prevents e2e tests from running (they will fail)
+    - !reference [.upload_junit_source]
     - !reference [.upload_coverage]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   rules:
@@ -80,7 +77,6 @@ tests_nodetreemodel:
     CONDA_ENV: ddpy3
     # This env var enables the NTM config implementation
     DD_CONF_NODETREEMODEL: enable
-  allow_failure: true
 
 tests_nodetreemodel_unmarshal:
   extends:
@@ -168,7 +164,7 @@ tests_serverless-init-logs:
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - go test -tags "serverless otlp test" ./cmd/serverless-init/.
+    - go test -tags "serverless otlp test" ./comp/logs/agent/agentimpl/.
 
 # Check consistency of go.mod file with project imports
 go_mod_tidy_check:
@@ -187,7 +183,7 @@ go_mod_tidy_check:
 
 new-e2e-unit-tests:
   extends: .linux_tests
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
@@ -204,6 +200,7 @@ new-e2e-unit-tests:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
+    - dda inv -- -e install-tools
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - dda inv -- -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
@@ -212,6 +209,4 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    # Not using the entrypoint script for the e2e runner image
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
   timeout: 20m  # Not less than 20m because job startup can take time.

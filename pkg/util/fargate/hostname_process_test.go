@@ -17,16 +17,18 @@ import (
 func TestGetFargateHost(t *testing.T) {
 	assert := assert.New(t)
 	for _, tc := range []struct {
-		orch     OrchestratorName
-		ecsFunc  func(context.Context) (string, error)
-		eksFunc  func(context.Context) (string, error)
-		expected string
-		wantErr  bool
+		orch                    OrchestratorName
+		ecsFunc                 func(context.Context) (string, error)
+		eksFunc                 func(context.Context) (string, error)
+		ecsManagedInstancesFunc func(context.Context) (string, error)
+		expected                string
+		wantErr                 bool
 	}{
 		{
 			ECS,
 			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
 			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "sidecar_host:arn-xxx", nil },
 			"fargate_task:arn-xxx",
 			false,
 		},
@@ -34,18 +36,28 @@ func TestGetFargateHost(t *testing.T) {
 			EKS,
 			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
 			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "sidecar_host:arn-xxx", nil },
 			"fargate-ip-xxx",
+			false,
+		},
+		{
+			ECSManagedInstances,
+			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
+			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "sidecar_host:arn-xxx", nil },
+			"sidecar_host:arn-xxx",
 			false,
 		},
 		{
 			Unknown,
 			func(_ context.Context) (string, error) { return "fargate_task:arn-xxx", nil },
 			func(_ context.Context) (string, error) { return "fargate-ip-xxx", nil },
+			func(_ context.Context) (string, error) { return "sidecar_host:arn-xxx", nil },
 			"",
 			true,
 		},
 	} {
-		got, err := getFargateHost(context.TODO(), tc.orch, tc.ecsFunc, tc.eksFunc)
+		got, err := getFargateHost(context.TODO(), tc.orch, tc.ecsFunc, tc.eksFunc, tc.ecsManagedInstancesFunc)
 		assert.Equal(err != nil, tc.wantErr)
 		assert.Equal(tc.expected, got)
 	}

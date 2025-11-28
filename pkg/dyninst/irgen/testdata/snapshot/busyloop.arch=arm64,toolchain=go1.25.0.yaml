@@ -9,8 +9,7 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 1
-          Kind: Entry
+        - Kind: Entry
           Type: 116 EventRootType Probe[main.noop]
           InjectionPoints: [{PC: "0xb7d10", Frameless: true}]
           Condition: null

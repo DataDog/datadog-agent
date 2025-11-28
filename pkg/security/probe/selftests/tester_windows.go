@@ -37,7 +37,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	tmpDir = dir
 	fileToCreate := "file.txt"
 
-	keyPath := "Software\\Datadog\\Datadog Agent"
+	keyPath := "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion"
 
 	dirLongPath, err := pathutils.GetLongPathName(dir)
 	if err != nil {

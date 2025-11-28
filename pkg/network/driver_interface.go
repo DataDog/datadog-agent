@@ -200,8 +200,7 @@ func (di *DriverInterface) setupFlowHandle() error {
 }
 
 func (di *DriverInterface) setupClassification() error {
-	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
-	if di.cfg.ProtocolClassificationEnabled == false {
+	if !di.cfg.ProtocolClassificationEnabled {
 		log.Infof("Traffic classification not enabled")
 		return nil
 	}
@@ -275,8 +274,7 @@ func printClassification(fd *driver.PerFlowData) {
 	}
 }
 
-//nolint:revive // TODO(WKIT) Fix revive linter
-func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driverReadBuffer, outbuffer *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, error, int, int) {
+func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driverReadBuffer, outbuffer *ConnectionBuffer, filter func(*ConnectionStats) bool) (int, int, int, error) {
 
 	start := outbuffer.Len()
 
@@ -296,7 +294,7 @@ func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driv
 				break
 			}
 			if err != windows.ERROR_MORE_DATA {
-				return 0, fmt.Errorf("ReadFile: %w", err), 0, 0
+				return 0, 0, 0, fmt.Errorf("ReadFile: %w", err)
 			}
 		}
 		// Windows driver hashmap implementation could return this if the
@@ -336,7 +334,7 @@ func (di *DriverInterface) getFlowConnectionStats(ioctl uint32, connbuffer *driv
 		}
 	}
 	count := outbuffer.Len() - start
-	return count, nil, increases, decreases
+	return count, increases, decreases, nil
 }
 
 // GetConnectionStats will read all open flows from the driver and convert them into ConnectionStats.
@@ -347,7 +345,7 @@ func (di *DriverInterface) GetOpenConnectionStats(openBuf *ConnectionBuffer, fil
 	di.openBufferLock.Lock()
 	defer di.openBufferLock.Unlock()
 
-	count, err, increases, decreases := di.getFlowConnectionStats(driver.GetOpenFlowsIOCTL, &(di.openBuffer), openBuf, filter)
+	count, increases, decreases, err := di.getFlowConnectionStats(driver.GetOpenFlowsIOCTL, &(di.openBuffer), openBuf, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -367,7 +365,7 @@ func (di *DriverInterface) GetClosedConnectionStats(closedBuf *ConnectionBuffer,
 	di.closedBufferLock.Lock()
 	defer di.closedBufferLock.Unlock()
 
-	count, err, increases, decreases := di.getFlowConnectionStats(driver.GetClosedFlowsIOCTL, &(di.closedBuffer), closedBuf, filter)
+	count, increases, decreases, err := di.getFlowConnectionStats(driver.GetClosedFlowsIOCTL, &(di.closedBuffer), closedBuf, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -427,7 +425,7 @@ func (di *DriverInterface) setFlowParams() error {
 	}
 
 	threshold := di.closedFlowsSignalLimit
-	if 0 == threshold {
+	if threshold == 0 {
 		threshold = maxClosedFlows / 2
 	}
 	err = di.driverFlowHandle.DeviceIoControl(

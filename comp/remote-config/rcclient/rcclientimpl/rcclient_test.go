@@ -129,7 +129,7 @@ func TestRCClientCreate(t *testing.T) {
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
-	assert.NotNil(t, client.(rcClient).client)
+	assert.NotNil(t, client.(*rcClient).client)
 }
 
 func TestAgentConfigCallback(t *testing.T) {
@@ -138,7 +138,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	var ipcComp ipc.Component
 
-	rc := fxutil.Test[rcclient.Component](t,
+	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -168,12 +168,12 @@ func TestAgentConfigCallback(t *testing.T) {
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}
 	configOrder := state.RawConfig{Config: []byte(`{"internal_order": ["layer1", "layer2"]}`)}
 
-	structRC := rc.(rcClient)
+	rc := rcComponent.(*rcClient)
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
-	structRC.client, _ = client.NewUnverifiedGRPCClient(
+	rc.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		ipcComp.GetAuthToken(),
@@ -188,7 +188,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("log_level"))
 
 	// Set log level to debug
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -197,7 +197,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	// Send an empty log level request, as RC would at the end of the Agent Flare request
 	// Should fallback to the default level
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -207,7 +207,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
 	cfg.Set("log_level", "info", model.SourceCLI)
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -219,7 +219,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request
 	cfg.UnsetForSource("log_level", model.SourceCLI)
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -227,7 +227,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	assert.Equal(t, model.SourceRC, cfg.GetSource("log_level"))
 
 	cfg.Set("log_level", "debug", model.SourceCLI)
-	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
+	rc.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
@@ -241,7 +241,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 
 	var ipcComp ipc.Component
 
-	rc := fxutil.Test[rcclient.Component](t,
+	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
 			fx.Provide(func() log.Component { return logmock.New(t) }),
@@ -272,12 +272,12 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
 
-	structRC := rc.(rcClient)
+	rc := rcComponent.(*rcClient)
 
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(cfg)
 	assert.NoError(t, err)
 
-	structRC.client, _ = client.NewUnverifiedGRPCClient(
+	rc.client, _ = client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		pkgconfigsetup.GetIPCPort(),
 		ipcComp.GetAuthToken(),
@@ -286,17 +286,17 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
 	)
-	structRC.settingsComponent = &MockComponentImplMrf{}
+	rc.settingsComponent = &MockComponentImplMrf{}
 
 	// Should enable metrics failover and disable logs failover
-	structRC.mrfUpdateCallback(map[string]state.RawConfig{
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_FAILOVER/none/configname":       allInactive,
 		"datadog/2/AGENT_FAILOVER/nologs/configname":     noLogs,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname": activeMetrics,
 		"datadog/2/AGENT_FAILOVER/yesapm/configname":     activeAPM,
 	}, applyEmpty)
 
-	cmpntSettings := structRC.settingsComponent.(*MockComponentImplMrf)
+	cmpntSettings := rc.settingsComponent.(*MockComponentImplMrf)
 	assert.True(t, *cmpntSettings.metrics)
 	assert.False(t, *cmpntSettings.logs)
 	assert.True(t, *cmpntSettings.apm)

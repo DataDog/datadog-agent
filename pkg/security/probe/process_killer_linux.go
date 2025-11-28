@@ -81,7 +81,7 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 
 // TODO: do a better job than returning only the direct lineage
 func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
-	if entry.ContainerID != "" && scope == "container" {
+	if entry.ContainerContext.ContainerID != "" && scope == "container" {
 		pcs := []killContext{}
 		pids, paths := entry.GetContainerPIDs()
 		l := min(len(pids), len(paths))

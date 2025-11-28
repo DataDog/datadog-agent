@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -49,16 +49,18 @@ func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor
 	for _, opt := range opts {
 		opt(t, host)
 	}
-	host.uploadFixtures()
-	host.setSystemdVersion()
-	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
-		host.pkgManager = "apt"
-	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
-		host.pkgManager = "zypper"
-	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
-		host.pkgManager = "yum"
-	} else {
-		t().Fatal("no package manager found")
+	if os.Family() == e2eos.LinuxFamily {
+		host.uploadFixtures()
+		host.setSystemdVersion()
+		if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+			host.pkgManager = "apt"
+		} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+			host.pkgManager = "zypper"
+		} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+			host.pkgManager = "yum"
+		} else {
+			t().Fatal("no package manager found")
+		}
 	}
 	return host
 }
@@ -195,6 +197,16 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 			unit,
 			h.remote.MustExecute("sudo journalctl -xeu "+unit),
 		)
+	}
+}
+
+// WaitForUnitExited waits for a systemd unit to exit with a specific exit code
+func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
+	for _, unit := range units {
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"(code=exited, status=%d/\" <(sudo systemctl status %s)", exitCode, unit))
+			return err == nil
+		}, time.Second*90, time.Second*2, "unit %s did not exit or exit with expected code. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}
 }
 

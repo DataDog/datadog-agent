@@ -89,6 +89,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		SyscallsEventType.String(),
 		LoginUIDWriteEventType.String(),
 		PrCtlEventType.String(),
+		TracerMemfdCreateEventType.String(),
+		TracerMemfdSealEventType.String(),
 		ArgsEnvsEventType.String():
 		return ProcessCategory
 
