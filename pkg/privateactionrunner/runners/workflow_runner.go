@@ -53,7 +53,7 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 	}
 	startTime := time.Now()
 	if n.keysManager != nil {
-		n.keysManager.Start(ctx)
+		n.keysManager.Start()
 	}
 	n.taskLoop = NewLoop(n)
 	go func() {
@@ -69,9 +69,6 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 func (n *WorkflowRunner) Close(ctx context.Context) {
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
-	}
-	if n.keysManager != nil {
-		n.keysManager.Close(ctx)
 	}
 }
 
