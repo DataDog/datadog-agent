@@ -606,11 +606,11 @@ int hook_cleanup_mnt(ctx_t *ctx) {
     struct mount *mnt = (struct mount *)CTX_PARM1(ctx);
     u32 mnt_id = get_mount_mount_id(mnt);
 
-    struct finalized_umount_event_t event = {
+    struct mount_released_event_t event = {
         .mount_id = mnt_id,
     };
 
-    send_event(ctx, EVENT_FINALIZED_UMOUNT, event);
+    send_event(ctx, EVENT_MOUNT_RELEASED, event);
 
     return 0;
 }

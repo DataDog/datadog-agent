@@ -55,25 +55,21 @@ func TestUmount(t *testing.T) {
 		if err != nil {
 			fmt.Println("Error unmounting", err)
 		}
-		//	err = unix.Close(fd)
 
 		if err != nil {
 			fmt.Println("Error closing", err)
 		}
 		return nil
 	}, func(event *model.Event) bool {
-		if event.GetType() != "finalize_umount" {
+		if event.GetType() != "mount_released" {
 			return false
 		}
-
-		fmt.Println("Found MountID", event.FinalizedUmount.MountID)
-		if event.FinalizedUmount.MountID != mountID {
+		if event.MountReleased.MountID != mountID {
 			return false
 		}
-		fmt.Printf("Correct mountid=%d found.\n", event.FinalizedUmount.MountID)
 		found = true
 		return true
-	}, 3*time.Second, model.FileFinalizedUmountEventType)
+	}, 3*time.Second, model.MountReleasedEventType)
 	fmt.Println("Finish")
 	if err != nil {
 		fmt.Println("Error getting probe event", err)

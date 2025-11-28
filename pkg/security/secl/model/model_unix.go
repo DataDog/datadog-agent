@@ -141,7 +141,6 @@ type Event struct {
 
 	// internal usage
 	Umount           UmountEvent           `field:"-"`
-	FinalizedUmount  FinalizedUmountEvent  `field:"-"`
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
@@ -647,11 +646,6 @@ type UnlinkEvent struct {
 type UmountEvent struct {
 	SyscallEvent
 	MountID uint32
-}
-
-// FinalizedUmountEvent represents an umount event
-type FinalizedUmountEvent struct {
-	MountID uint32 `field:"-"`
 }
 
 // UtimesEvent represents a utime event
