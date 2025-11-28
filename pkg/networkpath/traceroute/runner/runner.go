@@ -132,19 +132,20 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	}
 
 	params := traceroute.TracerouteParams{
-		Hostname:          cfg.DestHostname,
-		Port:              int(cfg.DestPort),
-		Protocol:          strings.ToLower(string(cfg.Protocol)),
-		MinTTL:            trcommon.DefaultMinTTL,
-		MaxTTL:            int(cfg.MaxTTL),
-		Delay:             DefaultDelay,
-		Timeout:           timeout,
-		TCPMethod:         traceroute.TCPMethod(cfg.TCPMethod),
-		WantV6:            false,
-		ReverseDns:        cfg.ReverseDNS,
-		UseWindowsDriver:  !cfg.DisableWindowsDriver,
-		TracerouteQueries: cfg.TracerouteQueries,
-		E2eQueries:        cfg.E2eQueries,
+		Hostname:              cfg.DestHostname,
+		Port:                  int(cfg.DestPort),
+		Protocol:              strings.ToLower(string(cfg.Protocol)),
+		MinTTL:                trcommon.DefaultMinTTL,
+		MaxTTL:                int(cfg.MaxTTL),
+		Delay:                 DefaultDelay,
+		Timeout:               timeout,
+		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),
+		WantV6:                false,
+		ReverseDns:            cfg.ReverseDNS,
+		CollectSourcePublicIP: true,
+		UseWindowsDriver:      !cfg.DisableWindowsDriver,
+		TracerouteQueries:     cfg.TracerouteQueries,
+		E2eQueries:            cfg.E2eQueries,
 	}
 
 	results, err := r.traceroute.RunTraceroute(ctx, params)
