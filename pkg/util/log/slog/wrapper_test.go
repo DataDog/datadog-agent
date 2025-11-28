@@ -490,11 +490,15 @@ func TestLoggingToClosedWrapperDoesNotCallHandler(t *testing.T) {
 }
 
 func TestRecordTimeZone(t *testing.T) {
-	t.Setenv("TZ", "America/New_York")
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows uses syscalls to get the timezone, so we can't test it")
+	}
+
+	t.Setenv("TZ", "CET")
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
 	wrapper.Info("test message")
 	record := handler.lastRecord()
-	assert.Equal(t, "America/New_York", record.Time.Location().String())
+	assert.Equal(t, "CET", record.Time.Location().String())
 }
