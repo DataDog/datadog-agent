@@ -35,24 +35,14 @@ type WorkflowRunner struct {
 	taskLoop     *Loop
 }
 
-func NewWorkflowRunner(
-// ctx context.Context,
-// configuration *config.Config,
-) (*WorkflowRunner, error) {
-	//keyManager, err := remoteconfig.New(ctx, configuration)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//log.FromContext(ctx).Info("Remote config client created")
-	//taskVerifier := taskverifier.NewTaskVerifier(keyManager, configuration)
-
+func NewWorkflowRunner(configuration *config.Config, keysManager remoteconfig.KeysManager, verifier *taskverifier.TaskVerifier, opmsClient opms.Client) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		//registry:     privatebundles.NewRegistry(),
-		//opmsClient:   opms.NewClient(configuration),
-		//resolver:     resolver.NewPrivateCredentialResolver(),
-		//config:       configuration,
-		//keysManager:  keyManager,
-		//taskVerifier: taskVerifier,
+		registry:     privatebundles.NewRegistry(),
+		opmsClient:   opmsClient,
+		resolver:     resolver.NewPrivateCredentialResolver(),
+		config:       configuration,
+		keysManager:  keysManager,
+		taskVerifier: verifier,
 	}, nil
 }
 

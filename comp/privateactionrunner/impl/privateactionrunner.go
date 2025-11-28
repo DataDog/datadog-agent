@@ -9,14 +9,19 @@ package privateactionrunnerimpl
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 )
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	// Remove this field if the component has no lifecycle hooks
+	Config    config.Component
 	Lifecycle compdef.Lifecycle
 }
 
@@ -26,12 +31,32 @@ type Provides struct {
 }
 
 type privateactionrunnerImpl struct {
+	config         config.Component
 	WorkflowRunner *runners.WorkflowRunner
 }
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
-	r, err := runners.NewWorkflowRunner()
+	enabled := reqs.Config.GetBool("privateactionrunner.enabled")
+	if !enabled {
+		// Return a no-op component when disabled
+		return Provides{
+			Comp: &privateactionrunnerImpl{},
+		}, nil
+	}
+	cfg, err := parconfig.FromDDConfig(reqs.Config)
+	if err != nil {
+		return Provides{}, err
+	}
+	ctx := context.Background()
+	keysManager, err := remoteconfig.New(ctx, cfg)
+	if err != nil {
+		return Provides{}, err
+	}
+	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	opmsClient := opms.NewClient(cfg)
+
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
 	if err != nil {
 		return Provides{}, err
 	}

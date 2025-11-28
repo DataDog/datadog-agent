@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(gofmt:*)",
-      "Bash(sed:*)"
-    ],
-    "deny": []
-  }
-}
