@@ -704,6 +704,10 @@ class TestQualityGatesIntegration(unittest.TestCase):
         new=MagicMock(),
     )
     @patch("tasks.quality_gates.display_pr_comment", new=MagicMock())
+    @patch(
+        "tasks.quality_gates.GithubAPI",
+        new=MagicMock(return_value=MagicMock(get_pr_for_branch=MagicMock(return_value=MagicMock(totalCount=0)))),
+    )
     def test_parse_and_trigger_gates_merge_queue_single_gate(self):
         """Test that merge queue only runs a single gate (the first one)"""
         ctx = MockContext(
