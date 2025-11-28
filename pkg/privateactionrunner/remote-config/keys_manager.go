@@ -17,10 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 type KeysManager interface {
@@ -32,7 +30,6 @@ type KeysManager interface {
 type keysManager struct {
 	rcClient               RcClient
 	stopChan               chan bool
-	config                 *config.Config
 	keys                   map[string]types.DecodedKey
 	mu                     sync.RWMutex
 	ready                  chan struct{}
@@ -146,8 +143,4 @@ func decodeED25519(k types.RawKey) (*types.ED25519Key, error) {
 		KeyType: k.KeyType,
 		Key:     keyED25519,
 	}, nil
-}
-
-func (k *keysManager) getPARJWT() (string, error) {
-	return util.GeneratePARJWT(k.config.OrgId, k.config.RunnerId, k.config.PrivateKey, nil)
 }

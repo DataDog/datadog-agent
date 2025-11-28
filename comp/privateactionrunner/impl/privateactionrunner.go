@@ -33,7 +33,6 @@ type Provides struct {
 }
 
 type privateactionrunnerImpl struct {
-	config         config.Component
 	WorkflowRunner *runners.WorkflowRunner
 }
 

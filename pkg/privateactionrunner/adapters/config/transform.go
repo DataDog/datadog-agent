@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -78,7 +79,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		JWTRefreshInterval:        defaultJwtRefreshInterval,
 		HealthCheckEndpoint:       defaultHealthCheckEndpoint,
 		HeartbeatInterval:         heartbeatInterval,
-		Version:                   "1.0.0-agent",
+		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
 		ActionsAllowlist:          make(map[string]sets.Set[string]),
 		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
