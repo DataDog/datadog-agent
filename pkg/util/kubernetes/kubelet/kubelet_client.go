@@ -54,10 +54,10 @@ type kubeletClientConfig struct {
 }
 
 type kubeletClient struct {
-	client          http.Client
-	kubeletURL      string
-	config          kubeletClientConfig
-	ressponseBuffer *bytes.Buffer
+	client         http.Client
+	kubeletURL     string
+	config         kubeletClientConfig
+	responseBuffer *bytes.Buffer
 }
 
 func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletClient, error) {
@@ -114,10 +114,10 @@ func newForConfig(config kubeletClientConfig, timeout time.Duration) (*kubeletCl
 	}
 
 	return &kubeletClient{
-		client:          httpClient,
-		kubeletURL:      fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
-		config:          config,
-		ressponseBuffer: bytes.NewBuffer(make([]byte, 0, 64*1024)),
+		client:         httpClient,
+		kubeletURL:     fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
+		config:         config,
+		responseBuffer: bytes.NewBuffer(make([]byte, 0, 64*1024)),
 	}, nil
 }
 
@@ -187,17 +187,17 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 
 	defer response.Body.Close()
 
-	kc.ressponseBuffer.Reset()
-	_, err = io.Copy(kc.ressponseBuffer, response.Body)
+	kc.responseBuffer.Reset()
+	_, err = io.Copy(kc.responseBuffer, response.Body)
 	if err != nil {
 		log.Errorf("Fail to read request %s body: %s", req.URL.String(), err)
 		return nil, 0, err
 	}
 
-	b := make([]byte, kc.ressponseBuffer.Len())
+	b := make([]byte, kc.responseBuffer.Len())
 
 	// Read can only return EOF or nil, don't check for errors
-	kc.ressponseBuffer.Read(b) ////nolint:errcheck
+	kc.responseBuffer.Read(b) ////nolint:errcheck
 	return b, response.StatusCode, nil
 }
 
