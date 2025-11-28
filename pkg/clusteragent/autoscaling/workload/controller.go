@@ -134,7 +134,7 @@ func NewController(
 
 // PreStart is called before the controller starts
 func (c *Controller) PreStart(ctx context.Context) {
-	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
+	autoscaling.StartLocalTelemetry(ctx, c.localSender, "workload", []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
 }
 
 // Process implements the Processor interface (so required to be public)
