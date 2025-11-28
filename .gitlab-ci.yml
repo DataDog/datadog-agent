@@ -760,6 +760,14 @@ workflow:
         - test/new-e2e/tests/agent-configuration//**/*
       compare_to: $COMPARE_TO_BRANCH
 
+.on_agth_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - test/new-e2e/tests/agent-health/**/*
+        - comp/healthplatform/**/*
+      compare_to: $COMPARE_TO_BRANCH
+
 .on_subcommands_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
