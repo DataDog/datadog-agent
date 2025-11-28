@@ -443,11 +443,6 @@ struct splice_event_t {
     u32 pipe_exit_flag;
 };
 
-struct finalized_umount_event_t {
-    struct kevent_t event;
-    u32 mount_id;
-};
-
 struct umount_event_t {
     struct kevent_t event;
     struct process_context_t process;

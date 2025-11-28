@@ -1601,8 +1601,6 @@ func (p *EBPFProbe) handleBeforeProcessContext(event *model.Event, data []byte, 
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
-	case model.FileFinalizedUmountEventType:
-
 	case model.ForkEventType:
 		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -1637,30 +1635,19 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 	var err error
 	eventType := event.GetEventType()
 	switch eventType {
-	case model.FileFinalizedUmountEventType:
-		p.regularUnmarshalEvent(&event.FinalizedUmount, eventType, offset, dataLen, data)
-		p.DispatchEvent(event, true)
-		// Remove all dentry entries belonging to the mountID
-		//p.Resolvers.DentryResolver.DelCacheEntriesForMountID(event.FinalizedUmount.MountID)
-
-		// Delete new mount point from cache
-		if err = p.Resolvers.MountResolver.DeleteFinal(event.FinalizedUmount.MountID); err != nil {
-			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
-		}
-
-		return false
 	case model.MountReleasedEventType:
 		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
 			return false
 		}
-
-		// Remove all dentry entries belonging to the mountID
 		p.Resolvers.DentryResolver.DelCacheEntriesForMountID(event.MountReleased.MountID)
 
 		// Delete new mount point from cache
 		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
 			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
+
+		// Hack and only necessary for the tests. Find a better way to do it
+		p.DispatchEvent(event, true)
 		return false
 	case model.ArgsEnvsEventType:
 		if !p.regularUnmarshalEvent(&event.ArgsEnvs, eventType, offset, dataLen, data) {

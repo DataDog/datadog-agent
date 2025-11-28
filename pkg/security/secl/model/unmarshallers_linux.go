@@ -664,16 +664,6 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
-func (e *FinalizedUmountEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 4 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.MountID = binary.NativeEndian.Uint32(data[0:4])
-	return 8, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {

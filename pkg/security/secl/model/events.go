@@ -143,8 +143,6 @@ const (
 	TracerMemfdCreateEventType
 	// TracerMemfdSealEventType Tracer memfd seal event
 	TracerMemfdSealEventType
-	// FileFinalizedUmountEventType Finalized umount event (When the mount finally gets detached)
-	FileFinalizedUmountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -216,8 +214,6 @@ func (t EventType) String() string {
 		return "mount"
 	case FileUmountEventType:
 		return "umount"
-	case FileFinalizedUmountEventType:
-		return "finalize_umount"
 	case FileSetXAttrEventType:
 		return "setxattr"
 	case FileRemoveXAttrEventType:
