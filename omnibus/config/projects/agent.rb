@@ -275,7 +275,7 @@ if linux_target?
   extra_package_file '/var/log/datadog/'
   extra_package_file "#{install_dir}/.install_root"
   # Process manager config directory
-  extra_package_file '/etc/datadog-agent/process-manager/'
+  extra_package_file "#{output_config_dir}/etc/datadog-agent/process-manager/"
 end
 
 # all flavors use the same package scripts
