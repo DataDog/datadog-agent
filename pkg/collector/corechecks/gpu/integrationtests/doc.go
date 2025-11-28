@@ -23,4 +23,3 @@ To run these tests locally, you need a machine with:
   - NVML library available
 */
 package integrationtests
-
