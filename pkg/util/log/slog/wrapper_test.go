@@ -490,11 +490,11 @@ func TestLoggingToClosedWrapperDoesNotCallHandler(t *testing.T) {
 }
 
 func TestRecordTimeZone(t *testing.T) {
-	t.Setenv("TZ", "EST")
+	t.Setenv("TZ", "America/New_York")
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
 
 	wrapper.Info("test message")
 	record := handler.lastRecord()
-	assert.Equal(t, "EST", record.Time.Location().String())
+	assert.Equal(t, "America/New_York", record.Time.Location().String())
 }
