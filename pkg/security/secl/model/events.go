@@ -45,8 +45,6 @@ const (
 	FileMountEventType
 	// FileUmountEventType Umount event
 	FileUmountEventType
-	// FileFinalizedUmountEventType Finalized umount event (When the mount finally gets detached)
-	FileFinalizedUmountEventType
 	// ForkEventType Fork event
 	ForkEventType
 	// ExecEventType Exec event
@@ -145,6 +143,8 @@ const (
 	TracerMemfdCreateEventType
 	// TracerMemfdSealEventType Tracer memfd seal event
 	TracerMemfdSealEventType
+	// FileFinalizedUmountEventType Finalized umount event (When the mount finally gets detached)
+	FileFinalizedUmountEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
