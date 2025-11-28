@@ -158,6 +158,7 @@ func (f *forwarder) sendHealthReport() {
 	}
 
 	// Create the HTTP request
+	f.comp.log.Info(fmt.Sprintf("Sending health report to %s", f.intakeURL))
 	req, err := http.NewRequestWithContext(f.ctx, "POST", f.intakeURL, bytes.NewBuffer(payload))
 	if err != nil {
 		f.comp.log.Warn("Failed to create request: " + err.Error())
