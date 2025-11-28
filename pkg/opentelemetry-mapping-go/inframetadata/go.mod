@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetada
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/serializer v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.74.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/serializer v0.74.0-rc.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.46.0
 	go.opentelemetry.io/otel v1.38.0
@@ -12,7 +12,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.74.0-rc.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
