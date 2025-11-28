@@ -9,11 +9,6 @@ struct mount_released_event_t {
     u32 mount_id;
 };
 
-struct mount_ref_t {
-    u32 umounted;
-    s32 counter;
-};
-
 struct mount_fields_t {
     struct path_key_t root_key;
     struct path_key_t mountpoint_key;
