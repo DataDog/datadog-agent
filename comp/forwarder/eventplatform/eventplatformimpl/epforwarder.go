@@ -362,15 +362,17 @@ func Diagnose() []diagnose.Diagnosis {
 
 // Detect if the connection failed because of using a FQDN by trying with a PQDN
 func maybeTestWithPQDN(endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
-	host := endpoint.Host
+	fqdn := endpoint.Host
 
-	if strings.HasSuffix(host, ".") {
-		log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", host)
+	if strings.HasSuffix(fqdn, ".") {
+		log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", fqdn)
 
-		endpoint.Host = strings.TrimSuffix(host, ".")
+		// This function takes `endpoint` by value, so it's safe to mutate here
+		endpoint.Host = strings.TrimSuffix(fqdn, ".")
 		_, err := logshttp.CheckConnectivityDiagnose(endpoint, pkgconfigsetup.Datadog())
 		if err == nil {
-			diag.Remediation = "The connection with a FQDN failed but is possible with PQDN, please check firewall and/or proxy configuration"
+			diag.Remediation = fmt.Sprintf(
+				"The connection to %s failed. It is a fully qualified domain name (FQDN), note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", fqdn)
 		}
 	}
 	return diag

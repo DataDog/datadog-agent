@@ -145,7 +145,7 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 			domainResolver.ToFQDN()
 
 			if d.Status == diagnose.DiagnosisSuccess {
-				diag.Remediation = "The connection with a FQDN failed but is possible with PQDN, please check firewall and/or proxy configuration"
+				diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", logURL)
 			}
 		}
 	}
