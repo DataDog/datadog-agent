@@ -22,7 +22,7 @@
 //! ```rust,ignore
 //! use pm_engine::{
 //!     adapters::grpc::ProcessManagerService,
-//!     application::UseCaseRegistry,
+//!     application::Application,
 //!     domain::services::ProcessSupervisionService,
 //!     infrastructure::{InMemoryProcessRepository, TokioProcessExecutor},
 //! };

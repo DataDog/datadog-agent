@@ -2,7 +2,7 @@
 //! Run with: cargo run --example adapters_demo
 
 use pm_engine::adapters::{grpc::ProcessManagerService, rest::build_router};
-use pm_engine::application::UseCaseRegistry;
+use pm_engine::application::Application;
 use pm_engine::infrastructure::{InMemoryProcessRepository, TokioProcessExecutor};
 use pm_engine::proto::process_manager::process_manager_server::ProcessManagerServer;
 use std::sync::Arc;
@@ -25,8 +25,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. Setup Application Layer
     info!("Setting up application layer");
-    let registry = Arc::new(UseCaseRegistry::new(repository, executor));
-    println!("[OK] Application: UseCaseRegistry with 8 use cases\n");
+    let registry = Arc::new(Application::new(repository, executor));
+    println!("[OK] Application: Application with 8 use cases\n");
 
     // 3. Setup gRPC Adapter (Port 50051)
     let grpc_addr = "0.0.0.0:50051".parse()?;
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("                 │");
     println!("┌────────────────▼────────────────────────┐");
     println!("│         APPLICATION LAYER                │");
-    println!("│      UseCaseRegistry (8 use cases)       │");
+    println!("│      Application (8 use cases)       │");
     println!("└────────────────┬────────────────────────┘");
     println!("                 │");
     println!("┌────────────────▼────────────────────────┐");

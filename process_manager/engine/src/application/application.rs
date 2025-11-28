@@ -1,5 +1,5 @@
-//! Use Case Registry
-//! Central composition root for all use cases (Dependency Injection container)
+//! Application
+//! Container for all use cases, providing the entry point to the application layer
 
 use crate::domain::ports::{ProcessExecutor, ProcessRepository};
 use crate::domain::services::{
@@ -15,9 +15,8 @@ use crate::domain::use_cases::{
 };
 use std::sync::Arc;
 
-/// Registry for all application use cases
-/// This is the composition root where dependencies are wired together
-pub struct UseCaseRegistry {
+/// Container for all use cases, providing the entry point to the application layer
+pub struct Application {
     // Command use cases (modify state)
     create_process: Arc<dyn CreateProcess>,
     start_process: Arc<dyn StartProcess>,
@@ -36,8 +35,8 @@ pub struct UseCaseRegistry {
     spawn_service: Arc<ProcessSpawningService>,
 }
 
-impl UseCaseRegistry {
-    /// Create a new registry with all use cases configured
+impl Application {
+    /// Create a new Application with all use cases configured
     ///
     /// # Arguments
     ///
@@ -288,7 +287,7 @@ mod tests {
     async fn test_registry_creation() {
         let repo = Arc::new(MockRepository::new());
         let executor = Arc::new(MockExecutor);
-        let registry = UseCaseRegistry::new(repo, executor);
+        let registry = Application::new(repo, executor);
 
         // Should be able to access use cases through the registry
         let use_case = registry.create_process();
@@ -309,7 +308,7 @@ mod tests {
     async fn test_registry_use_case_isolation() {
         let repo = Arc::new(MockRepository::new());
         let executor = Arc::new(MockExecutor);
-        let registry = UseCaseRegistry::new(repo, executor);
+        let registry = Application::new(repo, executor);
 
         // Create process through registry
         let create_use_case = registry.create_process();
@@ -329,7 +328,7 @@ mod tests {
     async fn test_registry_cqrs_flow() {
         let repo = Arc::new(MockRepository::new());
         let executor = Arc::new(MockExecutor);
-        let registry = UseCaseRegistry::new(repo, executor);
+        let registry = Application::new(repo, executor);
 
         // Initially empty
         let list_result = registry.list_processes().execute().await.unwrap();
@@ -358,7 +357,7 @@ mod tests {
     async fn test_registry_all_use_cases_accessible() {
         let repo = Arc::new(MockRepository::new());
         let executor = Arc::new(MockExecutor);
-        let registry = UseCaseRegistry::new(repo, executor);
+        let registry = Application::new(repo, executor);
 
         // Verify all use cases are accessible
         let _ = registry.create_process();

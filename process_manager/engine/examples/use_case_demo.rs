@@ -1,7 +1,7 @@
 //! Demonstration of the process manager architecture with use cases
 //! Run with: cargo run --example use_case_demo
 
-use pm_engine::application::UseCaseRegistry;
+use pm_engine::application::Application;
 use pm_engine::domain::CreateProcessCommand;
 use pm_engine::infrastructure::{InMemoryProcessRepository, TokioProcessExecutor};
 use std::sync::Arc;
@@ -17,8 +17,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[OK] Infrastructure Layer: Created InMemoryRepository & TokioExecutor");
 
     // 2. Create application layer (use case registry)
-    let use_cases = UseCaseRegistry::new(repository.clone(), executor.clone());
-    println!("[OK] Application Layer: Created UseCaseRegistry with all 8 use cases\n");
+    let use_cases = Application::new(repository.clone(), executor.clone());
+    println!("[OK] Application Layer: Created Application with all 8 use cases\n");
 
     println!("==========================================");
     println!("CQRS Pattern Demonstration");

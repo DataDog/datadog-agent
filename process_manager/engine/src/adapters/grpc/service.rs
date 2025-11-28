@@ -1,7 +1,7 @@
 //! gRPC ProcessManager service implementation
 //! Driving adapter that exposes use cases through gRPC
 
-use crate::application::UseCaseRegistry;
+use crate::application::Application;
 use crate::domain::{
     CreateProcessCommand, DeleteProcessCommand, GetProcessStatusQuery, StartProcessCommand,
     StopProcessCommand,
@@ -25,11 +25,11 @@ use super::mappers::{
 
 /// gRPC service implementation
 pub struct ProcessManagerService {
-    registry: Arc<UseCaseRegistry>,
+    registry: Arc<Application>,
 }
 
 impl ProcessManagerService {
-    pub fn new(registry: Arc<UseCaseRegistry>) -> Self {
+    pub fn new(registry: Arc<Application>) -> Self {
         Self { registry }
     }
 }

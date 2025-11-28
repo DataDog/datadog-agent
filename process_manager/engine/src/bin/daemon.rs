@@ -14,7 +14,7 @@ use pm_engine::{
         grpc::{serve_on_unix_socket_with_health, ProcessManagerService},
         rest::{build_router, serve_on_unix_socket as rest_unix},
     },
-    application::UseCaseRegistry,
+    application::Application,
     domain::ports::ProcessRepository,
     domain::services::{
         HealthMonitoringService, ProcessSupervisionService, ProcessWatchingService,
@@ -108,7 +108,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Socket activation manager initialized");
 
     // 3. Setup Application Layer (KISS: just pass supervisor)
-    let registry = Arc::new(UseCaseRegistry::new_with_supervisor(
+    let registry = Arc::new(Application::new_with_supervisor(
         repository.clone(),
         executor.clone(),
         supervisor.clone(),
@@ -369,7 +369,7 @@ async fn handle_socket_activation_events(
     mut socket_rx: tokio::sync::mpsc::UnboundedReceiver<
         pm_engine::domain::services::SocketActivationEvent,
     >,
-    registry: Arc<UseCaseRegistry>,
+    registry: Arc<Application>,
 ) {
     use pm_engine::domain::StartProcessCommand;
 

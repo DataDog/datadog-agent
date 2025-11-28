@@ -5,7 +5,7 @@ use pm_engine::adapters::grpc::{
     unix_socket::serve_on_unix_socket as grpc_unix, ProcessManagerService,
 };
 use pm_engine::adapters::rest::{build_router, unix_socket::serve_on_unix_socket as rest_unix};
-use pm_engine::application::UseCaseRegistry;
+use pm_engine::application::Application;
 use pm_engine::infrastructure::{InMemoryProcessRepository, TokioProcessExecutor};
 use std::sync::Arc;
 use tracing::{info, Level};
@@ -26,8 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. Setup Application Layer
     info!("Setting up application layer");
-    let registry = Arc::new(UseCaseRegistry::new(repository, executor));
-    println!("[OK] Application: UseCaseRegistry with 8 use cases\n");
+    let registry = Arc::new(Application::new(repository, executor));
+    println!("[OK] Application: Application with 8 use cases\n");
 
     // 3. Define Unix socket paths (systemd-style)
     let grpc_socket = "/tmp/process-manager.sock"; // Or /var/run/process-manager/pm.sock in production
@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("                 │");
     println!("┌────────────────▼────────────────────────┐");
     println!("│         APPLICATION LAYER                │");
-    println!("│      UseCaseRegistry (8 use cases)       │");
+    println!("│      Application (8 use cases)       │");
     println!("└────────────────┬────────────────────────┘");
     println!("                 │");
     println!("┌────────────────▼────────────────────────┐");

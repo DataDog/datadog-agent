@@ -1,6 +1,6 @@
 //! REST API handlers using axum
 
-use crate::application::UseCaseRegistry;
+use crate::application::Application;
 use crate::domain::{
     CreateProcessCommand, DeleteProcessCommand, GetProcessStatusQuery, RestartProcessCommand,
     StartProcessCommand, StopProcessCommand,
@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info};
 
 /// Shared application state
-pub type AppState = Arc<UseCaseRegistry>;
+pub type AppState = Arc<Application>;
 
 /// Error response
 #[derive(Serialize)]

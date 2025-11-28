@@ -1,3 +1,3 @@
-pub mod registry;
+pub mod application;
 
-pub use registry::UseCaseRegistry;
+pub use application::Application;
