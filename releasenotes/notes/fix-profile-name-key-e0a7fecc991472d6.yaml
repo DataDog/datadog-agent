@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix a bug in SNMP integration where a custom profile sysObjectIDs could conflict with default profiles ones when defining the name field in the custom profile.
+    Fixed a bug in the SNMP integration, where a custom profile's `sysObjectIDs` could conflict with default profiles' when defining the `name` field in the custom profile.
