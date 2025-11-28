@@ -24,7 +24,7 @@ var (
 	// ErrStorageStatsNotAvailable is returned if the storage stats are not in the docker info.
 	ErrStorageStatsNotAvailable = errors.New("docker storage stats not available")
 	//nolint:gosimple // TODO(CINT) Fix gosimple linter
-	diskBytesRe = regexp.MustCompile("([0-9.]+)\\s?([a-zA-Z]+)")
+	diskBytesRe = regexp.MustCompile(`([0-9.]+)\s?([a-zA-Z]+)`)
 	diskUnits   = map[string]uint64{
 		"b":  1,
 		"kb": 1000,

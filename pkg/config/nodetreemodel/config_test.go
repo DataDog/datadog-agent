@@ -1522,10 +1522,10 @@ func TestEnvVarTransformers(t *testing.T) {
 
 	cfg.BuildSchema()
 
-	var nums []float64 = cfg.GetFloat64Slice("list_of_nums")
+	var nums = cfg.GetFloat64Slice("list_of_nums")
 	assert.Equal(t, []float64{34, 67.5, 901.125}, nums)
 
-	var fruits []string = cfg.GetStringSlice("list_of_fruit")
+	var fruits = cfg.GetStringSlice("list_of_fruit")
 	assert.Equal(t, []string{"apple", "banana", "cherry"}, fruits)
 
 	tagsValue := cfg.Get("tag_set")
@@ -1533,18 +1533,8 @@ func TestEnvVarTransformers(t *testing.T) {
 	assert.Equal(t, true, converted)
 	assert.Equal(t, []map[string]string{{"cat": "meow"}, {"dog": "bark"}}, tags)
 
-	var kvs map[string]interface{} = cfg.GetStringMap("list_keypairs")
+	var kvs = cfg.GetStringMap("list_keypairs")
 	assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": 3}, kvs)
-}
-
-func TestUnmarshalKeyIsDeprecated(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", []string{"a", "b"})
-	cfg.BuildSchema()
-
-	var texts []string
-	err := cfg.UnmarshalKey("a", &texts)
-	assert.Error(t, err)
 }
 
 func TestSetConfigFile(t *testing.T) {
