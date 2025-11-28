@@ -35,6 +35,11 @@
   variables:
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
 
+.bazel:defs:cache:macos:
+  extends: .bazel:defs
+  variables:
+    XDG_CACHE_HOME: "$RUNNER_TEMP_PROJECT_DIR"
+
 .bazel:defs:cache:persistent:
   extends: .bazel:defs
   variables:
@@ -54,11 +59,11 @@
   tags: [ "k8s-persistent:arm64", "specific:true" ]
 
 .bazel:runner:macos-amd64:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-amd64", "specific:true" ]
 
 .bazel:runner:macos-arm64:
-  extends: .bazel:defs:cache:ephemeral
+  extends: .bazel:defs:cache:macos
   tags: [ "macos:sonoma-arm64", "specific:true" ]
 
 .bazel:runner:windows-amd64:

@@ -67,7 +67,6 @@ type testNetwork struct {
 }
 
 type testEvent struct {
-	id     string //nolint:unused
 	kind   string
 	retval int
 	title  string
