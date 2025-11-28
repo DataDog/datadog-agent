@@ -225,7 +225,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	// attempt getting list of unhealthy devices (if available)
 	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
-	if err != nil && logLimiter.ShouldLog() {
+	if (err != nil || unhealthyDevices == nil) && logLimiter.ShouldLog() {
 		log.Warnf("failed getting unhealthy devices: %v", err)
 	}
 
@@ -248,7 +248,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 		gpu.DriverVersion = driverVersion
 
-		_, unhealthy := unhealthyDevices[gpu.UID]
+		_, unhealthy := unhealthyDevices[gpu.ID]
 		gpu.Healthy = !unhealthy
 
 		uuid := dev.GetDeviceInfo().UUID
