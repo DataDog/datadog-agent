@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsproces
 
 go 1.24.0
 
-require github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
+require github.com/DataDog/datadog-agent/pkg/proto v0.74.0-rc.1
 
 require (
 	github.com/philhofer/fwd v1.2.0 // indirect
