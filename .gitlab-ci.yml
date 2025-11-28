@@ -1146,6 +1146,7 @@ workflow:
         - pkg/gpu/**/*
         - pkg/collector/corechecks/gpu/**/*
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
+        - .gitlab/source_test/linux.yml
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
