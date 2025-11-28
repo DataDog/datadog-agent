@@ -741,3 +741,180 @@ except KeyboardInterrupt:
 
     println!("[SUCCESS]: 'mixed' mode killed all child processes");
 }
+
+/// Test that 'control-group' mode kills all processes in the cgroup
+#[cfg(target_os = "linux")]
+#[test]
+fn test_kill_mode_control_group() {
+    cleanup_daemon();
+    let _daemon = setup_daemon();
+    let temp_dir = setup_temp_dir();
+
+    let script_path = temp_dir.path().join("spawn_children.py");
+    let child_marker = temp_dir.path().join("child_running");
+
+    // Create child script template
+    let child_script_template = format!(
+        r#"import os
+import time
+with open('{}', 'w') as f:
+    f.write(str(os.getpid()))
+while True:
+    time.sleep(1)
+"#,
+        "MARKER_PATH"
+    );
+
+    let child_template_formatted = format!("'''{}'''", child_script_template);
+    let script_content = format!(
+        r#"#!/usr/bin/env python3
+import os
+import subprocess
+import time
+
+# Write parent PID
+with open("{parent_marker}", 'w') as f:
+    f.write(str(os.getpid()))
+
+# Small delay to allow process manager to move us into cgroup
+time.sleep(0.5)
+
+# Spawn 3 child processes
+children = []
+for i in range(1, 4):
+    marker_path = "{child_marker}." + str(i)
+    child_code = {child_template}
+    child_code = child_code.replace('MARKER_PATH', marker_path)
+
+    proc = subprocess.Popen(['python3', '-c', child_code])
+    children.append(proc)
+
+# Wait for all children
+try:
+    for proc in children:
+        proc.wait()
+except KeyboardInterrupt:
+    pass
+"#,
+        parent_marker = temp_dir.path().join("parent.pid").display(),
+        child_marker = child_marker.display(),
+        child_template = child_template_formatted
+    );
+
+    fs::write(&script_path, script_content).expect("Failed to write script");
+    Command::new("chmod")
+        .arg("+x")
+        .arg(&script_path)
+        .status()
+        .expect("Failed to make script executable");
+
+    let process_name = format!("cgroup-kill-test-{}", std::process::id());
+
+    // Create with kill_mode: control-group and resource limits to force cgroup creation
+    let create_output = run_cli(&[
+        "create",
+        &process_name,
+        script_path.to_str().unwrap(),
+        "--kill-mode",
+        "control-group",
+        "--pids-limit",
+        "100", // Force cgroup creation
+        "--auto-start",
+    ]);
+
+    assert!(
+        create_output.contains("Process created") || create_output.contains("[OK]"),
+        "Failed to create process: {}",
+        create_output
+    );
+
+    thread::sleep(Duration::from_secs(3));
+
+    // Get parent PID to check cgroup
+    let parent_pid = fs::read_to_string(temp_dir.path().join("parent.pid"))
+        .ok()
+        .and_then(|s| s.trim().parse::<i32>().ok());
+
+    if let Some(ppid) = parent_pid {
+        // Check if cgroup was created
+        let cgroup_procs_path = format!("/sys/fs/cgroup/pm-{}/cgroup.procs", ppid);
+        if let Ok(procs) = fs::read_to_string(&cgroup_procs_path) {
+            println!("PIDs in cgroup {}:", cgroup_procs_path);
+            for line in procs.lines() {
+                println!("  {}", line);
+            }
+        } else {
+            println!("[INFO] Cgroup not found at {} - may fall back to process group", cgroup_procs_path);
+        }
+    }
+
+    // Collect child PIDs
+    let mut child_pids = Vec::new();
+    for i in 1..=3 {
+        let child_pid_file = format!("{}.{}", child_marker.display(), i);
+        if let Ok(content) = fs::read_to_string(&child_pid_file) {
+            if let Ok(pid) = content.trim().parse::<i32>() {
+                child_pids.push(pid);
+            }
+        }
+    }
+
+    if child_pids.is_empty() {
+        println!("[WARN] No child processes spawned - python3 may not be available");
+        return;
+    }
+
+    println!(
+        "Found {} child processes: {:?}",
+        child_pids.len(),
+        child_pids
+    );
+
+    // Verify children are running before stop
+    for &pid in &child_pids {
+        assert!(
+            is_process_running(pid),
+            "Child {} should be running before stop",
+            pid
+        );
+    }
+
+    // Stop parent with 'control-group' mode
+    let stop_output = run_cli(&["stop", &process_name]);
+    assert!(
+        stop_output.contains("stop")
+            || stop_output.contains("Stop")
+            || stop_output.contains("[OK]"),
+        "Stop command failed: {}",
+        stop_output
+    );
+
+    thread::sleep(Duration::from_secs(1));
+
+    // With 'control-group' mode, all processes in cgroup should be killed
+    let mut still_running = 0;
+    for &pid in &child_pids {
+        if is_process_running(pid) {
+            still_running += 1;
+            println!("  [WARNING] Child process {} is still running", pid);
+        } else {
+            println!("  [OK] Child process {} was killed", pid);
+        }
+    }
+
+    // Cleanup any survivors
+    for &pid in &child_pids {
+        if is_process_running(pid) {
+            let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
+        }
+    }
+
+    // With 'control-group' mode, all children should be killed (via cgroup or fallback to process group)
+    assert_eq!(
+        still_running, 0,
+        "Expected all child processes to be killed with 'control-group' mode, but {} are still running",
+        still_running
+    );
+
+    println!("[SUCCESS]: 'control-group' mode killed all child processes");
+}

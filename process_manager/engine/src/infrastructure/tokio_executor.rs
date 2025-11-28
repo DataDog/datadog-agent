@@ -841,20 +841,52 @@ impl ProcessExecutor for TokioProcessExecutor {
                 }
                 KillMode::ControlGroup => {
                     // Try to kill via cgroup, fallback to process group
-                    // For now, fallback to process group (full cgroup implementation would read /sys/fs/cgroup)
-                    warn!(
-                        pid = pid,
-                        "ControlGroup mode not fully implemented, falling back to ProcessGroup"
-                    );
-                    let result = unsafe { libc::kill(-(pid as i32), signal) };
-                    if result != 0 {
-                        let err = std::io::Error::last_os_error();
-                        return Err(DomainError::InvalidCommand(format!(
-                            "Failed to send signal {} to process group: {}",
-                            signal, err
-                        )));
+                    let cgroup_path = format!("/sys/fs/cgroup/pm-{}/cgroup.procs", pid);
+                    
+                    if let Ok(contents) = std::fs::read_to_string(&cgroup_path) {
+                        // Read all PIDs from cgroup and send signal to each
+                        let mut kill_count = 0;
+                        for line in contents.lines() {
+                            if let Ok(cgroup_pid) = line.trim().parse::<u32>() {
+                                let result = unsafe { libc::kill(cgroup_pid as i32, signal) };
+                                if result == 0 {
+                                    kill_count += 1;
+                                } else {
+                                    let err = std::io::Error::last_os_error();
+                                    // ESRCH (No such process) is OK - process may have already exited
+                                    if err.raw_os_error() != Some(libc::ESRCH) {
+                                        debug!(
+                                            pid = cgroup_pid,
+                                            error = %err,
+                                            "Failed to send signal to cgroup member"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        debug!(
+                            pid = pid,
+                            signal = signal,
+                            kill_count = kill_count,
+                            "Signal sent to cgroup members"
+                        );
+                        Ok(())
+                    } else {
+                        // Cgroup not found, fallback to process group
+                        debug!(
+                            pid = pid,
+                            "Cgroup not found, falling back to ProcessGroup"
+                        );
+                        let result = unsafe { libc::kill(-(pid as i32), signal) };
+                        if result != 0 {
+                            let err = std::io::Error::last_os_error();
+                            return Err(DomainError::InvalidCommand(format!(
+                                "Failed to send signal {} to process group: {}",
+                                signal, err
+                            )));
+                        }
+                        Ok(())
                     }
-                    Ok(())
                 }
                 KillMode::Mixed => {
                     // Send SIGTERM to main process first
