@@ -102,6 +102,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(target_os = "linux")]
     async fn test_execute_successful_hook() {
         let hooks = vec!["/bin/true".to_string()];
         let result = execute_hooks(&hooks, "test", "my-process").await;
@@ -109,6 +110,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(target_os = "linux")]
     async fn test_execute_failing_hook() {
         let hooks = vec!["/bin/false".to_string()];
         let result = execute_hooks(&hooks, "test", "my-process").await;
@@ -116,6 +118,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(target_os = "linux")]
     async fn test_execute_multiple_hooks() {
         let hooks = vec!["/bin/true".to_string(), "/bin/echo test".to_string()];
         let result = execute_hooks(&hooks, "test", "my-process").await;
@@ -123,6 +126,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(target_os = "linux")]
     async fn test_execute_hooks_stops_on_first_failure() {
         let hooks = vec![
             "/bin/true".to_string(),

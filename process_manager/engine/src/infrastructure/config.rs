@@ -1,6 +1,6 @@
 //! Configuration loading from YAML files
 //!
-//! Only directory-based configuration is supported (`/etc/pm/processes.d/*.yaml`).
+//! Only directory-based configuration is supported (`/etc/datadog-agent/process-manager/processes.d/*.yaml`).
 //! Each YAML file represents ONE process, with the process name derived from the filename.
 
 use serde::{Deserialize, Serialize};
@@ -162,46 +162,6 @@ pub struct ProcessConfig {
     // Conditional starting (systemd-like)
     #[serde(default)]
     pub condition_path_exists: Option<Vec<String>>,
-
-    // Socket activation (systemd-like)
-    #[serde(default)]
-    pub socket: Option<SocketActivationConfig>,
-}
-
-/// Socket activation configuration from YAML
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SocketActivationConfig {
-    /// Socket name
-    #[serde(default)]
-    pub name: Option<String>,
-
-    /// TCP listen address (e.g., "0.0.0.0:8080")
-    #[serde(default)]
-    pub listen_stream: Option<String>,
-
-    /// UDP listen address
-    #[serde(default)]
-    pub listen_datagram: Option<String>,
-
-    /// Unix socket path
-    #[serde(default)]
-    pub listen_unix: Option<String>,
-
-    /// Accept mode (false = single service, true = per-connection)
-    #[serde(default)]
-    pub accept: Option<bool>,
-
-    /// Unix socket permissions (octal as string, e.g., "660")
-    #[serde(default)]
-    pub socket_mode: Option<String>,
-
-    /// Unix socket owner
-    #[serde(default)]
-    pub socket_user: Option<String>,
-
-    /// Unix socket group
-    #[serde(default)]
-    pub socket_group: Option<String>,
 }
 
 /// Resource limits configuration from YAML
@@ -357,7 +317,7 @@ impl Config {
 ///
 /// # Example
 /// ```text
-/// /etc/pm/processes.d/
+/// /etc/datadog-agent/process-manager/processes.d/
 /// ├── datadog-agent.yaml      # Process name: "datadog-agent"
 /// ├── trace-agent.yaml        # Process name: "trace-agent"
 /// └── process-agent.yaml      # Process name: "process-agent"
@@ -371,9 +331,9 @@ pub fn load_config_from_path(config_path: &str) -> Result<Vec<(String, ProcessCo
         Err(format!(
             "Single-file configuration is not supported: '{}'\n\n\
             Please use directory-based configuration instead.\n\
-            Create a directory (e.g., /etc/pm/processes.d/) with one YAML file per process:\n\n\
+            Create a directory (e.g., /etc/datadog-agent/process-manager/processes.d/) with one YAML file per process:\n\n\
             Example:\n\
-              /etc/pm/processes.d/\n\
+              /etc/datadog-agent/process-manager/processes.d/\n\
               ├── my-service.yaml     # Process name derived from filename\n\
               └── another-service.yaml\n\n\
             Each file should contain the process configuration directly (no 'processes:' wrapper).",
@@ -502,7 +462,7 @@ fn load_single_process_file_with_name(
 ///
 /// # Example
 /// ```text
-/// /etc/pm/processes.d/
+/// /etc/datadog-agent/process-manager/processes.d/
 /// ├── web.socket.yaml         # Socket name: "web"
 /// └── api.socket.yaml         # Socket name: "api"
 /// ```
@@ -515,7 +475,7 @@ pub fn load_sockets_from_path(config_path: &str) -> Result<Vec<(String, SocketCo
         Err(format!(
             "Single-file socket configuration is not supported: '{}'\n\n\
             Please use directory-based configuration with .socket.yaml files.\n\
-            Example: /etc/pm/processes.d/my-service.socket.yaml",
+            Example: /etc/datadog-agent/process-manager/processes.d/my-service.socket.yaml",
             config_path
         ))
     } else {
@@ -641,7 +601,7 @@ fn load_single_socket_file_with_name(path: &str) -> Result<(Option<String>, Sock
 ///
 /// Precedence (first match wins):
 /// 1. DD_PM_CONFIG_DIR environment variable
-/// 2. /etc/pm/processes.d/ (if directory exists)
+/// 2. /etc/datadog-agent/process-manager/processes.d/ (if directory exists)
 /// 3. None (start empty)
 ///
 /// Note: Single-file configuration is not supported.
@@ -652,8 +612,8 @@ pub fn get_default_config_path() -> Option<String> {
     }
 
     // 2. Default directory
-    if Path::new("/etc/pm/processes.d").is_dir() {
-        return Some("/etc/pm/processes.d".to_string());
+    if Path::new("/etc/datadog-agent/process-manager/processes.d").is_dir() {
+        return Some("/etc/datadog-agent/process-manager/processes.d".to_string());
     }
 
     // 3. No config found

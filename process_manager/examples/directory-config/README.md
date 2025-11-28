@@ -5,7 +5,7 @@ The process manager uses **directory-based configuration only**. Each process an
 ## Directory Structure
 
 ```
-/etc/pm/processes.d/
+/etc/datadog-agent/process-manager/processes.d/
 ├── web.yaml              # Process definition (name: "web")
 ├── web.socket.yaml       # Socket definition for web
 ├── worker.yaml           # Another process (name: "worker")
@@ -43,9 +43,9 @@ See the example files in this directory:
 
 ```bash
 # Start daemon with directory-based config
-DD_PM_CONFIG_DIR=/etc/pm/processes.d dd-procmgrd
+DD_PM_CONFIG_DIR=/etc/datadog-agent/process-manager/processes.d dd-procmgrd
 
-# Or let it auto-detect (defaults to /etc/pm/processes.d if it exists)
+# Or let it auto-detect (defaults to /etc/datadog-agent/process-manager/processes.d if it exists)
 dd-procmgrd
 ```
 

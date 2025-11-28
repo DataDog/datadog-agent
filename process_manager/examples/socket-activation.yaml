@@ -64,7 +64,7 @@ sockets:
 # 2. PM waits for connections
 # 3. When first connection arrives:
 #    - Accept=no: PM starts http-server, passes listening socket via FD 3
-#      - Process reads connections from FD 3 (LISTEN_FDS=1, LISTEN_PID=<pid>)
+#      - Process reads connections from FD 3 (LISTEN_FDS=1)
 #      - Single instance handles all subsequent connections
 #    - Accept=yes: PM accepts connection, spawns http-server instance
 #      - PM passes connected socket to process
@@ -94,7 +94,7 @@ sockets:
 # Notes:
 #
 # - Not all programs support systemd socket activation
-# - Programs must check for LISTEN_FDS/LISTEN_PID env vars
+# - Programs must check for LISTEN_FDS env var
 # - Socket FDs start at 3 (after stdin=0, stdout=1, stderr=2)
 # - Accept=yes is like inetd (per-connection processes)
 # - Accept=no is like systemd socket activation (single daemon)

@@ -2,7 +2,7 @@
 # Equivalent to the systemd datadog-agent-security.service unit
 #
 # This configuration is used by dd-procmgrd to supervise the Datadog Security Agent.
-# Place this file at: /etc/pm/processes.d/datadog-agent-security.yaml
+# Place this file at: /etc/datadog-agent/process-manager/processes.d/datadog-agent-security.yaml
 # The process name is derived from the filename (datadog-agent-security)
 
 description: Datadog Security Agent

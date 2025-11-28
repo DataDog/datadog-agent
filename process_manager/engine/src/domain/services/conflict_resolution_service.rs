@@ -25,6 +25,86 @@ impl ConflictResolutionService {
         }
     }
 
+    /// Stop a process gracefully with timeout, escalating to SIGKILL if needed
+    async fn graceful_stop(&self, process: &mut Process) -> Result<(), DomainError> {
+        let pid = match process.pid() {
+            Some(p) => p,
+            None => return Ok(()), // No PID, nothing to kill
+        };
+
+        // Get timeout from process config (or default to 90s)
+        let timeout_duration = if process.timeout_stop_sec() > 0 {
+            std::time::Duration::from_secs(process.timeout_stop_sec())
+        } else {
+            std::time::Duration::from_secs(crate::domain::constants::DEFAULT_STOP_TIMEOUT_SEC)
+        };
+
+        // Mark as stopping
+        process.mark_stopping()?;
+        self.repository.save(process.clone()).await?;
+
+        // Send SIGTERM
+        let signal = 15; // SIGTERM
+        if let Err(e) = self
+            .executor
+            .kill_with_mode(pid, signal, process.kill_mode())
+            .await
+        {
+            warn!(
+                process = %process.name(),
+                pid = pid,
+                error = %e,
+                "Failed to send SIGTERM to conflicting process (may have already exited)"
+            );
+        }
+
+        // Wait for graceful shutdown with timeout
+        match tokio::time::timeout(timeout_duration, self.executor.wait_for_exit(pid)).await {
+            Ok(Ok(_exit_code)) => {
+                info!(
+                    process = %process.name(),
+                    pid = pid,
+                    "Conflicting process stopped gracefully"
+                );
+            }
+            Ok(Err(e)) => {
+                warn!(
+                    process = %process.name(),
+                    pid = pid,
+                    error = %e,
+                    "Error waiting for conflicting process to exit"
+                );
+            }
+            Err(_) => {
+                warn!(
+                    process = %process.name(),
+                    pid = pid,
+                    timeout_secs = timeout_duration.as_secs(),
+                    "Conflicting process stop timed out, sending SIGKILL"
+                );
+                // Force kill with SIGKILL
+                if let Err(e) = self
+                    .executor
+                    .kill_with_mode(pid, 9, crate::domain::KillMode::ProcessGroup)
+                    .await
+                {
+                    warn!(
+                        process = %process.name(),
+                        pid = pid,
+                        error = %e,
+                        "Failed to send SIGKILL to conflicting process"
+                    );
+                }
+            }
+        }
+
+        // Mark as stopped
+        process.mark_stopped()?;
+        self.repository.save(process.clone()).await?;
+
+        Ok(())
+    }
+
     /// Stop all processes that conflict with the given process
     ///
     /// This handles both forward and reverse conflicts:
@@ -70,7 +150,7 @@ impl ConflictResolutionService {
         Ok(())
     }
 
-    /// Stop a single conflicting process
+    /// Stop a single conflicting process with graceful shutdown
     async fn stop_process(
         &self,
         conflicting: &Process,
@@ -81,33 +161,12 @@ impl ConflictResolutionService {
         info!(
             process = %requesting_process_name,
             conflicting_process = %conflicting_name,
+            timeout_stop_sec = conflicting.timeout_stop_sec(),
             "Stopping conflicting process before start"
         );
 
         let mut conflicting = conflicting.clone();
-        conflicting.mark_stopping()?;
-        self.repository.save(conflicting.clone()).await?;
-
-        // Kill the process if it has a PID
-        if let Some(pid) = conflicting.pid() {
-            let signal = 15; // SIGTERM
-            if let Err(e) = self
-                .executor
-                .kill_with_mode(pid, signal, conflicting.kill_mode())
-                .await
-            {
-                warn!(
-                    process = %conflicting_name,
-                    pid = pid,
-                    error = %e,
-                    "Failed to kill conflicting process (may have already exited)"
-                );
-            }
-        }
-
-        // Mark as stopped
-        conflicting.mark_stopped()?;
-        self.repository.save(conflicting).await?;
+        self.graceful_stop(&mut conflicting).await?;
 
         info!(
             process = %requesting_process_name,

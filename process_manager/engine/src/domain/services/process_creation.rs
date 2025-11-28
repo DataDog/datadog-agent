@@ -196,11 +196,6 @@ impl ProcessCreationService {
             builder = builder.condition_path_exists(command.condition_path_exists.clone());
         }
 
-        // Apply socket activation
-        if let Some(ref socket) = command.socket {
-            builder = builder.socket(socket.clone());
-        }
-
         // Build the process
         builder.build()
     }

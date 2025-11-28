@@ -2,7 +2,7 @@
 # Equivalent to the systemd datadog-agent-sysprobe.service unit
 #
 # This configuration is used by dd-procmgrd to supervise the Datadog System Probe.
-# Place this file at: /etc/pm/processes.d/datadog-agent-sysprobe.yaml
+# Place this file at: /etc/datadog-agent/process-manager/processes.d/datadog-agent-sysprobe.yaml
 # The process name is derived from the filename (datadog-agent-sysprobe)
 #
 # System Probe provides eBPF-based monitoring for network, security, and process data.

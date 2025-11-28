@@ -28,7 +28,7 @@ pub mod tokio_executor;
 
 pub use config::{
     get_default_config_path, load_config_from_path, Config, HealthCheckConfig, ProcessConfig,
-    ResourceLimitsConfig, SocketActivationConfig,
+    ResourceLimitsConfig,
 };
 pub use health_check_executor::StandardHealthCheckExecutor;
 pub use in_memory_repository::InMemoryProcessRepository;

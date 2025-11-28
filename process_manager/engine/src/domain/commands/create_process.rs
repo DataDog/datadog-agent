@@ -5,7 +5,6 @@
 
 use crate::domain::{
     HealthCheck, KillMode, PathCondition, ProcessId, ProcessType, ResourceLimits, RestartPolicy,
-    SocketConfig,
 };
 use std::collections::HashMap;
 
@@ -90,9 +89,6 @@ pub struct CreateProcessCommand {
 
     // Ambient capabilities
     pub ambient_capabilities: Vec<String>,
-
-    // Socket activation
-    pub socket: Option<SocketConfig>,
 }
 
 /// Response from creating a process

@@ -26,7 +26,7 @@ env:
   LOG_LEVEL: "info"
 
 # Load additional env vars from file
-environment_file: /etc/pm/worker.env
+environment_file: /etc/datadog-agent/process-manager/worker.env
 
 stdout: /var/log/pm/worker.stdout.log
 stderr: /var/log/pm/worker.stderr.log

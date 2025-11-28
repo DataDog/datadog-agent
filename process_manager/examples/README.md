@@ -9,11 +9,11 @@ This directory contains example YAML configuration files demonstrating various f
 
 ```bash
 # Create a config directory and copy examples
-mkdir -p /etc/pm/processes.d/
-cp examples/simple-webserver.yaml /etc/pm/processes.d/
+mkdir -p /etc/datadog-agent/process-manager/processes.d/
+cp examples/simple-webserver.yaml /etc/datadog-agent/process-manager/processes.d/
 
-# Start daemon (auto-detects /etc/pm/processes.d/ or use DD_PM_CONFIG_DIR)
-DD_PM_CONFIG_DIR=/etc/pm/processes.d dd-procmgrd
+# Start daemon (auto-detects /etc/datadog-agent/process-manager/processes.d/ or use DD_PM_CONFIG_DIR)
+DD_PM_CONFIG_DIR=/etc/datadog-agent/process-manager/processes.d dd-procmgrd
 
 # Or for testing with the examples directory
 DD_PM_CONFIG_DIR=examples/directory-config dd-procmgrd
@@ -133,7 +133,7 @@ Demonstrates the `dd-procmgr update` command with:
 ### Directory Structure
 
 ```
-/etc/pm/processes.d/
+/etc/datadog-agent/process-manager/processes.d/
 ├── my-service.yaml       # Process name: "my-service"
 ├── worker.yaml           # Process name: "worker"
 ├── api.socket.yaml       # Socket for api service
@@ -144,7 +144,7 @@ Demonstrates the `dd-procmgr update` command with:
 
 Each YAML file defines ONE process. The process name is derived from the filename.
 
-**Example: `/etc/pm/processes.d/my-service.yaml`**
+**Example: `/etc/datadog-agent/process-manager/processes.d/my-service.yaml`**
 ```yaml
 # Process name is "my-service" (from filename)
 
@@ -213,7 +213,7 @@ pidfile: /var/run/process.pid  # Automatically cleaned up on stop
 
 ### Web Application Stack
 
-Each process in its own file under `/etc/pm/processes.d/`:
+Each process in its own file under `/etc/datadog-agent/process-manager/processes.d/`:
 
 **database.yaml:**
 ```yaml

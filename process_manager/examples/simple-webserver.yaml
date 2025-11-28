@@ -1,7 +1,7 @@
 # Simple web server example
 # Demonstrates: Basic process with restart policy
 #
-# Place this file in your config directory (e.g., /etc/pm/processes.d/)
+# Place this file in your config directory (e.g., /etc/datadog-agent/process-manager/processes.d/)
 # The process name will be derived from the filename: simple-webserver
 
 command: python3

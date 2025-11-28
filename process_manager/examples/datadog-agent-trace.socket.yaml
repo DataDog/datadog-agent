@@ -3,13 +3,13 @@
 # Socket name: datadog-agent-trace (from filename, without .socket.yaml)
 #
 # This socket activates trace-agent on-demand when APM traces arrive.
-# Place this file at: /etc/pm/processes.d/datadog-agent-trace.socket.yaml
+# Place this file at: /etc/datadog-agent/process-manager/processes.d/datadog-agent-trace.socket.yaml
 #
 # How it works:
 # 1. Process Manager creates listening socket on port 8126
 # 2. Socket waits for APM trace connections
 # 3. When first trace arrives -> trace-agent is started
-# 4. trace-agent receives socket FD via LISTEN_FDS=1, LISTEN_PID=<pid>
+# 4. trace-agent receives socket FD via LISTEN_FDS=1
 # 5. If trace-agent crashes -> socket remains open, re-starts on next connection
 
 # Service to activate when connection arrives

@@ -156,7 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         info!(
             "No configuration directory found. \
-            Set DD_PM_CONFIG_DIR or create /etc/pm/processes.d/ to auto-load processes."
+            Set DD_PM_CONFIG_DIR or create /etc/datadog-agent/process-manager/processes.d/ to auto-load processes."
         );
     }
 

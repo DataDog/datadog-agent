@@ -170,9 +170,6 @@ impl TryFrom<CreateRequest> for CreateProcessCommand {
 
             // Ambient capabilities
             ambient_capabilities: req.ambient_capabilities,
-
-            // Socket activation (not supported via gRPC create - use YAML config)
-            socket: None,
         })
     }
 }

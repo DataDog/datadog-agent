@@ -2,7 +2,7 @@
 # Equivalent to the systemd datadog-agent-trace.service unit
 #
 # This configuration is used by dd-procmgrd to supervise the Datadog Trace Agent process.
-# Place this file at: /etc/pm/processes.d/datadog-agent-trace.yaml
+# Place this file at: /etc/datadog-agent/process-manager/processes.d/datadog-agent-trace.yaml
 # The process name is derived from the filename (datadog-agent-trace)
 #
 # Note: dd-procmgrd must run as root to handle user switching, runtime directories,

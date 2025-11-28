@@ -25,7 +25,7 @@ pub struct SpawnConfig {
     // Socket activation (systemd-compatible)
     /// File descriptors to pass to child process
     /// For systemd socket activation: FDs will be passed starting at FD 3
-    /// LISTEN_FDS and LISTEN_PID environment variables will be set automatically
+    /// LISTEN_FDS environment variable will be set automatically
     pub listen_fds: Vec<i32>,
 }
 

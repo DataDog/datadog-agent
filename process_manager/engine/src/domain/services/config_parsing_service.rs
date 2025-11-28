@@ -53,13 +53,6 @@ impl ConfigParsingService {
             Vec::new()
         };
 
-        // Parse socket activation
-        let socket = if let Some(ref socket_cfg) = config.socket {
-            Some(Self::parse_socket_config(&name, socket_cfg)?)
-        } else {
-            None
-        };
-
         // Parse kill signal
         let kill_signal = config
             .kill_signal
@@ -111,7 +104,6 @@ impl ConfigParsingService {
             condition_path_exists,
             runtime_directory: config.runtime_directory.unwrap_or_default(),
             ambient_capabilities: config.ambient_capabilities.unwrap_or_default(),
-            socket,
         })
     }
 
@@ -186,46 +178,6 @@ impl ConfigParsingService {
 
         Ok(limits)
     }
-
-    /// Parse socket configuration
-    fn parse_socket_config(
-        process_name: &str,
-        socket_cfg: &crate::infrastructure::SocketActivationConfig,
-    ) -> Result<crate::domain::SocketConfig, DomainError> {
-        let socket_name = socket_cfg
-            .name
-            .clone()
-            .unwrap_or_else(|| process_name.to_string());
-        let mut socket_config =
-            crate::domain::SocketConfig::new(socket_name, process_name.to_string());
-
-        if let Some(addr) = &socket_cfg.listen_stream {
-            socket_config = socket_config.with_tcp(addr.to_string());
-        }
-        if let Some(addr) = &socket_cfg.listen_datagram {
-            socket_config = socket_config.with_udp(addr.to_string());
-        }
-        if let Some(path) = &socket_cfg.listen_unix {
-            socket_config = socket_config.with_unix(std::path::PathBuf::from(path));
-        }
-        if let Some(accept) = socket_cfg.accept {
-            socket_config = socket_config.with_accept(accept);
-        }
-        if let Some(mode_str) = &socket_cfg.socket_mode {
-            // Parse octal string (e.g., "660" -> 0o660)
-            if let Ok(mode) = u32::from_str_radix(mode_str, 8) {
-                socket_config = socket_config.with_socket_mode(mode);
-            }
-        }
-        if let Some(user) = &socket_cfg.socket_user {
-            socket_config = socket_config.with_socket_user(user.to_string());
-        }
-        if let Some(group) = &socket_cfg.socket_group {
-            socket_config = socket_config.with_socket_group(group.to_string());
-        }
-
-        Ok(socket_config)
-    }
 }
 
 #[cfg(test)]
@@ -272,7 +224,6 @@ mod tests {
             health_check: None,
             resource_limits: None,
             condition_path_exists: None,
-            socket: None,
         };
 
         assert!(matches!(
@@ -339,7 +290,6 @@ mod tests {
             health_check: None,
             resource_limits: None,
             condition_path_exists: None,
-            socket: None,
         };
 
         let result = ConfigParsingService::parse("test-process".to_string(), config);
@@ -394,7 +344,6 @@ mod tests {
             health_check: None,
             resource_limits: None,
             condition_path_exists: None,
-            socket: None,
         };
 
         let result = ConfigParsingService::parse("my-app".to_string(), config);

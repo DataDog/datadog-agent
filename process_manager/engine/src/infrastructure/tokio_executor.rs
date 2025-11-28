@@ -528,7 +528,7 @@ impl ProcessExecutor for TokioProcessExecutor {
             }
         }
 
-        // Socket activation: Set LISTEN_FDS and LISTEN_PID environment variables
+        // Socket activation: Set LISTEN_FDS environment variable
         // This implements systemd socket activation protocol
         if !config.listen_fds.is_empty() {
             let num_fds = config.listen_fds.len();
@@ -537,11 +537,6 @@ impl ProcessExecutor for TokioProcessExecutor {
             // Standard systemd socket activation protocol
             // LISTEN_FDS: Number of file descriptors being passed
             cmd.env("LISTEN_FDS", num_fds.to_string());
-
-            // LISTEN_PID: Will be set to the child process PID after spawn
-            // For now, we set it to "self" - it will be updated post-spawn
-            // Note: The child should verify LISTEN_PID == getpid() for security
-            cmd.env("LISTEN_PID", "0"); // Placeholder, will be set after spawn
 
             // DataDog-specific socket activation (non-standard)
             // DataDog trace-agent uses DD_APM_NET_RECEIVER_FD instead of LISTEN_FDS
