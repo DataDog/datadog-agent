@@ -6,6 +6,8 @@
 package server
 
 import (
+	"sync"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -38,6 +40,7 @@ type worker struct {
 
 	FilterListUpdate chan utilstrings.Matcher
 	filterList       utilstrings.Matcher
+	filterListMtx    sync.RWMutex
 }
 
 func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry) *worker {
@@ -67,7 +70,9 @@ func (w *worker) run() {
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
 		case filterList := <-w.FilterListUpdate:
+			w.filterListMtx.Lock()
 			w.filterList = filterList
+			w.filterListMtx.Unlock()
 		case ps := <-w.server.packetsIn:
 			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
