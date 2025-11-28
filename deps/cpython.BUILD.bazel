@@ -136,7 +136,14 @@ configure_make(
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
         "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
-    },
+    } | select({
+            "@platforms//os:macos": {
+                # For some reason AR is set to libtool on macos
+                # and that breaks the build.
+                "AR": "ar",
+            },
+            "//conditions:default": {},
+    }),
     install_prefix = "py_install",
     lib_source = ":all",
     out_binaries = UNIX_BINS,
