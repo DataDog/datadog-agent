@@ -42,8 +42,6 @@ int __attribute__((always_inline)) sys_umount_ret(void *ctx, int retval) {
 
     send_event(ctx, EVENT_UMOUNT, event);
 
-    umounted(ctx, mount_id);
-
     return 0;
 }
 

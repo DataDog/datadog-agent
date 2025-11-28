@@ -333,9 +333,7 @@ int __attribute__((always_inline)) handle_do_exit(ctx_t *ctx) {
         // send the entry to maintain userspace cache
         struct exit_event_t event = {};
         struct proc_cache_t *pc = fill_process_context(&event.process);
-        if (pc) {
-            dec_mount_ref(ctx, pc->entry.executable.path_key.mount_id);
-        }
+
         fill_cgroup_context(pc, &event.cgroup);
         fill_span_context(&event.span);
         event.exit_code = (u32)(u64)CTX_PARM1(ctx);
@@ -772,7 +770,6 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
             // inherit the parent cgroup context
             fill_cgroup_context(parent_pc, &pc.cgroup);
-            dec_mount_ref(ctx, parent_pc->entry.executable.path_key.mount_id);
         }
     }
 

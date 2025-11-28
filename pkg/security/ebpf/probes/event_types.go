@@ -232,9 +232,6 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_io_openat2"),
 				hookFunc("rethook_io_openat2"),
 			}},
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_filp_close"),
-			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_terminate_walk"),
 			}},
