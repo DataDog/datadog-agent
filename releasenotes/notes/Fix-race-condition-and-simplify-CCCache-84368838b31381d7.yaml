@@ -6,6 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancement:
+enhancements:
   - |
     Fixed a potential race condition in the Cloud Foundry CCCache locking mechanism by replacing custom lock management with `singleflight`. This change improves handling of concurrent cache misses.
