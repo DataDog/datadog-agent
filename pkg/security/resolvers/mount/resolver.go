@@ -304,12 +304,6 @@ func (mr *Resolver) finalize(mount *model.Mount) {
 	mr.mounts.Remove(mount.MountID)
 }
 
-// DeleteFinal a mount from the cache
-func (mr *Resolver) DeleteFinal(mountID uint32) error {
-	fmt.Println("DeleteFinal of", mountID)
-	return nil
-}
-
 // Delete a mount from the cache
 func (mr *Resolver) Delete(mountID uint32) error {
 	mr.lock.Lock()
