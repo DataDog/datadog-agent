@@ -622,6 +622,7 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
 
         # Check that the base branch is valid
         if not check_base_branch(release_branch, new_version.branch()):
+
             raise Exit(
                 color_message(
                     f"The branch you are on is neither {get_default_branch()} or the correct release branch ({new_version.branch()}). Aborting.",
