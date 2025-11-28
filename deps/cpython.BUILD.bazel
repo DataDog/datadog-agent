@@ -136,6 +136,7 @@ configure_make(
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
         "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
+        "DYLD_LIBRARY_PATH":"$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
     } | select({
             "@platforms//os:macos": {
                 # For some reason AR is set to libtool on macos
