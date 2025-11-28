@@ -350,7 +350,6 @@ func TestDogstatsdMappingProfilesEnv(t *testing.T) {
 	assert.Equal(t, expected, mappings)
 }
 
-/*
 func TestDogstatsdServerUsesConfiguredFilterlist(t *testing.T) {
 	cfg := make(map[string]interface{})
 
@@ -359,13 +358,10 @@ func TestDogstatsdServerUsesConfiguredFilterlist(t *testing.T) {
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
 
-	require.True(t, waitForMatcherUpdate(s, 1, time.Second), "timeout waiting for matcher update")
-
-	for _, w := range s.workers {
-		assert.True(t, w.filterList.Test("zork.nork"))
-	}
+	require.True(t, waitUntil(time.Second, s, func(filterList *utilstrings.Matcher) bool {
+		return filterList.Test("zork.nork")
+	}), "timeout waiting for matcher update")
 }
-*/
 
 func TestDogstatsdServerSetsAndResetsRCFilterlist(t *testing.T) {
 	cfg := make(map[string]interface{})
