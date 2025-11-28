@@ -6,6 +6,7 @@ go 1.25.5
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -153,6 +154,7 @@ use (
 	pkg/util/flavor
 	pkg/util/fxutil
 	pkg/util/grpc
+	pkg/util/health
 	pkg/util/hostinfo
 	pkg/util/hostname/validate
 	pkg/util/http
