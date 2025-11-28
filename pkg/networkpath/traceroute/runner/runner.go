@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	tracerouteCache "github.com/DataDog/datadog-traceroute/cache"
 	trcommon "github.com/DataDog/datadog-traceroute/common"
 	tracerlog "github.com/DataDog/datadog-traceroute/log"
 	"github.com/DataDog/datadog-traceroute/result"
@@ -93,7 +92,7 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 		log.Warnf("gateway lookup is not enabled")
 	}
 
-	tracerouteInst, err := traceroute.NewTraceroute(tracerouteCache.InMemory)
+	tracerouteInst, err := traceroute.NewTraceroute()
 	if err != nil {
 		return nil, fmt.Errorf("error creating traceroute instance: %s", err)
 	}
