@@ -58,14 +58,14 @@ dda inv full-host-profiler.build
 
 ```bash
 # Standalone mode
-./bin/full-host-profiler/full-host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
+sudo -E ./bin/full-host-profiler/full-host-profiler run -c cmd/host-profiler/dist/host-profiler-config.yaml
 
 # Agent-integrated mode
 # First, start the Datadog Agent
 ./bin/agent/agent run -c ./dev/dist
 
 # Then, in another terminal, start the host-profiler with Agent integration
-./bin/full-host-profiler/full-host-profiler run \
+sudo -E ./bin/full-host-profiler/full-host-profiler run \
   -c cmd/host-profiler/dist/host-profiler-config.yaml \
   --core-config ./dev/dist/datadog.yaml
 ```
