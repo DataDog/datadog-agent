@@ -41,8 +41,8 @@ var (
 		},
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks/driver/logs/stdout",
-			Source:                 "driver_stdout",
+			Path:                   "/var/log/databricks/stdout",
+			Source:                 "driver_stdout_mount",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
@@ -266,6 +266,11 @@ func setupPrivilegedLogs(s *common.Setup) {
 		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
 	}
 	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
+
+	_, err := common.ExecuteCommandWithTimeout(s, "sudo", "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks")
+	if err != nil {
+		log.Warnf("Failed to mount driver logs: %v", err)
+	}
 }
 
 func setupDatabricksDriver(s *common.Setup) {
