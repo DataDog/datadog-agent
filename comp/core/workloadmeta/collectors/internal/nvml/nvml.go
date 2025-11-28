@@ -358,6 +358,8 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 	switch nvmlArch {
 	case nvml.DEVICE_ARCH_KEPLER:
 		return "kepler"
+	case nvml.DEVICE_ARCH_MAXWELL:
+		return "maxwell"
 	case nvml.DEVICE_ARCH_PASCAL:
 		return "pascal"
 	case nvml.DEVICE_ARCH_VOLTA:
@@ -370,6 +372,9 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 		return "ada"
 	case nvml.DEVICE_ARCH_HOPPER:
 		return "hopper"
+	case 10: // nvml.DEVICE_ARCH_BLACKWELL in newer versions of go-nvml
+		// note: we hardcode the enum to avoid updating to an untested newer go-nvml version
+		return "blackwell"
 	case nvml.DEVICE_ARCH_UNKNOWN:
 		return "unknown"
 	default:

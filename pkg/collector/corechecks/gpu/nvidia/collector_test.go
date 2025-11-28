@@ -150,7 +150,6 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
-		NsPidCache:           &NsPidCache{},
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 	}
 	collectors, err := BuildCollectors(devices, deps)

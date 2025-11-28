@@ -39,4 +39,7 @@ const (
 	NVML Feature = "nvml"
 	// KubernetesDevicePlugins socket directory present and accessible
 	KubernetesDevicePlugins Feature = "kubernetes_deviceplugins"
+	// NonstandardCRIRuntime is a fallback value for when customers supply a CRI compliant runtime via the
+	// cri_socket_path configuration field
+	NonstandardCRIRuntime = "nonstandard-cri-runtime"
 )

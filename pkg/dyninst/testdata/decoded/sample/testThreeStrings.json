@@ -67,6 +67,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "abc, def, ghi"
   }
 ]

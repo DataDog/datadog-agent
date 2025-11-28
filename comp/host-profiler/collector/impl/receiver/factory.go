@@ -37,7 +37,7 @@ func createProfilesReceiver(
 		return nil, fmt.Errorf("invalid config type. Expected %T, got %T", Config{}, baseCfg)
 	}
 
-	logger.Info("Enabled tracers: " + config.Ebpfcollector.Tracers)
+	logger.Info("Enabled tracers: " + config.EbpfCollectorConfig.Tracers)
 
 	var createProfiles xreceiver.CreateProfilesFunc
 	if config.SymbolUploader.Enabled {
@@ -56,6 +56,6 @@ func createProfilesReceiver(
 	return createProfiles(
 		ctx,
 		rs,
-		config.Ebpfcollector,
+		config.EbpfCollectorConfig,
 		nextConsumer)
 }

@@ -9,11 +9,14 @@ package nvidia
 
 import (
 	"fmt"
+	"strconv"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -78,27 +81,26 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 }
 
 // processMemorySample handles process memory usage collection logic
-func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric, uint64, error) {
+func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 	procs, err := device.GetComputeRunningProcesses()
 
 	var processMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 
 	if err == nil {
-		// Create PID tag for this process
 		for _, proc := range procs {
-			pidTags := []string{
-				fmt.Sprintf("pid:%d", proc.Pid),
-				fmt.Sprintf("nspid:%d", nsPidCache.GetNsPidOrHostPid(proc.Pid, true)),
-			}
-			allPidTags = append(allPidTags, pidTags...)
+			workloads := []workloadmeta.EntityID{{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(proc.Pid)),
+			}}
+			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			processMetrics = append(processMetrics, Metric{
-				Name:     "process.memory.usage",
-				Value:    float64(proc.UsedGpuMemory),
-				Type:     metrics.GaugeType,
-				Priority: High,
-				Tags:     pidTags,
+				Name:                "process.memory.usage",
+				Value:               float64(proc.UsedGpuMemory),
+				Type:                metrics.GaugeType,
+				Priority:            High,
+				AssociatedWorkloads: workloads,
 			})
 		}
 	}
@@ -106,11 +108,11 @@ func processMemorySample(device ddnvml.Device, nsPidCache *NsPidCache) ([]Metric
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
 	processMetrics = append(processMetrics, Metric{
-		Name:     "memory.limit",
-		Value:    float64(devInfo.Memory),
-		Type:     metrics.GaugeType,
-		Priority: High,
-		Tags:     allPidTags,
+		Name:                "memory.limit",
+		Value:               float64(devInfo.Memory),
+		Type:                metrics.GaugeType,
+		Priority:            High,
+		AssociatedWorkloads: allWorkloadIDs,
 	})
 
 	return processMetrics, 0, err
@@ -400,7 +402,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 		{
 			Name: "process_memory_usage",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
-				return processMemorySample(device, deps.NsPidCache)
+				return processMemorySample(device)
 			},
 		},
 		// NVLink collector APIs
@@ -409,7 +411,31 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return nvlinkSample(device)
 			},
-		}}
+		},
+	}
+
+	// Create APIs for ECC errors
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			apis = append(apis, apiCallInfo{
+				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{
+						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
+						Value: float64(count),
+						Type:  metrics.CountType,
+						Tags: []string{
+							fmt.Sprintf("memory_location:%s", memoryLocationName),
+						},
+					}}, 0, nil
+				},
+			})
+		}
+	}
 
 	return apis
 }

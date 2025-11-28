@@ -2467,7 +2467,7 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 	return fields
 }
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
 	if newField, found := GetDefaultLegacyFields(field); found {
@@ -2475,345 +2475,345 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	}
 	switch field {
 	case "change_permission.new_sd":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.old_sd":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.path":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.type":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.user_domain":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "change_permission.username":
-		return "change_permission", reflect.String, "string", nil
+		return "change_permission", reflect.String, "string", false, nil
 	case "create.file.device_path":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.device_path.length":
-		return "create", reflect.Int, "int", nil
+		return "create", reflect.Int, "int", false, nil
 	case "create.file.extension":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.name":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.name.length":
-		return "create", reflect.Int, "int", nil
+		return "create", reflect.Int, "int", false, nil
 	case "create.file.path":
-		return "create", reflect.String, "string", nil
+		return "create", reflect.String, "string", false, nil
 	case "create.file.path.length":
-		return "create", reflect.Int, "int", nil
+		return "create", reflect.Int, "int", false, nil
 	case "create.registry.key_name":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create.registry.key_name.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "create.registry.key_path":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create.registry.key_path.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "create_key.registry.key_name":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create_key.registry.key_name.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "create_key.registry.key_path":
-		return "create_key", reflect.String, "string", nil
+		return "create_key", reflect.String, "string", false, nil
 	case "create_key.registry.key_path.length":
-		return "create_key", reflect.Int, "int", nil
+		return "create_key", reflect.Int, "int", false, nil
 	case "delete.file.device_path":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.device_path.length":
-		return "delete", reflect.Int, "int", nil
+		return "delete", reflect.Int, "int", false, nil
 	case "delete.file.extension":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.name":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.name.length":
-		return "delete", reflect.Int, "int", nil
+		return "delete", reflect.Int, "int", false, nil
 	case "delete.file.path":
-		return "delete", reflect.String, "string", nil
+		return "delete", reflect.String, "string", false, nil
 	case "delete.file.path.length":
-		return "delete", reflect.Int, "int", nil
+		return "delete", reflect.Int, "int", false, nil
 	case "delete.registry.key_name":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete.registry.key_name.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "delete.registry.key_path":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete.registry.key_path.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "delete_key.registry.key_name":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete_key.registry.key_name.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "delete_key.registry.key_path":
-		return "delete_key", reflect.String, "string", nil
+		return "delete_key", reflect.String, "string", false, nil
 	case "delete_key.registry.key_path.length":
-		return "delete_key", reflect.Int, "int", nil
+		return "delete_key", reflect.Int, "int", false, nil
 	case "event.hostname":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.origin":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.os":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.rule.tags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "event.service":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.source":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.timestamp":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "exec.cmdline":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.container.created_at":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.container.id":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.container.tags":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.created_at":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.envp":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.envs":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.file.extension":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.name.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.path":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.path.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.pid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.ppid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.user":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.user_sid":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exit.cause":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cmdline":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.code":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.created_at":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.id":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.container.tags":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.created_at":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.envp":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.envs":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.file.extension":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.name.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.path":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.path.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.pid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.ppid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.user":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.user_sid":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "open.registry.key_name":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open.registry.key_name.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "open.registry.key_path":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open.registry.key_path.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "open_key.registry.key_name":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open_key.registry.key_name.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "open_key.registry.key_path":
-		return "open_key", reflect.String, "string", nil
+		return "open_key", reflect.String, "string", false, nil
 	case "open_key.registry.key_path.length":
-		return "open_key", reflect.Int, "int", nil
+		return "open_key", reflect.Int, "int", false, nil
 	case "process.ancestors.cmdline":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.container.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.container.tags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.user_sid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.cmdline":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.container.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.container.tags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cmdline":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.container.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.container.tags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.user_sid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.user_sid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "rename.file.destination.device_path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.device_path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.extension":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.name.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.device_path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.device_path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.extension":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.name.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "set.registry.key_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set.registry.key_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set.registry.key_path":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set.registry.key_path.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set.registry.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set.registry.value_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.key_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.key_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set_key_value.registry.key_path":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.key_path.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set_key_value.registry.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "set_key_value.registry.value_name.length":
-		return "set_key_value", reflect.Int, "int", nil
+		return "set_key_value", reflect.Int, "int", false, nil
 	case "set_key_value.value_name":
-		return "set_key_value", reflect.String, "string", nil
+		return "set_key_value", reflect.String, "string", false, nil
 	case "write.file.device_path":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.device_path.length":
-		return "write", reflect.Int, "int", nil
+		return "write", reflect.Int, "int", false, nil
 	case "write.file.extension":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.name":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.name.length":
-		return "write", reflect.Int, "int", nil
+		return "write", reflect.Int, "int", false, nil
 	case "write.file.path":
-		return "write", reflect.String, "string", nil
+		return "write", reflect.String, "string", false, nil
 	case "write.file.path.length":
-		return "write", reflect.Int, "int", nil
+		return "write", reflect.Int, "int", false, nil
 	}
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: originalField}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: originalField}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	// handle legacy field mapping
