@@ -498,7 +498,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.73.0-rc.5
-	github.com/DataDog/datadog-api-client-go/v2 v2.49.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.50.0 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect

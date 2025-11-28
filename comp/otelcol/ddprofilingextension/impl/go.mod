@@ -69,7 +69,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.49.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.50.0 // indirect
 	github.com/DataDog/go-libddwaf/v3 v3.5.4 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/DataDog/go-sqllexer v0.1.10 // indirect
