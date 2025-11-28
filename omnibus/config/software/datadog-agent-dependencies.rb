@@ -22,7 +22,10 @@ dependency 'cacerts'
 dependency 'jmxfetch'
 
 # Used for memory profiling with the `status py` agent subcommand
-dependency 'pympler'
+# For lite flavor, pympler goes with Python runtime artifacts
+unless ENV['AGENT_FLAVOR'] == 'lite'
+  dependency 'pympler'
+end
 
 dependency "systemd" if linux_target?
 
@@ -31,7 +34,13 @@ dependency 'libpcap' if linux_target? and !heroku_target? # system-probe depende
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
-dependency 'datadog-agent-integrations-py3'
+# Build Python integrations but package separately for lite flavor
+if ENV['AGENT_FLAVOR'] == 'lite'
+  dependency 'datadog-agent-integrations-py3-lite'
+  dependency 'datadog-agent-python-runtime-lite'
+else
+  dependency 'datadog-agent-integrations-py3'
+end
 
 
 # Additional software
