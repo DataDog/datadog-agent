@@ -435,3 +435,15 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 func (r *domainResolver) GetConfigName() string {
 	return r.configName
 }
+
+func (r *domainResolver) IsFQDN() bool {
+	return strings.HasSuffix(r.GetBaseDomain(), ".")
+}
+
+func (r *domainResolver) ToFQDN() {
+	r.SetBaseDomain(r.GetBaseDomain() + ".")
+}
+
+func (r *domainResolver) ToPQDN() {
+	r.SetBaseDomain(strings.TrimSuffix(r.GetBaseDomain(), "."))
+}
