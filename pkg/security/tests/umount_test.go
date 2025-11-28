@@ -23,11 +23,6 @@ func TmpMountAtLegacyAPI(dir string) error {
 }
 
 func TestUmount(t *testing.T) {
-	//pause := func() {
-	//	fmt.Println("Press Enter to continue...")
-	//	bufio.NewReader(os.Stdin).ReadBytes('\n')
-	//}
-
 	SkipIfNotAvailable(t)
 
 	test, err := newTestModule(t, nil, nil)

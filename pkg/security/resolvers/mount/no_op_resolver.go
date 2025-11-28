@@ -43,11 +43,6 @@ func (mr *NoOpResolver) Delete(_ uint32) error {
 	return nil
 }
 
-// DeleteFinal a mount from the cache
-func (mr *NoOpResolver) DeleteFinal(_ uint32) error {
-	return nil
-}
-
 // ResolveFilesystem returns the name of the filesystem
 func (mr *NoOpResolver) ResolveFilesystem(_ uint32, _ uint32) (string, error) {
 	return "", nil
