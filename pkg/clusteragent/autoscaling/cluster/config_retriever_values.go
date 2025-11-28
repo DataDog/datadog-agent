@@ -17,12 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type valuesItem struct {
-	name             string
-	receivedVersion  string
-	nodePoolInternal model.NodePoolInternal
-}
-
 type autoscalingValuesProcessor struct {
 	store               *store
 	storeUpdated        *bool
@@ -58,7 +52,7 @@ func (avp *autoscalingValuesProcessor) process(configKey string, rawConfig state
 	return nil
 }
 
-func (avp *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.ClusterAutoscalingValues, receivedVersion uint64) {
+func (avp *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.ClusterAutoscalingValues, _ uint64) {
 	npi := model.NewNodePoolInternal(values)
 
 	id := values.Name

@@ -25,7 +25,7 @@ import (
 func StartClusterAutoscaling(
 	ctx context.Context,
 	clusterID string,
-	clusterName string,
+	_ string,
 	isLeaderFunc func() bool,
 	apiCl *apiserver.APIClient,
 	rcClient RcClient,

@@ -18,9 +18,6 @@ import (
 type autoscalingType string
 
 const (
-	workload autoscalingType = "workload"
-	cluster  autoscalingType = "cluster"
-
 	aliveTelemetryInterval = 5 * time.Minute
 )
 

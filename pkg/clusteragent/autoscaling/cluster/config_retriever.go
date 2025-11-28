@@ -35,7 +35,7 @@ type ConfigRetriever struct {
 }
 
 // NewConfigRetriever creates a new ConfigRetriever
-func NewConfigRetriever(ctx context.Context, clock clock.WithTicker, store *store, storeUpdated *bool, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
+func NewConfigRetriever(_ context.Context, clock clock.WithTicker, store *store, storeUpdated *bool, isLeader func() bool, rcClient RcClient) (*ConfigRetriever, error) {
 	cr := &ConfigRetriever{
 		isLeader: isLeader,
 		clock:    clock,

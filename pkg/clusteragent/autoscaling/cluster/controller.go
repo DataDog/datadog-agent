@@ -43,7 +43,6 @@ type Controller struct {
 
 	clusterID     string
 	clock         clock.Clock
-	context       context.Context
 	eventRecorder record.EventRecorder
 	rcClient      RcClient
 	store         *store
@@ -105,7 +104,7 @@ func (c *Controller) PreStart(ctx context.Context) {
 
 // Process implements the Processor interface (so required to be public)
 // this processes what's in the workqueue, comes from the store or cluster
-func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscaling.ProcessResult {
+func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling.ProcessResult {
 	if !c.IsLeader() || !*c.storeUpdated {
 		return autoscaling.ProcessResult{}
 	}
@@ -122,7 +121,7 @@ func (c *Controller) Process(ctx context.Context, _, ns, name string) autoscalin
 		// Ignore not found error as it will be created later
 		nodePool = nil
 	case err != nil:
-		log.Errorf("Unable to retrieve NodePool: %w", err)
+		log.Errorf("Unable to retrieve NodePool: %v", err)
 		return autoscaling.Requeue
 	case npUnstr == nil:
 		log.Errorf("Could not parse empty NodePool from local cache")
