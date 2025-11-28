@@ -19,6 +19,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
+	"github.com/DataDog/datadog-agent/pkg/util/health"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -133,6 +134,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
+
+	// Process any issues collected during startup
+	h.processStartupIssues()
 
 	// Start the forwarder if it's configured
 	if h.forwarder != nil {
@@ -314,4 +318,30 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 	}
 
 	h.issues[checkID] = issue
+}
+
+// processStartupIssues retrieves and reports issues collected during agent startup
+func (h *healthPlatformImpl) processStartupIssues() {
+	issues := health.GetAndClearStartupIssues()
+	if len(issues) == 0 {
+		return
+	}
+
+	h.log.Infof("Processing %d startup issues", len(issues))
+
+	for _, issue := range issues {
+		// Create issue report from stored context
+		issueReport := &healthplatform.IssueReport{
+			IssueID: issue.IssueID,
+			Context: issue.Context,
+		}
+
+		// Use IssueID as the checkID (they're the same)
+		err := h.ReportIssue(issue.IssueID, issue.IssueID, issueReport)
+		if err != nil {
+			h.log.Warnf("Failed to report startup issue %s: %v", issue.IssueID, err)
+		} else {
+			h.log.Infof("Reported startup issue: %s", issue.IssueID)
+		}
+	}
 }

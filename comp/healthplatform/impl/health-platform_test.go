@@ -126,6 +126,7 @@ func TestReportIssue(t *testing.T) {
 		&healthplatform.IssueReport{
 			IssueID: "docker-file-tailing-disabled",
 			Context: map[string]string{
+				"type":      "log-files",
 				"dockerDir": "/var/lib/docker",
 				"os":        "linux",
 			},
