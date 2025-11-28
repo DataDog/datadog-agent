@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
@@ -23,6 +24,7 @@ import (
 type Requires struct {
 	Config    config.Component
 	Lifecycle compdef.Lifecycle
+	RcClient  rcclient.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -48,11 +50,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if err != nil {
 		return Provides{}, err
 	}
-	ctx := context.Background()
-	keysManager, err := remoteconfig.New(ctx, cfg)
-	if err != nil {
-		return Provides{}, err
-	}
+	keysManager := remoteconfig.New(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
