@@ -18,6 +18,10 @@ import (
 	"time"
 )
 
+func TmpMountAtLegacyAPI(dir string) error {
+	return unix.Mount("", dir, "tmpfs", 0, "size=1M")
+}
+
 func TestUmount(t *testing.T) {
 	//pause := func() {
 	//	fmt.Println("Press Enter to continue...")
@@ -33,7 +37,7 @@ func TestUmount(t *testing.T) {
 	defer test.Close()
 
 	mountDir := t.TempDir()
-	fd, err := TmpMountAt(mountDir)
+	err = TmpMountAtLegacyAPI(mountDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +55,7 @@ func TestUmount(t *testing.T) {
 		if err != nil {
 			fmt.Println("Error unmounting", err)
 		}
-		err = unix.Close(fd)
+		//	err = unix.Close(fd)
 
 		if err != nil {
 			fmt.Println("Error closing", err)

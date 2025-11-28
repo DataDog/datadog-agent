@@ -1641,7 +1641,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		p.regularUnmarshalEvent(&event.FinalizedUmount, eventType, offset, dataLen, data)
 		p.DispatchEvent(event, true)
 		// Remove all dentry entries belonging to the mountID
-		//p.Resolvers.DentryResolver.DelCacheEntries(event.FinalizedUmount.MountID)
+		//p.Resolvers.DentryResolver.DelCacheEntriesForMountID(event.FinalizedUmount.MountID)
 
 		// Delete new mount point from cache
 		if err = p.Resolvers.MountResolver.DeleteFinal(event.FinalizedUmount.MountID); err != nil {
@@ -1655,7 +1655,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 
 		// Remove all dentry entries belonging to the mountID
-		p.Resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
+		p.Resolvers.DentryResolver.DelCacheEntriesForMountID(event.MountReleased.MountID)
 
 		// Delete new mount point from cache
 		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
@@ -2351,7 +2351,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
 	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
 	// so we remove all dentry entries belonging to the mountID.
-	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
+	p.Resolvers.DentryResolver.DelCacheEntriesForMountID(m.MountID)
 
 	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
 		// Resolve mount point
