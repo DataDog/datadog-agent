@@ -273,6 +273,7 @@ if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
+  extra_package_file "#{install_dir}/.install_root"
   # Process manager config directory
   extra_package_file '/etc/datadog-agent/process-manager/'
 end
@@ -371,7 +372,7 @@ if windows_target?
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
       "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
-      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\bin\\openssl.exe" : nil,
       fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
     ].compact
 

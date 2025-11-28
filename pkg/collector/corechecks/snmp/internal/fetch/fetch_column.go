@@ -114,7 +114,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 		getNextResults, err := sess.GetNext(requestOids)
 		if err != nil {
 			fetchErr := newFetchError(columnOid, requestOids, snmpGetNext, err)
-			log.Debugf(fetchErr.Error())
+			log.Debug(fetchErr.Error())
 			return nil, fetchErr
 		}
 		results = getNextResults
@@ -125,7 +125,7 @@ func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions u
 		getBulkResults, err := sess.GetBulk(requestOids, bulkMaxRepetitions)
 		if err != nil {
 			fetchErr := newFetchError(columnOid, requestOids, snmpGetBulk, err)
-			log.Debugf(fetchErr.Error())
+			log.Debug(fetchErr.Error())
 			return nil, fetchErr
 		}
 		results = getBulkResults
