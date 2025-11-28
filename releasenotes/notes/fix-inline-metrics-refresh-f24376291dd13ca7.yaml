@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix a bug in SNMP integration where some metrics defined in an instance config were not reported.
+    Fixes a bug in the SNMP integration, where some metrics defined in an instance config were not reported.
