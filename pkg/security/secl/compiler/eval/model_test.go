@@ -66,7 +66,6 @@ type testNetwork struct {
 }
 
 type testEvent struct {
-	id     string
 	kind   string
 	retval int
 	title  string
