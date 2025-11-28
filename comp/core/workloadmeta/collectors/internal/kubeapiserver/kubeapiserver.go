@@ -240,12 +240,15 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		go reflector.Run(ctx.Done())
 	}
 
-	handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)
-	if err != nil {
-		log.Errorf("failed to setup CRD informer: %v", err)
-	} else {
-		log.Debug("CRD informer configured for workloadmeta")
-		objectStores = append(objectStores, handlerRegistration)
+	if c.config.GetBool("cluster_checks.crd_collection") {
+		log.Info("Enabling CRD informer for workloadmeta collector")
+		handlerRegistration, err := setupCRDInformer(wlmetaStore, apiserverClient.APIExentionsInformerFactory)
+		if err != nil {
+			log.Errorf("failed to setup CRD informer: %v", err)
+		} else {
+			log.Debug("CRD informer configured for workloadmeta")
+			objectStores = append(objectStores, handlerRegistration)
+		}
 	}
 
 	go runStartupCheck(ctx, objectStores)
