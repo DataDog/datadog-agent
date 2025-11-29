@@ -10,6 +10,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -50,7 +51,7 @@ func (p *APIServerDiscoveryProvider) Discover(inventory *inventory.CollectorInve
 	}
 
 	if len(resources) == 0 {
-		return nil, fmt.Errorf("failed to discover resources from API groups")
+		return nil, errors.New("failed to discover resources from API groups")
 	}
 
 	preferredResources, otherResources := identifyResources(groups, resources)

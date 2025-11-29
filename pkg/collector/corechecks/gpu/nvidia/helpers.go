@@ -130,7 +130,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 		if len(tags) == 0 {
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
+			tags = []string{"gpu_uuid:" + uuid}
 		}
 
 		tagsMapping[uuid] = tags

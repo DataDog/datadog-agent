@@ -191,7 +191,7 @@ func (p baseProfile) CreateOutputSubDir(subdirectory string) (string, error) {
 	}
 	// Create final output directory
 	// Use MkdirTemp to avoid name collisions between parallel runs
-	outputDir, err := os.MkdirTemp(parentDir, fmt.Sprintf("%s_*", finalDir))
+	outputDir, err := os.MkdirTemp(parentDir, finalDir+"_*")
 	if err != nil {
 		return "", err
 	}

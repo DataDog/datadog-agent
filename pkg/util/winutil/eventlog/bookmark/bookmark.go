@@ -55,7 +55,7 @@ func New(options ...Option) (Bookmark, error) {
 
 	if b.bookmarkHandle == evtapi.EventBookmarkHandle(0) {
 		if b.eventLogAPI == nil {
-			return nil, fmt.Errorf("event log API not set")
+			return nil, errors.New("event log API not set")
 		}
 		// Create a new empty bookmark
 		bookmarkHandle, err := b.eventLogAPI.EvtCreateBookmark("")
@@ -80,10 +80,10 @@ func WithWindowsEventLogAPI(api evtapi.API) Option {
 func FromFile(bookmarkPath string) Option {
 	return func(b *bookmark) error {
 		if b.eventLogAPI == nil {
-			return fmt.Errorf("event log API not set")
+			return errors.New("event log API not set")
 		}
 		if b.bookmarkHandle != evtapi.EventBookmarkHandle(0) {
-			return fmt.Errorf("bookmark handle already initialized")
+			return errors.New("bookmark handle already initialized")
 		}
 		// Read bookmark from file
 		bookmarkXML, err := os.ReadFile(bookmarkPath)
@@ -98,10 +98,10 @@ func FromFile(bookmarkPath string) Option {
 func FromXML(bookmarkXML string) Option {
 	return func(b *bookmark) error {
 		if b.eventLogAPI == nil {
-			return fmt.Errorf("event log API not set")
+			return errors.New("event log API not set")
 		}
 		if b.bookmarkHandle != evtapi.EventBookmarkHandle(0) {
-			return fmt.Errorf("bookmark handle already initialized")
+			return errors.New("bookmark handle already initialized")
 		}
 		// Load bookmark XML
 		bookmarkHandle, err := b.eventLogAPI.EvtCreateBookmark(bookmarkXML)
@@ -121,10 +121,10 @@ func (b *bookmark) Handle() evtapi.EventBookmarkHandle {
 // Update the bookmark to the position of the event record for eventHandle
 func (b *bookmark) Update(eventHandle evtapi.EventRecordHandle) error {
 	if b.eventLogAPI == nil {
-		return fmt.Errorf("event log API not set")
+		return errors.New("event log API not set")
 	}
 	if b.bookmarkHandle == evtapi.EventBookmarkHandle(0) {
-		return fmt.Errorf("bookmark handle is not initialized")
+		return errors.New("bookmark handle is not initialized")
 	}
 	return b.eventLogAPI.EvtUpdateBookmark(b.bookmarkHandle, eventHandle)
 }
@@ -132,17 +132,17 @@ func (b *bookmark) Update(eventHandle evtapi.EventRecordHandle) error {
 // Render the bookmark to an XML string
 func (b *bookmark) Render() (string, error) {
 	if b.eventLogAPI == nil {
-		return "", fmt.Errorf("event log API not set")
+		return "", errors.New("event log API not set")
 	}
 	if b.bookmarkHandle == evtapi.EventBookmarkHandle(0) {
-		return "", fmt.Errorf("bookmark handle is not initialized")
+		return "", errors.New("bookmark handle is not initialized")
 	}
 	// Render bookmark
 	buf, err := b.eventLogAPI.EvtRenderBookmark(b.bookmarkHandle)
 	if err != nil {
 		return "", err
 	} else if len(buf) == 0 {
-		return "", fmt.Errorf("Bookmark is empty")
+		return "", errors.New("Bookmark is empty")
 	}
 
 	// Convert to string

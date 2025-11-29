@@ -359,7 +359,7 @@ func createStatelessAPIs() []apiCallInfo {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
-						Name:  fmt.Sprintf("clock.throttle_reasons.%s", reasonName),
+						Name:  "clock.throttle_reasons." + reasonName,
 						Value: value,
 						Type:  metrics.GaugeType,
 					})
@@ -415,7 +415,7 @@ func createStatelessAPIs() []apiCallInfo {
 						Value: float64(count),
 						Type:  metrics.CountType,
 						Tags: []string{
-							fmt.Sprintf("memory_location:%s", memoryLocationName),
+							"memory_location:" + memoryLocationName,
 						},
 					}}, 0, nil
 				},
