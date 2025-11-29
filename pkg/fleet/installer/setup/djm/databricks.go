@@ -267,7 +267,7 @@ func setupPrivilegedLogs(s *common.Setup) {
 	}
 	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
 
-	_, err := common.ExecuteCommandWithTimeout(s, "sudo", "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks")
+	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks")
 	if err != nil {
 		log.Warnf("Failed to mount driver logs: %v", err)
 	}
