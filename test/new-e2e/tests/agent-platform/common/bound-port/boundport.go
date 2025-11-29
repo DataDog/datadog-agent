@@ -93,7 +93,7 @@ func parseHostPort(address string) (string, int, error) {
 	localAddress := matches[hostPortRegexAddressIdx]
 	localPort, err := strconv.Atoi(matches[hostPortRegexPortIdx])
 	if err != nil {
-		return "", 0, fmt.Errorf("invalid address: port is not a number")
+		return "", 0, errors.New("invalid address: port is not a number")
 	}
 	return localAddress, localPort, nil
 }

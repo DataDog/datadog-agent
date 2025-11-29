@@ -40,7 +40,7 @@ func buildJSONFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string {
 func commonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx context.Context, r slog.Record) string {
 	if loggerName == "JMXFETCH" {
 		return func(_ context.Context, r slog.Record) string {
-			return fmt.Sprintf("%s\n", r.Message)
+			return r.Message + "\n"
 		}
 	}
 	dateFmt := formatters.Date(cfg.GetBool("log_format_rfc3339"))
