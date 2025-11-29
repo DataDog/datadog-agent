@@ -100,6 +100,8 @@ const (
 	PathOriginNetworkTraffic PathOrigin = "network_traffic"
 	// PathOriginNetworkPathIntegration correspond to traffic from network_path integration.
 	PathOriginNetworkPathIntegration PathOrigin = "network_path_integration"
+	// PathOriginSynthetics correspond to traffic from synthetics.
+	PathOriginSynthetics PathOrigin = "synthetics"
 )
 
 // TestRunType defines the type of test run
