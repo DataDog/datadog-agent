@@ -54,7 +54,7 @@ func (r *HTTPReceiver) pipelineStatsProxyHandler() http.Handler {
 	}
 	tags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
-		tag := fmt.Sprintf("orchestrator:fargate_%s", strings.ToLower(string(orch)))
+		tag := "orchestrator:fargate_" + strings.ToLower(string(orch))
 		tags = tags + "," + tag
 	}
 	return newPipelineStatsProxy(r.conf, urls, apiKeys, tags, r.statsd)
@@ -73,7 +73,7 @@ func newPipelineStatsProxy(conf *config.AgentConfig, urls []*url.URL, apiKeys []
 	log.Debug("[pipeline_stats] Creating reverse proxy")
 	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
 	director := func(req *http.Request) {
-		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", conf.AgentVersion))
+		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
 			// that net/http gives it: Go-http-client/1.1

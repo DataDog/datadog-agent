@@ -52,7 +52,7 @@ func (s *packageDDOTSuite) RunInstallScriptWithError(params ...string) error {
 		return err
 	}
 
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(InstallScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(strings.Join(params, " ")+" bash -c \"$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)\"", client.WithEnvVariables(InstallScriptEnv(s.arch)))
 	return err
 }
 
@@ -105,7 +105,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
 	// Install ddot
-	s.host.Run(fmt.Sprintf("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")))
+	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
 	// Check if datadog.yaml exists, if not return an error

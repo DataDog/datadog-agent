@@ -7,7 +7,6 @@ package compliance
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -67,7 +66,7 @@ func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *c
 
 	tags := []string{
 		common.QueryAccountIDTag(),
-		fmt.Sprintf("host:%s", hostname),
+		"host:" + hostname,
 	}
 
 	// merge tags from config

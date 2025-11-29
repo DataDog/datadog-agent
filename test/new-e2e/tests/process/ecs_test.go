@@ -6,7 +6,7 @@
 package process
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -47,7 +47,7 @@ func ecsEC2CPUStressProvisioner(runInCoreAgent bool) provisioners.PulumiEnvRunFu
 			ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
-				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", fmt.Sprintf("%t", runInCoreAgent)),
+				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", strconv.FormatBool(runInCoreAgent)),
 			),
 			ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				return cpustress.EcsAppDefinition(e, clusterArn)

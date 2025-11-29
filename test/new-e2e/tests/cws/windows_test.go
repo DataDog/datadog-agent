@@ -119,7 +119,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 			assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
 		}
 		if dirname != "" {
-			a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
+			a.Env().RemoteHost.MustExecute("rm -r " + dirname)
 		}
 	}()
 
@@ -127,9 +127,9 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	cmd := "New-Item -ItemType Directory -Path $env:TEMP -Name ([Guid]::NewGuid().Guid) | Select-Object -ExpandProperty FullName"
 	tempDir := a.Env().RemoteHost.MustExecute(cmd)
 	dirname = strings.TrimSpace(tempDir)
-	filepath := fmt.Sprintf("%s\\secret", dirname)
-	desc := fmt.Sprintf("e2e test rule %s", a.testID)
-	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
+	filepath := dirname + "\\secret"
+	desc := "e2e test rule " + a.testID
+	agentRuleName := "new_e2e_agent_rule_" + a.testID
 
 	// Create CWS Agent rule
 	rule := fmt.Sprintf(`create.file.path == "%s"`, filepath)
@@ -167,7 +167,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	// Push policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("cp temp.txt '%s'; rm temp.txt", policiesPathWindows))
-	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPathWindows))
+	policiesFile := a.Env().RemoteHost.MustExecute("cat " + policiesPathWindows)
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
@@ -206,7 +206,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 		if !assert.NotNil(c, signal) {
 			return
 		}
-		assert.Contains(c, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		assert.Contains(c, signal.Tags, "rule_id:"+strings.ToLower(agentRuleName), "unable to find rule_id tag")
 		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
 			return
 		}

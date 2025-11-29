@@ -6,6 +6,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -45,7 +46,7 @@ func GetProductVersionByName(host *components.RemoteHost, name string) (string, 
 	}
 	val = strings.TrimSpace(val)
 	if val == "" {
-		return "", fmt.Errorf("display version not found")
+		return "", errors.New("display version not found")
 	}
 	return val, nil
 }

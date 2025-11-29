@@ -129,7 +129,7 @@ func getLibSSLPath(t *testing.T) string {
 	require.NoError(t, err)
 
 	libmmap := filepath.Join(curDir, "..", "..", "network", "usm", "testdata", "site-packages", "ddtrace")
-	return filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", runtime.GOARCH))
+	return filepath.Join(libmmap, "libssl.so."+runtime.GOARCH)
 }
 
 // SetRegistry allows changing the file registry used by the attacher. This is useful for testing purposes, to

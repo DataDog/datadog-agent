@@ -67,7 +67,7 @@ func TestDDOTInstallScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test ddot install on %s", osDesc.String()), func(tt *testing.T) {
+		t.Run("test ddot install on "+osDesc.String(), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osDesc.Version)
 			slice := strings.Split(osDesc.Version, "-")

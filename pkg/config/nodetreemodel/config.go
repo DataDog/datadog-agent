@@ -843,7 +843,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	defer c.Unlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+		return errors.New("attempt to MergeConfig before config is constructed")
 	}
 
 	content, err := io.ReadAll(in)

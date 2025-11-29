@@ -6,6 +6,7 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -64,7 +65,7 @@ func getLocalOutputDir() string {
 func getConfigFilePath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("unable to get the home dir")
+		return "", errors.New("unable to get the home dir")
 	}
 	configPath := path.Join(homeDir, ".test_infra_config.yaml")
 

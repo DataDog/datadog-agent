@@ -58,7 +58,7 @@ func (ctc *testContainer) start() error {
 		"/etc/group:/etc/group",
 		"/opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/",
 		"/opt/kmt-ramfs:/opt/kmt-ramfs",
-		fmt.Sprintf("%s:/opt/bpf", ctc.bpfDir),
+		ctc.bpfDir + ":/opt/bpf",
 	}
 	for _, mount := range mounts {
 		args = append(args, "-v", mount)

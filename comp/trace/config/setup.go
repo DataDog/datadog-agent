@@ -174,7 +174,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
 	if obsPipelineEnabled {
-		if host := core.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+		if host := core.GetString(prefix + ".traces.url"); host == "" {
 			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host

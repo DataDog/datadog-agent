@@ -130,7 +130,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		if c.format == "json" {
 			formatter = c.jsonFormatter
 		}
-		handlerList = append(handlerList, handlers.NewFormat(formatter, io.MultiWriter(writers...)))
+		handlerList = append(handlerList, handlers.NewFormat(formatter, newSplitWriter(writers...)))
 	}
 
 	// syslog handler (formatter + writer)

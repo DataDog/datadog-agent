@@ -74,18 +74,18 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 
 	readableKey := buildReadableKey(b.involvedObject)
 	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
-	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
+	tags = append(tags, "source_component:"+b.component)
 	tags = append(tags, "orchestrator:kubernetes")
 
-	tags = append(tags, fmt.Sprintf("reporting_controller:%s", b.reportingController))
+	tags = append(tags, "reporting_controller:"+b.reportingController)
 
 	if b.hostInfo.providerID != "" {
-		tags = append(tags, fmt.Sprintf("host_provider_id:%s", b.hostInfo.providerID))
+		tags = append(tags, "host_provider_id:"+b.hostInfo.providerID)
 	}
 
 	// If hostname was not defined, the aggregator will then set the local hostname
 	output := event.Event{
-		Title:          fmt.Sprintf("Events from the %s", readableKey),
+		Title:          "Events from the " + readableKey,
 		Priority:       event.PriorityNormal,
 		Host:           b.hostInfo.hostname,
 		SourceTypeName: getEventSource(b.reportingController, b.component),

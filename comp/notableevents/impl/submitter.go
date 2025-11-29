@@ -79,8 +79,8 @@ func (s *submitter) submitEvent(payload eventPayload) error {
 
 	// Create base tags for the event
 	tags := []string{
-		fmt.Sprintf("channel:%s", payload.Channel),
-		fmt.Sprintf("provider:%s", payload.Provider),
+		"channel:" + payload.Channel,
+		"provider:" + payload.Provider,
 		fmt.Sprintf("event_id:%d", payload.EventID),
 		"source:windows_event_log",
 	}

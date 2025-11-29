@@ -98,7 +98,7 @@ func dockerImageName() string {
 func mandatoryMetricTagRegexes() []*regexp.Regexp {
 	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
 	for _, tag := range mandatoryMetricTags {
-		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
+		regexes = append(regexes, regexp.MustCompile(tag+":.*"))
 	}
 
 	return regexes

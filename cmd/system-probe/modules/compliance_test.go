@@ -78,7 +78,7 @@ func launchFakeProcess(ctx context.Context, t *testing.T, tmp, procname string) 
 		t.Fatal(err)
 	}
 
-	cmd := exec.CommandContext(ctx, fakePgBinPath, fmt.Sprintf("--config-file=%s", fakePgConfPath))
+	cmd := exec.CommandContext(ctx, fakePgBinPath, "--config-file="+fakePgConfPath)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("could not start fake process %q: %v", procname, err)
 	}

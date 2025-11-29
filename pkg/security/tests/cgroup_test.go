@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"slices"
@@ -164,9 +163,9 @@ func TestCGroup(t *testing.T) {
 		})
 
 		test.WaitSignal(t, func() error {
-			serviceUnit := fmt.Sprintf(`[Service]
+			serviceUnit := `[Service]
 Type=oneshot
-ExecStart=/usr/bin/touch %s`, testFile2)
+ExecStart=/usr/bin/touch ` + testFile2
 			if err := os.WriteFile("/etc/systemd/system/cws-test.service", []byte(serviceUnit), 0700); err != nil {
 				return err
 			}

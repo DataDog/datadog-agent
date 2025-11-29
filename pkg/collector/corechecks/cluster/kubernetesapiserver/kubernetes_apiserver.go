@@ -12,7 +12,6 @@ package kubernetesapiserver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -373,7 +372,7 @@ func (k *KubeASCheck) parseComponentStatus(sender sender.Sender, componentsStatu
 				}
 			}
 
-			tags := []string{fmt.Sprintf("component:%s", component.Name)}
+			tags := []string{"component:" + component.Name}
 			sender.ServiceCheck(KubeControlPaneCheck, statusCheck, "", tags, message)
 		}
 	}
@@ -419,7 +418,7 @@ func convertFilters(conf []string) string {
 	for _, filter := range conf {
 		f := strings.Split(filter, "=")
 		if len(f) == 1 {
-			formatedFilters = append(formatedFilters, fmt.Sprintf("reason!=%s", f[0]))
+			formatedFilters = append(formatedFilters, "reason!="+f[0])
 			continue
 		}
 		formatedFilters = append(formatedFilters, filter)

@@ -6,7 +6,7 @@
 package nodetreemodel
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -19,7 +19,7 @@ var _ Node = (*missingLeafImpl)(nil)
 var missingLeaf = &missingLeafImpl{}
 
 func (m *missingLeafImpl) GetChild(string) (Node, error) {
-	return nil, fmt.Errorf("GetChild(): missing")
+	return nil, errors.New("GetChild(): missing")
 }
 
 func (m *missingLeafImpl) Get() interface{} {
@@ -27,11 +27,11 @@ func (m *missingLeafImpl) Get() interface{} {
 }
 
 func (m *missingLeafImpl) ReplaceValue(interface{}) error {
-	return fmt.Errorf("Replacevalue(): missing")
+	return errors.New("Replacevalue(): missing")
 }
 
 func (m *missingLeafImpl) SetWithSource(interface{}, model.Source) error {
-	return fmt.Errorf("SetWithSource(): missing")
+	return errors.New("SetWithSource(): missing")
 }
 
 func (m *missingLeafImpl) Source() model.Source {

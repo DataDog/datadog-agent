@@ -613,7 +613,7 @@ func TestConstants(t *testing.T) {
 			if err == nil {
 				var msg string
 				if len(test.Message) > 0 {
-					msg = fmt.Sprintf(": reason: %s", test.Message)
+					msg = ": reason: " + test.Message
 				}
 				t.Fatalf("expected an error for `%s`%s", test.Expr, msg)
 			}

@@ -6,6 +6,7 @@
 package worker
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"sync"
@@ -59,7 +60,7 @@ func (c *testCheck) Interval() time.Duration {
 
 func (c *testCheck) GetWarnings() []error {
 	if c.doWarn {
-		return []error{fmt.Errorf("Warning")}
+		return []error{errors.New("Warning")}
 	}
 
 	return []error{}
@@ -76,7 +77,7 @@ func (c *testCheck) Run() error {
 	defer c.Unlock()
 
 	if c.doErr {
-		return fmt.Errorf("myerror")
+		return errors.New("myerror")
 	}
 
 	return nil
@@ -615,7 +616,7 @@ func TestWorkerSenderNil(t *testing.T) {
 		checksTracker,
 		mockShouldAddStatsFunc,
 		func() (sender.Sender, error) {
-			return nil, fmt.Errorf("testerr")
+			return nil, errors.New("testerr")
 		},
 		haagentmock.NewMockHaAgent(),
 		pollingInterval,

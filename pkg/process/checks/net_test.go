@@ -36,7 +36,7 @@ func makeConnections(n int) []*model.Connection {
 	conns := make([]*model.Connection, 0)
 	for i := 1; i <= n; i++ {
 		c := makeConnection(int32(i))
-		c.Laddr = &model.Addr{ContainerId: fmt.Sprintf("%d", c.Pid)}
+		c.Laddr = &model.Addr{ContainerId: strconv.Itoa(int(c.Pid))}
 		c.RouteIdx = int32(-1)
 
 		conns = append(conns, c)
@@ -148,7 +148,7 @@ func TestNetworkConnectionBatching(t *testing.T) {
 			assert.Equal(t, "nid", connections.NetworkId)
 			for _, conn := range connections.Connections {
 				assert.Contains(t, connections.ContainerForPid, conn.Pid)
-				assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+				assert.Equal(t, strconv.Itoa(int(conn.Pid)), connections.ContainerForPid[conn.Pid])
 			}
 
 			// ensure only first chunk has telemetry
@@ -200,7 +200,7 @@ func TestNetworkConnectionBatchingWithDNS(t *testing.T) {
 		assert.Equal(t, "nid", connections.NetworkId)
 		for _, conn := range connections.Connections {
 			assert.Contains(t, connections.ContainerForPid, conn.Pid)
-			assert.Equal(t, fmt.Sprintf("%d", conn.Pid), connections.ContainerForPid[conn.Pid])
+			assert.Equal(t, strconv.Itoa(int(conn.Pid)), connections.ContainerForPid[conn.Pid])
 		}
 	}
 	assert.Equal(t, 4, total)

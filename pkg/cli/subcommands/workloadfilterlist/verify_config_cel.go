@@ -8,6 +8,7 @@
 package workloadfilterlist
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -40,7 +41,7 @@ func verifyCELConfig(_ io.Writer, reader io.Reader) error {
 
 	if len(ruleBundles) == 0 {
 		fmt.Fprintf(color.Output, "%s No rules found in the input\n", color.HiRedString("✗"))
-		return fmt.Errorf("no rules found in the input")
+		return errors.New("no rules found in the input")
 	}
 
 	fmt.Fprintf(color.Output, "%s YAML loaded successfully (%d bundle(s))\n",
@@ -54,7 +55,7 @@ func verifyCELConfig(_ io.Writer, reader io.Reader) error {
 		for _, err := range parseErrors {
 			fmt.Fprintf(color.Output, "  - %s\n", color.RedString(err.Error()))
 		}
-		return fmt.Errorf("invalid configuration structure")
+		return errors.New("invalid configuration structure")
 	}
 
 	fmt.Fprintf(color.Output, "%s Configuration structure is valid\n", color.HiGreenString("✓"))
@@ -92,7 +93,7 @@ func verifyCELConfig(_ io.Writer, reader io.Reader) error {
 	if hasErrors {
 		fmt.Fprintf(color.Output, "%s Validation failed - some rules have errors\n",
 			color.HiRedString("✗"))
-		return fmt.Errorf("CEL compilation failed")
+		return errors.New("CEL compilation failed")
 	}
 
 	fmt.Fprintf(color.Output, "%s All rules are valid!\n", color.HiGreenString("✅"))

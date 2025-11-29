@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -334,7 +333,7 @@ func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPa
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {
 	// check if there is a tag for the container. The tag could be `container_name:*` or `short_image:*`
-	containerNameTag := fmt.Sprintf(":%s", name)
+	containerNameTag := ":" + name
 	for _, container := range containers {
 		for _, tag := range container.Tags {
 			if strings.HasSuffix(tag, containerNameTag) {

@@ -227,19 +227,17 @@ type Policy struct {
 	// Info contains the policy information such as its name, source and type
 	Info PolicyInfo
 	// multiple macros can have the same ID but different filters (e.g. agent version)
-	Macros map[MacroID][]*PolicyMacro
+	Macros []*PolicyMacro
 	// multiple rules can have the same ID but different filters (e.g. agent version)
-	Rules map[RuleID][]*PolicyRule
+	Rules []*PolicyRule
 }
 
 // GetAcceptedMacros returns the list of accepted macros that are part of the policy
 func (p *Policy) GetAcceptedMacros() []*PolicyMacro {
 	var acceptedMacros []*PolicyMacro
-	for _, macros := range p.Macros {
-		for _, macro := range macros {
-			if macro.isAccepted() {
-				acceptedMacros = append(acceptedMacros, macro)
-			}
+	for _, macro := range p.Macros {
+		if macro.isAccepted() {
+			acceptedMacros = append(acceptedMacros, macro)
 		}
 	}
 	return acceptedMacros
@@ -248,11 +246,9 @@ func (p *Policy) GetAcceptedMacros() []*PolicyMacro {
 // GetAcceptedRules returns the list of accepted rules that are part of the policy
 func (p *Policy) GetAcceptedRules() []*PolicyRule {
 	var acceptedRules []*PolicyRule
-	for _, rules := range p.Rules {
-		for _, rule := range rules {
-			if rule.isAccepted() {
-				acceptedRules = append(acceptedRules, rule)
-			}
+	for _, rule := range p.Rules {
+		if rule.isAccepted() {
+			acceptedRules = append(acceptedRules, rule)
 		}
 	}
 	return acceptedRules
@@ -261,11 +257,9 @@ func (p *Policy) GetAcceptedRules() []*PolicyRule {
 // GetFilteredRules returns the list of filtered rules that are part of the policy
 func (p *Policy) GetFilteredRules() []*PolicyRule {
 	var filteredRules []*PolicyRule
-	for _, rules := range p.Rules {
-		for _, rule := range rules {
-			if rule.isFiltered() {
-				filteredRules = append(filteredRules, rule)
-			}
+	for _, rule := range p.Rules {
+		if rule.isFiltered() {
+			filteredRules = append(filteredRules, rule)
 		}
 	}
 	return filteredRules
@@ -274,14 +268,16 @@ func (p *Policy) GetFilteredRules() []*PolicyRule {
 // SetInternalCallbackAction adds an internal callback action for the given rule IDs
 func (p *Policy) SetInternalCallbackAction(ruleID ...RuleID) {
 	for _, id := range ruleID {
-		if rules, ok := p.Rules[id]; ok {
-			for _, rule := range rules {
-				if rule.isAccepted() && rule.Def.ID == id {
-					rule.Actions = append(rule.Actions, &Action{
-						InternalCallback: &InternalCallbackDefinition{},
-						Def:              &ActionDefinition{},
-					})
-				}
+		for _, rule := range p.Rules {
+			if rule.Def.ID != id {
+				continue
+			}
+
+			if rule.isAccepted() && rule.Def.ID == id {
+				rule.Actions = append(rule.Actions, &Action{
+					InternalCallback: &InternalCallbackDefinition{},
+					Def:              &ActionDefinition{},
+				})
 			}
 		}
 	}
@@ -297,7 +293,7 @@ MACROS:
 			Accepted: true,
 			Policy:   p,
 		}
-		p.Macros[macroDef.ID] = append(p.Macros[macroDef.ID], macro)
+		p.Macros = append(p.Macros, macro)
 		for _, filter := range macroFilters {
 			macro.Accepted, macro.Error = filter.IsMacroAccepted(macroDef)
 			if macro.Error != nil {
@@ -328,7 +324,7 @@ RULES:
 			Accepted: true,
 			Policy:   p.Info, // copy the policy information as it can be modified on a per-rule basis when merging rules from different policies
 		}
-		p.Rules[ruleDef.ID] = append(p.Rules[ruleDef.ID], rule)
+		p.Rules = append(p.Rules, rule)
 		for _, filter := range ruleFilters {
 			rule.Accepted, rule.Error = filter.IsRuleAccepted(ruleDef)
 			if rule.Error != nil {
@@ -383,10 +379,8 @@ func LoadPolicyFromDefinition(info *PolicyInfo, def *PolicyDef, macroFilters []M
 	}
 
 	p := &Policy{
-		Def:    def,
-		Info:   *info,
-		Macros: make(map[MacroID][]*PolicyMacro, len(def.Macros)),
-		Rules:  make(map[RuleID][]*PolicyRule, len(def.Rules)),
+		Def:  def,
+		Info: *info,
 	}
 
 	return p, p.parse(macroFilters, ruleFilters)

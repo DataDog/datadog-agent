@@ -43,7 +43,7 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			if c.config.Protocol == "TCPS" {
 				protocolString = "tcps://"
 				if c.config.Wallet != "" {
-					walletString = fmt.Sprintf("?wallet_location=%s", c.config.Wallet)
+					walletString = "?wallet_location=" + c.config.Wallet
 				}
 			}
 			connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s%s:%d/%s%s"`, c.config.Username, c.config.Password, protocolString, c.config.Server, c.config.Port, c.config.ServiceName, walletString)

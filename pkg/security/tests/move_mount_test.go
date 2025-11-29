@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -34,7 +35,7 @@ func GetMountID(fd int) (uint64, error) {
 	}
 
 	if stx.Mask&unix.STATX_MNT_ID == 0 {
-		return 0, fmt.Errorf("statx: kernel didn't fill STATX_MNT_ID")
+		return 0, errors.New("statx: kernel didn't fill STATX_MNT_ID")
 	}
 
 	return stx.Mnt_id, nil

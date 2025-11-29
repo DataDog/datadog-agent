@@ -49,6 +49,7 @@
 '@datadog/remote-config': '#remote-config-platform'
 '@datadog/sdlc-security': '#sdlc-security'
 '@datadog/serverless': '#serverless-agent'
+'@datadog/serverless-azure-gcp': '#serverless-azure-gcp-team'
 '@datadog/single-machine-performance': '#single-machine-performance'
 '@datadog/universal-service-monitoring': '#universal-service-monitoring'
 '@datadog/windows-products': '#windows-products-ops'

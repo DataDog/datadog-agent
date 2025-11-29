@@ -158,7 +158,7 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 		} else {
 			require.False(supported, fmt.Sprintf("Metric type %s should be not supported", test.metricType.String()))
 		}
-		require.Equal(test.apiMetricType, rv, fmt.Sprintf("Wrong conversion for %s", test.metricType.String()))
+		require.Equal(test.apiMetricType, rv, "Wrong conversion for "+test.metricType.String())
 	}
 }
 

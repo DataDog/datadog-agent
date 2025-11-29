@@ -3,6 +3,7 @@
 # Datadog installer payloads
 #
 .common_build_oci:
+  extends: .bazel:defs:cache:omnibus-transition
   script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
@@ -31,8 +32,6 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 datadog-agent-oci-x64-a7:
   extends: .common_build_oci
@@ -141,6 +140,7 @@ powershell_script_signing:
 # The installer program
 #
 .installer_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -159,8 +159,6 @@ powershell_script_signing:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 # We build a "regular" installer, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path

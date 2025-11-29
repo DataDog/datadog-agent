@@ -201,7 +201,7 @@ func GetUserRights(host *components.RemoteHost) (map[string][]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := fmt.Sprintf(`secedit /export /areas USER_RIGHTS /cfg %s`, outFile)
+	cmd := "secedit /export /areas USER_RIGHTS /cfg " + outFile
 	_, err = host.Execute(cmd)
 	if err != nil {
 		return nil, err

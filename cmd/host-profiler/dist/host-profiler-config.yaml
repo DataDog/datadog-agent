@@ -17,6 +17,7 @@ processors:
 # infraattributes/default is automatically removed when the Agent Core is not available  
   infraattributes/default:
     cardinality: 2 # HighCardinality
+    allow_hostname_override: true
   cumulativetodelta: {}
 
 exporters:

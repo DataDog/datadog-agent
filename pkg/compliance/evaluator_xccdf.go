@@ -10,6 +10,7 @@ package compliance
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -119,7 +120,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	cmd.Dir = filepath.Dir(p.File)
 	cmd.Env = os.Environ()
 	if oscapProbeRoot != "" {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("OSCAP_PROBE_ROOT=%s", oscapProbeRoot))
+		cmd.Env = append(cmd.Env, "OSCAP_PROBE_ROOT="+oscapProbeRoot)
 	}
 	p.cmd = cmd
 
@@ -353,10 +354,10 @@ func evaluateXCCDFRule(ctx context.Context, hostname string, statsdClient statsd
 			case XCCDF_RESULT_FAIL:
 				event = NewCheckEvent(XCCDFEvaluator, CheckFailed, ruleResult.Data, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_ERROR, XCCDF_RESULT_UNKNOWN:
-				errReason := fmt.Errorf("XCCDF_RESULT_ERROR")
+				errReason := errors.New("XCCDF_RESULT_ERROR")
 				event = NewCheckError(XCCDFEvaluator, errReason, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_NOT_APPLICABLE:
-				skipReason := fmt.Errorf("XCCDF_RESULT_NOT_APPLICABLE")
+				skipReason := errors.New("XCCDF_RESULT_NOT_APPLICABLE")
 				event = NewCheckSkipped(XCCDFEvaluator, skipReason, hostname, "host", rule, benchmark)
 			case XCCDF_RESULT_NOT_CHECKED, XCCDF_RESULT_NOT_SELECTED:
 			}

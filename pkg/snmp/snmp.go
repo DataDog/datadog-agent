@@ -241,8 +241,8 @@ func NewListenerConfig() (ListenerConfig, error) {
 func (c *Config) LegacyDigest(address string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
-	h.Write([]byte(address))                   //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+	h.Write([]byte(address))                                //nolint:errcheck
+	h.Write([]byte(strconv.FormatUint(uint64(c.Port), 10))) //nolint:errcheck
 
 	h.Write([]byte(c.Version))         //nolint:errcheck
 	h.Write([]byte(c.Community))       //nolint:errcheck
@@ -274,8 +274,8 @@ func (c *Config) LegacyDigest(address string) string {
 func (c *Config) Digest(address string) string {
 	h := fnv.New64()
 	// Hash write never returns an error
-	h.Write([]byte(address))                   //nolint:errcheck
-	h.Write([]byte(fmt.Sprintf("%d", c.Port))) //nolint:errcheck
+	h.Write([]byte(address))                                //nolint:errcheck
+	h.Write([]byte(strconv.FormatUint(uint64(c.Port), 10))) //nolint:errcheck
 
 	for _, authentication := range c.Authentications {
 		h.Write([]byte(authentication.Version))         //nolint:errcheck

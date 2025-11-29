@@ -105,7 +105,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	}
 
 	err := retry.Do(func() error {
-		_, err := a.host.RemoteHost.Execute(fmt.Sprintf("%s config --all", baseCommand))
+		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
 		return err
 	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {

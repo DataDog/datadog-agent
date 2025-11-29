@@ -359,7 +359,7 @@ func (rws *RollingFileWriterSize) getNewHistoryRollFileName(otherLogFiles []stri
 		latest := otherLogFiles[len(otherLogFiles)-1]
 		v, _ = strconv.Atoi(rws.getFileRollName(latest))
 	}
-	return fmt.Sprintf("%d", v+1)
+	return strconv.Itoa(v + 1)
 }
 
 func (rws *RollingFileWriterSize) getCurrentFileName() string {

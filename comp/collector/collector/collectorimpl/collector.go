@@ -8,6 +8,7 @@ package collectorimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -208,7 +209,7 @@ func (c *collectorImpl) RunCheck(inner check.Check) (checkid.ID, error) {
 	var emptyID checkid.ID
 
 	if c.state.Load() != started {
-		return emptyID, fmt.Errorf("the collector is not running")
+		return emptyID, errors.New("the collector is not running")
 	}
 
 	if _, found := c.checks[ch.ID()]; found {
@@ -247,7 +248,7 @@ func (c *collectorImpl) StopCheck(id checkid.ID) error {
 	c.m.RLock()
 	if !c.started() {
 		c.m.RUnlock()
-		return fmt.Errorf("the collector is not running")
+		return errors.New("the collector is not running")
 	}
 
 	ch, found := c.checks[id]
@@ -357,7 +358,7 @@ func (c *collectorImpl) GetChecks() []check.Check {
 // ReloadAllCheckInstances completely restarts a check with a new configuration and returns a list of killed check IDs
 func (c *collectorImpl) ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error) {
 	if !c.started() {
-		return nil, fmt.Errorf("The collector is not running")
+		return nil, errors.New("The collector is not running")
 	}
 
 	// Stop all the old instances

@@ -192,7 +192,7 @@ func (d *dwarfData) init(f File) (retErr error) {
 	}
 	info := d.debugSections.Info()
 	if info == nil {
-		return fmt.Errorf("no .debug_info section found")
+		return errors.New("no .debug_info section found")
 	}
 	dwarfData, err := d.debugSections.loadDwarfData()
 	if err != nil {

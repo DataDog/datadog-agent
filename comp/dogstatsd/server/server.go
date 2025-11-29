@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
@@ -451,7 +452,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
+		return errors.New("listening on neither udp nor socket, please check your configuration")
 	}
 
 	s.packetsIn = packetsChannel

@@ -70,7 +70,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	}, 2*time.Minute, 10*time.Second)
 
 	// Create a new log folder location
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p " + utils.LinuxLogsFolderPath)
 }
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
@@ -106,7 +106,7 @@ func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
 func (s *LinuxFakeintakeSuite) testLogCollection() {
 	t := s.T()
 	// Create a new log file with permissions accessible to the agent
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s", logFilePath))
+	s.Env().RemoteHost.MustExecute("sudo touch " + logFilePath)
 
 	// Adjust permissions of new log file before log generation
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
@@ -122,8 +122,8 @@ func (s *LinuxFakeintakeSuite) testLogCollection() {
 
 	// Given expected tags
 	expectedTags := []string{
-		fmt.Sprintf("filename:%s", logFileName),
-		fmt.Sprintf("dirname:%s", utils.LinuxLogsFolderPath),
+		"filename:" + logFileName,
+		"dirname:" + utils.LinuxLogsFolderPath,
 	}
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)

@@ -10,6 +10,7 @@ package connectivity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -210,7 +211,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 		"Content-Type":     endpointInfo.ContentType,
 		"DD-API-KEY":       apiKey,
 		"DD-Agent-Version": version.AgentVersion,
-		"User-Agent":       fmt.Sprintf("datadog-agent/%s", version.AgentVersion),
+		"User-Agent":       "datadog-agent/" + version.AgentVersion,
 		"X-Requested-With": requestWithHeader,
 	}
 
@@ -243,7 +244,7 @@ func verifyEndpointResponse(diagCfg diagnose.Config, statusCode int, responseBod
 	}
 
 	if statusCode >= 400 {
-		newErr = fmt.Errorf("bad request")
+		newErr = errors.New("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubbedResponseBody)
 	}
 

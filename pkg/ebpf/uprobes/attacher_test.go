@@ -106,7 +106,7 @@ func TestAttachPidReadsSharedLibraries(t *testing.T) {
 	exe := "foobar"
 	pid := uint32(1)
 	libname := "/target/libssl.so"
-	maps := fmt.Sprintf("08048000-08049000 r-xp 00000000 03:00 8312       %s", libname)
+	maps := "08048000-08049000 r-xp 00000000 03:00 8312       " + libname
 	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: pid, Cmdline: exe, Command: exe, Exe: exe, Maps: maps}})
 	config := AttacherConfig{
 		ProcRoot: procRoot,

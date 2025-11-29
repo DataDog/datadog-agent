@@ -10,7 +10,6 @@ package usm
 import (
 	"context"
 	"errors"
-	"fmt"
 	nethttp "net/http"
 	"os/exec"
 	"path/filepath"
@@ -57,7 +56,7 @@ func testArch(t *testing.T, arch string) {
 
 	// Named site-packages/ddtrace since it is used from servicediscovery tests too.
 	libmmap := filepath.Join(curDir, "testdata", "site-packages", "ddtrace")
-	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", arch))
+	lib := filepath.Join(libmmap, "libssl.so."+arch)
 
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	require.NotNil(t, monitor)

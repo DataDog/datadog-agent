@@ -39,11 +39,11 @@ var _ common.Diagnosable = (*DockerHost)(nil)
 func (e *DockerHost) Diagnose(outputDir string) (string, error) {
 	diagnoses := []string{}
 	if e.Docker == nil {
-		return "", fmt.Errorf("Docker component is not initialized")
+		return "", errors.New("Docker component is not initialized")
 	}
 	// add Agent diagnose
 	if e.Agent == nil {
-		return "", fmt.Errorf("Agent component is not initialized")
+		return "", errors.New("Agent component is not initialized")
 	}
 
 	diagnoses = append(diagnoses, "==== Agent ====")
@@ -51,7 +51,7 @@ func (e *DockerHost) Diagnose(outputDir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 	}
-	diagnoses = append(diagnoses, fmt.Sprintf("Flare archive downloaded to %s", dstPath))
+	diagnoses = append(diagnoses, "Flare archive downloaded to "+dstPath)
 	diagnoses = append(diagnoses, "\n")
 
 	return strings.Join(diagnoses, "\n"), nil
@@ -127,7 +127,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(stdout)
 		if len(matches) < 2 {
-			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", stdout))
+			outStr, errs = updateErrorOutput(target, outStr, errs, "output does not contain the path to the coverage folder, output: "+stdout)
 			continue
 		}
 
@@ -154,7 +154,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 
 func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, error) {
 	if e.Agent == nil || e.Docker == nil {
-		return "", fmt.Errorf("Agent or Docker component is not initialized, cannot generate flare")
+		return "", errors.New("Agent or Docker component is not initialized, cannot generate flare")
 	}
 	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// discard error, flare command might return error if there is no intake, but the archive is still generated

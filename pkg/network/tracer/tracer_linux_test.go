@@ -558,7 +558,7 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
-	c, err := tracertestutil.DialTCP("tcp", fmt.Sprintf("2.2.2.2:%s", port))
+	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
 	_, err = c.Write([]byte("ping"))
@@ -600,7 +600,7 @@ func (s *TracerSuite) TestTranslationBindingRegression() {
 	// Send data to 2.2.2.2 (which should be translated to 1.1.1.1)
 	_, port, err := net.SplitHostPort(server.Address())
 	require.NoError(t, err)
-	c, err := tracertestutil.DialTCP("tcp", fmt.Sprintf("2.2.2.2:%s", port))
+	c, err := tracertestutil.DialTCP("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
 	defer tracertestutil.GracefulCloseTCP(c)
 	_, err = c.Write([]byte("ping"))
@@ -919,19 +919,19 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		"ip addr add 2.2.2.1/24 broadcast 2.2.2.255 dev br0",
 		"ip link add veth1 type veth peer name veth2",
 		"ip link set veth1 master br0",
-		fmt.Sprintf("ip link set veth2 netns %s", ns1),
-		fmt.Sprintf("ip -n %s addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2", ns1),
+		"ip link set veth2 netns " + ns1,
+		"ip -n " + ns1 + " addr add 2.2.2.2/24 broadcast 2.2.2.255 dev veth2",
 		"ip link add veth3 type veth peer name veth4",
 		"ip link set veth3 master br0",
-		fmt.Sprintf("ip link set veth4 netns %s", ns2),
-		fmt.Sprintf("ip -n %s addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4", ns2),
+		"ip link set veth4 netns " + ns2,
+		"ip -n " + ns2 + " addr add 2.2.2.3/24 broadcast 2.2.2.255 dev veth4",
 		"ip link set br0 up",
 		"ip link set veth1 up",
-		fmt.Sprintf("ip -n %s link set veth2 up", ns1),
+		"ip -n " + ns1 + " link set veth2 up",
 		"ip link set veth3 up",
-		fmt.Sprintf("ip -n %s link set veth4 up", ns2),
-		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns1),
-		fmt.Sprintf("ip -n %s r add default via 2.2.2.1", ns2),
+		"ip -n " + ns2 + " link set veth4 up",
+		"ip -n " + ns1 + " r add default via 2.2.2.1",
+		"ip -n " + ns2 + " r add default via 2.2.2.1",
 		"iptables -I POSTROUTING 1 -t nat -s 2.2.2.0/24 ! -d 2.2.2.0/24 -j MASQUERADE",
 		"iptables -I FORWARD -i br0 -j ACCEPT",
 		"iptables -I FORWARD -o br0 -j ACCEPT",
@@ -944,7 +944,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
-				return network.Subnet{Alias: fmt.Sprintf("subnet-%s", i.Name)}, nil
+				return network.Subnet{Alias: "subnet-" + i.Name}, nil
 			}
 		}
 
@@ -1052,7 +1052,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		}, 3*time.Second, 100*time.Millisecond)
 
 		require.NotNil(t, conn.Via)
-		require.Equal(t, fmt.Sprintf("subnet-%s", ifi.Name), conn.Via.Subnet.Alias)
+		require.Equal(t, "subnet-"+ifi.Name, conn.Via.Subnet.Alias)
 
 	})
 }
@@ -1676,7 +1676,7 @@ func iptablesWrapper(t *testing.T, f func()) {
 
 	// Init iptables rule to simulate packet loss
 	rule := "INPUT --source 127.0.0.1 -j DROP"
-	create := strings.Fields(fmt.Sprintf("-I %s", rule))
+	create := strings.Fields("-I " + rule)
 
 	state := testutil.IptablesSave(t)
 	defer testutil.IptablesRestore(t, state)
@@ -3220,7 +3220,7 @@ func testTLSCertParsing(t *testing.T, client *http.Client, matcher func(c *netwo
 
 	usmutils.WaitForProgramsToBeTraced(t, ssluprobes.CNMModuleName, ssluprobes.CNMTLSAttacherName, cmd.Process.Pid, usmutils.ManualTracingFallbackEnabled)
 
-	code, _, err := tracertestutil.HTTPGet(client, fmt.Sprintf("https://%s/status/200/foobar", serverAddr))
+	code, _, err := tracertestutil.HTTPGet(client, "https://"+serverAddr+"/status/200/foobar")
 	require.NoError(t, err)
 	require.Equal(t, 200, code)
 

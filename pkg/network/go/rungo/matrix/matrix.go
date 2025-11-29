@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os/exec"
@@ -60,10 +61,10 @@ func (r *Runner) Run(ctx context.Context) error {
 		return fmt.Errorf("cannot run with negative/zero Parallelism (%d)", r.Parallelism)
 	}
 	if r.GetCommand == nil {
-		return fmt.Errorf("GetCommand is required")
+		return errors.New("GetCommand is required")
 	}
 	if r.InstallDirectory == "" {
-		return fmt.Errorf("InstallDirectory is required")
+		return errors.New("InstallDirectory is required")
 	}
 
 	// If the install directory is not absolute, resolve it

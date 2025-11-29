@@ -6,6 +6,7 @@
 package filesystem
 
 import (
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -36,14 +37,14 @@ func convertWindowsStringList(winput []uint16) []string {
 
 // as would this
 func convertWindowsString(winput []uint16) string {
-	var retstring string
+	var builder strings.Builder
 	for i := 0; i < len(winput); i++ {
 		if winput[i] == 0 {
 			break
 		}
-		retstring += string(rune(winput[i]))
+		builder.WriteRune(rune(winput[i]))
 	}
-	return retstring
+	return builder.String()
 }
 
 func getDiskSize(vol string) (size uint64, freespace uint64) {

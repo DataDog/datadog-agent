@@ -365,7 +365,7 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		pullCmd := makeRetryCommand(fmt.Sprintf("docker pull %s", image), dockerPullMaxRetries)
+		pullCmd := makeRetryCommand("docker pull "+image, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
 			&command.Args{
@@ -401,7 +401,7 @@ func downloadContainerdImagesInKindNodes(e *aws.Environment, vm *componentsremot
 	var cmds []pulumi.Resource
 
 	for i, image := range images {
-		pullCmd := makeRetryCommand(fmt.Sprintf("crictl pull %s", image), dockerPullMaxRetries)
+		pullCmd := makeRetryCommand("crictl pull "+image, dockerPullMaxRetries)
 		cmd, err := vm.OS.Runner().Command(
 			e.CommonNamer().ResourceName("kind-node-pull", fmt.Sprintf("image-%d", i)),
 			&command.Args{

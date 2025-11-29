@@ -1,5 +1,6 @@
 ---
 .heroku_build_base:
+  extends: .bazel:defs:cache:omnibus-transition
   stage: package_build
   rules:
     - !reference [.except_mergequeue]
@@ -29,8 +30,6 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 agent_heroku_deb-x64-a7:
   extends: .heroku_build_base

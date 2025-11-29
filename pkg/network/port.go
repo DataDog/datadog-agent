@@ -9,9 +9,9 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,7 +66,7 @@ func readState(procRoot string, paths []string, status int64) (map[PortMapping]u
 		seen[ns] = struct{}{}
 
 		for _, p := range paths {
-			ports, err := readProcNetWithStatus(path.Join(procRoot, fmt.Sprintf("%d", pid), p), status)
+			ports, err := readProcNetWithStatus(path.Join(procRoot, strconv.Itoa(pid), p), status)
 			if err != nil {
 				log.Errorf("error reading port state net ns ino=%d pid=%d path=%s status=%d", ns, pid, p, status)
 				continue

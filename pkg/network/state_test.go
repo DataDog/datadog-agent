@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"net/netip"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -806,7 +807,7 @@ func TestRaceConditions(_ *testing.T) {
 					state.GetDelta(c, latestEpochTime(), genConns(nConns), nil, nil)
 				}
 			}
-		}(fmt.Sprintf("%d", i))
+		}(strconv.Itoa(i))
 	}
 
 	wg.Wait()

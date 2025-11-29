@@ -37,7 +37,7 @@ import (
 
 var (
 	// ErrSizeLimitReached indicates that the size limit was reached
-	ErrSizeLimitReached = fmt.Errorf("size limit reached")
+	ErrSizeLimitReached = errors.New("size limit reached")
 )
 
 // SizeLimitedWriter implements io.Writer and returns an error if more than the configured amount of data is read

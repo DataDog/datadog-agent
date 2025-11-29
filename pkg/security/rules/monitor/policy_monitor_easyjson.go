@@ -1078,6 +1078,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 				}
 				in.Delim(']')
 			}
+		case "priority":
+			out.Priority = int(in.Int())
 		default:
 			in.SkipRecursive()
 		}
@@ -1205,6 +1207,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 			}
 			out.RawByte(']')
 		}
+	}
+	if in.Priority != 0 {
+		const prefix string = ",\"priority\":"
+		out.RawString(prefix)
+		out.Int(int(in.Priority))
 	}
 	out.RawByte('}')
 }

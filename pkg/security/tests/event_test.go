@@ -377,10 +377,7 @@ func TestEventProductTags(t *testing.T) {
 }
 
 func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTestOpts) {
-	var truncatedParents string
-	for i := 0; i < model.MaxPathDepth; i++ {
-		truncatedParents += "a/"
-	}
+	truncatedParents := strings.Repeat("a/", model.MaxPathDepth)
 
 	rule := &rules.RuleDefinition{
 		ID: "path_test",

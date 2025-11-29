@@ -302,9 +302,9 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
 		fmt.Sprintf("fails:%d", len(fails)),
-		fmt.Sprintf("os:%s", runtime.GOOS),
-		fmt.Sprintf("arch:%s", utils.RuntimeArch()),
-		fmt.Sprintf("origin:%s", c.probe.Origin()),
+		"os:" + runtime.GOOS,
+		"arch:" + utils.RuntimeArch(),
+		"origin:" + c.probe.Origin(),
 	}
 	if err := c.statsdClient.Gauge(metrics.MetricSelfTest, 1.0, tags, 1.0); err != nil {
 		seclog.Errorf("failed to send self_test metric: %s", err)
@@ -378,8 +378,8 @@ func (c *CWSConsumer) sendStats() {
 	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
 		if counter > 0 {
 			tags := []string{
-				fmt.Sprintf("rule_id:%s", statsTags.RuleID),
-				fmt.Sprintf("suppression_type:%s", statsTags.SuppressionType),
+				"rule_id:" + statsTags.RuleID,
+				"suppression_type:" + statsTags.SuppressionType,
 			}
 			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
 		}

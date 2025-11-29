@@ -11,6 +11,7 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"expvar"
 	"fmt"
 	"hash/fnv"
@@ -482,7 +483,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 
 func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, containerID utils.ContainerID, pid int32) error {
 	if a.opts.SysProbeClient == nil {
-		return fmt.Errorf("system-probe socket client was not created")
+		return errors.New("system-probe socket client was not created")
 	}
 
 	resource, err := a.opts.SysProbeClient.FetchDBConfig(ctx, pid)

@@ -260,11 +260,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	if s.Inherited && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
 	if len(s.ScopeField) > 0 && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
 	return nil

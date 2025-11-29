@@ -7,6 +7,7 @@ package logs
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -115,12 +116,12 @@ func BuildManifestFromK8sResource(k8sResource map[string]interface{}, isTerminat
 	// Extract metadata
 	metadata, ok := k8sResource["metadata"].(map[string]interface{})
 	if !ok || metadata == nil {
-		return nil, fmt.Errorf("k8s resource missing metadata")
+		return nil, errors.New("k8s resource missing metadata")
 	}
 
 	uid, _ := metadata["uid"].(string)
 	if uid == "" {
-		return nil, fmt.Errorf("k8s resource missing uid in metadata")
+		return nil, errors.New("k8s resource missing uid in metadata")
 	}
 
 	resourceVersion, _ := metadata["resourceVersion"].(string)
@@ -309,7 +310,7 @@ func CreateClusterManifest(clusterID string, nodes []*agentmodel.Manifest, logge
 
 	return &agentmodel.Manifest{
 		Type:            int32(getManifestType("Cluster")),
-		ResourceVersion: fmt.Sprint(version),
+		ResourceVersion: strconv.FormatUint(version, 10),
 		Uid:             clusterID,
 		Content:         content,
 		ContentType:     "application/json",

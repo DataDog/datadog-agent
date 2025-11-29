@@ -8,6 +8,7 @@
 package secretsimpl
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"unsafe"
@@ -24,7 +25,7 @@ func checkRights(filename string, allowGroupExec bool) error {
 	// this function ignore `allowGroupExec` since it was design for the cluster-agent,
 	// but the cluster-agent is not delivered for windows.
 	if allowGroupExec {
-		return fmt.Errorf("the option 'allowGroupExec=true' is not allowed on windows")
+		return errors.New("the option 'allowGroupExec=true' is not allowed on windows")
 	}
 	if _, err := os.Stat(filename); err != nil {
 		if os.IsNotExist(err) {

@@ -6,6 +6,7 @@
 package environments
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -36,7 +37,7 @@ func (e *WindowsHost) Init(_ common.Context) error {
 func (e *WindowsHost) Diagnose(outputDir string) (string, error) {
 	diagnoses := []string{}
 	if e.RemoteHost == nil {
-		return "", fmt.Errorf("RemoteHost component is not initialized")
+		return "", errors.New("RemoteHost component is not initialized")
 	}
 	// add Agent diagnose
 	if e.Agent != nil {
@@ -45,7 +46,7 @@ func (e *WindowsHost) Diagnose(outputDir string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
-		diagnoses = append(diagnoses, fmt.Sprintf("Flare archive downloaded to %s", dstPath))
+		diagnoses = append(diagnoses, "Flare archive downloaded to "+dstPath)
 		diagnoses = append(diagnoses, "\n")
 	}
 

@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -14,7 +15,7 @@ import (
 )
 
 // ErrNotFound is an error for when a key is not found
-var ErrNotFound = fmt.Errorf("not found")
+var ErrNotFound = errors.New("not found")
 
 func mapToMapString(m reflect.Value) map[string]interface{} {
 	if v, ok := m.Interface().(map[string]interface{}); ok {

@@ -222,7 +222,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environm
 	}
 
 	if params.agentOptions != nil {
-		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
+		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err

@@ -153,7 +153,7 @@ b:
 func TestUnknownVarsWarning(t *testing.T) {
 	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
-			env := []string{fmt.Sprintf("%s=foo", v)}
+			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)

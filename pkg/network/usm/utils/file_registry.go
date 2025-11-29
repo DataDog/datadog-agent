@@ -435,7 +435,7 @@ type registryTelemetry struct {
 func newRegistryTelemetry(programName string) registryTelemetry {
 	metricGroup := telemetry.NewMetricGroup(
 		"usm.file_registry",
-		fmt.Sprintf("program:%s", programName),
+		"program:"+programName,
 		telemetry.OptPrometheus,
 	)
 

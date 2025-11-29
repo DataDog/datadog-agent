@@ -65,7 +65,7 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 }(logLevelMap)
 
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
-var ErrNoDDExporter = fmt.Errorf("no datadog exporter found")
+var ErrNoDDExporter = errors.New("no datadog exporter found")
 
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
@@ -227,11 +227,11 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	var pipelineConfig *service.Config
 	s := cfg.Get("service")
 	if s == nil {
-		return nil, fmt.Errorf("service config not found")
+		return nil, errors.New("service config not found")
 	}
 	smap, ok := s.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid service config")
+		return nil, errors.New("invalid service config")
 	}
 	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
 	if err != nil {
@@ -285,7 +285,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 	// We only support one exporter for now
 	// TODO: support multiple exporters
 	if len(configs) > 1 {
-		return nil, fmt.Errorf("multiple datadog exporters found")
+		return nil, errors.New("multiple datadog exporters found")
 	}
 
 	datadogConfig := configs[0]

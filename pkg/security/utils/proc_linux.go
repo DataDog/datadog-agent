@@ -539,7 +539,7 @@ func GetTracerPid(pid uint32) (uint32, error) {
 			return uint32(tracerPid), nil
 		}
 	}
-	return 0, fmt.Errorf("TracerPid field not found")
+	return 0, errors.New("TracerPid field not found")
 }
 
 // FindTraceesByTracerPid returns the process list being trced by the given tracer host PID

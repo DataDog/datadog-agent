@@ -19,14 +19,14 @@ func TestGetCode(t *testing.T) {
 
 	// Simple case
 	var err error = &InstallerError{
-		err:  fmt.Errorf("test: test"),
+		err:  errors.New("test: test"),
 		code: ErrDownloadFailed,
 	}
 	assert.Equal(t, GetCode(err), ErrDownloadFailed)
 
 	// Wrap
 	err = fmt.Errorf("test1: %w", &InstallerError{
-		err:  fmt.Errorf("test2: test3"),
+		err:  errors.New("test2: test3"),
 		code: ErrDownloadFailed,
 	})
 	assert.Equal(t, GetCode(err), ErrDownloadFailed)
@@ -37,7 +37,7 @@ func TestGetCode(t *testing.T) {
 }
 
 func TestWrap(t *testing.T) {
-	err := fmt.Errorf("test: test")
+	err := errors.New("test: test")
 	taskErr := Wrap(ErrDownloadFailed, err)
 	assert.Equal(t, taskErr, &InstallerError{
 		err:  err,
@@ -60,7 +60,7 @@ func TestWrap(t *testing.T) {
 
 func TestToJSON(t *testing.T) {
 	err := fmt.Errorf("test: %w", &InstallerError{
-		err:  fmt.Errorf("test2: test3"),
+		err:  errors.New("test2: test3"),
 		code: ErrDownloadFailed,
 	})
 	assert.Equal(t, ToJSON(err), `{"error":"test: test2: test3","code":1}`)

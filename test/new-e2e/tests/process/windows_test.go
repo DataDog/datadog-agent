@@ -321,5 +321,5 @@ func runWindowsCommand(t *testing.T, remoteHost *components.RemoteHost, cmd []st
 		_ = session.Close()
 		_ = stdin.Close()
 	})
-	return fmt.Sprintf("%s.exe", cmd[0]), nil
+	return cmd[0] + ".exe", nil
 }

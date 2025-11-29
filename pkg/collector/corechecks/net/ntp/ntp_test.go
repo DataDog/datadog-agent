@@ -7,6 +7,7 @@ package ntp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"testing"
@@ -42,7 +43,7 @@ hosts: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org,
 )
 
 func testNTPQueryError(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {
-	return nil, fmt.Errorf("test error from NTP")
+	return nil, errors.New("test error from NTP")
 }
 
 func testNTPQueryInvalid(_ string, _ ntp.QueryOptions) (*ntp.Response, error) {

@@ -175,7 +175,7 @@ func makeStatusEndpointRequest(params *agentclientparams.Params, host *Host, url
 		return nil, true, err
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", params.AuthToken))
+	req.Header.Set("Authorization", "Bearer "+params.AuthToken)
 	return req, true, nil
 }
 
@@ -196,10 +196,10 @@ func ensureAuthToken(params *agentclientparams.Params, host *Host) error {
 
 func fetchAuthTokenCommand(authTokenPath string, osFamily osComp.Family) string {
 	if osFamily == osComp.WindowsFamily {
-		return fmt.Sprintf("Get-Content -Raw -Path %s", authTokenPath)
+		return "Get-Content -Raw -Path " + authTokenPath
 	}
 
-	return fmt.Sprintf("sudo cat %s", authTokenPath)
+	return "sudo cat " + authTokenPath
 }
 
 func waitForReadyTimeout(commandRunner *agentCommandRunner, timeout time.Duration) error {

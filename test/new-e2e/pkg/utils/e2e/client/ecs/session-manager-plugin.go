@@ -22,6 +22,7 @@
 package ecs
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 
@@ -94,7 +95,7 @@ func execute(s *session.Session, logger log.T) (string, error) {
 			return string(payload), nil
 		}
 	case <-stopChannel:
-		return "", fmt.Errorf("Failed to initialize session")
+		return "", errors.New("Failed to initialize session")
 	}
 	return "", nil
 }

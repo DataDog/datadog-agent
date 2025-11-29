@@ -71,7 +71,7 @@ func (d *Monitor) SendStats() error {
 		} else {
 			tags = []string{
 				"discarder_type:event",
-				fmt.Sprintf("event_type:%s", model.EventType(eventType).String()),
+				"event_type:" + model.EventType(eventType).String(),
 			}
 		}
 

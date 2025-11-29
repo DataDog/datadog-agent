@@ -247,7 +247,7 @@ func TestStackManager(t *testing.T) {
 				if stackUpCounter > 3 {
 					return nil
 				}
-				return fmt.Errorf("error during container init: error setting cgroup config for procHooks process: unable to freeze: unknown")
+				return errors.New("error during container init: error setting cgroup config for procHooks process: unable to freeze: unknown")
 			},
 			WithLogWriter(mockWriter),
 			WithDatadogEventSender(mockDatadogEventSender),
@@ -280,7 +280,7 @@ func TestStackManager(t *testing.T) {
 				if stackUpCounter > 3 {
 					return nil
 				}
-				return fmt.Errorf("random error")
+				return errors.New("random error")
 			},
 			WithLogWriter(mockWriter),
 			WithDatadogEventSender(mockDatadogEventSender),

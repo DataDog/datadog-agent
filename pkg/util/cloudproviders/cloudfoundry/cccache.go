@@ -9,8 +9,10 @@ package cloudfoundry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -159,7 +161,7 @@ func GetGlobalCCCache() (*CCCache, error) {
 	globalCCCache.Lock()
 	defer globalCCCache.Unlock()
 	if !globalCCCache.configured {
-		return nil, fmt.Errorf("global CC Cache not configured")
+		return nil, errors.New("global CC Cache not configured")
 	}
 	return globalCCCache, nil
 }
@@ -209,7 +211,7 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 	ccc.RUnlock()
 
 	if !updatedOnce {
-		return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
+		return resource, errors.New("cannot refresh cache on miss, cccache is still warming up")
 	}
 
 	resourceLock := ccc.getLockForResource(resourceName, guid)
@@ -368,7 +370,7 @@ func (ccc *CCCache) GetIsolationSegmentForOrg(guid string) (*cfclient.IsolationS
 
 func (ccc *CCCache) fetchProcessesByAppGUID(appGUID string) ([]*cfclient.Process, error) {
 	query := url.Values{}
-	query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+	query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 
 	// fetch processes from the CAPI
 	processes, err := ccc.ccAPIClient.ListProcessByAppGUID(query, appGUID)
@@ -445,7 +447,7 @@ func (ccc *CCCache) listApplications(wg *sync.WaitGroup, appsMap *map[string]*cf
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 		apps, err = ccc.ccAPIClient.ListV3AppsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing apps from cloud controller: %v", err)
@@ -484,7 +486,7 @@ func (ccc *CCCache) listSpaces(wg *sync.WaitGroup, spacesMap *map[string]*cfclie
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 		spaces, err := ccc.ccAPIClient.ListV3SpacesByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing spaces from cloud controller: %v", err)
@@ -503,7 +505,7 @@ func (ccc *CCCache) listOrgs(wg *sync.WaitGroup, orgsMap *map[string]*cfclient.V
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 		orgs, err := ccc.ccAPIClient.ListV3OrganizationsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing orgs from cloud controller: %v", err)
@@ -522,7 +524,7 @@ func (ccc *CCCache) listOrgQuotas(wg *sync.WaitGroup, orgQuotasMap *map[string]*
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 		orgQuotas, err := ccc.ccAPIClient.ListOrgQuotasByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing org quotas from cloud controller: %v", err)
@@ -544,7 +546,7 @@ func (ccc *CCCache) listProcesses(wg *sync.WaitGroup, processesMap *map[string][
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 		processes, err := ccc.ccAPIClient.ListAllProcessesByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing processes from cloud controller: %v", err)
@@ -572,7 +574,7 @@ func (ccc *CCCache) listIsolationSegments(wg *sync.WaitGroup, segmentBySpaceGUID
 	go func() {
 		defer wg.Done()
 		query := url.Values{}
-		query.Add("per_page", fmt.Sprintf("%d", ccc.appsBatchSize))
+		query.Add("per_page", strconv.Itoa(ccc.appsBatchSize))
 		segments, err := ccc.ccAPIClient.ListIsolationSegmentsByQuery(query)
 		if err != nil {
 			log.Errorf("Failed listing isolation segments from cloud controller: %v", err)

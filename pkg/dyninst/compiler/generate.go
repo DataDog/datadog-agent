@@ -9,6 +9,7 @@ package compiler
 
 import (
 	"cmp"
+	stderrors "errors"
 	"fmt"
 	"math"
 	"slices"
@@ -688,7 +689,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						OutputOffset: paddedOffset - op.Offset,
 					})
 				case ir.Addr:
-					return nil, fmt.Errorf("unsupported addr location op")
+					return nil, stderrors.New("unsupported addr location op")
 				}
 			}
 		}

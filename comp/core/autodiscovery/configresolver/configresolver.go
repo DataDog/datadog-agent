@@ -627,7 +627,7 @@ func getEnvvar(envVar string, svc listeners.Service) (string, error) {
 		if svc != nil {
 			return "", fmt.Errorf("envvar name is missing, skipping service %s", svc.GetServiceID())
 		}
-		return "", fmt.Errorf("envvar name is missing")
+		return "", errors.New("envvar name is missing")
 	}
 
 	if !allowEnvVar(envVar) {

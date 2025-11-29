@@ -107,7 +107,7 @@ func TestIntegrationClient(t *testing.T) {
 
 		t.Log("post a test payload to fakeintake and check that the override is applied")
 		resp, err := http.Post(
-			fmt.Sprintf("%s/totoro", fi.URL()),
+			fi.URL()+"/totoro",
 			"text/plain",
 			strings.NewReader("totoro|5|tag:valid,owner:mei"),
 		)

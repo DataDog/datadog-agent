@@ -6,7 +6,6 @@
 package apm
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -88,7 +87,7 @@ func testTracesHaveContainerTag(t *testing.T, c *assert.CollectT, service string
 	assert.NoError(c, err)
 	assert.NotEmpty(c, traces)
 	t.Logf("Got %d apm traces", len(traces))
-	assert.True(c, hasContainerTag(traces, fmt.Sprintf("container_name:%s", service)), "got traces: %v", traces)
+	assert.True(c, hasContainerTag(traces, "container_name:"+service), "got traces: %v", traces)
 }
 
 func testProcessTraces(c *assert.CollectT, intake *components.FakeIntake, processTags string) {
@@ -131,7 +130,7 @@ func testStatsHaveContainerTags(t *testing.T, c *assert.CollectT, service string
 					if ss.Service == service {
 						assert.NotEmpty(c, s.ContainerID, "ContainerID should not be empty. Got Stats: %v", stats)
 						assert.NotEmpty(c, s.Tags, "Container Tags should not be empty. Got Stats: %v", stats)
-						assert.Contains(c, s.Tags, fmt.Sprintf("container_name:%s", service))
+						assert.Contains(c, s.Tags, "container_name:"+service)
 					}
 				}
 			}

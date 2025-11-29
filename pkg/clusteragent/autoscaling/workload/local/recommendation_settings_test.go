@@ -8,7 +8,7 @@
 package local
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -32,7 +32,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				Type: "something-invalid",
 			},
 			want: nil,
-			err:  fmt.Errorf("Invalid target type: something-invalid"),
+			err:  errors.New("Invalid target type: something-invalid"),
 		},
 		{
 			name: "Pod resource - CPU target utilization",
@@ -81,7 +81,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				PodResource: nil,
 			},
 			want: nil,
-			err:  fmt.Errorf("nil target"),
+			err:  errors.New("nil target"),
 		},
 		{
 			name: "Pod resource - invalid name",
@@ -96,7 +96,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: nil,
-			err:  fmt.Errorf("invalid resource name: some-resource"),
+			err:  errors.New("invalid resource name: some-resource"),
 		},
 		{
 			name: "Pod resource - nil utilization",
@@ -110,7 +110,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: nil,
-			err:  fmt.Errorf("invalid utilization value: missing utilization value"),
+			err:  errors.New("invalid utilization value: missing utilization value"),
 		},
 		{
 			name: "Pod resource - out of bounds utilization value",
@@ -125,7 +125,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: nil,
-			err:  fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
+			err:  errors.New("invalid utilization value: utilization value must be between 1 and 100"),
 		},
 		{
 			name: "Container resource - CPU target utilization",
@@ -178,7 +178,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				ContainerResource: nil,
 			},
 			want: nil,
-			err:  fmt.Errorf("nil target"),
+			err:  errors.New("nil target"),
 		},
 		{
 			name: "Container resource - invalid name",
@@ -193,7 +193,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: nil,
-			err:  fmt.Errorf("invalid resource name: some-resource"),
+			err:  errors.New("invalid resource name: some-resource"),
 		},
 		{
 			name: "Container resource - nil utilization",
@@ -208,7 +208,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: nil,
-			err:  fmt.Errorf("invalid utilization value: missing utilization value"),
+			err:  errors.New("invalid utilization value: missing utilization value"),
 		},
 		{
 			name: "Container resource - out of bounds utilization value",
@@ -224,7 +224,7 @@ func TestNewResourceRecommenderSettings(t *testing.T) {
 				},
 			},
 			want: nil,
-			err:  fmt.Errorf("invalid utilization value: utilization value must be between 1 and 100"),
+			err:  errors.New("invalid utilization value: utilization value must be between 1 and 100"),
 		},
 	}
 

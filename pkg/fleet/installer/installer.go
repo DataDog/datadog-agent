@@ -482,7 +482,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 	if !state.HasExperiment() {
 		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -694,7 +694,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
 		}
 		if !isDotnetInstalled {
-			return fmt.Errorf("APM dotnet library is not installed")
+			return errors.New("APM dotnet library is not installed")
 		}
 	} else {
 		var isInjectorInstalled bool
@@ -703,7 +703,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 			return fmt.Errorf("could not check if APM injector is installed: %w", err)
 		}
 		if !isInjectorInstalled {
-			return fmt.Errorf("APM injector is not installed")
+			return errors.New("APM injector is not installed")
 		}
 	}
 
@@ -727,7 +727,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
 		}
 		if !isDotnetInstalled {
-			return fmt.Errorf("APM dotnet library is not installed")
+			return errors.New("APM dotnet library is not installed")
 		}
 	} else {
 		var isInjectorInstalled bool
@@ -736,7 +736,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 			return fmt.Errorf("could not check if APM injector is installed: %w", err)
 		}
 		if !isInjectorInstalled {
-			return fmt.Errorf("APM injector is not installed")
+			return errors.New("APM injector is not installed")
 		}
 	}
 

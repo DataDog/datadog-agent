@@ -21,15 +21,17 @@ import (
 func TestPathValidation(t *testing.T) {
 	mod := &Model{}
 
-	var maxDepthPath string
+	var maxDepthPathBuilder strings.Builder
 	for i := 0; i <= MaxPathDepth; i++ {
-		maxDepthPath += "a/"
+		maxDepthPathBuilder.WriteString("a/")
 	}
+	maxDepthPath := maxDepthPathBuilder.String()
 
-	var maxSegmentPath string
+	var maxSegmentPathBuilder strings.Builder
 	for i := 0; i <= MaxSegmentLength; i++ {
-		maxSegmentPath += "a"
+		maxSegmentPathBuilder.WriteString("a")
 	}
+	maxSegmentPath := maxSegmentPathBuilder.String()
 
 	tests := []struct {
 		val            string

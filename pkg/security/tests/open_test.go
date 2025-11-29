@@ -211,7 +211,7 @@ func TestOpen(t *testing.T) {
 
 		test.WaitSignal(t, func() error {
 			if f == nil {
-				return fmt.Errorf("failed to open test file")
+				return errors.New("failed to open test file")
 			}
 			// ftruncate
 			_, _, errno := syscall.Syscall(syscall.SYS_FTRUNCATE, f.Fd(), uintptr(4), 0)

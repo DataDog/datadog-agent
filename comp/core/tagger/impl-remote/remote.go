@@ -209,7 +209,7 @@ func getOverridedAuthToken(ctx context.Context, log log.Component, cfg config.Co
 
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("unable to read the artifact in the given time")
+			return "", errors.New("unable to read the artifact in the given time")
 		case <-time.After(time.Second):
 			// waiting 1 second before retrying
 		}
@@ -338,7 +338,7 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	// Create the context with the auth token
 	queryCtx, queryCancel := context.WithTimeout(
 		metadata.NewOutgoingContext(t.ctx, metadata.MD{
-			"authorization": []string{fmt.Sprintf("Bearer %s", t.authToken)}, // TODO IPC: implement GRPC client
+			"authorization": []string{"Bearer " + t.authToken}, // TODO IPC: implement GRPC client
 		}),
 		1*time.Second,
 	)
@@ -398,7 +398,7 @@ func (t *remoteTagger) Standard(entityID types.EntityID) ([]string, error) {
 func (t *remoteTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	entity := t.store.getEntity(entityID)
 	if entity == nil {
-		return nil, fmt.Errorf("Entity not found for entityID")
+		return nil, errors.New("Entity not found for entityID")
 	}
 
 	return entity, nil
@@ -597,7 +597,7 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 
 			t.streamCtx, t.streamCancel = context.WithCancel(
 				metadata.NewOutgoingContext(t.ctx, metadata.MD{
-					"authorization": []string{fmt.Sprintf("Bearer %s", t.authToken)}, // TODO IPC: implement GRPC client
+					"authorization": []string{"Bearer " + t.authToken}, // TODO IPC: implement GRPC client
 				}),
 			)
 

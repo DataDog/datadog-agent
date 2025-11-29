@@ -10,6 +10,7 @@ package maps
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -26,7 +27,7 @@ func extractPID(pidTGID uint64) uint32 {
 // It uses kernel.HostProc() to correctly handle containerized environments
 // where the agent runs in a container but needs to check PIDs from the host namespace.
 func pidExists(pid uint32) bool {
-	_, err := os.Stat(kernel.HostProc(fmt.Sprintf("%d", pid)))
+	_, err := os.Stat(kernel.HostProc(strconv.FormatUint(uint64(pid), 10)))
 	return err == nil
 }
 

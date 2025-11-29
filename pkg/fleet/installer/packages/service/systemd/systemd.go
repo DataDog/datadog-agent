@@ -127,7 +127,7 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 	if err != nil {
 		return fmt.Errorf("error creating systemd directory: %w", err)
 	}
-	overridePath := filepath.Join(userUnitsPath, unit+".d", fmt.Sprintf("%s.conf", name))
+	overridePath := filepath.Join(userUnitsPath, unit+".d", name+".conf")
 	return os.WriteFile(overridePath, []byte(content), 0644)
 }
 

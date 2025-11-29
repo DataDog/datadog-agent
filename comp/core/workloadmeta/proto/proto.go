@@ -7,6 +7,7 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -721,7 +722,7 @@ func WorkloadmetaEventFromProtoEvent(protoEvent *pb.WorkloadmetaEvent) (workload
 		}, nil
 	}
 
-	return workloadmeta.Event{}, fmt.Errorf("unknown entity")
+	return workloadmeta.Event{}, errors.New("unknown entity")
 }
 
 func toWorkloadmetaKind(protoKind pb.WorkloadmetaKind) (workloadmeta.Kind, error) {

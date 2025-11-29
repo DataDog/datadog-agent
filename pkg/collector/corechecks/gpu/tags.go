@@ -280,7 +280,7 @@ func getNsPID(pid int32) (int32, error) {
 func (c *WorkloadTagCache) getContainerID(pid int32) (string, error) {
 	if c.pidToCid == nil {
 		if c.containerProvider == nil {
-			return "", fmt.Errorf("no container provider available")
+			return "", errors.New("no container provider available")
 		}
 
 		// Get the PID -> CID mapping from the container provider with no cache validity, as we have already failed to hit the

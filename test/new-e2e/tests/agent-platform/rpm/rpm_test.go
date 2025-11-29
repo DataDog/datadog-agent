@@ -57,7 +57,7 @@ func TestRpmScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test RPM package on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
+		t.Run("test RPM package on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			slice := strings.Split(osDesc.Version, "-")

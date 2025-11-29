@@ -455,7 +455,7 @@ func (a *etwtracerimpl) stop(_ context.Context) error {
 
 func (a *etwtracerimpl) addPID(pid uint32) error {
 	if len(a.pids) >= MAX_EVENT_FILTER_PID_COUNT {
-		return fmt.Errorf("too many processes registered")
+		return errors.New("too many processes registered")
 	}
 	c, err := winio.DialPipe(fmt.Sprintf(clientNamedPipePath, pid), nil)
 	if err != nil {

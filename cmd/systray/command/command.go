@@ -8,6 +8,7 @@
 package command
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,7 +160,7 @@ func ensureElevated(params systray.Params) error {
 
 	// user is not an admin
 	if params.LaunchElevatedFlag {
-		return fmt.Errorf("not running as elevated but elevated flag is set")
+		return errors.New("not running as elevated but elevated flag is set")
 	}
 
 	// attempt to launch as admin
@@ -168,7 +169,7 @@ func ensureElevated(params systray.Params) error {
 		return err
 	}
 
-	return fmt.Errorf("exiting to allow elevated process to start")
+	return errors.New("exiting to allow elevated process to start")
 }
 
 // relaunchElevated launch another instance of the current process asking it to carry out a command as admin.

@@ -62,7 +62,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func moduleRestart(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	cfg := sysprobeconfig.SysProbeObject()
 	client := client.Get(cfg.SocketAddress)
-	url := fmt.Sprintf("http://localhost/module-restart/%s", cliParams.args[0])
+	url := "http://localhost/module-restart/" + cliParams.args[0]
 	resp, err := client.Post(url, "", nil)
 	if err != nil {
 		return err

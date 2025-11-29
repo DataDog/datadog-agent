@@ -40,7 +40,7 @@ func oidToNumbers(oid string) ([]int, error) {
 func numbersToOID(nums []int) string {
 	segments := make([]string, len(nums))
 	for i, k := range nums {
-		segments[i] = fmt.Sprint(k)
+		segments[i] = strconv.Itoa(k)
 	}
 	return strings.Join(segments, ".")
 }

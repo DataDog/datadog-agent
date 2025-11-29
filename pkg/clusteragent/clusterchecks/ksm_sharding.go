@@ -8,6 +8,7 @@
 package clusterchecks
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
@@ -68,7 +69,7 @@ func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]reso
 	}
 
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("no valid KSM instances found")
+		return nil, errors.New("no valid KSM instances found")
 	}
 
 	if len(instances) > 1 {
@@ -133,7 +134,7 @@ func (m *ksmShardingManager) analyzeKSMConfig(config integration.Config) ([]reso
 	}
 
 	if len(groups) == 0 {
-		return nil, fmt.Errorf("no collectors found after parsing")
+		return nil, errors.New("no collectors found after parsing")
 	}
 
 	return groups, nil
@@ -190,7 +191,7 @@ func (m *ksmShardingManager) createShardedKSMConfigs(
 	}
 
 	if len(groups) == 0 {
-		return nil, fmt.Errorf("no resource groups to shard")
+		return nil, errors.New("no resource groups to shard")
 	}
 
 	// Always create shards (pods, nodes, others) regardless of runner count

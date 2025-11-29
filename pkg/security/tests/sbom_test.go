@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"testing"
@@ -96,7 +97,7 @@ func TestSBOM(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
-				return fmt.Errorf("failed to find host SBOM for host")
+				return errors.New("failed to find host SBOM for host")
 			}
 			cmd := exec.Command("/bin/touch", "/usr/lib/os-release")
 			return cmd.Run()
@@ -126,7 +127,7 @@ func checkVersionAgainstApt(tb testing.TB, event *model.Event, pkgName string) {
 	out, err := exec.Command("apt-cache", "policy", pkgName).CombinedOutput()
 	require.NoError(tb, err, "failed to get package version: %s", string(out))
 
-	assert.Contains(tb, string(out), fmt.Sprintf("Installed: %s", v), "package version doesn't match")
+	assert.Contains(tb, string(out), "Installed: "+v, "package version doesn't match")
 }
 
 func buildDebianVersion(version, release string, epoch int) string {

@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -176,7 +177,7 @@ func (t *StringSliceField) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		}
 		return nil
 	}
-	return fmt.Errorf("could not parse YAML config, please double check the yaml files")
+	return errors.New("could not parse YAML config, please double check the yaml files")
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
@@ -339,19 +340,19 @@ func (c *LogsConfig) Validate() error {
 		// user don't have to specify a logs-config type when defining
 		// an autodiscovery label because so we must override it at some point,
 		// this check is mostly used for sanity purposed to detect an override miss.
-		return fmt.Errorf("a config must have a type")
+		return errors.New("a config must have a type")
 	case c.Type == FileType:
 		if c.Path == "" {
-			return fmt.Errorf("file source must have a path")
+			return errors.New("file source must have a path")
 		}
 		err := c.validateTailingMode()
 		if err != nil {
 			return err
 		}
 	case c.Type == TCPType && c.Port == 0:
-		return fmt.Errorf("tcp source must have a port")
+		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
-		return fmt.Errorf("udp source must have a port")
+		return errors.New("udp source must have a port")
 	}
 
 	// Validate fingerprint configuration

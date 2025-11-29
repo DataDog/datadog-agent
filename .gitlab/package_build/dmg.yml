@@ -22,6 +22,7 @@
     mkdir -p $GOMODCACHE
 
 .agent_dmg:
+  extends: .bazel:defs:cache:macos
   stage: package_build
   needs: ["go_mod_tidy_check"]
   rules:

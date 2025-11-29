@@ -8,8 +8,8 @@ package run
 
 import (
 	"context"
+	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -321,7 +321,7 @@ func run(log log.Component,
 			stopCh <- nil
 		case <-signals.ErrorStopper:
 			_ = log.Critical("The Agent has encountered an error, shutting down...")
-			stopCh <- fmt.Errorf("shutting down because of an error")
+			stopCh <- errors.New("shutting down because of an error")
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil

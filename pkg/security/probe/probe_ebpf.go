@@ -692,10 +692,10 @@ func (p *EBPFProbe) setupRawPacketProgs(progSpecs []*lib.ProgramSpec, progKey ui
 
 func (p *EBPFProbe) setupRawPacketFilters(rs *rules.RuleSet) error {
 	var rawPacketFilters []rawpacket.Filter
-	for id, rule := range rs.GetRules() {
+	for _, rule := range rs.GetRules() {
 		for _, field := range rule.GetFieldValues("packet.filter") {
 			rawPacketFilters = append(rawPacketFilters, rawpacket.Filter{
-				RuleID:    id,
+				RuleID:    rule.Def.ID,
 				BPFFilter: field.Value.(string),
 				Policy:    rawpacket.PolicyAllow,
 			})
@@ -1896,8 +1896,8 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 
 	for tags, count := range approverAddedMetricCounter {
 		tags := []string{
-			fmt.Sprintf("approver_type:%s", tags.approverType),
-			fmt.Sprintf("event_type:%s", tags.eventType),
+			"approver_type:" + tags.approverType,
+			"event_type:" + tags.eventType,
 		}
 
 		if err := p.statsdClient.Gauge(metrics.MetricApproverAdded, count, tags, 1.0); err != nil {

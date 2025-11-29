@@ -7,7 +7,7 @@
 package bomconvert
 
 import (
-	"fmt"
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -70,7 +70,7 @@ func (b *bomConvertor) getOrCreateBOMRef(in string) string {
 	}
 
 	b.bomRefCounter++
-	mappedRef := fmt.Sprintf("%d", b.bomRefCounter)
+	mappedRef := strconv.Itoa(b.bomRefCounter)
 	b.bomRefMapper[in] = mappedRef
 	return mappedRef
 }

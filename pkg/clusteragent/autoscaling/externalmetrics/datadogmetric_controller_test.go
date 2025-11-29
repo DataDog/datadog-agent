@@ -8,7 +8,7 @@
 package externalmetrics
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -298,7 +298,7 @@ func TestLeaderUpdateFromStoreAfterInitial(t *testing.T) {
 		Value:      10.0,
 		UpdateTime: updateTime,
 		DataTime:   updateTime,
-		Error:      fmt.Errorf("Error from backend while fetching metric"),
+		Error:      errors.New("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
 	f.store.Set("default/dd-metric-0", ddm, "utest")
@@ -383,7 +383,7 @@ func TestLeaderNoUpdate(t *testing.T) {
 		Value:      10.0,
 		UpdateTime: updateTime,
 		DataTime:   updateTime,
-		Error:      fmt.Errorf("Error from backend while fetching metric"),
+		Error:      errors.New("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
 	f.store.Set("default/dd-metric-0", ddm, "utest")
@@ -491,7 +491,7 @@ func TestCreateDatadogMetric(t *testing.T) {
 
 	// Test create autogen without ExternalMetricName
 	f.actions = nil
-	f.runControllerSync(true, "default/dd-metric-2", fmt.Errorf("Unable to create autogen DatadogMetric default/dd-metric-2 without ExternalMetricName"))
+	f.runControllerSync(true, "default/dd-metric-2", errors.New("Unable to create autogen DatadogMetric default/dd-metric-2 without ExternalMetricName"))
 	assert.Empty(t, f.actions)
 }
 
@@ -723,7 +723,7 @@ func TestFollower(t *testing.T) {
 		Value:      20.0,
 		UpdateTime: kubernetes.TimeWithoutWall(updateTime),
 		DataTime:   kubernetes.TimeWithoutWall(updateTime),
-		Error:      fmt.Errorf("Error from backend while fetching metric"),
+		Error:      errors.New("Error from backend while fetching metric"),
 	}
 	ddm.SetQueries("metric query0")
 	f.store.Set("default/dd-metric-0", ddm, "utest")

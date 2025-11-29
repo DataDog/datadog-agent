@@ -7,6 +7,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -69,15 +70,15 @@ func NewWorker(
 ) (*Worker, error) {
 
 	if checksTracker == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil checksTracker")
+		return nil, errors.New("worker cannot initialize using a nil checksTracker")
 	}
 
 	if pendingChecksChan == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil pendingChecksChan")
+		return nil, errors.New("worker cannot initialize using a nil pendingChecksChan")
 	}
 
 	if shouldAddCheckStatsFunc == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil shouldAddCheckStatsFunc")
+		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
 	}
 
 	return newWorkerWithOptions(
@@ -107,7 +108,7 @@ func newWorkerWithOptions(
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
-		return nil, fmt.Errorf("worker cannot initialize using a nil getDefaultSenderFunc")
+		return nil, errors.New("worker cannot initialize using a nil getDefaultSenderFunc")
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
@@ -175,7 +176,7 @@ func (w *Worker) Run() {
 		if err != nil {
 			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 		}
-		serviceCheckTags := []string{fmt.Sprintf("check:%s", check.String()), "dd_enable_check_intake:true"}
+		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
 
 		hname, _ := hostname.Get(context.TODO())

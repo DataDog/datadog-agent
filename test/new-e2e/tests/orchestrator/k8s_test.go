@@ -8,7 +8,6 @@ package orchestrator
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -66,7 +65,7 @@ func (suite *k8sSuite) TestNode() {
 	expectAtLeastOneResource{
 		filter: &fakeintake.PayloadFilter{ResourceType: agentmodel.TypeCollectorNode},
 		test: func(payload *aggregator.OrchestratorPayload) bool {
-			return payload.Node.Metadata.Name == fmt.Sprintf("%s-control-plane", suite.Env().KubernetesCluster.ClusterName)
+			return payload.Node.Metadata.Name == suite.Env().KubernetesCluster.ClusterName+"-control-plane"
 		},
 		message: "find a control plane node",
 		timeout: defaultTimeout,

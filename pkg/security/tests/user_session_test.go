@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestK8SUserSession(t *testing.T) {
 			}, event.ProcessContext.UserSession.K8SExtra)
 			// Check that user session data is well set
 			assert.Equal(t, event.ProcessContext.UserSession.Identity, event.ProcessContext.UserSession.K8SUsername)
-			assert.Equal(t, event.ProcessContext.UserSession.ID, fmt.Sprintf("%x", event.ProcessContext.UserSession.K8SSessionID))
+			assert.Equal(t, event.ProcessContext.UserSession.ID, strconv.FormatUint(uint64(event.ProcessContext.UserSession.K8SSessionID), 16))
 		})
 	})
 }
