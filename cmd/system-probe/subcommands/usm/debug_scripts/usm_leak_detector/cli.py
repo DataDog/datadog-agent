@@ -51,6 +51,13 @@ def parse_args():
         action="store_true",
         help="Only check PID-keyed maps (skip ConnTuple-keyed maps)"
     )
+    parser.add_argument(
+        "--recheck-delay",
+        type=float,
+        default=2.0,
+        metavar="SECONDS",
+        help="Delay before re-checking leaked entries to filter race conditions (default: 2.0, 0 to disable)"
+    )
 
     return parser.parse_args()
 
@@ -116,7 +123,10 @@ def main():
             for map_name in sorted(conn_tuple_maps.keys()):
                 if args.verbose:
                     print(f"Analyzing ConnTuple map: {map_name}...")
-                info = analyze_map(map_name, backend, connection_index, args.verbose)
+                info = analyze_map(
+                    map_name, backend, connection_index, args.verbose,
+                    recheck_delay=args.recheck_delay, proc_root=args.proc_root
+                )
                 conn_tuple_results.append(info)
 
     # Step 4: Check PID-keyed maps (unless --conn-tuple-only)

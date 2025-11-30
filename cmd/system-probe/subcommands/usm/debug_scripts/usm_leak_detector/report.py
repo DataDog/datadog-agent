@@ -31,10 +31,12 @@ def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int], verbose
     total_maps = 0
     maps_with_leaks = 0
     total_leaked = 0
+    total_race_fps = 0
 
     for info in results:
         total_maps += 1
         total_leaked += info.leaked
+        total_race_fps += info.race_condition_fps
         if info.leaked > 0:
             maps_with_leaks += 1
 
@@ -49,6 +51,9 @@ def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int], verbose
                 print(f"    ... and {len(info.samples) - 10} more")
         else:
             print("  No leaks detected")
+
+        if info.race_condition_fps > 0:
+            print(f"  Race condition false positives filtered: {info.race_condition_fps}")
         print()
 
     print("## Summary")
@@ -56,6 +61,8 @@ def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int], verbose
     print(f"Total maps checked: {total_maps}")
     print(f"Maps with leaks: {maps_with_leaks}")
     print(f"Total leaked entries: {total_leaked}")
+    if total_race_fps > 0:
+        print(f"Race condition false positives filtered: {total_race_fps}")
 
 
 def print_pid_report(results: List[PIDLeakInfo], verbose: bool = False):

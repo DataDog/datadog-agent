@@ -79,6 +79,7 @@ class MapLeakInfo:
     total: int
     leaked: int
     samples: List[Tuple[ConnTuple, str]]  # (tuple, reason)
+    race_condition_fps: int = 0  # False positives filtered by re-check
 
     @property
     def leak_rate(self) -> float:

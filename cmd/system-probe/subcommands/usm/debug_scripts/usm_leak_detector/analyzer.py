@@ -2,10 +2,12 @@
 Map analysis logic for detecting leaked entries.
 """
 
+import time
 from typing import Dict, List
 
 from .backends import EbpfBackend
 from .models import ConnTuple, ConnectionIndex, MapLeakInfo
+from .network import discover_namespaces, build_connection_index
 from .parser import hex_array_to_bytes, parse_conn_tuple
 from .validator import validate_tuple
 
@@ -14,7 +16,9 @@ def analyze_map(
     map_name: str,
     backend: EbpfBackend,
     connection_index: Dict[int, ConnectionIndex],
-    verbose: bool = False
+    verbose: bool = False,
+    recheck_delay: float = 0,
+    proc_root: str = "/proc"
 ) -> MapLeakInfo:
     """Analyze a single map for leaks.
 
@@ -23,6 +27,8 @@ def analyze_map(
         backend: eBPF backend to use for map operations
         connection_index: Per-namespace index of active connections
         verbose: Enable verbose output
+        recheck_delay: Seconds to wait before re-checking leaked entries (0 = disabled)
+        proc_root: Path to /proc filesystem
 
     Returns:
         MapLeakInfo with analysis results
@@ -57,9 +63,36 @@ def analyze_map(
         if not valid:
             leaked.append((conn, reason))
 
+    race_condition_fps = 0
+
+    # Re-check leaked entries to filter out race condition false positives
+    if recheck_delay > 0 and leaked:
+        if verbose:
+            print(f"  Re-checking {len(leaked)} leaked entries after {recheck_delay}s delay...")
+        time.sleep(recheck_delay)
+
+        # Rebuild fresh connection index
+        namespaces = discover_namespaces(proc_root)
+        fresh_index = build_connection_index(namespaces, proc_root)
+
+        # Re-validate all leaked entries
+        still_leaked = []
+        for conn, reason in leaked:
+            valid, new_reason = validate_tuple(conn, fresh_index)
+            if not valid:
+                still_leaked.append((conn, reason))
+            else:
+                race_condition_fps += 1
+
+        if verbose and race_condition_fps > 0:
+            print(f"  Filtered {race_condition_fps} false positives (race condition)")
+
+        leaked = still_leaked
+
     return MapLeakInfo(
         name=map_name,
         total=total,
         leaked=len(leaked),
-        samples=leaked[:100]  # Limit samples
+        samples=leaked[:100],  # Limit samples
+        race_condition_fps=race_condition_fps
     )
