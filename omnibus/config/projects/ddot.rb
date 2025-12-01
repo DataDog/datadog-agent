@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
+require "./lib/omnibus/packagers/tarball.rb"
 
 name 'ddot'
 if fips_mode?
@@ -167,9 +168,14 @@ package :msi do
 end
 
 package :xz do
-  skip_packager do_package
+  skip_packager do_package || (ENV["COMPRESS_PACKAGE"] == "false")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# Uncompressed tar for faster local builds (skip the slow XZ compression)
+package :tarball do
+  skip_packager !(ENV["COMPRESS_PACKAGE"] == "false")
 end
 
 # all flavors use the same package scripts

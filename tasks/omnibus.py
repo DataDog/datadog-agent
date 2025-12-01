@@ -517,6 +517,239 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
         yield DebPackageInfo.from_metadata(package_info)
 
 
+@task(
+    help={
+        'arch': "Target architecture: 'arm64' or 'amd64' (default: auto-detect from host)",
+        'cache-dir': "Base directory for caches (default: ~/.omnibus-docker-cache)",
+        'compress': "Compress the package with XZ (slower but smaller). Default: False for local builds",
+        'workers': "Number of parallel workers for compression and builds (default: 8)",
+        'container-name': "Docker container name (default: ddagentbuilder)",
+        'build-image': "Docker build image to use (default: datadog/agent-buildimages-linux)",
+        'detach': "Run build in background and return immediately (skips Docker image creation)",
+        'follow-logs': "Follow container logs after starting (only with --detach)",
+        'tag': "Tag for the built Docker image (default: datadog-agent:local)",
+    }
+)
+def docker_build(
+    ctx,
+    arch=None,
+    cache_dir=None,
+    compress=False,
+    workers=8,
+    container_name="ddagentbuilder",
+    build_image="datadog/agent-buildimages-linux",
+    detach=False,
+    follow_logs=False,
+    tag="datadog-agent:local",
+):
+    """
+    Build the Agent inside a Docker container and create a runnable Docker image.
+
+    This task:
+    1. Runs the omnibus build inside a Docker container (with caching)
+    2. Creates a Docker image from the build output
+    3. Loads the image into your local Docker daemon
+
+    Examples:
+        # Build and create Docker image (default)
+        dda inv omnibus.docker-build
+
+        # Build with custom image tag
+        dda inv omnibus.docker-build --tag=my-agent:dev
+
+        # Build for specific architecture
+        dda inv omnibus.docker-build --arch=arm64
+
+        # Run omnibus build in background (image built when complete)
+        dda inv omnibus.docker-build --detach --follow-logs
+
+        # Compressed build (like CI, slower)
+        dda inv omnibus.docker-build --compress
+    """
+    import platform as plat
+    import glob
+    import shutil
+
+    # Auto-detect architecture if not specified
+    if arch is None:
+        machine = plat.machine().lower()
+        if machine in ('arm64', 'aarch64'):
+            arch = 'arm64'
+        elif machine in ('x86_64', 'amd64'):
+            arch = 'amd64'
+        else:
+            raise Exit(f"Unknown architecture: {machine}. Please specify --arch=arm64 or --arch=amd64")
+
+    # Map architecture to cross-compiler triplet
+    if arch == 'arm64':
+        cc = 'aarch64-unknown-linux-gnu-gcc'
+        cxx = 'aarch64-unknown-linux-gnu-g++'
+    elif arch == 'amd64':
+        cc = 'x86_64-unknown-linux-gnu-gcc'
+        cxx = 'x86_64-unknown-linux-gnu-g++'
+    else:
+        raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
+
+    # Set up cache directories
+    home = os.path.expanduser("~")
+    if cache_dir is None:
+        cache_dir = os.path.join(home, ".omnibus-docker-cache")
+
+    omnibus_dir = os.path.join(cache_dir, "omnibus")
+    git_cache_dir = os.path.join(cache_dir, "git-cache")
+    opt_dir = os.path.join(cache_dir, "opt-datadog-agent")
+    gems_dir = os.path.join(cache_dir, "gems")
+    go_mod_dir = os.path.join(cache_dir, "go-mod")
+    go_build_dir = os.path.join(cache_dir, "go-build")
+
+    # Create directories if they don't exist
+    for d in [omnibus_dir, git_cache_dir, opt_dir, gems_dir, go_mod_dir, go_build_dir]:
+        os.makedirs(d, exist_ok=True)
+
+    # Initialize git cache directory if needed
+    git_dir = os.path.join(git_cache_dir, ".git")
+    if not os.path.exists(git_dir):
+        print(f"Initializing git cache in {git_cache_dir}")
+        ctx.run(f"git -C {git_cache_dir} init")
+
+    # Get current working directory (repo root)
+    repo_root = os.getcwd()
+
+    # Build environment variables
+    env_args = [
+        f"-e OMNIBUS_GIT_CACHE_DIR=/omnibus-git-cache",
+        f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
+        f"-e DD_CC={cc}",
+        f"-e DD_CXX={cxx}",
+    ]
+
+    if not compress:
+        env_args.append("-e COMPRESS_PACKAGE=false")
+
+    # Build volume mounts
+    volume_args = [
+        f"-v {omnibus_dir}:/omnibus",
+        f"-v {git_cache_dir}:/omnibus-git-cache",
+        f"-v {opt_dir}:/opt/datadog-agent",
+        f"-v {gems_dir}:/gems",
+        f"-v {go_mod_dir}:/go/pkg/mod",
+        f"-v {go_build_dir}:/root/.cache/go-build",
+        f"-v {repo_root}:/go/src/github.com/DataDog/datadog-agent",
+    ]
+
+    # Build the docker command
+    env_str = " ".join(env_args)
+    vol_str = " ".join(volume_args)
+
+    # Remove existing container if present
+    ctx.run(f"docker rm -f {container_name} 2>/dev/null || true", warn=True, hide=True)
+
+    detach_flag = "-d" if detach else ""
+    docker_cmd = (
+        f"docker run --name {container_name} {detach_flag} "
+        f"{env_str} {vol_str} "
+        f"-w /go/src/github.com/DataDog/datadog-agent "
+        f"{build_image} "
+        f"dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems"
+    )
+
+    print(f"Building Datadog Agent for {arch}")
+    print(f"Cache directory: {cache_dir}")
+    print(f"Compress package: {compress}")
+    print(f"Workers: {workers}")
+    print()
+
+    if detach:
+        print("Starting build in background...")
+        ctx.run(docker_cmd)
+        print(f"\nContainer '{container_name}' started.")
+        print(f"Monitor with: docker logs -f {container_name}")
+        print(f"Check status: docker ps -a --filter name={container_name}")
+        print(f"\nOnce complete, run again without --detach to build Docker image.")
+
+        if follow_logs:
+            print("\nFollowing logs (Ctrl+C to detach)...")
+            ctx.run(f"docker logs -f {container_name}", warn=True)
+        return
+
+    # Run the omnibus build
+    ctx.run(docker_cmd)
+
+    # Build Docker image from the tarball
+    print("\n" + "=" * 60)
+    print("Building Docker image from tarball...")
+    print("=" * 60 + "\n")
+
+    artifacts_dir = os.path.join(omnibus_dir, "pkg")
+
+    # Find the tarball - prefer .tar over .tar.xz (faster to extract)
+    tar_pattern = os.path.join(artifacts_dir, f"datadog-agent-*-{arch}.tar")
+    tar_xz_pattern = os.path.join(artifacts_dir, f"datadog-agent-*-{arch}.tar.xz")
+
+    tar_files = sorted(glob.glob(tar_pattern), key=os.path.getmtime, reverse=True)
+    tar_xz_files = sorted(glob.glob(tar_xz_pattern), key=os.path.getmtime, reverse=True)
+
+    # Exclude debug packages
+    tar_files = [f for f in tar_files if '-dbg-' not in f]
+    tar_xz_files = [f for f in tar_xz_files if '-dbg-' not in f]
+
+    if tar_files:
+        tarball = tar_files[0]
+    elif tar_xz_files:
+        tarball = tar_xz_files[0]
+    else:
+        raise Exit(f"No tarball found in {artifacts_dir}. Build may have failed.")
+
+    artifact_name = os.path.basename(tarball)
+    print(f"Using tarball: {tarball}")
+
+    # Get git info for labels
+    git_url = "https://github.com/DataDog/datadog-agent"
+    git_sha = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+
+    # Map arch to Docker platform
+    platform = f"linux/{arch}"
+
+    # Build the Docker command
+    build_args = [
+        f"--build-arg DD_GIT_REPOSITORY_URL={git_url}",
+        f"--build-arg DD_GIT_COMMIT_SHA={git_sha}",
+        f"--build-arg DD_AGENT_ARTIFACT={artifact_name}",
+    ]
+
+    docker_build_cmd = (
+        f"docker buildx build --platform {platform} "
+        f"--build-context artifacts={artifacts_dir} "
+        f"{' '.join(build_args)} "
+        f"--file Dockerfiles/agent/Dockerfile "
+        f"--tag {tag} "
+        f"--load "
+        f"Dockerfiles/agent"
+    )
+
+    # Copy tarball to build context (Docker buildx doesn't follow symlinks)
+    dockerfile_dir = os.path.join(os.getcwd(), "Dockerfiles", "agent")
+    temp_tarball_path = os.path.join(dockerfile_dir, artifact_name)
+    try:
+        print(f"Copying tarball to build context ({os.path.getsize(tarball) / 1024 / 1024:.1f} MB)...")
+        shutil.copy2(tarball, temp_tarball_path)
+        ctx.run(docker_build_cmd)
+    finally:
+        if os.path.exists(temp_tarball_path):
+            os.unlink(temp_tarball_path)
+
+    # Print clear usage instructions
+    print("\n" + "=" * 60)
+    print("BUILD COMPLETE")
+    print("=" * 60)
+    print(f"\nDocker image: {tag}")
+    print(f"\nRun the agent:")
+    print(f"  docker run --rm {tag} agent version")
+    print(f"  docker run --rm -it {tag} /bin/bash")
+    print(f"\nInspect the image:")
+    print(f"  docker run --rm {tag} ls -la /opt/datadog-agent/bin/agent/")
+
+
 def _pipeline_id_of_package(package: DebPackageInfo) -> int:
     """
     Returns the pipeline ID of the package, or -1 if the package doesn't have a pipeline ID.
