@@ -8,6 +8,7 @@ package events
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -42,20 +43,19 @@ func (tkl *TokenLimiter) genGetTokenFnc(fields []eval.Field) error {
 	}
 
 	tkl.getToken = func(event Event) string {
-		var token string
+		var builder strings.Builder
 		for i, field := range fields {
 			value, err := event.GetFieldValue(field)
 			if err != nil {
 				return ""
 			}
 
-			if i == 0 {
-				token = fmt.Sprintf("%s:%v", field, value)
-			} else {
-				token += fmt.Sprintf(";%s:%v", field, value)
+			if i != 0 {
+				builder.WriteString(";")
 			}
+			fmt.Fprintf(&builder, "%s:%v", field, value)
 		}
-		return token
+		return builder.String()
 	}
 
 	return nil

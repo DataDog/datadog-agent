@@ -6,7 +6,7 @@
 package generic
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -180,7 +180,7 @@ func TestProcessorRunPartialStats(t *testing.T) {
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID202": {
-			Error: fmt.Errorf("Unable to read some stuff"),
+			Error: errors.New("Unable to read some stuff"),
 		},
 	}
 

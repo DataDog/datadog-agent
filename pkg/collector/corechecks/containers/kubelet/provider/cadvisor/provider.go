@@ -419,7 +419,7 @@ func (p *Provider) getContainerName(labels model.Metric) string {
 func (p *Provider) getKubeContainerNameTag(labels model.Metric) string {
 	containerName := p.getContainerName(labels)
 	if containerName != "" {
-		return fmt.Sprintf("kube_container_name:%s", containerName)
+		return "kube_container_name:" + containerName
 	}
 	return ""
 }

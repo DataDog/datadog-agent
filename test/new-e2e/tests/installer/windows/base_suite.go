@@ -227,8 +227,8 @@ func (s *BaseSuite) createStableAgent() {
 //
 // see doc.go for more information
 func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
-	versionVar := fmt.Sprintf("%s_VERSION", prefix)
-	versionPackageVar := fmt.Sprintf("%s_VERSION_PACKAGE", prefix)
+	versionVar := prefix + "_VERSION"
+	versionPackageVar := prefix + "_VERSION_PACKAGE"
 
 	// Agent version
 	version := os.Getenv(versionVar)
@@ -291,7 +291,7 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
 			err := windowscommon.ExportEventLog(vm, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access

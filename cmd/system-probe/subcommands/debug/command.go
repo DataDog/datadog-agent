@@ -68,7 +68,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 
 	var path string
 	if len(cliParams.args) == 1 {
-		path = fmt.Sprintf("http://localhost/debug/%s", cliParams.args[0])
+		path = "http://localhost/debug/" + cliParams.args[0]
 	} else {
 		path = fmt.Sprintf("http://localhost/%s/debug/%s", cliParams.args[0], cliParams.args[1])
 	}
