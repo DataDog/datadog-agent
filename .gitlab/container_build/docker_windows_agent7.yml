@@ -37,7 +37,6 @@
   WINDOWS_RUNNER: "windows-v2:2025"
   OS_TYPE: "nano"
   OS_DISPLAY_NAME: "windows nanoserver"
-  ALLOW_FAILURE: "true"
 
 .windows_ltsc2025_servercore: &windows_ltsc2025_servercore
   VARIANT: "ltsc2025"
@@ -46,7 +45,6 @@
   OS_TYPE: "core"
   OS_DISPLAY_NAME: "windows server core"
   SERVERCORE: "-servercore"
-  ALLOW_FAILURE: "true"
 
 # All Windows builds
 docker_build_agent7_windows:
@@ -96,7 +94,6 @@ docker_build_agent7_windows:
         TAG_SUFFIX: "-7-jmx"
         WITH_JMX: "true"
   tags: [$WINDOWS_RUNNER]
-  allow_failure: $ALLOW_FAILURE
   variables:
     OVERRIDE_GIT_STRATEGY: "clone"
 
