@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -73,7 +74,7 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 		})
 	})
@@ -105,7 +106,7 @@ func TestSpan(t *testing.T) {
 
 			test.validateSpanSchema(t, event)
 
-			assert.Equal(t, "204", fmt.Sprint(event.SpanContext.SpanID))
+			assert.Equal(t, "204", strconv.FormatUint(event.SpanContext.SpanID, 10))
 			assert.Equal(t, fakeTraceID128b, event.SpanContext.TraceID.String())
 		})
 	})

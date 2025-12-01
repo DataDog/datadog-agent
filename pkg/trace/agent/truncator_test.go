@@ -119,7 +119,7 @@ func TestTruncateStructuredMetaTag(t *testing.T) {
 			a := &Agent{conf: config.New()}
 			s := testSpan()
 			structuredTagName := fmt.Sprintf("_dd.%s.%s", key, suffix)
-			notStructuredTagName := fmt.Sprintf("key.%s", suffix)
+			notStructuredTagName := "key." + suffix
 			s.Meta[structuredTagName] = val
 			s.Meta[notStructuredTagName] = val
 			a.Truncate(s)

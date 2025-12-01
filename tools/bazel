@@ -2,55 +2,22 @@
 set -euo pipefail
 
 # Check `bazelisk` properly bootstraps `bazel` or fail with instructions
-if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != "true" ]; then
+if [ -z "${BAZEL_REAL:-}" ] || [ "${BAZELISK_SKIP_WRAPPER:-}" != true ]; then
   >&2 cat "$(dirname "$0")/bazelisk.md"
   exit 2
 fi
 
-# Not in CI: simply execute `bazel` - done
-if [ -z "${CI_PROJECT_DIR:-}" ]; then
-  exec "$BAZEL_REAL" "$@"
-  exit 2 # should not reach here
-fi
-
-# In CI
-if [[ "$BAZEL_REPO_CONTENTS_CACHE" = "$CI_PROJECT_DIR"* ]]; then
-  # Ephemeral runner: externalize `--repo_contents_cache` to the job's temp directory created alongside $CI_PROJECT_DIR
-  # - https://github.com/bazelbuild/bazel/issues/26384 for why
-  # - https://docs.gitlab.com/runner/configuration/advanced-configuration/ for `RUNNER_TEMP_PROJECT_DIR`
-  # - https://sissource.ethz.ch/sispub/gitlab-ci-euler-image/-/blob/main/entrypoint.sh#L43 for inspiration
-  is_persistent_runner=false
-  ext_repo_contents_cache=$RUNNER_TEMP_PROJECT_DIR/bazel-repo-contents-cache
-  if [ -e "$BAZEL_REPO_CONTENTS_CACHE" ]; then
-    >&2 rm -frv "$ext_repo_contents_cache"
-    mv "$BAZEL_REPO_CONTENTS_CACHE" "$ext_repo_contents_cache"
+# CI specific setup
+if [ -n "${CI:-}" ]; then
+  if [ ! -d "${XDG_CACHE_HOME:-}" ]; then
+    >&2 echo "🔴 XDG_CACHE_HOME (${XDG_CACHE_HOME:-}) must denote a directory in CI!"
+    exit 2
   fi
-else
-  # Persistent runner: honor `$BAZEL_REPO_CONTENTS_CACHE` since it already points to an external path
-  is_persistent_runner=true
-  ext_repo_contents_cache=$BAZEL_REPO_CONTENTS_CACHE
-fi
 
-# Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` and next `bazel shutdown` also honor them
-cat >"$CI_PROJECT_DIR/user.bazelrc" <<EOF
-startup --output_user_root=$BAZEL_OUTPUT_USER_ROOT
+  # Pass CI-specific options through `.user.bazelrc` so any nested `bazel run` also honor them
+  cat >"$(dirname "$(dirname "$0")")/user.bazelrc" <<EOF
 common --config=ci
-common --repo_contents_cache=$ext_repo_contents_cache
-build --disk_cache=$BAZEL_DISK_CACHE
 EOF
-
-# Payload: execute `bazel`, failing fast
-"$BAZEL_REAL" "$@"
-
-# Skip cleanup for persistent runners
-[ $is_persistent_runner = true ] && exit 0
-
-# Stop `bazel` (if still running) to close files and proceed with cleanup
-"$BAZEL_REAL" shutdown --ui_event_filters=-info || true
-rm "$CI_PROJECT_DIR/user.bazelrc"
-
-# Reintegrate `--repo_contents_cache` to original directory
-if [ -e "$ext_repo_contents_cache" ]; then
-  >&2 rm -frv "$BAZEL_REPO_CONTENTS_CACHE"
-  mv "$ext_repo_contents_cache" "$BAZEL_REPO_CONTENTS_CACHE"
 fi
+
+exec "$BAZEL_REAL" "$@"
