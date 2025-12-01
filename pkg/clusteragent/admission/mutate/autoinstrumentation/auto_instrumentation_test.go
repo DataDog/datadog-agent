@@ -2661,7 +2661,7 @@ func newImage(i string) *image {
 		return nil
 	}
 	name := parts[len(parts)-1]
-	registry := strings.TrimSuffix(fullImage, fmt.Sprintf("/%s", name))
+	registry := strings.TrimSuffix(fullImage, "/"+name)
 
 	return &image{
 		raw:      i,
@@ -2774,7 +2774,7 @@ func (v *podValidator) requireInjection(t *testing.T, expectedContainers []strin
 			{
 				Name:      "datadog-auto-instrumentation",
 				MountPath: "/datadog-lib",
-				SubPath:   fmt.Sprintf("opt/datadog/apm/library/%s", lang),
+				SubPath:   "opt/datadog/apm/library/" + lang,
 			},
 			{
 				Name:      "datadog-auto-instrumentation",

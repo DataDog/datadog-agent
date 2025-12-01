@@ -6,7 +6,6 @@
 package installer
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -154,19 +153,19 @@ func WithMSILogFile(filename string) MsiOption {
 //	export CURRENT_AGENT_MSI_URL="https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.64.0-rc.9.msi"
 func WithMSIDevEnvOverrides(prefix string) MsiOption {
 	return func(params *MsiParams) error {
-		if url, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_URL", prefix)); ok {
+		if url, ok := os.LookupEnv(prefix + "_MSI_URL"); ok {
 			err := WithOption(WithInstallerURL(url))(params)
 			if err != nil {
 				return err
 			}
 		}
-		if pipeline, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PIPELINE", prefix)); ok {
+		if pipeline, ok := os.LookupEnv(prefix + "_MSI_PIPELINE"); ok {
 			err := WithOption(WithURLFromPipeline(pipeline))(params)
 			if err != nil {
 				return err
 			}
 		}
-		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", prefix)); ok {
+		if version, ok := os.LookupEnv(prefix + "_MSI_VERSION"); ok {
 			err := WithOption(WithURLFromInstallersJSON(pipeline.StableURL, version))(params)
 			if err != nil {
 				return err
@@ -187,13 +186,13 @@ func WithMSIDevEnvOverrides(prefix string) MsiOption {
 //	export CURRENT_AGENT_INSTALLER_SCRIPT="file:///path/to/install.ps1"
 func WithInstallScriptDevEnvOverrides(prefix string) Option {
 	return func(params *Params) error {
-		if url, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_URL", prefix)); ok {
+		if url, ok := os.LookupEnv(prefix + "_INSTALLER_URL"); ok {
 			err := WithInstallerURL(url)(params)
 			if err != nil {
 				return err
 			}
 		}
-		if script, ok := os.LookupEnv(fmt.Sprintf("%s_INSTALLER_SCRIPT", prefix)); ok {
+		if script, ok := os.LookupEnv(prefix + "_INSTALLER_SCRIPT"); ok {
 			err := WithInstallerScript(script)(params)
 			if err != nil {
 				return err

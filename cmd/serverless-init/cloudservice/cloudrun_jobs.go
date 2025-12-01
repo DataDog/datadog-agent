@@ -8,11 +8,15 @@ package cloudservice
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -40,7 +44,9 @@ const (
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
-	startTime time.Time
+	startTime  time.Time
+	jobSpan    *pb.Span
+	traceAgent interface{}
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
@@ -55,6 +61,7 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	taskAttemptVal := os.Getenv(cloudRunTaskAttemptEnvVar)
 	taskCountVal := os.Getenv(cloudRunTaskCountEnvVar)
 
+	// TODO: remove high cardinality tags and include them only in logs/traces.
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
 		tags[jobNameTag] = jobNameVal
@@ -96,26 +103,34 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceGoogleCloudRunEnhanced
 }
 
-// Init records the start time for CloudRunJobs
-func (c *CloudRunJobs) Init() error {
+// Init records the start time for CloudRunJobs and initializes the job span
+func (c *CloudRunJobs) Init(traceAgent interface{}) error {
 	c.startTime = time.Now()
+	c.traceAgent = traceAgent
+	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") && pkgconfigsetup.Datadog().GetBool("serverless.trace_enabled") {
+		c.initJobSpan()
+		c.setSpanModifier()
+	}
 	return nil
 }
 
-// Shutdown submits the task duration and shutdown metrics for CloudRunJobs
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
-	durationMetricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
+// Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
+// and completes and submits the job span.
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error) {
+	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
 	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
 
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
 	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, fmt.Sprintf("exit_code:%d", exitCode))
+
+	c.completeAndSubmitJobSpan(traceAgent, runErr)
 }
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.task.started", cloudRunJobsPrefix)
+	return cloudRunJobsPrefix + ".enhanced.task.started"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
@@ -126,4 +141,64 @@ func (c *CloudRunJobs) ShouldForceFlushAllOnForceFlushToSerializer() bool {
 func isCloudRunJob() bool {
 	_, exists := os.LookupEnv(cloudRunJobNameEnvVar)
 	return exists
+}
+
+// initJobSpan creates and initializes the job span with Cloud Run Job metadata
+func (c *CloudRunJobs) initJobSpan() {
+	tags := c.GetTags()
+	jobNameVal := os.Getenv(cloudRunJobNameEnvVar)
+
+	// Use DD_SERVICE for the service name, fallback to job name, then "gcp.run.job"
+	serviceName := tags["service"]
+	if serviceName == "" {
+		serviceName = jobNameVal
+	}
+	if serviceName == "" {
+		serviceName = "gcp.run.job"
+	}
+
+	// Use job name for resource, fallback
+	resourceName := jobNameVal
+	if resourceName == "" {
+		resourceName = "gcp.run.job"
+	}
+
+	c.jobSpan = serverlessInitTrace.InitSpan(
+		serviceName,
+		"gcp.run.job.task",
+		resourceName,
+		"", // TODO add custom 'job' span type (requires UI changes)
+		c.startTime.UnixNano(),
+		tags,
+	)
+}
+
+// setSpanModifier sets up the span modifier to reparent user spans under the job span
+func (c *CloudRunJobs) setSpanModifier() {
+	if c.traceAgent == nil || c.jobSpan == nil {
+		return
+	}
+
+	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobSpan.TraceID, c.jobSpan.SpanID)
+	if ta, ok := c.traceAgent.(serverlessInitTrace.SpanModifierSetter); ok {
+		ta.SetSpanModifier(modifier)
+	}
+}
+
+// completeAndSubmitJobSpan finalizes the span with duration and error status, then submits it
+func (c *CloudRunJobs) completeAndSubmitJobSpan(traceAgent interface{}, runErr error) {
+	if c.jobSpan == nil {
+		return
+	}
+
+	c.jobSpan.Duration = time.Since(c.startTime).Nanoseconds()
+
+	if runErr != nil {
+		c.jobSpan.Error = 1
+		c.jobSpan.Meta["error.msg"] = runErr.Error()
+		exitCode := exitcode.From(runErr)
+		c.jobSpan.Meta["exit_code"] = strconv.Itoa(exitCode)
+	}
+
+	serverlessInitTrace.SubmitSpan(c.jobSpan, CloudRunJobsOrigin, traceAgent)
 }

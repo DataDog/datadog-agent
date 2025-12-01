@@ -8,6 +8,4 @@
 ---
 fixes:
   - |
-    Customers using Single Step Instrumentation with both configuration based targeting (enabled namespace or
-    targets) in combination with Local Lib Injection will no longer receive mutation from the config or tags to labels
-    webhook in a disabled namespace. 
+    When using Single Step Instrumentation with configuration-based targeting (enabled namespaces or targets) together with Local Lib Injection, the webhook no longer mutates pods in namespaces where instrumentation is disabled.
