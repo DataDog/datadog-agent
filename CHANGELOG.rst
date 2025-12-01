@@ -2,6 +2,56 @@
 Release Notes
 =============
 
+.. _Release Notes_7.72.3:
+
+7.72.3
+======
+
+.. _Release Notes_7.72.3_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-11-26
+
+- Please refer to the `7.72.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7723>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.72.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Remove unused `trace-loader` binary from the heroku build to avoid package size increase
+
+
+.. _Release Notes_7.72.2:
+
+7.72.2
+======
+
+.. _Release Notes_7.72.2_Prelude:
+
+Prelude
+-------
+
+Release on: 2025-11-12
+
+- Please refer to the `7.72.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7722>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.72.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- gpu: fix a bug where the gpu.sm_active and
+  gpu.process.{sm_active,dram_active,encoder_utilization,decoder_utilization}
+  metrics were emitting values lower than expected.
+
+- Fix regression in 7.72.0 where the install script on Windows (``Install-Datadog.ps1`` and ``datadog-installer-x86_64.exe``) does not reinstall the Agent if the same version was just uninstalled.
+
+
 .. _Release Notes_7.72.1:
 
 7.72.1

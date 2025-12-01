@@ -21,15 +21,17 @@ import (
 func TestPathValidation(t *testing.T) {
 	mod := &Model{}
 
-	var maxDepthPath string
+	var maxDepthPathBuilder strings.Builder
 	for i := 0; i <= MaxPathDepth; i++ {
-		maxDepthPath += "a/"
+		maxDepthPathBuilder.WriteString("a/")
 	}
+	maxDepthPath := maxDepthPathBuilder.String()
 
-	var maxSegmentPath string
+	var maxSegmentPathBuilder strings.Builder
 	for i := 0; i <= MaxSegmentLength; i++ {
-		maxSegmentPath += "a"
+		maxSegmentPathBuilder.WriteString("a")
 	}
+	maxSegmentPath := maxSegmentPathBuilder.String()
 
 	tests := []struct {
 		val            string
@@ -125,7 +127,7 @@ func TestSetFieldValue(t *testing.T) {
 		// use a fresh event to not get polluted by previous SetFieldValue
 		event = NewFakeEvent()
 
-		_, kind, _, err := event.GetFieldMetadata(field)
+		_, kind, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			t.Fatal(err)
 		}

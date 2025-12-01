@@ -1,0 +1,2 @@
+enhancements:
+  - Openmetrics-based checks using ``send_histograms_buckets`` now handle histogram resets without emitting a warning.

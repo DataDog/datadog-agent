@@ -115,20 +115,22 @@ func mustReadSystemdUnit(name string, data systemdTemplateData, ambiantCapabilit
 
 func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTemplateData, ambiantCapabilitiesSupported bool) map[string][]byte {
 	units := map[string][]byte{
-		"datadog-agent.service":               mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-exp.service":           mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-installer.service":     mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-installer-exp.service": mustReadSystemdUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-trace.service":         mustReadSystemdUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-trace-exp.service":     mustReadSystemdUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-process.service":       mustReadSystemdUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-process-exp.service":   mustReadSystemdUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-security.service":      mustReadSystemdUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-security-exp.service":  mustReadSystemdUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-sysprobe.service":      mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported),
-		"datadog-agent-sysprobe-exp.service":  mustReadSystemdUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot.service":          mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData, ambiantCapabilitiesSupported),
-		"datadog-agent-ddot-exp.service":      mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData, ambiantCapabilitiesSupported),
+		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-installer-exp.service":  mustReadSystemdUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-data-plane.service":     mustReadSystemdUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-data-plane-exp.service": mustReadSystemdUnit("datadog-agent-data-plane.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-trace.service":          mustReadSystemdUnit("datadog-agent-trace.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-trace-exp.service":      mustReadSystemdUnit("datadog-agent-trace.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-process.service":        mustReadSystemdUnit("datadog-agent-process.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-process-exp.service":    mustReadSystemdUnit("datadog-agent-process.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-security.service":       mustReadSystemdUnit("datadog-agent-security.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-security-exp.service":   mustReadSystemdUnit("datadog-agent-security.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-sysprobe.service":       mustReadSystemdUnit("datadog-agent-sysprobe.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-agent-sysprobe-exp.service":   mustReadSystemdUnit("datadog-agent-sysprobe.service", expData, ambiantCapabilitiesSupported),
+		"datadog-agent-ddot.service":           mustReadSystemdUnit("datadog-agent-ddot.service", ddotStableData, ambiantCapabilitiesSupported),
+		"datadog-agent-ddot-exp.service":       mustReadSystemdUnit("datadog-agent-ddot.service", ddotExpData, ambiantCapabilitiesSupported),
 	}
 	return units
 }

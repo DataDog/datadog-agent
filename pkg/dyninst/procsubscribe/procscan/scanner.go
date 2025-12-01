@@ -13,10 +13,6 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -91,7 +87,7 @@ func NewScanner(
 			return tracermetadata.GetTracerMetadata(int(pid), procfsRoot)
 		},
 		func(pid int32) (process.Executable, error) {
-			return resolveExecutable(procfsRoot, pid)
+			return process.ResolveExecutable(procfsRoot, pid)
 		},
 	)
 }
@@ -229,53 +225,4 @@ func (p *Scanner) Scan() (
 
 	p.lastWatermark = nextWatermark
 	return ret, removed, nil
-}
-
-func resolveExecutable(procfsRoot string, pid int32) (process.Executable, error) {
-	exeLink := filepath.Join(procfsRoot, strconv.Itoa(int(pid)), "exe")
-	exePath, err := os.Readlink(exeLink)
-	if err != nil {
-		return process.Executable{}, err
-	}
-
-	openPath := exePath
-	file, err := os.Open(openPath)
-	if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) {
-		trimmed := strings.TrimPrefix(openPath, "/")
-		if trimmed != "" {
-			openPath = filepath.Join(
-				procfsRoot,
-				strconv.Itoa(int(pid)),
-				"root",
-				trimmed,
-			)
-			file, err = os.Open(openPath)
-		}
-	}
-	if err != nil {
-		return process.Executable{}, err
-	}
-	defer file.Close()
-
-	info, err := file.Stat()
-	if err != nil {
-		return process.Executable{}, err
-	}
-	statT, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return process.Executable{}, fmt.Errorf(
-			"unexpected stat type %T", info.Sys(),
-		)
-	}
-	key := process.FileKey{
-		FileHandle: process.FileHandle{
-			Dev: uint64(statT.Dev),
-			Ino: statT.Ino,
-		},
-		LastModified: statT.Mtim,
-	}
-	return process.Executable{
-		Path: openPath,
-		Key:  key,
-	}, nil
 }

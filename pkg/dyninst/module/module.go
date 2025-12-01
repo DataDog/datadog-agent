@@ -34,11 +34,12 @@ import (
 
 // Module is the dynamic instrumentation system probe module.
 type Module struct {
-	tenant ActuatorTenant
-	symdb  symdbManagerInterface
+	actuator Actuator
+	symdb    symdbManagerInterface
 
-	store       *processStore
-	diagnostics *diagnosticsManager
+	store        *processStore
+	diagnostics  *diagnosticsManager
+	runtimeStats *runtimeStats
 
 	cancel context.CancelFunc
 
@@ -115,14 +116,14 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 		bufferedMessageTracker:   bufferedMessagesTracker,
 		tombstoneFilePath:        tombstoneFilePath,
 	}
-	tenant := deps.Actuator.NewTenant("dyninst", runtime)
-
+	deps.Actuator.SetRuntime(runtime)
 	m := &Module{
-		store:       store,
-		diagnostics: diagnostics,
-		symdb:       deps.symdbManager,
-		tenant:      tenant,
-		cancel:      func() {}, // This gets overwritten in NewModule
+		store:        store,
+		diagnostics:  diagnostics,
+		symdb:        deps.symdbManager,
+		actuator:     deps.Actuator,
+		runtimeStats: &runtime.stats,
+		cancel:       func() {}, // This gets overwritten in NewModule
 	}
 	if deps.ProcessSubscriber != nil {
 		deps.ProcessSubscriber.Subscribe(m.handleProcessesUpdate)
@@ -149,7 +150,7 @@ type realDependencies struct {
 
 func (c *realDependencies) asDependencies() dependencies {
 	return dependencies{
-		Actuator:            &erasedActuator[*actuator.Actuator, *actuator.Tenant]{a: c.actuator},
+		Actuator:            c.actuator,
 		ProcessSubscriber:   c.procSubscriber,
 		Dispatcher:          c.dispatcher,
 		DecoderFactory:      c.decoderFactory,
@@ -164,12 +165,6 @@ func (c *realDependencies) asDependencies() dependencies {
 }
 
 func (c *realDependencies) shutdown() {
-	if c.logUploader != nil {
-		c.logUploader.Stop()
-	}
-	if c.diagsUploader != nil {
-		c.diagsUploader.Stop()
-	}
 	if c.actuator != nil {
 		if err := c.actuator.Shutdown(); err != nil {
 			log.Warnf("error shutting down actuator: %v", err)
@@ -182,6 +177,12 @@ func (c *realDependencies) shutdown() {
 	}
 	if c.loader != nil {
 		c.loader.Close()
+	}
+	if c.logUploader != nil {
+		c.logUploader.Stop()
+	}
+	if c.diagsUploader != nil {
+		c.diagsUploader.Stop()
 	}
 	if c.symdbManager != nil {
 		c.symdbManager.stop()
@@ -222,7 +223,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator()
+	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
@@ -266,7 +267,7 @@ func makeRealDependencies(
 	return ret, nil
 }
 
-// GetStats returns the stats of the module
+// GetStats returns the stats of the module.
 func (m *Module) GetStats() map[string]any {
 	stats := map[string]any{}
 	if m.shutdown.realDependencies.actuator != nil {
@@ -274,6 +275,9 @@ func (m *Module) GetStats() map[string]any {
 		if actuatorStats != nil {
 			stats["actuator"] = actuatorStats
 		}
+	}
+	if m.runtimeStats != nil {
+		stats["runtime"] = m.runtimeStats.asStats()
 	}
 	return stats
 }
@@ -306,8 +310,8 @@ func (m *Module) Close() {
 func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 	if removals := update.Removals; len(removals) > 0 {
 		m.store.remove(removals, m.diagnostics)
-		if len(removals) > 0 && m.tenant != nil {
-			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
+		if len(removals) > 0 && m.actuator != nil {
+			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Removals: removals})
 		}
 		for _, pid := range removals {
 			m.symdb.removeUploadByPID(pid)
@@ -333,8 +337,8 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 				m.symdb.removeUpload(runtimeID)
 			}
 		}
-		if m.tenant != nil {
-			m.tenant.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
+		if m.actuator != nil {
+			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
 		}
 	}
 }

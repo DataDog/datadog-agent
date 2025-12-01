@@ -112,7 +112,7 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 
 	// Only get version when secret_backend_type is used
 	if r.backendType == "" {
-		return "", fmt.Errorf("version only supported when secret_backend_type is configured")
+		return "", errors.New("version only supported when secret_backend_type is configured")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
@@ -149,7 +149,7 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	if err != nil {
 		log.Debugf("secret_backend_command --version stderr: %s", stderr.buf.String())
 		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("version command timeout")
+			return "", errors.New("version command timeout")
 		}
 		return "", fmt.Errorf("version command failed: %w", err)
 	}
@@ -161,8 +161,9 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 // executable to fetch the actual secrets and returns them.
 func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": secrets.PayloadVersion,
-		"secrets": secretsHandle,
+		"version":                secrets.PayloadVersion,
+		"secrets":                secretsHandle,
+		"secret_backend_timeout": r.backendTimeout,
 	}
 	if r.backendType != "" {
 		payload["type"] = r.backendType

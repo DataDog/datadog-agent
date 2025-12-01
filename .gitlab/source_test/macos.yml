@@ -5,13 +5,14 @@ include:
 .tests_macos_gitlab:
   stage: source_test
   extends:
-    - .unit_test_base
+    - .bazel:defs:cache:macos
     - .macos_gitlab
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   needs: ["go_deps", "go_tools_deps"]
   variables:
+    FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     TEST_OUTPUT_FILE: test_output.json
   script:
     - !reference [.retrieve_linux_go_deps]
@@ -40,8 +41,8 @@ include:
 
 tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
-  tags: ["macos:ventura-amd64", "specific:true"]
+  tags: ["macos:sonoma-amd64", "specific:true"]
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
-  tags: ["macos:ventura-arm64", "specific:true"]
+  tags: ["macos:sonoma-arm64", "specific:true"]

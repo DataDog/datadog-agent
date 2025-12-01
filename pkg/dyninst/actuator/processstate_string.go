@@ -13,16 +13,17 @@ func _() {
 	_ = x[processStateAttaching-2]
 	_ = x[processStateAttached-3]
 	_ = x[processStateDetaching-4]
-	_ = x[processStateLoadingFailed-5]
+	_ = x[processStateFailed-5]
 }
 
-const _processState_name = "InvalidWaitingForProgramAttachingAttachedDetachingLoadingFailed"
+const _processState_name = "InvalidWaitingForProgramAttachingAttachedDetachingFailed"
 
-var _processState_index = [...]uint8{0, 7, 24, 33, 41, 50, 63}
+var _processState_index = [...]uint8{0, 7, 24, 33, 41, 50, 56}
 
 func (i processState) String() string {
-	if i >= processState(len(_processState_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_processState_index)-1 {
 		return "processState(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _processState_name[_processState_index[i]:_processState_index[i+1]]
+	return _processState_name[_processState_index[idx]:_processState_index[idx+1]]
 }

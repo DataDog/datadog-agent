@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
 // SetUpLaunchers intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
@@ -45,6 +47,10 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 	fileValidatePodContainer := pkgconfigsetup.Datadog().GetBool("logs_config.validate_pod_container_id")
 	fileScanPeriod := time.Duration(pkgconfigsetup.Datadog().GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := pkgconfigsetup.Datadog().GetString("logs_config.file_wildcard_selection_mode")
+
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := file.NewFingerprinter(*fingerprintConfig, fileOpener)
+
 	fileLauncher := filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
@@ -53,7 +59,8 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		fileWildcardSelectionMode,
 		flare.NewFlareController(),
 		nil,
-		*fingerprintConfig,
+		fileOpener,
+		fingerprinter,
 	)
 	tracker := tailers.NewTailerTracker()
 

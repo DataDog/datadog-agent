@@ -9,6 +9,8 @@ package common
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -18,6 +20,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
+
+	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -334,7 +338,7 @@ type MockMutator struct {
 func (m *MockMutator) MutatePod(_ *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	m.Called = true
 	if m.ShoudErr {
-		return false, fmt.Errorf("error")
+		return false, errors.New("error")
 	}
 
 	return m.ShouldMutate, nil
@@ -357,7 +361,19 @@ func FakeConfig(t *testing.T) model.BuildableConfig {
 func FakeConfigWithValues(t *testing.T, values map[string]interface{}) model.BuildableConfig {
 	mockConfig := configmock.New(t)
 	for k, v := range values {
+		// Setting config directly on the mock requires basic types which are not easy to use with targets.
+		if k == "apm_config.instrumentation.targets" {
+			setInstrumentationTargets(t, v)
+			continue
+		}
 		mockConfig.SetWithoutSource(k, v)
 	}
 	return mockConfig
+}
+
+// setInstrumentationTargets sets the target list in the test environment.
+func setInstrumentationTargets(t *testing.T, targets any) {
+	data, err := json.Marshal(targets)
+	require.NoError(t, err)
+	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", string(data))
 }

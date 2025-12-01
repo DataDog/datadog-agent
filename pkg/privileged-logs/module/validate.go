@@ -37,7 +37,7 @@ func isTextFile(file *os.File) bool {
 
 func validateAndOpenWithPrefix(path, allowedPrefix string) (*os.File, error) {
 	if path == "" {
-		return nil, fmt.Errorf("empty file path provided")
+		return nil, errors.New("empty file path provided")
 	}
 
 	if !filepath.IsAbs(path) {
@@ -78,7 +78,7 @@ func validateAndOpenWithPrefix(path, allowedPrefix string) (*os.File, error) {
 		// (expanding symlinks, but protecting against symlink attacks).
 		file, err = os.OpenInRoot(allowedPrefix, relativePath)
 	} else {
-		err = fmt.Errorf("non-log file not allowed")
+		err = errors.New("non-log file not allowed")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %v", path, err)

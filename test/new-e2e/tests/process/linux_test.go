@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -332,6 +332,15 @@ func (s *linuxTestSuite) TestManualProcessCheckCoreAgent() {
 	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks process --json")
 		assertManualProcessCheck(c, check, false, "stress")
+	}, 2*time.Minute, 10*time.Second)
+}
+
+func (s *linuxTestSuite) TestManualRTProcessCheckCoreAgent() {
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckInCoreAgentConfigStr))))
+
+	assert.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		check := s.Env().RemoteHost.MustExecute("sudo datadog-agent processchecks rtprocess --json")
+		assertManualRTProcessCheck(c, check)
 	}, 2*time.Minute, 10*time.Second)
 }
 

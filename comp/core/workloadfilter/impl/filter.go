@@ -248,6 +248,11 @@ func (f *workloadfilterStore) GetProcessFilters(processFilters [][]workloadfilte
 	return getFilterBundle(f, workloadfilter.ProcessType, processFilters)
 }
 
+// GetFilterConfigString returns a string representation of the raw filter configuration
+func (f *workloadfilterStore) GetFilterConfigString() (string, error) {
+	return f.filterConfig.String()
+}
+
 // getFilterBundle constructs a filter bundle for a given resource type and filters.
 func getFilterBundle[T ~int](f *workloadfilterStore, objType workloadfilter.ResourceType, filters [][]T) workloadfilter.FilterBundle {
 	var filterSets [][]program.FilterProgram

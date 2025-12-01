@@ -7,7 +7,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -15,6 +14,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
+
+// LoggerName defines the logger name
+const LoggerName = "SYS-PROBE"
 
 // GlobalParams contains the values of system-probe global Cobra flags.
 //
@@ -38,7 +40,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	sysprobeCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Agent System Probe",
 		Long: `
 The Datadog Agent System Probe runs as superuser in order to instrument

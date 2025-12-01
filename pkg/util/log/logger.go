@@ -6,8 +6,7 @@
 package log
 
 import (
-	"github.com/cihub/seelog"
-
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
@@ -16,5 +15,5 @@ type LoggerInterface = types.LoggerInterface
 
 // Disabled returns a disabled logger
 func Disabled() LoggerInterface {
-	return seelog.Disabled
+	return slog.Disabled()
 }

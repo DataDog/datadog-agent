@@ -41,4 +41,7 @@ type Component interface {
 
 	// GetContainerSBOMFilters retrieves the container SBOM FilterBundle
 	GetContainerSBOMFilters() FilterBundle
+
+	// GetFilterConfigString retrieves a string representation of the raw filter configuration
+	GetFilterConfigString() (string, error)
 }

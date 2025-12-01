@@ -36,13 +36,13 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 	fmt.Println("Kubernetes Diagnose will be written to", outputDir)
 	diagnoseOutput := []string{"==== Kubernetes Diagnose ===="}
 	if e.KubernetesCluster == nil {
-		return "", fmt.Errorf("KubernetesCluster component is not initialized")
+		return "", errors.New("KubernetesCluster component is not initialized")
 	}
 	if e.Agent == nil {
-		return "", fmt.Errorf("Agent component is not initialized")
+		return "", errors.New("Agent component is not initialized")
 	}
 	if e.KubernetesCluster.KubernetesClient == nil {
-		return "", fmt.Errorf("KubernetesClient component is not initialized")
+		return "", errors.New("KubernetesClient component is not initialized")
 	}
 	ctx := context.Background()
 
@@ -65,7 +65,7 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download agent flare: %s\n", err.Error()))
 				continue
 			}
-			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Downloaded flare: %s", flarePath))
+			diagnoseOutput = append(diagnoseOutput, "Downloaded flare: "+flarePath)
 		}
 	}
 
@@ -87,7 +87,7 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download agent flare: %s\n", err.Error()))
 				continue
 			}
-			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Downloaded flare: %s", flarePath))
+			diagnoseOutput = append(diagnoseOutput, "Downloaded flare: "+flarePath)
 		}
 	}
 
@@ -109,7 +109,7 @@ func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
 				diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Failed to generate and download cluster agent flare: %s\n", err.Error()))
 				continue
 			}
-			diagnoseOutput = append(diagnoseOutput, fmt.Sprintf("Downloaded flare: %s", flarePath))
+			diagnoseOutput = append(diagnoseOutput, "Downloaded flare: "+flarePath)
 		}
 	}
 
@@ -230,11 +230,12 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	outStr := []string{"===== Coverage ====="}
 
 	// Process Linux pods
-	linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+	if e.Agent.LinuxNodeAgent.LabelSelectors == nil {
+		outStr = append(outStr, "LinuxNodeAgent not initialized, skipping Linux pod coverage")
+	} else if linuxPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxNodeAgent.LabelSelectors["app"]).String(),
-	})
-	if err != nil {
-		outStr = append(outStr, fmt.Sprintf("Failed to list linux pods: %s", err.Error()))
+	}); err != nil {
+		outStr = append(outStr, "Failed to list linux pods: "+err.Error())
 	} else {
 		if len(linuxPods.Items) >= 1 {
 			outStr = append(outStr, "==== Linux pods ====")
@@ -250,11 +251,12 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	}
 
 	// Process Windows pods
-	windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+	if e.Agent.WindowsNodeAgent.LabelSelectors == nil {
+		outStr = append(outStr, "WindowsNodeAgent not initialized, skipping Windows pod coverage")
+	} else if windowsPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.WindowsNodeAgent.LabelSelectors["app"]).String(),
-	})
-	if err != nil {
-		outStr = append(outStr, fmt.Sprintf("Failed to list windows pods: %s", err.Error()))
+	}); err != nil {
+		outStr = append(outStr, "Failed to list windows pods: "+err.Error())
 	} else {
 		if len(windowsPods.Items) >= 1 {
 			outStr = append(outStr, "==== Windows pods ====")
@@ -269,11 +271,12 @@ func (e *Kubernetes) Coverage(outputDir string) (string, error) {
 	}
 
 	// Process Cluster Agent pods
-	clusterAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+	if e.Agent.LinuxClusterAgent.LabelSelectors == nil {
+		outStr = append(outStr, "LinuxClusterAgent not initialized, skipping Cluster Agent pod coverage")
+	} else if clusterAgentPods, err := e.KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 		LabelSelector: fields.OneTermEqualSelector("app", e.Agent.LinuxClusterAgent.LabelSelectors["app"]).String(),
-	})
-	if err != nil {
-		outStr = append(outStr, fmt.Sprintf("Failed to list cluster agent pods: %s", err.Error()))
+	}); err != nil {
+		outStr = append(outStr, "Failed to list cluster agent pods: "+err.Error())
 	} else {
 		if len(clusterAgentPods.Items) >= 1 {
 			outStr = append(outStr, "==== Cluster Agent pods ====")
@@ -309,15 +312,15 @@ func (e *Kubernetes) generateAndDownloadCoverageForPod(pod v1.Pod, podType podTy
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(output)
 		if len(matches) < 2 {
-			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", output))
+			outStr, errs = updateErrorOutput(target, outStr, errs, "output does not contain the path to the coverage folder, output: "+output)
 			continue
 		}
-		err = e.KubernetesCluster.KubernetesClient.DownloadFromPod(pod.Namespace, pod.Name, target.AgentName, matches[1], fmt.Sprintf("%s/coverage", outputDir))
+		err = e.KubernetesCluster.KubernetesClient.DownloadFromPod(pod.Namespace, pod.Name, target.AgentName, matches[1], outputDir+"/coverage")
 		if err != nil {
 			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
-		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
+		outStr = append(outStr, "Downloaded coverage folder: "+matches[1])
 	}
 	if len(errs) > 0 {
 		return strings.Join(outStr, "\n"), errors.Join(errs...)
