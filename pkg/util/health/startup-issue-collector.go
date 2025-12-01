@@ -10,38 +10,60 @@ import (
 	"sync"
 )
 
-// StartupIssue represents an issue detected during agent startup before components are initialized
-type StartupIssue struct {
-	IssueID string            // Issue ID for registry lookup (e.g., "docker-socket-permission-denied")
-	Context map[string]string // Context data for the issue
+// HealthCheckFunc is a function that checks for a health issue and returns the issue ID and context if present
+// Returns empty issueID if no issue is detected
+type HealthCheckFunc func() (issueID string, context map[string]string)
+
+// Checker is the interface for registering health checks
+type Checker interface {
+	RegisterHealthCheck(checkID, checkName string, checkFunc HealthCheckFunc)
+}
+
+// StartupHealthCheck represents a periodic health check registered during startup
+type StartupHealthCheck struct {
+	CheckID   string          // Unique identifier for this check
+	CheckName string          // Human-readable name
+	CheckFunc HealthCheckFunc // Function to call to check for issues
 }
 
 var (
-	startupIssues []StartupIssue
-	mutex         sync.RWMutex
+	healthChecks []StartupHealthCheck
+	checker      Checker
+	mutex        sync.RWMutex
 )
 
-// CollectStartupIssue stores an issue detected during agent startup
-func CollectStartupIssue(issueID string, context map[string]string) {
+// SetChecker sets the health checker component (called by health platform on initialization)
+// Any health checks registered before this call will be flushed to the checker
+func SetChecker(c Checker) {
 	mutex.Lock()
 	defer mutex.Unlock()
+	checker = c
 
-	startupIssues = append(startupIssues, StartupIssue{
-		IssueID: issueID,
-		Context: context,
-	})
+	// Flush any health checks that were collected before the component was available
+	for _, check := range healthChecks {
+		checker.RegisterHealthCheck(check.CheckID, check.CheckName, check.CheckFunc)
+	}
+
+	// Clear the temporary storage
+	healthChecks = nil
 }
 
-// GetAndClearStartupIssues returns all collected startup issues and clears the storage
-func GetAndClearStartupIssues() []StartupIssue {
+// RegisterHealthCheck registers a periodic health check to be run by the health platform
+// If the health platform component is not yet available, the check is stored temporarily
+func RegisterHealthCheck(checkID, checkName string, checkFunc HealthCheckFunc) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	collected := make([]StartupIssue, len(startupIssues))
-	copy(collected, startupIssues)
+	// If the component is available, register directly
+	if checker != nil {
+		checker.RegisterHealthCheck(checkID, checkName, checkFunc)
+		return
+	}
 
-	// Clear the storage
-	startupIssues = nil
-
-	return collected
+	// Otherwise, store it for later registration when the component initializes
+	healthChecks = append(healthChecks, StartupHealthCheck{
+		CheckID:   checkID,
+		CheckName: checkName,
+		CheckFunc: checkFunc,
+	})
 }

@@ -973,15 +973,9 @@ require (
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
 )
 
-require (
-	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000
-	go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
-)
+require github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000
 
 require (
-	cyphar.com/go-pathrs v0.2.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.140.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
