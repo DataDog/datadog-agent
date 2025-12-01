@@ -392,7 +392,7 @@ apm_config.probabilistic_sampler.hash_seed: 22
 	}, 2*time.Minute, 10*time.Second, "Failed to find traces sampled by the probability sampler")
 }
 
-func (s *VMFakeintakeSuite) TestAPMMode() {
+func (s *VMFakeintakeSuite) TestAPMModeDefault() {
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 

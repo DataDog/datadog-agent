@@ -259,11 +259,22 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 }
 
 func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
-	s.Run("default", func() {
-		s.EventuallyWithT(func(c *assert.CollectT) {
-			testAPMMode(c, s.Env().FakeIntake, "")
-		}, 2*time.Minute, 10*time.Second)
-	})
+
+	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
+	s.Require().NoError(err)
+
+	service := fmt.Sprintf("tracegen-apm-mode-default-%s", s.transport)
+
+	// Run Trace Generator
+	s.T().Log("Starting Trace Generator.")
+	defer waitTracegenShutdown(&s.Suite, s.Env().FakeIntake)
+	shutdown := runTracegenDocker(s.Env().RemoteHost, service, tracegenCfg{transport: s.transport})
+	defer shutdown()
+
+	s.T().Log("Waiting for traces.")
+	s.EventuallyWithTf(func(c *assert.CollectT) {
+		testAPMMode(c, s.Env().FakeIntake, "")
+	}, 2*time.Minute, 10*time.Second, "Failed to find traces with _dd.apm_mode=default")
 }
 
 func (s *DockerFakeintakeSuite) TestAPMModeEdge() {
