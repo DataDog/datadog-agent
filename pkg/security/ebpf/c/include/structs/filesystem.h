@@ -7,6 +7,7 @@
 struct mount_released_event_t {
     struct kevent_t event;
     u32 mount_id;
+    u64 mount_id_unique;
 };
 
 struct mount_fields_t {
