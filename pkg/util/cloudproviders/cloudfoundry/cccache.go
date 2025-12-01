@@ -209,14 +209,6 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 
 	// Use singleflight to prevent duplicate API fetches for the same resource
 	val, err, _ := ccc.requestGroup.Do(key, func() (interface{}, error) {
-		// check cache again under global RLock in case it was updated by another request
-		ccc.RLock()
-		resource, ok := cache[guid]
-		ccc.RUnlock()
-		if ok {
-			return resource, nil
-		}
-
 		// fetch the resource from the CAPI (without holding locks)
 		fetchedResource, err := fetchFn(guid)
 		if err != nil {
