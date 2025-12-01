@@ -132,17 +132,17 @@ func TestGetPIDsBufferScaling(t *testing.T) {
 	// Save original values
 	originalInitialSize := InitialPIDBufferSize
 	originalIncrement := PIDBufferIncrement
-	
+
 	// Restore original values after test
 	defer func() {
 		InitialPIDBufferSize = originalInitialSize
 		PIDBufferIncrement = originalIncrement
 	}()
-	
+
 	// Test with very small buffer sizes to force scaling
-	InitialPIDBufferSize = 4  // Start with buffer for only 1 PID
-	PIDBufferIncrement = 4    // Increment by only 1 PID at a time
-	
+	InitialPIDBufferSize = 4 // Start with buffer for only 1 PID
+	PIDBufferIncrement = 4   // Increment by only 1 PID at a time
+
 	// This should still work despite the tiny buffer - it will scale up as needed
 	pids1, err1 := getPIDs()
 	assert.NoError(t, err1)
@@ -150,5 +150,5 @@ func TestGetPIDsBufferScaling(t *testing.T) {
 
 	// make sure we have more then 30 pids
 	assert.Greater(t, len(pids1), 30)
-	
+
 }

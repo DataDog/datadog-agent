@@ -469,7 +469,7 @@ func (p *probe) mapIOWriteBytesPerSec(instance string, v float64) {
 
 func getPIDs() ([]int32, error) {
 	var read uint32
-	var psSize uint32 = InitialPIDBufferSize
+	var psSize = InitialPIDBufferSize
 	const dwordSize uint32 = 4
 
 	for {
