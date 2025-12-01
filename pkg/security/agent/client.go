@@ -244,7 +244,7 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		socketPath = "unix://%s" + addr
+		socketPath = "unix://" + addr
 	}
 
 	opts := []grpc.DialOption{
