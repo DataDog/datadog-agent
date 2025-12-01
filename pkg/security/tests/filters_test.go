@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -57,10 +58,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// generate a basename up to the current limit of the agent
-	var basename string
-	for i := 0; i < model.MaxSegmentLength; i++ {
-		basename += "a"
-	}
+	basename := strings.Repeat("a", model.MaxSegmentLength)
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),

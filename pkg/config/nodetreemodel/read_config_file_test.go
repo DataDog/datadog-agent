@@ -214,7 +214,8 @@ c:
 			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
 			"c": &innerNode{
 				children: map[string]Node{
-					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
+					"d":       &leafNodeImpl{val: 1234, source: model.SourceFile},
+					"unknown": &leafNodeImpl{val: "key", source: model.SourceFile},
 				},
 			},
 		},
@@ -328,4 +329,16 @@ func TestReadConfigInvalidYaml(t *testing.T) {
 
 	err := cfg.ReadConfig(strings.NewReader("123"))
 	require.Error(t, err)
+}
+
+func TestBuildNestedMap(t *testing.T) {
+	m := buildNestedMap([]string{"a", "b", "c"}, 123)
+	expect := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": map[string]interface{}{
+				"c": 123,
+			},
+		},
+	}
+	require.Equal(t, expect, m)
 }

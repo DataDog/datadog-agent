@@ -106,9 +106,9 @@ func (s *fipsAgentSuite) TestOpenSSLPaths() {
 	// assert openssl winctx registry keys exist
 	// https://github.com/openssl/openssl/blob/master/NOTES-WINDOWS.md#installation-directories
 	expectedOpenSSLPaths := map[string]string{
-		"OPENSSLDIR": fmt.Sprintf(`%sembedded3\ssl`, s.installPath),
-		"ENGINESDIR": fmt.Sprintf(`%sembedded3\lib\engines-3`, s.installPath),
-		"MODULESDIR": fmt.Sprintf(`%sembedded3\lib\ossl-modules`, s.installPath),
+		"OPENSSLDIR": s.installPath + "embedded3\\ssl",
+		"ENGINESDIR": s.installPath + "embedded3\\lib\\engines-3",
+		"MODULESDIR": s.installPath + "embedded3\\lib\\ossl-modules",
 	}
 	// TODO: How to configure the version of OpenSSL?
 	opensslVersion := "3.5"

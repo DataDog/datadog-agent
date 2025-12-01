@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"sync"
 	"time"
@@ -170,16 +169,16 @@ func (s *npCollectorImpl) makePathtest(conn *model.Connection, domain string) co
 	}
 }
 
-func doSubnetsContainIP(subnets []*net.IPNet, ip netip.Addr) bool {
+func doSubnetsContainIP(subnets []netip.Prefix, ip netip.Addr) bool {
 	for _, subnet := range subnets {
-		if subnet.Contains(net.IP(ip.AsSlice())) {
+		if subnet.Contains(ip) {
 			return true
 		}
 	}
 	return false
 }
 
-func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpcSubnets []*net.IPNet) bool {
+func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpcSubnets []netip.Prefix) bool {
 	if len(vpcSubnets) == 0 && len(s.sourceExcludes) == 0 && len(s.destExcludes) == 0 {
 		// this should be most customers - parsing IPs is not necessary
 		return true
@@ -221,12 +220,16 @@ func (s *npCollectorImpl) checkPassesConnCIDRFilters(conn *model.Connection, vpc
 	return true
 
 }
-func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []*net.IPNet, domain string) bool {
+func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connection, vpcSubnets []netip.Prefix, domain string) bool {
 	if conn == nil {
 		return false
 	}
 	if conn.IntraHost {
 		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_intra_host"}, 1) //nolint:errcheck
+		return false
+	}
+	if conn.SystemProbeConn {
+		s.statsdClient.Incr(netpathConnsSkippedMetricName, []string{"reason:skip_system_probe_conn"}, 1) //nolint:errcheck
 		return false
 	}
 	if conn.Direction != model.ConnectionDirection_outgoing {
@@ -254,7 +257,7 @@ func (s *npCollectorImpl) shouldScheduleNetworkPathForConn(conn *model.Connectio
 	return true
 }
 
-func (s *npCollectorImpl) getVPCSubnets() ([]*net.IPNet, error) {
+func (s *npCollectorImpl) getVPCSubnets() ([]netip.Prefix, error) {
 	if !s.collectorConfigs.disableIntraVPCCollection {
 		return nil, nil
 	}
@@ -278,6 +281,11 @@ func (s *npCollectorImpl) ScheduleConns(conns *model.Connections) {
 		s.logger.Errorf("Failed to get VPC subnets to skip: %s", err)
 		return
 	}
+	if utillog.ShouldLog(utillog.TraceLvl) {
+		connsJSONStr, _ := json.Marshal(conns)
+		s.logger.Tracef("all connections: %s", connsJSONStr)
+	}
+
 	startTime := s.TimeNowFn()
 	_ = s.statsdClient.Count(common.NetworkPathCollectorMetricPrefix+"schedule.conns_received", int64(len(conns.Conns)), []string{}, 1)
 	for _, conn := range conns.Conns {

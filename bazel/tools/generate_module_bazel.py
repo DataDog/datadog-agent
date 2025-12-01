@@ -10,7 +10,8 @@ def make_target_source_map(package, overlay_files):
     package_path = Path(package)
     overlay_dir = Path(package) / "overlay"
     for path in overlay_files:
-        raise ValueError(f"'{path}' does not start with {package}")
+        if not path.startswith(package):
+            raise ValueError(f"'{path}' does not start with '{package}'")
         rel_path = Path(path).relative_to(overlay_dir)
         if rel_path.name == "overlay.BUILD.bazel":
             dest_path = str(rel_path.parent / "BUILD.bazel")
@@ -24,7 +25,7 @@ def make_target_source_map(package, overlay_files):
 def generate_module_bazel(args, files):
     """Generate MODULE.bazel content."""
     lines = [
-        """# This file is generated do not hand edit.""",
+        """# This file is generated. Do not hand edit.""",
         "",
         """http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")""",
         "",
@@ -52,7 +53,7 @@ def generate_module_bazel(args, files):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate MODULE.bazel file from overlay directory structure")
-    parser.add_argument("--files", help="File containaing the list of files in the overlay")
+    parser.add_argument("--files", help="File containing the list of files in the overlay")
     parser.add_argument("--module", help="Name of the module")
     parser.add_argument("--package", help="path to this package")
     parser.add_argument("--url", help="URL for http_archive")

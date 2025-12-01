@@ -130,7 +130,7 @@ func TestConnectEventAFInetIOUring(t *testing.T) {
 		select {
 		case result = <-ch:
 		case <-time.After(8 * time.Second):
-			return fmt.Errorf("timeout waiting for io_uring connect")
+			return errors.New("timeout waiting for io_uring connect")
 		}
 		ret, err := result.ReturnInt()
 		if err != nil {

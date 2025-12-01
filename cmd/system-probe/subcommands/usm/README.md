@@ -72,6 +72,7 @@ PID     | PPID    | Name                      | Command
 ...
 ```
 
+
 ## Use Cases
 
 ### Debugging USM Configuration Issues
@@ -97,6 +98,16 @@ Use `usm sysinfo` to see what processes are running that USM might be monitoring
 - Verify target applications are running
 - Check if applications are running with expected command line arguments
 - Identify processes by PID for further investigation
+
+### Inspecting eBPF Maps
+
+For eBPF map inspection and debugging, use the top-level `ebpf` commands:
+```bash
+sudo ./system-probe ebpf map list        # List all eBPF maps
+sudo ./system-probe ebpf map dump name <map-name>  # Dump map contents
+```
+
+See the [eBPF subcommands README](../ebpf/README.md) for full documentation on eBPF inspection commands.
 
 ## Implementation Notes
 

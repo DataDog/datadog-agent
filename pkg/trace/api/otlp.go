@@ -8,6 +8,7 @@ package api
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -62,6 +64,8 @@ type OTLPReceiver struct {
 	statsd             statsd.ClientInterface
 	timing             timing.Reporter
 	grpcMaxRecvMsgSize int
+	isStopped          atomic.Bool
+	mu                 sync.RWMutex
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
@@ -150,6 +154,13 @@ func (o *OTLPReceiver) Start() {
 
 // Stop stops any running server.
 func (o *OTLPReceiver) Stop() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if !o.isStopped.CompareAndSwap(false, true) {
+		log.Warn("Stop called on already stopped OTLPReceiver")
+		return
+	}
 	if o.grpcsrv != nil {
 		go o.grpcsrv.Stop()
 	}
@@ -199,7 +210,10 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
-		o.ReceiveResourceSpans(ctx, rspans, header, nil)
+		_, err := o.ReceiveResourceSpans(ctx, rspans, header, nil)
+		if err != nil {
+			log.Warn(err)
+		}
 	}
 }
 
@@ -242,11 +256,17 @@ func (o *OTLPReceiver) SetOTelAttributeTranslator(attrstrans *attributes.Transla
 }
 
 // ReceiveResourceSpans processes the given rspans and returns the source that it identified from processing them.
-func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
-	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
-		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler)
+func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+
+	if o.isStopped.Load() {
+		return source.Source{}, errors.New("OTLPReceiver in trace agent is already stopped")
 	}
-	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler)
+	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
+		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler), nil
+	}
+	return o.receiveResourceSpansV2(ctx, rspans, isHeaderTrue(header.ComputedStats, httpHeader.Get(header.ComputedStats)), hostFromAttributesHandler), nil
 }
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
@@ -278,7 +298,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			TracerVersion:   fmt.Sprintf("otlp-%s", traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKVersionKey))),
+			TracerVersion:   "otlp-" + traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKVersionKey)),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
@@ -399,7 +419,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			LangVersion:     fastHeaderGet(httpHeader, header.LangVersion),
 			Interpreter:     fastHeaderGet(httpHeader, header.LangInterpreter),
 			LangVendor:      fastHeaderGet(httpHeader, header.LangInterpreterVendor),
-			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.TelemetrySDKVersionKey)]),
+			TracerVersion:   "otlp-" + rattr[string(semconv.TelemetrySDKVersionKey)],
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),

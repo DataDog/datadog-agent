@@ -20,7 +20,7 @@ func newErlangDetector(ctx DetectionContext) detector {
 
 func (e erlangDetector) detect(args []string) (ServiceMetadata, bool) {
 	name := detectErlangAppName(args)
-	if name != "" && name != "beam" {
+	if name != "" {
 		return NewServiceMetadata(name, CommandLine), true
 	}
 	return ServiceMetadata{}, false
@@ -31,7 +31,7 @@ func detectErlangAppName(cmdline []string) string {
 	var home string
 
 	// Parse command line looking for -progname and -home flags.
-	// We support both separated (-progname erl) and concatenated (-prognameerl) forms.
+	// Erlang uses space-separated flag values (e.g., -progname erl).
 	for i := 0; i < len(cmdline); i++ {
 		arg := cmdline[i]
 
@@ -42,34 +42,22 @@ func detectErlangAppName(cmdline []string) string {
 			continue
 		}
 
-		// Check for -progname with concatenated value (e.g., -prognameerl)
-		if strings.HasPrefix(arg, "-progname") && len(arg) > 9 {
-			progname = strings.TrimSpace(arg[9:])
-			continue
-		}
-
 		// Check for -home flag (with value in next arg)
 		if arg == "-home" && i+1 < len(cmdline) {
 			home = strings.TrimSpace(cmdline[i+1])
 			i++
 			continue
 		}
-
-		// Check for -home with concatenated value (e.g., -home/var/lib/rabbitmq)
-		if strings.HasPrefix(arg, "-home") && len(arg) > 5 {
-			home = strings.TrimSpace(arg[5:])
-			continue
-		}
 	}
 
 	// Apply heuristics according to requirements.
-	// Compare progname case-insensitively to handle edge cases.
-	if progname != "" && !strings.EqualFold(progname, "erl") {
+	// Use exact comparison for progname
+	if progname != "" && progname != "erl" {
 		return progname
 	}
 
 	// Only use home if progname is explicitly "erl"
-	if strings.EqualFold(progname, "erl") && home != "" {
+	if progname == "erl" && home != "" {
 		// Extract the last component of the home path
 		base := filepath.Base(home)
 		if base != "" && base != "." && base != "/" {
@@ -77,6 +65,6 @@ func detectErlangAppName(cmdline []string) string {
 		}
 	}
 
-	// Fallback to "beam"
-	return "beam"
+	// Return empty string to indicate we couldn't extract a name
+	return ""
 }

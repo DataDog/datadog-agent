@@ -9,7 +9,10 @@ import sys
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+    get_default_build_tags,
+)
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
@@ -35,13 +38,9 @@ def build(
     """
     Build Dogstatsd
     """
-    build_include = (
-        get_default_build_tags(build="dogstatsd", flavor=AgentFlavor.dogstatsd)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    build_tags = compute_build_tags_for_flavor(
+        build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
     ldflags, gcflags, env = get_build_flags(ctx, static=static)
     bin_path = DOGSTATSD_BIN_PATH
 

@@ -367,8 +367,8 @@ func (t *Translator) getSketchBuckets(
 		// otherwise in the case where p.MExplicitBounds() has a size of 1 (eg. [0]), the two buckets
 		// would have the same bucketTags (lower_bound:0 and upper_bound:0), resulting in a buggy behavior.
 		bucketDims := pointDims.AddTags(
-			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
-			fmt.Sprintf("upper_bound:%s", formatFloat(upperBound)),
+			"lower_bound:"+formatFloat(lowerBound),
+			"upper_bound:"+formatFloat(upperBound),
 		)
 
 		// InsertInterpolate doesn't work with an infinite bound; insert in to the bucket that contains the non-infinite bound
@@ -464,8 +464,8 @@ func (t *Translator) getLegacyBuckets(
 	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
 		lowerBound, upperBound := getBounds(p.ExplicitBounds(), idx)
 		bucketDims := baseBucketDims.AddTags(
-			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
-			fmt.Sprintf("upper_bound:%s", formatFloat(upperBound)),
+			"lower_bound:"+formatFloat(lowerBound),
+			"upper_bound:"+formatFloat(upperBound),
 		)
 
 		count := float64(p.BucketCounts().At(idx))
@@ -599,7 +599,7 @@ func formatFloat(f float64) string {
 
 // getQuantileTag returns the quantile tag for summary types.
 func getQuantileTag(quantile float64) string {
-	return fmt.Sprintf("quantile:%s", formatFloat(quantile))
+	return "quantile:" + formatFloat(quantile)
 }
 
 // mapSummaryMetrics maps summary datapoints into Datadog metrics

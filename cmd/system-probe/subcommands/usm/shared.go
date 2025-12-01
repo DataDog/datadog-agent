@@ -37,7 +37,7 @@ func makeOneShotCommand(
 					SysprobeConfigParams: sysconfigimpl.NewParams(
 						sysconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath),
 						sysconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams: log.ForOneShot("SYS-PROBE", "off", false),
+					LogParams: log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				core.Bundle(),
 			)

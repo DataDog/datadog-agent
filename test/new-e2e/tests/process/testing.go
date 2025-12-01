@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -30,9 +29,6 @@ var processDiscoveryCheckConfigStr string
 
 //go:embed config/process_check_in_core_agent.yaml
 var processCheckInCoreAgentConfigStr string
-
-//go:embed config/process_check_in_core_agent_wlm_process_collector.yaml
-var processCheckInCoreAgentWLMProcessCollectorConfigStr string
 
 //go:embed config/system_probe.yaml
 var systemProbeConfigStr string
@@ -337,7 +333,7 @@ func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPa
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {
 	// check if there is a tag for the container. The tag could be `container_name:*` or `short_image:*`
-	containerNameTag := fmt.Sprintf(":%s", name)
+	containerNameTag := ":" + name
 	for _, container := range containers {
 		for _, tag := range container.Tags {
 			if strings.HasSuffix(tag, containerNameTag) {
@@ -363,6 +359,14 @@ func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool
 
 	assertProcesses(t, procs, withIOStats, process)
 	assertManualContainerCheck(t, check, expectedContainers...)
+}
+
+// assertManualRTProcessCheck asserts that the realtime manual check output contains at least one process stat
+func assertManualRTProcessCheck(t require.TestingT, check string) {
+	var rt agentmodel.CollectorRealTime
+	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
+	require.NoError(t, err)
+	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check

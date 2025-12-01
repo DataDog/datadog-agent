@@ -263,7 +263,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 	// add source tag
 	if len(utils.GetTagValue("source", contextTags)) == 0 {
-		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
+		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
 	containerFilters, err := utils.NewContainerFilter()
@@ -762,7 +762,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		for _, pid := range pids {
 			pce := pr.Resolve(pid, pid, 0, true, nil)
 			if pce == nil {
-				seclog.Errorf("couldn't resolve process cache entry for pid %d", pid)
+				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
 			}
 

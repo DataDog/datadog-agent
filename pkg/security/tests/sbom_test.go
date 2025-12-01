@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"testing"
@@ -43,12 +44,12 @@ func TestSBOM(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id != "") ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (process.container.id != "") ` +
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 		{
 			ID: "test_host_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id == "") ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (process.container.id == "") ` +
 				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
@@ -86,7 +87,7 @@ func TestSBOM(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_file_package")
 			assertFieldEqual(t, event, "open.file.package.name", "base-files")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
 		})
@@ -96,14 +97,14 @@ func TestSBOM(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
-				return fmt.Errorf("failed to find host SBOM for host")
+				return errors.New("failed to find host SBOM for host")
 			}
 			cmd := exec.Command("/bin/touch", "/usr/lib/os-release")
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_host_file_package")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
 
 			if kv.IsUbuntuKernel() || kv.IsDebianKernel() {
 				checkVersionAgainstApt(t, event, "coreutils")
@@ -126,7 +127,7 @@ func checkVersionAgainstApt(tb testing.TB, event *model.Event, pkgName string) {
 	out, err := exec.Command("apt-cache", "policy", pkgName).CombinedOutput()
 	require.NoError(tb, err, "failed to get package version: %s", string(out))
 
-	assert.Contains(tb, string(out), fmt.Sprintf("Installed: %s", v), "package version doesn't match")
+	assert.Contains(tb, string(out), "Installed: "+v, "package version doesn't match")
 }
 
 func buildDebianVersion(version, release string, epoch int) string {

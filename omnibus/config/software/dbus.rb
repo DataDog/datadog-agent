@@ -28,13 +28,14 @@ build do
     "-Dtools=false",
     "-Dmodular_tests=disabled",
     "--prefix=#{install_dir}/embedded",
+    "--libdir=lib",
     "-Dbuildtype=release",
   ]
 
   # meson requires a dedicated build folder
   meson_build_dir = "#{project_dir}/build"
   command "mkdir #{meson_build_dir}", env: env
-  command "meson setup " + meson_options.join(' ').strip + " ..", cwd: meson_build_dir
+  command "meson setup " + meson_options.join(' ').strip + " ..", cwd: meson_build_dir, env: env
   command "ninja install", env: env, cwd: meson_build_dir
 
   # Remove dbus tools.

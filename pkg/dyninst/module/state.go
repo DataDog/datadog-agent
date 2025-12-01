@@ -25,6 +25,7 @@ type processState struct {
 	symbolicatorFile io.Closer
 	symbolicatorErr  error
 	gitInfo          process.GitInfo
+	containerInfo    process.ContainerInfo
 }
 
 type processStore struct {
@@ -69,16 +70,42 @@ func (ps *processStore) ensureExists(update *process.Config) procRuntimeID {
 				version:     update.Version,
 				environment: update.Environment,
 			},
-			executable: update.Executable,
-			gitInfo:    update.GitInfo,
+			executable:    update.Executable,
+			gitInfo:       update.GitInfo,
+			containerInfo: update.Container,
 		}
 		if update.GitInfo != (process.GitInfo{}) {
 			proc.procRuntimeID.gitInfo = &proc.gitInfo
 		}
 		if update.Container != (process.ContainerInfo{}) {
-			proc.procRuntimeID.containerInfo = &update.Container
+			proc.procRuntimeID.containerInfo = &proc.containerInfo
 		}
 		ps.processes[update.ProcessID] = proc
+		return proc.procRuntimeID
+	}
+	// Update existing metadata with the latest information.
+	if update.Service != "" {
+		proc.service = update.Service
+	}
+	if update.Version != "" {
+		proc.version = update.Version
+	}
+	if update.Environment != "" {
+		proc.environment = update.Environment
+	}
+	if update.RuntimeID != "" {
+		proc.runtimeID = update.RuntimeID
+	}
+	if update.Executable.Path != "" {
+		proc.executable = update.Executable
+	}
+	if update.GitInfo != (process.GitInfo{}) {
+		proc.gitInfo = update.GitInfo
+		proc.procRuntimeID.gitInfo = &proc.gitInfo
+	}
+	if update.Container != (process.ContainerInfo{}) {
+		proc.containerInfo = update.Container
+		proc.procRuntimeID.containerInfo = &proc.containerInfo
 	}
 	return proc.procRuntimeID
 }

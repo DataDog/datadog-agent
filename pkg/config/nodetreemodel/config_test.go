@@ -443,6 +443,59 @@ func TestAllKeysLowercased(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, keys)
 }
 
+func TestIsConfiguredHasSection(t *testing.T) {
+	configData := `network_path:
+  collector:
+    workers: 6
+secret_backend_command: ./my_secret_fetcher.sh
+logs_config:
+`
+	t.Setenv("TEST_SECRET_BACKEND_TIMEOUT", "60")
+	t.Setenv("TEST_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE", "23456")
+	t.Setenv("TEST_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL", "http://example.com")
+
+	cfg := NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg.SetConfigType("yaml")
+	cfg.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	cfg.SetKnown("apm_config") //nolint:forbidigo // test behavior for compatibility
+	cfg.BindEnvAndSetDefault("network_path.collector.input_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 100000)
+	cfg.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	cfg.BindEnvAndSetDefault("runtime_security_config.endpoints.dd_url", "TEST_RUNTIME_SECURITY_CONFIG_ENDPOINTS_DD_URL")
+	cfg.BindEnvAndSetDefault("secret_backend_command", "")
+	cfg.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
+	cfg.BindEnvAndSetDefault("server_timeout", 30)
+
+	cfg.BuildSchema()
+	err := cfg.ReadConfig(strings.NewReader(configData))
+	require.NoError(t, err)
+
+	assert.True(t, cfg.IsConfigured("network_path"))
+	assert.True(t, cfg.IsConfigured("network_path.collector"))
+	assert.True(t, cfg.IsConfigured("network_path.collector.workers"))
+	assert.False(t, cfg.IsConfigured("network_path.collector.processing_chan_size"))
+	assert.True(t, cfg.IsConfigured("secret_backend_command"))
+	assert.False(t, cfg.IsConfigured("secret_backend_config"))
+	assert.True(t, cfg.IsConfigured("secret_backend_timeout"))
+	assert.False(t, cfg.IsConfigured("server_timeout"))
+	assert.False(t, cfg.IsConfigured("logs_config"))
+	assert.False(t, cfg.IsConfigured("apm_config"))
+	assert.True(t, cfg.IsConfigured("runtime_security_config"))
+
+	assert.True(t, cfg.HasSection("network_path"))
+	assert.True(t, cfg.HasSection("network_path.collector"))
+	assert.False(t, cfg.HasSection("network_path.collector.workers"))
+	assert.False(t, cfg.HasSection("network_path.collector.processing_chan_size"))
+	assert.False(t, cfg.HasSection("secret_backend_command"))
+	assert.False(t, cfg.HasSection("secret_backend_config"))
+	assert.False(t, cfg.HasSection("secret_backend_timeout"))
+	assert.False(t, cfg.HasSection("server_timeout"))
+	assert.True(t, cfg.HasSection("logs_config"))
+	assert.False(t, cfg.HasSection("apm_config"))
+	assert.True(t, cfg.HasSection("runtime_security_config"))
+}
+
 func TestStringifyLayers(t *testing.T) {
 	configData := `network_path:
   collector:
@@ -1469,10 +1522,10 @@ func TestEnvVarTransformers(t *testing.T) {
 
 	cfg.BuildSchema()
 
-	var nums []float64 = cfg.GetFloat64Slice("list_of_nums")
+	var nums = cfg.GetFloat64Slice("list_of_nums")
 	assert.Equal(t, []float64{34, 67.5, 901.125}, nums)
 
-	var fruits []string = cfg.GetStringSlice("list_of_fruit")
+	var fruits = cfg.GetStringSlice("list_of_fruit")
 	assert.Equal(t, []string{"apple", "banana", "cherry"}, fruits)
 
 	tagsValue := cfg.Get("tag_set")
@@ -1480,18 +1533,8 @@ func TestEnvVarTransformers(t *testing.T) {
 	assert.Equal(t, true, converted)
 	assert.Equal(t, []map[string]string{{"cat": "meow"}, {"dog": "bark"}}, tags)
 
-	var kvs map[string]interface{} = cfg.GetStringMap("list_keypairs")
+	var kvs = cfg.GetStringMap("list_keypairs")
 	assert.Equal(t, map[string]interface{}{"a": 1, "b": 2, "c": 3}, kvs)
-}
-
-func TestUnmarshalKeyIsDeprecated(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "TEST", nil)
-	cfg.SetDefault("a", []string{"a", "b"})
-	cfg.BuildSchema()
-
-	var texts []string
-	err := cfg.UnmarshalKey("a", &texts)
-	assert.Error(t, err)
 }
 
 func TestSetConfigFile(t *testing.T) {
@@ -1647,27 +1690,31 @@ fruit:
       inner(#ptr<000007>)
       > num
           leaf(#ptr<000008>), val:"1", source:environment-variable
-tree(#ptr<000009>) source=default
+  > donut
+      leaf(#ptr<000009>), val:12, source:file
+tree(#ptr<000010>) source=default
 > fruit
-  inner(#ptr<000010>)
+  inner(#ptr<000011>)
   > apple
     inner(#ptr<000002>)
     > core
       inner(#ptr<000003>)
       > seeds
           leaf(#ptr<000004>), val:2, source:default
-tree(#ptr<000011>) source=file
+tree(#ptr<000012>) source=file
 > fruit
-  inner(#ptr<000012>)
+  inner(#ptr<000013>)
   > apple
-      leaf(#ptr<000013>), val:<nil>, source:file
+      leaf(#ptr<000014>), val:<nil>, source:file
   > banana
       leaf(#ptr<000005>), val:<nil>, source:file
   > cherry
-      leaf(#ptr<000014>), val:<nil>, source:file
-tree(#ptr<000015>) source=environment-variable
+      leaf(#ptr<000015>), val:<nil>, source:file
+  > donut
+      leaf(#ptr<000009>), val:12, source:file
+tree(#ptr<000016>) source=environment-variable
 > fruit
-  inner(#ptr<000016>)
+  inner(#ptr<000017>)
   > cherry
     inner(#ptr<000006>)
     > seed

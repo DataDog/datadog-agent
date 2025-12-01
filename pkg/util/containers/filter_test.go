@@ -13,9 +13,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type ctnDef struct {
@@ -444,143 +441,6 @@ func TestIsExcludedByAnnotation(t *testing.T) {
 	assert.False(t, logsFilter.isExcludedByAnnotation(nil, containerExcludeName))
 }
 
-func TestNewMetricFilterFromConfig(t *testing.T) {
-	cfg := mock.New(t)
-	cfg.SetWithoutSource("exclude_pause_container", true)
-	cfg.SetWithoutSource("ac_include", []string{"image:apache.*"})
-	cfg.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
-
-	f, err := newMetricFilterFromConfig()
-	require.NoError(t, err)
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-	assert.True(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.True(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
-
-	cfg.SetWithoutSource("exclude_pause_container", false)
-	f, err = newMetricFilterFromConfig()
-	require.NoError(t, err)
-	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-
-	cfg.SetWithoutSource("exclude_pause_container", true)
-	cfg.SetWithoutSource("ac_include", []string{})
-	cfg.SetWithoutSource("ac_exclude", []string{})
-
-	cfg.SetWithoutSource("exclude_pause_container", false)
-	cfg.SetWithoutSource("container_include", []string{"image:apache.*"})
-	cfg.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
-	cfg.SetWithoutSource("container_include_metrics", []string{"image:nginx.*"})
-	cfg.SetWithoutSource("container_exclude_metrics", []string{"name:ddmetric-.*"})
-
-	f, err = newMetricFilterFromConfig()
-	require.NoError(t, err)
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.True(t, f.IsExcluded(nil, "ddmetric-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "ddmetric-152462", "nginx:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-}
-
-func TestNewAutodiscoveryFilter(t *testing.T) {
-	cfg := mock.New(t)
-
-	// Global - legacy config
-	cfg.SetWithoutSource("ac_include", []string{"image:apache.*"})
-	cfg.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
-
-	f := NewAutodiscoveryFilter(GlobalFilter)
-	assert.Emptyf(t, f.Errors, "Expected no errors.")
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
-	resetConfig(cfg)
-
-	// Global - new config - legacy config ignored
-	cfg.SetWithoutSource("container_include", []string{"image:apache.*"})
-	cfg.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
-	cfg.SetWithoutSource("ac_include", []string{"image:apache/legacy.*"})
-	cfg.SetWithoutSource("ac_exclude", []string{"name:dd/legacy-.*"})
-
-	f = NewAutodiscoveryFilter(GlobalFilter)
-	assert.Emptyf(t, f.Errors, "Expected no errors.")
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd/legacy-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
-	resetConfig(cfg)
-
-	// Metrics
-	cfg.SetWithoutSource("container_include_metrics", []string{"image:apache.*"})
-	cfg.SetWithoutSource("container_exclude_metrics", []string{"name:dd-.*"})
-
-	f = NewAutodiscoveryFilter(MetricsFilter)
-	assert.Emptyf(t, f.Errors, "Expected no errors.")
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
-	resetConfig(cfg)
-
-	// Logs
-	cfg.SetWithoutSource("container_include_logs", []string{"image:apache.*"})
-	cfg.SetWithoutSource("container_exclude_logs", []string{"name:dd-.*"})
-
-	f = NewAutodiscoveryFilter(LogsFilter)
-	assert.Emptyf(t, f.Errors, "Expected no errors.")
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
-	resetConfig(cfg)
-
-	// Filter errors - non-duplicate error messages
-	cfg.SetWithoutSource("container_include", []string{"image:apache.*", "invalid"})
-	cfg.SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
-
-	f = NewAutodiscoveryFilter(GlobalFilter)
-
-	assert.True(t, f.IsExcluded(nil, "dd-152462", "dummy:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dd-152462", "apache:latest", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "dummy", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", ""))
-	assert.False(t, f.IsExcluded(nil, "dummy", "rancher/pause-amd64:3.1", ""))
-	fe := map[string]struct{}{
-		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
-	}
-	assert.Equal(t, fe, GetFilterErrors())
-	ResetSharedFilter()
-	resetConfig(cfg)
-
-	// Filter errors - invalid regex
-	cfg.SetWithoutSource("container_include", []string{"image:apache.*", "kube_namespace:?"})
-	cfg.SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
-
-	f = NewAutodiscoveryFilter(GlobalFilter)
-	_, errFound := f.Errors["invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`"]
-	assert.Truef(t, errFound, "Expected to find error: invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`")
-
-	assert.NotNil(t, f)
-	fe = map[string]struct{}{
-		"invalid regex '?': error parsing regexp: missing argument to repetition operator: `?`":                                {},
-		"Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'": {},
-	}
-	assert.Equal(t, fe, GetFilterErrors())
-	ResetSharedFilter()
-}
-
 func TestValidateFilter(t *testing.T) {
 	for filters, tc := range []struct {
 		desc           string
@@ -699,16 +559,4 @@ func TestParseFilters(t *testing.T) {
 			assert.Equal(t, tc.filterErrors, filterErrors)
 		})
 	}
-}
-
-func resetConfig(cfg pkgconfigmodel.Config) {
-	cfg.SetWithoutSource("exclude_pause_container", true)
-	cfg.SetWithoutSource("container_include", []string{})
-	cfg.SetWithoutSource("container_exclude", []string{})
-	cfg.SetWithoutSource("container_include_metrics", []string{})
-	cfg.SetWithoutSource("container_exclude_metrics", []string{})
-	cfg.SetWithoutSource("container_include_logs", []string{})
-	cfg.SetWithoutSource("container_exclude_logs", []string{})
-	cfg.SetWithoutSource("ac_include", []string{})
-	cfg.SetWithoutSource("ac_exclude", []string{})
 }

@@ -33,10 +33,8 @@ const (
 func (m *Model) NewEvent() eval.Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			ContainerContext: &ContainerContext{},
-			Os:               runtime.GOOS,
+			Os: runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -44,12 +42,10 @@ func (m *Model) NewEvent() eval.Event {
 func NewFakeEvent() *Event {
 	return &Event{
 		BaseEvent: BaseEvent{
-			FieldHandlers:    &FakeFieldHandlers{},
-			ContainerContext: &ContainerContext{},
-			ProcessContext:   &ProcessContext{},
-			Os:               runtime.GOOS,
+			FieldHandlers:  &FakeFieldHandlers{},
+			ProcessContext: &ProcessContext{},
+			Os:             runtime.GOOS,
 		},
-		CGroupContext: &CGroupContext{},
 	}
 }
 
@@ -60,11 +56,8 @@ func (fh *FakeFieldHandlers) ResolveProcessCacheEntryFromPID(pid uint32) *Proces
 
 // Event represents an event sent from the kernel
 // genaccessors
-// gengetter: GetContainerCreatedAt
-// gengetter: GetContainerId
 // gengetter: GetExecCmdargv
 // gengetter: GetExecFilePath
-// gengetter: GetExecFilePath)
 // gengetter: GetExitCode
 // gengetter: GetMountMountpointPath
 // gengetter: GetMountRootPath
@@ -89,7 +82,6 @@ type Event struct {
 	// context
 	SpanContext    SpanContext    `field:"-"`
 	NetworkContext NetworkContext `field:"network" restricted_to:"dns,imds,packet"` // [7.36] [Network] Network context
-	CGroupContext  *CGroupContext `field:"cgroup"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file's permissions were changed
@@ -159,17 +151,21 @@ type Event struct {
 	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
 }
 
-var cgroupContextZero CGroupContext
-
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{CGroupContext: &CGroupContext{}, BaseEvent: BaseEvent{ContainerContext: &ContainerContext{}, Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
 		*e = eventZero
-		*e.BaseEvent.ContainerContext = containerContextZero
-		*e.CGroupContext = cgroupContextZero
 	}
+}
+
+// GetContainerID returns event's process container ID if any
+func (e *Event) GetContainerID() string {
+	if e.ProcessContext == nil {
+		return ""
+	}
+	return string(e.ProcessContext.Process.ContainerContext.ContainerID)
 }
 
 // CGroupContext holds the cgroup context of an event
@@ -193,10 +189,9 @@ func (cg *CGroupContext) Merge(cg2 *CGroupContext) {
 	}
 }
 
-// Key returns a unique key for the entity
-func (cg *CGroupContext) Key() (string, bool) {
-	cgrpID := string(cg.CGroupID)
-	return cgrpID, cgrpID != ""
+// Hash returns a unique key for the entity
+func (cg *CGroupContext) Hash() string {
+	return string(cg.CGroupID)
 }
 
 // ParentScope returns the parent entity scope
@@ -321,8 +316,8 @@ type Process struct {
 
 	FileEvent FileEvent `field:"file,check:IsNotKworker"`
 
-	CGroup      CGroupContext              `field:"cgroup"`                                         // SECLDoc[cgroup] Definition:`CGroup`
-	ContainerID containerutils.ContainerID `field:"container.id,handler:ResolveProcessContainerID"` // SECLDoc[container.id] Definition:`Container ID`
+	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
+	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
 
 	SpanID  uint64        `field:"-"`
 	TraceID utils.TraceID `field:"-"`
@@ -376,9 +371,6 @@ type Process struct {
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
 	SymlinkBasenameStr string              `field:"-"`
 
-	// cache version
-	ScrubbedArgvResolved bool `field:"-"`
-
 	// IsThread is the negation of IsExec and should be manipulated directly
 	IsThread        bool `field:"is_thread,handler:ResolveProcessIsThread"` // SECLDoc[is_thread] Definition:`Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program)`
 	IsExec          bool `field:"is_exec"`                                  // SECLDoc[is_exec] Definition:`Indicates whether the process entry is from a new binary execution`
@@ -402,9 +394,9 @@ func SetAncestorFields(pce *ProcessCacheEntry, subField string, _ interface{}) (
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return fmt.Sprintf("%d/%s", pc.Pid, pc.Comm)
 }
 
 // ParentScope returns the parent entity scope
@@ -517,20 +509,23 @@ type ArgsEnvsEvent struct {
 
 // Mount represents a mountpoint (used by MountEvent, FsmountEvent and UnshareMountNSEvent)
 type Mount struct {
-	MountID        uint32   `field:"-"`
-	MountIDUnique  uint64   `field:"-"`
-	Device         uint32   `field:"-"`
-	ParentPathKey  PathKey  `field:"-"`
-	Children       []uint32 `field:"-"`
-	RootPathKey    PathKey  `field:"-"`
-	BindSrcMountID uint32   `field:"-"`
-	FSType         string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
-	MountPointStr  string   `field:"-"`
-	RootStr        string   `field:"-"`
-	Path           string   `field:"-"`
-	Origin         uint32   `field:"-"`
-	Detached       bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
-	Visible        bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	MountID              uint32   `field:"-"`
+	MountIDUnique        uint64   `field:"-"`
+	Device               uint32   `field:"-"`
+	ParentPathKey        PathKey  `field:"-"`
+	Children             []uint32 `field:"-"`
+	RootPathKey          PathKey  `field:"-"`
+	BindSrcMountID       uint32   `field:"-"`
+	BindSrcMountIDUnique uint64   `field:"-"`
+	ParentMountIDUnique  uint64   `field:"-"`
+	FSType               string   `field:"fs_type"` // SECLDoc[fs_type] Definition:`Type of the mounted file system`
+	MountPointStr        string   `field:"-"`
+	RootStr              string   `field:"-"`
+	Path                 string   `field:"-"`
+	Origin               uint32   `field:"-"`
+	Detached             bool     `field:"detached"` // SECLDoc[detached] Definition:`Mount is detached from the VFS`
+	Visible              bool     `field:"visible"`  // SECLDoc[visible] Definition:`Mount is not visible in the VFS`
+	NamespaceInode       uint32   `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -592,11 +587,12 @@ type SELinuxEvent struct {
 
 // PIDContext holds the process context of a kernel event
 type PIDContext struct {
-	Pid       uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-	NetNS     uint32 `field:"-"`
-	IsKworker bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	ExecInode uint64 `field:"-"`          // used to track exec and event loss
+	Pid           uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
+	Tid           uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
+	NetNS         uint32 `field:"-"`
+	IsKworker     bool   `field:"is_kworker"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
+	ExecInode     uint64 `field:"-"`          // used to track exec and event loss
+	UserSessionID uint64 `field:"-"`          // used to track user sessions from kernel space
 	// used for ebpfless
 	NSID uint64 `field:"-"`
 }

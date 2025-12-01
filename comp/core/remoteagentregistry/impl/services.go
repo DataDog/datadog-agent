@@ -25,6 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	// remoteAgentMetricTagName is the name of the label that will be added to all metrics coming from the remote agent
+	remoteAgentMetricTagName = "remote_agent"
+)
+
 func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetStatusDetailsResponse, error) {
 		return remoteAgent.GetStatusDetails(ctx, &pb.GetStatusDetailsRequest{}, opts...)
@@ -117,22 +122,23 @@ func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Me
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
 		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
 	}
-	processor := func(_ remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) struct{} {
+	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) struct{} {
 		if err != nil {
+			log.Warnf("Failed to collect telemetry metrics from remoteAgent %v: %v", details.SanitizedDisplayName, err)
 			return struct{}{}
 		}
 		if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
-			collectFromPromText(ch, promText.PromText)
+			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName)
 		}
 		return struct{}{}
 	}
 
 	// We don't need to collect any value since everything is sent through the provided channel
-	_ = callAgentsForService(c.registry, TelemetryServiceName, client, processor)
+	callAgentsForService(c.registry, TelemetryServiceName, client, processor)
 }
 
 // Retrieve the telemetry data in exposition format from the remote agent
-func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
+func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string) {
 	parser := expfmt.NewTextParser(model.LegacyValidation)
 	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
 	if err != nil {
@@ -145,27 +151,51 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string) {
 			help = *mf.Help
 		}
 		for _, metric := range mf.Metric {
-			labelNames := make([]string, 0, len(metric.Label))
-			labelValues := make([]string, 0, len(metric.Label))
+			if metric == nil {
+				continue
+			}
+
+			labelNames := make([]string, 0, len(metric.Label)+1)
+			labelValues := make([]string, 0, len(metric.Label)+1)
+			labelNames = append(labelNames, remoteAgentMetricTagName)
+			labelValues = append(labelValues, remoteAgentName)
 			for _, label := range metric.Label {
 				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)
 			}
 			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				ch <- prometheus.MustNewConstMetric(
+				metric, err := prometheus.NewConstMetric(
 					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
 					prometheus.CounterValue,
 					*metric.Counter.Value,
 					labelValues...,
 				)
+				if err != nil {
+					log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+				}
+				ch <- metric
 			case dto.MetricType_GAUGE:
-				ch <- prometheus.MustNewConstMetric(
+				metric, err := prometheus.NewConstMetric(
 					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
 					prometheus.GaugeValue,
 					*metric.Gauge.Value,
 					labelValues...,
 				)
+				if err != nil {
+					log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+				}
+				ch <- metric
+
+			// It's not currently possible to merge two bucket-based metrics when they don't share the same amount of buckets
+			case dto.MetricType_SUMMARY:
+				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
+
+			case dto.MetricType_HISTOGRAM:
+				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented histogram aggregation logic", mf.GetName(), remoteAgentName)
+
+			default:
+				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())
 			}
 		}
 	}

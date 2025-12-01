@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +67,7 @@ func TestDDOTInstallScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test ddot install on %s", osDesc.String()), func(tt *testing.T) {
+		t.Run("test ddot install on "+osDesc.String(), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", osDesc.Version)
 			slice := strings.Split(osDesc.Version, "-")

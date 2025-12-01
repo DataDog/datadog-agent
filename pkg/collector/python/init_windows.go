@@ -20,7 +20,7 @@ func initializePlatform() error {
 	// On Windows, it's not uncommon to have a system-wide PYTHONPATH env var set.
 	// Unset it, so our embedded python doesn't try to load things from the system.
 	if !pkgconfigsetup.Datadog().GetBool("windows_use_pythonpath") {
-		os.Unsetenv("PYTHONPATH")
+		_ = os.Unsetenv("PYTHONPATH")
 	}
 
 	// only use cache file when not admin

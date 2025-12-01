@@ -9,36 +9,37 @@ package awskubernetes
 import (
 	"context"
 	_ "embed"
-	"fmt"
+	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/etcd"
-	csidriver "github.com/DataDog/test-infra-definitions/components/datadog/csi-driver"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/argorollouts"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
+	csidriver "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/csi-driver"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/helm"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentwithoperatorparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/mutatedbyadmissioncontroller"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/prometheus"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/redis"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/tracegen"
-	dogstatsdstandalone "github.com/DataDog/test-infra-definitions/components/datadog/dogstatsd-standalone"
-	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operator"
-	"github.com/DataDog/test-infra-definitions/components/datadog/operatorparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/cilium"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/vpa"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentwithoperatorparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
+	dogstatsdstandalone "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dogstatsd-standalone"
+	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operator"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/operatorparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -53,13 +54,36 @@ const (
 //go:embed agent_helm_values.yaml
 var agentHelmValues string
 
+// parseKubernetesVersion extracts the semantic version from a Kubernetes version string.
+// It handles versions with image SHA suffixes (e.g., "v1.32.0@sha256:abc123") by returning
+// only the version part (e.g., "v1.32.0").
+func parseKubernetesVersion(version string) string {
+	// Split on @ to remove any SHA suffix
+	if idx := strings.Index(version, "@"); idx != -1 {
+		return version[:idx]
+	}
+	return version
+}
+
+// envWithParsedVersion wraps an aws.Environment to override KubernetesVersion()
+// with a parsed version that strips SHA suffixes
+type envWithParsedVersion struct {
+	aws.Environment
+	parsedVersion string
+}
+
+// KubernetesVersion returns the parsed version without SHA suffix
+func (e *envWithParsedVersion) KubernetesVersion() string {
+	return e.parsedVersion
+}
+
 // KindDiagnoseFunc is the diagnose function for the Kind provisioner
 func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	dumpResult, err := dumpKindClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Dumping Kind cluster state:\n%s", dumpResult), nil
+	return "Dumping Kind cluster state:\n" + dumpResult, nil
 }
 
 // KindProvisioner creates a new provisioner
@@ -90,6 +114,45 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
+	var fakeIntake *fakeintakeComp.Fakeintake
+	if params.fakeintakeOptions != nil {
+		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
+		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
+		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		if params.agentOptions != nil {
+			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+		}
+		if params.operatorDDAOptions != nil {
+			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
+			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
+		}
+		params.vmOptions = append(params.vmOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+	} else {
+		env.FakeIntake = nil
+	}
+
+	// Parse the Kubernetes version to handle SHA suffixes (e.g., "v1.32.0@sha256:...")
+	// The full version (with SHA) is used for Kind cluster creation
+	// The parsed version (without SHA) is used for app deployments that use semver parsing
+	kubernetesVersion := awsEnv.KubernetesVersion()
+	parsedKubernetesVersion := parseKubernetesVersion(kubernetesVersion)
+
+	// Create a wrapped environment that returns the parsed version
+	// This is used by nginx/redis which need to parse the version with semver
+	awsEnvParsed := &envWithParsedVersion{
+		Environment:   awsEnv,
+		parsedVersion: parsedKubernetesVersion,
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
 		return err
@@ -102,9 +165,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 
 	var kindCluster *kubeComp.Cluster
 	if len(params.ciliumOptions) > 0 {
-		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = cilium.NewKindCluster(&awsEnv, host, params.name, kubernetesVersion, params.ciliumOptions, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	} else {
-		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		kindCluster, err = kubeComp.NewKindCluster(&awsEnv, host, params.name, kubernetesVersion, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	}
 
 	if err != nil {
@@ -149,35 +212,11 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		if err != nil {
 			return err
 		}
-		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, pulumi.Provider(kubeProvider))
+		argoHelm, err := argorollouts.NewHelmInstallation(&awsEnv, argoParams, kubeProvider)
 		if err != nil {
 			return err
 		}
 		dependsOnArgoRollout = utils.PulumiDependsOn(argoHelm)
-	}
-	var fakeIntake *fakeintakeComp.Fakeintake
-	if params.fakeintakeOptions != nil {
-		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
-		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
-		fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		if params.agentOptions != nil {
-			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-		if params.operatorDDAOptions != nil {
-			newDdaOpts := []agentwithoperatorparams.Option{agentwithoperatorparams.WithFakeIntake(fakeIntake)}
-			params.operatorDDAOptions = append(newDdaOpts, params.operatorDDAOptions...)
-		}
-	} else {
-		env.FakeIntake = nil
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
@@ -244,17 +283,22 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			return err
 		}
 
-		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
+		// Get CoreDNS Deployment to use as dependency for etcd which needs DNS
+		coreDNS, err := appsv1.GetDeployment(ctx, "coredns", pulumi.ID("kube-system/coredns"), nil, pulumi.Provider(kubeProvider))
+		if err != nil {
+			return err
+		}
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider, utils.PulumiDependsOn(coreDNS)); err != nil {
 			return err
 		}
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := nginx.K8sAppDefinition(awsEnvParsed, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
-			if _, err := redis.K8sAppDefinition(&awsEnv, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := redis.K8sAppDefinition(awsEnvParsed, kubeProvider, "workload-redis", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 

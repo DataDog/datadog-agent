@@ -295,6 +295,24 @@ docker_build_agent7_full_arm64:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
+docker_build_agent7_fips_full:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64-fips
+    - job: datadog-otel-agent-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
+
+docker_build_agent7_fips_full_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64-fips
+    - job: datadog-otel-agent-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
+
 # build the cluster-agent image
 .docker_build_cluster_agent:
   extends: .docker_build_job_definition
@@ -317,9 +335,9 @@ docker_build_cluster_agent_amd64:
   needs:
     - job: cluster_agent-build_amd64
       artifacts: true
-    - job: cws_instrumentation-build_amd64
+    - job: cws_instrumentation-build_injector_amd64
       artifacts: true
-    - job: cws_instrumentation-build_arm64
+    - job: cws_instrumentation-build_injector_arm64
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
@@ -329,9 +347,9 @@ docker_build_cluster_agent_arm64:
   needs:
     - job: cluster_agent-build_arm64
       artifacts: true
-    - job: cws_instrumentation-build_amd64
+    - job: cws_instrumentation-build_injector_amd64
       artifacts: true
-    - job: cws_instrumentation-build_arm64
+    - job: cws_instrumentation-build_injector_arm64
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
@@ -349,9 +367,9 @@ docker_build_cluster_agent_fips_amd64:
   needs:
     - job: cluster_agent_fips-build_amd64
       artifacts: true
-    - job: cws_instrumentation-build_amd64
+    - job: cws_instrumentation-build_injector_amd64
       artifacts: true
-    - job: cws_instrumentation-build_arm64
+    - job: cws_instrumentation-build_injector_arm64
       artifacts: true
 
 docker_build_cluster_agent_fips_arm64:
@@ -359,9 +377,9 @@ docker_build_cluster_agent_fips_arm64:
   needs:
     - job: cluster_agent_fips-build_arm64
       artifacts: true
-    - job: cws_instrumentation-build_amd64
+    - job: cws_instrumentation-build_injector_amd64
       artifacts: true
-    - job: cws_instrumentation-build_arm64
+    - job: cws_instrumentation-build_injector_arm64
       artifacts: true
 
 # build the cws-instrumentation image

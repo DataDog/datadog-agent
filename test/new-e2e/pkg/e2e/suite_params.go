@@ -6,8 +6,6 @@
 package e2e
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -23,6 +21,8 @@ type suiteParams struct {
 	devMode bool
 
 	skipDeleteOnFailure bool
+
+	disableCoverage bool
 
 	provisioners provisioners.ProvisionerMap
 }
@@ -58,7 +58,7 @@ func WithSkipDeleteOnFailure() SuiteOption {
 func WithProvisioner(provisioner provisioners.Provisioner) SuiteOption {
 	return func(options *suiteParams) {
 		if _, found := options.provisioners[provisioner.ID()]; found {
-			panic(fmt.Sprintf("Duplicate provider in test Suite: %s", provisioner.ID()))
+			panic("Duplicate provider in test Suite: " + provisioner.ID())
 		}
 
 		if options.provisioners == nil {
@@ -77,4 +77,12 @@ func WithUntypedPulumiProvisioner(runFunc pulumi.RunFunc, configMap runner.Confi
 // WithPulumiProvisioner adds a typed Pulumi provisioner to the suite
 func WithPulumiProvisioner[Env any](runFunc provisioners.PulumiEnvRunFunc[Env], configMap runner.ConfigMap) SuiteOption {
 	return WithProvisioner(provisioners.NewTypedPulumiProvisioner("", runFunc, configMap))
+}
+
+// WithSkipCoverage skips the coverage of the environment.
+// It is called by the test suite if needed. When the test suite it not compatibale with built-in coverage computation
+func WithSkipCoverage() SuiteOption {
+	return func(options *suiteParams) {
+		options.disableCoverage = true
+	}
 }

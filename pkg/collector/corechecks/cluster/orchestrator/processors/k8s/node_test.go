@@ -346,6 +346,7 @@ func TestNodeProcessor_Process(t *testing.T) {
 	assert.Equal(t, int32(1), manifestMsg.GroupId)
 	assert.Equal(t, "test-host", manifestMsg.HostName)
 	assert.Len(t, manifestMsg.Manifests, 2)
+	assert.Equal(t, manifestMsg.OriginCollector, model.OriginCollector_datadogAgent)
 
 	// Validate manifest details
 	manifest1 := manifestMsg.Manifests[0]

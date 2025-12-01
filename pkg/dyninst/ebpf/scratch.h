@@ -248,36 +248,41 @@ static long read_by_frame_loop(unsigned long i, void* _ctx) {
   return 0;
 }
 
+// This is a fallback for when the first page of the object is not accessible.
+// It reads the rest of the object page-by-page, with zero bytes for each
+// fragment that failed to read. It assumes that the data item header has
+// already been written to the scratch buffer and that data_offset is the offset
+// of the first byte of the data in the scratch buffer.
 static buf_offset_t
 scratch_buf_serialize_fallback(scratch_buf_t* scratch_buf,
                                di_data_item_header_t* data_item_header,
-                               buf_offset_t offset) {
+                               buf_offset_t data_offset) {
   // There might be a valid, never fully accessed object. First access to parts
   // of this object trigger a page fault. We assume that first page containing
   // the object should have been accessed, as it should contain non-zero go
   // allocation header. If reading the first page succeeds, we assume this is
   // the case, read rest of the object page-by-page, with zero bytes for each
   // fragment that failed to read.
-  uint64_t page_reminder = DYNINST_PAGE_SIZE - data_item_header->address % DYNINST_PAGE_SIZE;
+  uint64_t page_reminder = DYNINST_PAGE_SIZE - (data_item_header->address % DYNINST_PAGE_SIZE);
   if (page_reminder >= data_item_header->length) {
     // Object doesn't cross page.
-    return offset | FAILED_READ_OFFSET_BIT;
+    return data_offset | FAILED_READ_OFFSET_BIT;
   }
   if (page_reminder >= DYNINST_PAGE_SIZE) {
     return 0;
   }
-  if (!scratch_buf_bounds_check(&offset, DYNINST_PAGE_SIZE)) {
+  if (!scratch_buf_bounds_check(&data_offset, DYNINST_PAGE_SIZE)) {
     return 0;
   }
-  int read_result = bpf_probe_read_user(&(*scratch_buf)[offset], page_reminder,
+  int read_result = bpf_probe_read_user(&(*scratch_buf)[data_offset], page_reminder,
                                         (void*)data_item_header->address);
   if (read_result != 0) {
-    return offset | FAILED_READ_OFFSET_BIT;
+    return data_offset | FAILED_READ_OFFSET_BIT;
   }
   read_by_frame_ctx_t ctx = {
       .addr = (void*)data_item_header->address,
       .buf = scratch_buf,
-      .offset = offset + page_reminder,
+      .offset = data_offset + page_reminder,
       .len = data_item_header->length - page_reminder,
       .buf_out_of_space = false,
   };
@@ -285,29 +290,27 @@ scratch_buf_serialize_fallback(scratch_buf_t* scratch_buf,
   if (ctx.buf_out_of_space) {
     return 0;
   }
-  return offset;
+  return data_offset;
 }
 
 static buf_offset_t
 scratch_buf_serialize_with_fallback(scratch_buf_t* scratch_buf,
                                     di_data_item_header_t* data_item_header,
                                     uint64_t len) {
-  buf_offset_t offset =
+  buf_offset_t data_offset =
       scratch_buf_serialize_whole(scratch_buf, data_item_header, len);
-  if ((offset & FAILED_READ_OFFSET_BIT) == 0) {
-    return offset;
+  if ((data_offset & FAILED_READ_OFFSET_BIT) == 0) {
+    return data_offset;
   }
-  offset = scratch_buf_serialize_fallback(scratch_buf, data_item_header,
-                                          offset & ~FAILED_READ_OFFSET_BIT);
-  if (offset == 0) {
-    // We failed bounds check on fallback, but didn't fail them before,
-    // truncate the message to indicate hitting the buffer space limit error
-    // condition, and not the read failure error condition.
-    scratch_buf_set_len(scratch_buf, scratch_buf_len(scratch_buf) -
-                                         sizeof(di_data_item_header_t) -
-                                         data_item_header->length);
+  buf_offset_t base_data_offset = (data_offset & ~FAILED_READ_OFFSET_BIT);
+  buf_offset_t fb = scratch_buf_serialize_fallback(
+      scratch_buf, data_item_header, base_data_offset);
+  if (fb == 0) {
+    // Roll back to the state before writing the header.
+    scratch_buf_set_len(scratch_buf,
+                        base_data_offset - sizeof(di_data_item_header_t));
   }
-  return offset;
+  return fb;
 }
 
 buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,

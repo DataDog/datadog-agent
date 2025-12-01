@@ -64,12 +64,12 @@ func Test_detectErlangAppName(t *testing.T) {
 			expected: "myapp",
 		},
 		{
-			name: "Fallback to beam when no progname or home",
+			name: "No progname or home returns empty string",
 			cmdline: []string{
 				"-smp", "auto",
 				"-noinput",
 			},
-			expected: "beam",
+			expected: "",
 		},
 		{
 			name: "Progname without home",
@@ -82,7 +82,7 @@ func Test_detectErlangAppName(t *testing.T) {
 		{
 			name:     "Empty command line",
 			cmdline:  []string{},
-			expected: "beam",
+			expected: "",
 		},
 		{
 			name: "Only home, no progname",
@@ -90,7 +90,7 @@ func Test_detectErlangAppName(t *testing.T) {
 				"-home", "/opt/customapp",
 				"-noshell",
 			},
-			expected: "beam",
+			expected: "",
 		},
 		{
 			name: "Home with trailing slash",
@@ -157,31 +157,6 @@ func Test_detectErlangAppName(t *testing.T) {
 			expected: "couchdb",
 		},
 		{
-			name: "Progname concatenated without space",
-			cmdline: []string{
-				"-root", "/usr/lib/erlang",
-				"-prognamecouchdb",
-				"-home", "/opt/couchdb",
-			},
-			expected: "couchdb",
-		},
-		{
-			name: "Home concatenated without space",
-			cmdline: []string{
-				"-progname", "erl",
-				"-home/var/lib/rabbitmq",
-			},
-			expected: "rabbitmq",
-		},
-		{
-			name: "Both flags concatenated",
-			cmdline: []string{
-				"-prognameerl",
-				"-home/var/lib/ejabberd",
-			},
-			expected: "ejabberd",
-		},
-		{
 			name: "Progname with spaces in value",
 			cmdline: []string{
 				"-progname", "  couchdb  ",
@@ -197,20 +172,38 @@ func Test_detectErlangAppName(t *testing.T) {
 			expected: "rabbitmq",
 		},
 		{
-			name: "Case insensitive erl - uppercase ERL",
+			name: "Uppercase ERL is not treated as erl",
 			cmdline: []string{
 				"-progname", "ERL",
 				"-home", "/var/lib/rabbitmq",
 			},
-			expected: "rabbitmq",
+			expected: "ERL",
 		},
 		{
-			name: "Case insensitive erl - mixed case Erl",
+			name: "Mixed case Erl is not treated as erl",
 			cmdline: []string{
 				"-progname", "Erl",
 				"-home", "/var/lib/ejabberd",
 			},
-			expected: "ejabberd",
+			expected: "Erl",
+		},
+		{
+			name: "progname as last argument without value",
+			cmdline: []string{
+				"-root", "/usr/lib/erlang",
+				"-home", "/var/lib/myapp",
+				"-progname",
+			},
+			expected: "",
+		},
+		{
+			name: "home as last argument without value",
+			cmdline: []string{
+				"-root", "/usr/lib/erlang",
+				"-progname", "erl",
+				"-home",
+			},
+			expected: "",
 		},
 	}
 
@@ -251,7 +244,7 @@ func Test_erlangDetector(t *testing.T) {
 			expectedSource:  CommandLine,
 		},
 		{
-			name: "Fallback to beam returns false",
+			name: "No name extracted returns false",
 			args: []string{
 				"-smp", "auto",
 			},

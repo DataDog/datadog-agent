@@ -27,7 +27,7 @@ type ChmodSelfTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *ChmodSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_chmod", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_chmod"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
