@@ -169,8 +169,7 @@ func GetGlobalCCCache() (*CCCache, error) {
 // LastUpdated return the last time the cache was updated
 func (ccc *CCCache) LastUpdated() time.Time {
 	ccc.RLock()
-	defer ccc.
-  ()
+	defer ccc.RUnlock()
 	return ccc.lastUpdated
 }
 
