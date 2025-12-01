@@ -68,6 +68,9 @@ func TestConvertedSpan(t *testing.T) {
 			BytesValue: []byte("bar"),
 		},
 	}, anyValue)
+	kindAttr, found := idxSpan.GetAttributeAsString("span.kind")
+	assert.True(t, found)
+	assert.Equal(t, "client", kindAttr)
 	convertedV1, found := idxSpan.GetAttributeAsString("_dd.convertedv1")
 	assert.True(t, found)
 	assert.Equal(t, "true", convertedV1)
