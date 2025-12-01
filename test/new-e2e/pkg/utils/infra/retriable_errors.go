@@ -64,6 +64,12 @@ func getKnownErrors() []knownError {
 			maxRetry:     stackUpMaxRetry,
 		},
 		{
+			// https://app.datadoghq.com/incidents/45562
+			errorMessage: `ssh: handshake failed: read tcp .+: read: connection reset by peer`,
+			retryType:    ReCreate,
+			maxRetry:     stackUpMaxRetry,
+		},
+		{
 			// https://datadoghq.atlassian.net/browse/ADXT-798
 			// https://datadoghq.atlassian.net/browse/ADXT-813
 			errorMessage: `error: awsx:ecs:FargateTaskDefinition resource '.+fakeintake.+' has a problem: grpc: the client connection is closing`,
