@@ -137,6 +137,27 @@ typedef struct {
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
     __u64 tcp_syn_retransmit;
+    // TCP recv timing metrics
+    __u64 tcp_recvmsg_kprobe_args_calls;
+    __u64 tcp_recvmsg_kprobe_args_time_ns;
+    __u64 tcp_recvmsg_kprobe_map_update_calls;
+    __u64 tcp_recvmsg_kprobe_map_update_time_ns;
+    __u64 tcp_recvmsg_kretprobe_map_lookup_calls;
+    __u64 tcp_recvmsg_kretprobe_map_lookup_time_ns;
+    __u64 tcp_recvmsg_kretprobe_map_delete_calls;
+    __u64 tcp_recvmsg_kretprobe_map_delete_time_ns;
+    __u64 tcp_recvmsg_kretprobe_handle_recv_calls;
+    __u64 tcp_recvmsg_kretprobe_handle_recv_time_ns;
+    // net_dev_queue timing metrics
+    __u64 net_dev_queue_calls;
+    __u64 net_dev_queue_skb_to_tuple_calls;
+    __u64 net_dev_queue_skb_to_tuple_time_ns;
+    __u64 net_dev_queue_read_conn_tuple_calls;
+    __u64 net_dev_queue_read_conn_tuple_time_ns;
+    __u64 net_dev_queue_is_equal_calls;
+    __u64 net_dev_queue_is_equal_time_ns;
+    __u64 net_dev_queue_not_equal_calls;
+    __u64 net_dev_queue_not_equal_time_ns;
 } telemetry_t;
 
 typedef struct {
