@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    Single Step Instrumentation now uses the Python tracer major version 4 by default.
