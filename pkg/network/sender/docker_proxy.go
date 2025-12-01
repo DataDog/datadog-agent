@@ -49,6 +49,8 @@ type dockerProxyFilter struct {
 	mtx           sync.Mutex
 	proxyByTarget map[containerAddr]*proxy
 	proxyByPID    map[uint32]*proxy
+
+	pidAliveFunc func(pid int) bool
 }
 
 // NewDockerProxyConsumer creates the docker proxy filter and returns it for event monitor registration
@@ -64,7 +66,10 @@ func NewDockerProxyConsumer(em *eventmonitor.EventMonitor, log log.Component) (e
 
 func newDockerProxyFilter(log log.Component) *dockerProxyFilter {
 	return &dockerProxyFilter{
-		log: log,
+		log:           log,
+		proxyByTarget: make(map[containerAddr]*proxy),
+		proxyByPID:    make(map[uint32]*proxy),
+		pidAliveFunc:  os.PidExists,
 	}
 }
 
@@ -158,7 +163,7 @@ func (d *dockerProxyFilter) process(event *dockerProcess) {
 func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
-	if len(d.proxyByPID) == 0 {
+	if len(d.proxyByTarget) == 0 {
 		return
 	}
 
@@ -186,7 +191,7 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 	for pid, p := range d.proxyByPID {
 		// if already marked dead, no reason to re-interrogate
 		if p.alive {
-			p.alive = os.PidExists(int(pid))
+			p.alive = d.pidAliveFunc(int(pid))
 		}
 	}
 	maps.DeleteFunc(d.proxyByPID, func(_ uint32, p *proxy) bool { return !p.alive })
@@ -249,7 +254,7 @@ func extractProxyTarget(p *dockerProcess) *proxy {
 			i++
 		case "-proto":
 			name := cmd[i+1]
-			proto, ok := network.ConnectionTypeFromString[name]
+			proto, ok := network.ConnectionTypeFromString[strings.ToLower(name)]
 			if !ok {
 				return nil
 			}
