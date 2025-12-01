@@ -41,6 +41,8 @@ COPY --from=builder /workspace/datadog-agent/bin/full-host-profiler/full-host-pr
 COPY --from=builder /workspace/datadog-agent/bin/full-host-profiler/dist/host-profiler-config.yaml /etc/datadog-agent/host-profiler-config.yaml
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
+# Host profiler requires objcopy
+RUN apt-get update && apt-get install -y binutils
 
 ENTRYPOINT ["/opt/datadog-agent/embedded/bin/full-host-profiler"]
 CMD ["run", "--config", "/etc/datadog-agent/host-profiler-config.yaml"]
