@@ -8,5 +8,4 @@
 ---
 fixes:
   - |
-    For Single Step Instrumentation, when a pod contains a disabled mutation label in an enabled namespace, it will no
-    longer receive mutation.
+    For Single Step Instrumentation, pods that include a label disabling instrumentation no longer receive mutations from the instrumentation webhook, even if they are in an enabled namespace.
