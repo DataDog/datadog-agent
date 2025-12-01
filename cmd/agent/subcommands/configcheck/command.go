@@ -9,6 +9,7 @@ package configcheck
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/fatih/color"
@@ -145,7 +146,7 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 
 func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
 	if len(cliParams.args) > 1 {
-		return fmt.Errorf("only one check must be specified")
+		return errors.New("only one check must be specified")
 	}
 
 	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
