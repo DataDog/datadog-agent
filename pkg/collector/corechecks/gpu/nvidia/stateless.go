@@ -355,7 +355,7 @@ func createStatelessAPIs() []apiCallInfo {
 					"none":                        nvml.ClocksEventReasonNone,
 				} {
 					value := 0.0
-					if reasons&reasonBit != 0 {
+					if reasons&reasonBit != 0 || (reasons == 0 && reasonBit == 0) {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
