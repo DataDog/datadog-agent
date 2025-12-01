@@ -9,6 +9,7 @@ package delegatedauth
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -95,7 +96,7 @@ func parseResponse(tokenBytes []byte) (*string, error) {
 
 	// Validate that we got an API key
 	if tokenResponse.Data.Attributes.APIKey == "" {
-		return nil, fmt.Errorf("api_key is empty in response")
+		return nil, errors.New("api_key is empty in response")
 	}
 
 	return &tokenResponse.Data.Attributes.APIKey, nil

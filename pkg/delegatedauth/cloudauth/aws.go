@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -67,7 +68,7 @@ func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *delegatedauth.Aut
 	creds := a.getCredentials(cfg)
 
 	if config == nil || config.OrgUUID == "" {
-		return nil, fmt.Errorf("missing org UUID in config")
+		return nil, errors.New("missing org UUID in config")
 	}
 
 	// Use the credentials to generate the signing data
@@ -133,20 +134,20 @@ func (a *AWSAuth) getConnectionParameters() (string, string, string) {
 		// If the region is not empty, use the regional STS host
 		host = fmt.Sprintf(regionalStsHost, region)
 	}
-	stsFullURL := fmt.Sprintf("https://%s", host)
+	stsFullURL := "https://" + host
 	return stsFullURL, region, host
 }
 
 func (a *AWSAuth) getUserAgent() string {
-	return fmt.Sprintf("datadog-agent/%s", version.AgentVersion)
+	return "datadog-agent/" + version.AgentVersion
 }
 
 func (a *AWSAuth) generateAwsAuthData(orgUUID string, awsCredentials *creds.SecurityCredentials) (*SigningData, error) {
 	if orgUUID == "" {
-		return nil, fmt.Errorf("missing org UUID")
+		return nil, errors.New("missing org UUID")
 	}
 	if awsCredentials == nil || (awsCredentials.AccessKeyID == "" && awsCredentials.SecretAccessKey == "") || awsCredentials.Token == "" {
-		return nil, fmt.Errorf("missing AWS credentials")
+		return nil, errors.New("missing AWS credentials")
 	}
 	stsFullURL, region, host := a.getConnectionParameters()
 
