@@ -272,7 +272,7 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 func (suite *TailerTestSuite) TestTailerIdentifier() {
 	suite.tailer.StartFromBeginning()
 	suite.Equal(
-		fmt.Sprintf("file:%s", filepath.Join(suite.testDir, "tailer.log")),
+		"file:"+filepath.Join(suite.testDir, "tailer.log"),
 		suite.tailer.Identifier())
 }
 

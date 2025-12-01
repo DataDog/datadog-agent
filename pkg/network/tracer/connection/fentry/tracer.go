@@ -40,7 +40,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
 	}
 	if hasPotentialFentryDeadlock {
-		return nil, nil, fmt.Errorf("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
+		return nil, nil, errors.New("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)

@@ -50,7 +50,7 @@ func WriteAsJSON(w http.ResponseWriter, data interface{}, outputOptions FormatOp
 	var buf []byte
 	var err error
 	// Keeping the condition explicit for readability
-	//nolint:gosimple
+	//nolint:staticcheck // S1002: explicit comparison preferred for readability
 	if outputOptions == PrettyPrint {
 		buf, err = json.MarshalIndent(data, "", "  ")
 	} else {

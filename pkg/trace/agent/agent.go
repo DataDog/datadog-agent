@@ -713,11 +713,38 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArrayV1(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriterV1.WriteChunksV1(sampledChunks)
+		a.writeChunksV1(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.AddV1(statsInput)
 	}
+}
+
+func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
+	containerID := p.TracerPayload.ContainerID()
+	// fast path: no container ID or the buffering feature is disabled,
+	if containerID == "" || !a.ContainerTagsBuffer.IsEnabled() {
+		a.TraceWriterV1.WriteChunksV1(p)
+		return
+	}
+	// callback function to be executed once tags are resolved, or buffer times out
+	fn := func(cTags []string, err error) {
+		enrichTracesWithCtagsV1(p, cTags, err)
+		a.TraceWriterV1.WriteChunksV1(p)
+	}
+	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.Size))
+}
+
+// enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
+func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
+	if err != nil {
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		return
+	}
+	if len(ctags) == 0 {
+		return
+	}
+	p.TracerPayload.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 }
 
 func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
