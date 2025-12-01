@@ -154,7 +154,7 @@ func TestDockerProxyFiltering(t *testing.T) {
 
 func TestDockerProxyEvents(t *testing.T) {
 	dpf := newDockerProxyFilter(logmock.New(t))
-	dpf.pidAliveFunc = func(pid int) bool { return true }
+	dpf.pidAliveFunc = func(_ int) bool { return true }
 	// ensure connections are filtered out
 	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
 	c0 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 10, Source: util.AddressFromString("127.0.0.2"), SPort: 10000, Dest: util.AddressFromString("127.0.0.2"), DPort: 9999}}
@@ -177,7 +177,7 @@ func TestDockerProxyEvents(t *testing.T) {
 
 func TestDockerProxyPIDOverwrite(t *testing.T) {
 	dpf := newDockerProxyFilter(logmock.New(t))
-	dpf.pidAliveFunc = func(pid int) bool { return true }
+	dpf.pidAliveFunc = func(_ int) bool { return true }
 	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
 	c0 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 10, Source: util.AddressFromString("127.0.0.2"), SPort: 10000, Dest: util.AddressFromString("127.0.0.2"), DPort: 9999}}
 	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 11, Source: util.AddressFromString("127.0.0.2"), SPort: 9999, Dest: util.AddressFromString("127.0.0.2"), DPort: 10000}}
@@ -194,7 +194,7 @@ func TestDockerProxyPIDOverwrite(t *testing.T) {
 
 func TestDockerProxyDeadProcess(t *testing.T) {
 	dpf := newDockerProxyFilter(logmock.New(t))
-	dpf.pidAliveFunc = func(pid int) bool { return false }
+	dpf.pidAliveFunc = func(_ int) bool { return false }
 	dpf.HandleEvent(&dockerProcess{Pid: 10, Cmdline: dockerProxyCmdLine("127.0.0.2", "9999", "tcp"), EventType: model.ExecEventType})
 	c0 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 10, Source: util.AddressFromString("127.0.0.2"), SPort: 10000, Dest: util.AddressFromString("127.0.0.2"), DPort: 9999}}
 	c1 := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{Pid: 11, Source: util.AddressFromString("127.0.0.2"), SPort: 9999, Dest: util.AddressFromString("127.0.0.2"), DPort: 10000}}
