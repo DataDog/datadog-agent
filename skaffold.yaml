@@ -16,7 +16,6 @@ deploy:
     releases:
       - name: datadog-agent
         remoteChart: datadog/datadog
-        version: 3.88.1
         setValueTemplates:
           datadog:
             apiKey: "{{cmd \"bash\" \"-c\" \"echo $DD_API_KEY\"}}"

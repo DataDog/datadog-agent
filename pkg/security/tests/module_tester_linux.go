@@ -651,7 +651,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	var proFile *os.File
 	if withProfile {
 		var err error
-		proFile, err = os.CreateTemp("/tmp", fmt.Sprintf("cpu-profile-%s", t.Name()))
+		proFile, err = os.CreateTemp("/tmp", "cpu-profile-"+t.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1579,7 +1579,7 @@ func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *acti
 func (tm *testModule) dockerCreateFiles(dockerInstance *dockerCmdWrapper, syscallTester string, directory string, numberOfFiles int) error {
 	var files []string
 	for i := 0; i < numberOfFiles; i++ {
-		files = append(files, filepath.Join(directory, "ad-test-create-"+fmt.Sprintf("%d", i)))
+		files = append(files, filepath.Join(directory, "ad-test-create-"+strconv.Itoa(i)))
 	}
 	args := []string{"sleep", "2", ";", "open"}
 	args = append(args, files...)

@@ -564,7 +564,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 
 	// Extract and merge rules from custom policies
-	var customRules string
+	var customRulesBuilder strings.Builder
 	for _, customPolicy := range customPolicies {
 		customPolicyLines := strings.Split(customPolicy, "\n")
 		rulesIndex := -1
@@ -575,9 +575,11 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 			}
 		}
 		if rulesIndex != -1 && rulesIndex+1 < len(customPolicyLines) {
-			customRules += "\n" + strings.Join(customPolicyLines[rulesIndex+1:], "\n")
+			customRulesBuilder.WriteString("\n")
+			customRulesBuilder.WriteString(strings.Join(customPolicyLines[rulesIndex+1:], "\n"))
 		}
 	}
+	customRules := customRulesBuilder.String()
 
 	// Output depending on user's specification
 	var outputContent string

@@ -12,7 +12,6 @@ package cpu
 */
 import "C"
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -45,7 +44,7 @@ type cpuInfo struct {
 }
 
 func extract(caption, field string) string {
-	re := regexp.MustCompile(fmt.Sprintf("%s [0-9]* ", field))
+	re := regexp.MustCompile(field + " [0-9]* ")
 	matches := re.FindStringSubmatch(caption)
 	if len(matches) > 0 {
 		return strings.Split(matches[0], " ")[1]

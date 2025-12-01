@@ -25,6 +25,22 @@ import (
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
 
+var eccErrorTypeToName = map[nvml.MemoryErrorType]string{
+	nvml.MEMORY_ERROR_TYPE_CORRECTED:   "corrected",
+	nvml.MEMORY_ERROR_TYPE_UNCORRECTED: "uncorrected",
+}
+
+var memoryLocationToName = map[nvml.MemoryLocation]string{
+	nvml.MEMORY_LOCATION_L1_CACHE:       "l1_cache",
+	nvml.MEMORY_LOCATION_L2_CACHE:       "l2_cache",
+	nvml.MEMORY_LOCATION_DEVICE_MEMORY:  "device_memory",
+	nvml.MEMORY_LOCATION_REGISTER_FILE:  "register_file",
+	nvml.MEMORY_LOCATION_TEXTURE_MEMORY: "texture_memory",
+	nvml.MEMORY_LOCATION_TEXTURE_SHM:    "texture_shm",
+	nvml.MEMORY_LOCATION_CBU:            "cbu",
+	nvml.MEMORY_LOCATION_SRAM:           "sram",
+}
+
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
 	if val {
@@ -114,7 +130,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 		if len(tags) == 0 {
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
+			tags = []string{"gpu_uuid:" + uuid}
 		}
 
 		tagsMapping[uuid] = tags

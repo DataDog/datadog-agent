@@ -359,7 +359,7 @@ func createStatelessAPIs() []apiCallInfo {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
-						Name:  fmt.Sprintf("clock.throttle_reasons.%s", reasonName),
+						Name:  "clock.throttle_reasons." + reasonName,
 						Value: value,
 						Type:  metrics.GaugeType,
 					})
@@ -397,7 +397,31 @@ func createStatelessAPIs() []apiCallInfo {
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return nvlinkSample(device)
 			},
-		}}
+		},
+	}
+
+	// Create APIs for ECC errors
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			apis = append(apis, apiCallInfo{
+				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{
+						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
+						Value: float64(count),
+						Type:  metrics.CountType,
+						Tags: []string{
+							"memory_location:" + memoryLocationName,
+						},
+					}}, 0, nil
+				},
+			})
+		}
+	}
 
 	return apis
 }
