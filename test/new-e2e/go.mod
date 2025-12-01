@@ -21,16 +21,16 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.2-rc.15
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.2-rc.15
-	github.com/DataDog/datadog-agent/pkg/version v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.2-rc.17
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.53.2-rc.17
+	github.com/DataDog/datadog-agent/pkg/version v0.53.2-rc.17
 	// Are you bumping github.com/DataDog/datadog-agent/test/e2e-framework ?
 	// You should bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` in `.gitlab-ci.yml`
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251014131108-043cd6537543
-	github.com/DataDog/datadog-agent/test/fakeintake v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/test/e2e-framework v0.53.2-rc.17
+	github.com/DataDog/datadog-agent/test/fakeintake v0.53.2-rc.17
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.19.0
 	github.com/aws/aws-sdk-go-v2 v1.39.6
@@ -64,7 +64,7 @@ require (
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/pkg/proto v0.53.2-rc.17
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -237,7 +237,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.67.0
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.15
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.2-rc.17
 	github.com/DataDog/test-infra-definitions v0.0.6
 	github.com/aws/aws-sdk-go v1.50.36
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.66.2
