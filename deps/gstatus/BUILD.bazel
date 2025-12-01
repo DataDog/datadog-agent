@@ -6,6 +6,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
+    default_visibility = ["//distribs:__subpackages__"],
 )
 
 license(

@@ -15,6 +15,8 @@ unless do_repackage?
   # creates required build directories
   dependency 'datadog-agent-prepare'
 
+  command_on_repo_root "bazelisk run -- //distribs/install_dir/embedded:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
+
   dependency "python3"
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku

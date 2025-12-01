@@ -3,8 +3,10 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
+package(default_visibility = ["//distribs:__subpackages__"])
+
 pkg_files(
-    name = "conf_files",
+    name = "etc",
     srcs = ["@snmp_traps//file"],
     attributes = pkg_attributes(
         group = "root",
@@ -27,6 +29,6 @@ pkg_files(
 pkg_install(
     name = "install",
     srcs = [
-        ":conf_files",
+        ":etc",
     ],
 )
