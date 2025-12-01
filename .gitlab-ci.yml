@@ -1,4 +1,30 @@
+variables:
+  CI_IMAGE_LINUX: v84122467-e282bfd7
+  FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
 stages:
   - generate
+  - trigger
 
-generate
+generate-pipeline:
+  stage: generate
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  script:
+    - curl -s https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata/$DDCI_REQUEST_ID | jq .event.results.changed_files.[].path
+    - dda ci generate --filter-by-changes
+  artifacts:
+    paths:
+      - generated-pipeline.yml
+    expire_in: 1 hour
+
+trigger-pipeline:
+  stage: trigger
+  needs:
+    - generate-pipeline
+  inherit:
+    variables: false
+  trigger:
+    include:
+      - artifact: generated-pipeline.yml
+        job: generate-pipeline
+    strategy: depend

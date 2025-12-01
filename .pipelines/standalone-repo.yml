@@ -1,0 +1,7 @@
+name: standalone-repo
+entrypoint: standalone-repo/.gitlab-ci.yml
+on:
+  - changes:
+    - include:
+      - standalone-repo/**/*
+
