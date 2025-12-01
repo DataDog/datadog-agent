@@ -7,6 +7,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -71,7 +72,7 @@ func (c *testCheck) StartedChan() chan struct{} {
 
 func (c *testCheck) GetWarnings() []error {
 	if c.doWarn {
-		return []error{fmt.Errorf("Warning")}
+		return []error{errors.New("Warning")}
 	}
 
 	return []error{}
@@ -91,7 +92,7 @@ func (c *testCheck) Run() error {
 	c.runCount.Inc()
 
 	if c.doErr {
-		return fmt.Errorf("myerror")
+		return errors.New("myerror")
 	}
 
 	return nil

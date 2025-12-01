@@ -300,7 +300,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			TracerVersion:   fmt.Sprintf("otlp-%s", traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKVersionKey))),
+			TracerVersion:   "otlp-" + traceutil.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKVersionKey)),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
@@ -421,7 +421,7 @@ func (o *OTLPReceiver) receiveResourceSpansV1(ctx context.Context, rspans ptrace
 			LangVersion:     fastHeaderGet(httpHeader, header.LangVersion),
 			Interpreter:     fastHeaderGet(httpHeader, header.LangInterpreter),
 			LangVendor:      fastHeaderGet(httpHeader, header.LangInterpreterVendor),
-			TracerVersion:   fmt.Sprintf("otlp-%s", rattr[string(semconv.TelemetrySDKVersionKey)]),
+			TracerVersion:   "otlp-" + rattr[string(semconv.TelemetrySDKVersionKey)],
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),

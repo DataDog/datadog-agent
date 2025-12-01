@@ -171,6 +171,12 @@ type Config struct {
 	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
 	MaxProcessesTracked int
 
+	// EnableContainerStore enables reading resolv.conf out of container filesystems. Requires EnableProcessEventMonitoring.
+	EnableContainerStore bool
+
+	// MaxContainersTracked is the maximum number of containers whose resolv.conf information is stored in the network module
+	MaxContainersTracked int
+
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
@@ -279,6 +285,9 @@ func New() *Config {
 
 		EnableProcessEventMonitoring: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "enabled")),
 		MaxProcessesTracked:          cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "max_processes_tracked")),
+
+		EnableContainerStore: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "enabled")),
+		MaxContainersTracked: cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "max_containers_tracked")),
 
 		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
 

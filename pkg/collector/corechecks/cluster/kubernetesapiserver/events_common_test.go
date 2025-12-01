@@ -8,7 +8,6 @@
 package kubernetesapiserver
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -187,7 +186,7 @@ func Test_getInvolvedObjectTags(t *testing.T) {
 }
 
 func Test_getEventHostInfoImpl(t *testing.T) {
-	providerIDFunc := func(clusterName string) string { return fmt.Sprintf("foo-%s", clusterName) }
+	providerIDFunc := func(clusterName string) string { return "foo-" + clusterName }
 
 	type args struct {
 		clusterName string

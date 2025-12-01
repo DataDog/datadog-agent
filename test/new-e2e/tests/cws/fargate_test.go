@@ -157,9 +157,9 @@ func TestECSFargate(t *testing.T) {
 							"trace",
 							"selftests",
 							"--exec",
-							fmt.Sprintf("--exec.path=%s", execFilePath),
+							"--exec.path=" + execFilePath,
 							"--open",
-							fmt.Sprintf("--open.path=%s", openFilePath),
+							"--open.path=" + openFilePath,
 						}),
 						DependsOn: ecsx.TaskDefinitionContainerDependencyArray{
 							ecsx.TaskDefinitionContainerDependencyArgs{

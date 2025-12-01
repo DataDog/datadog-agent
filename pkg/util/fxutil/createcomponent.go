@@ -88,7 +88,7 @@ func getBundleName() string {
 	filename = filepath.ToSlash(filename)
 	components := strings.Split(filename, "/")
 	if len(components) >= 3 && components[len(components)-3] == "comp" {
-		return fmt.Sprintf("comp/%s", components[len(components)-2])
+		return "comp/" + components[len(components)-2]
 	}
 	panic("must be called from a bundle (comp/<bundle>/bundle.go)")
 }
