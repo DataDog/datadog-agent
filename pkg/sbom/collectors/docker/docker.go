@@ -9,6 +9,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -94,7 +95,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 	wmeta, ok := c.wmeta.Get()
 	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
+		return sbom.ScanResult{Error: errors.New("workloadmeta store is not initialized")}
 	}
 
 	imageMeta, err := wmeta.GetImage(imageID)

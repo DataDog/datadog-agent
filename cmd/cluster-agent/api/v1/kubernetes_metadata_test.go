@@ -67,7 +67,7 @@ func TestGetNodeAnnotations(t *testing.T) {
 	}{
 		{
 			name:    "no filters passed only host aliases annotations returned",
-			path:    fmt.Sprintf("/annotations/node/%s", testNode),
+			path:    "/annotations/node/" + testNode,
 			muxVars: map[string]string{"nodeName": testNode},
 			body:    map[string]string{"annotation1": "abc"}, // hardcoded above in workloadmeta mock
 			status:  http.StatusOK,
@@ -168,7 +168,7 @@ func TestGetNodeUID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", fmt.Sprintf("/uid/node/%s", tt.node), nil)
+			req, _ := http.NewRequest("GET", "/uid/node/"+tt.node, nil)
 			req = mux.SetURLVars(req, map[string]string{"nodeName": tt.node})
 
 			respw := httptest.NewRecorder()

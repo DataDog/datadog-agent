@@ -14,12 +14,6 @@ import (
 )
 
 // HostTags struct contains agents host-tags payload and attributes to fit Aggregator implementation
-//
-// Use a pointer to assign `HostTags` inner struct.
-// When we ParseHostPayload we receive variaous payload types.
-// We only want to keep those with host-tags
-// Using a pointer allows us to check if the pointer has been allocated
-// and therefore found the right payload
 type HostTags struct {
 	InternalHostname string
 	HostTags         []string
@@ -27,18 +21,19 @@ type HostTags struct {
 	collectedTime time.Time
 }
 
-// GetCollectedTime return the time the payload was collected
+// GetCollectedTime return the time the payload was collected,
+// to fit the Aggregator interface and for later use.
 func (host *HostTags) GetCollectedTime() time.Time {
 	return host.collectedTime
 }
 
-// GetTags returns the tags collected by the payload
-// currently none
+// GetTags is currently not implemented for HostTags payloads.
 func (host *HostTags) GetTags() []string {
 	return nil
 }
 
 // name return the payload name
+// it is mandatory to keep it private to respect the Aggregator interface
 func (host *HostTags) name() string {
 	return host.InternalHostname
 }
@@ -54,6 +49,10 @@ func ParseHostTagsPayload(payload api.Payload) ([]*HostTags, error) {
 		return nil, fmt.Errorf("failed to inflate host Payload: %w", err)
 	}
 
+	// we receive various payload types.
+	// We only want to parse the host-tags payloads here.
+	// Use a pointer for HostTags to be able to identify when
+	// the payloads contains hosttags.
 	var data struct {
 		HostName string `json:"internalHostname"`
 		HostTags *struct {

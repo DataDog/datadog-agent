@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 )
@@ -39,7 +40,7 @@ type ProcessingRule struct {
 func ValidateProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
-			return fmt.Errorf("all processing rules must have a name")
+			return errors.New("all processing rules must have a name")
 		}
 
 		switch rule.Type {

@@ -105,7 +105,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testMetric %s", prettyMetricQuery)),
+				Title: pointer.Ptr("testMetric " + prettyMetricQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -234,7 +234,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testLog %s", prettyLogQuery)),
+				Title: pointer.Ptr("testLog " + prettyLogQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -363,7 +363,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testCheckRun %s", prettyCheckRunQuery)),
+				Title: pointer.Ptr("testCheckRun " + prettyCheckRunQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -476,7 +476,7 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testEvent %s", prettyEventQuery)),
+				Title: pointer.Ptr("testEvent " + prettyEventQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -586,7 +586,7 @@ func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *tes
 	suite.Require().NoError(err)
 
 	_, err = suite.DatadogClient().PostEvent(&datadog.Event{
-		Title:     pointer.Ptr(fmt.Sprintf("test Host-Tags %s", suite.T().Name())),
+		Title:     pointer.Ptr("test Host-Tags " + suite.T().Name()),
 		AlertType: &alertType,
 		Tags: append([]string{
 			"app:agent-new-e2e-tests-containers",
