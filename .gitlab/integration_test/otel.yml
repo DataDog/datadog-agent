@@ -26,13 +26,15 @@ docker_image_build_otel:
     - cp comp/otelcol/collector-contrib/impl/manifest.yaml /tmp/otel-ci/
     - cp Dockerfiles/agent-ddot/Dockerfile.agent-otel /tmp/otel-ci/
     - cp test/integration/docker/otel_agent_build_tests.py /tmp/otel-ci/
-    - wget https://github.com/mikefarah/yq/releases/download/3.4.1/yq_linux_amd64 -O
-      /usr/bin/yq && chmod +x /usr/bin/yq
-    - export OTELCOL_VERSION=v$(/usr/bin/yq r /tmp/otel-ci/manifest.yaml dist.version)
-    - yq w -i /tmp/otel-ci/manifest.yaml "receivers[+] gomod"
-      "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver ${OTELCOL_VERSION}"
-    - yq w -i /tmp/otel-ci/manifest.yaml "processors[+] gomod"
-      "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor ${OTELCOL_VERSION}"
+    - export OTELCOL_VERSION=v$(yq eval '.dist.version' /tmp/otel-ci/manifest.yaml)
+    - >-
+      yq eval -i
+      '.receivers += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver " + env(OTELCOL_VERSION)}]'
+      /tmp/otel-ci/manifest.yaml
+    - >-
+      yq eval -i
+      '.processors += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor " + env(OTELCOL_VERSION)}]'
+      /tmp/otel-ci/manifest.yaml
   script:
     - !reference [.login_to_docker_readonly]
     - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
