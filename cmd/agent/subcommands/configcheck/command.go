@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -178,7 +179,7 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 					return err
 				}
 
-				fmt.Fprintln(color.Output, string(config))
+				fmt.Fprintln(color.Output, strings.ReplaceAll(string(config), "\\n", "\n"))
 			} else if cliParams.json {
 				// raw json print
 				config, err := json.Marshal(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs))
@@ -186,7 +187,7 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 					return err
 				}
 
-				fmt.Fprintln(color.Output, string(config))
+				fmt.Fprintln(color.Output, strings.ReplaceAll(string(config), "\\n", "\n"))
 			} else {
 				// flare format print
 				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
