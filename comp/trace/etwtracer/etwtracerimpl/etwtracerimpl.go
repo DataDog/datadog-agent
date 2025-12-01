@@ -340,7 +340,7 @@ func (a *etwtracerimpl) doTrace() {
 				if err == syscall.Errno(ERROR_BROKEN_PIPE) ||
 					err == syscall.Errno(ERROR_NO_DATA) {
 					// Don't log error for normal pipe termination
-					a.log.Trace("Listener for process %d disconnected", e.EventHeader.ProcessID)
+					a.log.Tracef("Listener for process %d disconnected", e.EventHeader.ProcessID)
 				} else {
 					a.log.Errorf("Could not write ETW event for PID %d, %v", e.EventHeader.ProcessID, err)
 					err = a.removePID(e.EventHeader.ProcessID)

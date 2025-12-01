@@ -249,7 +249,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 	for _, config := range configs {
 		digest := config.Digest()
 		if _, found := cm.activeConfigs[digest]; !found {
-			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
+			log.Debugf("Config %v is not tracked by autodiscovery", config.Name)
 			continue
 		}
 

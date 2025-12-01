@@ -32,7 +32,7 @@ type SystemProbeCache struct {
 
 // NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
 func NewSystemProbeCache() *SystemProbeCache {
-	timeout := pkgconfigsetup.SystemProbe().GetDuration("gpu.sp_process_metrics_request_timeout")
+	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
 	client := sysprobeclient.GetCheckClient(
 		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 		sysprobeclient.WithCheckTimeout(timeout),

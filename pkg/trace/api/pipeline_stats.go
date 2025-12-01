@@ -33,7 +33,7 @@ func pipelineStatsEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys [
 	}
 	for _, e := range cfg.Endpoints {
 		urlStr := e.Host + pipelineStatsURLSuffix
-		log.Debug("[pipeline_stats] Intake URL %s", urlStr)
+		log.Debugf("[pipeline_stats] Intake URL %s", urlStr)
 		url, err := url.Parse(urlStr)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error parsing pipeline stats intake URL %q: %v", urlStr, err)

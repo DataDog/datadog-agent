@@ -825,7 +825,11 @@ func (fh *EBPFFieldHandlers) ResolveOnDemandName(_ *model.Event, e *model.OnDema
 	if fh.onDemand == nil {
 		return ""
 	}
-	return fh.onDemand.getHookNameFromID(int(e.ID))
+	if len(e.Name) != 0 {
+		return e.Name
+	}
+	e.Name = fh.onDemand.getHookNameFromID(int(e.ID))
+	return e.Name
 }
 
 func resolveOnDemandArgStr(e *model.OnDemandEvent, index int) string {

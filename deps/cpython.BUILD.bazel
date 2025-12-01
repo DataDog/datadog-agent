@@ -11,7 +11,6 @@ python_externals = {
     "xz": "5.2.5",
     "zlib": "1.3.1",
     "libffi": "3.4.4",
-    "openssl-bin": "3.0.16.2",
     "tcltk": "8.6.15.0",
 }
 
@@ -26,6 +25,26 @@ python_externals = {
     )
     for dep, version in python_externals.items()
 ]
+
+# This sets up OpenSSL files in a layout such as the Python build system for Windows expects
+copy_to_directory(
+    name = "openssl-bin_win_dir",
+    srcs = ["@openssl"],
+    # TODO(team:agent-build): Single source of truth for dependency versions
+    out = "openssl-bin-3.5.4/amd64",
+    include_external_repositories = ["*openssl*"],
+    # This reproduces the expected layout (libs at root, includes under `include`)
+    root_paths = [
+        "openssl/bin",
+        "openssl/lib",
+        "openssl",
+    ],
+    replace_prefixes = {
+        # We need to rename the .dll.a's into .lib files as the Python build expects
+        "libcrypto.dll.a": "libcrypto.lib",
+        "libssl.dll.a": "libssl.lib",
+    },
+)
 
 run_binary(
     name = "python_win",
@@ -57,7 +76,7 @@ run_binary(
         "XZ_DIR": "$(location xz_win_dir)",
         "ZLIB_DIR": "$(location zlib_win_dir)",
         "LIBFFI_DIR": "$(location libffi_win_dir)",
-        "OPENSSL_DIR": r"$(location openssl-bin_win_dir)\amd64",
+        "OPENSSL_DIR": r"$(location openssl-bin_win_dir)",
         "TCLTK_DIR": r"$(location tcltk_win_dir)\amd64",
         "TCL_VERSION": python_externals["tcltk"],
         "MSBUILD": "$(location @visual_studio//:msbuild)",

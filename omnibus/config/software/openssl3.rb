@@ -33,17 +33,10 @@ relative_path "openssl-#{version}"
 
 build do
   if !fips_mode?
-    installation_dir = if windows? then python_3_embedded else "#{install_dir}/embedded" end
-    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{installation_dir}"
-    if windows?
-      block do
-        # shutil generates temporary files during run install that are not removed afterwards.
-        Dir.glob("#{installation_dir}/include/openssl/tmp*").each do |tmp_file|
-          delete tmp_file
-        end
-      end
-    else
-      lib_extension = if linux_target? then ".so.#{version}" else ".#{version}.dylib" end
+    # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
+    if !windows?
+      command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
+      lib_extension = if linux_target? then ".so" else ".dylib" end
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
         " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
         " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
