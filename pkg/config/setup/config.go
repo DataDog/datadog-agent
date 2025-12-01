@@ -120,9 +120,6 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
-	// DefaultHTTPConnectivityRetryIntervalMax is the default maximum interval for HTTP connectivity retry attempts in seconds
-	DefaultHTTPConnectivityRetryIntervalMax = 3600
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -1828,7 +1825,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// DEPRECATED in favor of `logs_config.force_use_tcp`.
 	config.BindEnvAndSetDefault("logs_config.use_tcp", false)
 	config.BindEnvAndSetDefault("logs_config.force_use_tcp", false)
-	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", DefaultHTTPConnectivityRetryIntervalMax)
+	config.BindEnvAndSetDefault("logs_config.http_connectivity_retry_interval_max", 3600)
 
 	// Transport protocol for log payloads
 	config.BindEnvAndSetDefault("logs_config.http_protocol", "auto")
