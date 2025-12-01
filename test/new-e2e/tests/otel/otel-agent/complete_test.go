@@ -44,8 +44,18 @@ agents:
           value: 'disable_receive_resource_spans_v2,disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &completeTestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(completeConfig))))),
+	e2e.Run(t, &completeTestSuite{},
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithAgentOptions(
+						kubernetesagentparams.WithHelmValues(values),
+						kubernetesagentparams.WithOTelAgent(),
+						kubernetesagentparams.WithOTelConfig(completeConfig),
+					),
+				),
+			),
+		),
 	)
 }
 

@@ -40,11 +40,20 @@ agents:
           value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &iaEKSTestSuite{}, e2e.WithProvisioner(
-		proveks.Provisioner(proveks.WithRunOptions(
-			eks.WithEKSOptions(eks.WithLinuxNodeGroup()),
-			eks.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)),
-		))),
+	e2e.Run(t, &iaEKSTestSuite{},
+		e2e.WithProvisioner(
+			proveks.Provisioner(
+				proveks.WithRunOptions(
+					eks.WithEKSOptions(
+						eks.WithLinuxNodeGroup(),
+						eks.WithUseAL2023Nodes(),
+					),
+					eks.WithAgentOptions(
+						kubernetesagentparams.WithHelmValues(values),
+						kubernetesagentparams.WithOTelAgent(),
+						kubernetesagentparams.WithOTelConfig(iaConfig),
+					),
+				))),
 	)
 }
 
@@ -103,10 +112,18 @@ agents:
 `
 	t.Parallel()
 	e2e.Run(t, &iaUSTEKSTestSuite{}, e2e.WithProvisioner(
-		proveks.Provisioner(proveks.WithRunOptions(
-			eks.WithEKSOptions(eks.WithLinuxNodeGroup()),
-			eks.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig)),
-		))),
+		proveks.Provisioner(
+			proveks.WithRunOptions(
+				eks.WithEKSOptions(
+					eks.WithLinuxNodeGroup(),
+					eks.WithUseAL2023Nodes(),
+				),
+				eks.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(values),
+					kubernetesagentparams.WithOTelAgent(),
+					kubernetesagentparams.WithOTelConfig(iaConfig),
+				),
+			))),
 	)
 }
 

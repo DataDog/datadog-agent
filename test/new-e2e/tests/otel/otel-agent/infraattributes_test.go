@@ -43,8 +43,16 @@ agents:
           value: 'disable_operation_and_resource_name_logic_v2'
 `
 	t.Parallel()
-	e2e.Run(t, &iaTestSuite{}, e2e.WithProvisioner(
-		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values), kubernetesagentparams.WithOTelAgent(), kubernetesagentparams.WithOTelConfig(iaConfig))))),
+	e2e.Run(t, &iaTestSuite{},
+		e2e.WithProvisioner(provkindvm.Provisioner(
+			provkindvm.WithRunOptions(
+				scenkindvm.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(values),
+					kubernetesagentparams.WithOTelAgent(),
+					kubernetesagentparams.WithOTelConfig(iaConfig),
+				),
+			),
+		)),
 	)
 }
 
