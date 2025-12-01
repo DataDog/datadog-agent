@@ -191,7 +191,7 @@ func getResource[T any](ccc *CCCache, resourceName, guid string, cache map[strin
 	updatedOnce := !ccc.lastUpdated.IsZero()
 	if !updatedOnce {
 		ccc.RUnlock()
-		return resource, fmt.Errorf("cannot refresh cache on miss, cccache is still warming up")
+		return resource, errors.New("cannot refresh cache on miss, cccache is still warming up")
 	}
 	resource, ok := cache[guid]
 	ccc.RUnlock()
