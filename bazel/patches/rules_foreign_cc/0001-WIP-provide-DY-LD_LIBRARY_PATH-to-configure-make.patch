@@ -1,0 +1,134 @@
+From 6a601773b362cf8897716f46a5be4cb0cab75694 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Mon, 1 Dec 2025 15:46:12 +0100
+Subject: [PATCH] WIP: provide (DY)LD_LIBRARY_PATH to configure/make
+
+---
+ foreign_cc/private/configure_script.bzl               |  3 ++-
+ foreign_cc/private/framework/toolchains/commands.bzl  | 11 +++++++++++
+ .../private/framework/toolchains/linux_commands.bzl   | 11 +++++++++++
+ .../private/framework/toolchains/macos_commands.bzl   | 10 ++++++++++
+ foreign_cc/private/make_script.bzl                    |  8 ++++++++
+ 5 files changed, 42 insertions(+), 1 deletion(-)
+
+diff --git a/foreign_cc/private/configure_script.bzl b/foreign_cc/private/configure_script.bzl
+index bbb5056..d4b4255 100644
+--- a/foreign_cc/private/configure_script.bzl
++++ b/foreign_cc/private/configure_script.bzl
+@@ -1,6 +1,6 @@
+ # buildifier: disable=module-docstring
+ load(":make_env_vars.bzl", "get_ldflags_make_vars", "get_make_env_vars")
+-load(":make_script.bzl", "pkgconfig_script")
++load(":make_script.bzl", "pkgconfig_script", "ldpath_script")
+ 
+ # buildifier: disable=function-docstring
+ def create_configure_script(
+@@ -33,6 +33,7 @@ def create_configure_script(
+     ext_build_dirs = inputs.ext_build_dirs
+ 
+     script = pkgconfig_script(ext_build_dirs)
++    script.extend(ldpath_script(ext_build_dirs))
+ 
+     root_path = "$$EXT_BUILD_ROOT$$/{}".format(root)
+     configure_path = "{}/{}".format(root_path, configure_command)
+diff --git a/foreign_cc/private/framework/toolchains/commands.bzl b/foreign_cc/private/framework/toolchains/commands.bzl
+index e4f1073..ce201f9 100644
+--- a/foreign_cc/private/framework/toolchains/commands.bzl
++++ b/foreign_cc/private/framework/toolchains/commands.bzl
+@@ -128,6 +128,17 @@ PLATFORM_COMMANDS = {
+             _argument_info(name = "else_text", data_type = type(""), doc = "Else block text"),
+         ],
+     ),
++    "increment_ld_library_path": _command_info(
++        arguments = [
++            _argument_info(
++                name = "source",
++                data_type = type(""),
++                doc = "Source directory",
++            ),
++        ],
++        doc = "Find shared libraries under the provided source directory and add them " +
++            "to (DY)LD_LIBRARY_PATH",
++    ),
+     "increment_pkg_config_path": _command_info(
+         arguments = [
+             _argument_info(
+diff --git a/foreign_cc/private/framework/toolchains/linux_commands.bzl b/foreign_cc/private/framework/toolchains/linux_commands.bzl
+index 69bd3c9..ee62056 100644
+--- a/foreign_cc/private/framework/toolchains/linux_commands.bzl
++++ b/foreign_cc/private/framework/toolchains/linux_commands.bzl
+@@ -173,6 +173,16 @@ fi
+ def script_prelude():
+     return "set -euo pipefail"
+ 
++def increment_ld_library_path(_source):
++    text = """\
++    local children=$(find "$1" -name '*.so')
++    for child in $children; do
++      export LD_LIBRARY_PATH="$${LD_LIBRARY_PATH:-}$$:$(dirname $child)"
++    done
++"""
++    return FunctionAndCallInfo(text = text)
++
++
+ def increment_pkg_config_path(_source):
+     text = """\
+ local children=$(find "$1" -mindepth 1 -name '*.pc')
+@@ -268,6 +278,7 @@ commands = struct(
+     env = env,
+     export_var = export_var,
+     if_else = if_else,
++    increment_ld_library_path = increment_ld_library_path,
+     increment_pkg_config_path = increment_pkg_config_path,
+     local_var = local_var,
+     mkdirs = mkdirs,
+diff --git a/foreign_cc/private/framework/toolchains/macos_commands.bzl b/foreign_cc/private/framework/toolchains/macos_commands.bzl
+index a749ae2..2868a3c 100644
+--- a/foreign_cc/private/framework/toolchains/macos_commands.bzl
++++ b/foreign_cc/private/framework/toolchains/macos_commands.bzl
+@@ -182,6 +182,15 @@ fi
+ def script_prelude():
+     return "set -euo pipefail"
+ 
++def increment_ld_library_path(_source):
++    text = """\
++    local children=$(find "$1" -name '*.dylib')
++    for child in $children; do
++      export DYLD_LIBRARY_PATH="$${DYLD_LIBRARY_PATH:-}$$:$(dirname $child)"
++    done
++"""
++    return FunctionAndCallInfo(text = text)
++
+ def increment_pkg_config_path(_source):
+     text = """\
+ local children=$(find "$1/" -mindepth 1 -name '*.pc')
+@@ -281,6 +290,7 @@ commands = struct(
+     env = env,
+     export_var = export_var,
+     if_else = if_else,
++    increment_ld_library_path = increment_ld_library_path,
+     increment_pkg_config_path = increment_pkg_config_path,
+     local_var = local_var,
+     mkdirs = mkdirs,
+diff --git a/foreign_cc/private/make_script.bzl b/foreign_cc/private/make_script.bzl
+index 0dd6126..9a570ca 100644
+--- a/foreign_cc/private/make_script.bzl
++++ b/foreign_cc/private/make_script.bzl
+@@ -49,6 +49,14 @@ def create_make_script(
+     script.append("##disable_tracing##")
+     return script
+ 
++def ldpath_script(ext_build_dirs):
++    script = []
++    for ext_dir in ext_build_dirs:
++        script.append("##increment_ld_library_path## $$EXT_BUILD_DEPS$$/" + ext_dir.basename)
++    script.append("echo \"LD_LIBRARY_PATH=$${LD_LIBRARY_PATH:-}$$\"")
++    return script
++
++
+ def pkgconfig_script(ext_build_dirs):
+     """Create a script fragment to configure pkg-config
+ 
+-- 
+2.43.0
+

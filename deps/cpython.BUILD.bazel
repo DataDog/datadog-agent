@@ -135,8 +135,8 @@ configure_make(
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
         # Allow python to test its modules at build time
-        "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
-        "DYLD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
+        # "LD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
+        # "DYLD_LIBRARY_PATH": "$$EXT_BUILD_DEPS/lib:$$EXT_BUILD_DEPS/openssl/lib",
     } | select({
             "@platforms//os:macos": {
                 # https://github.com/bazelbuild/bazel/issues/5127
