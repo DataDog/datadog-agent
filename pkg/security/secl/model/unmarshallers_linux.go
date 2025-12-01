@@ -724,6 +724,7 @@ func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.MountID = binary.NativeEndian.Uint32(data[0:4])
+	e.MountIDUnique = binary.NativeEndian.Uint64(data[4:12])
 
 	return 8, nil
 }
