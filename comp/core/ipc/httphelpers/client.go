@@ -58,7 +58,6 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 				return nil, err
 			}
 
-			log.Infof("Dial vsock socket with CID %d and port %d", cid, port)
 			conn, err := vsock.Dial(cid, uint32(port), &vsock.Config{})
 			if err != nil {
 				return nil, err

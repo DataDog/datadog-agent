@@ -247,7 +247,6 @@ func start(remoteTagger *remoteTagger) error {
 					return nil, err
 				}
 
-				remoteTagger.log.Infof("Dialing vsock socket with CID %d and port %d", cid, port)
 				return vsock.Dial(cid, uint32(port), &vsock.Config{})
 			}
 			return net.Dial("tcp", url)

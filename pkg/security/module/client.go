@@ -143,6 +143,7 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 		return nil, errors.New("runtime_security_config.socket must be set, events will not be sent to the security agent")
 	}
 
+	seclog.Infof("connecting to security agent via socket: %s", cfg.SocketPath)
 	family, socketPath := socket.GetSocketAddress(cfg.SocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
@@ -163,6 +164,7 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 		}),
 	}
 
+	seclog.Infof("using socket family '%s' and path '%s' to connect to security agent", family, socketPath)
 	if family == "vsock" {
 		cmdPort, parseErr := strconv.Atoi(socketPath)
 		if parseErr != nil {
@@ -174,7 +176,6 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 		}
 
 		socketPath = "passthrough:target"
-		seclog.Infof("adding vsock dialer to connect to security agent on port %d", cmdPort)
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
 			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))

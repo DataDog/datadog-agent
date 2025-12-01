@@ -11,9 +11,7 @@ import (
 	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
-
 	"github.com/mdlayher/vsock"
 )
 
@@ -44,7 +42,6 @@ func getListener(address string) (net.Listener, error) {
 			return nil, err
 		}
 
-		log.Infof("Listening on vsock socket with CID %d and port %d", cid, port)
 		listener, err := vsock.ListenContextID(cid, uint32(port), &vsock.Config{})
 		return listener, err
 	}

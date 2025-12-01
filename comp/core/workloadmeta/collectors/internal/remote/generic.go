@@ -100,8 +100,6 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 			if err != nil {
 				return nil, err
 			}
-
-			log.Infof("Dial vsock socket with CID %d and port %d", cid, c.StreamHandler.Port())
 			return vsock.Dial(cid, uint32(c.StreamHandler.Port()), &vsock.Config{})
 		}
 		return net.Dial("tcp", url)
