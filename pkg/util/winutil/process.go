@@ -532,7 +532,7 @@ func GetFileDescription(executablePath string) (string, error) {
 
 	var langCodePagePtr *uint16
 	var langCodePageLen uint32
-	ret, _, err = procVerQueryValueW.Call(
+	ret, _, _ = procVerQueryValueW.Call(
 		uintptr(unsafe.Pointer(&data[0])),
 		uintptr(unsafe.Pointer(subBlockPtr)),
 		uintptr(unsafe.Pointer(&langCodePagePtr)),
@@ -559,9 +559,9 @@ func GetFileDescription(executablePath string) (string, error) {
 		return "", fmt.Errorf("failed to create file description query: %w", err)
 	}
 
-	var fileDescPtr uintptr
+	var fileDescPtr *uint16
 	var fileDescLen uint32
-	ret, _, err = procVerQueryValueW.Call(
+	ret, _, _ = procVerQueryValueW.Call(
 		uintptr(unsafe.Pointer(&data[0])),
 		uintptr(unsafe.Pointer(fileDescQueryPtr)),
 		uintptr(unsafe.Pointer(&fileDescPtr)),
@@ -569,34 +569,7 @@ func GetFileDescription(executablePath string) (string, error) {
 	)
 
 	if ret == 0 || fileDescLen == 0 {
-		// Try alternative common language codes
-		alternativeLangCodes := []string{"040904b0", "040904e4", "00000000"}
-		for _, altLangCode := range alternativeLangCodes {
-			if altLangCode == langCodePage {
-				continue // Already tried this one
-			}
-
-			fileDescQuery = fmt.Sprintf("\\StringFileInfo\\%s\\FileDescription", altLangCode)
-			fileDescQueryPtr, err = syscall.UTF16PtrFromString(fileDescQuery)
-			if err != nil {
-				continue
-			}
-
-			ret, _, _ = procVerQueryValueW.Call(
-				uintptr(unsafe.Pointer(&data[0])),
-				uintptr(unsafe.Pointer(fileDescQueryPtr)),
-				uintptr(unsafe.Pointer(&fileDescPtr)),
-				uintptr(unsafe.Pointer(&fileDescLen)),
-			)
-
-			if ret != 0 && fileDescLen > 0 {
-				break
-			}
-		}
-
-		if ret == 0 || fileDescLen == 0 {
-			return "", fmt.Errorf("FileDescription not found in version info")
-		}
+		return "", fmt.Errorf("FileDescription not found in version info")
 	}
 
 	// Convert the UTF16 string to Go string
