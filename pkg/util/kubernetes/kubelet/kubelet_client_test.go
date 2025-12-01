@@ -139,8 +139,8 @@ func TestQuery(t *testing.T) {
 					apiServerHost: APIServer.URL,
 					nodeName:      "abc",
 				},
-				kubeletURL:      kubelet.URL,
-				ressponseBuffer: bytes.NewBuffer(make([]byte, 0, 64*1024)),
+				kubeletURL:     kubelet.URL,
+				responseBuffer: bytes.NewBuffer(make([]byte, 0, 64*1024)),
 			}
 
 			_, status, err := kc.query(context.Background(), kubeletPodPath)
