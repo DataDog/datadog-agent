@@ -595,14 +595,43 @@ def docker_build(
             cache_dir = os.path.join(home, ".omnibus-docker-cache")
 
     omnibus_dir = os.path.join(cache_dir, "omnibus")
-    git_cache_dir = os.path.join(cache_dir, "git-cache")
-    opt_dir = os.path.join(cache_dir, "opt-datadog-agent")
     gems_dir = os.path.join(cache_dir, "gems")
     go_mod_dir = os.path.join(cache_dir, "go-mod")
     go_build_dir = os.path.join(cache_dir, "go-build")
 
+    # ┌─────────────────────────────────────────────────────────────────────────┐
+    # │ VIRTIO-FS WORKAROUND: Single Volume for Git Cache + Install Dir         │
+    # ├─────────────────────────────────────────────────────────────────────────┤
+    # │ Docker Desktop's VirtioFS can corrupt git objects when operations       │
+    # │ span multiple bind mounts. Omnibus's git cache uses --git-dir separate  │
+    # │ from --work-tree, which normally means reads from /opt/datadog-agent    │
+    # │ and writes to /omnibus-git-cache cross volume boundaries.               │
+    # │                                                                         │
+    # │ VirtioFS may process I/O to different mounts through independent        │
+    # │ channels, causing ordering issues that corrupt git's loose objects.     │
+    # │                                                                         │
+    # │ Solution: Put both directories under ONE bind mount, use a symlink      │
+    # │ to maintain the expected /opt/datadog-agent path:                       │
+    # │                                                                         │
+    # │   Host: ~/.omnibus-docker-cache/omnibus-state/                          │
+    # │         ├── git-cache/opt/datadog-agent/  (git objects)                 │
+    # │         └── opt/datadog-agent/            (build artifacts)             │
+    # │                                                                         │
+    # │   Container: /omnibus-state/  (single volume mount)                     │
+    # │              ├── git-cache/...                                          │
+    # │              └── opt/datadog-agent/                                     │
+    # │                        ▲                                                │
+    # │              /opt/datadog-agent ──symlink──┘                            │
+    # │                                                                         │
+    # │ See: https://github.com/docker/for-mac/issues/7494                      │
+    # │      https://docs.kernel.org/filesystems/virtiofs.html                  │
+    # └─────────────────────────────────────────────────────────────────────────┘
+    omnibus_state_dir = os.path.join(cache_dir, "omnibus-state")
+    git_cache_subdir = os.path.join(omnibus_state_dir, "git-cache")
+    opt_subdir = os.path.join(omnibus_state_dir, "opt", "datadog-agent")
+
     # Create directories if they don't exist
-    for d in [omnibus_dir, git_cache_dir, opt_dir, gems_dir, go_mod_dir, go_build_dir]:
+    for d in [omnibus_dir, omnibus_state_dir, git_cache_subdir, opt_subdir, gems_dir, go_mod_dir, go_build_dir]:
         os.makedirs(d, exist_ok=True)
 
     # Get current working directory (repo root)
@@ -610,7 +639,7 @@ def docker_build(
 
     # Build environment variables
     env_args = [
-        "-e OMNIBUS_GIT_CACHE_DIR=/omnibus-git-cache",
+        "-e OMNIBUS_GIT_CACHE_DIR=/omnibus-state/git-cache",
         f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
         f"-e DD_CC={cc}",
         f"-e DD_CXX={cxx}",
@@ -619,11 +648,10 @@ def docker_build(
     if not compress:
         env_args.append("-e COMPRESS_PACKAGE=false")
 
-    # Build volume mounts
+    # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
     volume_args = [
         f"-v {omnibus_dir}:/omnibus",
-        f"-v {git_cache_dir}:/omnibus-git-cache",
-        f"-v {opt_dir}:/opt/datadog-agent",
+        f"-v {omnibus_state_dir}:/omnibus-state",
         f"-v {gems_dir}:/gems",
         f"-v {go_mod_dir}:/go/pkg/mod",
         f"-v {go_build_dir}:/root/.cache/go-build",
@@ -637,8 +665,17 @@ def docker_build(
     # Remove existing container if present
     ctx.run(f"docker rm -f {container_name} 2>/dev/null || true", warn=True, hide=True)
 
-    # Wrap the build command with git safe.directory config to avoid permission issues
-    build_cmd = "bash -c \"git config --global --add safe.directory /go/src/github.com/DataDog/datadog-agent && dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems\""
+    # Create symlink for /opt/datadog-agent pointing to the single volume mount
+    # This ensures git-cache and install-dir share the same VirtioFS I/O channel
+    build_cmd = (
+        'bash -c "'
+        'mkdir -p /omnibus-state/opt/datadog-agent && '
+        'rm -rf /opt/datadog-agent && '
+        'ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent && '
+        'git config --global --add safe.directory /go/src/github.com/DataDog/datadog-agent && '
+        'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems'
+        '"'
+    )
     docker_cmd = (
         f"docker run --name {container_name} "
         f"{env_str} {vol_str} "
