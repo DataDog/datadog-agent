@@ -104,6 +104,7 @@ public:
     void setWritePersistentCacheCb(cb_write_persistent_cache_t);
     void setReadPersistentCacheCb(cb_read_persistent_cache_t);
     void setObfuscateSqlCb(cb_obfuscate_sql_t);
+    void setBatchObfuscateSqlCb(cb_batch_obfuscate_sql_t);
     void setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t);
     void setGetProcessStartTimeCb(cb_get_process_start_time_t);
     void setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t);

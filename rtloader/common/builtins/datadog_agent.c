@@ -23,6 +23,7 @@ static cb_set_external_tags_t cb_set_external_tags = NULL;
 static cb_write_persistent_cache_t cb_write_persistent_cache = NULL;
 static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
+static cb_batch_obfuscate_sql_t cb_batch_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
 static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
@@ -43,6 +44,7 @@ static PyObject *set_external_tags(PyObject *self, PyObject *args);
 static PyObject *write_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *batch_obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
@@ -63,6 +65,7 @@ static PyMethodDef methods[] = {
     { "write_persistent_cache", write_persistent_cache, METH_VARARGS, "Store a value for a given key." },
     { "read_persistent_cache", read_persistent_cache, METH_VARARGS, "Retrieve the value associated with a key." },
     { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL string." },
+    { "batch_obfuscate_sql", (PyCFunction)batch_obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Batch obfuscate & normalize SQL strings." },
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
     { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
@@ -140,6 +143,11 @@ void _set_tracemalloc_enabled_cb(cb_tracemalloc_enabled_t cb)
 void _set_obfuscate_sql_cb(cb_obfuscate_sql_t cb)
 {
     cb_obfuscate_sql = cb;
+}
+
+void _set_batch_obfuscate_sql_cb(cb_batch_obfuscate_sql_t cb)
+{
+    cb_batch_obfuscate_sql = cb;
 }
 
 void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t cb)
@@ -921,6 +929,54 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
 
     cgo_free(error_message);
     cgo_free(obfCmd);
+    PyGILState_Release(gstate);
+    return retval;
+}
+
+/*! \fn PyObject *batch_obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.batch_obfuscate_sql` method,
+    obfuscating multiple SQL queries in a single call.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the queries JSON string.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
+    \return A PyObject* pointer to the JSON string containing results.
+
+    This function is callable as the `datadog_agent.batch_obfuscate_sql` Python method and
+    uses the `cb_batch_obfuscate_sql()` callback to batch process queries.
+*/
+static PyObject *batch_obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_batch_obfuscate_sql == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *queriesJSON = NULL;
+    char *optionsObj = NULL;
+    static char *kwlist[] = {"queries_json", "options", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &queriesJSON, &optionsObj)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *resultsJSON = NULL;
+    char *error_message = NULL;
+    resultsJSON = cb_batch_obfuscate_sql(queriesJSON, optionsObj, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (resultsJSON == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty batch_obfuscate_sql response");
+    } else {
+        retval = PyUnicode_FromString(resultsJSON);
+    }
+
+    cgo_free(error_message);
+    cgo_free(resultsJSON);
     PyGILState_Release(gstate);
     return retval;
 }

@@ -318,6 +318,77 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	return TrackedCString(obfuscatedQuery.Query)
 }
 
+// BatchObfuscateSQL obfuscates multiple SQL queries in a single call, writing errors into errResult
+// if the operation fails. The queries are provided as a JSON array string, and options are optional.
+//
+//export BatchObfuscateSQL
+func BatchObfuscateSQL(queriesJSON, opts *C.char, errResult **C.char) *C.char {
+	// Parse options once for all queries
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		optStr = "{}"
+	}
+
+	var sqlOpts sqlConfig
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		log.Errorf("Failed to unmarshal batch obfuscation options: %s", err.Error())
+		*errResult = TrackedCString(fmt.Sprintf("Failed to parse options: %s", err.Error()))
+		return nil
+	}
+
+	// Parse queries array from JSON
+	var queries []string
+	queriesStr := C.GoString(queriesJSON)
+	if err := json.Unmarshal([]byte(queriesStr), &queries); err != nil {
+		log.Errorf("Failed to unmarshal queries array: %s", err.Error())
+		*errResult = TrackedCString(fmt.Sprintf("Failed to parse queries: %s", err.Error()))
+		return nil
+	}
+
+	// Handle empty batch
+	if len(queries) == 0 {
+		return TrackedCString("[]")
+	}
+
+	// Process each query with fail-fast error handling
+	obfuscator := lazyInitObfuscator()
+	results := make([]interface{}, len(queries))
+
+	for i, query := range queries {
+		obfuscatedQuery, err := obfuscator.ObfuscateSQLStringWithOptions(
+			query,
+			&sqlOpts.SQLConfig,
+			optStr,
+		)
+		if err != nil {
+			// Fail-fast: stop on first error
+			*errResult = TrackedCString(fmt.Sprintf(
+				"Failed to obfuscate query at index %d: %s",
+				i,
+				err.Error(),
+			))
+			return nil
+		}
+
+		// Return either just query string or full metadata object
+		if sqlOpts.ReturnJSONMetadata {
+			results[i] = obfuscatedQuery
+		} else {
+			results[i] = obfuscatedQuery.Query
+		}
+	}
+
+	// Marshal results array to JSON
+	out, err := json.Marshal(results)
+	if err != nil {
+		*errResult = TrackedCString(fmt.Sprintf("Failed to marshal results: %s", err.Error()))
+		return nil
+	}
+
+	// memory will be freed by caller
+	return TrackedCString(string(out))
+}
+
 // ObfuscateSQLExecPlan obfuscates the provided json query execution plan, writing the error into errResult if the
 // operation fails
 //

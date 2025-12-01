@@ -1025,6 +1025,11 @@ void Three::setObfuscateSqlCb(cb_obfuscate_sql_t cb)
     _set_obfuscate_sql_cb(cb);
 }
 
+void Three::setBatchObfuscateSqlCb(cb_batch_obfuscate_sql_t cb)
+{
+    _set_batch_obfuscate_sql_cb(cb);
+}
+
 void Three::setObfuscateSqlExecPlanCb(cb_obfuscate_sql_exec_plan_t cb)
 {
     _set_obfuscate_sql_exec_plan_cb(cb);
