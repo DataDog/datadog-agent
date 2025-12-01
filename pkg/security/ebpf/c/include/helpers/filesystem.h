@@ -11,6 +11,15 @@
 #include "dentry_resolver.h"
 #include "discarders.h"
 
+static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
+    u32 key = mount_id % PATH_ID_MAP_SIZE;
+
+    u32 *id = bpf_map_lookup_elem(&path_id, &key);
+    if (id) {
+        __sync_fetch_and_add(id, 1);
+    }
+}
+
 #define PATH_ID_LOW_MASK 0xFFFFFF
 #define PATH_ID(high, low) ((u32)((high << 24) | (low & PATH_ID_LOW_MASK)))
 
