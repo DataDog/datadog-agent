@@ -405,7 +405,11 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	entry, exists := mr.redemption.Get(mountID)
-	if !exists || time.Since(entry.insertedAt) > redemptionTime {
+	if !exists {
+		return nil
+	}
+	if time.Since(entry.insertedAt) > redemptionTime {
+		mr.redemption.Remove(mountID)
 		return nil
 	}
 	return entry.mount

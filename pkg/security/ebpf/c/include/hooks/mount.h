@@ -604,10 +604,10 @@ HOOK_SYSCALL_EXIT(move_mount) {
 HOOK_ENTRY("cleanup_mnt")
 int hook_cleanup_mnt(ctx_t *ctx) {
     struct mount *mnt = (struct mount *)CTX_PARM1(ctx);
-    u32 mnt_id = get_mount_mount_id(mnt);
 
     struct mount_released_event_t event = {
-        .mount_id = mnt_id,
+        .mount_id = get_mount_mount_id(mnt),
+        .mount_id_unique = get_mount_mount_id_unique(mnt),
     };
 
     send_event(ctx, EVENT_MOUNT_RELEASED, event);
