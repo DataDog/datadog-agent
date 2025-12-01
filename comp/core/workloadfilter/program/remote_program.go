@@ -7,7 +7,6 @@ package program
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -75,7 +74,7 @@ func (p *RemoteProgram) Evaluate(entity workloadfilter.Filterable) workloadfilte
 	// Create the context with the auth token
 	queryCtx, queryCancel := context.WithTimeout(
 		metadata.NewOutgoingContext(p.Provider.GetContext(), metadata.MD{
-			"authorization": []string{fmt.Sprintf("Bearer %s", p.Provider.GetAuthToken())},
+			"authorization": []string{"Bearer " + p.Provider.GetAuthToken()},
 		}),
 		1*time.Second,
 	)

@@ -182,7 +182,7 @@ func (r *remoteFilterStore) stop(_ context.Context) error {
 // GetClient returns the secure agent client
 func (r *remoteFilterStore) GetClient() (pb.AgentSecureClient, error) {
 	if r.client == nil {
-		return nil, fmt.Errorf("client not initialized")
+		return nil, errors.New("client not initialized")
 	}
 	return r.client, nil
 }

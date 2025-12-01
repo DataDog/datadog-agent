@@ -7,7 +7,7 @@
 package proto
 
 import (
-	"fmt"
+	"errors"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -30,8 +30,10 @@ func NewEvaluateRequest(name string, entity workloadfilter.Filterable) (*pb.Work
 		req.Workload = &pb.WorkloadFilterEvaluateRequest_KubeService{KubeService: e.FilterKubeService}
 	case *workloadfilter.Endpoint:
 		req.Workload = &pb.WorkloadFilterEvaluateRequest_KubeEndpoint{KubeEndpoint: e.FilterKubeEndpoint}
+	case nil:
+		return nil, errors.New("nil entity is not supported workload type")
 	default:
-		return nil, fmt.Errorf("unsupported workload type %T", entity)
+		return nil, errors.New("unsupported workload type: " + string(e.Type()))
 	}
 
 	return req, nil
@@ -42,31 +44,31 @@ func ExtractFilterable(req *pb.WorkloadFilterEvaluateRequest) (workloadfilter.Fi
 	switch payload := req.GetWorkload().(type) {
 	case *pb.WorkloadFilterEvaluateRequest_Container:
 		if payload.Container == nil {
-			return nil, fmt.Errorf("missing container payload")
+			return nil, errors.New("missing container payload")
 		}
 		return &workloadfilter.Container{FilterContainer: payload.Container}, nil
 	case *pb.WorkloadFilterEvaluateRequest_Pod:
 		if payload.Pod == nil {
-			return nil, fmt.Errorf("missing pod payload")
+			return nil, errors.New("missing pod payload")
 		}
 		return &workloadfilter.Pod{FilterPod: payload.Pod}, nil
 	case *pb.WorkloadFilterEvaluateRequest_Process:
 		if payload.Process == nil {
-			return nil, fmt.Errorf("missing process payload")
+			return nil, errors.New("missing process payload")
 		}
 		return &workloadfilter.Process{FilterProcess: payload.Process}, nil
 	case *pb.WorkloadFilterEvaluateRequest_KubeService:
 		if payload.KubeService == nil {
-			return nil, fmt.Errorf("missing kube_service payload")
+			return nil, errors.New("missing kube_service payload")
 		}
 		return &workloadfilter.Service{FilterKubeService: payload.KubeService}, nil
 	case *pb.WorkloadFilterEvaluateRequest_KubeEndpoint:
 		if payload.KubeEndpoint == nil {
-			return nil, fmt.Errorf("missing kube_endpoint payload")
+			return nil, errors.New("missing kube_endpoint payload")
 		}
 		return &workloadfilter.Endpoint{FilterKubeEndpoint: payload.KubeEndpoint}, nil
 	default:
-		return nil, fmt.Errorf("unsupported workload payload")
+		return nil, errors.New("unsupported workload payload")
 	}
 }
 
