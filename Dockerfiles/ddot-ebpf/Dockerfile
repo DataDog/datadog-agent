@@ -43,4 +43,4 @@ COPY --from=builder /workspace/datadog-agent/bin/full-host-profiler/dist/host-pr
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
 ENTRYPOINT ["/opt/datadog-agent/embedded/bin/full-host-profiler"]
-CMD ["run"]
+CMD ["run", "--config", "/etc/datadog-agent/host-profiler-config.yaml"]
