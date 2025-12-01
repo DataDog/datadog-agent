@@ -65,7 +65,7 @@ func MakeCommand(globalConfGetter func() *globalparams.GlobalParams) []*cobra.Co
 }
 
 func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
-	var opts []fx.Option = []fx.Option{
+	var opts = []fx.Option{
 		hostprofiler.Bundle(collectorimpl.NewParams(cliParams.GlobalParams.ConfFilePath, cliParams.GoRuntimeMetrics)),
 		logging.DefaultFxLoggingOption(),
 	}

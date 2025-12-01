@@ -7,6 +7,7 @@ package processor
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -38,7 +39,7 @@ type jsonPayload struct {
 // Encode encodes a message into a JSON byte array.
 func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 	if msg.State != message.StateRendered {
-		return fmt.Errorf("message passed to encoder isn't rendered")
+		return errors.New("message passed to encoder isn't rendered")
 	}
 
 	ts := time.Now().UTC()

@@ -164,21 +164,21 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v83165674-efec7b86
+  CI_IMAGE_BTF_GEN: v84300938-c7d07831
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v83165674-efec7b86
+  CI_IMAGE_DOCKER_X64: v84300938-c7d07831
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v83165674-efec7b86
+  CI_IMAGE_DOCKER_ARM64: v84300938-c7d07831
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v83165674-efec7b86
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v84300938-c7d07831
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v83165674-efec7b86
+  CI_IMAGE_LINUX: v84300938-c7d07831
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v83165674-efec7b86
+  CI_IMAGE_RPM_X64: v84300938-c7d07831
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v83165674-efec7b86
+  CI_IMAGE_RPM_ARM64: v84300938-c7d07831
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v83165674-efec7b86
+  CI_IMAGE_RPM_ARMHF: v84300938-c7d07831
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
   CI_IMAGE_WIN_LTSC2022_X64: v83281312-efec7b86
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
@@ -532,10 +532,14 @@ workflow:
     allow_failure: true
 
 .on_all_builds:
+  - !reference [.except_mergequeue]
   - <<: *if_run_all_builds
   - <<: *on_build_changes
 
 .on_all_install_script_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
   - <<: *if_installer_tests
   - <<: *on_build_changes
 

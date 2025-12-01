@@ -46,7 +46,7 @@ func imagePullMetricTransformer(s sender.Sender, _ string, sample model.Sample) 
 
 	metricTags := []string{
 		fmt.Sprintf("grpc_service:%s", metric["grpc_service"]),
-		fmt.Sprintf("grpc_code:%s", toSnakeCase(string(grpcCode))),
+		"grpc_code:" + toSnakeCase(string(grpcCode)),
 	}
 
 	s.MonotonicCount("containerd.image.pull", float64(sample.Value), "", metricTags)

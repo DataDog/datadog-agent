@@ -260,8 +260,8 @@ func processService(ksvc *v1.Service, filterStore workloadfilter.Component) *Kub
 
 	// Service tags
 	svc.tags = []string{
-		fmt.Sprintf("kube_service:%s", ksvc.Name),
-		fmt.Sprintf("kube_namespace:%s", ksvc.Namespace),
+		"kube_service:" + ksvc.Name,
+		"kube_namespace:" + ksvc.Namespace,
 	}
 
 	// Standard tags from the service's labels

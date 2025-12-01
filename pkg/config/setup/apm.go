@@ -8,7 +8,7 @@ package setup
 import (
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"runtime"
 	"strconv"
 	"strings"
@@ -277,11 +277,11 @@ func splitCSVString(s string, sep rune) ([]string, error) {
 func parseNameAndRate(token string) (string, float64, error) {
 	parts := strings.Split(token, "=")
 	if len(parts) != 2 {
-		return "", 0, fmt.Errorf("Bad format")
+		return "", 0, errors.New("Bad format")
 	}
 	rate, err := strconv.ParseFloat(parts[1], 64)
 	if err != nil {
-		return "", 0, fmt.Errorf("Unabled to parse rate")
+		return "", 0, errors.New("Unabled to parse rate")
 	}
 	return parts[0], rate, nil
 }
