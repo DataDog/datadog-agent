@@ -28,6 +28,16 @@ enum telemetry_counter {
     tcp_done_connection_flush,
     tcp_close_connection_flush,
     tcp_syn_retransmit,
+    tcp_recvmsg_kprobe_args_calls,
+    tcp_recvmsg_kprobe_map_update_calls,
+    tcp_recvmsg_kretprobe_map_lookup_calls,
+    tcp_recvmsg_kretprobe_map_delete_calls,
+    tcp_recvmsg_kretprobe_handle_recv_calls,
+    net_dev_queue_calls,
+    net_dev_queue_skb_to_tuple_calls,
+    net_dev_queue_read_conn_tuple_calls,
+    net_dev_queue_is_equal_calls,
+    net_dev_queue_not_equal_calls,
 };
 
 static __always_inline void __increment_telemetry_count(enum telemetry_counter counter_name, int times) {
@@ -78,6 +88,36 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
     case tcp_syn_retransmit:
         __sync_fetch_and_add(&val->tcp_syn_retransmit, times);
         break;
+    case tcp_recvmsg_kprobe_args_calls:
+        __sync_fetch_and_add(&val->tcp_recvmsg_kprobe_args_calls, times);
+        break;
+    case tcp_recvmsg_kprobe_map_update_calls:
+        __sync_fetch_and_add(&val->tcp_recvmsg_kprobe_map_update_calls, times);
+        break;
+    case tcp_recvmsg_kretprobe_map_lookup_calls:
+        __sync_fetch_and_add(&val->tcp_recvmsg_kretprobe_map_lookup_calls, times);
+        break;
+    case tcp_recvmsg_kretprobe_map_delete_calls:
+        __sync_fetch_and_add(&val->tcp_recvmsg_kretprobe_map_delete_calls, times);
+        break;
+    case tcp_recvmsg_kretprobe_handle_recv_calls:
+        __sync_fetch_and_add(&val->tcp_recvmsg_kretprobe_handle_recv_calls, times);
+        break;
+    case net_dev_queue_calls:
+        __sync_fetch_and_add(&val->net_dev_queue_calls, times);
+        break;
+    case net_dev_queue_skb_to_tuple_calls:
+        __sync_fetch_and_add(&val->net_dev_queue_skb_to_tuple_calls, times);
+        break;
+    case net_dev_queue_read_conn_tuple_calls:
+        __sync_fetch_and_add(&val->net_dev_queue_read_conn_tuple_calls, times);
+        break;
+    case net_dev_queue_is_equal_calls:
+        __sync_fetch_and_add(&val->net_dev_queue_is_equal_calls, times);
+        break;
+    case net_dev_queue_not_equal_calls:
+        __sync_fetch_and_add(&val->net_dev_queue_not_equal_calls, times);
+        break;
     }
 }
 
@@ -127,5 +167,31 @@ __maybe_unused static __always_inline void sockaddr_to_addr(struct sockaddr *sa,
         log_debug("ERR(sockaddr_to_addr): invalid family: %u", family);
     }
 }
+
+// Helper function to add timing information to telemetry
+static __always_inline void add_timing_to_telemetry(__u64 *time_field, __u64 duration_ns) {
+    __u64 key = 0;
+    telemetry_t *val = bpf_map_lookup_elem(&telemetry, &key);
+    if (val == NULL) {
+        return;
+    }
+    __sync_fetch_and_add(time_field, duration_ns);
+}
+
+// Macro to record timing for a telemetry counter
+// Records both the call count and the duration
+#define RECORD_TIMING(counter_name, time_field_name, code_block) \
+    do { \
+        __u64 start_ns = bpf_ktime_get_ns(); \
+        code_block \
+        __u64 end_ns = bpf_ktime_get_ns(); \
+        __u64 duration = end_ns - start_ns; \
+        increment_telemetry_count(counter_name); \
+        __u64 key = 0; \
+        telemetry_t *val = bpf_map_lookup_elem(&telemetry, &key); \
+        if (val != NULL) { \
+            __sync_fetch_and_add(&val->time_field_name, duration); \
+        } \
+    } while(0)
 
 #endif // __TRACER_TELEMETRY_H

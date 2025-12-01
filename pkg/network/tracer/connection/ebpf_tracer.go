@@ -73,6 +73,27 @@ type EbpfTracerTelemetryData struct {
 	iterationDups               telemetry.Counter
 	iterationAborts             telemetry.Counter
 	sslCertMissed               telemetry.Counter
+	// TCP recv timing metrics (prometheus)
+	tcpRecvmsgKprobeArgsCalls           *prometheus.Desc
+	tcpRecvmsgKprobeArgsTimeNs          *prometheus.Desc
+	tcpRecvmsgKprobeMapUpdateCalls      *prometheus.Desc
+	tcpRecvmsgKprobeMapUpdateTimeNs     *prometheus.Desc
+	tcpRecvmsgKretprobeMapLookupCalls   *prometheus.Desc
+	tcpRecvmsgKretprobeMapLookupTimeNs  *prometheus.Desc
+	tcpRecvmsgKretprobeMapDeleteCalls   *prometheus.Desc
+	tcpRecvmsgKretprobeMapDeleteTimeNs  *prometheus.Desc
+	tcpRecvmsgKretprobeHandleRecvCalls  *prometheus.Desc
+	tcpRecvmsgKretprobeHandleRecvTimeNs *prometheus.Desc
+	// net_dev_queue timing metrics (prometheus)
+	netDevQueueCalls               *prometheus.Desc
+	netDevQueueSkbToTupleCalls     *prometheus.Desc
+	netDevQueueSkbToTupleTimeNs    *prometheus.Desc
+	netDevQueueReadConnTupleCalls  *prometheus.Desc
+	netDevQueueReadConnTupleTimeNs *prometheus.Desc
+	netDevQueueIsEqualCalls        *prometheus.Desc
+	netDevQueueIsEqualTimeNs       *prometheus.Desc
+	netDevQueueNotEqualCalls       *prometheus.Desc
+	netDevQueueNotEqualTimeNs      *prometheus.Desc
 
 	mu sync.Mutex
 
@@ -91,6 +112,27 @@ type EbpfTracerTelemetryData struct {
 	lastTCPDoneConnectionFlush      int64
 	lastTCPCloseConnectionFlush     int64
 	lastTCPSynRetransmit            int64
+	// TCP recv timing metrics last values
+	lastTCPRecvmsgKprobeArgsCalls           int64
+	lastTCPRecvmsgKprobeArgsTimeNs          int64
+	lastTCPRecvmsgKprobeMapUpdateCalls      int64
+	lastTCPRecvmsgKprobeMapUpdateTimeNs     int64
+	lastTCPRecvmsgKretprobeMapLookupCalls   int64
+	lastTCPRecvmsgKretprobeMapLookupTimeNs  int64
+	lastTCPRecvmsgKretprobeMapDeleteCalls   int64
+	lastTCPRecvmsgKretprobeMapDeleteTimeNs  int64
+	lastTCPRecvmsgKretprobeHandleRecvCalls  int64
+	lastTCPRecvmsgKretprobeHandleRecvTimeNs int64
+	// net_dev_queue timing metrics last values
+	lastNetDevQueueCalls               int64
+	lastNetDevQueueSkbToTupleCalls     int64
+	lastNetDevQueueSkbToTupleTimeNs    int64
+	lastNetDevQueueReadConnTupleCalls  int64
+	lastNetDevQueueReadConnTupleTimeNs int64
+	lastNetDevQueueIsEqualCalls        int64
+	lastNetDevQueueIsEqualTimeNs       int64
+	lastNetDevQueueNotEqualCalls       int64
+	lastNetDevQueueNotEqualTimeNs      int64
 }
 
 // EbpfTracerTelemetry holds telemetry from the EBPF tracer
@@ -116,21 +158,59 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 	telemetry.NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kprobe_args_calls", "Counter measuring the number of tcp_recvmsg kprobe arg extraction calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kprobe_args_time_ns", "Counter measuring the total time spent extracting kprobe args (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kprobe_map_update_calls", "Counter measuring the number of tcp_recvmsg map update calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kprobe_map_update_time_ns", "Counter measuring the total time spent in tcp_recvmsg map update calls (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kretprobe_map_lookup_calls", "Counter measuring the number of tcp_recvmsg map lookup calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kretprobe_map_lookup_time_ns", "Counter measuring the total time spent in tcp_recvmsg map lookup calls (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kretprobe_map_delete_calls", "Counter measuring the number of tcp_recvmsg map delete calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kretprobe_map_delete_time_ns", "Counter measuring the total time spent in tcp_recvmsg map delete calls (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kretprobe_handle_recv_calls", "Counter measuring the number of handle_tcp_recv calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__tcp_recvmsg_kretprobe_handle_recv_time_ns", "Counter measuring the total time spent in handle_tcp_recv calls (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_calls", "Counter measuring the number of net_dev_queue handler calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_skb_to_tuple_calls", "Counter measuring the number of sk_buff_to_tuple calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_skb_to_tuple_time_ns", "Counter measuring time spent extracting tuple from sk_buff (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_read_conn_tuple_calls", "Counter measuring the number of read_conn_tuple calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_read_conn_tuple_time_ns", "Counter measuring time spent extracting tuple from socket (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_is_equal_calls", "Counter measuring the number of is_equal calls", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_is_equal_time_ns", "Counter measuring time spent comparing tuples (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_not_equal_calls", "Counter measuring the number of not-equal path executions (normalize + map update)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_not_equal_time_ns", "Counter measuring time spent in not-equal path (normalize + map update) (nanoseconds)", nil, nil),
 	sync.Mutex{},
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
-	0,
+	0, // lastTCPSentMiscounts
+	0, // lastUnbatchedTCPClose
+	0, // lastUnbatchedUDPClose
+	0, // lastUDPSendsProcessed
+	0, // lastUDPSendsMissed
+	0, // lastUDPDroppedConns
+	0, // lastTCPDoneMissingPid
+	0, // lastTCPConnectFailedTuple
+	0, // lastTCPDoneFailedTuple
+	0, // lastTCPFinishConnectFailedTuple
+	0, // lastTCPCloseTargetFailures
+	0, // lastTCPDoneConnectionFlush
+	0, // lastTCPCloseConnectionFlush
+	0, // lastTCPSynRetransmit
+	0, // lastTCPRecvmsgKprobeArgsCalls
+	0, // lastTCPRecvmsgKprobeArgsTimeNs
+	0, // lastTCPRecvmsgKprobeMapUpdateCalls
+	0, // lastTCPRecvmsgKprobeMapUpdateTimeNs
+	0, // lastTCPRecvmsgKretprobeMapLookupCalls
+	0, // lastTCPRecvmsgKretprobeMapLookupTimeNs
+	0, // lastTCPRecvmsgKretprobeMapDeleteCalls
+	0, // lastTCPRecvmsgKretprobeMapDeleteTimeNs
+	0, // lastTCPRecvmsgKretprobeHandleRecvCalls
+	0, // lastTCPRecvmsgKretprobeHandleRecvTimeNs
+	0, // lastNetDevQueueCalls
+	0, // lastNetDevQueueSkbToTupleCalls
+	0, // lastNetDevQueueSkbToTupleTimeNs
+	0, // lastNetDevQueueReadConnTupleCalls
+	0, // lastNetDevQueueReadConnTupleTimeNs
+	0, // lastNetDevQueueIsEqualCalls
+	0, // lastNetDevQueueIsEqualTimeNs
+	0, // lastNetDevQueueNotEqualCalls
+	0, // lastNetDevQueueNotEqualTimeNs
 }
 
 // GetLastTCPSentMiscounts is used for testing
@@ -507,6 +587,10 @@ func (t *ebpfTracer) GetMap(name string) (*ebpf.Map, error) {
 }
 
 func (t *ebpfTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+	// Log telemetry metrics periodically (rate-limited to once per 30s)
+	log.Debugf("[TELEMETRY-DEBUG] GetConnections called, about to call logTelemetryMetrics")
+	t.logTelemetryMetrics()
+
 	// Iterate through all key-value pairs in map
 	key, stats := &netebpf.ConnTuple{}, &netebpf.ConnStats{}
 	seen := make(map[netebpf.ConnTuple]struct{})
@@ -641,7 +725,10 @@ func (t *ebpfTracer) Remove(conn *network.ConnectionStats) error {
 }
 
 func (t *ebpfTracer) getEBPFTelemetry() *netebpf.Telemetry {
+	log.Debugf("[TELEMETRY-DEBUG] getEBPFTelemetry called, map is nil: %v", t.ebpfTelemetryMap == nil)
+
 	if t.ebpfTelemetryMap == nil {
+		log.Warnf("[TELEMETRY-DEBUG] ebpfTelemetryMap is nil!")
 		return nil
 	}
 
@@ -649,12 +736,14 @@ func (t *ebpfTracer) getEBPFTelemetry() *netebpf.Telemetry {
 	tm := &netebpf.Telemetry{}
 	if err := t.ebpfTelemetryMap.Lookup(&zero, tm); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
-		// so let's just use a trace log
+		log.Warnf("[TELEMETRY-DEBUG] Map lookup failed: %v", err)
 		if log.ShouldLog(log.TraceLvl) {
 			log.Tracef("error retrieving the telemetry struct: %s", err)
 		}
 		return nil
 	}
+
+	log.Debugf("[TELEMETRY-DEBUG] Successfully retrieved telemetry, tcp_sent_miscounts=%d", tm.Tcp_sent_miscounts)
 	return tm
 }
 
@@ -680,6 +769,109 @@ func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
 	return result
 }
 
+// logTelemetryMetrics logs the current telemetry metrics with calculated averages
+// Should be called periodically (e.g., from GetConnections)
+func (t *ebpfTracer) logTelemetryMetrics() {
+	log.Debugf("[TELEMETRY-DEBUG] logTelemetryMetrics() calling getEBPFTelemetry, ebpfTelemetryMap=%v", t.ebpfTelemetryMap != nil)
+	ebpfTelemetry := t.getEBPFTelemetry()
+	if ebpfTelemetry == nil {
+		log.Warnf("[TELEMETRY-DEBUG] getEBPFTelemetry returned nil! Map is nil: %v", t.ebpfTelemetryMap == nil)
+		return
+	}
+
+	log.Debugf("[TELEMETRY-DEBUG] Got telemetry: tcp_recvmsg kprobe calls=%d, tcp_recvmsg kretprobe calls=%d, net_dev_queue calls=%d",
+		ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls,
+		ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls,
+		ebpfTelemetry.Net_dev_queue_calls)
+
+	EbpfTracerTelemetry.mu.Lock()
+	defer EbpfTracerTelemetry.mu.Unlock()
+
+	// TCP recv timing metrics
+	argsCalls := int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsCalls
+	if argsCalls > 0 {
+		avgArgsTime := float64(int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns)-EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsTimeNs) / float64(argsCalls)
+		updateCalls := int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateCalls
+		avgUpdateTime := float64(0)
+		if updateCalls > 0 {
+			avgUpdateTime = float64(int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns)-EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateTimeNs) / float64(updateCalls)
+		}
+		lookupCalls := int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupCalls
+		avgLookupTime := float64(0)
+		if lookupCalls > 0 {
+			avgLookupTime = float64(int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns)-EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupTimeNs) / float64(lookupCalls)
+		}
+		deleteCalls := int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteCalls
+		avgDeleteTime := float64(0)
+		if deleteCalls > 0 {
+			avgDeleteTime = float64(int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns)-EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteTimeNs) / float64(deleteCalls)
+		}
+		handleCalls := int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvCalls
+		avgHandleTime := float64(0)
+		if handleCalls > 0 {
+			avgHandleTime = float64(int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns)-EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvTimeNs) / float64(handleCalls)
+		}
+
+		log.Infof("TCP recv kprobe telemetry: args_calls=%d (avg %.2fns), update_calls=%d (avg %.2fns)", argsCalls, avgArgsTime, updateCalls, avgUpdateTime)
+		log.Infof("TCP recv kretprobe telemetry: lookup_calls=%d (avg %.2fns), delete_calls=%d (avg %.2fns), handle_recv_calls=%d (avg %.2fns)",
+			lookupCalls, avgLookupTime, deleteCalls, avgDeleteTime, handleCalls, avgHandleTime)
+
+		// Update last values
+		EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsCalls = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls)
+		EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns)
+		EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateCalls = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls)
+		EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns)
+		EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls)
+		EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns)
+		EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls)
+		EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns)
+		EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls)
+		EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns)
+	}
+
+	// net_dev_queue timing metrics
+	netDevCalls := int64(ebpfTelemetry.Net_dev_queue_calls) - EbpfTracerTelemetry.lastNetDevQueueCalls
+	if netDevCalls > 0 {
+		skbToTupleCalls := int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls) - EbpfTracerTelemetry.lastNetDevQueueSkbToTupleCalls
+		avgSkbToTuple := float64(0)
+		if skbToTupleCalls > 0 {
+			avgSkbToTuple = float64(int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns)-EbpfTracerTelemetry.lastNetDevQueueSkbToTupleTimeNs) / float64(skbToTupleCalls)
+		}
+
+		readConnCalls := int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls) - EbpfTracerTelemetry.lastNetDevQueueReadConnTupleCalls
+		avgReadConn := float64(0)
+		if readConnCalls > 0 {
+			avgReadConn = float64(int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns)-EbpfTracerTelemetry.lastNetDevQueueReadConnTupleTimeNs) / float64(readConnCalls)
+		}
+
+		isEqualCalls := int64(ebpfTelemetry.Net_dev_queue_is_equal_calls) - EbpfTracerTelemetry.lastNetDevQueueIsEqualCalls
+		avgIsEqual := float64(0)
+		if isEqualCalls > 0 {
+			avgIsEqual = float64(int64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns)-EbpfTracerTelemetry.lastNetDevQueueIsEqualTimeNs) / float64(isEqualCalls)
+		}
+
+		notEqualCalls := int64(ebpfTelemetry.Net_dev_queue_not_equal_calls) - EbpfTracerTelemetry.lastNetDevQueueNotEqualCalls
+		avgNotEqual := float64(0)
+		if notEqualCalls > 0 {
+			avgNotEqual = float64(int64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns)-EbpfTracerTelemetry.lastNetDevQueueNotEqualTimeNs) / float64(notEqualCalls)
+		}
+
+		log.Infof("net_dev_queue telemetry: calls=%d, skb_to_tuple=%d (avg %.2fns), read_conn=%d (avg %.2fns), is_equal=%d (avg %.2fns), not_equal=%d (avg %.2fns)",
+			netDevCalls, skbToTupleCalls, avgSkbToTuple, readConnCalls, avgReadConn, isEqualCalls, avgIsEqual, notEqualCalls, avgNotEqual)
+
+		// Update last values
+		EbpfTracerTelemetry.lastNetDevQueueCalls = int64(ebpfTelemetry.Net_dev_queue_calls)
+		EbpfTracerTelemetry.lastNetDevQueueSkbToTupleCalls = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls)
+		EbpfTracerTelemetry.lastNetDevQueueSkbToTupleTimeNs = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns)
+		EbpfTracerTelemetry.lastNetDevQueueReadConnTupleCalls = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls)
+		EbpfTracerTelemetry.lastNetDevQueueReadConnTupleTimeNs = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns)
+		EbpfTracerTelemetry.lastNetDevQueueIsEqualCalls = int64(ebpfTelemetry.Net_dev_queue_is_equal_calls)
+		EbpfTracerTelemetry.lastNetDevQueueIsEqualTimeNs = int64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns)
+		EbpfTracerTelemetry.lastNetDevQueueNotEqualCalls = int64(ebpfTelemetry.Net_dev_queue_not_equal_calls)
+		EbpfTracerTelemetry.lastNetDevQueueNotEqualTimeNs = int64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns)
+	}
+}
+
 // Describe returns all descriptions of the collector
 func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpSentMiscounts
@@ -696,17 +888,41 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpDoneConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpCloseConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpSynRetransmit
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKprobeArgsCalls
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKprobeArgsTimeNs
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateCalls
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateTimeNs
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupCalls
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupTimeNs
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteCalls
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteTimeNs
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvCalls
+	ch <- EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvTimeNs
+	ch <- EbpfTracerTelemetry.netDevQueueCalls
+	ch <- EbpfTracerTelemetry.netDevQueueSkbToTupleCalls
+	ch <- EbpfTracerTelemetry.netDevQueueSkbToTupleTimeNs
+	ch <- EbpfTracerTelemetry.netDevQueueReadConnTupleCalls
+	ch <- EbpfTracerTelemetry.netDevQueueReadConnTupleTimeNs
+	ch <- EbpfTracerTelemetry.netDevQueueIsEqualCalls
+	ch <- EbpfTracerTelemetry.netDevQueueIsEqualTimeNs
+	ch <- EbpfTracerTelemetry.netDevQueueNotEqualCalls
+	ch <- EbpfTracerTelemetry.netDevQueueNotEqualTimeNs
 }
 
 // Collect returns the current state of all metrics of the collector
 func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
+	log.Debugf("[TELEMETRY-DEBUG] Collect() called!")
+
 	EbpfTracerTelemetry.mu.Lock()
 	defer EbpfTracerTelemetry.mu.Unlock()
 
 	ebpfTelemetry := t.getEBPFTelemetry()
 	if ebpfTelemetry == nil {
+		log.Warnf("[TELEMETRY-DEBUG] Collect() exiting early, getEBPFTelemetry returned nil")
 		return
 	}
+
+	log.Debugf("[TELEMETRY-DEBUG] Collect() has telemetry data, emitting metrics")
 	delta := int64(ebpfTelemetry.Tcp_sent_miscounts) - EbpfTracerTelemetry.lastTCPSentMiscounts
 	EbpfTracerTelemetry.lastTCPSentMiscounts = int64(ebpfTelemetry.Tcp_sent_miscounts)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSentMiscounts, prometheus.CounterValue, float64(delta))
@@ -762,6 +978,84 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Tcp_syn_retransmit) - EbpfTracerTelemetry.lastTCPSynRetransmit
 	EbpfTracerTelemetry.lastTCPSynRetransmit = int64(ebpfTelemetry.Tcp_syn_retransmit)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
+
+	// TCP recv timing metrics
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsCalls
+	EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsCalls = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeArgsCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsTimeNs
+	EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeArgsTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateCalls
+	EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateCalls = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateTimeNs
+	EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupCalls
+	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupTimeNs
+	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteCalls
+	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteTimeNs
+	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvCalls
+	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvTimeNs
+	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvTimeNs, prometheus.CounterValue, float64(delta))
+
+	// net_dev_queue timing metrics
+	delta = int64(ebpfTelemetry.Net_dev_queue_calls) - EbpfTracerTelemetry.lastNetDevQueueCalls
+	EbpfTracerTelemetry.lastNetDevQueueCalls = int64(ebpfTelemetry.Net_dev_queue_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls) - EbpfTracerTelemetry.lastNetDevQueueSkbToTupleCalls
+	EbpfTracerTelemetry.lastNetDevQueueSkbToTupleCalls = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueSkbToTupleCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns) - EbpfTracerTelemetry.lastNetDevQueueSkbToTupleTimeNs
+	EbpfTracerTelemetry.lastNetDevQueueSkbToTupleTimeNs = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueSkbToTupleTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls) - EbpfTracerTelemetry.lastNetDevQueueReadConnTupleCalls
+	EbpfTracerTelemetry.lastNetDevQueueReadConnTupleCalls = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueReadConnTupleCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns) - EbpfTracerTelemetry.lastNetDevQueueReadConnTupleTimeNs
+	EbpfTracerTelemetry.lastNetDevQueueReadConnTupleTimeNs = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueReadConnTupleTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_is_equal_calls) - EbpfTracerTelemetry.lastNetDevQueueIsEqualCalls
+	EbpfTracerTelemetry.lastNetDevQueueIsEqualCalls = int64(ebpfTelemetry.Net_dev_queue_is_equal_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueIsEqualCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns) - EbpfTracerTelemetry.lastNetDevQueueIsEqualTimeNs
+	EbpfTracerTelemetry.lastNetDevQueueIsEqualTimeNs = int64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueIsEqualTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_not_equal_calls) - EbpfTracerTelemetry.lastNetDevQueueNotEqualCalls
+	EbpfTracerTelemetry.lastNetDevQueueNotEqualCalls = int64(ebpfTelemetry.Net_dev_queue_not_equal_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns) - EbpfTracerTelemetry.lastNetDevQueueNotEqualTimeNs
+	EbpfTracerTelemetry.lastNetDevQueueNotEqualTimeNs = int64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualTimeNs, prometheus.CounterValue, float64(delta))
 
 	// Collect the TCP failure telemetry
 	for k, v := range t.getTCPFailureTelemetry() {
