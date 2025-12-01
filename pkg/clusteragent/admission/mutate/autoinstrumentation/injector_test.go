@@ -101,7 +101,7 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 					mockClient,
 					2,
 					1*time.Millisecond,
-					config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"),
+					config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
 				)
 			} else {
 				resolver = newNoOpImageResolver()
@@ -122,7 +122,7 @@ func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 		mockClient,
 		2,
 		1*time.Millisecond,
-		config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"),
+		config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
 	)
 
 	assert.Eventually(t, func() bool {
