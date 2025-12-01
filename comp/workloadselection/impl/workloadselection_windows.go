@@ -14,7 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"golang.org/x/sys/windows"
 )
 
 // getCompilePolicyBinaryPath returns the full path to the compile policy binary on Windows
@@ -37,15 +37,49 @@ func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
 	return info.Mode().IsRegular()
 }
 
+// setFileReadableByEveryone sets the DACL on a file to allow:
+// - Current owner (ddagentuser): Full Control
+// - SYSTEM: Full Control
+// - Administrators: Full Control
+// - Everyone: Read and Execute
+// The owner is NOT changed - it remains as ddagentuser
+func setFileReadableByEveryone(path string) error {
+	// Create an SDDL with only the DACL part (no Owner/Group)
+	// D:PAI - DACL, Protected (doesn't inherit from parent), Auto-Inherit to children
+	// (A;OICI;FA;;;SY) - Allow, Object+Container Inherit, Full Access, SYSTEM
+	// (A;OICI;FA;;;BA) - Allow, Object+Container Inherit, Full Access, Administrators
+	// (A;OICI;0x1200A9;;;WD) - Allow, Object+Container Inherit, Read+Execute, Everyone (World Domain)
+	// Note: We add an ACE for the current owner (CO - Creator Owner) to maintain their full control
+	sddl := "D:PAI(A;OICI;FA;;;CO)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200A9;;;WD)"
+
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil {
+		return fmt.Errorf("failed to create security descriptor: %w", err)
+	}
+
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		return fmt.Errorf("failed to get DACL: %w", err)
+	}
+
+	// Only set the DACL, don't touch owner or group
+	return windows.SetNamedSecurityInfo(
+		path,
+		windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+		nil,  // owner - leave unchanged
+		nil,  // group - leave unchanged
+		dacl, // DACL - set this
+		nil,  // SACL - leave unchanged
+	)
+}
+
 // compileAndWriteConfig compiles the policy binary into a binary file readable by the injector
-// On Windows, uses SetRepositoryPermissions to set appropriate ACLs
+// On Windows, sets ACLs to allow Everyone read+execute access while keeping ddagentuser as owner
 func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) error {
 	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
-	}
-	if err := paths.SetRepositoryPermissions(dir); err != nil {
-		return fmt.Errorf("failed to set permissions on directory %s: %w", dir, err)
 	}
 	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", configPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
@@ -53,6 +87,11 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error executing dd-policy-compile (%w); out: '%s'; err: '%s'", err, stdoutBuf.String(), stderrBuf.String())
+	}
+	// Set permissions on the file to allow Everyone read+execute access
+	// We keep the current owner (ddagentuser) and only modify the DACL
+	if err := setFileReadableByEveryone(configPath); err != nil {
+		return fmt.Errorf("failed to set permissions on file %s: %w", configPath, err)
 	}
 	return nil
 }
