@@ -605,12 +605,6 @@ def docker_build(
     for d in [omnibus_dir, git_cache_dir, opt_dir, gems_dir, go_mod_dir, go_build_dir]:
         os.makedirs(d, exist_ok=True)
 
-    # Initialize git cache directory if needed
-    git_dir = os.path.join(git_cache_dir, ".git")
-    if not os.path.exists(git_dir):
-        print(f"Initializing git cache in {git_cache_dir}")
-        ctx.run(f"git -C {git_cache_dir} init")
-
     # Get current working directory (repo root)
     repo_root = os.getcwd()
 
