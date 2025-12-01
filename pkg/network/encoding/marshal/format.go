@@ -49,7 +49,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []USMEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet, sysProbePid uint32) {
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []USMEncoder, dnsFormatter *dnsFormatter, ipc ipCache, resolvConfFormatter *resolvConfFormatter, tagsSet *network.TagsSet, sysProbePid uint32) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -133,6 +133,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+
+	resolvConfFormatter.FormatResolvConfIdx(&conn, builder)
 
 	builder.SetSystemProbeConn(sysProbePid == conn.Pid)
 }

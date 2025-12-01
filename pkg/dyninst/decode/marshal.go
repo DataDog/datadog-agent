@@ -38,6 +38,7 @@ type debuggerData struct {
 }
 
 type messageData struct {
+	duration    *uint64
 	entryOrLine *captureEvent
 	_return     *captureEvent
 	template    *ir.Template
@@ -79,12 +80,14 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			// Update limits after processing segment.
 			limits.maxBytes = maxLogLineBytes - result.Len()
 		case ir.InvalidSegment:
-			// Check limits for invalid segment.
-			limits.maxBytes = maxLogLineBytes - result.Len()
-			limits.consume(2)
-			result.WriteRune('{')
-			writeBoundedString(&result, limits, seg.Error)
-			result.WriteRune('}')
+			writeBoundedError(&result, limits, "error", seg.Error)
+		case *ir.DurationSegment:
+			if m.duration == nil {
+				writeBoundedError(&result, limits, "error", "@duration is not available")
+			} else {
+				n, _ := fmt.Fprintf(&result, "%f", time.Duration(*m.duration).Seconds()*1000)
+				limits.consume(n)
+			}
 
 		default:
 			return fmt.Errorf(
@@ -138,11 +141,11 @@ func (m *messageData) processJSONSegment(
 	// Check presence bit using same logic as processExpression.
 	presenceBitsetSize := ev.rootType.PresenceBitsetSize
 	if int(presenceBitsetSize) > len(ev.rootData) {
-		return fmt.Errorf("presence bitset is out of bounds")
+		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
 	if exprIdx >= int(presenceBitsetSize)*8 {
-		return fmt.Errorf("expression index out of bounds")
+		return errors.New("expression index out of bounds")
 	}
 	if !presenceBitSet.get(exprIdx) {
 		// Expression evaluation failed.
@@ -158,7 +161,7 @@ func (m *messageData) processJSONSegment(
 	exprDataStart := expr.Offset
 	exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
 	if exprDataEnd > uint32(len(ev.rootData)) {
-		return fmt.Errorf("expression data out of bounds")
+		return errors.New("expression data out of bounds")
 	}
 	exprData := ev.rootData[exprDataStart:exprDataEnd]
 

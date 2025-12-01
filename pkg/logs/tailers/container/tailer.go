@@ -190,7 +190,7 @@ func NewDockerTailer(
 
 // Identifier returns a string that uniquely identifies a source
 func (t *Tailer) Identifier() string {
-	return fmt.Sprintf("docker:%s", t.ContainerID)
+	return "docker:" + t.ContainerID
 }
 
 // Stop stops the tailer from reading new container logs,

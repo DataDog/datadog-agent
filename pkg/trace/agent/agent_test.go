@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -3886,7 +3885,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 		traceAgent.setFirstTraceTags(root)
 		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
 		assert.Equal(t, cfg.InstallSignature.InstallType, root.Meta[tagInstallType])
-		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), root.Meta[tagInstallTime])
+		assert.Equal(t, strconv.FormatInt(cfg.InstallSignature.InstallTime, 10), root.Meta[tagInstallTime])
 
 		// Also make sure the tags are only set once per agent instance,
 		// calling setFirstTraceTags on another span by the same agent should have no effect
@@ -3918,7 +3917,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 		traceAgent.setFirstTraceTags(differentServiceRoot)
 		assert.Equal(t, cfg.InstallSignature.InstallID, differentServiceRoot.Meta[tagInstallID])
 		assert.Equal(t, cfg.InstallSignature.InstallType, differentServiceRoot.Meta[tagInstallType])
-		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), differentServiceRoot.Meta[tagInstallTime])
+		assert.Equal(t, strconv.FormatInt(cfg.InstallSignature.InstallTime, 10), differentServiceRoot.Meta[tagInstallTime])
 	})
 
 	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
@@ -4171,6 +4170,95 @@ func TestAgentWriteTagsBufferedChunks(t *testing.T) {
 
 			assert.Len(t, mockWriter.payloads, 1, "should have written exactly 1 chunk")
 			tt.verifyTags(t, mockWriter.payloads[0].TracerPayload.Tags)
+			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
+		})
+	}
+}
+
+func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
+	tests := []struct {
+		name                  string
+		containerID           string
+		bufferEnabled         bool
+		inputTags             map[string]string
+		bufferReturnTags      []string
+		bufferReturnErr       error
+		expectAsyncCall       bool
+		expectedContainerTags string
+	}{
+		{
+			name:            "fast path no containerID",
+			containerID:     "",
+			bufferEnabled:   true,
+			expectAsyncCall: false,
+		},
+		{
+			name:            "fast path buffer disabled",
+			containerID:     "cid-123",
+			bufferEnabled:   false,
+			expectAsyncCall: false,
+		},
+		{
+			name:                  "async enrichment success",
+			containerID:           "cid-123",
+			bufferEnabled:         true,
+			bufferReturnTags:      []string{"image:nginx", "env:prod"},
+			expectAsyncCall:       true,
+			expectedContainerTags: "image:nginx,env:prod",
+		},
+		{
+			name:            "enrichment error",
+			containerID:     "cid-123",
+			bufferEnabled:   true,
+			bufferReturnErr: errors.New("timeout"),
+			expectAsyncCall: true,
+		},
+		{
+			name:             "empty tags",
+			containerID:      "cid-123",
+			bufferEnabled:    true,
+			bufferReturnTags: []string{},
+			expectAsyncCall:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockWriter := &mockTraceWriter{}
+			mockBuffer := &mockContainerTagsBuffer{
+				enabled:    tt.bufferEnabled,
+				returnTags: tt.bufferReturnTags,
+				pending:    tt.expectAsyncCall,
+			}
+
+			agent := &Agent{
+				TraceWriterV1:       mockWriter,
+				ContainerTagsBuffer: mockBuffer,
+			}
+
+			payload := &writer.SampledChunksV1{
+				Size: 1024,
+				TracerPayload: &idx.InternalTracerPayload{
+					Strings:    idx.NewStringTable(),
+					Attributes: make(map[uint32]*idx.AnyValue),
+				},
+			}
+			for k, v := range tt.inputTags {
+				payload.TracerPayload.SetStringAttribute(k, v)
+			}
+			if tt.containerID != "" {
+				payload.TracerPayload.SetContainerID(tt.containerID)
+			}
+			agent.writeChunksV1(payload)
+
+			assert.Len(t, mockWriter.payloadsV1, 1, "should have written exactly 1 chunk")
+			tp := mockWriter.payloadsV1[0].TracerPayload
+			containerTags, hasContainerTags := tp.GetAttributeAsString(tagContainersTags)
+			if tt.expectedContainerTags == "" {
+				assert.False(t, hasContainerTags)
+			} else {
+				assert.Equal(t, tt.expectedContainerTags, containerTags)
+			}
 			assert.Equal(t, tt.expectAsyncCall, mockBuffer.pending)
 		})
 	}

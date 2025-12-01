@@ -62,11 +62,11 @@ extern "C" __declspec(dllexport) BOOL GetStore(MSStore **out) {
         return FALSE;
     }
 
-    MSStoreInternal *msStore = new MSStoreInternal();
-    msStore->count = 0;
-    msStore->entries = nullptr;
-
     try {
+        auto msStore = std::make_unique<MSStoreInternal>();
+        msStore->count = 0;
+        msStore->entries = nullptr;
+
         winrt::init_apartment();
 
         PackageManager pm;
@@ -79,7 +79,7 @@ extern "C" __declspec(dllexport) BOOL GetStore(MSStore **out) {
             auto appListEntries = pkg.GetAppListEntries();
 
             if (appListEntries.Size() == 0) {
-                addEntryToStore(msStore, pkg, displayName);
+                addEntryToStore(msStore.get(), pkg, displayName);
             } else {
                 for (auto const &appListEntry : appListEntries) {
                     auto displayInfo = appListEntry.DisplayInfo();
@@ -90,7 +90,7 @@ extern "C" __declspec(dllexport) BOOL GetStore(MSStore **out) {
                         }
                     }
 
-                    addEntryToStore(msStore, pkg, displayName);
+                    addEntryToStore(msStore.get(), pkg, displayName);
                 }
             }
         }
@@ -100,11 +100,10 @@ extern "C" __declspec(dllexport) BOOL GetStore(MSStore **out) {
             msStore->entries = msStore->entriesVec.data();
         }
 
-        *out = msStore;
+        *out = msStore.release();
         SetLastError(ERROR_SUCCESS);
         return TRUE;
     } catch (...) {
-        delete msStore;
         SetLastError(ERROR_UNHANDLED_EXCEPTION);
         return FALSE;
     }

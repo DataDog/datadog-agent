@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -15,8 +16,8 @@ import (
 var (
 	// error when a caller tries to construct a node from reflect.Value, this is a logic error, calling code should
 	// not be reflection based, but should be working with "native" go types that come from parsing json, yaml, etc
-	errReflectValue      = fmt.Errorf("refusing to construct node from reflect.Value")
-	errUnknownConversion = fmt.Errorf("no conversion found")
+	errReflectValue      = errors.New("refusing to construct node from reflect.Value")
+	errUnknownConversion = errors.New("no conversion found")
 )
 
 // asReflectionNode returns a node using reflection: should only show up in test code
