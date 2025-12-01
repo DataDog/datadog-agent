@@ -161,7 +161,9 @@ jobs:
           LABELS=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' | tr '\n' ' ')
           
           # Check eligibility
-          HAS_ANY_TYPE=$(echo "$LABELS" | grep -qE 'bugfix/|security/' && echo "yes" || echo "no")
+          # RC eligible: bugfix/regression, bugfix/critical, security/cve, security/critical, backport/exception
+          HAS_ANY_TYPE=$(echo "$LABELS" | grep -qE 'bugfix/regression|bugfix/critical|security/cve|security/critical|backport/exception' && echo "yes" || echo "no")
+          # Patch eligible: bugfix/critical, security/cve, security/critical, backport/exception (NOT regression)
           PATCH_ELIGIBLE=$(echo "$LABELS" | grep -qE 'bugfix/critical|security/cve|security/critical|backport/exception' && echo "yes" || echo "no")
           HAS_EXCEPTION=$(echo "$LABELS" | grep -q 'backport/exception' && echo "yes" || echo "no")
           
