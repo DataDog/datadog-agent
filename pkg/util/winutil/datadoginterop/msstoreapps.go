@@ -14,6 +14,7 @@ import (
 	"unsafe"
 )
 
+// Must match the MSStoreEntry struct in msstoreapps.h
 type cStoreEntry struct {
 	DisplayName     *uint16
 	VersionMajor    uint16
@@ -26,7 +27,8 @@ type cStoreEntry struct {
 	ProductCode     *uint16
 }
 
-type cStore struct {
+// Must match the MSStore struct in msstoreapps.h
+type CStore struct {
 	Count   int64
 	Entries *cStoreEntry
 }
@@ -37,10 +39,10 @@ var (
 	procFreeStore = mod.NewProc("FreeStore")
 )
 
-// GetStore returns a pointer to a cStore struct containing the list of MS Store apps.
-// The caller is responsible for freeing the memory allocated for the cStore struct using FreeStore.
-func GetStore() (*cStore, error) {
-	var out *cStore
+// GetStore returns a pointer to a CStore struct containing the list of MS Store apps.
+// The caller is responsible for freeing the memory allocated for the CStore struct using FreeStore.
+func GetStore() (*CStore, error) {
+	var out *CStore
 	r1, _, lastErr := procGetStore.Call(uintptr(unsafe.Pointer(&out)))
 	if r1 == 0 {
 		return nil, fmt.Errorf("GetStore failed: %w", lastErr)
@@ -48,9 +50,9 @@ func GetStore() (*cStore, error) {
 	return out, nil
 }
 
-// FreeStore frees the memory allocated for the cStore struct.
+// FreeStore frees the memory allocated for the CStore struct.
 // Returns an error if the free operation fails.
-func FreeStore(store *cStore) error {
+func FreeStore(store *CStore) error {
 	r1, _, lastErr := procFreeStore.Call(uintptr(unsafe.Pointer(store)))
 	if r1 == 0 {
 		return fmt.Errorf("FreeStore failed: %w", lastErr)
