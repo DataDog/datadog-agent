@@ -1,140 +1,76 @@
 ---
-docker_build_agent7_windows1809:
-  extends:
-    - .docker_build_agent7_windows_common
-    - .windows_docker_2019
+# All Windows builds: nanoserver and servercore, all variants, with/without JMX
+docker_build_agent7_windows:
+  extends: .docker_build_agent7_windows_common
+  parallel:
+    matrix:
+      # Nanoserver builds
+      - VARIANT: "1809"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/powershell:lts-nanoserver-1809"
+        WINDOWS_RUNNER: "windows-v2:2019"
+        OS_TYPE: "nano"
+        OS_DISPLAY_NAME: "windows nanoserver"
+        TAG_SUFFIX: ["-7", "-7-jmx"]
+        WITH_JMX: ["false", "true"]
+      - VARIANT: "ltsc2022"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2022"
+        WINDOWS_RUNNER: "windows-v2:2022"
+        OS_TYPE: "nano"
+        OS_DISPLAY_NAME: "windows nanoserver"
+        TAG_SUFFIX: ["-7", "-7-jmx"]
+        WITH_JMX: ["false", "true"]
+      - VARIANT: "ltsc2025"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2025"
+        WINDOWS_RUNNER: "windows-v2:2025"
+        OS_TYPE: "nano"
+        OS_DISPLAY_NAME: "windows nanoserver"
+        TAG_SUFFIX: ["-7", "-7-jmx"]
+        WITH_JMX: ["false", "true"]
+        ALLOW_FAILURE: "true"
+      # Servercore builds
+      - VARIANT: "1809"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/powershell:windowsservercore-1809"
+        WINDOWS_RUNNER: "windows-v2:2019"
+        OS_TYPE: "core"
+        OS_DISPLAY_NAME: "windows server core"
+        SERVERCORE: "-servercore"
+        TAG_SUFFIX: ["-7", "-7-jmx"]
+        WITH_JMX: ["false", "true"]
+      - VARIANT: "ltsc2022"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2022"
+        WINDOWS_RUNNER: "windows-v2:2022"
+        OS_TYPE: "core"
+        OS_DISPLAY_NAME: "windows server core"
+        SERVERCORE: "-servercore"
+        TAG_SUFFIX: ["-7", "-7-jmx"]
+        WITH_JMX: ["false", "true"]
+      - VARIANT: "ltsc2025"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2025"
+        WINDOWS_RUNNER: "windows-v2:2025"
+        OS_TYPE: "core"
+        OS_DISPLAY_NAME: "windows server core"
+        SERVERCORE: "-servercore"
+        TAG_SUFFIX: ["-7", "-7-jmx"]
+        WITH_JMX: ["false", "true"]
+        ALLOW_FAILURE: "true"
+  tags: [$WINDOWS_RUNNER]
+  allow_failure: $ALLOW_FAILURE
   variables:
-    VARIANT: 1809
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:lts-nanoserver-1809
-    TAG_SUFFIX: -7
-    WITH_JMX: "false"
+    OVERRIDE_GIT_STRATEGY: "clone"
 
-docker_build_agent7_windows1809_jmx:
-  extends:
-    - .docker_build_agent7_windows_common
-    - .windows_docker_2019
+# FIPS servercore builds: ltsc2022 only (with/without JMX)
+docker_build_fips_agent7_windows:
+  extends: .docker_build_fips_agent7_windows_common
+  parallel:
+    matrix:
+      - VARIANT: "ltsc2022"
+        SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2022"
+        WINDOWS_RUNNER: "windows-v2:2022"
+        OS_TYPE: "core"
+        OS_DISPLAY_NAME: "windows server core"
+        SERVERCORE: "-servercore"
+        TAG_SUFFIX: ["-7-fips", "-7-fips-jmx"]
+        WITH_JMX: ["false", "true"]
+  tags: [$WINDOWS_RUNNER]
   variables:
-    VARIANT: 1809
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:lts-nanoserver-1809
-    TAG_SUFFIX: -7-jmx
-    WITH_JMX: "true"
-
-docker_build_agent7_windows2022_jmx:
-  extends:
-    - .docker_build_agent7_windows_common
-    - .windows_docker_v2_2022
-  variables:
-    VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
-    TAG_SUFFIX: -7-jmx
-    WITH_JMX: "true"
-
-docker_build_agent7_windows2022:
-  extends:
-    - .docker_build_agent7_windows_common
-    - .windows_docker_v2_2022
-  variables:
-    VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
-    TAG_SUFFIX: "-7"
-    WITH_JMX: "false"
-
-docker_build_agent7_windows1809_core:
-  extends:
-    - .docker_build_agent7_windows_servercore_common
-    - .windows_docker_2019
-  variables:
-    VARIANT: 1809
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-1809
-    TAG_SUFFIX: -7
-    WITH_JMX: "false"
-
-docker_build_agent7_windows1809_core_jmx:
-  extends:
-    - .docker_build_agent7_windows_servercore_common
-    - .windows_docker_2019
-  variables:
-    VARIANT: 1809
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-1809
-    TAG_SUFFIX: -7-jmx
-    WITH_JMX: "true"
-
-docker_build_agent7_windows2022_core:
-  extends:
-    - .docker_build_agent7_windows_servercore_common
-    - .windows_docker_v2_2022
-  variables:
-    VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-ltsc2022
-    TAG_SUFFIX: "-7"
-    WITH_JMX: "false"
-
-docker_build_agent7_windows2022_core_jmx:
-  extends:
-    - .docker_build_agent7_windows_servercore_common
-    - .windows_docker_v2_2022
-  variables:
-    VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-ltsc2022
-    TAG_SUFFIX: -7-jmx
-    WITH_JMX: "true"
-
-docker_build_fips_agent7_windows2022_core:
-  extends:
-    - .docker_build_fips_agent7_windows_servercore_common
-    - .windows_docker_v2_2022
-  variables:
-    VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-ltsc2022
-    TAG_SUFFIX: "-7-fips"
-    WITH_JMX: "false"
-
-docker_build_fips_agent7_windows2022_core_jmx:
-  extends:
-    - .docker_build_fips_agent7_windows_servercore_common
-    - .windows_docker_v2_2022
-  variables:
-    VARIANT: ltsc2022
-    SERVER_BASE_IMAGE: mcr.microsoft.com/powershell:windowsservercore-ltsc2022
-    TAG_SUFFIX: -7-fips-jmx
-    WITH_JMX: "true"
-
-docker_build_agent7_windows2025_core:
-  extends:
-    - .docker_build_agent7_windows_servercore_common
-    - .windows_docker_2025
-  variables:
-    VARIANT: ltsc2025
-    SERVER_BASE_IMAGE: mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2025
-    TAG_SUFFIX: -7
-    WITH_JMX: "false"
-
-docker_build_agent7_windows2025_core_jmx:
-  extends:
-    - .docker_build_agent7_windows_servercore_common
-    - .windows_docker_2025
-  variables:
-    VARIANT: ltsc2025
-    SERVER_BASE_IMAGE: mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2025
-    TAG_SUFFIX: -7-jmx
-    WITH_JMX: "true"
-
-docker_build_agent7_windows2025:
-  extends:
-    - .docker_build_agent7_windows_common
-    - .windows_docker_2025
-  variables:
-    VARIANT: ltsc2025
-    SERVER_BASE_IMAGE: mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2025
-    TAG_SUFFIX: "-7"
-    WITH_JMX: "false"
-
-docker_build_agent7_windows2025_jmx:
-  extends:
-    - .docker_build_agent7_windows_common
-    - .windows_docker_2025
-  variables:
-    VARIANT: ltsc2025
-    SERVER_BASE_IMAGE: mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2025
-    TAG_SUFFIX: -7-jmx
-    WITH_JMX: "true"
+    OVERRIDE_GIT_STRATEGY: "clone"
