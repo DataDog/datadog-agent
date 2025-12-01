@@ -2,7 +2,7 @@ name: Backport Assistant
 
 on:
   pull_request:
-    types: [opened, labeled]
+    types: [opened, labeled, unlabeled]
     branches:
       - main
 
@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  # Post/update eligibility table when PR is opened or fix type label is added
+  # Post/update eligibility table when PR is opened or fix type label is added/removed
   update_eligibility:
     runs-on: ubuntu-latest
     if: |
@@ -19,7 +19,7 @@ jobs:
       github.event.pull_request.user.type != 'Bot' &&
       (
         github.event.action == 'opened' ||
-        (github.event.action == 'labeled' && (startsWith(github.event.label.name, 'bugfix/') || startsWith(github.event.label.name, 'security/') || github.event.label.name == 'backport/exception'))
+        ((github.event.action == 'labeled' || github.event.action == 'unlabeled') && (startsWith(github.event.label.name, 'bugfix/') || startsWith(github.event.label.name, 'security/') || github.event.label.name == 'backport/exception'))
       )
     steps:
       - name: Checkout repository
@@ -79,6 +79,9 @@ jobs:
           if [ "$EVENT_ACTION" = "labeled" ] && [ -n "$ADDED_LABEL" ]; then
             echo "" >> comment.md
             echo "✅ Label \`$ADDED_LABEL\` added" >> comment.md
+          elif [ "$EVENT_ACTION" = "unlabeled" ] && [ -n "$ADDED_LABEL" ]; then
+            echo "" >> comment.md
+            echo "🔄 Label \`$ADDED_LABEL\` removed" >> comment.md
           fi
           
           cat << EOF >> comment.md
