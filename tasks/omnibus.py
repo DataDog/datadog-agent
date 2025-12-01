@@ -559,8 +559,8 @@ def docker_build(
         # Compressed build (like CI, slower)
         dda inv omnibus.docker-build --compress
     """
-    import platform as plat
     import glob
+    import platform as plat
     import shutil
 
     # Auto-detect architecture if not specified
@@ -583,10 +583,16 @@ def docker_build(
     else:
         raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
 
-    # Set up cache directories
-    home = os.path.expanduser("~")
+    # Set up cache directories with intelligent defaults for Workspaces
     if cache_dir is None:
-        cache_dir = os.path.join(home, ".omnibus-docker-cache")
+        # Detect Workspaces environment (has high-performance /instance_storage SSD mount)
+        if os.path.exists("/instance_storage") and os.path.isdir("/instance_storage"):
+            cache_dir = "/instance_storage/omnibus-docker-cache"
+            print("Detected Workspaces environment, using high-performance storage: /instance_storage")
+        else:
+            # Default to home directory for local development
+            home = os.path.expanduser("~")
+            cache_dir = os.path.join(home, ".omnibus-docker-cache")
 
     omnibus_dir = os.path.join(cache_dir, "omnibus")
     git_cache_dir = os.path.join(cache_dir, "git-cache")
@@ -610,7 +616,7 @@ def docker_build(
 
     # Build environment variables
     env_args = [
-        f"-e OMNIBUS_GIT_CACHE_DIR=/omnibus-git-cache",
+        "-e OMNIBUS_GIT_CACHE_DIR=/omnibus-git-cache",
         f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
         f"-e DD_CC={cc}",
         f"-e DD_CXX={cxx}",
@@ -637,12 +643,14 @@ def docker_build(
     # Remove existing container if present
     ctx.run(f"docker rm -f {container_name} 2>/dev/null || true", warn=True, hide=True)
 
+    # Wrap the build command with git safe.directory config to avoid permission issues
+    build_cmd = "bash -c \"git config --global --add safe.directory /go/src/github.com/DataDog/datadog-agent && dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems\""
     docker_cmd = (
         f"docker run --name {container_name} "
         f"{env_str} {vol_str} "
         f"-w /go/src/github.com/DataDog/datadog-agent "
         f"{build_image} "
-        f"dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems"
+        f"{build_cmd}"
     )
 
     print(f"Building Datadog Agent for {arch}")
@@ -722,10 +730,10 @@ def docker_build(
     print("BUILD COMPLETE")
     print("=" * 60)
     print(f"\nDocker image: {tag}")
-    print(f"\nRun the agent:")
+    print("\nRun the agent:")
     print(f"  docker run --rm {tag} agent version")
     print(f"  docker run --rm -it {tag} /bin/bash")
-    print(f"\nInspect the image:")
+    print("\nInspect the image:")
     print(f"  docker run --rm {tag} ls -la /opt/datadog-agent/bin/agent/")
 
 
