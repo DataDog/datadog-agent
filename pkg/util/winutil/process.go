@@ -530,7 +530,7 @@ func GetFileDescription(executablePath string) (string, error) {
 		return "", fmt.Errorf("failed to create subblock string: %w", err)
 	}
 
-	var langCodePagePtr uintptr
+	var langCodePagePtr *uint16
 	var langCodePageLen uint32
 	ret, _, err = procVerQueryValueW.Call(
 		uintptr(unsafe.Pointer(&data[0])),
@@ -545,9 +545,11 @@ func GetFileDescription(executablePath string) (string, error) {
 		return "", fmt.Errorf("no language code page found")
 	}
 
+	pair := (*[2]uint16)(unsafe.Pointer(langCodePagePtr))
+
 	// Extract the first language/codepage pair
-	langCode := *(*uint16)(unsafe.Pointer(langCodePagePtr))
-	codePage := *(*uint16)(unsafe.Pointer(langCodePagePtr + 2))
+	langCode := pair[0]
+	codePage := pair[1]
 	langCodePage = fmt.Sprintf("%04x%04x", langCode, codePage)
 
 	// Query for FileDescription
