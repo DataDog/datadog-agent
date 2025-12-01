@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-type testAgentMSIInstalsAPMInject struct {
+type testAgentMSIInstallsAPMInject struct {
 	baseSuite
 }
 
