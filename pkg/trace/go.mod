@@ -43,7 +43,7 @@ require (
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
 	gopkg.in/ini.v1 v1.67.0
-	k8s.io/apimachinery v0.34.1
+	k8s.io/apimachinery v0.35.0-alpha.0
 )
 
 require (
@@ -86,7 +86,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

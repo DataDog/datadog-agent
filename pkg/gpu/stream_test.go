@@ -8,9 +8,9 @@
 package gpu
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -379,7 +379,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			if fatbinParsingEnabled {
 				// Create all parent directories,
 				// the path should match the procBinPath var value in cuda.AddKernelCacheEntry
-				tmpFoldersPath := filepath.Join(proc, fmt.Sprintf("%d", pid), "root")
+				tmpFoldersPath := filepath.Join(proc, strconv.FormatUint(pid, 10), "root")
 				err := os.MkdirAll(tmpFoldersPath, 0755)
 				require.NoError(t, err)
 				filePath := filepath.Join(tmpFoldersPath, binPath)

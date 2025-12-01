@@ -68,7 +68,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 	if cfg.GetBool("dogstatsd_non_local_traffic") {
 		// Listen to all network interfaces
-		url = fmt.Sprintf(":%s", port)
+		url = ":" + port
 	} else {
 		url = net.JoinHostPort(configutils.GetBindHost(cfg), port)
 	}

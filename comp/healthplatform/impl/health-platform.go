@@ -8,6 +8,7 @@ package healthplatformimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -168,7 +169,7 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // If report is nil, it clears any existing issue (issue resolution)
 func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
 	if checkID == "" {
-		return fmt.Errorf("check ID cannot be empty")
+		return errors.New("check ID cannot be empty")
 	}
 
 	// Get previous issue for state change detection
@@ -180,7 +181,7 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	var newIssue *healthplatform.Issue
 	if report != nil {
 		if report.IssueID == "" {
-			return fmt.Errorf("issue ID cannot be empty")
+			return errors.New("issue ID cannot be empty")
 		}
 
 		// Build complete issue from the registry using the issue ID and context

@@ -130,6 +130,7 @@ func (c *WorkloadTagCache) GetOrCreateWorkloadTags(workloadID workloadmeta.Entit
 		c.telemetry.staleEntriesUsed.Inc(string(workloadID.Kind))
 	} else {
 		// This is the worst case, we had an error and no previous tags, so we cannot return anything
+		cacheEntry.tags = tags // Because we had nothing, store whatever we got, processes for example returns partial tags.
 		c.telemetry.buildErrors.Inc(string(workloadID.Kind))
 	}
 
@@ -219,6 +220,8 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 
 		if contErr != nil && nspidErr != nil && !kernel.ProcessExists(int(pid)) {
 			// The process does not exist anymore, so return a "NotFound" error so that we can return stale data.
+			// Add the nspid tag too, in case we have no stale data and we have to return some default process tags
+			tags = append(tags, fmt.Sprintf("nspid:%d", pid))
 			return tags, agenterrors.NewNotFound(pid)
 		}
 
@@ -277,7 +280,7 @@ func getNsPID(pid int32) (int32, error) {
 func (c *WorkloadTagCache) getContainerID(pid int32) (string, error) {
 	if c.pidToCid == nil {
 		if c.containerProvider == nil {
-			return "", fmt.Errorf("no container provider available")
+			return "", errors.New("no container provider available")
 		}
 
 		// Get the PID -> CID mapping from the container provider with no cache validity, as we have already failed to hit the

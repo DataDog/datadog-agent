@@ -8,7 +8,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -66,7 +65,7 @@ func httpDecodingError(err error, tags []string, w http.ResponseWriter, statsd s
 		msg = errtag
 	}
 
-	tags = append(tags, fmt.Sprintf("error:%s", errtag))
+	tags = append(tags, "error:"+errtag)
 	_ = statsd.Count(receiverErrorKey, 1, tags, 1)
 	http.Error(w, msg, status)
 }
