@@ -34,3 +34,13 @@ func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
 func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
 	return nil
 }
+
+// RestartService restarts a service or container using the specified manager
+func RestartService(ctx context.Context, manager string, targetName string) (err error) {
+	return restartServiceImpl(ctx, manager, targetName)
+}
+
+// restartServiceImpl implements restart service for Darwin
+func restartServiceImpl(ctx context.Context, manager string, targetName string) error {
+	return nil // Not implemented for darwin yet
+}

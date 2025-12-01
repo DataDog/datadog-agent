@@ -261,6 +261,8 @@ const (
 	methodStartConfigExperiment   = "start_experiment_config"
 	methodStopConfigExperiment    = "stop_experiment_config"
 	methodPromoteConfigExperiment = "promote_experiment_config"
+
+	methodRestart = "restart"
 )
 
 type remoteAPIRequest struct {
@@ -290,6 +292,11 @@ type experimentTaskParams struct {
 type installPackageTaskParams struct {
 	Version            string `json:"version"`
 	ApmInstrumentation string `json:"apm_instrumentation"`
+}
+
+type restartTaskParams struct {
+	Manager    string `json:"manager"`
+	TargetName string `json:"target_name"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

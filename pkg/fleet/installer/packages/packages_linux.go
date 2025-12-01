@@ -5,7 +5,13 @@
 
 package packages
 
-import "github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+import (
+	"context"
+	"fmt"
+	"os/exec"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+)
 
 var (
 	// packagesHooks is a map of package names to their hooks
@@ -24,3 +30,23 @@ var (
 	// packageCommands is a map of package names to their command handlers
 	packageCommands = map[string]PackageCommandHandler{}
 )
+
+// restartServiceImpl implements restart service for Linux
+func restartServiceImpl(ctx context.Context, manager string, targetName string) error {
+	switch manager {
+	case "systemctl":
+		cmd := exec.CommandContext(ctx, "systemctl", "restart", targetName)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to restart service %s: %w", targetName, err)
+		}
+		return nil
+	case "docker":
+		cmd := exec.CommandContext(ctx, "docker", "restart", targetName)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to restart container %s: %w", targetName, err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported manager: %s", manager)
+	}
+}

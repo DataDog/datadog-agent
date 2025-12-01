@@ -67,6 +67,8 @@ type Installer interface {
 	InstrumentAPMInjector(ctx context.Context, method string) error
 	UninstrumentAPMInjector(ctx context.Context, method string) error
 
+	Restart(ctx context.Context, manager string, targetName string) error
+
 	Close() error
 }
 
@@ -745,6 +747,14 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
+}
+
+// Restart restarts a service or container using the specified manager
+func (i *installerImpl) Restart(ctx context.Context, manager string, targetName string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	return packages.RestartService(ctx, manager, targetName)
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller
