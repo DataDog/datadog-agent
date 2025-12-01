@@ -8,6 +8,7 @@
 package externalmetrics
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -80,12 +81,12 @@ func NewAutoscalerWatcher(
 	store *DatadogMetricsInternalStore,
 ) (*AutoscalerWatcher, error) {
 	if store == nil {
-		return nil, fmt.Errorf("Store must be initialized")
+		return nil, errors.New("Store must be initialized")
 	}
 
 	// Check that we have at least one valid resource to watch
 	if informer == nil && wpaInformer == nil {
-		return nil, fmt.Errorf("Must enable at least HPA or WPA")
+		return nil, errors.New("Must enable at least HPA or WPA")
 	}
 
 	// Setup HPA

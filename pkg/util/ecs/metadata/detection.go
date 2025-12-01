@@ -137,7 +137,7 @@ func testURLs(urls []string, timeout time.Duration) string {
 func getAgentV3URLFromEnv() (string, error) {
 	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv3EnvVariable)
 	if !found {
-		return "", fmt.Errorf("Could not initialize client: missing metadata v3 URL")
+		return "", errors.New("Could not initialize client: missing metadata v3 URL")
 	}
 	return agentURL, nil
 }
@@ -145,7 +145,7 @@ func getAgentV3URLFromEnv() (string, error) {
 func getAgentV4URLFromEnv() (string, error) {
 	agentURL, found := os.LookupEnv(v3or4.DefaultMetadataURIv4EnvVariable)
 	if !found {
-		return "", fmt.Errorf("Could not initialize client: missing metadata v4 URL")
+		return "", errors.New("Could not initialize client: missing metadata v4 URL")
 	}
 	return agentURL, nil
 }

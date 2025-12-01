@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"expvar"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -89,7 +88,7 @@ func (suite *AgentTestSuite) SetupTest() {
 
 	suite.testDir = suite.T().TempDir()
 
-	suite.testLogFile = fmt.Sprintf("%s/test.log", suite.testDir)
+	suite.testLogFile = suite.testDir + "/test.log"
 	fd, err := os.Create(suite.testLogFile)
 	suite.NoError(err)
 
@@ -203,7 +202,7 @@ func (suite *AgentTestSuite) TestTruncateLogOriginAndService() {
 	suite.configOverrides["logs_config.max_message_size_bytes"] = 10 // Only 1 byte
 
 	// Create a test file with content that will definitely trigger log-line truncation
-	truncationLogFile := fmt.Sprintf("%s/truncation.log", suite.testDir)
+	truncationLogFile := suite.testDir + "/truncation.log"
 	fd, err := os.Create(truncationLogFile)
 	suite.NoError(err)
 	defer fd.Close()

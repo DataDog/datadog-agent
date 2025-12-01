@@ -158,7 +158,7 @@ func parseWinCrashDump(wcs *WinCrashStatus) {
 	}
 
 	if len(ctx.loglines) < 2 {
-		wcs.ErrString = fmt.Sprintf("Invalid crash dump file %s", wcs.FileName)
+		wcs.ErrString = "Invalid crash dump file " + wcs.FileName
 		wcs.StatusCode = WinCrashStatusCodeFailed
 		return
 	}

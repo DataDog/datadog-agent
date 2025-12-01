@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -110,11 +111,11 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 }
 
 func dumpRawResources(resources RawResources) string {
-	var res string
+	var builder strings.Builder
 	for key, value := range resources {
-		res += fmt.Sprintf("%s: %s\n", key, value)
+		fmt.Fprintf(&builder, "%s: %s\n", key, value)
 	}
-	return res
+	return builder.String()
 }
 
 // Diagnose runs the diagnose function if it is set diagnoseFunc

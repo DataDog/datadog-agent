@@ -7,7 +7,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -41,7 +40,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 
 	// AgentCmd is the root command
 	sysprobeCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Agent System Probe",
 		Long: `
 The Datadog Agent System Probe runs as superuser in order to instrument

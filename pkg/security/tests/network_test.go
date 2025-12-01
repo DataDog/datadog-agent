@@ -142,7 +142,7 @@ func TestRawPacket(t *testing.T) {
 
 	t.Run("udp4", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			conn, err := net.Dial("udp4", fmt.Sprintf("%s:%d", testDestIP, testUDPDestPort))
+			conn, err := net.Dial("udp4", net.JoinHostPort(testDestIP, strconv.Itoa(int(testUDPDestPort))))
 			if err != nil {
 				return err
 			}
