@@ -260,6 +260,13 @@ linters:
     - path: _test\.go
       linters:
         - errcheck
+    # Exclude perfsprint from test files where performance is not critical
+    - path: _test\.go
+      linters:
+        - perfsprint
+    - path: ^test/
+      linters:
+        - perfsprint
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]
