@@ -291,9 +291,13 @@ func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageRe
 		return newNoOpImageResolver()
 	}
 
-	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
+	datadogRegistriesList := cfg.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries")
+	datadogRegistries := make(map[string]any)
+	for _, registry := range datadogRegistriesList {
+		datadogRegistries[registry] = struct{}{}
+	}
 
-	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
+	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistries)
 }
 
 func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
