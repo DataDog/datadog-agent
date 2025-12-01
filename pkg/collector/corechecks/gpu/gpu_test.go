@@ -186,7 +186,7 @@ func TestRunDoesNotError(t *testing.T) {
 			}),
 		),
 	)
-	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 	// Create check instance using mocks
 	checkGeneric := newCheck(
