@@ -6,7 +6,6 @@
 package checks
 
 import (
-	"fmt"
 	"math"
 	"net/http"
 	"sync"
@@ -154,7 +153,7 @@ func (c *ContainerCheck) Run(nextGroupID func() int32, options *RunOptions) (Run
 	}
 
 	numContainers := float64(len(containers))
-	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	agentNameTag := "agent:" + flavor.GetFlavor()
 	_ = c.statsd.Gauge("datadog.process.containers.host_count", numContainers, []string{agentNameTag}, 1)
 	log.Debugf("collected %d containers in %s", int(numContainers), time.Since(startTime))
 	return StandardRunResult(messages), nil

@@ -7,7 +7,6 @@ package configutils
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -67,7 +66,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	// build default provider from same data
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{fmt.Sprintf("file:%s", testPath)},
+			URIs: []string{"file:" + testPath},
 			ProviderFactories: []confmap.ProviderFactory{
 				fileprovider.NewFactory(),
 				envprovider.NewFactory(),

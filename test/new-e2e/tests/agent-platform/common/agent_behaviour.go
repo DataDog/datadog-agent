@@ -8,6 +8,7 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -273,7 +274,7 @@ func CheckApmEnabled(t *testing.T, client *TestClient) {
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
 			boundPort, _ = AssertPortBoundByService(c, client, "tcp", 8126, "trace-agent", apmProcessName)
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port tcp/8126 should be bound when APM is enabled")
+			err := errors.New("port tcp/8126 should be bound when APM is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "trace-loader\\|trace-agent\\|datadog-agent-trace"))
 			}
@@ -393,7 +394,7 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 
 		for _, file := range files {
 			file = strings.TrimSpace(file)
-			ddMetadata, err := client.Host.Execute(fmt.Sprintf("readelf -p dd_metadata %s", file))
+			ddMetadata, err := client.Host.Execute("readelf -p dd_metadata " + file)
 			require.NoError(tt, err, "readelf should not error, file is %s", file)
 			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
 		}
@@ -418,7 +419,7 @@ func CheckADPEnabled(t *testing.T, client *TestClient) {
 		if !assert.EventuallyWithT(tt, func(c *assert.CollectT) {
 			boundPort, _ = AssertPortBoundByService(c, client, "udp", 8125, "agent-data-plane", "agent-data-plane")
 		}, 1*time.Minute, 500*time.Millisecond) {
-			err := fmt.Errorf("port udp/8125 should be bound when ADP is enabled")
+			err := errors.New("port udp/8125 should be bound when ADP is enabled")
 			if client.Host.OSFamily == componentos.LinuxFamily {
 				err = fmt.Errorf("%w\n%s", err, ReadJournalCtl(t, client, "agent-data-plane\\|datadog-agent-data-plane"))
 			}
