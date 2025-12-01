@@ -28,15 +28,21 @@ type Check struct {
 }
 
 // BatteryInfo contains battery information
+//
+//nolint:revive // Type name intentionally includes package name for clarity
 type BatteryInfo struct {
-	DesignedCapacity    uint32
-	FullChargedCapacity uint32
-	CycleCount          uint32
-	CurrentCharge       uint32
+	DesignedCapacity    float64
+	FullChargedCapacity float64
+	CycleCount          float64
+	CurrentCharge       float64
 	HasData             bool
 }
 
+// QueryBatteryInfo queries the battery information
 var QueryBatteryInfo = queryBatteryInfo
+
+// For testing - can be mocked
+var hasBatteryAvailableFunc = hasBatteryAvailable
 
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
@@ -55,6 +61,15 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 		return err
 	}
 
+	// Check if battery is available before enabling the check
+	hasBattery, err := hasBatteryAvailableFunc()
+	if err != nil {
+		return err
+	}
+	if !hasBattery {
+		return check.ErrSkipCheckInstance
+	}
+
 	return err
 }
 
@@ -70,10 +85,10 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	sender.Gauge("system.battery.designed_capacity", float64(info.DesignedCapacity), "", nil)
-	sender.Gauge("system.battery.maximum_capacity", float64(info.FullChargedCapacity), "", nil)
-	sender.Gauge("system.battery.cycle_count", float64(info.CycleCount), "", nil)
-	sender.Gauge("system.battery.current_charge", float64(info.CurrentCharge), "", nil)
+	sender.Gauge("system.battery.designed_capacity", info.DesignedCapacity, "", nil)
+	sender.Gauge("system.battery.maximum_capacity", info.FullChargedCapacity, "", nil)
+	sender.Gauge("system.battery.cycle_count", info.CycleCount, "", nil)
+	sender.Gauge("system.battery.current_charge", info.CurrentCharge, "", nil)
 
 	sender.Commit()
 	return nil

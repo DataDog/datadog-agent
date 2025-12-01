@@ -17,12 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-const (
-	DIGCF_PRESENT         = 0x00000002
-	DIGCF_DEVICEINTERFACE = 0x00000010
-)
+//revive:disable:var-naming Name is intended to match the Windows const name
+//revive:disable:exported Windows API types intentionally match Windows naming
 
-// from batclass.h
+// GUID_DEVCLASS_BATTERY is the device class GUID for batteries (from batclass.h)
 var GUID_DEVCLASS_BATTERY = windows.GUID{
 	Data1: 0x72631e54,
 	Data2: 0x78A4,
@@ -31,30 +29,35 @@ var GUID_DEVCLASS_BATTERY = windows.GUID{
 }
 
 const (
-	FILE_SHARE_READ       = 0x00000001
-	FILE_SHARE_WRITE      = 0x00000002
-	OPEN_EXISTING         = 3
-	FILE_ATTRIBUTE_NORMAL = 0x00000080
-)
-
-const (
 	IOCTL_BATTERY_QUERY_TAG         = 0x00294040
 	IOCTL_BATTERY_QUERY_INFORMATION = 0x00294044
 	IOCTL_BATTERY_QUERY_STATUS      = 0x0029404c
+
+	// Indicates that the battery can provide general power to run the system.
+	BATTERY_SYSTEM_BATTERY = 0x80000000
 )
 
+// The level of the battery information being queried. The data returned by the IOCTL depends on this value.
+//
+// https://learn.microsoft.com/en-us/windows/win32/power/battery-query-information-str
 type BATTERY_QUERY_INFORMATION_LEVEL int32
 
 const (
 	BatteryInformation BATTERY_QUERY_INFORMATION_LEVEL = 0
 )
 
+// Contains battery query information.
+//
+// https://learn.microsoft.com/en-us/windows/win32/power/battery-query-information-str
 type BATTERY_QUERY_INFORMATION struct {
 	BatteryTag       uint32
 	InformationLevel BATTERY_QUERY_INFORMATION_LEVEL
 	AtRate           int32
 }
 
+// Contains battery information.
+//
+// https://learn.microsoft.com/en-us/windows/win32/power/battery-information-str
 type BATTERY_INFORMATION struct {
 	Capabilities        uint32
 	Technology          byte
@@ -68,6 +71,9 @@ type BATTERY_INFORMATION struct {
 	CycleCount          uint32
 }
 
+// Contains the current state of the battery.
+//
+// https://learn.microsoft.com/en-us/windows/win32/power/battery-status-str
 type BATTERY_STATUS struct {
 	PowerState uint32
 	Capacity   uint32
@@ -75,6 +81,9 @@ type BATTERY_STATUS struct {
 	Rate       int32
 }
 
+// Contains information about the conditions under which the battery status is to be retrieved
+//
+// https://learn.microsoft.com/en-us/windows/win32/power/battery-wait-status-str
 type BATTERY_WAIT_STATUS struct {
 	BatteryTag   uint32
 	Timeout      uint32
@@ -83,13 +92,49 @@ type BATTERY_WAIT_STATUS struct {
 	HighCapacity uint32
 }
 
+//revive:enable:var-naming (const)
+//revive:enable:exported Windows API types intentionally match Windows naming
+
+// hasBatteryAvailable checks if at least one battery device is present
+func hasBatteryAvailable() (bool, error) {
+	hdev, err := windows.SetupDiGetClassDevsEx(&GUID_DEVCLASS_BATTERY, "", 0, windows.DIGCF_PRESENT|windows.DIGCF_DEVICEINTERFACE, 0, "")
+	if err != nil {
+		return false, fmt.Errorf("SetupDiGetClassDevs: %w", err)
+	}
+	defer func() {
+		err := windows.SetupDiDestroyDeviceInfoList(hdev)
+		if err != nil {
+			log.Debugf("Error destroying device info list: %v", err)
+		}
+	}()
+
+	var ifData winutil.SP_DEVICE_INTERFACE_DATA
+	ifData.CbSize = uint32(unsafe.Sizeof(ifData))
+
+	// Try to enumerate the first battery device
+	err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, 0, &ifData)
+	if err != nil {
+		// No battery devices found
+		return false, nil
+	}
+
+	// At least one battery device exists
+	return true, nil
+}
+
 func queryBatteryInfo() (*BatteryInfo, error) {
 	info := &BatteryInfo{}
-	hdev, err := winutil.SetupDiGetClassDevs(&GUID_DEVCLASS_BATTERY, nil, 0, DIGCF_PRESENT|DIGCF_DEVICEINTERFACE)
+	//hdev, err := winutil.SetupDiGetClassDevs(&GUID_DEVCLASS_BATTERY, nil, 0, windows.DIGCF_PRESENT|windows.DIGCF_DEVICEINTERFACE)
+	hdev, err := windows.SetupDiGetClassDevsEx(&GUID_DEVCLASS_BATTERY, "", 0, windows.DIGCF_PRESENT|windows.DIGCF_DEVICEINTERFACE, 0, "")
 	if err != nil {
 		return nil, fmt.Errorf("SetupDiGetClassDevs: %w", err)
 	}
-	defer winutil.SetupDiDestroyDeviceInfoList(hdev)
+	defer func() {
+		err := windows.SetupDiDestroyDeviceInfoList(hdev)
+		if err != nil {
+			log.Errorf("Error destroying device info list: %v", err)
+		}
+	}()
 
 	var ifData winutil.SP_DEVICE_INTERFACE_DATA
 	ifData.CbSize = uint32(unsafe.Sizeof(ifData))
@@ -110,8 +155,6 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 
 		// Allocate buffer
 		buf := make([]byte, required)
-		// On x64, cbSize must be 8; on x86, 6. This code assumes 64-bit.
-		// If you need 32-bit, you must adjust this.
 		*(*uint32)(unsafe.Pointer(&buf[0])) = 8 // sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) on x64
 
 		err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, &ifData, &buf[0], required, nil)
@@ -123,97 +166,117 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 		devicePathPtr := unsafe.Pointer(&buf[4]) // cbSize is 4 bytes
 		devicePath := windows.UTF16PtrToString((*uint16)(devicePathPtr))
 
-		handle, err := windows.CreateFile(
-			windows.StringToUTF16Ptr(devicePath),
-			windows.GENERIC_READ|windows.GENERIC_WRITE,
-			FILE_SHARE_READ|FILE_SHARE_WRITE,
-			nil,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL,
-			0,
-		)
+		bi, bs, err := queryBatteryDevice(devicePath)
 		if err != nil {
+			log.Errorf("Error querying battery device: %v", err)
 			continue
 		}
 
-		// Query battery tag
-		var bytesReturned uint32
-		var timeout uint32 = 0
-		var tag uint32 = 0
-
-		err = windows.DeviceIoControl(
-			handle,
-			IOCTL_BATTERY_QUERY_TAG,
-			(*byte)(unsafe.Pointer(&timeout)),
-			uint32(unsafe.Sizeof(timeout)),
-			(*byte)(unsafe.Pointer(&tag)),
-			uint32(unsafe.Sizeof(tag)),
-			&bytesReturned,
-			nil,
-		)
-		if err != nil || tag == 0 {
-			log.Debugf("Error querying battery tag: %v", err)
-			windows.CloseHandle(handle)
-			continue
-		}
-
-		// Query BATTERY_INFORMATION
-		query := BATTERY_QUERY_INFORMATION{
-			BatteryTag:       tag,
-			InformationLevel: BatteryInformation,
-			AtRate:           0,
-		}
-		var bi BATTERY_INFORMATION
-
-		err = windows.DeviceIoControl(
-			handle,
-			IOCTL_BATTERY_QUERY_INFORMATION,
-			(*byte)(unsafe.Pointer(&query)),
-			uint32(unsafe.Sizeof(query)),
-			(*byte)(unsafe.Pointer(&bi)),
-			uint32(unsafe.Sizeof(bi)),
-			&bytesReturned,
-			nil,
-		)
-		if err != nil {
-			log.Debugf("Error querying battery information: %v", err)
-			windows.CloseHandle(handle)
-			continue
-		}
-
-		bws := BATTERY_WAIT_STATUS{
-			BatteryTag: tag,
-		}
-
-		var bs BATTERY_STATUS
-		err = windows.DeviceIoControl(
-			handle,
-			IOCTL_BATTERY_QUERY_STATUS,
-			(*byte)(unsafe.Pointer(&bws)),
-			uint32(unsafe.Sizeof(bws)),
-			(*byte)(unsafe.Pointer(&bs)),
-			uint32(unsafe.Sizeof(bs)),
-			&bytesReturned,
-			nil,
-		)
-		if err != nil || bs.PowerState == 0 {
-			log.Debugf("Error querying battery status: %v", err)
-			windows.CloseHandle(handle)
-			continue
-		}
-
-		windows.CloseHandle(handle)
-
-		info.DesignedCapacity = bi.DesignedCapacity
-		info.FullChargedCapacity = bi.FullChargedCapacity
-		info.CycleCount = bi.CycleCount
-		info.CurrentCharge = bs.Capacity
+		info.DesignedCapacity = float64(bi.DesignedCapacity)
+		info.FullChargedCapacity = (float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100
+		info.CycleCount = float64(bi.CycleCount)
+		info.CurrentCharge = float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100
 		info.HasData = true
+
+		// Return the first battery info found
 		return info, nil
 	}
 
+	// If no battery info found, return an error
 	if !info.HasData {
 		return nil, fmt.Errorf("no battery info found")
 	}
 	return info, nil
+}
+
+// queryBatteryDevice queries the battery information for a given device path
+func queryBatteryDevice(devicePath string) (*BATTERY_INFORMATION, *BATTERY_STATUS, error) {
+	handle, err := windows.CreateFile(
+		windows.StringToUTF16Ptr(devicePath),
+		windows.GENERIC_READ|windows.GENERIC_WRITE,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
+		nil,
+		windows.OPEN_EXISTING,
+		windows.FILE_ATTRIBUTE_NORMAL,
+		0,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error creating file handle: %w", err)
+	}
+	defer func() {
+		err := windows.CloseHandle(handle)
+		if err != nil {
+			log.Errorf("Error closing handle: %v", err)
+		}
+	}()
+
+	// Query battery tag
+	var bytesReturned uint32
+	var timeout uint32
+	var tag uint32
+
+	err = windows.DeviceIoControl(
+		handle,
+		IOCTL_BATTERY_QUERY_TAG,
+		(*byte)(unsafe.Pointer(&timeout)),
+		uint32(unsafe.Sizeof(timeout)),
+		(*byte)(unsafe.Pointer(&tag)),
+		uint32(unsafe.Sizeof(tag)),
+		&bytesReturned,
+		nil,
+	)
+	if err != nil || tag == 0 {
+		log.Errorf("Error querying battery tag: %v", err)
+		return nil, nil, fmt.Errorf("Error querying battery tag: %w", err)
+	}
+
+	// Query BATTERY_INFORMATION
+	query := BATTERY_QUERY_INFORMATION{
+		BatteryTag:       tag,
+		InformationLevel: BatteryInformation,
+		AtRate:           0,
+	}
+	var bi BATTERY_INFORMATION
+
+	err = windows.DeviceIoControl(
+		handle,
+		IOCTL_BATTERY_QUERY_INFORMATION,
+		(*byte)(unsafe.Pointer(&query)),
+		uint32(unsafe.Sizeof(query)),
+		(*byte)(unsafe.Pointer(&bi)),
+		uint32(unsafe.Sizeof(bi)),
+		&bytesReturned,
+		nil,
+	)
+	if err != nil {
+		log.Errorf("Error querying battery information: %v", err)
+		return nil, nil, fmt.Errorf("Error querying battery information: %w", err)
+	}
+
+	// Check if this is a System Battery
+	if bi.Capabilities&BATTERY_SYSTEM_BATTERY == 0 {
+		return nil, nil, fmt.Errorf("Battery is not a system battery")
+	}
+
+	bws := BATTERY_WAIT_STATUS{
+		BatteryTag: tag,
+	}
+
+	var bs BATTERY_STATUS
+	err = windows.DeviceIoControl(
+		handle,
+		IOCTL_BATTERY_QUERY_STATUS,
+		(*byte)(unsafe.Pointer(&bws)),
+		uint32(unsafe.Sizeof(bws)),
+		(*byte)(unsafe.Pointer(&bs)),
+		uint32(unsafe.Sizeof(bs)),
+		&bytesReturned,
+		nil,
+	)
+	if err != nil || bs.PowerState == 0 {
+		log.Errorf("Error querying battery status: %v", err)
+		return nil, nil, fmt.Errorf("Error querying battery status: %w", err)
+	}
+
+	return &bi, &bs, nil
 }

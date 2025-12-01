@@ -16,15 +16,15 @@ import (
 var (
 	modSetupapi = windows.NewLazySystemDLL("setupapi.dll")
 
-	procSetupDiGetClassDevs             = modSetupapi.NewProc("SetupDiGetClassDevsW")
 	procSetupDiEnumDeviceInterfaces     = modSetupapi.NewProc("SetupDiEnumDeviceInterfaces")
 	procSetupDiGetDeviceInterfaceDetail = modSetupapi.NewProc("SetupDiGetDeviceInterfaceDetailW")
-	procSetupDiDestroyDeviceInfoList    = modSetupapi.NewProc("SetupDiDestroyDeviceInfoList")
 )
 
 // SP_DEVICE_INTERFACE_DATA defines a device interface in a device information set.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/ns-setupapi-sp_device_interface_data
+//
+//revive:disable:var-naming Name is intended to match the Windows API name
 type SP_DEVICE_INTERFACE_DATA struct {
 	CbSize             uint32
 	InterfaceClassGuid windows.GUID
@@ -32,34 +32,16 @@ type SP_DEVICE_INTERFACE_DATA struct {
 	Reserved           uintptr
 }
 
-// SetupDiGetClassDevs returns a handle to a device information set that contains requested device information elements for a local computer.
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetclassdevsw
-func SetupDiGetClassDevs(classGuid *windows.GUID, enumerator *uint16, hwndParent uintptr, flags uint32) (windows.Handle, error) {
-	r0, _, e1 := procSetupDiGetClassDevs.Call(
-		uintptr(unsafe.Pointer(classGuid)),
-		uintptr(unsafe.Pointer(enumerator)),
-		hwndParent,
-		uintptr(flags),
-	)
-	handle := windows.Handle(r0)
-	if handle == windows.InvalidHandle {
-		if e1 != windows.ERROR_SUCCESS {
-			return handle, error(e1)
-		}
-		return handle, windows.GetLastError()
-	}
-	return handle, nil
-}
+//revive:enable:var-naming
 
 // SetupDiEnumDeviceInterfaces enumerates the device interfaces that are contained in a device information set.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdienumdeviceinterfaces
-func SetupDiEnumDeviceInterfaces(deviceInfoSet windows.Handle, interfaceClassGuid *windows.GUID, memberIndex uint32, data *SP_DEVICE_INTERFACE_DATA) error {
+func SetupDiEnumDeviceInterfaces(deviceInfoSet windows.DevInfo, interfaceClassGUID *windows.GUID, memberIndex uint32, data *SP_DEVICE_INTERFACE_DATA) error {
 	r0, _, e1 := procSetupDiEnumDeviceInterfaces.Call(
 		uintptr(deviceInfoSet),
 		0,
-		uintptr(unsafe.Pointer(interfaceClassGuid)),
+		uintptr(unsafe.Pointer(interfaceClassGUID)),
 		uintptr(memberIndex),
 		uintptr(unsafe.Pointer(data)),
 	)
@@ -75,7 +57,7 @@ func SetupDiEnumDeviceInterfaces(deviceInfoSet windows.Handle, interfaceClassGui
 // SetupDiGetDeviceInterfaceDetail returns details about a device interface.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
-func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.Handle, deviceInterfaceData *SP_DEVICE_INTERFACE_DATA, deviceInterfaceDetailData *byte, deviceInterfaceDetailDataSize uint32, requiredSize *uint32) error {
+func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.DevInfo, deviceInterfaceData *SP_DEVICE_INTERFACE_DATA, deviceInterfaceDetailData *byte, deviceInterfaceDetailDataSize uint32, requiredSize *uint32) error {
 	r0, _, e1 := procSetupDiGetDeviceInterfaceDetail.Call(
 		uintptr(deviceInfoSet),
 		uintptr(unsafe.Pointer(deviceInterfaceData)),
@@ -84,20 +66,6 @@ func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.Handle, deviceInterfa
 		uintptr(unsafe.Pointer(requiredSize)),
 		0,
 	)
-	if r0 == 0 {
-		if e1 != windows.ERROR_SUCCESS {
-			return error(e1)
-		}
-		return windows.GetLastError()
-	}
-	return nil
-}
-
-// SetupDiDestroyDeviceInfoList deletes a device information set and frees all associated memory.
-//
-// https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdidestroydeviceinfolist
-func SetupDiDestroyDeviceInfoList(hdev windows.Handle) error {
-	r0, _, e1 := procSetupDiDestroyDeviceInfoList.Call(uintptr(hdev))
 	if r0 == 0 {
 		if e1 != windows.ERROR_SUCCESS {
 			return error(e1)

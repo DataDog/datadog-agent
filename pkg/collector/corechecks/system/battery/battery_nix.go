@@ -11,6 +11,13 @@ import (
 	"fmt"
 )
 
+// hasBatteryAvailable checks if at least one battery device is present
+func hasBatteryAvailable() (bool, error) {
+	// On non-Windows platforms, return false for now
+	// This will be implemented when adding support for other platforms
+	return false, nil
+}
+
 func queryBatteryInfo() (*BatteryInfo, error) {
 	return nil, fmt.Errorf("battery check is currently only supported on Windows")
 }
