@@ -256,7 +256,7 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *fi.Client, intakeMaxW
 		assert.NotEmpty(t, metricNames)
 
 		// check logs
-		v.Env().Host.MustExecute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		v.Env().Host.MustExecute("echo 'totoro' >> " + logFile)
 		logs, err := intake.FilterLogs(logService)
 		require.NoError(t, err)
 		assert.NotEmpty(t, logs)
@@ -289,7 +289,7 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *fi.Client, intakeMax
 		intake.FlushServerAndResetAggregators()
 
 		// write a log
-		v.Env().Host.MustExecute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		v.Env().Host.MustExecute("echo 'totoro' >> " + logFile)
 
 		// send a flare
 		v.Env().Agent.Client.Flare(agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))

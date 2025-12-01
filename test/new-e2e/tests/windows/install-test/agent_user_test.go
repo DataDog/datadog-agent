@@ -6,8 +6,6 @@
 package installtest
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
@@ -131,7 +129,7 @@ func TestAgentUser(t *testing.T) {
 			staticAgentUserTestCase{name: "hostname_user"},
 			func(tc *agentUserTestCaseWithHostInfo, hostInfo *windowsCommon.HostInfo) {
 				h := windowsCommon.NameToNetBIOSName(hostInfo.Hostname)
-				tc.username = fmt.Sprintf("%s\\testuser", h)
+				tc.username = h + "\\testuser"
 				tc.expectedDomain = h
 				tc.expectedUser = "testuser"
 			}},

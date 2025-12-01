@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -155,7 +156,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 			c, _ := dest.GetChild(key)
 			if _, ok := c.(InnerNode); ok {
 				// Both default and dest have a child but they conflict in type. This should never happen.
-				warnings = append(warnings, fmt.Errorf("invalid tree: default and dest tree don't have the same layout"))
+				warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			} else {
 				dest.InsertChildNode(key, newLeafNode(value, source))
 			}
@@ -184,7 +185,7 @@ func loadYamlInto(dest InnerNode, source model.Source, inData map[string]interfa
 		destChildInner, ok := destChild.(InnerNode)
 		if !ok {
 			// Both default and dest have a child but they conflict in type. This should never happen.
-			warnings = append(warnings, fmt.Errorf("invalid tree: default and dest tree don't have the same layout"))
+			warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			continue
 		}
 		warnings = append(warnings, loadYamlInto(destChildInner, source, childValue, currPath, schemaInner, allowDynamicSchema)...)

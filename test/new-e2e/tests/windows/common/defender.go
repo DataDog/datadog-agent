@@ -6,6 +6,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,7 +29,7 @@ func DisableDefender(host *components.RemoteHost) error {
 		return err
 	}
 	if protected {
-		return fmt.Errorf("Windows Defender is tamper protected, unable to modify settings")
+		return errors.New("Windows Defender is tamper protected, unable to modify settings")
 	}
 
 	_, err = powershell.PsHost().DisableWindowsDefender().Execute(host)

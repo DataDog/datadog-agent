@@ -66,7 +66,7 @@ func (s *WindowsFakeintakeSuite) BeforeTest(suiteName, testName string) {
 		}
 		// If logs are found, print their content for debugging
 		if !assert.Empty(c, logs, "Logs were found when none were expected") {
-			cat, _ := s.Env().RemoteHost.Execute(fmt.Sprintf("type %s", logFilePath))
+			cat, _ := s.Env().RemoteHost.Execute("type " + logFilePath)
 			s.T().Logf("Logs detected when none were expected: %v", cat)
 		}
 	}, 2*time.Minute, 10*time.Second)
@@ -126,8 +126,8 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 
 	// Given expected tags
 	expectedTags := []string{
-		fmt.Sprintf("filename:%s", logFileName),
-		fmt.Sprintf("dirname:%s", utils.WindowsLogsFolderPath),
+		"filename:" + logFileName,
+		"dirname:" + utils.WindowsLogsFolderPath,
 	}
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)

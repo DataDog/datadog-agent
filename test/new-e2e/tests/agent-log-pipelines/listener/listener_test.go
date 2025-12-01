@@ -7,7 +7,6 @@ package listener
 
 import (
 	_ "embed"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -106,7 +105,7 @@ func assertLogsReceived(
 	require.NoError(t, err)
 	ipAddress = strings.TrimSpace(ipAddress)
 	t.Logf("Logger-app IP address: %s", ipAddress)
-	sourceHostTag := fmt.Sprintf("source_host:%s", ipAddress)
+	sourceHostTag := "source_host:" + ipAddress
 	// Command to execute inside the container
 	cmd := []string{
 		"/usr/local/bin/send-message.sh",

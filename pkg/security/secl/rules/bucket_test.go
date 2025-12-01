@@ -19,7 +19,7 @@ import (
 )
 
 // newTestRuleWithExecContextTag creates a *Rule with the given id and tag value
-func newOrderTestRule(t *testing.T, id string, policyType PolicyType, execContextTag string, priority int) *Rule {
+func newOrderTestRule(t *testing.T, id string, internalPolicyType InternalPolicyType, execContextTag string, priority int) *Rule {
 	expression := `open.file.path == "/tmp/test"`
 	pc := ast.NewParsingContext(false)
 	evalRule, err := eval.NewRule(id, expression, pc, &eval.Opts{})
@@ -36,7 +36,7 @@ func newOrderTestRule(t *testing.T, id string, policyType PolicyType, execContex
 				Priority:   priority,
 			},
 			Policy: PolicyInfo{
-				Type: policyType,
+				InternalType: internalPolicyType,
 			},
 		},
 		Rule: evalRule,
@@ -142,5 +142,24 @@ func TestRuleBucket_AddRule_Order(t *testing.T) {
 		}
 
 		assertOrder(t, bucket, []string{"E1", "E2", "E3", "N2", "N1"})
+	})
+
+	t.Run("test5", func(t *testing.T) {
+		bucket := &RuleBucket{}
+
+		n1 := newOrderTestRule(t, "N1", CustomPolicyType, "", 500)
+		n2 := newOrderTestRule(t, "N2", CustomPolicyType, "", 999)
+		n3 := newOrderTestRule(t, "N3", DefaultPolicyType, "", 500)
+		n4 := newOrderTestRule(t, "N4", DefaultPolicyType, "", 999)
+		n5 := newOrderTestRule(t, "N5", DefaultPolicyType, "", 100)
+
+		// Add in mixed order
+		for _, r := range []*Rule{n1, n2, n3, n4, n5} {
+			if err := bucket.AddRule(r); err != nil {
+				t.Error(err)
+			}
+		}
+
+		assertOrder(t, bucket, []string{"N4", "N3", "N5", "N2", "N1"})
 	})
 }

@@ -48,7 +48,7 @@ func getOwnerInfo(owner metav1.OwnerReference) (*ownerInfo, error) {
 		return nil, err
 	}
 	return &ownerInfo{
-		gvr:  gv.WithResource(fmt.Sprintf("%ss", strings.ToLower(owner.Kind))),
+		gvr:  gv.WithResource(strings.ToLower(owner.Kind) + "s"),
 		name: owner.Name,
 	}, nil
 }

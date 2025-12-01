@@ -98,7 +98,7 @@ func dockerImageName() string {
 func mandatoryMetricTagRegexes() []*regexp.Regexp {
 	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
 	for _, tag := range mandatoryMetricTags {
-		regexes = append(regexes, regexp.MustCompile(fmt.Sprintf("%s:.*", tag)))
+		regexes = append(regexes, regexp.MustCompile(tag+":.*"))
 	}
 
 	return regexes
@@ -390,6 +390,15 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 				usageMetricTags = metrics[0].Tags
 			}
 		}
+
+		hasPidTag := false
+		for _, tag := range usageMetricTags {
+			if strings.HasPrefix(tag, "pid:") {
+				hasPidTag = true
+				break
+			}
+		}
+		assert.True(c, hasPidTag, "no tag starting with 'pid:' found in usage metric tags")
 
 		if len(usageMetricTags) > 0 {
 			// Ensure we get the limit metric with the same tags as the usage one

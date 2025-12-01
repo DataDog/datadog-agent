@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -140,7 +141,7 @@ func DumpKindClusterState(ctx context.Context, name string) (ret string, err err
 
 	instanceIP := instancesDescription.Reservations[0].Instances[0].PrivateIpAddress
 	if instanceIP == nil {
-		return ret, fmt.Errorf("failed to get private IP of instance")
+		return ret, errors.New("failed to get private IP of instance")
 	}
 
 	auth := []ssh.AuthMethod{}

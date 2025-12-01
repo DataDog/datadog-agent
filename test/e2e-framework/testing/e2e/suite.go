@@ -749,7 +749,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		}
 
 		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
-			fullStackName := fmt.Sprintf("organization/e2eci/%s", stackName)
+			fullStackName := "organization/e2eci/" + stackName
 			bs.T().Logf("Remote stack cleaning enabled for stack %s", fullStackName)
 
 			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
@@ -759,7 +759,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			if err != nil {
 				bs.T().Logf("WARNING: Unable to destroy stack %s: %s", stackName, out)
 				_, err := bs.datadogClient.PostEvent(&datadog.Event{
-					Title: pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s", stackName)),
+					Title: pointer.Ptr("Unable to destroy stack " + stackName),
 					Text:  pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s: %s", stackName, out)),
 					Tags:  []string{"test:e2e", "stack:destroy", "stack_name:" + stackName, "service:stackcleaner-worker", "ci.job.name:" + os.Getenv("CI_JOB_NAME"), "ci.job.id:" + os.Getenv("CI_JOB_ID"), "ci.pipeline.id:" + os.Getenv("CI_PIPELINE_ID")},
 				})

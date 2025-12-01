@@ -126,13 +126,13 @@ func (s *fipsServerClusterAgentSuite) startFIPSServerWithClusterAgentImage(tc ci
 			"CLUSTER_AGENT_IMAGE": s.clusterAgentImage,
 		}
 		if tc.cipher != "" {
-			envVars["CIPHER"] = fmt.Sprintf("-c %s", tc.cipher)
+			envVars["CIPHER"] = "-c " + tc.cipher
 		}
 		if tc.tlsMax != "" {
-			envVars["TLS_MAX"] = fmt.Sprintf("--tls-max %s", tc.tlsMax)
+			envVars["TLS_MAX"] = "--tls-max " + tc.tlsMax
 		}
 		if tc.tlsMin != "" {
-			envVars["TLS_MIN"] = fmt.Sprintf("--tls-min %s", tc.tlsMin)
+			envVars["TLS_MIN"] = "--tls-min " + tc.tlsMin
 		}
 
 		cmd := fmt.Sprintf("docker-compose -f %s up --detach --wait --timeout 300", strings.TrimSpace(s.fipsServer.composeFiles))
@@ -180,7 +180,7 @@ func (s *fipsServerClusterAgentSuite) TestFIPSCiphers() {
 
 			serverLogs := s.fipsServer.Logs()
 			if tc.want {
-				assert.Contains(s.T(), serverLogs, fmt.Sprintf("Negotiated cipher suite: %s", tc.cipher))
+				assert.Contains(s.T(), serverLogs, "Negotiated cipher suite: "+tc.cipher)
 			} else {
 				assert.Contains(s.T(), serverLogs, "no cipher suite supported by both client and server")
 			}

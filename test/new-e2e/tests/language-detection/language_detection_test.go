@@ -74,7 +74,7 @@ func (s *languageDetectionSuite) SetupSuite() {
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language string, source string) {
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -0 %s", pid)) // check PID refers to an existing, signalable process
+	s.Env().RemoteHost.MustExecute("kill -0 " + pid) // check PID refers to an existing, signalable process
 
 	var actualLanguage string
 	var err error
@@ -88,7 +88,7 @@ func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language stri
 			pid, language, actualLanguage, err),
 	)
 
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
+	s.Env().RemoteHost.MustExecute("kill -SIGTERM " + pid)
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (string, error) {

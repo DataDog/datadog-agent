@@ -38,7 +38,7 @@ func (h *Host) uploadFixtures() {
 	for _, fixture := range fixtures {
 		if filepath.Ext(fixture.Name()) == ".sh" {
 			fixturePath := filepath.Join("/opt/fixtures", fixture.Name())
-			h.remote.MustExecute(fmt.Sprintf("chmod +x %s", fixturePath))
+			h.remote.MustExecute("chmod +x " + fixturePath)
 		}
 	}
 

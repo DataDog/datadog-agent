@@ -15,7 +15,6 @@
 package procnet
 
 import (
-	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -60,8 +59,8 @@ func GetTCPConnections() []TCPConnection {
 		}
 
 		if _, ok := seenNS[ino]; !ok {
-			populateIndex(connByInode, ino, filepath.Join(procRoot, fmt.Sprintf("%d", pid), "net", "tcp"))
-			populateIndex(connByInode, ino, filepath.Join(procRoot, fmt.Sprintf("%d", pid), "net", "tcp6"))
+			populateIndex(connByInode, ino, filepath.Join(procRoot, strconv.Itoa(pid), "net", "tcp"))
+			populateIndex(connByInode, ino, filepath.Join(procRoot, strconv.Itoa(pid), "net", "tcp6"))
 		}
 		seenNS[ino] = struct{}{}
 
@@ -108,7 +107,7 @@ func populateIndex(connByInode map[int]TCPConnection, ino uint32, file string) {
 // original `connsByInode` map size because one TCP socket can potentially "map"
 // to multiple (PID, FD) pairs (eg. forked processes etc).
 func matchFDWithSocket(procRoot string, pid int, connByInode map[int]TCPConnection, conns []TCPConnection) []TCPConnection {
-	fdsPath := filepath.Join(procRoot, fmt.Sprintf("%d", pid), "fd")
+	fdsPath := filepath.Join(procRoot, strconv.Itoa(pid), "fd")
 	fdsDir, err := os.Open(fdsPath)
 	if err != nil {
 		return conns

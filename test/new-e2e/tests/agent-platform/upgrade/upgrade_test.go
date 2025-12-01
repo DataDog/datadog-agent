@@ -60,7 +60,7 @@ func TestUpgradeScript(t *testing.T) {
 	for _, osDesc := range osDescriptors {
 		osDesc := osDesc
 
-		t.Run(fmt.Sprintf("test upgrade on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
+		t.Run("test upgrade on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 

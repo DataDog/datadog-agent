@@ -68,7 +68,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeMSI() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestGMSAUser)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -103,7 +103,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeAgentPackage() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestGMSAUser)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -155,7 +155,7 @@ func createGMSAAccount(host *components.RemoteHost, accountName, domain string) 
 	userWithoutSuffix := strings.TrimSuffix(accountName, "$")
 
 	// Check if the gMSA account already exists
-	checkCmd := fmt.Sprintf("Get-ADServiceAccount -Identity %s", userWithoutSuffix)
+	checkCmd := "Get-ADServiceAccount -Identity " + userWithoutSuffix
 	_, err := host.Execute(checkCmd)
 	if err == nil {
 		// Account already exists, skip creation
