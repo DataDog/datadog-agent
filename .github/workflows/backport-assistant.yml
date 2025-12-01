@@ -117,10 +117,10 @@ jobs:
           | Label | Description | RC | Patch |
           |-------|-------------|:--:|:-----:|
           | \`bugfix/regression\` | Regression from **current release cycle** | ✅ | ❌ |
-          | \`bugfix/critical\` | Critical bug with **customer impact** | ✅ | ⚠️ |
-          | \`security/cve\` | Known **CVE** vulnerability | ✅ | ⚠️ |
-          | \`security/critical\` | Critical security issue | ✅ | ⚠️ |
-          | \`backport/exception\` | Exception - **requires justification** | ⚠️ | ⚠️ |
+          | \`bugfix/critical\` | Critical bug with **customer impact** | ✅ | 🟡 |
+          | \`security/cve\` | Known **CVE** vulnerability | ✅ | 🟡 |
+          | \`security/critical\` | Critical security issue | ✅ | 🟡 |
+          | \`backport/exception\` | Exception - **requires justification** | 🟡 | 🟡 |
           
           🟡 = Fill the backport request form via \`/agent\` in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
           EOF
