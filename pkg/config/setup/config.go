@@ -1301,6 +1301,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_runner_utilization_warning_cooldown", 10*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_startup_time", 5*time.Minute)
 	config.BindEnvAndSetDefault("check_system_probe_timeout", 60*time.Second)
+	config.BindEnvAndSetDefault("check_watchdog_warning_timeout", 0*time.Second) // If not zero, the agent will log a warning if a check is running for longer than this timeout
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	// used to override the path where the IPC cert/key files are stored/retrieved
 	config.BindEnvAndSetDefault("ipc_cert_file_path", "")
