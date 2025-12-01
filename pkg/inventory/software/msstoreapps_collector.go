@@ -27,7 +27,6 @@ func (c *msStoreAppsCollector) Collect() ([]*Entry, []*Warning, error) {
 	if err != nil {
 		return nil, warnings, err
 	}
-	defer msstoreapps.FreeStore(store)
 
 	if store.Count == 0 {
 		return entries, warnings, nil
@@ -54,6 +53,11 @@ func (c *msStoreAppsCollector) Collect() ([]*Entry, []*Warning, error) {
 			Status:      "installed",
 			ProductCode: windows.UTF16PtrToString(e.ProductCode),
 		})
+	}
+
+	err = msstoreapps.FreeStore(store)
+	if err != nil {
+		return nil, warnings, err
 	}
 
 	return entries, warnings, nil

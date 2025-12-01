@@ -346,7 +346,7 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 				fmt.Sprintf("MISSING VERSION: %s v%s (ProductCode: %s)",
 					psEntry.DisplayName, psEntry.Version, psEntry.ProductCode))
 		}
-		
+
 	}
 
 	// Log results
