@@ -228,7 +228,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	mockRCClient := newMockRCClient("image_resolver_multi_repo.json")
-	datadoghqRegistries := config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
+	datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 	resolver := newRemoteConfigImageResolver(mockRCClient, datadoghqRegistries)
 
 	testCases := []struct {
