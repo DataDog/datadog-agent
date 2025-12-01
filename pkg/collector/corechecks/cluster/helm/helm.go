@@ -238,14 +238,14 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 		helmChartTag := fmt.Sprintf("helm_chart:%s-%s", release.Chart.Metadata.Name, escapedVersion)
 		tags = append(
 			tags,
-			fmt.Sprintf("helm_chart_version:%s", release.Chart.Metadata.Version),
-			fmt.Sprintf("helm_app_version:%s", release.Chart.Metadata.AppVersion),
+			"helm_chart_version:"+release.Chart.Metadata.Version,
+			"helm_app_version:"+release.Chart.Metadata.AppVersion,
 			helmChartTag,
 		)
 	}
 
 	if release.Info != nil {
-		tags = append(tags, fmt.Sprintf("helm_status:%s", release.Info.Status))
+		tags = append(tags, "helm_status:"+release.Info.Status)
 	}
 
 	for helmValue, tagName := range hc.instance.HelmValuesAsTags {
@@ -265,19 +265,19 @@ func (hc *HelmCheck) tagsForMetricsAndEvents(release *release, includeRevision b
 // revisions
 func commonTags(release *release, storageDriver helmStorage) []string {
 	tags := []string{
-		fmt.Sprintf("helm_release:%s", release.Name),
+		"helm_release:" + release.Name,
 		fmt.Sprintf("helm_storage:%s", storageDriver),
-		fmt.Sprintf("kube_namespace:%s", release.Namespace),
+		"kube_namespace:" + release.Namespace,
 
 		// "helm_namespace" is just an alias for "kube_namespace".
 		// "kube_namespace" is a better name and consistent with the rest of
 		// checks, but in the first release of the check we had "helm_namespace"
 		// so we need to keep it for backwards-compatibility.
-		fmt.Sprintf("helm_namespace:%s", release.Namespace),
+		"helm_namespace:" + release.Namespace,
 	}
 
 	if release.Chart != nil && release.Chart.Metadata != nil {
-		tags = append(tags, fmt.Sprintf("helm_chart_name:%s", release.Chart.Metadata.Name))
+		tags = append(tags, "helm_chart_name:"+release.Chart.Metadata.Name)
 	}
 
 	return tags

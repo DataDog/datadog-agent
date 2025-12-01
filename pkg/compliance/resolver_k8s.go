@@ -9,6 +9,7 @@ package compliance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	kubemetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,11 +84,11 @@ func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec In
 	}
 
 	if len(spec.Kind) == 0 {
-		return nil, fmt.Errorf("cannot run Kubeapiserver check, resource kind is empty")
+		return nil, errors.New("cannot run Kubeapiserver check, resource kind is empty")
 	}
 
 	if len(spec.APIRequest.Verb) == 0 {
-		return nil, fmt.Errorf("cannot run Kubeapiserver check, action verb is empty")
+		return nil, errors.New("cannot run Kubeapiserver check, action verb is empty")
 	}
 
 	if len(spec.Version) == 0 {
@@ -124,7 +125,7 @@ func (r *k8sapiserverResolver) resolveKubeApiserver(ctx context.Context, spec In
 	switch api.Verb {
 	case "get":
 		if len(api.ResourceName) == 0 {
-			return nil, fmt.Errorf("unable to use 'get' apirequest without resource name")
+			return nil, errors.New("unable to use 'get' apirequest without resource name")
 		}
 		resource, err := resourceAPI.Get(ctx, spec.APIRequest.ResourceName, kubemetav1.GetOptions{})
 		if err != nil {

@@ -8,9 +8,11 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"expvar"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -450,7 +452,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(tmpListeners) == 0 {
-		return fmt.Errorf("listening on neither udp nor socket, please check your configuration")
+		return errors.New("listening on neither udp nor socket, please check your configuration")
 	}
 
 	s.packetsIn = packetsChannel
@@ -465,7 +467,7 @@ func (s *server) start(context.Context) error {
 	forwardHost := s.config.GetString("statsd_forward_host")
 	forwardPort := s.config.GetInt("statsd_forward_port")
 	if forwardHost != "" && forwardPort != 0 {
-		forwardAddress := fmt.Sprintf("%s:%d", forwardHost, forwardPort)
+		forwardAddress := net.JoinHostPort(forwardHost, strconv.Itoa(forwardPort))
 		con, err := net.Dial("udp", forwardAddress)
 		if err != nil {
 			s.log.Warnf("Could not connect to statsd forward host : %s", err)

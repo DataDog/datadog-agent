@@ -82,7 +82,7 @@ func newContainerWorkloadID(containerID string) workloadmeta.EntityID {
 func newProcessWorkloadID(pid int32) workloadmeta.EntityID {
 	return workloadmeta.EntityID{
 		Kind: workloadmeta.KindProcess,
-		ID:   fmt.Sprintf("%d", pid),
+		ID:   strconv.FormatInt(int64(pid), 10),
 	}
 }
 
@@ -227,10 +227,15 @@ func TestGetWorkloadTags(t *testing.T) {
 	const containerID = "test-container-id"
 	const processID = 123
 
+	// Set empty procfs to avoid any confusion with the real procfs
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{})
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
 	containerWorkloadID := newContainerWorkloadID(containerID)
 	processWorkloadID := newProcessWorkloadID(processID)
 
-	expectedTags := []string{"service:my-service", "env:prod"}
+	expectedContainerTags := []string{"service:my-service", "env:prod"}
+	expectedProcessTags := []string{"pid:123", "nspid:123"}
 	errorCacheTags := []string{"old:tag"}
 
 	workloadSetup := []struct {
@@ -248,80 +253,77 @@ func TestGetWorkloadTags(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		workloadID        workloadmeta.EntityID
-		cacheEntry        *workloadTagCacheEntry
-		setInWorkloadMeta bool
-		setTaggerTags     []string
-		expected          []string
-		expectErr         bool
-		assertFunc        func(t *testing.T, cache *WorkloadTagCache)
+		name                      string
+		cacheEntry                *workloadTagCacheEntry
+		setInWorkloadMeta         bool
+		setTaggerTags             []string
+		expected                  map[workloadmeta.EntityID][]string
+		expectErr                 bool
+		expectedUpdatedCachedTags bool
+		expectedCacheEntryStale   bool
 	}{
 		{
 			name: "cache hit returns stored tags",
 			cacheEntry: &workloadTagCacheEntry{
-				tags:  expectedTags,
+				tags:  expectedContainerTags,
 				stale: false,
 			},
-			expected: expectedTags,
+			expected: map[workloadmeta.EntityID][]string{
+				containerWorkloadID: expectedContainerTags,
+				processWorkloadID:   expectedContainerTags,
+			},
+			expectedUpdatedCachedTags: false,
+			expectedCacheEntryStale:   false,
 		},
 		{
 			name:              "cache miss builds tags",
-			workloadID:        containerWorkloadID,
 			setInWorkloadMeta: true,
-			setTaggerTags:     expectedTags,
-			expected:          expectedTags,
-			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
-				require.True(t, exists)
-				assert.Equal(t, expectedTags, cacheEntry.tags)
-				assert.False(t, cacheEntry.stale)
+			setTaggerTags:     expectedContainerTags,
+			expected: map[workloadmeta.EntityID][]string{
+				containerWorkloadID: expectedContainerTags,
+				processWorkloadID:   expectedProcessTags,
 			},
+			expectedUpdatedCachedTags: true,
+			expectedCacheEntryStale:   false,
 		},
 		{
-			name:       "invalid cache entry rebuilds tags",
-			workloadID: containerWorkloadID,
+			name: "invalid cache entry rebuilds tags",
 			cacheEntry: &workloadTagCacheEntry{
 				tags:  errorCacheTags,
 				stale: true,
 			},
 			setInWorkloadMeta: true,
-			setTaggerTags:     expectedTags,
-			expected:          expectedTags,
-			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
-				require.True(t, exists)
-				assert.Equal(t, expectedTags, cacheEntry.tags)
-				assert.False(t, cacheEntry.stale)
+			setTaggerTags:     expectedContainerTags,
+			expected: map[workloadmeta.EntityID][]string{
+				containerWorkloadID: expectedContainerTags,
+				processWorkloadID:   expectedProcessTags,
 			},
+			expectedUpdatedCachedTags: true,
+			expectedCacheEntryStale:   false,
 		},
 		{
-			name:       "error returns cached tags when entry exists",
-			workloadID: containerWorkloadID,
+			name: "error returns cached tags when stale entry exists",
 			cacheEntry: &workloadTagCacheEntry{
 				tags:  errorCacheTags,
 				stale: true,
 			},
-			expected:  errorCacheTags,
-			expectErr: true,
-			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
-				require.True(t, exists)
-				assert.Equal(t, errorCacheTags, cacheEntry.tags)
-				assert.False(t, cacheEntry.stale)
+			expected: map[workloadmeta.EntityID][]string{
+				containerWorkloadID: errorCacheTags,
+				processWorkloadID:   errorCacheTags,
 			},
+			expectErr:                 true,
+			expectedUpdatedCachedTags: false,
+			expectedCacheEntryStale:   false,
 		},
 		{
-			name:       "error without cache entry stores nil tags",
-			workloadID: containerWorkloadID,
-			expected:   nil,
-			expectErr:  true,
-			assertFunc: func(t *testing.T, cache *WorkloadTagCache) {
-				cacheEntry, exists := cache.cache.Get(containerWorkloadID)
-				require.True(t, exists)
-				assert.Nil(t, cacheEntry.tags)
-				assert.False(t, cacheEntry.stale)
+			name: "error without cache entry",
+			expected: map[workloadmeta.EntityID][]string{
+				containerWorkloadID: nil,
+				processWorkloadID:   expectedProcessTags, // base process tags are always present based on the PID
 			},
+			expectErr:                 true,
+			expectedUpdatedCachedTags: true,
+			expectedCacheEntryStale:   false,
 		},
 	}
 
@@ -331,24 +333,29 @@ func TestGetWorkloadTags(t *testing.T) {
 				t.Run(testCase.name, func(tt *testing.T) {
 					cache, mocks := setupWorkloadTagCache(tt)
 
+					mocks.containerProvider.EXPECT().
+						GetPidToCid(time.Duration(0)).
+						Return(map[int]string{}).
+						AnyTimes()
+
 					if testCase.cacheEntry != nil {
-						setCacheEntry(cache, testCase.workloadID, testCase.cacheEntry.tags, testCase.cacheEntry.stale)
+						setCacheEntry(cache, workload.workloadID, testCase.cacheEntry.tags, testCase.cacheEntry.stale)
 					}
 
 					if testCase.setInWorkloadMeta {
 						setWorkloadInWorkloadMeta(
 							tt,
 							mocks.workloadMeta,
-							testCase.workloadID,
+							workload.workloadID,
 							workloadmeta.ContainerRuntimeContainerd,
 						)
 					}
 
 					if testCase.setTaggerTags != nil {
-						setWorkloadTags(tt, mocks.tagger, testCase.workloadID, testCase.setTaggerTags, nil, nil)
+						setWorkloadTags(tt, mocks.tagger, workload.workloadID, testCase.setTaggerTags, nil, nil)
 					}
 
-					tags, err := cache.GetOrCreateWorkloadTags(testCase.workloadID)
+					tags, err := cache.GetOrCreateWorkloadTags(workload.workloadID)
 
 					if testCase.expectErr {
 						assert.Error(tt, err)
@@ -356,10 +363,23 @@ func TestGetWorkloadTags(t *testing.T) {
 						require.NoError(tt, err)
 					}
 
-					assert.Equal(tt, testCase.expected, tags)
+					assert.Equal(tt, testCase.expected[workload.workloadID], tags, "returned tags should match the expected tags")
 
-					if testCase.assertFunc != nil {
-						testCase.assertFunc(tt, cache)
+					cacheEntry, exists := cache.cache.Get(workload.workloadID)
+					require.True(tt, exists, "cache entry should always exist after querying") // the cache entry should always exist after querying
+					assert.NotNil(tt, cacheEntry)
+					assert.Equal(tt, testCase.expectedCacheEntryStale, cacheEntry.stale)
+
+					if testCase.expectedUpdatedCachedTags {
+						// If we expect an update of the cached tags, we should see whatever we got from the tagger
+						assert.Equal(tt, testCase.expected[workload.workloadID], cacheEntry.tags, "cache tags should have been updated with the return value")
+					} else {
+						var expectedTags []string
+						if testCase.cacheEntry != nil {
+							expectedTags = testCase.cacheEntry.tags
+						}
+						// If not, we should see what was in the cache entry before
+						assert.Equal(tt, expectedTags, cacheEntry.tags, "cache tags should not have been modified")
 					}
 				})
 			}
@@ -420,7 +440,7 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: &container.EntityID,
@@ -430,7 +450,7 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	// Set up tagger for container
 	setWorkloadTags(t, mocks.tagger, container.EntityID, containerTags, nil, nil)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -453,14 +473,14 @@ func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: nil,
 	}
 	mocks.workloadMeta.Set(process)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -481,14 +501,14 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: 0,
 		Owner: nil,
 	}
 	mocks.workloadMeta.Set(process)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -518,7 +538,7 @@ func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
 	// Ensure the process exists in the fake procfs
 	require.True(t, kernel.ProcessExists(int(pid)))
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -556,7 +576,7 @@ func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
 	setWorkloadTags(t, mocks.tagger, newContainerWorkloadID(containerID), containerTags, nil, nil)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -585,7 +605,7 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: &workloadmeta.EntityID{
@@ -597,7 +617,7 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 
 	// Don't set up container in workloadmeta - it will return NotFound
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	assert.NoError(t, err) //
 
 	expectedTags := []string{
@@ -621,7 +641,7 @@ func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: &workloadmeta.EntityID{
@@ -635,7 +655,7 @@ func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 
 	// Don't set up tagger tags - the fake tagger returns empty tags (no error)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	// Tags should include process tags but no container tags
@@ -857,12 +877,12 @@ func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
 	kernel.WithFakeProcFS(t, procRoot)
 
 	// First process - should initialize pidToCid
-	tags1, err := cache.buildProcessTags(fmt.Sprintf("%d", pid1))
+	tags1, err := cache.buildProcessTags(strconv.FormatInt(int64(pid1), 10))
 	require.NoError(t, err)
 	assert.Contains(t, tags1, "service:service1")
 
 	// Second process - should reuse cached pidToCid (mockContainerProvider.EXPECT() will fail if called again)
-	tags2, err := cache.buildProcessTags(fmt.Sprintf("%d", pid2))
+	tags2, err := cache.buildProcessTags(strconv.FormatInt(int64(pid2), 10))
 	require.NoError(t, err)
 	assert.Contains(t, tags2, "service:service2")
 }

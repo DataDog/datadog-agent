@@ -11,6 +11,7 @@ package windowscertificate
 import (
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -88,7 +89,7 @@ func getCertThumbprint(certContext *windows.CertContext) (string, error) {
 		return "", err
 	}
 	if pcbData == 0 {
-		return "", fmt.Errorf("certificate has no SHA-1 Thumbprint")
+		return "", errors.New("certificate has no SHA-1 Thumbprint")
 	}
 
 	pvData := make([]byte, pcbData)
@@ -110,7 +111,7 @@ func getCrlThumbprint(pCrlContext *winutil.CRLContext) (string, error) {
 		return "", err
 	}
 	if pcbData == 0 {
-		return "", fmt.Errorf("CRL has no SHA-1 Thumbprint")
+		return "", errors.New("CRL has no SHA-1 Thumbprint")
 	}
 
 	pvData := make([]byte, pcbData)
