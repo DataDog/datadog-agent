@@ -525,8 +525,6 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
         'workers': "Number of parallel workers for compression and builds (default: 8)",
         'container-name': "Docker container name (default: ddagentbuilder)",
         'build-image': "Docker build image to use (default: datadog/agent-buildimages-linux)",
-        'detach': "Run build in background and return immediately (skips Docker image creation)",
-        'follow-logs': "Follow container logs after starting (only with --detach)",
         'tag': "Tag for the built Docker image (default: datadog-agent:local)",
     }
 )
@@ -538,8 +536,6 @@ def docker_build(
     workers=8,
     container_name="ddagentbuilder",
     build_image="datadog/agent-buildimages-linux",
-    detach=False,
-    follow_logs=False,
     tag="datadog-agent:local",
 ):
     """
@@ -559,9 +555,6 @@ def docker_build(
 
         # Build for specific architecture
         dda inv omnibus.docker-build --arch=arm64
-
-        # Run omnibus build in background (image built when complete)
-        dda inv omnibus.docker-build --detach --follow-logs
 
         # Compressed build (like CI, slower)
         dda inv omnibus.docker-build --compress
@@ -644,9 +637,8 @@ def docker_build(
     # Remove existing container if present
     ctx.run(f"docker rm -f {container_name} 2>/dev/null || true", warn=True, hide=True)
 
-    detach_flag = "-d" if detach else ""
     docker_cmd = (
-        f"docker run --name {container_name} {detach_flag} "
+        f"docker run --name {container_name} "
         f"{env_str} {vol_str} "
         f"-w /go/src/github.com/DataDog/datadog-agent "
         f"{build_image} "
@@ -658,19 +650,6 @@ def docker_build(
     print(f"Compress package: {compress}")
     print(f"Workers: {workers}")
     print()
-
-    if detach:
-        print("Starting build in background...")
-        ctx.run(docker_cmd)
-        print(f"\nContainer '{container_name}' started.")
-        print(f"Monitor with: docker logs -f {container_name}")
-        print(f"Check status: docker ps -a --filter name={container_name}")
-        print(f"\nOnce complete, run again without --detach to build Docker image.")
-
-        if follow_logs:
-            print("\nFollowing logs (Ctrl+C to detach)...")
-            ctx.run(f"docker logs -f {container_name}", warn=True)
-        return
 
     # Run the omnibus build
     ctx.run(docker_cmd)
