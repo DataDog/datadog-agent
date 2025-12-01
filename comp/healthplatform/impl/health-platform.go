@@ -56,6 +56,10 @@ type healthPlatformImpl struct {
 	// Forwarder
 	forwarder *forwarder // Forwarder for sending health reports to Datadog intake
 
+	// Lifecycle
+	ctx    context.Context    // Context for managing component lifecycle
+	cancel context.CancelFunc // Cancel function for stopping background tasks
+
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
 }
@@ -79,6 +83,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
+	// Create context for component lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
@@ -92,6 +99,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Issue tracking
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+
+		// Lifecycle
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	// Initialize the forwarder if API key is available
@@ -123,6 +134,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 	}
 
+	// Register this component as the health checker
+	// This will flush any health checks that were registered before the component was created
+	health.SetChecker(comp)
+
 	// Return the component wrapped in Provides
 	provides := Provides{Comp: comp}
 	return provides, nil
@@ -136,9 +151,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
 
-	// Process any issues collected during startup
-	h.processStartupIssues()
-
 	// Start the forwarder if it's configured
 	if h.forwarder != nil {
 		h.forwarder.start()
@@ -150,6 +162,9 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 // stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
+
+	// Cancel all background tasks
+	h.cancel()
 
 	// Stop the forwarder if it's running
 	if h.forwarder != nil {
@@ -321,28 +336,54 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 	h.issues[checkID] = issue
 }
 
-// processStartupIssues retrieves and reports issues collected during agent startup
-func (h *healthPlatformImpl) processStartupIssues() {
-	issues := health.GetAndClearStartupIssues()
-	if len(issues) == 0 {
-		return
+// RegisterHealthCheck implements the Checker interface
+// It registers a periodic health check and starts monitoring immediately
+func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	h.log.Infof("Registering health check: %s", checkName)
+
+	// Get the check interval from config
+	interval := h.config.GetDuration("health_platform.forwarder.interval") * time.Minute
+	if interval <= 0 {
+		interval = 15 * time.Minute // Default to 15 minutes
 	}
 
-	h.log.Infof("Processing %d startup issues", len(issues))
+	// Run the check immediately
+	h.runHealthCheck(checkID, checkName, checkFunc)
 
-	for _, issue := range issues {
-		// Create issue report from stored context
-		issueReport := &healthplatform.IssueReport{
-			IssueID: issue.IssueID,
-			Context: issue.Context,
+	// Schedule periodic checks using the configured interval
+	go h.periodicHealthCheck(checkID, checkName, checkFunc, interval)
+}
+
+// runHealthCheck executes a health check function and reports the result
+func (h *healthPlatformImpl) runHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	issueID, context := checkFunc()
+
+	// Build issue report (nil if no issue detected)
+	var issueReport *healthplatform.IssueReport
+	if issueID != "" {
+		issueReport = &healthplatform.IssueReport{
+			IssueID: issueID,
+			Context: context,
 		}
+	}
 
-		// Use IssueID as the checkID (they're the same)
-		err := h.ReportIssue(issue.IssueID, issue.IssueID, issueReport)
-		if err != nil {
-			h.log.Warnf("Failed to report startup issue %s: %v", issue.IssueID, err)
-		} else {
-			h.log.Infof("Reported startup issue: %s", issue.IssueID)
+	// Report or clear the issue
+	if err := h.ReportIssue(checkID, checkName, issueReport); err != nil {
+		h.log.Warnf("Failed to update issue for check %s: %v", checkID, err)
+	}
+}
+
+// periodicHealthCheck runs a health check periodically
+func (h *healthPlatformImpl) periodicHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			h.runHealthCheck(checkID, checkName, checkFunc)
+		case <-h.ctx.Done():
+			return
 		}
 	}
 }
