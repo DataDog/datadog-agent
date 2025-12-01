@@ -1,0 +1,295 @@
+name: Backport Assistant
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled]
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Post release timeline when PR is opened
+  show_timeline:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'opened' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.user.type != 'Bot'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            .dda
+            .github
+            tasks
+            release.json
+          persist-credentials: false
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+
+      - name: Get release info
+        id: release_info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get info from release.json
+          LAST_STABLE=$(cat release.json | jq -r '.last_stable["7"]')
+          MILESTONE=$(cat release.json | jq -r '.current_milestone')
+          echo "last_stable=$LAST_STABLE" >> $GITHUB_OUTPUT
+          echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+          
+          LAST_STABLE_MAJOR=$(echo "$LAST_STABLE" | cut -d. -f1)
+          LAST_STABLE_MINOR=$(echo "$LAST_STABLE" | cut -d. -f2)
+          echo "last_stable_major=$LAST_STABLE_MAJOR" >> $GITHUB_OUTPUT
+          echo "last_stable_minor=$LAST_STABLE_MINOR" >> $GITHUB_OUTPUT
+          
+          PATCH_BRANCH="${LAST_STABLE_MAJOR}.${LAST_STABLE_MINOR}.x"
+          echo "patch_branch=$PATCH_BRANCH" >> $GITHUB_OUTPUT
+          
+          # Get active RC branches (exclude stable branch)
+          BRANCHES=$(dda inv -- release.get-unreleased-release-branches 2>/dev/null || echo '[]')
+          RC_BRANCHES=$(echo "$BRANCHES" | jq -r --arg stable "$LAST_STABLE_MINOR" '[.[] | select(. | split(".")[1] != $stable)] | join(" ")')
+          echo "rc_branches=$RC_BRANCHES" >> $GITHUB_OUTPUT
+
+      - name: Get PR labels
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          LABELS=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' | tr '\n' ' ')
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+
+      - name: Post timeline
+        env:
+          LAST_STABLE: ${{ steps.release_info.outputs.last_stable }}
+          LAST_STABLE_MAJOR: ${{ steps.release_info.outputs.last_stable_major }}
+          MILESTONE: ${{ steps.release_info.outputs.milestone }}
+          PATCH_BRANCH: ${{ steps.release_info.outputs.patch_branch }}
+          RC_BRANCHES: ${{ steps.release_info.outputs.rc_branches }}
+          LABELS: ${{ steps.labels.outputs.labels }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # Determine fix type from labels
+          IS_REGRESSION="no"
+          IS_CRITICAL="no"
+          IS_SECURITY="no"
+          IS_EXCEPTION="no"
+          
+          if echo "$LABELS" | grep -qiE 'bugfix/regression'; then
+            IS_REGRESSION="yes"
+          fi
+          if echo "$LABELS" | grep -qiE 'bugfix/critical'; then
+            IS_CRITICAL="yes"
+          fi
+          if echo "$LABELS" | grep -qiE 'security/cve|security/critical'; then
+            IS_SECURITY="yes"
+          fi
+          if echo "$LABELS" | grep -qiE 'backport/exception'; then
+            IS_EXCEPTION="yes"
+          fi
+          
+          # Determine eligibility
+          RC_ELIGIBLE="no"
+          PATCH_ELIGIBLE="no"
+          
+          if [ "$IS_REGRESSION" = "yes" ] || [ "$IS_CRITICAL" = "yes" ] || [ "$IS_SECURITY" = "yes" ] || [ "$IS_EXCEPTION" = "yes" ]; then
+            RC_ELIGIBLE="yes"
+          fi
+          if [ "$IS_CRITICAL" = "yes" ] || [ "$IS_SECURITY" = "yes" ] || [ "$IS_EXCEPTION" = "yes" ]; then
+            PATCH_ELIGIBLE="yes"
+          fi
+          
+          cat << EOF > comment.md
+          <!-- backport-assistant -->
+          ## 🔄 Backport Assistant
+          
+          | Release | Status | Eligible | Label to backport |
+          |---------|--------|----------|-------------------|
+          EOF
+          
+          # Add RC releases
+          for BRANCH in $RC_BRANCHES; do
+            MINOR=$(echo "$BRANCH" | sed 's/\.x$//' | cut -d. -f2)
+            VERSION="${LAST_STABLE_MAJOR}.${MINOR}.0"
+            
+            if [ "$RC_ELIGIBLE" = "yes" ]; then
+              ELIGIBLE="🟡 Potentially"
+            else
+              ELIGIBLE="❌"
+            fi
+            
+            echo "| **$VERSION** | 🚀 RC | $ELIGIBLE | \`backport/$BRANCH\` |" >> comment.md
+          done
+          
+          # Add patch release (stable)
+          if [ "$PATCH_ELIGIBLE" = "yes" ]; then
+            PATCH_CELL="🟡 Potentially"
+          else
+            PATCH_CELL="❌"
+          fi
+          echo "| **$LAST_STABLE+** | ✅ Stable | $PATCH_CELL | \`backport/$PATCH_BRANCH\` |" >> comment.md
+          
+          # Add dev
+          echo "| **$MILESTONE** | 🔨 Dev | ✅ | _main_ |" >> comment.md
+          
+          cat << EOF >> comment.md
+          
+          📅 [**Release Calendar**](https://docs.google.com/spreadsheets/d/14PXAEEm2EZWfR8dWdOOHjeU_lt8zx9waRe_BIzQ36s4) _(internal)_
+          📖 [**Backport Guidelines**](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/1755676984/Expectations+For+Agent+Releases#backport-pr-guidelines) _(internal)_
+          
+          ---
+          
+          ### Fix type labels
+          
+          | Label | Description | RC | Patch |
+          |-------|-------------|:--:|:-----:|
+          | \`bugfix/regression\` | Regression from **current release cycle** | ✅ | ❌ |
+          | \`bugfix/critical\` | Critical bug with **customer impact** | ✅ | ⚠️ |
+          | \`security/cve\` | Known **CVE** vulnerability | ✅ | ⚠️ |
+          | \`security/critical\` | Critical security issue | ✅ | ⚠️ |
+          | \`backport/exception\` | Exception - **requires justification** | ⚠️ | ⚠️ |
+          
+          🟡 = Fill the backport request form via \`/agent\` in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
+          EOF
+          
+          gh pr comment "$PR_NUMBER" --body-file comment.md
+
+  # Confirm when backport label is added
+  confirm_backport:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      startsWith(github.event.label.name, 'backport/7')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: |
+            release.json
+          persist-credentials: false
+
+      - name: Get release info
+        id: release_info
+        run: |
+          LAST_STABLE=$(cat release.json | jq -r '.last_stable["7"]')
+          LAST_STABLE_MINOR=$(echo "$LAST_STABLE" | cut -d. -f2)
+          echo "last_stable=$LAST_STABLE" >> $GITHUB_OUTPUT
+          echo "last_stable_minor=$LAST_STABLE_MINOR" >> $GITHUB_OUTPUT
+
+      - name: Get PR labels
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          LABELS=$(gh pr view "$PR_NUMBER" --json labels -q '.labels[].name' | tr '\n' ' ')
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+
+      - name: Confirm backport
+        env:
+          LABEL: ${{ github.event.label.name }}
+          LAST_STABLE: ${{ steps.release_info.outputs.last_stable }}
+          LAST_STABLE_MINOR: ${{ steps.release_info.outputs.last_stable_minor }}
+          LABELS: ${{ steps.labels.outputs.labels }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          TARGET_BRANCH=$(echo "$LABEL" | sed 's/backport\///')
+          TARGET_MINOR=$(echo "$TARGET_BRANCH" | sed 's/\.x$//' | cut -d. -f2)
+          
+          # Check fix type labels
+          HAS_REGRESSION=$(echo "$LABELS" | grep -q 'bugfix/regression' && echo "yes" || echo "no")
+          HAS_CRITICAL=$(echo "$LABELS" | grep -q 'bugfix/critical' && echo "yes" || echo "no")
+          HAS_SECURITY=$(echo "$LABELS" | grep -qE 'security/cve|security/critical' && echo "yes" || echo "no")
+          HAS_EXCEPTION=$(echo "$LABELS" | grep -q 'backport/exception' && echo "yes" || echo "no")
+          
+          HAS_ANY_TYPE="no"
+          PATCH_ELIGIBLE="no"
+          if [ "$HAS_REGRESSION" = "yes" ] || [ "$HAS_CRITICAL" = "yes" ] || [ "$HAS_SECURITY" = "yes" ] || [ "$HAS_EXCEPTION" = "yes" ]; then
+            HAS_ANY_TYPE="yes"
+          fi
+          if [ "$HAS_CRITICAL" = "yes" ] || [ "$HAS_SECURITY" = "yes" ] || [ "$HAS_EXCEPTION" = "yes" ]; then
+            PATCH_ELIGIBLE="yes"
+          fi
+          
+          if [ "$TARGET_MINOR" = "$LAST_STABLE_MINOR" ]; then
+            # Patch release
+            if [ "$HAS_EXCEPTION" = "yes" ]; then
+              cat << EOF > comment.md
+          ⚠️ **Patch release EXCEPTION: $TARGET_BRANCH** → $LAST_STABLE
+          
+          **Required:**
+          - [ ] Justification documented in PR description
+          - [ ] PM/EM approval obtained
+          - [ ] Discussed in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
+          
+          **After merge:** \`/agent\` in #agent-release-sync
+          EOF
+            elif [ "$PATCH_ELIGIBLE" = "yes" ]; then
+              cat << EOF > comment.md
+          ⚠️ **Patch release: $TARGET_BRANCH** → $LAST_STABLE
+          
+          Please confirm:
+          - [ ] Customer impact documented
+          - [ ] PM/EM approval obtained
+          
+          **After merge:** \`/agent\` in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
+          EOF
+            else
+              cat << EOF > comment.md
+          ❌ **Patch release requires one of these labels:**
+          - \`bugfix/critical\` - Critical bug with customer impact
+          - \`security/cve\` - Known CVE vulnerability
+          - \`security/critical\` - Critical security issue
+          - \`backport/exception\` - Exception with justification
+          
+          Patch releases ($LAST_STABLE) have a high bar. If this is a regression, target an RC release instead.
+          EOF
+            fi
+          else
+            # RC backport
+            TARGET_VERSION="${TARGET_BRANCH%.x}.0"
+            if [ "$HAS_EXCEPTION" = "yes" ]; then
+              cat << EOF > comment.md
+          ⚠️ **RC backport EXCEPTION: $TARGET_BRANCH → $TARGET_VERSION**
+          
+          **Required:**
+          - [ ] Justification documented in PR description
+          - [ ] PM/EM approval obtained
+          
+          **After merge:** \`/agent\` in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
+          EOF
+            elif [ "$HAS_ANY_TYPE" = "yes" ]; then
+              cat << EOF > comment.md
+          ✅ **RC backport: $TARGET_BRANCH → $TARGET_VERSION**
+          
+          **After merge:** \`/agent\` in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
+          EOF
+            else
+              cat << EOF > comment.md
+          ⚠️ **Missing fix type label**
+          
+          Please add one of:
+          - \`bugfix/regression\` - Regression from current release cycle
+          - \`bugfix/critical\` - Critical bug with customer impact
+          - \`security/cve\` - Known CVE vulnerability
+          - \`security/critical\` - Critical security issue
+          - \`backport/exception\` - Exception with justification
+          
+          **After adding label:** \`/agent\` in [#agent-release-sync](https://dd.enterprise.slack.com/archives/CE4PS8MHS)
+          EOF
+            fi
+          fi
+          
+          gh pr comment "$PR_NUMBER" --body-file comment.md

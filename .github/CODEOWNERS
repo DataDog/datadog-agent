@@ -61,6 +61,7 @@
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/chainguard/**                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
+/.github/workflows/backport-assistant.yml            @DataDog/agent-delivery
 /.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
