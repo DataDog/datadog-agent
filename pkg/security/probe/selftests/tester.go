@@ -8,7 +8,7 @@ package selftests
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -211,10 +211,10 @@ func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) (
 	}
 
 	pInfo := &rules.PolicyInfo{
-		Name:       policyName,
-		Source:     policySource,
-		Type:       rules.SelftestPolicy,
-		IsInternal: true,
+		Name:         policyName,
+		Source:       policySource,
+		InternalType: rules.SelftestPolicyType,
+		IsInternal:   true,
 	}
 
 	policy, err := rules.LoadPolicyFromDefinition(pInfo, policyDef, nil, nil)
@@ -234,7 +234,7 @@ func (t *SelfTester) beginSelfTests(timeout time.Duration) error {
 	select {
 	case t.selfTestRunning <- timeout:
 	default:
-		return fmt.Errorf("channel is already full, self test is already running")
+		return errors.New("channel is already full, self test is already running")
 	}
 	t.waitingForEvent.Store(true)
 

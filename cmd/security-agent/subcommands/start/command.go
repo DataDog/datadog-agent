@@ -388,5 +388,5 @@ func setupInternalProfiling(config config.Component) error {
 }
 
 func secAgentKey(sub string) string {
-	return fmt.Sprintf("security_agent.%s", sub)
+	return "security_agent." + sub
 }

@@ -9,7 +9,6 @@ package awskubernetes
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -85,7 +84,7 @@ func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Dumping Kind cluster state:\n%s", dumpResult), nil
+	return "Dumping Kind cluster state:\n" + dumpResult, nil
 }
 
 // KindProvisioner creates a new provisioner

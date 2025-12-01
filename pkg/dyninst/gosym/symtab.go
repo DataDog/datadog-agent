@@ -14,6 +14,7 @@ package gosym
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"iter"
 	"math"
@@ -235,7 +236,7 @@ type lineTable struct {
 
 func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, error) {
 	if len(data) < 8 {
-		return nil, fmt.Errorf("pclntab too short")
+		return nil, errors.New("pclntab too short")
 	}
 
 	magic := binary.LittleEndian.Uint32(data[0:4])
@@ -256,7 +257,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 
 	// Check pad bytes
 	if data[4] != 0 || data[5] != 0 {
-		return nil, fmt.Errorf("unexpected pclntab header bytes")
+		return nil, errors.New("unexpected pclntab header bytes")
 	}
 
 	quantum := uint32(data[6])
@@ -297,7 +298,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off3) >= len(data) {
-			return nil, fmt.Errorf("invalid funcnametab offset")
+			return nil, errors.New("invalid funcnametab offset")
 		}
 		funcnametab := [2]int{int(off3), len(data)}
 
@@ -306,7 +307,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off4) >= len(data) {
-			return nil, fmt.Errorf("invalid cutab offset")
+			return nil, errors.New("invalid cutab offset")
 		}
 		cutab := [2]int{int(off4), len(data)}
 
@@ -315,7 +316,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off5) >= len(data) {
-			return nil, fmt.Errorf("invalid filetab offset")
+			return nil, errors.New("invalid filetab offset")
 		}
 		filetab := [2]int{int(off5), len(data)}
 
@@ -324,7 +325,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off6) >= len(data) {
-			return nil, fmt.Errorf("invalid pc_tab offset")
+			return nil, errors.New("invalid pc_tab offset")
 		}
 		pcTab := [2]int{int(off6), len(data)}
 
@@ -333,13 +334,13 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off7) >= len(data) {
-			return nil, fmt.Errorf("invalid funcdata offset")
+			return nil, errors.New("invalid funcdata offset")
 		}
 		base := int(off7)
 		fieldSize := 4 // For ver118 and later, functab fields are 4 bytes
 		required := (int(nfunctab)*2 + 1) * fieldSize
 		if len(data) < base+required {
-			return nil, fmt.Errorf("pclntab too short for functab data")
+			return nil, errors.New("pclntab too short for functab data")
 		}
 		functab := [2]int{base, base + required}
 		funcdata := [2]int{base, len(data)}
@@ -380,7 +381,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off2) >= len(data) {
-			return nil, fmt.Errorf("invalid funcnametab offset")
+			return nil, errors.New("invalid funcnametab offset")
 		}
 		funcnametab := [2]int{int(off2), len(data)}
 
@@ -389,7 +390,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off3) >= len(data) {
-			return nil, fmt.Errorf("invalid cutab offset")
+			return nil, errors.New("invalid cutab offset")
 		}
 		cutab := [2]int{int(off3), len(data)}
 
@@ -398,7 +399,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off4) >= len(data) {
-			return nil, fmt.Errorf("invalid filetab offset")
+			return nil, errors.New("invalid filetab offset")
 		}
 		filetab := [2]int{int(off4), len(data)}
 
@@ -407,7 +408,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off5) >= len(data) {
-			return nil, fmt.Errorf("invalid pc_tab offset")
+			return nil, errors.New("invalid pc_tab offset")
 		}
 		pcTab := [2]int{int(off5), len(data)}
 
@@ -416,14 +417,14 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 			return nil, err
 		}
 		if int(off6) >= len(data) {
-			return nil, fmt.Errorf("invalid funcdata offset")
+			return nil, errors.New("invalid funcdata offset")
 		}
 
 		base := int(off6)
 		fieldSize := functabFieldSize(ptrSize, version)
 		functabSize := (int(nfunctab)*2 + 1) * fieldSize
 		if len(data) < base+functabSize {
-			return nil, fmt.Errorf("pclntab too short for functab data")
+			return nil, errors.New("pclntab too short for functab data")
 		}
 		functab := [2]int{base, base + functabSize}
 		funcdata := [2]int{base, len(data)}
@@ -450,12 +451,12 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 		var nfunctab uint32
 		if ptrSize == 8 {
 			if len(data) < 8+8 {
-				return nil, fmt.Errorf("pclntab too short for nfunctab")
+				return nil, errors.New("pclntab too short for nfunctab")
 			}
 			nfunctab = uint32(binary.LittleEndian.Uint64(data[8 : 8+8]))
 		} else {
 			if len(data) < 8+4 {
-				return nil, fmt.Errorf("pclntab too short for nfunctab")
+				return nil, errors.New("pclntab too short for nfunctab")
 			}
 			nfunctab = binary.LittleEndian.Uint32(data[8 : 8+4])
 		}
@@ -463,17 +464,17 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 		functabOffset := 8 + ptrSize
 		functabSize := (int(nfunctab)*2 + 1) * ptrSize
 		if len(data) < functabOffset+functabSize {
-			return nil, fmt.Errorf("pclntab too short for functab")
+			return nil, errors.New("pclntab too short for functab")
 		}
 		functab := [2]int{functabOffset, functabOffset + functabSize}
 
 		if len(data) < functab[1]+4 {
-			return nil, fmt.Errorf("pclntab too short for filetab offset")
+			return nil, errors.New("pclntab too short for filetab offset")
 		}
 		filetabOffset := binary.LittleEndian.Uint32(data[functab[1] : functab[1]+4])
 
 		if int(filetabOffset)+4 > len(data) {
-			return nil, fmt.Errorf("filetab offset out of bounds")
+			return nil, errors.New("filetab offset out of bounds")
 		}
 		nfiletab := binary.LittleEndian.Uint32(data[filetabOffset : filetabOffset+4])
 
@@ -500,7 +501,7 @@ func parselineTable(data []byte, textRange, pcRange [2]uint64) (*lineTable, erro
 		}, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported pclntab version")
+		return nil, errors.New("unsupported pclntab version")
 	}
 }
 
@@ -579,7 +580,7 @@ func (lt *lineTable) funcInfo(i uint32) (funcInfo, error) {
 
 	actualOffset := lt.funcdata[0] + int(funcOff)
 	if actualOffset >= len(lt.data) {
-		return funcInfo{}, fmt.Errorf("function offset out of bounds")
+		return funcInfo{}, errors.New("function offset out of bounds")
 	}
 
 	return funcInfo{
@@ -1123,14 +1124,14 @@ func (ft *funcTab) count() uint32 {
 
 func (ft *funcTab) pc(i uint32) (uint64, error) {
 	if i >= ft.nfunctab {
-		return 0, fmt.Errorf("function index out of range")
+		return 0, errors.New("function index out of range")
 	}
 
 	fieldSize := functabFieldSize(ft.ptrSize, ft.version)
 	offset := ft.functab[0] + int(2*i)*fieldSize
 
 	if offset+fieldSize > len(ft.data) {
-		return 0, fmt.Errorf("function table entry out of bounds")
+		return 0, errors.New("function table entry out of bounds")
 	}
 
 	var pc uint64
@@ -1153,14 +1154,14 @@ func (ft *funcTab) pc(i uint32) (uint64, error) {
 
 func (ft *funcTab) funcOff(i uint32) (uint64, error) {
 	if i >= ft.nfunctab {
-		return 0, fmt.Errorf("function index out of range")
+		return 0, errors.New("function index out of range")
 	}
 
 	fieldSize := functabFieldSize(ft.ptrSize, ft.version)
 	offset := ft.functab[0] + int(2*i+1)*fieldSize
 
 	if offset+fieldSize > len(ft.data) {
-		return 0, fmt.Errorf("function offset out of bounds")
+		return 0, errors.New("function offset out of bounds")
 	}
 
 	var funcOff uint64
