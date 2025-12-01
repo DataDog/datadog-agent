@@ -59,7 +59,6 @@ type RuleSet struct {
 	opts             *Opts
 	evalOpts         *eval.Opts
 	eventRuleBuckets map[eval.EventType]*RuleBucket
-	rules            map[eval.RuleID]*Rule
 	policies         []*Policy
 	fieldEvaluators  map[string]eval.Evaluator
 	model            eval.Model
@@ -81,15 +80,56 @@ type RuleSet struct {
 // ListRuleIDs returns the list of RuleIDs from the ruleset
 func (rs *RuleSet) ListRuleIDs() []RuleID {
 	var ids []string
-	for ruleID := range rs.rules {
-		ids = append(ids, ruleID)
+	for _, bucket := range rs.eventRuleBuckets {
+		for _, rule := range bucket.rules {
+			ids = append(ids, rule.Def.ID)
+		}
 	}
 	return ids
 }
 
 // GetRules returns the active rules
-func (rs *RuleSet) GetRules() map[eval.RuleID]*Rule {
-	return rs.rules
+func (rs *RuleSet) GetRules() []*Rule {
+	var rules []*Rule
+
+	eventTypes := make([]eval.EventType, 0, len(rs.eventRuleBuckets))
+
+	for eventType := range rs.eventRuleBuckets {
+		eventTypes = append(eventTypes, eventType)
+	}
+
+	slices.SortStableFunc(eventTypes, func(a, b eval.EventType) int {
+		return strings.Compare(a, b)
+	})
+
+	for _, eventType := range eventTypes {
+		bucket := rs.eventRuleBuckets[eventType]
+		rules = append(rules, bucket.rules...)
+	}
+	return rules
+}
+
+// GetRuleByID returns the rule with the given ID
+func (rs *RuleSet) GetRuleByID(id eval.RuleID) *Rule {
+	for _, bucket := range rs.eventRuleBuckets {
+		for _, rule := range bucket.rules {
+			if rule.Def.ID == id {
+				return rule
+			}
+		}
+	}
+	return nil
+}
+
+// GetRuleMap returns the active rules as a map by ID
+func (rs *RuleSet) GetRuleMap() map[eval.RuleID]*Rule {
+	ruleMap := make(map[eval.RuleID]*Rule)
+	for _, bucket := range rs.eventRuleBuckets {
+		for _, rule := range bucket.rules {
+			ruleMap[rule.Def.ID] = rule
+		}
+	}
+	return ruleMap
 }
 
 // GetRuleBucket returns the rule bucket for the given event type
@@ -358,7 +398,7 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					continue
 				}
 
-				var variableValue interface{} = actionDef.Set.DefaultValue
+				var variableValue = actionDef.Set.DefaultValue
 				if variableValue == nil {
 					variableValue = actionDef.Set.Value
 				}
@@ -542,7 +582,7 @@ func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: ErrInternalIDConflict}
 	}
 
-	if _, exists := rs.rules[pRule.Def.ID]; exists {
+	if slices.Contains(rs.ListRuleIDs(), pRule.Def.ID) {
 		return model.UnknownCategory, nil
 	}
 
@@ -707,8 +747,6 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 	// Merge the fields of the new rule with the existing list of fields of the ruleset
 	rs.AddFields(rule.GetEvaluator().GetFields())
 
-	rs.rules[pRule.Def.ID] = rule
-
 	return model.GetEventTypeCategory(eventType), nil
 }
 
@@ -802,10 +840,12 @@ func (rs *RuleSet) GetEventTypeApprovers(eventType eval.EventType, fieldCaps Fie
 func (rs *RuleSet) GetFieldValues(field eval.Field) []eval.FieldValue {
 	var values []eval.FieldValue
 
-	for _, rule := range rs.rules {
-		rv := rule.GetFieldValues(field)
-		if len(rv) > 0 {
-			values = append(values, rv...)
+	for _, bucket := range rs.eventRuleBuckets {
+		for _, rule := range bucket.rules {
+			rv := rule.GetFieldValues(field)
+			if len(rv) > 0 {
+				values = append(values, rv...)
+			}
 		}
 	}
 
@@ -1122,6 +1162,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		if len(policy.Macros) == 0 && len(policy.Rules) == 0 && (policy.Info.Name != DefaultPolicyName && !policy.Info.IsInternal) {
 			errs = multierror.Append(errs, &ErrPolicyLoad{
 				Name:    policy.Info.Name,
+				Type:    policy.Info.Type,
 				Version: policy.Info.Version,
 				Source:  policy.Info.Source,
 				Err:     ErrPolicyIsEmpty,
@@ -1230,18 +1271,10 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		opts:             opts,
 		evalOpts:         evalOpts,
 		eventRuleBuckets: make(map[eval.EventType]*RuleBucket),
-		rules:            make(map[eval.RuleID]*Rule),
 		logger:           logger,
 		pool:             eval.NewContextPool(),
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 	}
-}
-
-// NewFakeRuleSet returns a fake and empty ruleset
-func NewFakeRuleSet(rule *Rule) *RuleSet {
-	rs := NewRuleSet(nil, nil, &Opts{}, &eval.Opts{})
-	rs.rules[rule.Rule.ID] = rule
-	return rs
 }

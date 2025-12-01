@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -86,7 +87,7 @@ func (ku *KubeUtil) init() error {
 
 	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
 	if ku.kubeletClient.config.scheme == "https" {
-		ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", ku.kubeletClient.config.tlsVerify)
+		ku.rawConnectionInfo["verify_tls"] = strconv.FormatBool(ku.kubeletClient.config.tlsVerify)
 		if ku.kubeletClient.config.caPath != "" {
 			ku.rawConnectionInfo["ca_cert"] = ku.kubeletClient.config.caPath
 		}
@@ -174,7 +175,7 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
 	if logOptions.SinceTime != nil {
-		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+		query += "&sinceTime=" + logOptions.SinceTime.Format(time.RFC3339)
 	}
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
 	return ku.kubeletClient.queryWithResp(ctx, path)

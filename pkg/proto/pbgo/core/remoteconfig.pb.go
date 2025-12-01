@@ -1226,6 +1226,8 @@ type PackageState struct {
 	Task                    *PackageStateTask      `protobuf:"bytes,4,opt,name=task,proto3" json:"task,omitempty"`
 	StableConfigVersion     string                 `protobuf:"bytes,11,opt,name=stable_config_version,json=stableConfigVersion,proto3" json:"stable_config_version,omitempty"`
 	ExperimentConfigVersion string                 `protobuf:"bytes,12,opt,name=experiment_config_version,json=experimentConfigVersion,proto3" json:"experiment_config_version,omitempty"`
+	RunningVersion          string                 `protobuf:"bytes,13,opt,name=running_version,json=runningVersion,proto3" json:"running_version,omitempty"`
+	RunningConfigVersion    string                 `protobuf:"bytes,14,opt,name=running_config_version,json=runningConfigVersion,proto3" json:"running_config_version,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1298,6 +1300,20 @@ func (x *PackageState) GetStableConfigVersion() string {
 func (x *PackageState) GetExperimentConfigVersion() string {
 	if x != nil {
 		return x.ExperimentConfigVersion
+	}
+	return ""
+}
+
+func (x *PackageState) GetRunningVersion() string {
+	if x != nil {
+		return x.RunningVersion
+	}
+	return ""
+}
+
+func (x *PackageState) GetRunningConfigVersion() string {
+	if x != nil {
+		return x.RunningConfigVersion
 	}
 	return ""
 }
@@ -2461,14 +2477,16 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\rClientUpdater\x12\x12\n" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x128\n" +
 	"\bpackages\x18\x02 \x03(\v2\x1c.datadog.config.PackageStateR\bpackages\x120\n" +
-	"\x14available_disk_space\x18\x03 \x01(\x04R\x12availableDiskSpace\"\xc8\x02\n" +
+	"\x14available_disk_space\x18\x03 \x01(\x04R\x12availableDiskSpace\"\xa7\x03\n" +
 	"\fPackageState\x12\x18\n" +
 	"\apackage\x18\x01 \x01(\tR\apackage\x12%\n" +
 	"\x0estable_version\x18\x02 \x01(\tR\rstableVersion\x12-\n" +
 	"\x12experiment_version\x18\x03 \x01(\tR\x11experimentVersion\x124\n" +
 	"\x04task\x18\x04 \x01(\v2 .datadog.config.PackageStateTaskR\x04task\x122\n" +
 	"\x15stable_config_version\x18\v \x01(\tR\x13stableConfigVersion\x12:\n" +
-	"\x19experiment_config_version\x18\f \x01(\tR\x17experimentConfigVersionJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\x19experiment_config_version\x18\f \x01(\tR\x17experimentConfigVersion\x12'\n" +
+	"\x0frunning_version\x18\r \x01(\tR\x0erunningVersion\x124\n" +
+	"\x16running_config_version\x18\x0e \x01(\tR\x14runningConfigVersionJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\v\"\x84\x01\n" +
 	"\x10PackageStateTask\x12\x0e\n" +
