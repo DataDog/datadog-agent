@@ -177,7 +177,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.73.0-rc.10
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.10
 	github.com/DataDog/datadog-go/v5 v5.8.1
-	github.com/DataDog/datadog-operator/api v0.0.0-20251002125833-f01ea1d12a3f
+	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v0.1.30
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251013140043-83a1f38427f0
 	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
@@ -406,13 +406,13 @@ require (
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.22.0
-	golang.org/x/crypto v0.43.0
+	golang.org/x/crypto v0.44.0
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b
 	golang.org/x/mod v0.29.0
-	golang.org/x/net v0.46.0
-	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.37.0
-	golang.org/x/text v0.30.0
+	golang.org/x/net v0.47.0
+	golang.org/x/sync v0.18.0
+	golang.org/x/sys v0.38.0
+	golang.org/x/text v0.31.0
 	golang.org/x/time v0.14.0
 	golang.org/x/tools v0.38.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
@@ -425,9 +425,9 @@ require (
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	istio.io/api v1.27.3
 	istio.io/client-go v1.27.3
-	k8s.io/api v0.32.3
+	k8s.io/api v0.33.3
 	k8s.io/apiextensions-apiserver v0.32.3
-	k8s.io/apimachinery v0.32.3
+	k8s.io/apimachinery v0.33.3
 	k8s.io/autoscaler/vertical-pod-autoscaler v1.2.2
 	k8s.io/cli-runtime v0.32.2
 	k8s.io/client-go v0.32.3
@@ -953,7 +953,7 @@ require (
 	golang.org/x/lint v0.0.0-20241112194109-818c5a804067 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/telemetry v0.0.0-20251008203120-078029d740a8 // indirect
-	golang.org/x/term v0.36.0 // indirect
+	golang.org/x/term v0.37.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/api v0.239.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
@@ -969,13 +969,14 @@ require (
 	honnef.co/go/tools v0.5.1 // indirect
 	k8s.io/apiserver v0.32.2 // indirect
 	k8s.io/kms v0.32.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
+	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	k8s.io/sample-controller v0.31.2 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.1 // indirect
 	sigs.k8s.io/controller-runtime v0.20.4 // indirect
 	sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8 // indirect
+	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0 // indirect
 )
 

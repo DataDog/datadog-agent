@@ -19,7 +19,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.10
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.10
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/net v0.46.0
+	golang.org/x/net v0.47.0
 )
 
 require (
@@ -86,8 +86,8 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
