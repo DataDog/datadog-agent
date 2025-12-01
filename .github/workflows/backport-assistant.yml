@@ -118,7 +118,7 @@ jobs:
           |-------|-------------|:--:|:-----:|
           | \`bugfix/regression\` | Regression from **current release cycle** | ✅ | ❌ |
           | \`bugfix/critical\` | Critical bug with **customer impact** | ✅ | 🟡 |
-          | \`security/cve\` | Known **CVE** vulnerability | ✅ | 🟡 |
+          | \`security/cve\` | CVE with **SLA risk** | ✅ | 🟡 |
           | \`security/critical\` | Critical security issue | ✅ | 🟡 |
           | \`backport/exception\` | Exception - **requires justification** | 🟡 | 🟡 |
           
