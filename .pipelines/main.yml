@@ -1,0 +1,8 @@
+name: main
+entrypoint: .gitlab-ci-main.yml
+on:
+  - changes:
+    - all_except:
+      - standalone-repo/**/*
+      - docs/**/*
+
