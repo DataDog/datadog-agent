@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -234,6 +235,15 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	kubeCapEvent := collectKubeCapabilities(ctx, apiserverClient)
+	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   kubeCapEvent.Type,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: kubeCapEvent.Entity,
+		},
+	})
+
 	go runStartupCheck(ctx, objectStores)
 
 	return nil
@@ -249,6 +259,43 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient) workloadmeta.Event {
+	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery())
+	if err != nil {
+		log.Errorf("failed to get cluster feature gates: %v", err)
+		featureGates = make(map[string]common.FeatureGate)
+	}
+
+	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
+	for name, featureGate := range featureGates {
+		wlmFeatureGates[name] = workloadmeta.FeatureGate{
+			Name:    featureGate.Name,
+			Stage:   workloadmeta.FeatureGateStage(featureGate.Stage),
+			Enabled: featureGate.Enabled,
+		}
+	}
+
+	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 2*time.Second)
+	if err != nil {
+		log.Errorf("failed to get cluster version: %v", err)
+	}
+
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubeCapabilities{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubeCapabilities,
+				ID:   workloadmeta.KubeCapabilitiesID,
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: workloadmeta.KubeCapabilitiesName,
+			},
+			Version:      versionInfo,
+			FeatureGates: wlmFeatureGates,
+		},
+	}
 }
 
 func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
