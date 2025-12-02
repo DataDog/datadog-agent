@@ -276,6 +276,23 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 	}
 
 	// look for and download crashdumps
+	// Poll for up to ~30s (1s interval) to allow WER to finish writing full dumps (DumpType=2)
+	h := s.Env().RemoteHost
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		entries, _ := h.ReadDir(s.dumpFolder)
+		hasDump := false
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".dmp") {
+				hasDump = true
+				break
+			}
+		}
+		if hasDump {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 	dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
 	if !s.Assert().Empty(dumps, "should not have crash dumps") {
@@ -284,6 +301,39 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 			s.T().Logf("  %s", dump)
 		}
 	}
+	// Collect WER ReportArchive entries for powershell.exe if present.
+	// Synchronously scan the WER ReportArchive for PowerShell crash
+	// reports and copy any found files into the test’s output directory.
+	func() {
+		host := s.Env().RemoteHost
+		base := `C:\ProgramData\Microsoft\Windows\WER\ReportArchive`
+		entries, derr := host.ReadDir(base)
+		if derr != nil {
+			return
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if !strings.HasPrefix(strings.ToLower(name), strings.ToLower("AppCrash_powershell.exe")) {
+				continue
+			}
+			dir := filepath.Join(base, name)
+			files, derr2 := host.ReadDir(dir)
+			if derr2 != nil {
+				continue
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					continue
+				}
+				src := filepath.Join(dir, f.Name())
+				dst := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("WER_%s_%s", name, f.Name()))
+				_ = host.GetFile(src, dst)
+			}
+		}
+	}()
 
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging
