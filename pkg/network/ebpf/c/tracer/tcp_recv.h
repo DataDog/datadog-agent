@@ -9,6 +9,13 @@
 #include "tracer/events.h"
 #include "tracer/maps.h"
 #include "sock.h"
+#include "defs.h"
+
+static __always_inline bool is_handle_tcp_recv_skipped() {
+    __u64 val = 0;
+    LOAD_CONSTANT("skip_handle_tcp_recv", val);
+    return val == ENABLED;
+}
 
 SEC("kprobe/tcp_recvmsg")
 int BPF_BYPASSABLE_KPROBE(kprobe__tcp_recvmsg) {
@@ -113,6 +120,11 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_recvmsg, int recv) {
         bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
     });
 
+    // Early return for performance testing - skip handle_tcp_recv if configured
+    if (is_handle_tcp_recv_skipped()) {
+        return 0;
+    }
+
     if (!skp) {
         return 0;
     }
@@ -170,6 +182,11 @@ int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_read_sock, int recv) {
     RECORD_TIMING(tcp_recvmsg_kretprobe_map_delete_calls, tcp_recvmsg_kretprobe_map_delete_time_ns, {
         bpf_map_delete_elem(&tcp_recvmsg_args, &pid_tgid);
     });
+
+    // Early return for performance testing - skip handle_tcp_recv if configured
+    if (is_handle_tcp_recv_skipped()) {
+        return 0;
+    }
 
     if (!skp) {
         return 0;

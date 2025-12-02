@@ -277,6 +277,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		ConstantEditors: []manager.ConstantEditor{
 			boolConst("tcpv6_enabled", config.CollectTCPv6Conns),
 			boolConst("udpv6_enabled", config.CollectUDPv6Conns),
+			boolConst("skip_handle_net_dev_queue", config.SkipHandleNetDevQueue),
+			boolConst("skip_handle_tcp_recv", config.SkipHandleTCPRecv),
 		},
 		DefaultKProbeMaxActive: maxActive,
 		BypassEnabled:          config.BypassEnabled,
