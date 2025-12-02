@@ -581,3 +581,183 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 		assert.Equal(t, result, "Error: could not deserialize response body -- Please contact support by email.")
 	})
 }
+
+func TestSendToAnalyze(t *testing.T) {
+	cfg := config.NewMock(t)
+
+	t.Run("successful send to analyze endpoint", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Handle HEAD request for redirect resolution
+			if r.Method == "HEAD" && r.URL.Path == "/support/flare/analyze/12345" {
+				w.Header().Set("Location", "/post-target")
+				w.WriteHeader(307)
+				return
+			}
+			if r.Method == "HEAD" && r.URL.Path == "/post-target" {
+				w.WriteHeader(200)
+				return
+			}
+			// Handle POST request
+			if r.Method == "POST" && r.URL.Path == "/post-target" {
+				assert.Equal(t, "test-api-key", r.Header.Get("DD-API-KEY"))
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				w.Write([]byte(`{"case_id": 12345}`))
+			}
+		}))
+		defer server.Close()
+
+		result, err := SendToAnalyze(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+
+		assert.NoError(t, err)
+		assert.Contains(t, result, "12345")
+	})
+
+	t.Run("analyze endpoint uses correct URL path", func(t *testing.T) {
+		var initialRequestPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "HEAD" {
+				// Capture only the first HEAD request path (before redirect)
+				if initialRequestPath == "" {
+					initialRequestPath = r.URL.Path
+				}
+				if r.URL.Path == "/support/flare/analyze" {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+				} else if r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+				}
+				return
+			}
+			if r.Method == "POST" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				w.Write([]byte(`{"case_id": 99999}`))
+			}
+		}))
+		defer server.Close()
+
+		_, err := SendToAnalyze(cfg, "./test/blank.zip", "", "test@example.com", "test-api-key", server.URL, FlareSource{})
+
+		assert.NoError(t, err)
+		// Verify the analyze endpoint path is used
+		assert.Equal(t, "/support/flare/analyze", initialRequestPath)
+	})
+
+	t.Run("analyze endpoint with case ID", func(t *testing.T) {
+		var initialRequestPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "HEAD" {
+				// Capture only the first HEAD request path (before redirect)
+				if initialRequestPath == "" {
+					initialRequestPath = r.URL.Path
+				}
+				if strings.HasPrefix(r.URL.Path, "/support/flare/analyze") {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+				} else if r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+				}
+				return
+			}
+			if r.Method == "POST" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				w.Write([]byte(`{"case_id": 54321}`))
+			}
+		}))
+		defer server.Close()
+
+		result, err := SendToAnalyze(cfg, "./test/blank.zip", "54321", "test@example.com", "test-api-key", server.URL, FlareSource{})
+
+		assert.NoError(t, err)
+		assert.Contains(t, result, "54321")
+		// Verify the case ID is appended to the path
+		assert.Equal(t, "/support/flare/analyze/54321", initialRequestPath)
+	})
+
+	t.Run("analyze endpoint handles server error with retry", func(t *testing.T) {
+		attemptCount := 0
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "HEAD" {
+				if strings.HasPrefix(r.URL.Path, "/support/flare/analyze") {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+				} else if r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+				}
+				return
+			}
+			if r.Method == "POST" && r.URL.Path == "/post-target" {
+				attemptCount++
+				w.WriteHeader(503)
+				w.Write([]byte("Service Unavailable"))
+			}
+		}))
+		defer server.Close()
+
+		result, err := SendToAnalyze(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to send flare to analyze endpoint after 3 attempts")
+		assert.Equal(t, 3, attemptCount, "Expected 3 attempts with retries")
+		assert.Empty(t, result)
+	})
+
+	t.Run("analyze endpoint with remote config source", func(t *testing.T) {
+		var receivedSource string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "HEAD" {
+				if strings.HasPrefix(r.URL.Path, "/support/flare/analyze") {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+				} else if r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+				}
+				return
+			}
+			if r.Method == "POST" {
+				err := r.ParseMultipartForm(1000000)
+				assert.NoError(t, err)
+				receivedSource = r.FormValue("source")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(200)
+				w.Write([]byte(`{"case_id": 12345}`))
+			}
+		}))
+		defer server.Close()
+
+		source := NewRemoteConfigFlareSource("test-uuid-123")
+		result, err := SendToAnalyze(cfg, "./test/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, source)
+
+		assert.NoError(t, err)
+		assert.Contains(t, result, "12345")
+		assert.Equal(t, "remote-config", receivedSource)
+	})
+
+	t.Run("analyze endpoint handles 403 forbidden", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "HEAD" {
+				if strings.HasPrefix(r.URL.Path, "/support/flare/analyze") {
+					w.Header().Set("Location", "/post-target")
+					w.WriteHeader(307)
+				} else if r.URL.Path == "/post-target" {
+					w.WriteHeader(200)
+				}
+				return
+			}
+			if r.Method == "POST" {
+				w.WriteHeader(403)
+				w.Write([]byte("Forbidden"))
+			}
+		}))
+		defer server.Close()
+
+		result, err := SendToAnalyze(cfg, "./test/blank.zip", "12345", "test@example.com", "bad-key", server.URL, FlareSource{})
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "HTTP 403 Forbidden")
+		assert.Empty(t, result, "Result should be empty on 403 error")
+	})
+}
