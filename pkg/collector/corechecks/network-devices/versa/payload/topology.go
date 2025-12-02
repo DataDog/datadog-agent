@@ -17,34 +17,77 @@ func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, 
 	// Iterate over all appliances, build topology for each device
 	for _, device := range appliances {
 
-		device_id := buildDeviceID(namespace, device.IPAddress)
+		// Will have to iterate over/unpack all of the connections to the current device
 
-		// Will have to iterate over all connections, building links for each
-		RemoteSystemName:=""
-		RemoteSystemDescription:=""
-		id:=""
-		idType:=""
-		RemoteIpAddress:=""
-		RemotePortId:=""
-		RemotePortDescription:=""
+		// Collect the data needed to build the links
+		localDeviceId := buildDeviceID(namespace, device.IPAddress)
+		localPortId:=""
+		localPortIdType:=""
+		
+		remoteSystemName:=""
+		remoteSystemDescription:=""
+		remoteDeviceId:=""
+		remoteDeviceIdType:=""
+		remoteIpAddress:=""
+		remotePortId:=""
+		remotePortIdType:=""
+		remotePortDescription:=""
 
-		local := generate_local_side(device_id, "")
-		remote := generate_remote_side(
-            RemoteSystemName,
-            RemoteSystemDescription,
-            id,
-            idType,
-            RemoteIpAddress,
-            RemotePortId,
-            RemotePortDescription,
-        )
+		var remoteLink *devicemetadata.TopologyLinkSide
 
+		if datadogDevice(){ //if the remote device is monitored by Datadog, create remote structs with DDIDs
+			remoteDeviceDDID := generate_device_dd_id()
+			remoteInterfaceDDID := generate_interface_dd_id()
+
+			remoteLink = &devicemetadata.TopologyLinkSide{
+				Device: &devicemetadata.TopologyLinkDevice{
+					DDID: remoteDeviceDDID,
+					Name: remoteSystemName,
+					Description: remoteSystemDescription,
+					ID: remoteDeviceId,
+					IDType: remoteDeviceIdType,
+					IPAddress: remoteIpAddress,
+				},
+				Interface: &devicemetadata.TopologyLinkInterface{
+					DDID: remoteInterfaceDDID,
+					ID: remotePortId,
+					IDType: remotePortIdType,
+					Description: remotePortDescription,
+				},
+			}
+		} else { //if the remote device is not monitored by Datadog, create remote structs without DDIDs
+			remoteLink = &devicemetadata.TopologyLinkSide{
+				Device: &devicemetadata.TopologyLinkDevice{
+					Name: remoteSystemName,
+					Description: remoteSystemDescription,
+					ID: remoteDeviceId,
+					IDType: remoteDeviceIdType,
+					IPAddress: remoteIpAddress,
+				},
+				Interface: &devicemetadata.TopologyLinkInterface{
+					ID: remotePortId,
+					IDType: remotePortIdType,
+					Description: remotePortDescription,
+				},
+			}
+		}
+
+		// create the link
         link := devicemetadata.TopologyLinkMetadata{
-            ID: generate_topology_link_id(device_id, "", RemotePortId),
+            ID: generate_topology_link_id(localDeviceId, localPortId, remotePortId),
             SourceType: "lldp",
             Integration: "versa",
-            Local: &local,
-            Remote: &remote,
+            Local: &devicemetadata.TopologyLinkSide{
+				Device: &devicemetadata.TopologyLinkDevice{
+					DDID: localDeviceId,
+				},
+				Interface: &devicemetadata.TopologyLinkInterface{
+					DDID: generate_interface_dd_id(),
+					ID: localPortId,
+					IDType: localPortIdType,
+				},
+			},
+            Remote: remoteLink,
         }
 
 		links = append(links, link)
@@ -53,47 +96,19 @@ func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, 
 	return links, nil
 }
 
-func generate_local_side(device_id string, local_port_id string) devicemetadata.TopologyLinkSide {
-    return devicemetadata.TopologyLinkSide{
-        Device: &devicemetadata.TopologyLinkDevice{
-            DDID: device_id,
-        },
-        Interface: &devicemetadata.TopologyLinkInterface{
-            DDID: generate_interface_dd_id(),
-            ID: local_port_id,
-            IDType: "",
-        },
-    }
-}
-
-func generate_remote_side(sys_name string, sys_desc string, id string, id_type string, ip_addr string, port_id string, port_desc string) devicemetadata.TopologyLinkSide {
-    return devicemetadata.TopologyLinkSide{
-        Device: &devicemetadata.TopologyLinkDevice{
-            DDID: generate_device_dd_id(),
-            Name: sys_name,
-            Description: sys_desc,
-            ID: id,
-            IDType: id_type,
-            IPAddress: ip_addr,
-        },
-        Interface: generate_remote_interface(remote_device, port_id, port_desc),
-	}
-}
-
-
-func generate_remote_interface(port_id string, port_desc string) *devicemetadata.TopologyLinkInterface {
-	remote_interface := devicemetadata.TopologyLinkInterface{
-		DDID: generate_interface_dd_id(),
-		ID: port_id,
-		IDType: "interface_name",
-		Description: port_desc,
-	}
-	return &remote_interface
-}
-
 func generate_topology_link_id(local_device_id string, local_port_id string, remote_port_id string) string {
     //Generate the topology link ID according to NDM format
     return fmt.Sprintf("%s:%s.%s", local_device_id, local_port_id, remote_port_id)
+}
+
+func datadogDevice() bool {
+    //Check if the device is monitored by Datadog
+    return true
+}
+
+func generate_device_dd_id() string {
+    //Generate the device's interface ID if possible (Datadog monitored device and interface)
+    return ""
 }
 
 func generate_interface_dd_id() string {
