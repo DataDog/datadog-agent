@@ -320,7 +320,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.max_remote_traces_per_second") {
 		c.MaxRemoteTPS = core.GetFloat64("apm_config.max_remote_traces_per_second")
 	}
-	if k := "apm_config.features"; core.IsSet(k) {
+	if k := "apm_config.features"; core.IsConfigured(k) {
 		feats := core.GetStringSlice(k)
 		for _, f := range feats {
 			c.Features[f] = struct{}{}
@@ -685,7 +685,7 @@ func loadDeprecatedValues(c *config.AgentConfig) error {
 	if cfg.IsSet("apm_config.receiver_timeout") {
 		c.ReceiverTimeout = cfg.GetInt("apm_config.receiver_timeout")
 	}
-	if cfg.IsSet("apm_config.watchdog_check_delay") {
+	if cfg.IsConfigured("apm_config.watchdog_check_delay") {
 		d := time.Duration(cfg.GetInt("apm_config.watchdog_check_delay"))
 		c.WatchdogInterval = d * time.Second
 	}
