@@ -516,11 +516,9 @@ func GetFileDescription(executablePath string) (string, error) {
 		uintptr(size),
 		uintptr(unsafe.Pointer(&data[0])),
 	)
+	// returns non-zero if successful, and zero if not
 	if ret == 0 {
-		if err != nil && err != syscall.Errno(0) {
-			return "", fmt.Errorf("GetFileVersionInfoW failed: %w", err)
-		}
-		return "", fmt.Errorf("GetFileVersionInfoW failed")
+		return "", fmt.Errorf("GetFileVersionInfoW failed: %w", err)
 	}
 
 	// Query the language and code page
@@ -532,7 +530,7 @@ func GetFileDescription(executablePath string) (string, error) {
 
 	var langCodePagePtr *uint16
 	var langCodePageLen uint32
-	ret, _, _ = procVerQueryValueW.Call(
+	ret, _, err = procVerQueryValueW.Call(
 		uintptr(unsafe.Pointer(&data[0])),
 		uintptr(unsafe.Pointer(subBlockPtr)),
 		uintptr(unsafe.Pointer(&langCodePagePtr)),
@@ -542,7 +540,7 @@ func GetFileDescription(executablePath string) (string, error) {
 	// If we can't get translation table, try common language codes
 	var langCodePage string
 	if ret == 0 || langCodePageLen < 4 {
-		return "", fmt.Errorf("no language code page found")
+		return "", fmt.Errorf("no language code page found: %w", err)
 	}
 
 	pair := (*[2]uint16)(unsafe.Pointer(langCodePagePtr))
@@ -561,7 +559,7 @@ func GetFileDescription(executablePath string) (string, error) {
 
 	var fileDescPtr *uint16
 	var fileDescLen uint32
-	ret, _, _ = procVerQueryValueW.Call(
+	ret, _, err = procVerQueryValueW.Call(
 		uintptr(unsafe.Pointer(&data[0])),
 		uintptr(unsafe.Pointer(fileDescQueryPtr)),
 		uintptr(unsafe.Pointer(&fileDescPtr)),
@@ -569,7 +567,7 @@ func GetFileDescription(executablePath string) (string, error) {
 	)
 
 	if ret == 0 || fileDescLen == 0 {
-		return "", fmt.Errorf("FileDescription not found in version info")
+		return "", fmt.Errorf("FileDescription not found in version info: %w", err)
 	}
 
 	// Convert the UTF16 string to Go string
