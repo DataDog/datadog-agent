@@ -39,6 +39,7 @@ type flareResponse struct {
 	CaseID      int    `json:"case_id,omitempty"`
 	Error       string `json:"error,omitempty"`
 	RequestUUID string `json:"request_uuid,omitempty"`
+	JiraTicket  string `json:"jira_ticket,omitempty"`
 }
 
 // FlareSource has metadata about why the flare was sent
@@ -207,7 +208,13 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 		return response, errors.New(res.Error)
 	}
 
-	return fmt.Sprintf("Your logs were successfully uploaded. For future reference, your internal case id is %d", res.CaseID), nil
+	// If detecting false positives along with the flare, also link the jira ticket
+	response := fmt.Sprintf("Your logs were successfully uploaded. For future reference, your internal case id is %d", res.CaseID)
+	if res.JiraTicket != "" {
+		response += fmt.Sprintf("\nFollow this Jira Ticket for process false positive detection results: %s", res.JiraTicket)
+	}
+
+	return response, nil
 }
 
 // Resolve a flare URL to the URL at which a POST should be made.  This uses a HEAD request
