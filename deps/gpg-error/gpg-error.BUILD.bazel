@@ -13,7 +13,7 @@ package(
 license(
     name = "license",
     license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
-    license_text = "COPYING.lib",
+    license_text = "COPYING.LIB",
     visibility = ["//visibility:public"],
 )
 
