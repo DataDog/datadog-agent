@@ -8,6 +8,8 @@
 package dns
 
 import (
+	"fmt"
+
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -80,6 +82,19 @@ func (e *ebpfProgram) Init() error {
 	})
 	if err == nil {
 		ddebpf.AddNameMappings(e.Manager, "npm_dns")
+
+		dnsPortsMap, _, err := e.Manager.GetMap("dns_ports")
+		if err != nil {
+			return fmt.Errorf("getting dns_ports map: %w", err)
+		}
+
+		val := uint8(1)
+		for _, p := range e.cfg.DNSMonitoringPortList {
+			port := uint16(p)
+			if err := dnsPortsMap.Put(&port, &val); err != nil {
+				return fmt.Errorf("putting dns port %d: %w", p, err)
+			}
+		}
 	}
 	return err
 }

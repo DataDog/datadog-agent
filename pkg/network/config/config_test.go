@@ -555,3 +555,39 @@ func TestMaxContainersTracked(t *testing.T) {
 		assert.Equal(t, 42, cfg.MaxContainersTracked)
 	})
 }
+
+func TestDNSMonitoringPorts(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - single port 53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("system_probe_config.dns_monitoring_ports", []int{53})
+		cfg := New()
+		assert.Equal(t, []int{53}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - single port non-53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("system_probe_config.dns_monitoring_ports", []int{5353})
+		cfg := New()
+		assert.Equal(t, []int{5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - multiple ports including 53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("system_probe_config.dns_monitoring_ports", []int{53, 5353})
+		cfg := New()
+		assert.Equal(t, []int{53, 5353}, cfg.DNSMonitoringPortList)
+	})
+
+	t.Run("via YAML - multiple ports excluding 53", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("system_probe_config.dns_monitoring_ports", []int{8053, 5353})
+		cfg := New()
+		assert.Equal(t, []int{8053, 5353}, cfg.DNSMonitoringPortList)
+	})
+}
