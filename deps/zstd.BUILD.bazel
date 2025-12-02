@@ -1,12 +1,12 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = ["//packages:__subpackages__"])
 
 _VERSION = "1.5.7"
 
@@ -110,7 +110,7 @@ expand_template(
         "@VERSION@": _VERSION,
         "@LIBS_MT@": "",
         "@LIBS_PRIVATE@": "",
-    }
+    },
 )
 
 pkg_files(
