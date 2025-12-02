@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package fx provides the fx module for the workloadfilter component
+// Package fx provides the fx module for the remote workloadfilter component
 package fx
 
 import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	filterimpl "github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/remoteimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -16,7 +16,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			filterimpl.NewComponent,
+			remoteimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[filter.Component](),
 	)
