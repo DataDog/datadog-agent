@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
@@ -316,6 +318,7 @@ func (w *DatadogStatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPay
 		nbEntries += p.nbEntries
 		nbBuckets += len(p.Stats)
 		w.resolveContainerTags(p.ClientStatsPayload)
+		w.resolveServerlessTags(p.ClientStatsPayload)
 		current.Stats = append(current.Stats, p.ClientStatsPayload)
 	}
 	if nbEntries > 0 {
@@ -353,6 +356,12 @@ func (w *DatadogStatsWriter) resolveContainerTags(p *pb.ClientStatsPayload) {
 		// the addition of `image_sha` to these tags since it'll already be in a separate field in the payload.
 		p.Tags = ctags
 	}
+}
+
+func (w *DatadogStatsWriter) resolveServerlessTags(p *pb.ClientStatsPayload) {
+	p.ContainerID = "test-serverless-container"
+	p.Tags = configutils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
+	log.Infof("Resolved serverless tags for stats payload: %v", p.Tags)
 }
 
 func splitPayloads(payloads []*pb.ClientStatsPayload, maxEntriesPerPayload int) []clientStatsPayload {
