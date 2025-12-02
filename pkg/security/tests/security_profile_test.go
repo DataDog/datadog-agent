@@ -874,6 +874,8 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			return err
 		}, func(_ *rules.Rule, event *model.Event) bool {
 			if event.ProcessContext.Process.ContainerContext.ContainerID == containerutils.ContainerID(dump.ContainerID) {
+				fmt.Printf("Error caused by the following event: %+v\n", event)
+				fmt.Printf("ContainerID: %d\n", event.ProcessContext.Process.ContainerContext.ContainerID)
 				t.Error("Got a signal that should have been suppressed")
 			}
 			return false
