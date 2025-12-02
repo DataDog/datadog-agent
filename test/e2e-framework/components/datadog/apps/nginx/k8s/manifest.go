@@ -103,11 +103,6 @@ func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...Deploym
 							},
 							VolumeMounts: &corev1.VolumeMountArray{
 								&corev1.VolumeMountArgs{
-									Name:      pulumi.String("conf"),
-									MountPath: pulumi.String("/etc/nginx/nginx.conf"),
-									SubPath:   pulumi.String("nginx.conf"),
-								},
-								&corev1.VolumeMountArgs{
 									Name:      pulumi.String("cache"),
 									MountPath: pulumi.String("/var/cache/nginx"),
 								},
@@ -119,12 +114,6 @@ func NewNginxDeploymentManifest(namespace string, nginxPort int, mods ...Deploym
 						},
 					},
 					Volumes: corev1.VolumeArray{
-						&corev1.VolumeArgs{
-							Name: pulumi.String("conf"),
-							ConfigMap: &corev1.ConfigMapVolumeSourceArgs{
-								Name: pulumi.String("nginx"),
-							},
-						},
 						&corev1.VolumeArgs{
 							Name:     pulumi.String("cache"),
 							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
