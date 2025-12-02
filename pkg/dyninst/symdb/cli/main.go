@@ -107,7 +107,7 @@ func run() (retErr error) {
 	if *imageName == "" {
 		// No image specified: treat binaryPathFlag as a local file
 		if *binaryPathFlag == "" {
-			return fmt.Errorf("-binary-path is required when -image is not specified")
+			return errors.New("-binary-path is required when -image is not specified")
 		}
 		info, err := os.Stat(*binaryPathFlag)
 		if err != nil {
@@ -157,7 +157,7 @@ func run() (retErr error) {
 		*silent = true
 
 		if *uploadURL != "" && *uploadSite != "" {
-			return fmt.Errorf("only one of -upload-url or -upload-side must be specified")
+			return errors.New("only one of -upload-url or -upload-side must be specified")
 		}
 		if *uploadSite == "" {
 			*uploadSite = "datad0g.com"
@@ -167,7 +167,7 @@ func run() (retErr error) {
 		}
 
 		if *uploadAPIKey == "" {
-			return fmt.Errorf("-api-key must be specified when -upload is used")
+			return errors.New("-api-key must be specified when -upload is used")
 		}
 		var err error
 
@@ -177,7 +177,7 @@ func run() (retErr error) {
 		}
 
 		if *uploadService == "" || *uploadVersion == "" {
-			return fmt.Errorf("when --upload is specified, --service and --version must also be specified")
+			return errors.New("when --upload is specified, --service and --version must also be specified")
 		}
 	}
 

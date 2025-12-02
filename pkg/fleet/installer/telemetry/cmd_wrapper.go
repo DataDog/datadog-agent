@@ -23,7 +23,7 @@ type TracedCmd struct {
 
 // CommandContext runs a command using exec.CommandContext and adds telemetry
 func CommandContext(ctx context.Context, name string, args ...string) *TracedCmd {
-	span, _ := StartSpanFromContext(ctx, fmt.Sprintf("exec.%s", name))
+	span, _ := StartSpanFromContext(ctx, "exec."+name)
 	span.SetTag("name", name)
 	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, name, args...)

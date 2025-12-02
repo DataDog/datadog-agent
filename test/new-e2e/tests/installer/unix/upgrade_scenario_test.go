@@ -89,7 +89,7 @@ func (s *upgradeScenarioSuite) testCatalog() catalog {
 			{
 				Package: string(datadogAgent),
 				Version: s.pipelineAgentVersion,
-				URL:     fmt.Sprintf("oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID")),
+				URL:     "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"),
 			},
 			{
 				Package: string(datadogApmInject),
@@ -122,8 +122,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 	currentVersion := s.getInstallerStatus().Packages.States["datadog-agent"].Stable
 	// Assert stable symlink exists properly
 	state := s.host.State()
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "root", "root")
-	state.AssertSymlinkExists(fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "/opt/datadog-agent", "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/run/datadog-agent/"+currentVersion, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/run/datadog-agent/"+currentVersion, "/opt/datadog-agent", "root", "root")
 
 	// Set remote_updates to true in datadog.yaml
 	s.Env().RemoteHost.MustExecute(`printf "\nremote_updates: true\n" | sudo tee -a /etc/datadog-agent/datadog.yaml`)
@@ -144,8 +144,8 @@ func (s *upgradeScenarioSuite) TestUpgradeSuccessfulFromDebRPM() {
 
 	// Assert stable symlink still exists properly
 	state = s.host.State()
-	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "root", "root")
-	state.AssertSymlinkExists(fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", currentVersion), "/opt/datadog-agent", "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/run/datadog-agent/"+currentVersion, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/run/datadog-agent/"+currentVersion, "/opt/datadog-agent", "root", "root")
 
 	timestamp = s.host.LastJournaldTimestamp()
 	s.promoteExperiment(datadogAgent)
@@ -222,7 +222,7 @@ func (s *upgradeScenarioSuite) TestExperimentCurrentVersion() {
 			{
 				Package: "datadog-agent",
 				Version: currentVersion,
-				URL:     fmt.Sprintf("oci://dd-agent.s3.amazonaws.com/agent-package:%s", currentVersion),
+				URL:     "oci://dd-agent.s3.amazonaws.com/agent-package:" + currentVersion,
 			},
 		},
 	}
