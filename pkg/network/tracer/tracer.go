@@ -697,7 +697,7 @@ var allStats = []statsComp{
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	if t.state == nil {
-		return nil, fmt.Errorf("internal state not yet initialized")
+		return nil, errors.New("internal state not yet initialized")
 	}
 
 	if len(comps) == 0 {
@@ -735,7 +735,7 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	if t.state == nil {
-		return nil, fmt.Errorf("internal state not yet initialized")
+		return nil, errors.New("internal state not yet initialized")
 	}
 	return t.state.DumpState(clientID), nil
 }

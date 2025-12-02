@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36623.8
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MSStoreApps", "MSStoreApps\MSStoreApps.vcxproj", "{A8D4744D-505B-42F3-B56F-27186A32A6CF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DatadogInterop", "DatadogInterop\DatadogInterop.vcxproj", "{A8D4744D-505B-42F3-B56F-27186A32A6CF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

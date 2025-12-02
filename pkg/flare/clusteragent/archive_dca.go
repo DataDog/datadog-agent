@@ -121,7 +121,7 @@ func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		metaList.Errors = fmt.Sprintf("Can't create client to query the API Server: %s", err.Error())
+		metaList.Errors = "Can't create client to query the API Server: " + err.Error()
 	} else {
 		// Grab the metadata map for all nodes.
 		metaList, err = apiserver.GetMetadataMapBundleOnAllNodes(cl)

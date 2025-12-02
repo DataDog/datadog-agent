@@ -9,6 +9,7 @@ package analyzelogs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -72,7 +73,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Run a Datadog agent logs configuration and print the results to stdout`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("log config file path is required")
+				return errors.New("log config file path is required")
 			}
 			cliParams.LogConfigPath = args[0]
 			return fxutil.OneShot(runAnalyzeLogs,
@@ -214,5 +215,5 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 		}
 		return sources, nil
 	}
-	return nil, fmt.Errorf("Cannot get source")
+	return nil, errors.New("Cannot get source")
 }

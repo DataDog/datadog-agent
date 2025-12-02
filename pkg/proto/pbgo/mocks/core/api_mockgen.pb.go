@@ -439,6 +439,26 @@ func (mr *MockAgentSecureClientMockRecorder) TaggerStreamEntities(ctx, in interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureClient)(nil).TaggerStreamEntities), varargs...)
 }
 
+// WorkloadFilterEvaluate mocks base method.
+func (m *MockAgentSecureClient) WorkloadFilterEvaluate(ctx context.Context, in *core.WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*core.WorkloadFilterEvaluateResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WorkloadFilterEvaluate", varargs...)
+	ret0, _ := ret[0].(*core.WorkloadFilterEvaluateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadFilterEvaluate indicates an expected call of WorkloadFilterEvaluate.
+func (mr *MockAgentSecureClientMockRecorder) WorkloadFilterEvaluate(ctx, in interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadFilterEvaluate", reflect.TypeOf((*MockAgentSecureClient)(nil).WorkloadFilterEvaluate), varargs...)
+}
+
 // WorkloadmetaStreamEntities mocks base method.
 func (m *MockAgentSecureClient) WorkloadmetaStreamEntities(ctx context.Context, in *core.WorkloadmetaStreamRequest, opts ...grpc.CallOption) (core.AgentSecure_WorkloadmetaStreamEntitiesClient, error) {
 	m.ctrl.T.Helper()
@@ -1345,6 +1365,21 @@ func (m *MockAgentSecureServer) TaggerStreamEntities(arg0 *core.StreamTagsReques
 func (mr *MockAgentSecureServerMockRecorder) TaggerStreamEntities(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TaggerStreamEntities", reflect.TypeOf((*MockAgentSecureServer)(nil).TaggerStreamEntities), arg0, arg1)
+}
+
+// WorkloadFilterEvaluate mocks base method.
+func (m *MockAgentSecureServer) WorkloadFilterEvaluate(arg0 context.Context, arg1 *core.WorkloadFilterEvaluateRequest) (*core.WorkloadFilterEvaluateResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WorkloadFilterEvaluate", arg0, arg1)
+	ret0, _ := ret[0].(*core.WorkloadFilterEvaluateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WorkloadFilterEvaluate indicates an expected call of WorkloadFilterEvaluate.
+func (mr *MockAgentSecureServerMockRecorder) WorkloadFilterEvaluate(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WorkloadFilterEvaluate", reflect.TypeOf((*MockAgentSecureServer)(nil).WorkloadFilterEvaluate), arg0, arg1)
 }
 
 // WorkloadmetaStreamEntities mocks base method.
