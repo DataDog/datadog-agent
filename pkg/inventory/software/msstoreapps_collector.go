@@ -17,6 +17,7 @@ import (
 	msstoreapps "github.com/DataDog/datadog-agent/pkg/util/winutil/datadoginterop"
 )
 
+// msStoreAppsCollector collects Windows Store apps using libdatadog-interop.dll.
 type msStoreAppsCollector struct{}
 
 func (c *msStoreAppsCollector) Collect() ([]*Entry, []*Warning, error) {
