@@ -8,6 +8,7 @@ package resolver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -127,7 +128,7 @@ func resolveBasicAuthTokens(ctx context.Context, tokens []*privateactionspb.Conn
 		}
 	}
 	if pwdToken == nil || username == "" {
-		return []privateconnection.PrivateCredentialsToken{}, fmt.Errorf("no credential found")
+		return []privateconnection.PrivateCredentialsToken{}, errors.New("no credential found")
 	}
 	secret, err := getSecretFromDockerLocation(ctx, pwdToken.GetFileSecret().GetPath(), username)
 	if err != nil {
@@ -218,7 +219,7 @@ func loadConnectionCredentials(ctx context.Context, path string) (config *Privat
 
 func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
 	if path == "" {
-		return nil, fmt.Errorf("credential file path is empty")
+		return nil, errors.New("credential file path is empty")
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -231,10 +232,10 @@ func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 	if stat.Size() == 0 {
-		return nil, fmt.Errorf("the credentials file is empty")
+		return nil, errors.New("the credentials file is empty")
 	}
 	if stat.Size() > maxCredentialsFileSize {
-		return nil, fmt.Errorf("the credentials file is too large")
+		return nil, errors.New("the credentials file is too large")
 	}
 
 	data, err := os.ReadFile(path)

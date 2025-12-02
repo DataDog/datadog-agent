@@ -7,6 +7,7 @@ package taskverifier
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,15 +32,15 @@ func NewTaskVerifier(keysManager remoteconfig.KeysManager, config *config.Config
 
 func (t *TaskVerifier) UnwrapTaskFromSignedEnvelope(envelope *privateactionspb.RemoteConfigSignatureEnvelope) (*types.Task, error) {
 	if envelope == nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("task is missing signed envelope"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("task is missing signed envelope"))
 	}
 
 	if len(envelope.Data) == 0 {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("data is missing"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("data is missing"))
 	}
 
 	if len(envelope.Signatures) == 0 {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("signatures are missing"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("signatures are missing"))
 	}
 
 	if envelope.HashType != privateactionspb.HashType_SHA256 {
@@ -50,20 +51,20 @@ func (t *TaskVerifier) UnwrapTaskFromSignedEnvelope(envelope *privateactionspb.R
 	var task privateactionspb.PrivateActionTask
 	err := proto.Unmarshal(envelope.Data, &task)
 	if err != nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("failed to unmarshal task"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("failed to unmarshal task"))
 	}
 
 	if task.ExpirationTime == nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("expiration time is missing"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("expiration time is missing"))
 	}
 
 	if task.ExpirationTime.AsTime().Before(time.Now()) {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK, fmt.Errorf("task is expired"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK, errors.New("task is expired"))
 	}
 
 	signature, localKey := t.getCandidateSignatureWithKey(envelope)
 	if localKey == nil {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_SIGNATURE_KEY_NOT_FOUND, fmt.Errorf("no matching key found"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_SIGNATURE_KEY_NOT_FOUND, errors.New("no matching key found"))
 	}
 
 	localKeyType := localKey.GetKeyType()
@@ -77,11 +78,11 @@ func (t *TaskVerifier) UnwrapTaskFromSignedEnvelope(envelope *privateactionspb.R
 	}
 
 	if task.OrgId != t.config.OrgId {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_ORG_ID, fmt.Errorf("task orgId doesn't match the orgId of the runner"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_ORG_ID, errors.New("task orgId doesn't match the orgId of the runner"))
 	}
 
 	if task.GetConnectionInfo().RunnerId != t.config.RunnerId {
-		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, fmt.Errorf("connection runnerId doesn't match the id of the runner"))
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, errors.New("connection runnerId doesn't match the id of the runner"))
 	}
 
 	return mapPbTaskToStruct(&task), nil

@@ -7,6 +7,7 @@ package config
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -46,7 +47,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	urn := config.GetString("privateactionrunner.urn")
 
 	if encodedPrivateKey == "" {
-		return nil, fmt.Errorf("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
+		return nil, errors.New("private action runner not configured: either run enrollment or provide privateactionrunner.private_key")
 	}
 	privateKey, err := util.Base64ToJWK(encodedPrivateKey)
 	if err != nil {
@@ -54,7 +55,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	}
 
 	if urn == "" {
-		return nil, fmt.Errorf("private action runner not configured: URN is required")
+		return nil, errors.New("private action runner not configured: URN is required")
 	}
 
 	orgID, runnerID, err := parseURN(urn)
@@ -113,7 +114,7 @@ func parseURN(urn string) (int64, string, error) {
 
 	runnerID := parts[6]
 	if runnerID == "" {
-		return 0, "", fmt.Errorf("runner_id cannot be empty in URN")
+		return 0, "", errors.New("runner_id cannot be empty in URN")
 	}
 
 	return orgID, runnerID, nil

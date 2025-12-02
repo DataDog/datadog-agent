@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -114,7 +115,7 @@ func decode(rawConfig state.RawConfig) (types.DecodedKey, error) {
 func decodeX509RSA(k types.RawKey) (*types.X509RSAKey, error) {
 	blocks, _ := pem.Decode(k.Key)
 	if blocks == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, errors.New("failed to decode PEM block")
 	}
 	cert, err := x509.ParseCertificate(blocks.Bytes)
 	if err != nil {
@@ -129,7 +130,7 @@ func decodeX509RSA(k types.RawKey) (*types.X509RSAKey, error) {
 func decodeED25519(k types.RawKey) (*types.ED25519Key, error) {
 	blocks, _ := pem.Decode(k.Key)
 	if blocks == nil {
-		return nil, fmt.Errorf("failed to decode PEM block")
+		return nil, errors.New("failed to decode PEM block")
 	}
 	keyAny, err := x509.ParsePKIXPublicKey(blocks.Bytes)
 	if err != nil {
@@ -137,7 +138,7 @@ func decodeED25519(k types.RawKey) (*types.ED25519Key, error) {
 	}
 	keyED25519, ok := keyAny.(ed25519.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast to ed25519.PublicKey")
+		return nil, errors.New("failed to cast to ed25519.PublicKey")
 	}
 	return &types.ED25519Key{
 		KeyType: k.KeyType,
