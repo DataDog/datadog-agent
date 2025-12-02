@@ -306,7 +306,15 @@ func SendToAnalyze(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey
 	}
 
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
-	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
+
+	// Check for analyze-specific URL override
+	// This is used to allow for overriding to local host so that we can test the analyze endpoint without having to deploy any services to Datadog.
+	analyzeBaseURL := url
+	if cfg.IsConfigured("flare_analyze_url") && cfg.GetString("flare_analyze_url") != "" {
+		analyzeBaseURL = cfg.GetString("flare_analyze_url")
+	}
+
+	baseURL, _ := configUtils.AddAgentVersionToDomain(analyzeBaseURL, "flare")
 
 	transport := httputils.CreateHTTPTransport(cfg)
 	client := &http.Client{
