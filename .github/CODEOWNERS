@@ -790,6 +790,7 @@
 
 /tools/                                 @DataDog/agent-devx
 /tools/bazel*                           @DataDog/agent-build
+/tools/ci/*bazel*                       @DataDog/agent-build
 /tools/ci                               @DataDog/agent-devx
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-runtimes

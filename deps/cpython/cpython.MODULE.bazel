@@ -1,6 +1,6 @@
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
-PYTHON_VERSION = "3.13.9"
+PYTHON_VERSION = "3.13.7"
 
 http_archive(
     name = "cpython",
@@ -12,7 +12,7 @@ http_archive(
     patches = [
         "//deps/cpython:0001-customize-windows-build-script.patch",
     ],
-    sha256 = "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c",
+    sha256 = "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2",
     strip_prefix = "Python-{}".format(PYTHON_VERSION),
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
 )
@@ -46,7 +46,6 @@ python_src_deps = {
 
 python_bin_deps = {
     "libffi": ("3.4.4", "681c0e6306b4bcb54ecce8305f67ca88ab03be922b6c4dcfd18240ad46e357d8"),
-    "openssl-bin": ("3.0.16.2", "8686b76cbd4192143ed73bc60719efdb080bcdb8f887bdb7d66c5fecd2b6a36f"),
     "tcltk": ("8.6.15.0", "60adc5fc31c02347666198ffc74e5b6d0948f6765bb9034ae423a5a16c22a4e5"),
 }
 
