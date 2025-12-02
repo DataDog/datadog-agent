@@ -83,44 +83,46 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	legacyACExcludePrgFactory := func(_ *catalog.FilterConfig, _ logcomp.Component) program.FilterProgram { return legacyACExcludePrg }
 
 	// Container Filters
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyLogs), legacyLogsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyACInclude), legacyACIncludePrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyACExclude), legacyACExcludePrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerLegacySBOM), catalog.LegacyContainerSBOMProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyLogs, legacyLogsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyACInclude, legacyACIncludePrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyACExclude, legacyACExcludePrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerLegacySBOM, catalog.LegacyContainerSBOMProgram)
 
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerADAnnotationsMetrics), genericADMetricsProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerADAnnotationsLogs), genericADLogsProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ContainerType, string(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram)
+	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotationsMetrics, genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerADAnnotationsLogs, genericADLogsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ContainerPaused, catalog.ContainerPausedProgram)
 
 	// Service Filters
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.ServiceType, string(workloadfilter.ServiceADAnnotationsMetrics), genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.ServiceADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Endpoints Filters
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.EndpointType, string(workloadfilter.EndpointADAnnotationsMetrics), genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.EndpointADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Pod Filters
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodLegacyMetrics), legacyMetricsPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodLegacyGlobal), legacyGlobalPrgFactory)
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodADAnnotations), genericADProgramFactory)
-	baseFilter.RegisterFactory(workloadfilter.PodType, string(workloadfilter.PodADAnnotationsMetrics), genericADMetricsProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodLegacyMetrics, legacyMetricsPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodLegacyGlobal, legacyGlobalPrgFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodADAnnotations, genericADProgramFactory)
+	baseFilter.RegisterFactory(workloadfilter.PodADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Process Filters
-	baseFilter.RegisterFactory(workloadfilter.ProcessType, string(workloadfilter.ProcessLegacyExclude), catalog.LegacyProcessExcludeProgram)
+	baseFilter.RegisterFactory(workloadfilter.ProcessLegacyExclude, catalog.LegacyProcessExcludeProgram)
 
 	return baseFilter
 }
 
 // RegisterFactory registers a factory function for a given resource type and program ID
-func (f *BaseFilterStore) RegisterFactory(resourceType workloadfilter.ResourceType, programID string, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
+func (f *BaseFilterStore) RegisterFactory(id workloadfilter.FilterIdentifier, factory func(filterConfig *catalog.FilterConfig, logger logcomp.Component) program.FilterProgram) {
+	resourceType := id.TargetResource()
+	programID := id.GetFilterName()
 	if f.ProgramFactoryStore[resourceType] == nil {
 		f.ProgramFactoryStore[resourceType] = make(map[string]*FilterProgramFactory)
 	}
