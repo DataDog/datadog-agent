@@ -109,6 +109,7 @@ configure_make(
         "@platforms//os:windows": [
             WIN_LIBSSL,
             WIN_LIBCRYPTO,
+            "openssl.exe",
         ],
         "//conditions:default": [],
     }),
@@ -172,6 +173,21 @@ pkg_files(
 )
 
 filegroup(
+    name = "openssl_binary",
+    srcs = [":openssl"],
+    output_group = select({
+        "@platforms//os:windows": "openssl.exe",
+        "//conditions:default": [],
+    }),
+)
+
+pkg_files(
+    name = "openssl_binary_files",
+    srcs = [":openssl_binary"],
+    prefix = "bin",
+)
+
+filegroup(
     name = "pkgconfig_dir",
     srcs = [":openssl"],
     output_group = "pkgconfig",
@@ -212,5 +228,6 @@ pkg_install(
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
         ":dll_a",
+        ":openssl_binary_files",
     ],
 )
