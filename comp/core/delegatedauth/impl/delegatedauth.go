@@ -9,6 +9,7 @@ package delegatedauthimpl
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -23,6 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+const (
+	// maxBackoffInterval is the maximum time to wait between retries (1 hour)
+	maxBackoffInterval = time.Hour
+	// maxConsecutiveFailures is the maximum number of failures we'll track to prevent overflow
+	// Once we hit maxBackoffInterval, there's no point incrementing further
+	// With a minimum reasonable refresh_interval of 1 minute: 1 * 2^(10-1) = 512 minutes > 60 minutes
+	// So capping at 10 gives us plenty of headroom for any configuration
+	maxConsecutiveFailures = 10
+)
+
 type delegatedAuthComponent struct {
 	config config.Component
 	log    log.Component
@@ -32,6 +43,10 @@ type delegatedAuthComponent struct {
 	provider        delegatedauthpkg.Provider
 	authConfig      *delegatedauthpkg.AuthConfig
 	refreshInterval time.Duration
+
+	// Exponential backoff tracking
+	consecutiveFailures int
+	nextRetryInterval   time.Duration
 
 	// Context and cancellation for background refresh goroutine
 	refreshCtx    context.Context
@@ -104,15 +119,18 @@ func NewDelegatedAuth(deps dependencies) option.Option[delegatedauth.Component] 
 			apiKey, err := comp.GetAPIKey(ctx)
 			if err != nil {
 				comp.log.Errorf("Failed to get initial delegated API key: %v", err)
-				// Return nil here to not stop the agent from starting
-				return nil
+				// Track the initial failure for exponential backoff
+				comp.mu.Lock()
+				comp.consecutiveFailures = 1
+				comp.mu.Unlock()
+			} else {
+				// Update the config with the initial API key
+				comp.updateConfigWithAPIKey(*apiKey)
+				comp.log.Info("Successfully fetched and set initial delegated API key")
 			}
 
-			// Update the config with the initial API key
-			comp.updateConfigWithAPIKey(*apiKey)
-			comp.log.Info("Successfully fetched and set initial delegated API key")
-
-			// Start the background refresh goroutine
+			// Always start the background refresh goroutine, even if initial fetch failed
+			// This ensures retries will happen with exponential backoff
 			comp.startBackgroundRefresh()
 
 			return nil
@@ -186,11 +204,41 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, forceRef
 	return apiKey, true, nil
 }
 
+// calculateNextRetryInterval calculates the next retry interval using exponential backoff
+// First retry after failure is at the base interval, then doubles on each subsequent failure, capped at 1 hour
+func (d *delegatedAuthComponent) calculateNextRetryInterval() time.Duration {
+	// Base interval is the configured refresh interval
+	baseInterval := d.refreshInterval
+
+	// Calculate exponential backoff: baseInterval * 2^max(0, consecutiveFailures-1)
+	// This ensures the first retry is at the base interval, not doubled
+	// Using math.Pow for clarity, though bit shifting could also be used
+	exponent := float64(d.consecutiveFailures - 1)
+	if exponent < 0 {
+		exponent = 0
+	}
+	backoffMultiplier := math.Pow(2, exponent)
+	backoffInterval := time.Duration(float64(baseInterval) * backoffMultiplier)
+
+	// Cap at maximum backoff interval (1 hour)
+	if backoffInterval > maxBackoffInterval {
+		backoffInterval = maxBackoffInterval
+	}
+
+	return backoffInterval
+}
+
 // startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
+// with exponential backoff on failures
 func (d *delegatedAuthComponent) startBackgroundRefresh() {
 	// Start background refresh
 	go func() {
-		ticker := time.NewTicker(d.refreshInterval)
+		// Initialize with the configured refresh interval
+		d.mu.Lock()
+		d.nextRetryInterval = d.refreshInterval
+		d.mu.Unlock()
+
+		ticker := time.NewTicker(d.nextRetryInterval)
 		defer ticker.Stop()
 
 		for {
@@ -202,19 +250,40 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 			case <-ticker.C:
 				// Time to refresh
 				lCreds, updated, lErr := d.RefreshAndGetAPIKey(d.refreshCtx)
+
+				d.mu.Lock()
 				if lErr != nil {
 					// Check if the error is due to context cancellation
 					if d.refreshCtx.Err() != nil {
+						d.mu.Unlock()
 						d.log.Debug("Refresh failed due to context cancellation, exiting")
 						return
 					}
-					d.log.Errorf("Failed to refresh delegated API key: %v", lErr)
+
+					// Increment consecutive failures (capped to prevent overflow)
+					if d.consecutiveFailures < maxConsecutiveFailures {
+						d.consecutiveFailures++
+					}
+					d.nextRetryInterval = d.calculateNextRetryInterval()
+					d.log.Errorf("Failed to refresh delegated API key (attempt %d): %v. Next retry in %v",
+						d.consecutiveFailures, lErr, d.nextRetryInterval)
 				} else {
+					// Success - reset backoff
+					if d.consecutiveFailures > 0 {
+						d.log.Infof("Successfully refreshed delegated API key after %d failed attempts", d.consecutiveFailures)
+					}
+					d.consecutiveFailures = 0
+					d.nextRetryInterval = d.refreshInterval
+
 					// Update the config with the new API key
 					if updated {
 						d.updateConfigWithAPIKey(*lCreds)
 					}
 				}
+
+				// Reset the ticker with the new interval
+				ticker.Reset(d.nextRetryInterval)
+				d.mu.Unlock()
 			}
 		}
 	}()
