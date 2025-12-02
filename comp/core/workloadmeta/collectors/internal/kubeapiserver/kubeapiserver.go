@@ -235,6 +235,8 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		}
 	}
 
+	go runStartupCheck(ctx, objectStores)
+
 	kubeCapEvent := collectKubeCapabilities(ctx, apiserverClient)
 	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
 		{
@@ -243,8 +245,6 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			Entity: kubeCapEvent.Entity,
 		},
 	})
-
-	go runStartupCheck(ctx, objectStores)
 
 	return nil
 }
@@ -262,7 +262,7 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 }
 
 func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient) workloadmeta.Event {
-	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery())
+	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 2*time.Second)
 	if err != nil {
 		log.Errorf("failed to get cluster feature gates: %v", err)
 		featureGates = make(map[string]common.FeatureGate)

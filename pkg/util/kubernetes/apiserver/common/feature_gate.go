@@ -76,7 +76,7 @@ func parseFeatureGatesFromMetrics(metricsData []byte) (map[string]FeatureGate, e
 }
 
 // ClusterFeatureGates queries the /metrics endpoint and returns feature gates
-func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface) (map[string]FeatureGate, error) {
+func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface, retryTimeout time.Duration) (map[string]FeatureGate, error) {
 	if featureGates, found := cache.Cache.Get(featureGatesCacheKey); found {
 		return featureGates.(map[string]FeatureGate), nil
 	}
@@ -99,7 +99,7 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 		},
 		Strategy:          retry.Backoff,
 		InitialRetryDelay: 1 * time.Second,
-		MaxRetryDelay:     2 * time.Minute,
+		MaxRetryDelay:     retryTimeout,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldnt setup retrier: %w", err)
