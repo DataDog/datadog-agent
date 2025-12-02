@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNilSliceWithOtherParams",
+      "method": "main.testSubslices",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,14 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNilSliceWithOtherParams",
+            "function": "main.testSubslices",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 57
+            "lineNumber": 73
           },
           {
             "function": "main.executeSliceFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 98
+            "lineNumber": 104
           },
           {
             "function": "main.main",
@@ -42,25 +42,56 @@
           }
         ],
         "probe": {
-          "id": "testNilSliceWithOtherParams",
+          "id": "testSubslices",
           "location": {
-            "method": "main.testNilSliceWithOtherParams"
+            "method": "main.testSubslices"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
-              "a": {
-                "type": "int8",
-                "value": "1"
+              "as": {
+                "type": "[]uint",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "2"
+                  }
+                ]
               },
-              "s": {
-                "type": "[]bool",
-                "isNull": true
+              "bs": {
+                "type": "[]uint",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "2"
+                  }
+                ]
               },
-              "x": {
-                "type": "uint",
-                "value": "5"
+              "cs": {
+                "type": "[]uint",
+                "size": "3",
+                "elements": [
+                  {
+                    "type": "uint",
+                    "value": "1"
+                  },
+                  {
+                    "type": "uint",
+                    "value": "2"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
               }
             }
           }
@@ -68,6 +99,6 @@
       }
     },
     "timestamp": "[ts]",
-    "message": "1, [], 5"
+    "message": "[1, 2], [1], [1, 2, ...]"
   }
 ]
