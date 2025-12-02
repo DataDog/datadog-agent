@@ -210,7 +210,7 @@ func (v *VersaCheck) Run() error {
 	// Get topology link metadata
 	if *v.config.SendTopologyMetadata {
 		var err error
-		topologyMetadata, err = payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, interfaces)
+		topologyMetadata, err = payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, appliances)
 		if err != nil {
 			if len(topologyMetadata) == 0 {
 				log.Errorf("failed to parse all topology metadata: %v", err)
@@ -219,7 +219,14 @@ func (v *VersaCheck) Run() error {
 			}
 		}
 
-		log.Tracef("topology metadata is as follows: %+v", topologyMetadata)
+		log.Tracef("topology metadata is as follows:")
+		for _, link := range topologyMetadata {
+			log.Tracef("link: %+v", link)
+			log.Tracef("local: %+v", link.Local.Device)
+			log.Tracef("remote: %+v", link.Remote.Device)
+			log.Tracef("local interface: %+v", link.Local.Interface)
+			log.Tracef("remote interface: %+v", link.Remote.Interface)
+		}
 	}
 
 	// UPDATE HERE TO GET TOPOLOGY METADATA
