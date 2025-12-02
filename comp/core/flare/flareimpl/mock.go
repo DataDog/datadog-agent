@@ -50,7 +50,7 @@ func (fc *MockFlare) Create(_ flaretypes.ProfileData, _ time.Duration, _ error, 
 }
 
 // Send mocks the flare send function
-func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource) (string, error) {
+func (fc *MockFlare) Send(_ string, _ string, _ string, _ helpers.FlareSource, _ bool) (string, error) {
 	return "", nil
 }
 
