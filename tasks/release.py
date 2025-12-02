@@ -19,6 +19,7 @@ from gitlab import GitlabError
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
+from tasks.go import tidy
 from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color, color_message
@@ -82,7 +83,7 @@ from tasks.libs.releasing.version import (
     next_rc_version,
 )
 from tasks.notify import post_message
-from tasks.pipeline import edit_schedule, run
+from tasks.pipeline import run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
 BACKPORT_LABEL_COLOR = "5319e7"
@@ -499,8 +500,11 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         print(color_message("Updating Go modules", "bold"))
         update_modules(ctx, version=str(new_highest_version))
 
-        # Step 3: branch out, push branch, then add, and create signed commit with Github API
+        # Step 3: Run tidy task
+        print(color_message("Running `dda inv tidy`", "bold"))
+        tidy(ctx)
 
+        # Step 4: branch out, push branch, then add, and create signed commit with Github API
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
         ctx.run(f"git push --set-upstream {upstream} {update_branch}")
@@ -546,7 +550,7 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
             new_final_version,
         )
 
-        # Step 4 - Send a slack message
+        # Step 5 - Send a slack message
         message = f":alert_party: New Agent RC <{pr_url}/s|PR> has been created {new_highest_version}."
         channel = 'agent-release-sync'
         if major_version == 6:
@@ -638,11 +642,6 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         # Step 1: Tag versions
 
         print(color_message(f"Tagging RC for agent version {versions_string}", "bold"))
-        print(
-            color_message(
-                "If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold"
-            )
-        )
 
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions
@@ -957,9 +956,6 @@ def cleanup(ctx, release_branch):
             )
 
         create_release_pr(commit_message, main_branch, cleanup_branch, version, milestone=current_milestone)
-
-    if major_version != 6:
-        edit_schedule(ctx, 2555, ref=version.branch())
 
 
 @task

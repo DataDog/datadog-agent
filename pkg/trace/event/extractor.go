@@ -7,6 +7,7 @@ package event
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
@@ -16,4 +17,6 @@ type Extractor interface {
 	// a suggested extraction sample rate and a bool value. If no event was extracted the bool value will be false and
 	// the rate should not be used.
 	Extract(span *pb.Span, priority sampler.SamplingPriority) (rate float64, ok bool)
+
+	ExtractV1(span *idx.InternalSpan, priority sampler.SamplingPriority) (rate float64, ok bool)
 }

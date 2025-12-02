@@ -9,11 +9,14 @@ package nvidia
 
 import (
 	"fmt"
+	"strconv"
 
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 // nvlinkSample handles NVLink metrics collection logic
@@ -82,30 +85,34 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 	procs, err := device.GetComputeRunningProcesses()
 
 	var processMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 
 	if err == nil {
 		for _, proc := range procs {
-			pidTag := fmt.Sprintf("pid:%d", proc.Pid)
+			workloads := []workloadmeta.EntityID{{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(proc.Pid)),
+			}}
+			allWorkloadIDs = append(allWorkloadIDs, workloads...)
+
 			processMetrics = append(processMetrics, Metric{
-				Name:     "process.memory.usage",
-				Value:    float64(proc.UsedGpuMemory),
-				Type:     metrics.GaugeType,
-				Priority: High,
-				Tags:     []string{pidTag},
+				Name:                "process.memory.usage",
+				Value:               float64(proc.UsedGpuMemory),
+				Type:                metrics.GaugeType,
+				Priority:            High,
+				AssociatedWorkloads: workloads,
 			})
-			allPidTags = append(allPidTags, pidTag)
 		}
 	}
 
 	// Add device memory limit
 	devInfo := device.GetDeviceInfo()
 	processMetrics = append(processMetrics, Metric{
-		Name:     "memory.limit",
-		Value:    float64(devInfo.Memory),
-		Type:     metrics.GaugeType,
-		Priority: High,
-		Tags:     allPidTags,
+		Name:                "memory.limit",
+		Value:               float64(devInfo.Memory),
+		Type:                metrics.GaugeType,
+		Priority:            High,
+		AssociatedWorkloads: allWorkloadIDs,
 	})
 
 	return processMetrics, 0, err
@@ -348,11 +355,11 @@ func createStatelessAPIs() []apiCallInfo {
 					"none":                        nvml.ClocksEventReasonNone,
 				} {
 					value := 0.0
-					if reasons&reasonBit != 0 {
+					if reasons&reasonBit != 0 || (reasons == 0 && reasonBit == 0) {
 						value = 1.0
 					}
 					allMetrics = append(allMetrics, Metric{
-						Name:  fmt.Sprintf("clock.throttle_reasons.%s", reasonName),
+						Name:  "clock.throttle_reasons." + reasonName,
 						Value: value,
 						Type:  metrics.GaugeType,
 					})
@@ -390,7 +397,31 @@ func createStatelessAPIs() []apiCallInfo {
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				return nvlinkSample(device)
 			},
-		}}
+		},
+	}
+
+	// Create APIs for ECC errors
+	for errorType, errorTypeName := range eccErrorTypeToName {
+		for memoryLocation, memoryLocationName := range memoryLocationToName {
+			apis = append(apis, apiCallInfo{
+				Name: fmt.Sprintf("ecc_errors.%s.%s", errorTypeName, memoryLocationName),
+				Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+					count, err := device.GetMemoryErrorCounter(errorType, nvml.AGGREGATE_ECC, memoryLocation)
+					if err != nil {
+						return nil, 0, err
+					}
+					return []Metric{{
+						Name:  fmt.Sprintf("errors.ecc.%s.total", errorTypeName),
+						Value: float64(count),
+						Type:  metrics.CountType,
+						Tags: []string{
+							"memory_location:" + memoryLocationName,
+						},
+					}}, 0, nil
+				},
+			})
+		}
+	}
 
 	return apis
 }
@@ -399,6 +430,6 @@ func createStatelessAPIs() []apiCallInfo {
 var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
-func newStatelessCollector(device ddnvml.Device) (Collector, error) {
+func newStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 	return NewBaseCollector(stateless, device, statelessAPIFactory())
 }

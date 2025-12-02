@@ -6,11 +6,12 @@
 package containers
 
 import (
+	"strconv"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
@@ -21,23 +22,21 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	helmValues := `
-clusterAgent:
-    envDict:
-        DD_CSI_ENABLED: "true"
-`
-
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(awskubernetes.KindProvisioner(
 		awskubernetes.WithEC2VMOptions(
 			ec2.WithInstanceType("t3.xlarge"),
 		),
-		awskubernetes.WithFakeIntakeOptions(fakeintake.WithMemory(2048)),
+		awskubernetes.WithFakeIntakeOptions(
+			fakeintake.WithMemory(2048),
+			fakeintake.WithRetentionPeriod("31m"),
+			fakeintake.WithStoreType("sql"),
+		),
 		awskubernetes.WithDeployDogstatsd(),
 		awskubernetes.WithDeployTestWorkload(),
 		awskubernetes.WithAgentOptions(
 			kubernetesagentparams.WithDualShipping(),
-			kubernetesagentparams.WithHelmValues(helmValues),
 		),
+		awskubernetes.WithDeployArgoRollout(),
 	)))
 }
 
@@ -136,4 +135,38 @@ func (suite *kindSuite) TestControlPlane() {
 			},
 		},
 	})
+}
+
+func (suite *kindSuite) TestHostTags() {
+	expectedTags := []string{
+		"^os:linux$",
+		"^arch:amd64$",
+		"^stackid:" + suite.clusterName + "$",
+		"^kube_node:" + suite.clusterName + "-control-plane$",
+		"^cluster_name:" + suite.clusterName + "$",
+		"^kube_cluster_name:" + suite.clusterName + "$",
+		"^orch_cluster_id:[0-9a-f-]{36}$",
+	}
+
+	// depending on the kubernetes version the expected tags for kube_node_rol varies.
+	k8sVersion, err := suite.Env().KubernetesCluster.KubernetesClient.K8sClient.Discovery().ServerVersion()
+	suite.NoError(err, "failed to request k8s server version to specify the appropriate expected host-tags")
+
+	minorVersion, _ := strconv.Atoi(k8sVersion.Minor)
+
+	switch {
+	case minorVersion <= 19:
+		expectedTags = append(expectedTags, "^kube_node_role:master$")
+	case minorVersion == 22:
+		expectedTags = append(expectedTags, "^kube_node_role:master$", "^kube_node_role:control-plane$")
+	default:
+		expectedTags = append(expectedTags, "^kube_node_role:control-plane$")
+	}
+
+	// tag keys that are expected to be found on any k8s env
+	args := &testHostTags{
+		ExpectedTags: &expectedTags,
+	}
+
+	suite.testHostTags(args)
 }

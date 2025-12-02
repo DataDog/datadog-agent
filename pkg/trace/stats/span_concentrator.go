@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
@@ -54,6 +55,21 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	var pt []string
 	for _, t := range peerTagKeysToAggregateForSpan(meta[tagSpanKind], meta[tagBaseService], peerTagKeys) {
 		if v, ok := meta[t]; ok && v != "" {
+			v = obfuscate.QuantizePeerIPAddresses(v)
+			pt = append(pt, t+":"+v)
+		}
+	}
+	return pt
+}
+
+func matchingPeerTagsV1(s *idx.InternalSpan, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
+		return nil
+	}
+	var pt []string
+	baseService, _ := s.GetAttributeAsString(tagBaseService)
+	for _, t := range peerTagKeysToAggregateForSpan(s.SpanKind(), baseService, peerTagKeys) {
+		if v, ok := s.GetAttributeAsString(t); ok && v != "" {
 			v = obfuscate.QuantizePeerIPAddresses(v)
 			pt = append(pt, t+":"+v)
 		}
@@ -189,6 +205,37 @@ func (sc *SpanConcentrator) NewStatSpanWithConfig(config StatSpanConfig) (statSp
 	}, true
 }
 
+// NewStatSpanFromV1 is a helper version of NewStatSpan that builds a StatSpan from an idx.InternalSpan.
+func (sc *SpanConcentrator) NewStatSpanFromV1(s *idx.InternalSpan, peerTags []string) (statSpan *StatSpan, ok bool) {
+	eligibleSpanKind := sc.computeStatsBySpanKind && computeStatsForSpanKindV1(s.Kind())
+	isTopLevel := traceutil.HasTopLevelMetricsV1(s)
+	if !(isTopLevel || traceutil.IsMeasuredMetricsV1(s) || eligibleSpanKind) {
+		return nil, false
+	}
+	if traceutil.IsPartialSnapshotMetricsV1(s) {
+		return nil, false
+	}
+	spanError := 0
+	if s.Error() {
+		spanError = 1
+	}
+	return &StatSpan{
+		service:          s.Service(),
+		resource:         s.Resource(),
+		name:             s.Name(),
+		typ:              s.Type(),
+		error:            int32(spanError),
+		parentID:         s.ParentID(),
+		start:            int64(s.Start()),
+		duration:         int64(s.Duration()),
+		spanKind:         s.SpanKind(),
+		statusCode:       getStatusCodeV1(s),
+		isTopLevel:       isTopLevel,
+		matchingPeerTags: matchingPeerTagsV1(s, peerTags),
+		grpcStatusCode:   getGRPCStatusCodeV1(s),
+	}, true
+}
+
 // NewStatSpan builds a StatSpan from the required fields for stats calculation
 // peerTags is the configured list of peer tags to look for
 // returns (nil,false) if the provided fields indicate a span should not have stats calculated
@@ -227,6 +274,15 @@ func computeStatsForSpanKind(kind string) bool {
 	k := strings.ToLower(kind)
 	_, ok := KindsComputed[k]
 	return ok
+}
+
+// computeStatsForSpanKindV1 returns true if the span.kind value makes the span eligible for stats computation.
+func computeStatsForSpanKindV1(kind idx.SpanKind) bool {
+	// TODO: refactor this to avoid duplication here
+	return kind == idx.SpanKind_SPAN_KIND_SERVER ||
+		kind == idx.SpanKind_SPAN_KIND_CONSUMER ||
+		kind == idx.SpanKind_SPAN_KIND_CLIENT ||
+		kind == idx.SpanKind_SPAN_KIND_PRODUCER
 }
 
 // KindsComputed is the list of span kinds that will have stats computed on them

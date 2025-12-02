@@ -28,9 +28,9 @@ class TestComponents(unittest.TestCase):
         )
 
     def tearDown(self):
+        os.chdir(self.origDir)
         if self.tmpdir:
             shutil.rmtree(self.tmpdir)
-        os.chdir(self.origDir)
         classicComp = 'comp/classic/classicimpl'
         components.components_classic_style.remove(classicComp)
 

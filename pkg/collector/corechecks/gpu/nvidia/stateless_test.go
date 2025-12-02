@@ -24,7 +24,7 @@ func TestNewStatelessCollector(t *testing.T) {
 	device := setupMockDevice(t, nil)
 
 	// Test that the stateless collector creates the expected dynamic API set
-	collector, err := newStatelessCollector(device)
+	collector, err := newStatelessCollector(device, &CollectorDependencies{})
 	require.NoError(t, err)
 	require.NotNil(t, collector)
 
@@ -93,7 +93,7 @@ func TestCollectProcessMemory(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice)
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -127,7 +127,7 @@ func TestCollectProcessMemory_Error(t *testing.T) {
 		return device
 	})
 
-	collector, err := newStatelessCollector(mockDevice)
+	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	processMetrics, err := collector.Collect()
@@ -166,7 +166,7 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 		return device
 	})
 
-	collector, err := newStatelessCollector(mockDevice)
+	collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 	require.NoError(t, err)
 
 	processMetrics, err := collector.Collect()
@@ -175,17 +175,17 @@ func TestProcessMemoryMetricTags(t *testing.T) {
 	// Should have exactly 3 metrics: 2 process.memory.usage + 1 memory.limit
 	require.Len(t, processMetrics, 3)
 
-	// Check process.memory.usage metrics have PID tags
+	// Check process.memory.usage metrics have associated workloads
 	processMemoryMetrics := 0
 	for _, metric := range processMetrics {
 		if metric.Name == "process.memory.usage" {
 			processMemoryMetrics++
-			require.Len(t, metric.Tags, 1, "process.memory.usage should have exactly one tag")
-			require.Contains(t, metric.Tags[0], "pid:", "process.memory.usage should have pid tag")
+			require.Len(t, metric.AssociatedWorkloads, 1, "process.memory.usage should have exactly one workload")
+			require.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind), "process.memory.usage workload should be of kind process")
 			require.Equal(t, High, metric.Priority, "process.memory.usage should have High priority")
 		}
 		if metric.Name == "memory.limit" {
-			require.Len(t, metric.Tags, 2, "memory.limit should have PID tags for all processes")
+			require.Len(t, metric.AssociatedWorkloads, 2, "memory.limit should have workloads for all processes")
 			require.Equal(t, High, metric.Priority, "memory.limit should have High priority")
 		}
 	}
@@ -276,7 +276,7 @@ func TestNVLinkCollector_Initialization(t *testing.T) {
 			}
 
 			mockDevice := setupMockDevice(t, tt.customSetup)
-			c, err := newStatelessCollector(mockDevice)
+			c, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.wantError {
 				require.Error(t, err)
@@ -376,7 +376,7 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 				return device
 			})
 
-			collector, err := newStatelessCollector(mockDevice)
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			// Collect metrics

@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	ddfg "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/service"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -64,7 +65,7 @@ var logLevelReverseMap = func(src map[string]logLevel) map[logLevel]string {
 }(logLevelMap)
 
 // ErrNoDDExporter indicates there is no Datadog exporter in the configs
-var ErrNoDDExporter = fmt.Errorf("no datadog exporter found")
+var ErrNoDDExporter = errors.New("no datadog exporter found")
 
 // NewConfigComponent creates a new config component from the given URIs
 func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (config.Component, error) {
@@ -116,7 +117,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		_, err = pkgconfigsetup.LoadWithoutSecret(pkgconfig, nil)
+		err = pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -128,10 +129,19 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Set the right log level. The most verbose setting takes precedence.
-	telemetryLogLevel := sc.Telemetry.Logs.Level
-	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel.String())]
+	telemetryLogLevel := "info"
+	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
+		if stLogsCfg, ok := stCfgMap["logs"]; ok {
+			if stLogsCfgMap, ok := stLogsCfg.(map[string]any); ok {
+				if stLogsLevel, ok := stLogsCfgMap["level"]; ok {
+					telemetryLogLevel = stLogsLevel.(string)
+				}
+			}
+		}
+	}
+	telemetryLogMapping, ok := logLevelMap[strings.ToLower(telemetryLogLevel)]
 	if !ok {
-		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel.String())
+		return nil, fmt.Errorf("invalid log level (%v) set in the OTel Telemetry configuration", telemetryLogLevel)
 	}
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
@@ -189,10 +199,13 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if addr := ddc.Traces.Endpoint; addr != "" {
 		pkgconfig.Set("apm_config.apm_dd_url", addr, pkgconfigmodel.SourceFile)
 	}
+	if pkgconfig.GetInt("cmd_port") <= 0 {
+		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
+	}
 
 	if pkgconfig.Get("apm_config.features") == nil {
 		apmConfigFeatures := []string{}
-		if !pkgdatadog.OperationAndResourceNameV2FeatureGate.IsEnabled() {
+		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")
 		}
 		if ddc.Traces.ComputeTopLevelBySpanKind {
@@ -207,9 +220,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("proxy.https", ddc.ProxyURL, pkgconfigmodel.SourceLocalConfigProcess)
 	}
 
-	// Disable preaggregation feature for otel-agent since it needs encrypted API keys and that's non-trivial
-	pkgconfig.Set("preaggregation.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-
 	return pkgconfig, nil
 }
 
@@ -217,11 +227,11 @@ func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
 	var pipelineConfig *service.Config
 	s := cfg.Get("service")
 	if s == nil {
-		return nil, fmt.Errorf("service config not found")
+		return nil, errors.New("service config not found")
 	}
 	smap, ok := s.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid service config")
+		return nil, errors.New("invalid service config")
 	}
 	err := confmap.NewFromStringMap(smap).Unmarshal(&pipelineConfig)
 	if err != nil {
@@ -275,7 +285,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogconfig.Config, error) {
 	// We only support one exporter for now
 	// TODO: support multiple exporters
 	if len(configs) > 1 {
-		return nil, fmt.Errorf("multiple datadog exporters found")
+		return nil, errors.New("multiple datadog exporters found")
 	}
 
 	datadogConfig := configs[0]

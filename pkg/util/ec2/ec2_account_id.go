@@ -7,9 +7,10 @@ package ec2
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 )
@@ -17,8 +18,8 @@ import (
 var accountIDFetcher = cachedfetch.Fetcher{
 	Name: "AWS Account ID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
-		if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-			return "", fmt.Errorf("cloud provider is disabled by configuration")
+		if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+			return "", errors.New("cloud provider is disabled by configuration")
 		}
 
 		ec2id, err := GetInstanceIdentity(ctx)

@@ -8,17 +8,10 @@ package snmp
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
-
-	"github.com/gosnmp/gosnmp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"go.uber.org/atomic"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -26,24 +19,31 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
+	snmpscanmanagermock "github.com/DataDog/datadog-agent/comp/snmpscanmanager/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/gosnmp/gosnmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"go.uber.org/atomic"
+	"go.uber.org/fx"
 )
 
 type deps struct {
@@ -971,7 +971,7 @@ func TestServiceCheckFailures(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	sess.ConnectErr = fmt.Errorf("can't connect")
+	sess.ConnectErr = errors.New("can't connect")
 	chk := Check{sessionFactory: sessionFactory}
 
 	// language=yaml
@@ -1003,10 +1003,10 @@ community_string: public
 
 func TestCheckID(t *testing.T) {
 	profile.SetConfdPathAndCleanProfiles()
-	check1 := newCheck(agentconfig.NewMock(t), nil)
-	check2 := newCheck(agentconfig.NewMock(t), nil)
-	check3 := newCheck(agentconfig.NewMock(t), nil)
-	checkSubnet := newCheck(agentconfig.NewMock(t), nil)
+	check1 := newCheck(agentconfig.NewMock(t), nil, nil)
+	check2 := newCheck(agentconfig.NewMock(t), nil, nil)
+	check3 := newCheck(agentconfig.NewMock(t), nil, nil)
+	checkSubnet := newCheck(agentconfig.NewMock(t), nil, nil)
 	// language=yaml
 	rawInstanceConfig1 := []byte(`
 ip_address: 1.1.1.1
@@ -1149,12 +1149,12 @@ func TestCheck_Run(t *testing.T) {
 	}{
 		{
 			name:             "connection error",
-			sessionConnError: fmt.Errorf("can't connect"),
+			sessionConnError: errors.New("can't connect"),
 			expectedErr:      "snmp connection error: can't connect",
 		},
 		{
 			name:                     "failed to fetch sysobjectid",
-			sysObjectIDError:         fmt.Errorf("no sysobjectid"),
+			sysObjectIDError:         errors.New("no sysobjectid"),
 			valuesPacket:             valuesPacketUptime,
 			reachableValuesPacket:    gosnmplib.MockValidReachableGetNextPacket,
 			expectedErr:              "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid",
@@ -1194,23 +1194,23 @@ func TestCheck_Run(t *testing.T) {
 			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
 			sysObjectIDPacket:     sysObjectIDPacketOkMock,
 			valuesPacket:          valuesPacketErrMock,
-			valuesError:           fmt.Errorf("no value"),
+			valuesError:           errors.New("no value"),
 			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.2.3.4.5 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999]`: no value",
 		},
 		{
 			name:                  "failed to fetch sysobjectid and failed to fetch values",
 			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
-			sysObjectIDError:      fmt.Errorf("no sysobjectid"),
+			sysObjectIDError:      errors.New("no sysobjectid"),
 			valuesPacket:          valuesPacketErrMock,
-			valuesError:           fmt.Errorf("no value"),
+			valuesError:           errors.New("no value"),
 			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 		{
 			name:                  "failed reachability check",
-			sysObjectIDError:      fmt.Errorf("no sysobjectid"),
-			reachableGetNextError: fmt.Errorf("no value for GextNext"),
+			sysObjectIDError:      errors.New("no sysobjectid"),
+			reachableGetNextError: errors.New("no value for GextNext"),
 			valuesPacket:          valuesPacketErrMock,
-			valuesError:           fmt.Errorf("no value"),
+			valuesError:           errors.New("no value"),
 			expectedErr:           "check device reachable: failed: no value for GextNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
@@ -1275,7 +1275,7 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	sess.CloseErr = fmt.Errorf("close error")
+	sess.CloseErr = errors.New("close error")
 	chk := Check{sessionFactory: sessionFactory}
 
 	// language=yaml
@@ -1506,7 +1506,7 @@ tags:
 	}
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	var sysObjectIDPacket *gosnmp.SnmpPacket
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, errors.New("no value"))
 
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.1.0",
@@ -1667,17 +1667,22 @@ tags:
 	sender.On("Commit").Return()
 
 	var nilPacket *gosnmp.SnmpPacket
-	sess.On("GetNext", []string{"1.0"}).Return(nilPacket, fmt.Errorf("no value for GetNext"))
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
+	sess.On("GetNext", []string{"1.0"}).Return(nilPacket, errors.New("no value for GetNext"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, errors.New("no value"))
 
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
-	}).Return(nilPacket, fmt.Errorf("device failure"))
+	}).Return(nilPacket, errors.New("device failure"))
+	sess.On("Get", []string{
+		"1.3.6.1.2.1.1.1.0",
+		"1.3.6.1.2.1.1.2.0",
+	}).Return(nilPacket, errors.New("device failure"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, errors.New("device failure"))
 
-	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.1.0 1.3.6.1.2.1.1.2.0 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0]`: device failure"
+	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
 	err = chk.Run()
 	assert.EqualError(t, err, expectedErrMsg)
@@ -2154,7 +2159,7 @@ metric_tags:
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	sess.On("Get", mock.Anything).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
+	sess.On("Get", mock.Anything).Return(&gosnmp.SnmpPacket{}, errors.New("get error"))
 
 	err = chk.Run()
 	assert.Nil(t, err)
@@ -2601,6 +2606,42 @@ community_string: public
 	// check Cancel does not panic when called with single check
 	// it shouldn't try to stop discovery
 	chk.Cancel()
+}
+
+func TestDeviceScansAreRequested(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+
+	scanManager := snmpscanmanagermock.Mock(t)
+	mockScanManager, ok := scanManager.(*snmpscanmanagermock.SnmpScanManagerMock)
+	assert.True(t, ok)
+
+	check1 := newCheck(agentconfig.NewMock(t), nil, mockScanManager)
+	check2 := newCheck(agentconfig.NewMock(t), nil, mockScanManager)
+
+	// language=yaml
+	rawInstanceConfig1 := []byte(`
+ip_address: 1.1.1.1
+`)
+	// language=yaml
+	rawInstanceConfig2 := []byte(`
+ip_address: 2.2.2.2
+namespace: namespace
+`)
+
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "1.1.1.1",
+	}, false).Once()
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "2.2.2.2",
+	}, false).Once()
+
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")
+	assert.Nil(t, err)
+	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test")
+	assert.Nil(t, err)
+
+	mockScanManager.AssertExpectations(t)
 }
 
 // Wait for discovery to be completed

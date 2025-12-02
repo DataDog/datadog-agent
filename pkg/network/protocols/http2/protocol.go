@@ -8,7 +8,6 @@
 package http2
 
 import (
-	"fmt"
 	"io"
 	"time"
 	"unsafe"
@@ -35,7 +34,7 @@ type Protocol struct {
 	telemetry               *http.Telemetry
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[HTTP2StreamKey, HTTP2Stream]
-	eventsConsumer          *events.Consumer[EbpfTx]
+	eventsConsumer          *events.BatchConsumer[EbpfTx]
 
 	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry
@@ -219,7 +218,8 @@ func newHTTP2Protocol(mgr *manager.Manager, cfg *config.Config) (protocols.Proto
 	}
 
 	if !Supported() {
-		return nil, fmt.Errorf("http2 feature not available on pre %s kernels", MinimumKernelVersion.String())
+		log.Warnf("HTTP2 monitoring is not supported on kernels < %s. Disabling HTTP2 monitoring.", MinimumKernelVersion.String())
+		return nil, nil
 	}
 
 	telemetry := http.NewTelemetry("http2")
@@ -292,7 +292,7 @@ func (p *Protocol) ConfigureOptions(opts *manager.Options) {
 // Additional initialisation steps, such as starting an event consumer,
 // should be performed here.
 func (p *Protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStream,
 		p.mgr,
 		p.processHTTP2,
@@ -413,9 +413,11 @@ func (p *Protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 
 func (p *Protocol) processHTTP2(events []EbpfTx) {
 	for i := range events {
-		tx := &events[i]
-		p.telemetry.Count(tx)
-		p.statkeeper.Process(tx)
+		eventWrapper := &EventWrapper{
+			EbpfTx: &events[i],
+		}
+		p.telemetry.Count(eventWrapper)
+		p.statkeeper.Process(eventWrapper)
 	}
 }
 

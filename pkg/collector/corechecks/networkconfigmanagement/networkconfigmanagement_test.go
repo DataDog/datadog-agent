@@ -8,13 +8,16 @@
 package networkconfigmanagement
 
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,14 +43,24 @@ type MockRemoteClient struct {
 	ConfigError     error
 }
 
+const (
+	runningOutput = `Building configuration...
+! Last configuration change at 10:20:00 UTC Fri Aug 1 2025
+interface GigabitEthernet0/1
+ ip address 192.168.1.1 255.255.255.0`
+	startupOutput = `interface GigabitEthernet0/1
+ip address 192.168.1.1 255.255.255.0`
+	versionOutput = `Cisco Device Version 1.0`
+)
+
 func newMockRemoteClient() *MockRemoteClient {
 	// Set up mock remote client
 	mockClient := &MockRemoteClient{
 		Session: &MockRemoteSession{
 			OutputMap: map[string]string{
-				"show running-config": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
-				"show startup-config": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0",
-				"show version":        "Cisco Device Version 1.0",
+				"show running-config": runningOutput,
+				"show startup-config": startupOutput,
+				"show version":        versionOutput,
 			},
 		},
 	}
@@ -65,28 +78,28 @@ func (m *MockRemoteClient) NewSession() (ncmremote.Session, error) {
 	return m.Session, nil
 }
 
-func (m *MockRemoteClient) RetrieveRunningConfig() (string, error) {
+func (m *MockRemoteClient) RetrieveRunningConfig() ([]byte, error) {
 	if m.ConfigError != nil {
-		return "", m.ConfigError
+		return []byte{}, m.ConfigError
 	}
 	runningCommand, err := m.Profile.GetCommandValues(profile.Running)
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
-	output, _ := m.Session.CombinedOutput(runningCommand[0])
-	return string(output), nil
+	output, err := m.Session.CombinedOutput(runningCommand[0])
+	return output, err
 }
 
-func (m *MockRemoteClient) RetrieveStartupConfig() (string, error) {
+func (m *MockRemoteClient) RetrieveStartupConfig() ([]byte, error) {
 	if m.ConfigError != nil {
-		return "", m.ConfigError
+		return []byte{}, m.ConfigError
 	}
 	runningCommand, err := m.Profile.GetCommandValues(profile.Startup)
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
-	output, _ := m.Session.CombinedOutput(runningCommand[0])
-	return string(output), nil
+	output, err := m.Session.CombinedOutput(runningCommand[0])
+	return output, err
 }
 
 func (m *MockRemoteClient) SetProfile(np *profile.NCMProfile) {
@@ -150,31 +163,9 @@ var invalidConfigMissingAuth = []byte(`
 ip_address: 10.0.0.1
 `)
 
-// language=json
-var expectedEvent = []byte(`
-{
-  "namespace": "default",
-  "integration": "",
-  "configs": [
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "running",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-    },
-    {
-      "device_id": "default:10.0.0.1",
-      "device_ip": "10.0.0.1",
-      "config_type": "startup",
-      "timestamp": 1754043600,
-      "tags": ["device_ip:10.0.0.1"],
-      "content": "interface GigabitEthernet0/1\n ip address 192.168.1.1 255.255.255.0"
-    }
-  ],
-  "collect_timestamp": 1754043600
-}
+var baseInitConfig = []byte(`
+ssh:
+  insecure_skip_verify: true
 `)
 
 // Unit Tests
@@ -184,7 +175,7 @@ func TestCheck_Configure_ValidConfig(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 
 	require.NoError(t, err)
 	assert.NotNil(t, check.checkContext)
@@ -222,7 +213,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 			check := createTestCheck(t)
 			senderManager := mocksender.CreateDefaultDemultiplexer()
 
-			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, []byte{}, "test")
+			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, baseInitConfig, "test")
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
@@ -233,17 +224,18 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 func TestCheck_Run_Success(t *testing.T) {
 	check := createTestCheck(t)
 
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, baseInitConfig)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// mock the time
@@ -260,12 +252,42 @@ func TestCheck_Run_Success(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.True(t, mockClient.Closed, "Remote client should be closed after run")
-
-	compactEvent := new(bytes.Buffer)
-	err = json.Compact(compactEvent, expectedEvent)
+	expectedTags := []string{
+		"device_namespace:default",
+		"device_ip:10.0.0.1",
+		"device_id:default:10.0.0.1",
+		"config_source:cli",
+		"profile:p2",
+	}
+	expectedPayload := report.NCMPayload{
+		Namespace: "default",
+		Configs: []report.NetworkDeviceConfig{
+			{
+				DeviceID:     "default:10.0.0.1",
+				DeviceIP:     "10.0.0.1",
+				ConfigType:   "running",
+				ConfigSource: "cli",
+				Timestamp:    1754043600,
+				Tags:         expectedTags,
+				Content:      runningOutput,
+			},
+			{
+				DeviceID:     "default:10.0.0.1",
+				DeviceIP:     "10.0.0.1",
+				ConfigType:   "startup",
+				ConfigSource: "cli",
+				Timestamp:    1754043600, // timestamp taken from agent collection (could not be extracted from config)
+				Tags:         expectedTags,
+				Content:      startupOutput,
+			},
+		},
+		CollectTimestamp: 1754043600,
+	}
+	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
-	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "ndmconfig")
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
+	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
 
@@ -275,11 +297,11 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
-	connectionError := fmt.Errorf("connection refused")
+	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
 
@@ -296,12 +318,12 @@ func TestCheck_Run_ConfigRetrievalFailure(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{
-		ConfigError: fmt.Errorf("command execution failed"),
+		ConfigError: errors.New("command execution failed"),
 	}
 	check.remoteClient = mockClient
 
@@ -319,7 +341,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// mock the time
@@ -340,10 +362,44 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 		BaseProfile: profile.BaseProfile{
 			Name: "p2",
 		},
-		Commands: map[profile.CommandType][]string{
-			profile.Running: {"show running-config"},
-			profile.Startup: {"show startup-config"},
-			profile.Version: {"show version"},
+		Commands: map[profile.CommandType]*profile.Commands{
+			profile.Running: {
+				CommandType: profile.Running,
+				Values:      []string{"show running-config"},
+				ProcessingRules: profile.ProcessingRules{
+					MetadataRules: []profile.MetadataRule{
+						{
+							Type:   profile.Timestamp,
+							Regex:  regexp.MustCompile(`! Last configuration change at (.*)`),
+							Format: "15:04:05 MST Mon Jan 2 2006",
+						},
+						{
+							Type:  profile.ConfigSize,
+							Regex: regexp.MustCompile(`Current configuration : (?P<Size>\d+)`),
+						},
+					},
+					ValidationRules: []profile.ValidationRule{
+						{
+							Type:    "valid_output",
+							Pattern: regexp.MustCompile(`Building configuration...`),
+						},
+					},
+					RedactionRules: []profile.RedactionRule{
+						{
+							Regex:       regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
+							Replacement: "$1 <redacted secret>"},
+					},
+				},
+				Scrubber: getRunningScrubber(),
+			},
+			profile.Startup: {
+				CommandType: profile.Startup,
+				Values:      []string{"show startup-config"},
+			},
+			profile.Version: {
+				CommandType: profile.Version,
+				Values:      []string{"show version"},
+			},
 		},
 	}
 	assert.Equal(t, expected, actual)
@@ -355,7 +411,7 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, []byte{}, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
 	require.NoError(t, err)
 
 	// mock the time
@@ -372,4 +428,13 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 	_, err = check.FindMatchingProfile()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to find matching profile for device")
+}
+
+func getRunningScrubber() *scrubber.Scrubber {
+	sc := scrubber.New()
+	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
+		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
+		Repl:  []byte("$1 " + "<redacted secret>"),
+	})
+	return sc
 }

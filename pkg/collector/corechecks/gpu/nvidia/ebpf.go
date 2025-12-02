@@ -8,8 +8,11 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -29,8 +32,15 @@ type SystemProbeCache struct {
 
 // NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
 func NewSystemProbeCache() *SystemProbeCache {
+	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
+	client := sysprobeclient.GetCheckClient(
+		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		sysprobeclient.WithCheckTimeout(timeout),
+		sysprobeclient.WithStartupCheckTimeout(timeout),
+	)
+
 	return &SystemProbeCache{
-		client: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		client: client,
 		stats:  nil, // Start with no data
 	}
 }
@@ -40,7 +50,7 @@ func NewSystemProbeCache() *SystemProbeCache {
 // Returns error if the refresh fails, nil on success.
 func (c *SystemProbeCache) Refresh() error {
 	if c.client == nil {
-		return fmt.Errorf("system-probe client is nil")
+		return errors.New("system-probe client is nil")
 	}
 
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.client, sysconfig.GPUMonitoringModule)
@@ -84,7 +94,7 @@ type ebpfCollector struct {
 // newEbpfCollector creates a new eBPF-based collector for the given device.
 func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
 	if cache == nil {
-		return nil, fmt.Errorf("system-probe cache cannot be nil")
+		return nil, errors.New("system-probe cache cannot be nil")
 	}
 
 	return &ebpfCollector{
@@ -125,7 +135,7 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	}
 
 	var deviceMetrics []Metric
-	var allPidTags []string
+	var allWorkloadIDs []workloadmeta.EntityID
 
 	stats := c.cache.GetStats()
 	log.Debugf("ebpf collector: received %d metrics from SP", len(stats.Metrics))
@@ -138,23 +148,26 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 		key := entry.Key
 		metrics := entry.UtilizationMetrics
 
-		// Create PID tag for this process
-		pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-		allPidTags = append(allPidTags, pidTag[0])
+		workloads := []workloadmeta.EntityID{{
+			Kind: workloadmeta.KindProcess,
+			ID:   strconv.Itoa(int(key.PID)),
+		}}
+
+		allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 		// Add per-process usage metrics
 		deviceMetrics = append(deviceMetrics,
 			Metric{
-				Name:  "process.core.usage",
-				Value: metrics.UsedCores,
-				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Name:                "process.core.usage",
+				Value:               metrics.UsedCores,
+				Type:                ddmetrics.GaugeType,
+				AssociatedWorkloads: workloads,
 			},
 			Metric{
-				Name:  "process.memory.usage",
-				Value: float64(metrics.Memory.CurrentBytes),
-				Type:  ddmetrics.GaugeType,
-				Tags:  pidTag,
+				Name:                "process.memory.usage",
+				Value:               float64(metrics.Memory.CurrentBytes),
+				Type:                ddmetrics.GaugeType,
+				AssociatedWorkloads: workloads,
 			},
 		)
 
@@ -166,22 +179,25 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	log.Debugf("ebpf collector: %d active metrics in the cache after processing", len(c.activeMetrics))
 	for key, active := range c.activeMetrics {
 		if !active {
-			pidTag := []string{fmt.Sprintf("pid:%d", key.PID)}
-			allPidTags = append(allPidTags, pidTag[0])
+			workloads := []workloadmeta.EntityID{{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(key.PID)),
+			}}
+			allWorkloadIDs = append(allWorkloadIDs, workloads...)
 
 			// Emit zero metrics for inactive processes
 			deviceMetrics = append(deviceMetrics,
 				Metric{
-					Name:  "process.core.usage",
-					Value: 0,
-					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Name:                "process.core.usage",
+					Value:               0,
+					Type:                ddmetrics.GaugeType,
+					AssociatedWorkloads: workloads,
 				},
 				Metric{
-					Name:  "process.memory.usage",
-					Value: 0,
-					Type:  ddmetrics.GaugeType,
-					Tags:  pidTag,
+					Name:                "process.memory.usage",
+					Value:               0,
+					Type:                ddmetrics.GaugeType,
+					AssociatedWorkloads: workloads,
 				},
 			)
 
@@ -193,17 +209,17 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	// Emit limit metrics with aggregated PID tags
 	deviceMetrics = append(deviceMetrics,
 		Metric{
-			Name:     "core.limit",
-			Value:    float64(devInfo.CoreCount),
-			Type:     ddmetrics.GaugeType,
-			Priority: High,
-			Tags:     allPidTags,
+			Name:                "core.limit",
+			Value:               float64(devInfo.CoreCount),
+			Type:                ddmetrics.GaugeType,
+			Priority:            High,
+			AssociatedWorkloads: allWorkloadIDs,
 		},
 		Metric{
-			Name:  "memory.limit",
-			Value: float64(devInfo.Memory),
-			Type:  ddmetrics.GaugeType,
-			Tags:  allPidTags,
+			Name:                "memory.limit",
+			Value:               float64(devInfo.Memory),
+			Type:                ddmetrics.GaugeType,
+			AssociatedWorkloads: allWorkloadIDs,
 		},
 	)
 

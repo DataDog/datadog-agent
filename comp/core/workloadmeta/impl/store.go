@@ -7,6 +7,7 @@ package workloadmetaimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -17,7 +18,7 @@ import (
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
@@ -29,6 +30,7 @@ const (
 	pullCollectorInterval         = 5 * time.Second
 	maxCollectorPullTime          = 1 * time.Minute
 	eventBundleChTimeout          = 1 * time.Second
+	closeEventBundleChTimeout     = 10 * time.Second
 	eventChBufferSize             = 50
 )
 
@@ -245,7 +247,7 @@ func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wm
 		}
 	}
 
-	return nil, errors.NewNotFound(podName)
+	return nil, pkgerrors.NewNotFound(podName)
 }
 
 // ListKubernetesPods implements Store#ListKubernetesPods
@@ -263,7 +265,7 @@ func (w *workloadmeta) ListKubernetesPods() []*wmdef.KubernetesPod {
 func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	// There should only be one entity of this kind with the ID used in the
 	// Kubelet collector
-	entity, err := w.getEntityByKind(wmdef.KindKubeletMetrics, "kubelet-metrics")
+	entity, err := w.getEntityByKind(wmdef.KindKubeletMetrics, wmdef.KubeletMetricsID)
 	if err != nil {
 		return nil, err
 	}
@@ -318,27 +320,27 @@ func (w *workloadmeta) GetContainerForProcess(processID string) (*wmdef.Containe
 
 	processEntities, ok := w.store[wmdef.KindProcess]
 	if !ok {
-		return nil, errors.NewNotFound(string(wmdef.KindProcess))
+		return nil, pkgerrors.NewNotFound(string(wmdef.KindProcess))
 	}
 
 	processEntity, ok := processEntities[processID]
 	if !ok {
-		return nil, errors.NewNotFound(processID)
+		return nil, pkgerrors.NewNotFound(processID)
 	}
 
 	process := processEntity.cached.(*wmdef.Process)
 	if process.Owner == nil || process.Owner.Kind != wmdef.KindContainer {
-		return nil, errors.NewNotFound(processID)
+		return nil, pkgerrors.NewNotFound(processID)
 	}
 
 	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
-		return nil, errors.NewNotFound(process.Owner.ID)
+		return nil, pkgerrors.NewNotFound(process.Owner.ID)
 	}
 
 	container, ok := containerEntities[process.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(process.Owner.ID)
+		return nil, pkgerrors.NewNotFound(process.Owner.ID)
 	}
 
 	return container.cached.(*wmdef.Container), nil
@@ -351,27 +353,27 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.
 
 	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	containerEntity, ok := containerEntities[containerID]
 	if !ok {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	container := containerEntity.cached.(*wmdef.Container)
 	if container.Owner == nil || container.Owner.Kind != wmdef.KindKubernetesPod {
-		return nil, errors.NewNotFound(containerID)
+		return nil, pkgerrors.NewNotFound(containerID)
 	}
 
 	podEntities, ok := w.store[wmdef.KindKubernetesPod]
 	if !ok {
-		return nil, errors.NewNotFound(container.Owner.ID)
+		return nil, pkgerrors.NewNotFound(container.Owner.ID)
 	}
 
 	pod, ok := podEntities[container.Owner.ID]
 	if !ok {
-		return nil, errors.NewNotFound(container.Owner.ID)
+		return nil, pkgerrors.NewNotFound(container.Owner.ID)
 	}
 
 	return pod.cached.(*wmdef.KubernetesPod), nil
@@ -580,7 +582,7 @@ func (w *workloadmeta) IsInitialized() bool {
 func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
 	for _, event := range events {
 		if event.Type != wmdef.EventTypeSet && event.Type != wmdef.EventTypeUnset {
-			return fmt.Errorf("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
+			return errors.New("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
 		}
 	}
 	return nil
@@ -628,7 +630,7 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 			return nil
 		}
 
-		return fmt.Errorf("some collectors failed to start. Will retry")
+		return errors.New("some collectors failed to start. Will retry")
 	}, expBackoff)
 }
 
@@ -868,12 +870,12 @@ func (w *workloadmeta) getEntityByKind(kind wmdef.Kind, id string) (wmdef.Entity
 
 	entitiesOfKind, ok := w.store[kind]
 	if !ok {
-		return nil, errors.NewNotFound(string(kind))
+		return nil, pkgerrors.NewNotFound(string(kind))
 	}
 
 	entity, ok := entitiesOfKind[id]
 	if !ok {
-		return nil, errors.NewNotFound(id)
+		return nil, pkgerrors.NewNotFound(id)
 	}
 
 	return entity.cached, nil
@@ -915,7 +917,22 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-	ch <- bundle
+
+	// Send with timeout to prevent indefinite blocking
+	// There are two timeouts here:
+	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
+	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	select {
+	case ch <- bundle:
+		// Successfully sent
+	case <-time.After(closeEventBundleChTimeout):
+		// Timeout sending to channel - subscriber not reading, events will be lost
+		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
+		// Close acknowledgment channel to prevent resource leak
+		close(bundle.Ch)
+		return
+	}
 
 	if wait {
 		select {

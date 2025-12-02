@@ -8,6 +8,7 @@ package autoscalerlist
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
@@ -22,6 +23,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -67,6 +69,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -102,7 +105,7 @@ func getAutoscalerURL(config config.Component) (string, error) {
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		urlstr = fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
 	} else {
-		return "", fmt.Errorf("running autoscaler-list is only supported on the cluster agent")
+		return "", errors.New("running autoscaler-list is only supported on the cluster agent")
 	}
 
 	return urlstr, nil
@@ -119,7 +122,7 @@ func getAutoscalerList(client ipc.HTTPClient, w io.Writer, url string) error {
 	}
 
 	if len(r) == 0 {
-		return fmt.Errorf("no autoscalers found")
+		return errors.New("no autoscalers found")
 	}
 
 	autoscalerDump := autoscalingWorkload.AutoscalersInfo{}

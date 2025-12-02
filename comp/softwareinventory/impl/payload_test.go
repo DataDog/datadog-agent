@@ -28,10 +28,3 @@ func TestPayloadMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(b), "FooApp")
 	assert.Contains(t, string(b), "BarApp")
 }
-
-func TestPayloadSplitPayload(t *testing.T) {
-	p := &Payload{}
-	res, err := p.SplitPayload(1)
-	assert.Nil(t, res)
-	assert.Error(t, err)
-}

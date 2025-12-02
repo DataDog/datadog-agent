@@ -72,6 +72,12 @@ func (c *Check) Run() error {
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
+
+	err = payload.ValidateNetworkPath(&path)
+	if err != nil {
+		return fmt.Errorf("failed to validate network path: %w", err)
+	}
+
 	path.Namespace = c.config.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
 

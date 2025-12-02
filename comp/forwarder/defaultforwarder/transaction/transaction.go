@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -206,8 +207,6 @@ const (
 	SecondaryOnly
 	// LocalOnly indicates the transaction should be sent to the local endpoint (cluster-agent) only
 	LocalOnly
-	// PreaggrOnly indicates the transaction should be sent to the pre-aggregation endpoint only
-	PreaggrOnly
 )
 
 func (d Destination) String() string {
@@ -220,8 +219,6 @@ func (d Destination) String() string {
 		return "SecondaryOnly"
 	case LocalOnly:
 		return "LocalOnly"
-	case PreaggrOnly:
-		return "PreaggrOnly"
 	default:
 		return "Unknown"
 	}
@@ -268,7 +265,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error
+	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -353,10 +350,10 @@ func (t *HTTPTransaction) GetDestination() Destination {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, config, log, client)
+	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -373,7 +370,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) (int, []byte, error) {
 	payload := t.Payload.GetContent()
 	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
@@ -434,7 +431,11 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
-		log.Errorf("API Key invalid, dropping transaction for %s", logURL)
+		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
+
+		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
+		_, _ = secrets.Refresh(false)
+
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
@@ -454,15 +455,17 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 
 	loggingFrequency := config.GetInt64("logging_frequency")
 
-	if transactionsSuccess.Value() == 1 {
-		log.Infof("Successfully posted payload to %q (%s), the agent will only log transaction success every %d transactions", logURL, resp.Status, loggingFrequency)
-		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
-		return resp.StatusCode, body, nil
-	}
-	if transactionsSuccess.Value()%loggingFrequency == 0 {
-		log.Infof("Successfully posted payload to %q (%s)", logURL, resp.Status)
-		log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
-		return resp.StatusCode, body, nil
+	if loggingFrequency > 0 {
+		if transactionsSuccess.Value() == 1 {
+			log.Infof("Successfully posted payload to %q (%s), the agent will only log transaction success every %d transactions", logURL, resp.Status, loggingFrequency)
+			log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
+			return resp.StatusCode, body, nil
+		}
+		if transactionsSuccess.Value()%loggingFrequency == 0 {
+			log.Infof("Successfully posted payload to %q (%s)", logURL, resp.Status)
+			log.Tracef("Url: %q, response status %s, content length %d, payload: %q", logURL, resp.Status, resp.ContentLength, truncateBodyForLog(body))
+			return resp.StatusCode, body, nil
+		}
 	}
 	log.Tracef("Successfully posted payload to %q (%s): %q", logURL, resp.Status, truncateBodyForLog(body))
 	return resp.StatusCode, body, nil

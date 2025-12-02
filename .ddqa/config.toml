@@ -48,7 +48,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-delivery"
 github_labels = ["team/agent-delivery"]
-exclude_members = ["KSerrania"]
+exclude_members = ["FlorentClarret"]
 
 [teams."Agent Build"]
 jira_project = "ABLD"
@@ -214,8 +214,8 @@ github_labels = ["team/database-monitoring"]
 jira_project = "CAP"
 jira_issue_type = "Task"
 jira_statuses = ["💼 To Do", "💡 In Progress", "✅ Done"]
-github_team = "container-app"
-github_labels = ["team/container-app"]
+github_team = "kubernetes-experiences"
+github_labels = ["team/kubernetes-experiences"]
 
 [teams."APM Injection Platform"]
 jira_project = "INPLAT"

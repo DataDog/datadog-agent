@@ -9,14 +9,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // domainAPIKeyMap used by tests to get API keys from each domain resolver
@@ -29,7 +29,7 @@ func (f *DefaultForwarder) domainAPIKeyMap() map[string][]string {
 }
 
 func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 
@@ -45,6 +45,8 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
+	secrets := secretsmock.New(t)
+	forwarderOptions.Secrets = secrets
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match
@@ -66,7 +68,7 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 }
 
 func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
-	mockConfig := config.NewMock(t)
+	mockConfig := configmock.New(t)
 	mockConfig.Set("api_key", "api_key1", pkgconfigmodel.SourceAgentRuntime)
 	log := logmock.New(t)
 
@@ -83,6 +85,8 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
 	require.NoError(t, err)
+	secrets := secretsmock.New(t)
+	forwarderOptions.Secrets = secrets
 	forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
 
 	// API keys from the domain resolvers match
@@ -104,61 +108,4 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	data, err = json.Marshal(actualAPIKeys)
 	require.NoError(t, err)
 	assert.Equal(t, expectData, string(data))
-}
-
-func TestPreaggregationPipelineTransactionCreation(t *testing.T) {
-	log := logmock.New(t)
-
-	tests := []struct {
-		name               string
-		preaggrURL         string
-		primaryURL         string
-		payloadDest        transaction.Destination
-		expectTransactions int
-		description        string
-	}{
-		{
-			name:               "preaggronly_payload",
-			preaggrURL:         "https://telemetry-intake.datadoghq.com",
-			primaryURL:         "https://app.datadoghq.com",
-			payloadDest:        transaction.PreaggrOnly,
-			expectTransactions: 1,
-			description:        "PreaggrOnly payload should create preaggr transaction",
-		},
-		{
-			name:               "normal_payload",
-			preaggrURL:         "https://telemetry-intake.datadoghq.com",
-			primaryURL:         "https://app.datadoghq.com",
-			payloadDest:        transaction.AllRegions,
-			expectTransactions: 1,
-			description:        "Normal payload should create transaction for primary endpoint only, not preaggr",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := config.NewMock(t)
-			mockConfig.Set("api_key", "test_api_key", pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("dd_url", tc.primaryURL, pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("preaggregation.enabled", true, pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("preaggregation.dd_url", tc.preaggrURL, pkgconfigmodel.SourceAgentRuntime)
-			mockConfig.Set("preaggregation.api_key", "preaggr_test_key", pkgconfigmodel.SourceAgentRuntime)
-
-			keysPerDomains, err := utils.GetMultipleEndpoints(mockConfig)
-			require.NoError(t, err)
-
-			forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
-			require.NoError(t, err)
-			forwarder := NewDefaultForwarder(mockConfig, log, forwarderOptions)
-
-			// Create test payload with specified destination
-			payload := transaction.NewBytesPayloadWithoutMetaData([]byte(`{"test": "data"}`))
-			payload.Destination = tc.payloadDest
-
-			transactions := forwarder.createAdvancedHTTPTransactions(endpoints.SeriesEndpoint, transaction.BytesPayloads{payload}, nil, transaction.TransactionPriorityNormal, transaction.Series, true)
-
-			assert.Equal(t, tc.expectTransactions, len(transactions),
-				"Expected %d transactions for %s: %s", tc.expectTransactions, tc.name, tc.description)
-		})
-	}
 }

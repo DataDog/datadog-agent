@@ -7,11 +7,14 @@ package cloudproviders
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCloudProviderAliases(t *testing.T) {
@@ -24,21 +27,24 @@ func TestCloudProviderAliases(t *testing.T) {
 
 	hostAliasesDetectors = []cloudProviderAliasesDetector{
 		{
-			name: "detector1",
+			name:       "detector1",
+			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector1Called = true
 				return []string{"alias2"}, nil
 			},
 		},
 		{
-			name: "detector2",
+			name:       "detector2",
+			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector2Called = true
-				return nil, fmt.Errorf("error from detector2")
+				return nil, errors.New("error from detector2")
 			},
 		},
 		{
-			name: "detector3",
+			name:       "detector3",
+			isCloudEnv: true,
 			callback: func(_ context.Context) ([]string, error) {
 				detector3Called = true
 				return []string{"alias1", "alias2"}, nil
@@ -103,5 +109,63 @@ func TestCloudProviderHostCCRID(t *testing.T) {
 	assert.False(t, detector1Called, "host alias callback for 'detector1' should not be called")
 	assert.False(t, detector2Called, "host alias callback for 'detector2' should not be called")
 	assert.Equal(t, "", ccrid)
+	clearDetectors()
+}
+
+func TestGetValidHostAliasesWithConfig(t *testing.T) {
+	config := configmock.New(t)
+	config.SetWithoutSource("host_aliases", []string{"foo", "-bar"})
+
+	val, err := getValidHostAliases(context.TODO())
+	require.NoError(t, err)
+	assert.EqualValues(t, []string{"foo"}, val)
+}
+
+func TestCloudProviderInstanceType(t *testing.T) {
+	origDetectors := hostInstanceTypeDetectors
+	defer func() { hostInstanceTypeDetectors = origDetectors }()
+
+	detector1Called := false
+	detector2Called := false
+	clearDetectors := func() {
+		detector1Called = false
+		detector2Called = false
+	}
+
+	hostInstanceTypeDetectors = map[string]cloudProviderInstanceTypeDetector{
+		"detector1": func(_ context.Context) (string, error) {
+			detector1Called = true
+			return "t3.medium", nil
+		},
+		"detector2": func(_ context.Context) (string, error) {
+			detector2Called = true
+			return "m5.large", nil
+		},
+	}
+
+	// Case 1: known cloud provider "detector2" should only call detector2
+	instanceType := GetInstanceType(context.TODO(), "detector2")
+	assert.False(t, detector1Called, "instance type callback for 'detector1' should not be called")
+	assert.True(t, detector2Called, "instance type callback for 'detector2' was not called")
+	assert.Equal(t, "m5.large", instanceType)
+	clearDetectors()
+
+	// Case 2: known cloud provider "detector1" should only call detector1
+	instanceType = GetInstanceType(context.TODO(), "detector1")
+	assert.True(t, detector1Called, "instance type callback for 'detector1' was not called")
+	assert.False(t, detector2Called, "instance type callback for 'detector2' should not be called")
+	assert.Equal(t, "t3.medium", instanceType)
+	clearDetectors()
+
+	// Case 3: unknown provider
+	instanceType = GetInstanceType(context.TODO(), "kubelet")
+	assert.Equal(t, "", instanceType)
+	clearDetectors()
+
+	// Case 4: empty detected cloud — should fail fast
+	instanceType = GetInstanceType(context.TODO(), "")
+	assert.False(t, detector1Called, "instance type callback for 'detector1' should not be called")
+	assert.False(t, detector2Called, "instance type callback for 'detector2' should not be called")
+	assert.Equal(t, "", instanceType)
 	clearDetectors()
 }

@@ -36,18 +36,22 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-//go:embed status_templates
-var templatesFS embed.FS
-
 const auditFileBasename = "secret-audit-file.json"
 
 var newClock = clock.New
+
+//go:embed status_templates
+var templatesFS embed.FS
+
+// this is overridden by tests when needed
+var checkRightsFunc = checkRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {
@@ -60,7 +64,6 @@ type Provides struct {
 
 // Requires list the required object to initializes the secrets Component
 type Requires struct {
-	Params    secrets.Params
 	Telemetry telemetry.Component
 }
 
@@ -76,10 +79,9 @@ type secretContext struct {
 type handleToContext map[string][]secretContext
 
 type secretResolver struct {
-	enabled bool
-	lock    sync.Mutex
-	cache   map[string]string
-	clk     clock.Clock
+	lock  sync.Mutex
+	cache map[string]string
+	clk   clock.Clock
 
 	// list of handles and where they were found
 	origin handleToContext
@@ -123,6 +125,12 @@ type secretResolver struct {
 	tlmSecretBackendElapsed telemetry.Gauge
 	tlmSecretUnmarshalError telemetry.Counter
 	tlmSecretResolveError   telemetry.Counter
+
+	// Secret refresh throttling
+	apiKeyFailureRefreshInterval time.Duration
+	lastThrottledRefresh         time.Time
+
+	refreshTrigger chan struct{}
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
@@ -131,19 +139,18 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
-		enabled:                 true,
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
 		tlmSecretResolveError:   telemetry.NewCounter("secret_backend", "resolve_errors_count", []string{"error_kind", "handle"}, "Count of errors when resolving a secret"),
 		clk:                     newClock(),
 		unresolvedSecrets:       make(map[string]struct{}),
+		refreshTrigger:          make(chan struct{}, 1),
 	}
 }
 
 // NewComponent returns the implementation for the secrets component
 func NewComponent(deps Requires) Provides {
 	resolver := newEnabledSecretResolver(deps.Telemetry)
-	resolver.enabled = deps.Params.Enabled
 	return Provides{
 		Comp:            resolver,
 		FlareProvider:   flaretypes.NewProvider(resolver.fillFlare),
@@ -181,7 +188,7 @@ func (r *secretResolver) HTML(_ bool, buffer io.Writer) error {
 	return status.RenderHTML(templatesFS, "infoHTML.tmpl", buffer, r.getDebugInfo(stats, false))
 }
 
-// fillFlare add the inventory payload to flares.
+// fillFlare add secrets information to flares
 func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	var buffer bytes.Buffer
 	stats := make(map[string]interface{})
@@ -205,7 +212,7 @@ func (r *secretResolver) writeDebugInfo(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (r *secretResolver) handleRefresh(w http.ResponseWriter, _ *http.Request) {
-	result, err := r.Refresh()
+	result, err := r.Refresh(true)
 	if err != nil {
 		log.Infof("could not refresh secrets: %s", err)
 		setJSONError(w, err, 500)
@@ -260,9 +267,6 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, path
 
 // Configure initializes the executable command and other options of the secrets component
 func (r *secretResolver) Configure(params secrets.ConfigParams) {
-	if !r.enabled {
-		return
-	}
 	r.backendType = params.Type
 	r.backendConfig = params.Config
 	r.backendCommand = params.Command
@@ -297,8 +301,8 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 
 	r.commandAllowGroupExec = params.GroupExecPerm
 	r.removeTrailingLinebreak = params.RemoveLinebreak
-	if r.commandAllowGroupExec {
-		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
+	if r.commandAllowGroupExec && !env.IsContainerized() {
+		log.Warn("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
 	r.auditFilename = filepath.Join(params.RunPath, auditFileBasename)
 	r.auditFileMaxSize = params.AuditFileMaxSize
@@ -309,11 +313,13 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.scopeIntegrationToNamespace = params.ScopeIntegrationToNamespace
 	r.allowedNamespace = params.AllowedNamespace
 	r.imageToHandle = params.ImageToHandle
+
+	r.apiKeyFailureRefreshInterval = time.Duration(params.APIKeyFailureRefreshInterval) * time.Minute
 }
 
-func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
-	if r.ticker != nil || r.refreshInterval == 0 {
-		return
+func (r *secretResolver) setupRefreshInterval(rd *rand.Rand) <-chan time.Time {
+	if r.refreshInterval <= 0 {
+		return nil
 	}
 
 	if r.refreshIntervalScatter {
@@ -330,19 +336,51 @@ func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
 		r.scatterDuration = r.refreshInterval
 	}
 	r.ticker = r.clk.Ticker(r.scatterDuration)
+	return r.ticker.C
+}
+
+func (r *secretResolver) startRefreshRoutine(rd *rand.Rand) {
+	if r.ticker != nil {
+		return
+	}
+
+	timer := r.setupRefreshInterval(rd)
 
 	go func() {
-		<-r.ticker.C
-		if _, err := r.Refresh(); err != nil {
-			log.Infof("Error with refreshing secrets: %s", err)
+		if timer != nil {
+			// initial refresh
+			<-timer
+			if _, err := r.performRefresh(); err != nil {
+				log.Infof("Error with refreshing secrets: %s", err)
+			}
+			// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
+			r.ticker.Reset(r.refreshInterval)
 		}
-		// we want to reset the refresh interval to the refreshInterval after the first refresh in case a scattered first refresh interval was configured
-		r.ticker.Reset(r.refreshInterval)
 
 		for {
-			<-r.ticker.C
-			if _, err := r.Refresh(); err != nil {
-				log.Infof("Error with refreshing secrets: %s", err)
+			select {
+			case <-timer:
+				// scheduled refresh
+				if _, err := r.performRefresh(); err != nil {
+					log.Infof("Error with refreshing secrets: %s", err)
+				}
+			// triggered refresh
+			case <-r.refreshTrigger:
+				// disabled
+				if r.apiKeyFailureRefreshInterval == 0 {
+					continue
+				}
+				// throttle if last refresh was less than apiKeyFailureRefreshInterval ago
+				if time.Since(r.lastThrottledRefresh) < r.apiKeyFailureRefreshInterval {
+					continue
+				}
+				r.lastThrottledRefresh = time.Now()
+				// throttled refresh
+				if result, err := r.performRefresh(); err != nil {
+					log.Debugf("Secret refresh after invalid API key failed: %v", err)
+				} else if result != "" {
+					log.Infof("Secret refresh after invalid API key completed")
+				}
 			}
 		}
 	}()
@@ -405,10 +443,6 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if !r.enabled {
-		log.Infof("Agent secrets is disabled by caller")
-		return nil, nil
-	}
 	if data == nil || r.backendCommand == "" {
 		return data, nil
 	}
@@ -535,7 +569,6 @@ var (
 		"debugger_additional_endpoints",
 		"debugger_diagnostics_additional_endpoints",
 		"symdb_additional_endpoints",
-		"events_additional_endpoints",
 	}
 	// tests override this to test refresh logic
 	allowlistEnabled = true
@@ -621,8 +654,25 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 	return secretRefreshInfo{Handles: handleInfoList}
 }
 
-// Refresh the secrets after they have been Resolved by fetching them from the backend again
-func (r *secretResolver) Refresh() (string, error) {
+// Refresh will resolve secret handles again, notifying any subscribers of changed values.
+// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
+// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
+func (r *secretResolver) Refresh(updateNow bool) (string, error) {
+	if updateNow {
+		// blocking refresh
+		return r.performRefresh()
+	}
+
+	// non-blocking refresh, max 1 at a time, others dropped
+	select {
+	case r.refreshTrigger <- struct{}{}:
+	default:
+	}
+	return "", nil
+}
+
+// performRefresh executes the actual secret refresh operation
+func (r *secretResolver) performRefresh() (string, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -676,7 +726,9 @@ func (r *secretResolver) Refresh() (string, error) {
 	if err = t.Execute(b, refreshResult); err != nil {
 		return "", err
 	}
-	return b.String(), auditRecordErr
+	result := b.String()
+
+	return result, auditRecordErr
 }
 
 type auditRecord struct {
@@ -748,14 +800,8 @@ type handlePlace struct {
 //go:embed status_templates/refresh.tmpl
 var secretRefreshTmpl string
 
-// getDebugInfo exposes debug informations about secrets to be included in a flare, status page and secret command
+// getDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersion bool) map[string]interface{} {
-	stats["enabled"] = r.enabled
-	if !r.enabled {
-		stats["message"] = "Agent secrets is disabled by caller"
-		return stats
-	}
-
 	if r.backendCommand == "" {
 		stats["backendCommandSet"] = false
 		stats["message"] = "No secret_backend_command set: secrets feature is not enabled"
@@ -781,7 +827,7 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	var permissionsError string
 
 	if !r.embeddedBackendPermissiveRights {
-		err := checkRights(r.backendCommand, r.commandAllowGroupExec)
+		err := checkRightsFunc(r.backendCommand, r.commandAllowGroupExec)
 		if err != nil {
 			permissions = "error: the executable does not have the correct permissions"
 			permissionsOK = false

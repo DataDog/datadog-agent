@@ -95,6 +95,21 @@ type SafeDevice interface {
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
 	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetSupportedEventTypes returns a bitmask of all supported device events
+	GetSupportedEventTypes() (uint64, error)
+	// RegisterEvents registers the device for events to be waited in the given set
+	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
+	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
+	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+}
+
+// DeviceEventData holds basic information about a device event
+type DeviceEventData struct {
+	DeviceUUID        string
+	EventType         uint64
+	EventData         uint64
+	GPUInstanceID     uint32
+	ComputeInstanceID uint32
 }
 
 // DeviceInfo holds common cached properties for a GPU device

@@ -518,6 +518,8 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
+	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
@@ -530,9 +532,6 @@ type AgentConfig struct {
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig
-
-	// Lambda function name
-	LambdaFunctionName string
 
 	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
@@ -549,6 +548,15 @@ type AgentConfig struct {
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+
+	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
+	DebugV1Payloads bool
+
+	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
+	EnableV1TraceEndpoint bool
+
+	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
+	SendAllInternalStats bool
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -614,8 +622,6 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
-
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
 		WatchdogInterval: 10 * time.Second,
@@ -632,13 +638,14 @@ func New() *AgentConfig {
 		Proxy:                     http.ProxyFromEnvironment,
 		OTLPReceiver:              &OTLP{},
 		ContainerTags:             noopContainerTagsFunc,
+		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			MaxPayloadSize: 10 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
 			Enabled:    true,
@@ -655,7 +662,12 @@ func computeGlobalTags() map[string]string {
 	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
 	}
-	return make(map[string]string)
+
+	tags := make(map[string]string)
+	if inECSManagedInstancesSidecar() {
+		tags["_dd.origin"] = "ecs_managed_instances"
+	}
+	return tags
 }
 
 // ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
@@ -759,4 +771,8 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
+}
+
+func inECSManagedInstancesSidecar() bool {
+	return os.Getenv("DD_ECS_DEPLOYMENT_MODE") == "sidecar" && os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
 }

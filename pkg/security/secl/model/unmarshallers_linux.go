@@ -229,7 +229,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.ID = binary.NativeEndian.Uint64(data[32:40])
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := UnmarshalBinary(data[40:], &e.Credentials)
@@ -390,14 +390,23 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	e.Mode = binary.NativeEndian.Uint16(data[20:22])
 
 	timeSec := binary.NativeEndian.Uint64(data[24:32])
-	timeNsec := binary.NativeEndian.Uint64(data[32:40])
+	timeNsec := clearTopBitNsec(binary.NativeEndian.Uint64(data[32:40]))
 	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	timeSec = binary.NativeEndian.Uint64(data[40:48])
-	timeNsec = binary.NativeEndian.Uint64(data[48:56])
+	timeNsec = clearTopBitNsec(binary.NativeEndian.Uint64(data[48:56]))
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	return FileFieldsSize, nil
+}
+
+// in https://github.com/torvalds/linux/commit/4e40eff0b5737c0de39e1ae5812509efbc0b986e
+// the kernel started using the top bit of the nsec as a flag, let's clear it
+// before using the nsec value
+func clearTopBitNsec(nsec uint64) uint64 {
+	w := uint32(nsec)
+	w = w & ^(uint32(1) << 31)
+	return uint64(w)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -428,7 +437,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -446,16 +455,20 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 	m.Device = binary.NativeEndian.Uint32(data[0:4])
 	m.BindSrcMountID = binary.NativeEndian.Uint32(data[4:8])
-	m.FSType, err = UnmarshalString(data[8:], 16)
+	m.MountIDUnique = binary.NativeEndian.Uint64(data[8:16])
+	m.ParentMountIDUnique = binary.NativeEndian.Uint64(data[16:24])
+	m.BindSrcMountIDUnique = binary.NativeEndian.Uint64(data[24:32])
+	m.FSType, err = UnmarshalString(data[32:], 16)
 	if err != nil {
 		return 0, err
 	}
 
 	m.MountID = m.RootPathKey.MountID
-	m.Visible = binary.NativeEndian.Uint16(data[24:26]) != 0
-	m.Detached = binary.NativeEndian.Uint16(data[26:28]) != 0
+	m.Visible = binary.NativeEndian.Uint16(data[48:50]) != 0
+	m.Detached = binary.NativeEndian.Uint16(data[50:52]) != 0
 
-	return 64, nil
+	m.NamespaceInode = binary.NativeEndian.Uint32(data[52:56])
+	return 88, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -571,7 +584,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 32 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -580,8 +593,9 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.IsKworker = binary.NativeEndian.Uint32(data[12:16]) > 0
 	p.ExecInode = binary.NativeEndian.Uint64(data[16:24])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[24:32])
 
-	return 24, nil
+	return 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1068,6 +1082,7 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = binary.NativeEndian.Uint32(data[read+40 : read+44])
 	e.NetworkDirection = binary.NativeEndian.Uint32(data[read+44 : read+48])
+	e.Type = uint32(UnspecType)
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
@@ -1578,8 +1593,33 @@ func (e *PrCtlEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	e.Option = int(binary.NativeEndian.Uint32(data[0:4]))
-	sizeToRead := int(binary.NativeEndian.Uint32(data[4:8]))
+	sizeToRead := binary.NativeEndian.Uint32(data[4:8])
 	e.IsNameTruncated = binary.NativeEndian.Uint32(data[8:12]) > 0
-	e.NewName = string(data[12 : sizeToRead+12])
-	return sizeToRead + 12, nil
+
+	if sizeToRead > sharedconsts.MaxPrCtlSetNameSize {
+		sizeToRead = sharedconsts.MaxPrCtlSetNameSize
+	}
+
+	data = data[12:]
+	e.NewName, err = UnmarshalString(data[:], int(sizeToRead))
+	if err != nil {
+		return 12, err
+	}
+
+	return 12 + int(sizeToRead), nil
+}
+
+// UnmarshalBinary unmarshals a binary representation of itself
+func (e *TracerMemfdSealEvent) UnmarshalBinary(data []byte) (int, error) {
+	read, err := UnmarshalBinary(data, &e.SyscallEvent)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(data)-read < 4 {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Fd = binary.NativeEndian.Uint32(data[read : read+4])
+	return read + 4, nil
 }

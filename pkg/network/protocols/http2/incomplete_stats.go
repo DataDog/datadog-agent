@@ -10,6 +10,7 @@ package http2
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,7 +22,7 @@ const (
 
 // incompleteBuffer is responsible for buffering incomplete transactions
 type incompleteBuffer struct {
-	data              []*EbpfTx
+	data              []*EventWrapper
 	maxEntries        int
 	minAgeNano        int64
 	oversizedLogLimit *log.Limit
@@ -30,7 +31,7 @@ type incompleteBuffer struct {
 // NewIncompleteBuffer returns a new incompleteBuffer.
 func NewIncompleteBuffer(c *config.Config) http.IncompleteBuffer {
 	return &incompleteBuffer{
-		data:              make([]*EbpfTx, 0),
+		data:              make([]*EventWrapper, 0),
 		maxEntries:        c.MaxHTTPStatsBuffered,
 		minAgeNano:        defaultMinAge.Nanoseconds(),
 		oversizedLogLimit: log.NewLogLimit(10, time.Minute*10),
@@ -46,30 +47,38 @@ func (b *incompleteBuffer) Add(tx http.Transaction) {
 		return
 	}
 
-	// Copy underlying EbpfTx value.
-	ebpfTX, ok := tx.(*EbpfTx)
+	// Copy underlying EventWrapper value.
+	eventWrapper, ok := tx.(*EventWrapper)
 	if !ok {
 		if b.oversizedLogLimit.ShouldLog() {
-			log.Warnf("http2 incomplete buffer received a non-EbpfTx transaction (%T), dropping transaction", tx)
+			log.Warnf("http2 incomplete buffer received a non-EventWrapper transaction (%T), dropping transaction", tx)
 		}
 		return
 	}
 
 	ebpfTxCopy := new(EbpfTx)
-	*ebpfTxCopy = *ebpfTX
+	*ebpfTxCopy = *eventWrapper.EbpfTx
 
-	b.data = append(b.data, ebpfTxCopy)
+	eventWrapperCopy := new(EventWrapper)
+	*eventWrapperCopy = *eventWrapper
+	eventWrapperCopy.EbpfTx = ebpfTxCopy
+
+	b.data = append(b.data, eventWrapperCopy)
 }
 
 // Flush flushes the buffer and returns the joined transactions.
-func (b *incompleteBuffer) Flush(now time.Time) []http.Transaction {
+func (b *incompleteBuffer) Flush() []http.Transaction {
 	var (
 		joined   []http.Transaction
 		previous = b.data
-		nowUnix  = now.UnixNano()
 	)
 
-	b.data = make([]*EbpfTx, 0)
+	nowUnix, err := ebpf.NowNanoseconds()
+	if err != nil {
+		nowUnix = 0
+	}
+
+	b.data = make([]*EventWrapper, 0)
 	for _, entry := range previous {
 		// now that we have finished matching requests and responses
 		// we check if we should keep orphan requests a little longer

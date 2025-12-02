@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	tifecs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	tifecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
 	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 )
@@ -644,4 +644,15 @@ func (suite *ecsSuite) testTrace(taskName string) {
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
 	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+}
+
+func (suite *ecsSuite) TestHostTags() {
+	// tag keys that are expected to be found on this docker env
+	args := &testHostTags{
+		ExpectedTags: &[]string{
+			"^stackid:" + strings.TrimSuffix(suite.clusterName, "-ecs") + "$",
+		},
+	}
+
+	suite.testHostTags(args)
 }

@@ -181,6 +181,8 @@ type RuntimeSecurityConfig struct {
 	PolicyMonitorReportInternalPolicies bool
 	// SocketPath is the path to the socket that is used to communicate with the security agent
 	SocketPath string
+	// SocketPath is the path to the socket that is used to communicate with system-probe
+	CmdSocketPath string
 	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
 	EventServerBurst int
 	// EventServerRate defines the grpc server rate at which events can be sent
@@ -341,10 +343,6 @@ type RuntimeSecurityConfig struct {
 	SBOMResolverWorkloadsCacheSize int
 	// SBOMResolverHostEnabled defines if the SBOM resolver should compute the host's SBOM
 	SBOMResolverHostEnabled bool
-	// SBOMResolverAnalyzers defines the list of analyzers that should be used to compute the SBOM
-	SBOMResolverAnalyzers []string
-	// SBOMResolverUseV2Collector defines if the SBOM resolver should use the v2 collector
-	SBOMResolverUseV2Collector bool
 
 	// HashResolverEnabled defines if the hash resolver should be enabled
 	HashResolverEnabled bool
@@ -363,6 +361,8 @@ type RuntimeSecurityConfig struct {
 
 	// SysCtlEnabled defines if the sysctl event should be enabled
 	SysCtlEnabled bool
+	// SysCtlEBPFEnabled defines if the sysctl eBPF collection should be enabled
+	SysCtlEBPFEnabled bool
 	// SysCtlSnapshotEnabled defines if the sysctl snapshot feature should be enabled
 	SysCtlSnapshotEnabled bool
 	// SysCtlSnapshotPeriod defines at which time interval a new snapshot of sysctl parameters should be sent
@@ -421,6 +421,9 @@ type RuntimeSecurityConfig struct {
 
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
+
+	// EventGRPCServer defines which process should be used to send events and activity dumps
+	EventGRPCServer string
 
 	// SendPayloadsFromSystemProbe defines when the event and activity dumps are sent directly from system-probe
 	SendPayloadsFromSystemProbe bool
@@ -507,6 +510,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
 		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		CmdSocketPath:        pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
 		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
 		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
@@ -565,8 +569,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled"),
 		SBOMResolverWorkloadsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.sbom.workloads_cache_size"),
 		SBOMResolverHostEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.host.enabled"),
-		SBOMResolverAnalyzers:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sbom.analyzers"),
-		SBOMResolverUseV2Collector:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.use_v2_collector"),
 
 		// Hash resolver
 		HashResolverEnabled:        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.hash_resolver.enabled"),
@@ -579,6 +581,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// SysCtl config parameter
 		SysCtlEnabled:                        pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.enabled"),
+		SysCtlEBPFEnabled:                    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.ebpf.enabled"),
 		SysCtlSnapshotEnabled:                pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sysctl.snapshot.enabled"),
 		SysCtlSnapshotPeriod:                 pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.sysctl.snapshot.period"),
 		SysCtlSnapshotIgnoredBaseNames:       pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.sysctl.snapshot.ignored_base_names"),
@@ -634,6 +637,9 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		// IMDS
 		IMDSIPv4: parseIMDSIPv4(),
 
+		// event
+		EventGRPCServer: pkgconfigsetup.SystemProbe().GetString("runtime_security_config.event_grpc_server"),
+
 		// direct sender
 		SendPayloadsFromSystemProbe: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.direct_send_from_system_probe"),
 
@@ -667,6 +673,16 @@ func (c *RuntimeSecurityConfig) IsRuntimeEnabled() bool {
 	return c.RuntimeEnabled || c.FIMEnabled
 }
 
+// IsSysctlEventEnabled returns whether the sysctl event is enabled
+func (c *RuntimeSecurityConfig) IsSysctlEventEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlEBPFEnabled
+}
+
+// IsSysctlSnapshotEnabled returns whether the sysctl snapshot feature is enabled
+func (c *RuntimeSecurityConfig) IsSysctlSnapshotEnabled() bool {
+	return c.SysCtlEnabled && c.SysCtlSnapshotEnabled
+}
+
 // parseIMDSIPv4 returns the uint32 representation of the IMDS IP set by the configuration
 func parseIMDSIPv4() uint32 {
 	ip := pkgconfigsetup.SystemProbe().GetString("runtime_security_config.imds_ipv4")
@@ -695,12 +711,12 @@ func isRemoteConfigEnabled() bool {
 
 // IsEBPFLessModeEnabled returns true if the ebpfless mode is enabled
 // it's based on the configuration itself, but will default on true if
-// running on fargate
+// running in sidecar mode
 func IsEBPFLessModeEnabled() bool {
 	const cfgKey = "runtime_security_config.ebpfless.enabled"
-	// by default on fargate, we enable ebpfless mode
-	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsFargateInstance() {
-		seclog.Infof("Fargate instance detected, enabling CWS ebpfless mode")
+	// by default in sidecar mode, we enable ebpfless mode
+	if !pkgconfigsetup.SystemProbe().IsConfigured(cfgKey) && fargate.IsSidecar() {
+		seclog.Infof("Sidecar instance detected, enabling CWS ebpfless mode")
 		pkgconfigsetup.SystemProbe().Set(cfgKey, true, pkgconfigmodel.SourceAgentRuntime)
 	}
 

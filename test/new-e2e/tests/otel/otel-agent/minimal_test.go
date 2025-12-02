@@ -10,7 +10,7 @@ import (
 	_ "embed"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -38,6 +38,8 @@ var sources string
 func TestOTelAgentMinimal(t *testing.T) {
 	values := `
 datadog:
+  otelCollector:
+    useStandaloneImage: false
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
@@ -122,7 +124,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -130,7 +131,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -146,7 +146,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog/connector
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp
@@ -154,7 +153,6 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
       exporters:
       - datadog
       processors:
-      - batch
       - infraattributes/dd-autoconfigured
       receivers:
       - otlp`

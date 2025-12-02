@@ -45,9 +45,10 @@ func getBlobWriter(t *testing.T, assert *assert.Assertions, in *network.Connecti
 	marshaler := marshal.GetMarshaler(marshalerType)
 	assert.Equal(marshalerType, marshaler.ContentType())
 	blobWriter := bytes.NewBuffer(nil)
-	connectionsModeler := marshal.NewConnectionsModeler(in)
+	connectionsModeler, err := marshal.NewConnectionsModeler(in)
+	require.NoError(t, err)
 	defer connectionsModeler.Close()
-	err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+	err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 	require.NoError(t, err)
 
 	return blobWriter
@@ -339,6 +340,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -363,6 +365,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -377,9 +380,10 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler, err := marshal.NewConnectionsModeler(in)
+		require.NoError(t, err)
 		defer connectionsModeler.Close()
-		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
 		unmarshaler := unmarshal.GetUnmarshaler("")
@@ -394,6 +398,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 
@@ -409,9 +414,10 @@ func TestSerialization(t *testing.T) {
 		assert.Equal("application/json", marshaler.ContentType())
 
 		blobWriter := bytes.NewBuffer(nil)
-		connectionsModeler := marshal.NewConnectionsModeler(in)
+		connectionsModeler, err := marshal.NewConnectionsModeler(in)
+		require.NoError(t, err)
 		defer connectionsModeler.Close()
-		err := marshaler.Marshal(in, blobWriter, connectionsModeler)
+		err = marshaler.Marshal(in, blobWriter, connectionsModeler)
 		require.NoError(t, err)
 
 		unmarshaler := unmarshal.GetUnmarshaler("application/json")
@@ -426,6 +432,7 @@ func TestSerialization(t *testing.T) {
 			result.Tags = nil
 		}
 		result.PrebuiltEBPFAssets = nil
+		result.ResolvConfs = nil
 		assertConnsEqual(t, out, result)
 	})
 

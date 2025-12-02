@@ -15,6 +15,7 @@ package taggerimpl
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -97,8 +98,9 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp     taggerdef.Component
-	Endpoint api.AgentEndpointProvider
+	Comp      taggerdef.Component
+	Processor option.Option[taggerdef.Processor]
+	Endpoint  api.AgentEndpointProvider
 }
 
 // NewComponent returns a new tagger client
@@ -135,7 +137,8 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp: taggerInstance,
+		Comp:      taggerInstance,
+		Processor: option.New[taggerdef.Processor](taggerInstance.tagStore),
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
 			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)
@@ -198,7 +201,7 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 	}
 	if entityID.Empty() {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
-		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
+		return tagset.HashedTags{}, errors.New("empty entity ID")
 	}
 
 	cachedTags := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
@@ -287,7 +290,7 @@ func (t *localTagger) GenerateContainerIDFromOriginInfo(originInfo origindetecti
 // It triggers a tagger fetch if the no tags are found
 func (t *localTagger) Standard(entityID types.EntityID) ([]string, error) {
 	if entityID.Empty() {
-		return nil, fmt.Errorf("empty entity ID")
+		return nil, errors.New("empty entity ID")
 	}
 
 	return t.tagStore.LookupStandard(entityID)

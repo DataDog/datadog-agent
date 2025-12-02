@@ -10,8 +10,6 @@ package crio
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -20,16 +18,13 @@ import (
 	v1 "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestPull(t *testing.T) {
-
-	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
-	originalValue := os.Getenv(envVarName)
-	defer os.Setenv(envVarName, originalValue)
-
-	os.Setenv(envVarName, "false")
+	config := configmock.New(t)
+	config.SetWithoutSource("container_image.enabled", false)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()
@@ -493,7 +488,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 		{
 			name: "Error retrieving image metadata",
 			mockGetContainerImg: func(_ context.Context, _ *v1.ImageSpec, _ bool) (*v1.ImageStatusResponse, error) {
-				return nil, fmt.Errorf("failed to retrieve image metadata")
+				return nil, errors.New("failed to retrieve image metadata")
 			},
 			container: &v1.Container{
 				Id:           "container1",
@@ -529,11 +524,8 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 }
 
 func TestOptimizedImageCollection(t *testing.T) {
-	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
-	originalValue := os.Getenv(envVarName)
-	defer os.Setenv(envVarName, originalValue)
-
-	os.Setenv(envVarName, "true")
+	config := configmock.New(t)
+	config.SetWithoutSource("container_image.enabled", true)
 
 	tests := []struct {
 		name                     string
@@ -668,12 +660,9 @@ func TestOptimizedImageCollection(t *testing.T) {
 }
 
 func TestPullWithImageCollectionEnabled(t *testing.T) {
-	const envVarName = "DD_CONTAINER_IMAGE_ENABLED"
-	originalValue := os.Getenv(envVarName)
-	defer os.Setenv(envVarName, originalValue)
-
+	config := configmock.New(t)
 	// Enable image collection to test the optimized image collection path
-	os.Setenv(envVarName, "true")
+	config.SetWithoutSource("container_image.enabled", true)
 
 	createTime := time.Now().Add(-10 * time.Minute).UnixNano()
 	startTime := time.Now().Add(-5 * time.Minute).UnixNano()

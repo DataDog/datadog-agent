@@ -26,7 +26,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -63,7 +62,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -126,10 +124,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			defaultConfPath,
 			configOptions...,
 		)),
-		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
-			return option.New[secrets.Component](comp)
-		}),
-		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),
 		fx.Supply(log.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module(),

@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Add KSM Resource Type Sharding for improved performance in large Kubernetes clusters.
+    This feature automatically splits the ``kubernetes_state_core`` check into multiple
+    shards based on resource type groups (pods, nodes, others), enabling parallel execution
+    across multiple Cluster Check Runners.

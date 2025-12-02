@@ -6,11 +6,11 @@
 package writer
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"runtime"
 	"sync"
 	"testing"
@@ -50,6 +50,10 @@ func (s MockSampler) GetTargetTPS() float64 {
 var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
 
 func TestTraceWriter(t *testing.T) {
+	if os.Getenv("CI") == "true" && runtime.GOOS == "darwin" {
+		t.Skip("TestTraceWriter is known to fail on the macOS Gitlab runners.")
+	}
+
 	testCases := []struct {
 		compressor compression.Component
 	}{
@@ -57,7 +61,7 @@ func TestTraceWriter(t *testing.T) {
 		{zstd.NewComponent()},
 	}
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("encoding:%s", tc.compressor.Encoding()), func(t *testing.T) {
+		t.Run("encoding:"+tc.compressor.Encoding(), func(t *testing.T) {
 			srv := newTestServer()
 			defer srv.Close()
 			cfg := &config.AgentConfig{

@@ -272,6 +272,7 @@ if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
+  extra_package_file "#{install_dir}/.install_root"
 end
 
 # all flavors use the same package scripts
@@ -349,8 +350,9 @@ if windows_target?
     windows_symbol_stripping_file bin
   end
 
-  # We need to strip the debug symbols from the rtloader files
+  # We need to strip the debug symbols from the rtloader files and from the installer
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+  windows_symbol_stripping_file "#{install_dir}\\datadog-installer.exe"
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -367,13 +369,14 @@ if windows_target?
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
       "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
-      "#{python_3_embedded}\\bin\\openssl.exe",
+      fips_mode? ? "#{python_3_embedded}\\bin\\openssl.exe" : nil,
       fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
     ].compact
 
     BINARIES_TO_SIGN = GO_BINARIES + PYTHON_BINARIES + OPENSSL_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
-      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
+      "#{install_dir}\\datadog-installer.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|

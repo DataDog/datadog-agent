@@ -9,7 +9,6 @@ package inventoryhostimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -93,6 +92,7 @@ type hostMetadata struct {
 	CloudProviderHostID      string `json:"cloud_provider_host_id"`
 	CanonicalCloudResourceID string `json:"ccrid"`
 	OsVersion                string `json:"os_version"`
+	InstanceType             string `json:"instance-type"`
 
 	// from file system
 	HypervisorGuestUUID string `json:"hypervisor_guest_uuid"`
@@ -117,13 +117,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories host payload any more, payload is too big for intake")
 }
 
 type invHost struct {
@@ -269,6 +262,7 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.CanonicalCloudResourceID = cloudproviders.GetHostCCRID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
+	ih.data.InstanceType = cloudproviders.GetInstanceType(context.Background(), cloudProvider)
 
 	gpgcheck, repoGPGCheck := pkgSigningGet(ih.log)
 	ih.data.LinuxPackageSigningEnabled = gpgcheck

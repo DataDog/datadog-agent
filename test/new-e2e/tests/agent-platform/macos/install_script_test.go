@@ -7,13 +7,14 @@
 package macos
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -49,4 +50,9 @@ func (m *macosInstallSuite) TestInstallAgent() {
 		_, err := macosTestClient.Execute("/usr/local/bin/datadog-agent status")
 		assert.NoError(c, err)
 	}, 20*time.Second, 1*time.Second)
+
+	// check that there is no world-writable files or directories in /opt/datadog-agent
+	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002")
+	assert.NoError(m.T(), err)
+	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
 }

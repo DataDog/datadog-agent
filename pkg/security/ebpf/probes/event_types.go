@@ -141,7 +141,12 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		"*": {
 			// Exec probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+				&manager.OneOf{
+					Selectors: []manager.ProbesSelector{
+						&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "sched_process_fork"}},
+						hookFunc("rethook_get_task_pid"),
+					},
+				},
 				hookFunc("hook_do_exit"),
 				&manager.BestEffort{Selectors: []manager.ProbesSelector{
 					hookFunc("hook_prepare_binprm"),
@@ -159,7 +164,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_vfs_open"),
 				hookFunc("hook_commit_creds"),
 				hookFunc("hook_switch_task_namespaces"),
-				hookFunc("hook_do_coredump"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_do_coredump"),
+					hookFunc("hook_vfs_coredump"),
+				}},
 				hookFunc("hook_audit_set_loginuid"),
 				hookFunc("rethook_audit_set_loginuid"),
 				hookFunc("hook_security_inode_follow_link"),
@@ -592,6 +600,13 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 		},
 		"prctl": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
+		},
+		"tracer_memfd_seal": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				hookFunc("hook_memfd_fcntl"),
+				hookFunc("hook_shmem_fcntl"),
+			}},
 		},
 	}
 

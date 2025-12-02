@@ -58,6 +58,7 @@
       - E2E_MSI_TEST: TestInstallAltDirAndCorruptForUninstall
       - E2E_MSI_TEST: TestInstallFail
       - E2E_MSI_TEST: TestInstallWithLanmanServerDisabled
+      - E2E_MSI_TEST: TestInstallWithInstallOnlyFlag
       # These tests are v7 only
       - E2E_MSI_TEST: TestNPMUpgradeToNPM
       - E2E_MSI_TEST: TestNPMUpgradeNPMToNPM
@@ -151,6 +152,7 @@ new-e2e-windows-ddot-package-a7-x86_64:
   needs:
     - !reference [.needs_new_e2e_template]
     - deploy_windows_testing-a7
+    - deploy_ddot_oci
   before_script:
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
@@ -172,6 +174,7 @@ new-e2e-installer-windows:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_installer_script_windows
+    - deploy_ddot_oci
   before_script:
     # CURRENT_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
@@ -205,6 +208,7 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithHostNameChange$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestRunAgentMSIAfterExperiment$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithAgentUser$"
+      - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestUpgradeWithLocalSystemUser$"
       - EXTRA_PARAMS: --run "TestAgentUpgrades$/TestDowngradeWithMissingInstallSource$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeMSI$"
       - EXTRA_PARAMS: --run "TestAgentUpgradesOnDC$/TestUpgradeAgentPackage$"
@@ -222,14 +226,15 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenServiceDies$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestRevertsConfigExperimentWhenTimeout$"
       - EXTRA_PARAMS: --run "TestAgentConfig$/TestManagedConfigActiveAfterUpgrade$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigAltDir$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUser$"
+      - EXTRA_PARAMS: --run "TestAgentConfig$/TestConfigCustomUserAndAltDir$"
       # install-exe
       - EXTRA_PARAMS: --run "TestInstallExe$/TestInstallAgentPackage$"
       - EXTRA_PARAMS: --run "TestInstallExeWithProxy$/TestInstallAgentPackageWithProxy$"
       # install-script
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallAgentPackage$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallFromOldInstaller$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallIgnoreMajorMinor$"
-      - EXTRA_PARAMS: --run "TestInstallScript$/TestInstallCurrentWithOldInstallerScript$"
       - EXTRA_PARAMS: --run "TestInstallScript$/TestReinstallAfterMSIUninstall$"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptWithAgentUser"
       - EXTRA_PARAMS: --run "TestInstallScriptWithAgentUser$/TestInstallScriptChangesAgentUser$"
@@ -243,11 +248,16 @@ new-e2e-installer-windows:
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestInstallDotnetLibraryPackageWithoutIIS$"
       - EXTRA_PARAMS: --run "TestDotnetLibraryInstallsWithoutIIS/TestMSIInstallDotnetLibraryFailsWithoutIIS$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestInstallFromMSI$"
-      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIThenRemoteUpgrade$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUpgradeWithMSI$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIRollbackRemovesLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSISkipRollbackIfInstalled$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallKeepsLibrary$"
       - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestUninstallScript$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestMSIPurge$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsDotnetLibrary/TestDisableEnableScript$"
       - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestInstallFromScript$"
-      - EXTRA_PARAMS: --run "TestAgentScriptInstallsDotnetLibrary/TestScriptThenRemoteUpgrade$"
+      # apm-inject-package
+      - EXTRA_PARAMS: --run "TestAPMInjectInstall/TestInstallUninstallAPMInjectPackage$"
+      - EXTRA_PARAMS: --run "TestAgentScriptInstallsAPMInject/TestInstallFromScript$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestInstallFromMSI$"
+      - EXTRA_PARAMS: --run "TestAgentMSIInstallsAPMInject/TestEnableDisable$"

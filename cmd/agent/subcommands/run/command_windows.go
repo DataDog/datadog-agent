@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
@@ -51,6 +52,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -77,6 +79,7 @@ import (
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -142,6 +145,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
+			snmpScanManager snmpscanmanager.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -165,6 +169,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agenttelemetryComponent,
 				hostname,
 				ipc,
+				snmpScanManager,
 			)
 			if err != nil {
 				return err
@@ -190,10 +195,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(""),
-				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
+			secretsfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
@@ -244,6 +249,7 @@ func getPlatformModules() fx.Option {
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
+		notableeventsfx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

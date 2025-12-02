@@ -28,7 +28,7 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 
 	// On the first call, this function returns correctly. On the second it fails.
 	// We need this as we cannot rely on the order of the subsystems in the map.
-	factory := func(_ ddnvml.Device) (Collector, error) {
+	factory := func(_ ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
 		if !factorySucceeded {
 			factorySucceeded = true
 			return succeedCollector, nil
@@ -39,8 +39,10 @@ func TestCollectorsStillInitIfOneFails(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := buildCollectors(deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory}, nil)
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+	deps := &CollectorDependencies{}
+	collectors, err := buildCollectors(devices, deps, map[CollectorName]subsystemBuilder{"ok": factory, "fail": factory})
 	require.NotNil(t, collectors)
 	require.NoError(t, err)
 }
@@ -140,8 +142,13 @@ func TestAllCollectorsWork(t *testing.T) {
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled(), testutil.WithMockAllFunctions())
 	ddnvml.WithMockNVML(t, nvmlMock)
 	deviceCache := ddnvml.NewDeviceCache()
-	deps := &CollectorDependencies{DeviceCache: deviceCache}
-	collectors, err := BuildCollectors(deps, nil)
+	eventsGatherer := NewDeviceEventsGatherer()
+	require.NoError(t, eventsGatherer.Start())
+	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
+	devices, err := deviceCache.AllPhysicalDevices()
+	require.NoError(t, err)
+	deps := &CollectorDependencies{DeviceEventsGatherer: eventsGatherer}
+	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
 
@@ -150,7 +157,9 @@ func TestAllCollectorsWork(t *testing.T) {
 	for _, collector := range collectors {
 		result, err := collector.Collect()
 		require.NoError(t, err, "collector %s failed to collect", collector.Name())
-		require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		if collector.Name() != deviceEvents {
+			require.NotEmpty(t, result, "collector %s returned empty result", collector.Name())
+		}
 		seenCollectors[collector.Name()] = struct{}{}
 	}
 

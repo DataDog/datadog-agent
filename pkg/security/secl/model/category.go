@@ -89,6 +89,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		SyscallsEventType.String(),
 		LoginUIDWriteEventType.String(),
 		PrCtlEventType.String(),
+		TracerMemfdCreateEventType.String(),
+		TracerMemfdSealEventType.String(),
 		ArgsEnvsEventType.String():
 		return ProcessCategory
 
@@ -117,6 +119,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
 		ShortDNSResponseEventType.String(),
+		FailedDNSEventType.String(),
 		IMDSEventType.String(),
 		RawPacketFilterEventType.String(),
 		RawPacketActionEventType.String(),

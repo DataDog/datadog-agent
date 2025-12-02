@@ -19,8 +19,7 @@ do-not-merge:
          [ -n "$CI_IMAGE_LINUX_RPM_X64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_ARM64_SUFFIX" ] ||
          [ -n "$CI_IMAGE_LINUX_RPM_ARMHF_SUFFIX" ] ||
-         [ -n "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ] ||
-         [ -n "$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX" ]; then
+         [ -n "$CI_IMAGE_LINUX_WIN_LTSC2022_X64_SUFFIX" ]; then
         echo "Pull request uses non-empty BUILDIMAGES_SUFFIX variable"
         echo "This workflow fails so that the pull request cannot be merged"
         exit 1

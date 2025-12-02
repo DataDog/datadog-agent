@@ -17,10 +17,9 @@ import (
 
 // ServiceMetadata stores metadata about a service.
 type ServiceMetadata struct {
-	Name               string
-	Language           string
-	Type               string
-	APMInstrumentation string
+	Name     string
+	Language string
+	Type     string
 }
 
 func fixAdditionalNames(additionalNames []string) []string {

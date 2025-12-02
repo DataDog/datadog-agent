@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -34,7 +35,7 @@ func GetMountID(fd int) (uint64, error) {
 	}
 
 	if stx.Mask&unix.STATX_MNT_ID == 0 {
-		return 0, fmt.Errorf("statx: kernel didn't fill STATX_MNT_ID")
+		return 0, errors.New("statx: kernel didn't fill STATX_MNT_ID")
 	}
 
 	return stx.Mnt_id, nil
@@ -106,9 +107,10 @@ func TestMoveMount(t *testing.T) {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			mountPtr, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
 			assert.Equal(t, err, nil)
 			assert.Equal(t, submountDir, mountPtr.Path, "Wrong mountpoint path")
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 			return true
 		}, 10*time.Second, model.FileMoveMountEventType)
 
@@ -267,12 +269,13 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 				return false
 			}
 			p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0, 0, "")
+			mount, _, _, err := p.Resolvers.MountResolver.ResolveMount(event.Mount.MountID, 0)
 			assert.Equal(t, err, nil, "Error resolving mount")
 			assert.Equal(t, len(mount.Children), 2, "Wrong number of child mounts")
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 
 			for _, childMountID := range mount.Children {
-				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0, 0, "")
+				child, _, _, err := p.Resolvers.MountResolver.ResolveMount(childMountID, 0)
 				assert.Equal(t, err, nil, "Error resolving child mount")
 				assert.True(t, strings.HasPrefix(child.Path, te.submountDirDst), "Path wasn't updated")
 			}
@@ -288,6 +291,11 @@ func TestMoveMountRecursiveNoPropagation(t *testing.T) {
 
 func TestMoveMountRecursivePropagation(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	// Docker messes up with the propagation
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test in Docker environment")
+	}
 
 	if !testutils.SyscallExists(unix.SYS_MOVE_MOUNT) {
 		t.Skip("move_mount syscall is not supported on this platform")
@@ -334,24 +342,25 @@ func TestMoveMountRecursivePropagation(t *testing.T) {
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "move_mount" {
+			if event.GetType() != "move_mount" && event.Mount.FSType != "tmpfs" {
 				return false
 			}
-
+			assert.NotEqual(t, 0, event.Mount.NamespaceInode, "Namespace inode not captured")
 			allMounts[event.Mount.MountID]++
-
 			return false
 		}, 5*time.Second, model.FileMoveMountEventType)
 
+		assert.GreaterOrEqual(t, len(allMounts), 3, "Not all mount events were obtained")
+
 		p, _ := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 		for i := range allMounts {
-			mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(i, 0, 0, "")
-			if len(mount.Path) == 0 {
+			path, _, _, _ := p.Resolvers.MountResolver.ResolveMountPath(i, 0)
+			if len(path) == 0 || !strings.Contains(path, "tmp1") || !strings.Contains(path, "tmp2") {
 				// Some paths aren't being fully resolved due to missing mounts in the chain
-				// Need to figure out what are these mount points and why they aren't to be found nowhere
+				// Need to figure out what are these mount points and why they aren't to be found anywhere
 				continue
 			}
-			assert.True(t, strings.Contains(mount.Path, te.submountDirDst), "Path wasn't moved")
+			assert.True(t, strings.Contains(path, te.submountDirDst), fmt.Sprintf("Path %s wasn't moved. Destination=%s", path, te.submountDirDst))
 		}
 	})
 }

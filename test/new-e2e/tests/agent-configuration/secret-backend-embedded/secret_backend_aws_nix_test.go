@@ -10,7 +10,7 @@ import (
 	_ "embed"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -34,5 +34,5 @@ secret_backend_config:
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
 		require.Contains(t, secretOutput, "embedded_secret_key")
-	}, 30*time.Second, 2*time.Second)
+	}, 30*time.Second, 2*time.Second, "could not check if secretOutput contains 'embedded_secret_key' within the allotted time")
 }

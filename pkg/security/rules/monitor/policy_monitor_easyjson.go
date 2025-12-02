@@ -1078,6 +1078,8 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 				}
 				in.Delim(']')
 			}
+		case "priority":
+			out.Priority = int(in.Int())
 		default:
 			in.SkipRecursive()
 		}
@@ -1206,6 +1208,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor1(
 			out.RawByte(']')
 		}
 	}
+	if in.Priority != 0 {
+		const prefix string = ",\"priority\":"
+		out.RawString(prefix)
+		out.Int(int(in.Priority))
+	}
 	out.RawByte('}')
 }
 
@@ -1241,8 +1248,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 			out.Name = string(in.String())
 		case "version":
 			out.Version = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		case "source":
 			out.Source = string(in.String())
+		case "replace_policy_id":
+			out.ReplacePolicyID = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1267,10 +1278,20 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor2(
 		out.RawString(prefix)
 		out.String(string(in.Version))
 	}
+	if in.Type != "" {
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
+	}
 	{
 		const prefix string = ",\"source\":"
 		out.RawString(prefix)
 		out.String(string(in.Source))
+	}
+	if in.ReplacePolicyID != "" {
+		const prefix string = ",\"replace_policy_id\":"
+		out.RawString(prefix)
+		out.String(string(in.ReplacePolicyID))
 	}
 	out.RawByte('}')
 }
@@ -1775,8 +1796,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 			out.Name = string(in.String())
 		case "version":
 			out.Version = string(in.String())
+		case "type":
+			out.Type = string(in.String())
 		case "source":
 			out.Source = string(in.String())
+		case "replace_policy_id":
+			out.ReplacePolicyID = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1829,10 +1854,20 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 		out.RawString(prefix)
 		out.String(string(in.Version))
 	}
+	if in.Type != "" {
+		const prefix string = ",\"type\":"
+		out.RawString(prefix)
+		out.String(string(in.Type))
+	}
 	{
 		const prefix string = ",\"source\":"
 		out.RawString(prefix)
 		out.String(string(in.Source))
+	}
+	if in.ReplacePolicyID != "" {
+		const prefix string = ",\"replace_policy_id\":"
+		out.RawString(prefix)
+		out.String(string(in.ReplacePolicyID))
 	}
 	out.RawByte('}')
 }

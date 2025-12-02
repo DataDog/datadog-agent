@@ -14,6 +14,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -100,9 +101,10 @@ func (pn *ProcessNode) AppendChild(node *ProcessNode) {
 }
 
 func (pn *ProcessNode) getNodeLabel(args string) string {
-	label := tableHeader
+	var builder strings.Builder
+	builder.WriteString(tableHeader)
 
-	label += "<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">"
+	builder.WriteString("<TR><TD>Command</TD><TD><FONT POINT-SIZE=\"" + strconv.Itoa(bigText) + "\">")
 	var cmd string
 	if sprocess.IsBusybox(pn.Process.FileEvent.PathnameStr) {
 		arg0, _ := sprocess.GetProcessArgv0(&pn.Process)
@@ -113,23 +115,23 @@ func (pn *ProcessNode) getNodeLabel(args string) string {
 	if len(cmd) > 100 {
 		cmd = cmd[:100] + " ..."
 	}
-	label += html.EscapeString(cmd)
-	label += "</FONT></TD></TR>"
+	builder.WriteString(html.EscapeString(cmd))
+	builder.WriteString("</FONT></TD></TR>")
 
 	if len(pn.Process.FileEvent.PkgName) != 0 {
-		label += "<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>"
+		builder.WriteString("<TR><TD>Package</TD><TD>" + fmt.Sprintf("%s:%s", pn.Process.FileEvent.PkgName, pn.Process.FileEvent.PkgVersion) + "</TD></TR>")
 	}
 	// add hashes
 	if len(pn.Process.FileEvent.Hashes) > 0 {
-		label += "<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>"
+		builder.WriteString("<TR><TD>Hashes</TD><TD>" + pn.Process.FileEvent.Hashes[0] + "</TD></TR>")
 		for _, h := range pn.Process.FileEvent.Hashes {
-			label += "<TR><TD></TD><TD>" + h + "</TD></TR>"
+			builder.WriteString("<TR><TD></TD><TD>" + h + "</TD></TR>")
 		}
 	} else {
-		label += "<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>"
+		builder.WriteString("<TR><TD>Hash state</TD><TD>" + pn.Process.FileEvent.HashState.String() + "</TD></TR>")
 	}
-	label += "</TABLE>>"
-	return label
+	builder.WriteString("</TABLE>>")
+	return builder.String()
 }
 
 // nolint: unused
@@ -146,7 +148,7 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 		})
 
 		for _, f := range sortedFiles {
-			f.debug(w, fmt.Sprintf("%s    -", prefix))
+			f.debug(w, prefix+"    -")
 		}
 	}
 	if len(pn.DNSNames) > 0 {
@@ -553,19 +555,37 @@ func (pn *ProcessNode) EvictImageTag(imageTag string, DNSNames *utils.StringKeys
 
 // EvictUnusedNodes evicts all child nodes that haven't been touched since the given timestamp
 // and returns the total number of process nodes evicted, a node is only evicted if all its children are evictable.
-func (pn *ProcessNode) EvictUnusedNodes(before time.Time) int {
+func (pn *ProcessNode) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
 	totalEvicted := 0
+
+	key := ImageProcessKey{
+		ImageName: profileImageName,
+		ImageTag:  profileImageTag,
+	}
 
 	// First, recursively evict unused nodes from children
 	for i := len(pn.Children) - 1; i >= 0; i-- {
 		child := pn.Children[i]
-		evicted := child.EvictUnusedNodes(before)
+		evicted := child.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
 		totalEvicted += evicted
 
 		// If the child process node itself has no image tags left after eviction, remove it entirely
 		if len(child.Seen) == 0 {
 			pn.Children = append(pn.Children[:i], pn.Children[i+1:]...)
 			totalEvicted++
+		}
+	}
+
+	// Try a fallback if the node is in the process cache
+	// Check if this specific image/tag/filepath combination exists in the cache
+	// The filepath might not be sufficient to uniquely identify the node, but it's a good enough approximation for now
+	// Edge case: foo->bar->foo, if the second foo is no longer in the process cache, it will still be refreshed because of the first foo
+	key.Filepath = pn.Process.FileEvent.PathnameStr
+
+	if filepathsInProcessCache[key] {
+		// check if the node was supposed to be removed, then update the last seen to now
+		if pn.Seen[key.ImageTag] != nil && pn.Seen[key.ImageTag].LastSeen.Before(before) {
+			pn.NodeBase.AppendImageTag(key.ImageTag, time.Now())
 		}
 	}
 

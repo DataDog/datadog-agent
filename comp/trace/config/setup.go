@@ -174,7 +174,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	obsPipelineEnabled, prefix := isObsPipelineEnabled(core)
 	if obsPipelineEnabled {
-		if host := core.GetString(fmt.Sprintf("%s.traces.url", prefix)); host == "" {
+		if host := core.GetString(prefix + ".traces.url"); host == "" {
 			log.Errorf("%s.traces.enabled but %s.traces.url is empty.", prefix, prefix)
 		} else {
 			c.Endpoints[0].Host = host
@@ -657,7 +657,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "ol_proxy_config.api_version"; core.IsSet(k) {
 		c.OpenLineageProxy.APIVersion = core.GetInt(k)
 	}
+	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
+		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
+	}
+	if k := "apm_config.enable_v1_trace_endpoint"; core.IsSet(k) {
+		c.EnableV1TraceEndpoint = core.GetBool("apm_config.enable_v1_trace_endpoint")
+	}
+	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	return nil
 }
 

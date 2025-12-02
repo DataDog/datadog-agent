@@ -65,7 +65,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "{foo}"
               }
             }
           }
@@ -73,7 +73,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type main.otherFirstBehavior}"
   },
   {
     "service": "sample",
@@ -141,7 +142,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "&{foo}"
               }
             }
           }
@@ -149,7 +150,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type *main.otherFirstBehavior}"
   },
   {
     "service": "sample",
@@ -217,7 +219,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "{42}"
               }
             }
           }
@@ -225,7 +227,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type main.otherSecondBehavior}"
   },
   {
     "service": "sample",
@@ -293,7 +296,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "&{42}"
               }
             }
           }
@@ -301,7 +304,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type *main.otherSecondBehavior}"
   },
   {
     "service": "sample",
@@ -369,7 +373,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "{}"
               }
             }
           }
@@ -377,7 +381,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type lib_v2.V2Type}"
   },
   {
     "service": "sample",
@@ -445,7 +450,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "&{}"
               }
             }
           }
@@ -453,7 +458,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "{interface: unknown type *lib_v2.V2Type}"
   },
   {
     "service": "sample",
@@ -520,7 +526,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "<nil>"
               }
             }
           }
@@ -528,7 +534,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "nil"
   },
   {
     "service": "sample",
@@ -596,7 +603,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "1"
               }
             }
           }
@@ -604,7 +611,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   },
   {
     "service": "sample",
@@ -673,7 +681,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -681,7 +689,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   },
   {
     "service": "sample",
@@ -749,7 +758,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "foo"
               }
             }
           }
@@ -757,6 +766,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "foo"
   }
 ]

@@ -68,6 +68,7 @@ func TestIsRetriable(t *testing.T) {
 		404: false,
 		408: true,
 		409: false,
+		429: true,
 		500: true,
 		503: true,
 		505: true,

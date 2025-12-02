@@ -23,9 +23,13 @@ import (
 
 // StartRuntimeSecurity starts runtime security
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component) (*RuntimeSecurityAgent, error) {
-	enabled := config.GetBool("runtime_security_config.enabled")
-	if !enabled {
+	if !config.GetBool("runtime_security_config.enabled") {
 		log.Info("Datadog runtime security agent disabled by config")
+		return nil, nil
+	}
+
+	if config.GetBool("runtime_security_config.direct_send_from_system_probe") {
+		log.Info("Datadog runtime security agent disabled because CWS is running in full system-probe mode")
 		return nil, nil
 	}
 

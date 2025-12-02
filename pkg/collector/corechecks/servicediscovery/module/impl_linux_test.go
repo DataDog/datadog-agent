@@ -13,27 +13,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
-	"time"
 
-	"github.com/golang/mock/gomock"
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/core"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
@@ -59,12 +55,14 @@ type testDiscoveryModule struct {
 	url string
 }
 
-func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCollectorFactory) *testDiscoveryModule {
+func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
 	mux := gorillamux.NewRouter()
 
-	discovery := newDiscoveryWithNetwork(getNetworkCollector)
-	discovery.config.NetworkStatsPeriod = time.Second
+	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
+	require.NoError(t, err)
+	discovery := mod.(*discovery)
+
 	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
 	t.Cleanup(discovery.Close)
 
@@ -74,11 +72,6 @@ func setupDiscoveryModuleWithNetwork(t *testing.T, getNetworkCollector networkCo
 	return &testDiscoveryModule{
 		url: srv.URL,
 	}
-}
-
-func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
-	t.Helper()
-	return setupDiscoveryModuleWithNetwork(t, newNetworkCollector)
 }
 
 // makeRequest wraps the request to the discovery module, setting the JSON body if provided,
@@ -94,10 +87,10 @@ func makeRequest[T any](t require.TestingT, url string, params *core.Params) *T 
 	var req *http.Request
 	var err error
 	if body != nil {
-		req, err = http.NewRequest(http.MethodGet, url, body)
+		req, err = http.NewRequest(http.MethodPost, url, body)
 		req.Header.Set("Content-Type", "application/json")
 	} else {
-		req, err = http.NewRequest(http.MethodGet, url, nil)
+		req, err = http.NewRequest(http.MethodPost, url, nil)
 	}
 	require.NoError(t, err, "failed to create request")
 
@@ -176,13 +169,16 @@ func disableCloseOnExec(t *testing.T, f *os.File) {
 
 func startProcessWithFile(t *testing.T, f *os.File) *exec.Cmd {
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
 
 	// Disable close-on-exec so that the process gets it
 	t.Cleanup(func() { f.Close() })
 	disableCloseOnExec(t, f)
 
 	cmd := exec.CommandContext(ctx, "sleep", "1000")
+	t.Cleanup(func() {
+		cancel()
+		_ = cmd.Wait()
+	})
 	err := cmd.Start()
 	require.NoError(t, err)
 	f.Close()
@@ -220,9 +216,11 @@ func buildFakeServer(t *testing.T) string {
 }
 
 func newDiscovery() *discovery {
-	return newDiscoveryWithNetwork(func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
-		return nil, nil
-	})
+	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
+	if err != nil {
+		panic(err)
+	}
+	return mod.(*discovery)
 }
 
 // addSockets adds only listening sockets to a map to be used for later looksups.
@@ -242,7 +240,7 @@ func addSockets[P procfs.NetTCP | procfs.NetUDP](sockMap map[uint64]socketInfo, 
 }
 
 func getNsInfoOld(pid int) (*namespaceInfo, error) {
-	path := kernel.HostProc(fmt.Sprintf("%d", pid))
+	path := kernel.HostProc(strconv.Itoa(pid))
 	proc, err := procfs.NewFS(path)
 	if err != nil {
 		return nil, err
@@ -354,7 +352,7 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 		info, err := discovery.getServiceInfo(int32(self), openFiles)
 		require.NoError(t, err)
 		require.Equal(t, language.CPlusPlus, language.Language(info.Language))
-		require.Equal(t, apm.Provided, apm.Instrumentation(info.APMInstrumentation))
+		require.Equal(t, true, info.APMInstrumentation)
 	})
 
 	t.Run("invalid metadata", func(t *testing.T) {
@@ -366,101 +364,8 @@ func TestValidInvalidTracerMetadata(t *testing.T) {
 
 		info, err := discovery.getServiceInfo(int32(self), openFiles)
 		require.NoError(t, err)
-		require.Equal(t, apm.None, apm.Instrumentation(info.APMInstrumentation))
+		require.Equal(t, false, info.APMInstrumentation)
 	})
-}
-
-func TestNetworkStatsEndpoint(t *testing.T) {
-	tests := []struct {
-		name           string
-		pids           string
-		networkEnabled bool
-		expectedCode   int
-		expectedBody   *model.NetworkStatsResponse
-	}{
-		{
-			name:           "network stats disabled",
-			pids:           "123",
-			networkEnabled: false,
-			expectedCode:   http.StatusServiceUnavailable,
-		},
-		{
-			name:           "missing pids parameter",
-			pids:           "",
-			networkEnabled: true,
-			expectedCode:   http.StatusBadRequest,
-		},
-		{
-			name:           "invalid pid format",
-			pids:           "abc",
-			networkEnabled: true,
-			expectedCode:   http.StatusBadRequest,
-		},
-		{
-			name:           "valid pids",
-			pids:           "123,456",
-			networkEnabled: true,
-			expectedCode:   http.StatusOK,
-			expectedBody: &model.NetworkStatsResponse{
-				Stats: map[int]model.NetworkStats{
-					123: {
-						RxBytes: 1000,
-						TxBytes: 2000,
-					},
-					456: {
-						RxBytes: 3000,
-						TxBytes: 4000,
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a mock network collector
-			mockCtrl := gomock.NewController(t)
-			defer mockCtrl.Finish()
-
-			mockNetwork := core.NewMockNetworkCollector(mockCtrl)
-			if tt.networkEnabled {
-				// Only expect getStats to be called for valid pids
-				if tt.expectedCode == http.StatusOK {
-					mockNetwork.EXPECT().
-						GetStats(core.PidSet{123: {}, 456: {}}).
-						Return(map[uint32]core.NetworkStats{
-							123: {Rx: 1000, Tx: 2000},
-							456: {Rx: 3000, Tx: 4000},
-						}, nil)
-				}
-				mockNetwork.EXPECT().Close().AnyTimes()
-			}
-
-			// Setup discovery module with mock network collector
-			module := setupDiscoveryModuleWithNetwork(t, func(_ *core.DiscoveryConfig) (core.NetworkCollector, error) {
-				if tt.networkEnabled {
-					return mockNetwork, nil
-				}
-				return nil, fmt.Errorf("network stats collection is not enabled")
-			})
-
-			// Make request to network stats endpoint
-			url := fmt.Sprintf("%s/%s/network-stats?pids=%s", module.url, config.DiscoveryModule, tt.pids)
-			resp, err := http.Get(url)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// Check response
-			assert.Equal(t, tt.expectedCode, resp.StatusCode)
-
-			if tt.expectedCode == http.StatusOK {
-				var body model.NetworkStatsResponse
-				err := json.NewDecoder(resp.Body).Decode(&body)
-				require.NoError(t, err)
-				assert.Equal(t, tt.expectedBody, &body)
-			}
-		})
-	}
 }
 
 func TestDetectAPMInjectorFromMaps(t *testing.T) {

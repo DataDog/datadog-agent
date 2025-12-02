@@ -26,7 +26,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/viper"
-	"github.com/mitchellh/mapstructure"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -137,12 +136,8 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 // SetWithoutSource sets the given value using source Unknown, may only be called from tests
 func (c *safeConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Struct {
-		panic("SetWithoutSource cannot assign struct to a setting")
+	if !ValidateBasicTypes(value) {
+		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
 }
@@ -300,6 +295,66 @@ func (c *safeConfig) IsConfigured(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.IsConfigured(key)
+}
+
+func (c *safeConfig) HasSection(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, src := range model.Sources {
+		if src == model.SourceDefault {
+			continue
+		}
+		if src == model.SourceEnvVar {
+			if c.hasEnvVarSection(key) {
+				return true
+			}
+		} else if c.configSources[src].HasSection(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *safeConfig) hasEnvVarSection(key string) bool {
+	// Env var layer doesn't work the same because Viper doesn't store them
+	// Instead use our own cache in envVarTree
+	currTree := c.envVarTree
+	parts := strings.Split(key, ".")
+	for _, part := range parts {
+		if elem, found := currTree[part].(map[string]interface{}); found {
+			currTree = elem
+		} else {
+			currTree = nil
+			break
+		}
+	}
+	if currTree != nil {
+		// If the env var corresponds to a non-nil leaf setting, it is configured, not a section
+		fromEnvVar := c.configSources[model.SourceEnvVar].Get(key)
+		if fromEnvVar != nil && fromEnvVar != "" {
+			return false
+		}
+		return c.anyEnvVarsDefined(key, currTree)
+	}
+	return false
+}
+
+func (c *safeConfig) anyEnvVarsDefined(key string, tree interface{}) bool {
+	fromEnvVar := c.configSources[model.SourceEnvVar].Get(key)
+	if fromEnvVar != nil && fromEnvVar != "" {
+		return true
+	}
+	m, ok := tree.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for k, v := range m {
+		if c.anyEnvVarsDefined(strings.Join([]string{key, ".", k}, ""), v) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *safeConfig) AllKeysLowercased() []string {
@@ -602,21 +657,6 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.configSources[model.SourceEnvVar].SetEnvKeyReplacer(r)
 	c.Viper.SetEnvKeyReplacer(r)
 	c.envKeyReplacer = r
-}
-
-// UnmarshalKey wraps Viper for concurrent access
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-
-	decodeOptions := []viper.DecoderConfigOption{}
-	for _, opt := range opts {
-		decodeOptions = append(decodeOptions, viper.DecoderConfigOption(opt))
-	}
-
-	return c.Viper.UnmarshalKey(key, rawVal, decodeOptions...)
 }
 
 // ReadInConfig wraps Viper for concurrent access

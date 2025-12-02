@@ -12,7 +12,6 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/hex"
-	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -51,8 +50,56 @@ type ConfigFetcher interface {
 
 // Listener defines the interface of a remote config listener
 type Listener interface {
+	// OnUpdate is called when new remote configuration data is available for processing.
+	// This method is the primary mechanism for delivering configuration updates to listeners.
+	//
+	// Parameters:
+	//   - configs: A map of configuration file paths to their raw configuration data.
+	//             The key is the configuration file path/identifier, and the value contains
+	//             the raw configuration content that needs to be processed by the listener.
+	//   - applyStateCallback: A callback function that must be called by the listener to report
+	//                        the success or failure of applying each configuration. This callback
+	//                        takes two parameters:
+	//                        * cfgPath: The path/identifier of the configuration being reported
+	//                        * status: The apply status indicating success, failure, or error details
+	//
+	// Behavior:
+	//   - Called only when there are actual configuration changes to process
+	//   - May be skipped if signature verification fails and ShouldIgnoreSignatureExpiration() returns false
+	//   - Listeners should process all provided configurations and report their apply status
+	//   - The applyStateCallback must be called for proper state tracking and error reporting
 	OnUpdate(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+
+	// OnStateChange is called when the remote config client's connectivity state changes.
+	// The parameter indicates the health state of the remote config service connection:
+	//   - true: The client has successfully connected/reconnected to the remote config service
+	//   - false: The client has encountered errors and lost connectivity to the remote config service
+	//
+	// This callback allows listeners to:
+	//   - React to service availability changes
+	//   - Implement fallback behavior when remote config is unavailable
+	//   - Adjust application behavior based on remote config service health
+	//
+	// Note: OnStateChange is only called after the first successful connection has been established.
+	// Initial connection attempts that fail will not trigger this callback until a successful
+	// connection is made, after which subsequent failures will trigger OnStateChange(false).
 	OnStateChange(bool)
+
+	// ShouldIgnoreSignatureExpiration determines whether this listener should continue to receive
+	// configuration updates even when TUF (The Update Framework) signature verification fails
+	// due to expired signatures.
+	//
+	// If it returns true the listener will continue to receive OnUpdate calls
+	// even when signatures, are expired.
+	//
+	// Security Considerations:
+	//   - Returning true bypasses an important security mechanism and should be used cautiously
+	//   - Only use true for configurations that are not security-sensitive
+	//
+	// Usage Context:
+	//   - Checked before calling OnUpdate when response.ConfigStatus != CONFIG_STATUS_OK
+	//   - Allows selective bypassing of signature expiration per listener
+	//   - Enables graceful degradation of service when signature infrastructure has issues
 	ShouldIgnoreSignatureExpiration() bool
 }
 
@@ -150,7 +197,7 @@ func newAgentGRPCClient(ipcAddress string, cmdPort string, tlsConfig *tls.Config
 // ClientGetConfigs implements the ConfigFetcher interface for agentGRPCConfigFetcher
 func (g *agentGRPCConfigFetcher) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	md := metadata.MD{
-		"authorization": []string{fmt.Sprintf("Bearer %s", g.authToken)},
+		"authorization": []string{"Bearer " + g.authToken},
 	}
 
 	ctx = metadata.NewOutgoingContext(ctx, md)
@@ -301,6 +348,11 @@ func (c *Client) Start() {
 // A client that has been closed cannot be restarted
 func (c *Client) Close() {
 	c.closeFn()
+}
+
+// GetClientID gets the client ID
+func (c *Client) GetClientID() string {
+	return c.ID
 }
 
 // UpdateApplyStatus updates the config's metadata to reflect its applied status

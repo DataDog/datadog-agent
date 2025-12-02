@@ -15,14 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -186,8 +186,32 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 	} else {
 		awsEnv = *runParams.Environment
 	}
-
 	params := runParams.ProvisionerParams
+
+	// Create FakeIntake if required
+	if params.fakeintakeOptions != nil {
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		if params.agentOptions != nil {
+			// Prepend in case it's overridden by the user
+			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+			params.instanceOptions = append(params.instanceOptions, ec2.WithPulumiResourceOptions(utils.PulumiDependsOn(fakeIntake)))
+		}
+
+	} else {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.FakeIntake = nil
+	}
+
 	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
@@ -221,27 +245,6 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 		}
 	}
 
-	// Create FakeIntake if required
-	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
-		if err != nil {
-			return err
-		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-		if err != nil {
-			return err
-		}
-
-		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-		if params.agentOptions != nil {
-			// Prepend in case it's overridden by the user
-			newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
-			params.agentOptions = append(newOpts, params.agentOptions...)
-		}
-	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.FakeIntake = nil
-	}
 	if !params.installUpdater {
 		// Suite inits all fields by default, so we need to explicitly set it to nil
 		env.Updater = nil
@@ -261,7 +264,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
 	} else if params.agentOptions != nil {
-		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
+		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err

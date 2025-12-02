@@ -8,9 +8,7 @@ from __future__ import annotations
 import glob
 import json
 import os
-import platform
 import re
-import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -29,10 +27,15 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
+
+# Patch python-gitlab to retry 409 errors because the "fix" (https://github.com/python-gitlab/python-gitlab/pull/2326)
+# checks `result.reason` but GitLab sends `Conflict` (HTTP standard) while `Resource lock` is in the response... body!
+gitlab.const.RETRYABLE_TRANSIENT_ERROR_CODES.append(409)
 
 BASE_URL = "https://gitlab.ddbuild.io"
 CONFIG_SPECIAL_OBJECTS = {
@@ -45,20 +48,20 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    # TODO(celian): Restore short lived token generation
-    if running_in_ci():
-        # Get the token from fetch_secrets
-        token_cmd = ctx.run(
-            f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
-        )
-        if not token_cmd.ok:
-            raise RuntimeError(
-                f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
+    if not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
+        if running_in_ci():
+            # Get the token from fetch_secrets
+            token_cmd = ctx.run(
+                f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
             )
+            if not token_cmd.ok:
+                raise RuntimeError(
+                    f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
+                )
 
-        return token_cmd.stdout.strip()
-    elif 'GITLAB_TOKEN' in os.environ:
-        return os.environ['GITLAB_TOKEN']
+            return token_cmd.stdout.strip()
+        elif 'GITLAB_TOKEN' in os.environ:
+            return os.environ['GITLAB_TOKEN']
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
@@ -76,24 +79,6 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     token = token_info['token']
 
     return token
-
-
-def get_gitlab_bot_token():
-    if "GITLAB_BOT_TOKEN" not in os.environ:
-        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
-        if platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
-                )
-                if output:
-                    return output.strip()
-            except subprocess.CalledProcessError:
-                print("GITLAB_BOT_TOKEN not found in keychain...")
-                pass
-        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
-        raise Exit(code=1)
-    return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
@@ -1225,7 +1210,7 @@ def gitlab_configuration_is_modified(ctx):
                     for above_line in reversed(content[:start]):
                         current = leading_space.match(above_line)
                         if current[1] < item[1]:
-                            if any(keyword in above_line for keyword in ["needs:", "dependencies:"]):
+                            if any(keyword in above_line for keyword in ["needs:", "dependencies:", "rules:"]):
                                 print(f"> Found a gitlab configuration change on line: {content[start]}")
                                 return True
                             else:
@@ -1235,7 +1220,7 @@ def gitlab_configuration_is_modified(ctx):
             and line.startswith("+")
             and (
                 (len(line) > 1 and line[1].isalpha())
-                or any(keyword in line for keyword in ["needs:", "dependencies:", "!reference"])
+                or any(keyword in line for keyword in ["needs:", "dependencies:", "rules:", "!reference"])
             )
         ):
             print(f"> Found a gitlab configuration change on line: {line}")
@@ -1294,40 +1279,6 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
         all_stages.update(config.get("stages", []))
 
     return all_stages
-
-
-def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
-    """
-    Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
-    """
-    test_infra_def = {}
-    with open(file_path) as test_infra_version_file:
-        try:
-            test_infra_def = yaml.safe_load(test_infra_version_file)
-            test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"] = image_tag
-            if is_dev_image:
-                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = "-dev"
-            else:
-                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = ""
-        except yaml.YAMLError as e:
-            raise Exit(f"Error while loading {file_path}: {e}") from e
-    with open(file_path, "w") as test_infra_version_file:
-        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
-        # Add explicit_start=True to keep the document start marker ---
-        # See "Document Start" in https://www.yaml.info/learn/document.html for more details
-        yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
-
-
-def get_test_infra_def_version():
-    """
-    Get TEST_INFRA_DEFINITIONS_BUILDIMAGES from `.gitlab/common/test_infra_version.yml` file
-    """
-    try:
-        version_file = Path.cwd() / ".gitlab" / "common" / "test_infra_version.yml"
-        test_infra_def = yaml.safe_load(version_file.read_text(encoding="utf-8"))
-        return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
-    except Exception:
-        return "main"
 
 
 def get_buildimages_version():

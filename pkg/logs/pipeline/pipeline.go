@@ -48,7 +48,7 @@ func NewPipeline(
 
 	var encoder processor.Encoder
 	if serverlessMeta.IsEnabled() {
-		encoder = processor.JSONServerlessEncoder
+		encoder = processor.JSONServerlessInitEncoder
 	} else if endpoints.UseHTTP {
 		encoder = processor.JSONEncoder
 	} else if endpoints.UseProto {

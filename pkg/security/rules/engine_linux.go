@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -38,58 +37,63 @@ func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
 			if !ok {
 				continue
 			}
-			cgr := ebpfProbe.Resolvers.CGroupResolver
 
-			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
-				cgce.RLock()
-				defer cgce.RUnlock()
-				if cgce.ContainerContext.ContainerID == "" {
-					return false
+			ebpfProbe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+
+				if entry.ContainerContext.ContainerID == "" {
+					return
 				}
 
 				ctx := preparator.get(func(event *model.Event) {
-					event.ContainerContext = &cgce.ContainerContext
+					event.ProcessCacheEntry = entry
 				})
 				defer preparator.put(ctx)
 
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					return false
+					return
 				}
 
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.ContainerContext.ContainerID)
+				scopedName := fmt.Sprintf("%s.%s", name, entry.ContainerContext.ContainerID)
 				scopedValue := fmt.Sprintf("%v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
 				}
-				return false
 			})
 		} else if !e.probe.Opts.EBPFLessEnabled && strings.HasPrefix(name, "cgroup.") {
 			scopedVariable := value.(eval.ScopedVariable)
+			ebpfProbe, ok := e.probe.PlatformProbe.(*probe.EBPFProbe)
+			if !ok {
+				continue
+			}
 
-			cgr := e.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.CGroupResolver
-			cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
-				cgce.RLock()
-				defer cgce.RUnlock()
+			ebpfProbe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+
+				if entry.ProcessContext.Process.CGroup.CGroupFile.IsNull() {
+					return
+				}
 
 				ctx := preparator.get(func(event *model.Event) {
-					event.CGroupContext = &cgce.CGroupContext
+					event.ProcessCacheEntry = entry
 				})
 				defer preparator.put(ctx)
 
 				value, found := scopedVariable.GetValue(ctx)
 				if !found {
-					return false
+					return
 				}
 
-				scopedName := fmt.Sprintf("%s.%s", name, cgce.CGroupID)
+				scopedName := fmt.Sprintf("%s.%s", name, entry.ProcessContext.CGroup.CGroupID)
 				scopedValue := fmt.Sprintf("%v", value)
 				seclVariables[scopedName] = &api.SECLVariableState{
 					Name:  scopedName,
 					Value: scopedValue,
 				}
-				return false
 			})
 		}
 	}

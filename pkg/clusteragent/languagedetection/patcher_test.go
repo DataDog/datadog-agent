@@ -124,7 +124,7 @@ func TestRun(t *testing.T) {
 	//                            //
 	////////////////////////////////
 
-	mockStore.Push("kubeapiserver", workloadmeta.Event{
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
@@ -227,7 +227,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Push("kubeapiserver", mockDeploymentEvent)
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, mockDeploymentEvent)
 
 	assert.Eventuallyf(t,
 		func() bool {

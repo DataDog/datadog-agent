@@ -150,7 +150,10 @@ type Service struct {
 	DDService string
 
 	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	APMInstrumentation bool
+
+	// LogFiles contains paths to log files associated with this service
+	LogFiles []string
 }
 
 // DeepCopy creates a deep copy of Stats

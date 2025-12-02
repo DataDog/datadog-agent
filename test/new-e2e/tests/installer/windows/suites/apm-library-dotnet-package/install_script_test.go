@@ -58,7 +58,7 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
 			// TODO: remove override once image is published in prod
 			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
-			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", version.Version()),
+			"DD_APM_INSTRUMENTATION_LIBRARIES": "dotnet:" + version.Version(),
 		}),
 	)
 	// Start the IIS app to load the library
@@ -70,57 +70,6 @@ func (s *testAgentScriptInstallsDotnetLibrary) TestInstallFromScript() {
 	// Check that the expected version of the library is loaded
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, version.Version())
-}
-
-// TestScriptThenRemoteUpgrade tests the dotnet library can be remotely upgraded from an Agent script installed version
-func (s *testAgentScriptInstallsDotnetLibrary) TestScriptThenRemoteUpgrade() {
-	defer s.cleanupAgentConfig()
-	s.setAgentConfig()
-
-	oldVersion := s.previousDotnetLibraryVersion
-	newVersion := s.currentDotnetLibraryVersion
-
-	// Install first version
-	s.installCurrentAgentVersion(
-		installerwindows.WithExtraEnvVars(map[string]string{
-			"DD_APM_INSTRUMENTATION_ENABLED": "iis",
-			// TODO: remove override once image is published in prod
-			"DD_INSTALLER_REGISTRY_URL":        "install.datad0g.com.internal.dda-testing.com",
-			"DD_APM_INSTRUMENTATION_LIBRARIES": fmt.Sprintf("dotnet:%s", oldVersion.Version()),
-		}),
-	)
-
-	// Start the IIS app to load the library
-	defer s.stopIISApp()
-	s.startIISApp(webConfigFile, aspxFile)
-
-	// Check that the expected version of the library is loaded
-	s.assertSuccessfulPromoteExperiment(oldVersion.Version())
-	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(oldLibraryPath, oldVersion.Version())
-
-	// Start remote upgrade experiment
-	_, err := s.startExperimentCurrentDotnetLibrary(newVersion)
-	s.Require().NoError(err)
-	s.assertSuccessfulStartExperiment(newVersion.Version())
-
-	// Check that the old version of the library is still loaded since we have not restarted yet
-	oldLibraryPathAgain := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(oldLibraryPathAgain, oldVersion.Version())
-	s.Require().Equal(oldLibraryPath, oldLibraryPathAgain)
-
-	// Restart the IIS application
-	s.startIISApp(webConfigFile, aspxFile)
-
-	// Check that the new version of the library is loaded
-	newLibraryPath := s.getLibraryPathFromInstrumentedIIS()
-	s.Require().Contains(newLibraryPath, newVersion.Version())
-	s.Require().NotEqual(oldLibraryPath, newLibraryPath)
-
-	// Promote the experiment
-	_, err = s.Installer().PromoteExperiment("datadog-apm-library-dotnet")
-	s.Require().NoError(err)
-	s.assertSuccessfulPromoteExperiment(newVersion.Version())
 }
 
 // installCurrentAgentVersion installs the current agent version with script

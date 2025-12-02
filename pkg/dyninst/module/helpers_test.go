@@ -8,7 +8,3 @@
 package module
 
 type Dependencies = dependencies
-
-func EraseActuator[A Actuator[AT], AT ActuatorTenant](a A) Actuator[ActuatorTenant] {
-	return &erasedActuator[A, AT]{a: a}
-}

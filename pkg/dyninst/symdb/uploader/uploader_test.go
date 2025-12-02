@@ -170,6 +170,9 @@ func TestSymDBUploader(t *testing.T) {
 				Name:      "main",
 				StartLine: 0,
 				EndLine:   0,
+				LanguageSpecifics: &LanguageSpecifics{
+					AgentVersion: "7.72.0-test",
+				},
 				Scopes: []Scope{
 					{
 						ScopeType:  ScopeTypeMethod,

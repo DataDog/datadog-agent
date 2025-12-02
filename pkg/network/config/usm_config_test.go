@@ -136,6 +136,72 @@ func TestMaxUSMConcurrentRequests(t *testing.T) {
 	})
 }
 
+func TestUSMDirectBufferWakeupCount(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 8, cfg.DirectConsumerBufferWakeupCountPerCPU)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.buffer_wakeup_count_per_cpu", 64)
+		cfg := New()
+		assert.Equal(t, 64, cfg.DirectConsumerBufferWakeupCountPerCPU)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_BUFFER_WAKEUP_COUNT_PER_CPU", "128")
+		cfg := New()
+		assert.Equal(t, 128, cfg.DirectConsumerBufferWakeupCountPerCPU)
+	})
+}
+
+func TestUSMDirectChannelSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 1000, cfg.DirectConsumerChannelSize)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.channel_size", 2000)
+		cfg := New()
+		assert.Equal(t, 2000, cfg.DirectConsumerChannelSize)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_CHANNEL_SIZE", "3000")
+		cfg := New()
+		assert.Equal(t, 3000, cfg.DirectConsumerChannelSize)
+	})
+}
+
+func TestUSMDirectKernelBufferSize(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+		assert.Equal(t, 65536, cfg.DirectConsumerKernelBufferSizePerCPU)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.direct_consumer.kernel_buffer_size_per_cpu", 131072)
+		cfg := New()
+		assert.Equal(t, 131072, cfg.DirectConsumerKernelBufferSizePerCPU)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_DIRECT_CONSUMER_KERNEL_BUFFER_SIZE_PER_CPU", "262144")
+		cfg := New()
+		assert.Equal(t, 262144, cfg.DirectConsumerKernelBufferSizePerCPU)
+	})
+}
+
 // ========================================
 // HTTP Protocol Configuration Tests
 // ========================================
@@ -946,7 +1012,9 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.enabled", true)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -957,7 +1025,9 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 	})
 }
 
@@ -1196,7 +1266,9 @@ func TestEnableRedisMonitoring(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.redis.enabled", true)
 		cfg := New()
 
-		assert.True(t, cfg.EnableRedisMonitoring)
+		// Redis may be disabled by adjust_usm.go on kernels < 5.4
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.RedisMonitoringSupported(), cfg.EnableRedisMonitoring)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -1207,7 +1279,9 @@ func TestEnableRedisMonitoring(t *testing.T) {
 		_, err := sysconfig.New("", "")
 		require.NoError(t, err)
 
-		assert.True(t, cfg.EnableRedisMonitoring)
+		// Redis may be disabled by adjust_usm.go on kernels < 5.4
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.RedisMonitoringSupported(), cfg.EnableRedisMonitoring)
 	})
 
 	t.Run("default", func(t *testing.T) {
@@ -1536,7 +1610,9 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 45)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 		assert.Equal(t, 45*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
 	})
 
@@ -1546,7 +1622,9 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds", 60)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 		assert.Equal(t, 60*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
 	})
 
@@ -1559,7 +1637,9 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 		mockSystemProbe.SetWithoutSource("service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds", 90)
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)                                // new tree structure wins
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation (new tree structure wins)
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 		assert.Equal(t, 90*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval) // new tree structure wins
 	})
 
@@ -1569,7 +1649,9 @@ func TestHTTP2ConfigMigration(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS", "120")
 		cfg := New()
 
-		assert.True(t, cfg.EnableHTTP2Monitoring)
+		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
+		// We test that the config respects the kernel limitation
+		assert.Equal(t, sysconfig.HTTP2MonitoringSupported(), cfg.EnableHTTP2Monitoring)
 		assert.Equal(t, 120*time.Second, cfg.HTTP2DynamicTableMapCleanerInterval)
 	})
 
@@ -1682,5 +1764,30 @@ func TestHTTPConfigMigration(t *testing.T) {
 		assert.Equal(t, int64(512), cfg.HTTPMaxRequestFragment)
 		assert.Equal(t, 300*time.Second, cfg.HTTPMapCleanerInterval)
 		assert.Equal(t, 30*time.Second, cfg.HTTPIdleConnectionTTL)
+	})
+}
+
+func TestHTTPUseDirectConsumer(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		cfg := New()
+
+		assert.False(t, cfg.HTTPUseDirectConsumer)
+	})
+
+	t.Run("via YAML", func(t *testing.T) {
+		mockSystemProbe := mock.NewSystemProbe(t)
+		mockSystemProbe.SetWithoutSource("service_monitoring_config.http.use_direct_consumer", true)
+		cfg := New()
+
+		assert.True(t, cfg.HTTPUseDirectConsumer)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		mock.NewSystemProbe(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_USE_DIRECT_CONSUMER", "true")
+		cfg := New()
+
+		assert.True(t, cfg.HTTPUseDirectConsumer)
 	})
 }

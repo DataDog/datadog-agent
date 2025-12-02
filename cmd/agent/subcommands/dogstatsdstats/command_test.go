@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,8 +20,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"dogstatsd-stats", "--json"},
 		requestDogstatsdStats,
-		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams) {
 			require.True(t, cliParams.jsonStatus)
-			require.Equal(t, false, secretParams.Enabled)
 		})
 }

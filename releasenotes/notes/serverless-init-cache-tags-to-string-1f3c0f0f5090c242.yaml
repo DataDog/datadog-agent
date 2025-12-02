@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    Cache result of `TagsToString()` in serverless-init to improve CPU performance.

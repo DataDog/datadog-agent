@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -37,7 +38,7 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *pkgconfigsetup.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),

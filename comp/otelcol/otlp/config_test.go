@@ -60,11 +60,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -83,11 +96,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -106,11 +132,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -144,11 +183,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -162,11 +214,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    true,
+				Logs: map[string]interface{}{
+					"enabled": true,
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "5001ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -180,11 +245,24 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -231,12 +309,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -262,12 +353,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -278,6 +382,9 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":               "0.0.0.0:9995",
 				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT":               "0.0.0.0:9996",
 				"DD_OTLP_CONFIG_METRICS_DELTA_TTL":                              "2400",
+				"DD_OTLP_CONFIG_METRICS_BATCH_FLUSH_TIMEOUT":                    "5001ms",
+				"DD_OTLP_CONFIG_METRICS_BATCH_MIN_SIZE":                         "100",
+				"DD_OTLP_CONFIG_METRICS_BATCH_MAX_SIZE":                         "200",
 				"DD_OTLP_CONFIG_METRICS_HISTOGRAMS_MODE":                        "counters",
 				"DD_OTLP_CONFIG_METRICS_INSTRUMENTATION_SCOPE_METADATA_AS_TAGS": "false",
 			},
@@ -296,7 +403,15 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"instrumentation_scope_metadata_as_tags": false,
@@ -307,6 +422,11 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"histograms": map[string]interface{}{
 						"mode": "counters",
 					},
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "5001ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -329,12 +449,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "none",
@@ -359,12 +492,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "normal",
@@ -382,7 +528,7 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
 							"endpoint":              "0.0.0.0:9999",
-							"max_recv_msg_size_mib": 10,
+							"max_recv_msg_size_mib": "10",
 						},
 					},
 				},
@@ -390,12 +536,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -403,7 +562,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 		{
 			name: "logs enabled",
 			env: map[string]string{
-				"DD_OTLP_CONFIG_LOGS_ENABLED": "true",
+				"DD_OTLP_CONFIG_LOGS_ENABLED":             "true",
+				"DD_OTLP_CONFIG_LOGS_BATCH_FLUSH_TIMEOUT": "5001ms",
+				"DD_OTLP_CONFIG_LOGS_BATCH_MIN_SIZE":      "100",
+				"DD_OTLP_CONFIG_LOGS_BATCH_MAX_SIZE":      "200",
 			},
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
@@ -411,12 +573,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    true,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": true,
+					"batch": map[string]interface{}{
+						"min_size":      100,
+						"max_size":      200,
+						"flush_timeout": "5001ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -432,12 +607,25 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -453,13 +641,26 @@ func TestFromEnvironmentVariables(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				TracePort:      5003,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"resource_attributes_as_tags":            true,
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 				Debug: map[string]interface{}{},
 			},
@@ -498,7 +699,15 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 				TracePort:      5003,
 				MetricsEnabled: true,
 				TracesEnabled:  true,
-				LogsEnabled:    false,
+				LogsEnabled:    true,
+				Logs: map[string]interface{}{
+					"enabled": true,
+					"batch": map[string]interface{}{
+						"min_size":      200,
+						"max_size":      300,
+						"flush_timeout": "4001ms",
+					},
+				},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"delta_ttl":                              2400,
@@ -512,6 +721,11 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 						"send_aggregation_metrics": true,
 					},
 					"tags": "tag1:value1,tag2:value2",
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      100,
+					"max_size":      200,
+					"flush_timeout": "5001ms",
 				},
 				Debug: map[string]interface{}{
 					"verbosity": "detailed",
@@ -552,12 +766,25 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				MetricsEnabled:     true,
 				TracesEnabled:      true,
 				LogsEnabled:        false,
-				Debug:              map[string]interface{}{},
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				Debug: map[string]interface{}{},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 			},
 		},
@@ -571,12 +798,25 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				Debug:          map[string]interface{}{"verbosity": "detailed"},
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				Debug: map[string]interface{}{"verbosity": "detailed"},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 			},
 		},
@@ -590,12 +830,25 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				Debug:          map[string]interface{}{"verbosity": "none"},
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				Debug: map[string]interface{}{"verbosity": "none"},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 			},
 		},
@@ -609,12 +862,25 @@ func TestFromAgentConfigDebug(t *testing.T) {
 				MetricsEnabled: true,
 				TracesEnabled:  true,
 				LogsEnabled:    false,
-				Debug:          map[string]interface{}{"verbosity": "normal"},
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				Debug: map[string]interface{}{"verbosity": "normal"},
 				Metrics: map[string]interface{}{
 					"enabled":                                true,
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
 				},
 			},
 		},

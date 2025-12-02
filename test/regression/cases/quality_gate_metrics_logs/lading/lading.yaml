@@ -57,7 +57,7 @@ generator:
         maximum_bytes_per_log: 50MiB
         total_rotations: 5
         max_depth: 0
-        variant: "ascii"
+        variant: "apache_common"
         maximum_prebuild_cache_size_bytes: 300MiB
         mount_point: /smp-shared
 
@@ -71,5 +71,7 @@ blackhole:
       binding_addr: "127.0.0.1:9093"
 
 target_metrics:
-  - prometheus:
+  - prometheus: # core agent telemetry
       uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"

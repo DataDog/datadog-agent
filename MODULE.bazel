@@ -1,25 +1,61 @@
-# Foundation packages
+# Foundational packages
 
-bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "package_metadata", version = "0.0.5")
-bazel_dep(name = "bazel_features", version = "1.34.0")
-bazel_dep(name = "bazel_skylib", version = "1.8.1")
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+
+visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
+
+# package_metadata and rules_license are dependencies of every module in the
+# Bazel ecosystem.  We pin those first to get the versions we require.
+bazel_dep(name = "package_metadata", version = "0.0.6")
+
+# Instead of the canonical rules_license, we use the version from supply-chain.
+# This allows mixing both old and new license rules during the multi-year
+# migration between the two styles. The rules_license overlay will never be
+# available in the BCR, for obvious name confusion reasons, so we have to
+# use an archive_override to pull the alternate reality from supply-chain.
 bazel_dep(name = "rules_license", version = "1.0.0")
+
+# We are temporarily using a development fork which is ahead of the release.
+archive_override(
+    module_name = "rules_license",
+    # sha256 = TBD,
+    strip_prefix = "supply-chain-dd_test/rules_license",
+    urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
+)
+
+bazel_dep(name = "supply_chain_tools", version = "0.0.1")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_features", version = "1.34.0")
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "bazel_lib", version = "3.0.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+
+# Temporary until a future rules_pkg release
+git_override(
+    module_name = "rules_pkg",
+    commit = "46bd2689886984c2b77d6005595f351e404dfa57",
+    remote = "https://github.com/bazelbuild/rules_pkg",
+)
 
 #########################
 ## Prebuilt binaries   ##
 #########################
 
-http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-
 http_archive(
     name = "com_github_bazelbuild_buildtools",
     patch_strip = 1,
-    patches = ["//bazel/patches:buildifier.patch"],
+    patches = [
+        "//bazel/patches:buildifier-build.patch",  # bazelbuild/buildtools#1398
+        "//bazel/patches:buildifier-internal-factory.patch",  # bazelbuild/buildtools#1399
+        "//bazel/patches:buildifier-runner-bat-template.patch",  # bazelbuild/buildtools#1400 bazelbuild/buildtools#1404
+    ],
     sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
     strip_prefix = "buildtools-8.2.1",
-    urls = ["https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz"],
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/buildtools-8.2.1.tar.gz",
+        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz",
+    ],
 )
 
 bazel_dep(name = "rules_multitool", version = "1.9.0")
@@ -29,16 +65,123 @@ multitool.hub(lockfile = "//bazel:prebuilt_buildtools.json")
 multitool.hub(lockfile = "//bazel:prebuilt_jq.json")
 use_repo(multitool, "multitool")
 
-#########################
-## Compilers          ##
-#########################
+######################################
+## Compilers and toolchains        ##
+####################################
 
 bazel_dep(name = "rules_cc", version = "0.2.8")
-bazel_dep(name = "rules_python", version = "1.6.1")
+bazel_dep(name = "rules_flex", version = "0.4")
+bazel_dep(name = "rules_m4", version = "0.3")
+bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
+bazel_dep(name = "gcc_toolchain", version = "0.9.0")
+git_override(
+    module_name = "gcc_toolchain",
+    commit = "e736410ced16744922c11762783b7c1fdddf620c",
+    patch_args = ["-p1"],
+    patches = [
+        "//bazel/patches:gcc-toolchain/0000-fix-no-repository-visible-as-@.patch",
+        "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
+        "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
+        "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
+    ],
+    remote = "https://github.com/f0rmiga/gcc-toolchain.git",
+)
+
+gcc_toolchains = use_extension("@gcc_toolchain//toolchain:module_extensions.bzl", "gcc_toolchains", dev_dependency = True)
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_x86_64",
+    binary_prefix = "x86_64-unknown-linux-gnu-",
+    gcc_version = "11.4.0",
+    target_arch = "x86_64",
+)
+gcc_toolchains.toolchain(
+    name = "gcc_toolchain_aarch64",
+    binary_prefix = "aarch64-unknown-linux-gnu-",
+    gcc_version = "12.3.0",
+    target_arch = "aarch64",
+)
+use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
+use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
+
+# TODO{agent-build}: Find a way to register platform-specific toolchains dynamically
+register_toolchains(
+    "@gcc_toolchain_x86_64//:cc_toolchain",
+    "@gcc_toolchain_aarch64//:cc_toolchain",
+    "//bazel/toolchains/mingw:mingw_cc_toolchain",
+)
+
+# Visual Studio / MSBuild tooling, taken from the local installation
+visual_studio(
+    name = "visual_studio",
+    path_variable = "VSTUDIO_ROOT",
+    version = "17.14.36717.8",
+)
+
+# =========================================
+# Python dependencies
+# =========================================
+
+# Keep in sync with .python-version
+PYTHON_VERSION = "3.12"
+
+bazel_dep(name = "rules_python", version = "1.6.3")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(python_version = PYTHON_VERSION)
+python.toolchain(
+    configure_coverage_tool = True,
+    is_default = True,
+    python_version = PYTHON_VERSION,
+)
+use_repo(python, "python_" + PYTHON_VERSION.replace(".", "_"), "pythons_hub")
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
+# Development requirements. These are the tools needed to build the agent.
+# TODO: Make a distinct set for modules we redistribute with the agent.
+pip.parse(
+    hub_name = "py_dev_requirements",
+    python_version = PYTHON_VERSION,
+    requirements_lock = "//deps:py_dev_requirements.txt",
+)
+use_repo(pip, "py_dev_requirements")
+
+register_toolchains("@pythons_hub//:all")
 
 #########################
 ## Native dependencies ##
 #########################
 
 # Make our 3rd parties depencency repositories known
+# bazel mod tidy command adds a new line between includes.
+# buildifier eliminates them. If we treat mod tidy as a code formatter
+# for MODULE.bazel, we need to leave-alone the includes so that buildifier
+# doesn't fail nor re-format them.
+# buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/acl:acl.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/compile_policy:compile_policy.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/openssl3:openssl3.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/libpcap:libpcap.MODULE.bazel")
+include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
+
+# This enables cross-compilation for macOS x86_64 on Apple Silicon.
+# Simply add --platforms=@apple_support//platforms:macos_x86_64
+# to the build command to enable it.
+bazel_dep(name = "apple_support", version = "1.23.1")
+
+use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")

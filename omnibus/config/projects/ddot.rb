@@ -6,7 +6,11 @@ require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
 
 name 'ddot'
-package_name 'datadog-agent-ddot'
+if fips_mode?
+  package_name 'datadog-fips-agent-ddot'
+else
+  package_name 'datadog-agent-ddot'
+end
 
 license "Apache-2.0"
 license_file "../LICENSE"

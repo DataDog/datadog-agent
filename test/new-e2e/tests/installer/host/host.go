@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -49,16 +49,18 @@ func New(t func() *testing.T, remote *components.RemoteHost, os e2eos.Descriptor
 	for _, opt := range opts {
 		opt(t, host)
 	}
-	host.uploadFixtures()
-	host.setSystemdVersion()
-	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
-		host.pkgManager = "apt"
-	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
-		host.pkgManager = "zypper"
-	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
-		host.pkgManager = "yum"
-	} else {
-		t().Fatal("no package manager found")
+	if os.Family() == e2eos.LinuxFamily {
+		host.uploadFixtures()
+		host.setSystemdVersion()
+		if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+			host.pkgManager = "apt"
+		} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+			host.pkgManager = "zypper"
+		} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+			host.pkgManager = "yum"
+		} else {
+			t().Fatal("no package manager found")
+		}
 	}
 	return host
 }
@@ -136,13 +138,13 @@ func (h *Host) Run(command string, env ...string) string {
 
 // UserExists checks if a user exists on the host.
 func (h *Host) UserExists(username string) bool {
-	_, err := h.remote.Execute(fmt.Sprintf("id -u %s", username))
+	_, err := h.remote.Execute("id -u " + username)
 	return err == nil
 }
 
 // GroupExists checks if a group exists on the host.
 func (h *Host) GroupExists(groupname string) bool {
-	_, err := h.remote.Execute(fmt.Sprintf("id -g %s", groupname))
+	_, err := h.remote.Execute("id -g " + groupname)
 	return err == nil
 }
 
@@ -164,15 +166,15 @@ func (h *Host) WriteFile(path string, content []byte) error {
 
 // DeletePath deletes a path on the host.
 func (h *Host) DeletePath(path string) {
-	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
-	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
+	h.remote.MustExecute("sudo ls " + path)
+	h.remote.MustExecute("sudo rm -rf " + path)
 }
 
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	for _, unit := range units {
 		assert.Eventually(t, func() bool {
-			_, err := h.remote.Execute(fmt.Sprintf("systemctl is-active --quiet %s", unit))
+			_, err := h.remote.Execute("systemctl is-active --quiet " + unit)
 
 			return err == nil
 		}, time.Second*90, time.Second*2, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
@@ -198,6 +200,16 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 	}
 }
 
+// WaitForUnitExited waits for a systemd unit to exit with a specific exit code
+func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
+	for _, unit := range units {
+		assert.Eventually(t, func() bool {
+			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"(code=exited, status=%d/\" <(sudo systemctl status %s)", exitCode, unit))
+			return err == nil
+		}, time.Second*90, time.Second*2, "unit %s did not exit or exit with expected code. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
+	}
+}
+
 // WaitForFileExists waits for a file to exist on the host
 func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 	sudo := ""
@@ -215,8 +227,11 @@ func (h *Host) WaitForFileExists(useSudo bool, filePaths ...string) {
 // This is because of a race condition where the trace agent is not ready to receive traces and we send them
 // meaning that the traces are lost
 func (h *Host) WaitForTraceAgentSocketReady() {
-	_, err := h.remote.Execute("timeout=30; while ! grep -q 'Listening for traces at unix://' <(sudo journalctl _PID=`systemctl show -p MainPID datadog-agent-trace | cut -d\"=\" -f2`); do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]")
-	require.NoError(h.t(), err, "trace agent did not become ready")
+	require.EventuallyWithT(h.t(), func(t *assert.CollectT) {
+		// this endpoint is no-op but it will fail if the trace agent is not ready
+		_, err := h.remote.Execute("curl -XGET --unix-socket /var/run/datadog/apm.socket http:/services")
+		require.NoError(t, err)
+	}, 30*time.Second, 1*time.Second, "trace agent did not become ready")
 }
 
 // BootstrapperVersion returns the version of the bootstrapper on the host.
@@ -380,10 +395,12 @@ func (h *Host) fs() map[string]FileInfo {
 		"/run/utmp",
 		"/tmp",
 	}
-	cmd := "sudo find / "
+	var cmdBuilder strings.Builder
+	cmdBuilder.WriteString("sudo find / ")
 	for _, dir := range ignoreDirs {
-		cmd += fmt.Sprintf("-path '%s' -prune -o ", dir)
+		fmt.Fprintf(&cmdBuilder, "-path '%s' -prune -o ", dir)
 	}
+	cmd := cmdBuilder.String()
 	cmd += `-printf '%p\\|//%s\\|//%TY-%Tm-%Td %TH:%TM:%TS\\|//%f\\|//%m\\|//%u\\|//%g\\|//%y\\|//%l\n' 2>/dev/null`
 	output := h.remote.MustExecute(cmd + " || true")
 	lines := strings.Split(output, "\n")
@@ -485,7 +502,7 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 	} else {
 		h.remote.MustExecute(fmt.Sprintf("sed -i -E 's/umask %s/umask %s/g' ~/.bashrc", oldmask, mask))
 	}
-	h.remote.MustExecute(fmt.Sprintf("umask | grep -q %s", mask)) // Correctness check
+	h.remote.MustExecute("umask | grep -q " + mask) // Correctness check
 	return oldmask
 }
 

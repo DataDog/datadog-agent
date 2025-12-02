@@ -60,7 +60,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "<nil>"
               }
             }
           }
@@ -68,7 +68,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "nil"
   },
   {
     "service": "sample",
@@ -136,7 +137,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -144,7 +145,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "nil"
   },
   {
     "service": "sample",
@@ -213,7 +215,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -221,7 +223,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "nil"
   },
   {
     "service": "sample",
@@ -290,7 +293,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -298,7 +301,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   },
   {
     "service": "sample",
@@ -373,7 +377,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -381,7 +385,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   },
   {
     "service": "sample",
@@ -462,7 +467,7 @@
             "locals": {
               "~r0": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "0x[addr]"
               }
             }
           }
@@ -470,6 +475,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "1"
   }
 ]

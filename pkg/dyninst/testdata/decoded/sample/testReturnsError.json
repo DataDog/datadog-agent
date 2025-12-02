@@ -18,12 +18,12 @@
           {
             "function": "main.testReturnsError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 35
+            "lineNumber": 38
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 89
+            "lineNumber": 378
           },
           {
             "function": "main.main",
@@ -60,7 +60,18 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "type": "*errors.errorString",
+                    "address": "[addr]",
+                    "fields": {
+                      "s": {
+                        "type": "string",
+                        "value": "error"
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -68,7 +79,8 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "true"
   },
   {
     "service": "sample",
@@ -89,12 +101,12 @@
           {
             "function": "main.testReturnsError",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 37
+            "lineNumber": 40
           },
           {
             "function": "main.executeReturns",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 90
+            "lineNumber": 379
           },
           {
             "function": "main.main",
@@ -131,7 +143,11 @@
             "locals": {
               "~r0": {
                 "type": "error",
-                "notCapturedReason": "unavailable"
+                "fields": {
+                  "data": {
+                    "isNull": true
+                  }
+                }
               }
             }
           }
@@ -139,6 +155,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "false"
   }
 ]

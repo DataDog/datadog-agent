@@ -9,8 +9,7 @@ import "github.com/DataDog/datadog-agent/pkg/util/option"
 
 // Params contains the parameters to create a forwarder.
 type Params struct {
-	useNoopForwarder bool
-	withResolver     bool
+	withResolver bool
 
 	// Use optional to override Options.DisableAPIKeyChecking only if WithFeatures was called
 	disableAPIKeyCheckingOverride option.Option[bool]
@@ -29,6 +28,8 @@ func NewParams(options ...optionParams) Params {
 }
 
 // WithResolvers enables the forwarder to use resolvers
+//
+//nolint:revive // Returning unexported type is intentional for functional options pattern
 func WithResolvers() optionParams {
 	return func(p *Params) {
 		p.withResolver = true
@@ -36,6 +37,8 @@ func WithResolvers() optionParams {
 }
 
 // WithDisableAPIKeyChecking disables the API key checking
+//
+//nolint:revive // Returning unexported type is intentional for functional options pattern
 func WithDisableAPIKeyChecking() optionParams {
 	return func(p *Params) {
 		p.disableAPIKeyCheckingOverride.Set(true)
@@ -43,15 +46,10 @@ func WithDisableAPIKeyChecking() optionParams {
 }
 
 // WithFeatures sets a features to the forwarder
+//
+//nolint:revive // Returning unexported type is intentional for functional options pattern
 func WithFeatures(features ...Features) optionParams {
 	return func(p *Params) {
 		p.features = features
-	}
-}
-
-// WithNoopForwarder sets the forwarder to use the noop forwarder
-func WithNoopForwarder() optionParams {
-	return func(p *Params) {
-		p.useNoopForwarder = true
 	}
 }

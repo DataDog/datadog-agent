@@ -35,6 +35,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_grpc_server", "")
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.on_demand.enabled", true)
@@ -84,8 +85,6 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.workloads_cache_size", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.host.enabled", false)
-	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.analyzers", []string{"os"})
-	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.use_v2_collector", true)
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
@@ -110,8 +109,8 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold", "1h")
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold", 5000000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period", "1m")
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys", 1000)
-	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed", 300)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys", 256)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed", 10)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.anomaly_detection.enabled", true)
@@ -127,6 +126,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// CWS - SysCtl
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.ebpf.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.period", "1h")
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.ignored_base_names", []string{"netdev_rss_key", "stable_secret"})

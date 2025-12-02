@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -61,9 +62,9 @@ func securityProfileShowCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -107,9 +108,9 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -125,7 +126,7 @@ func listSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 }
 
 func listSecurityProfiles(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}
@@ -221,9 +222,9 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					SecretParams: secrets.NewDisabledParams(),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 	}
@@ -247,7 +248,7 @@ func saveSecurityProfileCommands(globalParams *command.GlobalParams) []*cobra.Co
 }
 
 func saveSecurityProfile(_ log.Component, _ config.Component, _ secrets.Component, args *securityProfileCliParams) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	client, err := secagent.NewRuntimeSecurityCmdClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
 	}

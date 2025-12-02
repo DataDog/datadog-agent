@@ -195,7 +195,7 @@ func (ownersLanguages *OwnersLanguages) cleanExpiredLanguages(wlm workloadmeta.C
 			containersLanguages.dirty = true
 		}
 	}
-	ownersLanguages.flush(wlm)
+	_ = ownersLanguages.flush(wlm)
 }
 
 // syncFromInjectableLanguages updates DetectedLanguages to match InjectableLanguages for followers
@@ -226,7 +226,7 @@ func (ownersLanguages *OwnersLanguages) syncFromInjectableLanguages(wlm workload
 	langsWithDirtyFlag.dirty = true
 
 	// Always flush to keep workloadmeta in sync
-	ownersLanguages.flush(wlm)
+	_ = ownersLanguages.flush(wlm)
 }
 
 // handleKubeApiServerUnsetEvents handles unset events emitted by the kubeapiserver
@@ -270,7 +270,7 @@ func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []
 func (ownersLanguages *OwnersLanguages) cleanRemovedOwners(wlm workloadmeta.Component) {
 
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource("kubeapiserver").
+		SetSource(workloadmeta.SourceKubeAPIServer).
 		SetEventType(workloadmeta.EventTypeUnset).
 		AddKind(workloadmeta.KindKubernetesDeployment).
 		Build()

@@ -8,6 +8,7 @@ package apiimpl
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	stdLog "log"
 	"net"
@@ -20,7 +21,7 @@ import (
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
-	logWriter, _ := pkglogsetup.NewLogWriter(5, log.ErrorLvl)
+	logWriter, _ := pkglogsetup.NewTLSHandshakeErrorWriter(5, log.ErrorLvl)
 
 	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 
@@ -87,7 +88,7 @@ func (server *apiServer) stopServers() {
 func authTagGetter(serverTLSConfig *tls.Config) (func(r *http.Request) string, error) {
 	// Read the IPC certificate from the server TLS config
 	if serverTLSConfig == nil || len(serverTLSConfig.Certificates) == 0 || len(serverTLSConfig.Certificates[0].Certificate) == 0 {
-		return nil, fmt.Errorf("no certificates found in server TLS config")
+		return nil, errors.New("no certificates found in server TLS config")
 	}
 
 	cert, err := x509.ParseCertificate(serverTLSConfig.Certificates[0].Certificate[0])

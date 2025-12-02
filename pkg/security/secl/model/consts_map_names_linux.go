@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+// Code generated - DO NOT EDIT.
 
 package model
 
@@ -62,6 +63,7 @@ var bpfMapNames = []string{
 	"is_discarded_by",
 	"is_new_kthread",
 	"kill_list",
+	"memfd_tracking",
 	"mmap_flags_appr",
 	"mmap_protection",
 	"mount_ref",
@@ -79,6 +81,7 @@ var bpfMapNames = []string{
 	"pid_cache",
 	"pid_ignored",
 	"pid_rate_limite",
+	"prctl_option_ap",
 	"proc_cache",
 	"process_event_g",
 	"raw_packet_enab",

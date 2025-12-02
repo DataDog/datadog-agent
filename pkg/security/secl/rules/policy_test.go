@@ -9,6 +9,7 @@
 package rules
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -164,7 +165,7 @@ func TestRuleMerge(t *testing.T) {
 	}
 
 	t.Run("override", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule"]
+		rule := rs.GetRuleByID("test_rule")
 		if rule == nil {
 			t.Fatal("failed to find test_rule in ruleset")
 		}
@@ -181,14 +182,14 @@ func TestRuleMerge(t *testing.T) {
 	})
 
 	t.Run("enabled-disabled", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule_foo"]
+		rule := rs.GetRuleByID("test_rule_foo")
 		if rule == nil {
 			t.Fatal("expected test_rule_foo to be loaded now")
 		}
 	})
 
 	t.Run("disabled-enabled", func(t *testing.T) {
-		rule := rs.GetRules()["test_rule_bar"]
+		rule := rs.GetRuleByID("test_rule_bar")
 		if rule == nil {
 			t.Fatal("expected test_rule_bar to be loaded")
 		}
@@ -297,7 +298,7 @@ func TestActionSetVariable(t *testing.T) {
 		t.Error(err)
 	}
 
-	rule := rs.GetRules()["test_rule"]
+	rule := rs.GetRuleByID("test_rule")
 	if rule == nil {
 		t.Fatal("failed to find test_rule in ruleset")
 	}
@@ -415,8 +416,12 @@ func TestActionSetVariableTTL(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -1626,8 +1631,8 @@ func TestRuleErrorLoading(t *testing.T) {
 	assert.Len(t, err.Errors, 1)
 	assert.ErrorContains(t, err.Errors[0], "rule `testB` error: syntax error `1:17: unexpected token \"-\" (expected \"~\")`")
 
-	assert.Contains(t, rs.rules, "testA")
-	assert.NotContains(t, rs.rules, "testB")
+	assert.Contains(t, rs.ListRuleIDs(), "testA")
+	assert.NotContains(t, rs.ListRuleIDs(), "testB")
 }
 
 func TestRuleAgentConstraint(t *testing.T) {
@@ -1766,9 +1771,9 @@ func TestRuleAgentConstraint(t *testing.T) {
 	for _, exp := range expected {
 		t.Run(exp.ruleID, func(t *testing.T) {
 			if exp.expectedLoad {
-				assert.Contains(t, rs.rules, exp.ruleID)
+				assert.Contains(t, rs.ListRuleIDs(), exp.ruleID)
 			} else {
-				assert.NotContains(t, rs.rules, exp.ruleID)
+				assert.NotContains(t, rs.ListRuleIDs(), exp.ruleID)
 			}
 		})
 	}
@@ -1809,7 +1814,7 @@ func TestActionHashField(t *testing.T) {
 	}
 }
 
-func TestActionSetVariableInvalid(t *testing.T) {
+func TestActionSetVariableValidation(t *testing.T) {
 	t.Run("both-field-and-value", func(t *testing.T) {
 		testPolicy := &PolicyDef{
 			Rules: []*RuleDefinition{{
@@ -1997,6 +2002,318 @@ func TestActionSetVariableInvalid(t *testing.T) {
 			t.Log(err)
 		}
 	})
+
+	t.Run("incompatible-field-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "exec.file.path",
+						Append: true,
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("compatible-field-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "process.file.path",
+						Append: true,
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("incompatible-expression-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:         "var1",
+						Expression:   "exec.file.path",
+						Append:       true,
+						DefaultValue: "",
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("compatible-expression-type", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:         "var1",
+						Expression:   `"ssh_$${builtins.uuid4}_$${process.pid}"`,
+						Append:       true,
+						DefaultValue: "",
+					},
+				},
+				}},
+			},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to fail to load: %s", err)
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-field-cardinality", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_hostname",
+							DefaultValue: "",                      // string
+							Field:        "connect.addr.hostname", // array of strings
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "value and field cardinality mismatch for variable 'connection_hostname': field 'connect.addr.hostname' is an array, but append is not set for variable 'connection_hostname' with value ''")
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-cardinality", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "test_rule_no_array",
+					Expression: `open.file.path == "/tmp/foo"`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "file_path",
+								DefaultValue: "",               // string
+								Field:        "open.file.path", // string
+								Scope:        "process",
+							},
+						},
+					},
+				},
+				{
+					ID:         "test_rule_array",
+					Expression: `connect.addr.hostname in ["hello.world"]`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "connection_hostname",
+								DefaultValue: []string{"hello.universe"}, // array of strings
+								Field:        "connect.addr.hostname",    // array of strings
+								Scope:        "process",
+							},
+						},
+					},
+				},
+			},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-cardinality-append-1", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_hostname",
+							DefaultValue: []string{"hello.universe"}, // array of strings
+							Field:        "process.comm",             // string
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-cardinality-append-2", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_hostname",
+							DefaultValue: "hello.universe",        // string
+							Field:        "connect.addr.hostname", // array of strings
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("incompatible-default-value-and-field-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_id_pid",
+							DefaultValue: "",            // string
+							Field:        "process.pid", // int
+							Scope:        "process",
+						},
+					},
+				},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load")
+		} else {
+			assert.ErrorContains(t, err, "value and field have different types for variable 'connection_id_pid' (string != int)")
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-types", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "test_rule_string_var",
+					Expression: `open.file.path == "/tmp/foo"`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "file_path",
+								DefaultValue: "",               // string
+								Field:        "open.file.path", // string
+								Scope:        "process",
+							},
+						},
+					},
+				},
+				{
+					ID:         "test_rule_int_var",
+					Expression: `connect.addr.hostname in ["hello.world"]`,
+					Actions: []*ActionDefinition{
+						{
+							Set: &SetDefinition{
+								Name:         "connection_pid",
+								DefaultValue: 1,             // int
+								Field:        "process.pid", // int
+								Scope:        "process",
+							},
+						},
+					},
+				},
+			},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-types-append-1", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_pid",
+							DefaultValue: 1,             // int
+							Field:        "process.pid", // int
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
+
+	t.Run("compatible-default-value-and-field-types-append-2", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `connect.addr.hostname in ["hello.world"]`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:         "connection_pid",
+							DefaultValue: []int{1},      // int array
+							Field:        "process.pid", // int
+							Scope:        "process",
+							Append:       true,
+						},
+					},
+				},
+			}},
+		}
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("failed to load policy: %s", err)
+		}
+	})
 }
 
 func TestActionSetVariableLength(t *testing.T) {
@@ -2064,8 +2381,12 @@ func TestActionSetVariableLength(t *testing.T) {
 	event.Type = uint32(model.FileOpenEventType)
 	processCacheEntry := &model.ProcessCacheEntry{}
 	processCacheEntry.Retain()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: "0123456789abcdef",
+	event.ProcessContext = &model.ProcessContext{
+		Process: model.Process{
+			ContainerContext: model.ContainerContext{
+				ContainerID: "0123456789abcdef",
+			},
+		},
 	}
 	event.ProcessCacheEntry = processCacheEntry
 	event.SetFieldValue("open.file.path", "/tmp/test")
@@ -2099,7 +2420,7 @@ func TestActionSetVariableLength(t *testing.T) {
 func TestLoadPolicy(t *testing.T) {
 	type args struct {
 		name         string
-		policyType   PolicyType
+		policyType   InternalPolicyType
 		source       string
 		fileContent  string
 		macroFilters []MacroFilter
@@ -2123,7 +2444,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)})
+				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: errors.New(`EOF`)})
 			},
 		},
 		{
@@ -2139,7 +2460,7 @@ func TestLoadPolicy(t *testing.T) {
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`EOF`)})
+				return assert.Error(t, err, &ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: errors.New(`EOF`)})
 			},
 		},
 		{
@@ -2156,12 +2477,10 @@ rules:
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				rules:  map[string][]*PolicyRule{},
-				macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2179,7 +2498,7 @@ broken
 			},
 			want: nil,
 			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
-				return assert.ErrorContains(t, err, (&ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: fmt.Errorf(`yaml: unmarshal error`)}).Error())
+				return assert.ErrorContains(t, err, (&ErrPolicyLoad{Name: "myLocal.policy", Source: PolicyProviderTypeRC, Err: errors.New(`yaml: unmarshal error`)}).Error())
 			},
 		},
 		{
@@ -2197,28 +2516,25 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "",
-								Disabled:   true,
-							},
-							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
-							},
-							Accepted: true,
+				Rules: []*PolicyRule{
+					{
+						Def: &RuleDefinition{
+							ID:         "rule_test",
+							Expression: "",
+							Disabled:   true,
 						},
+						Policy: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						},
+						Accepted: true,
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2238,28 +2554,25 @@ broken
 			},
 			want: &Policy{
 				Info: PolicyInfo{
-					Name:   "myLocal.policy",
-					Source: PolicyProviderTypeRC,
-					Type:   CustomPolicyType,
+					Name:         "myLocal.policy",
+					Source:       PolicyProviderTypeRC,
+					InternalType: CustomPolicyType,
 				},
-				rules: map[string][]*PolicyRule{
-					"rule_test": {
-						{
-							Def: &RuleDefinition{
-								ID:         "rule_test",
-								Expression: "open.file.path == \"/etc/gshadow\"",
-								Combine:    OverridePolicy,
-							},
-							Policy: PolicyInfo{
-								Name:   "myLocal.policy",
-								Source: PolicyProviderTypeRC,
-								Type:   CustomPolicyType,
-							},
-							Accepted: true,
+				Rules: []*PolicyRule{
+					{
+						Def: &RuleDefinition{
+							ID:         "rule_test",
+							Expression: "open.file.path == \"/etc/gshadow\"",
+							Combine:    OverridePolicy,
 						},
+						Policy: PolicyInfo{
+							Name:         "myLocal.policy",
+							Source:       PolicyProviderTypeRC,
+							InternalType: CustomPolicyType,
+						},
+						Accepted: true,
 					},
 				},
-				macros: map[string][]*PolicyMacro{},
 			},
 			wantErr: assert.NoError,
 		},
@@ -2269,9 +2582,9 @@ broken
 			r := strings.NewReader(tt.args.fileContent)
 
 			info := &PolicyInfo{
-				Name:   tt.args.name,
-				Source: tt.args.source,
-				Type:   tt.args.policyType,
+				Name:         tt.args.name,
+				Source:       tt.args.source,
+				InternalType: tt.args.policyType,
 			}
 
 			got, err := LoadPolicy(info, r, tt.args.macroFilters, tt.args.ruleFilters)

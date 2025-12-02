@@ -29,26 +29,26 @@ func TestHTTP2LongPath(t *testing.T) {
 	}{
 		{
 			name:           "Long path with huffman with bigger out buffer",
-			rawPath:        fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			rawPath:        "/" + strings.Repeat("a", maxHTTP2Path+1),
 			huffmanEnabled: true,
 		},
 		{
 			name:           "Long path with huffman with shorter out buffer",
-			rawPath:        fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
-			expectedPath:   fmt.Sprintf("/%s", strings.Repeat("a", 19)),
+			rawPath:        "/" + strings.Repeat("a", maxHTTP2Path+1),
+			expectedPath:   "/" + strings.Repeat("a", 19),
 			huffmanEnabled: true,
 			outBufSize:     20,
 		},
 		{
 			name:    "Long path without huffman with bigger out buffer",
-			rawPath: fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			rawPath: "/" + strings.Repeat("a", maxHTTP2Path+1),
 			// The path is truncated to maxHTTP2Path (including the leading '/')
-			expectedPath: fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path-1)),
+			expectedPath: "/" + strings.Repeat("a", maxHTTP2Path-1),
 		},
 		{
 			name:         "Long path without huffman with shorter out buffer",
-			rawPath:      fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
-			expectedPath: fmt.Sprintf("/%s", strings.Repeat("a", 19)),
+			rawPath:      "/" + strings.Repeat("a", maxHTTP2Path+1),
+			expectedPath: "/" + strings.Repeat("a", 19),
 			outBufSize:   20,
 		},
 	}
@@ -64,12 +64,14 @@ func TestHTTP2LongPath(t *testing.T) {
 			}
 			copy(arr[:], buf)
 
-			request := &EbpfTx{
-				Stream: HTTP2Stream{
-					Path: http2Path{
-						Is_huffman_encoded: tt.huffmanEnabled,
-						Raw_buffer:         arr,
-						Length:             uint8(len(buf)),
+			request := &EventWrapper{
+				EbpfTx: &EbpfTx{
+					Stream: HTTP2Stream{
+						Path: http2Path{
+							Is_huffman_encoded: tt.huffmanEnabled,
+							Raw_buffer:         arr,
+							Length:             uint8(len(buf)),
+						},
 					},
 				},
 			}
@@ -131,12 +133,14 @@ func TestHTTP2Path(t *testing.T) {
 				}
 				copy(arr[:], buf)
 
-				request := &EbpfTx{
-					Stream: HTTP2Stream{
-						Path: http2Path{
-							Is_huffman_encoded: huffmanEnabled,
-							Raw_buffer:         arr,
-							Length:             uint8(len(buf)),
+				request := &EventWrapper{
+					EbpfTx: &EbpfTx{
+						Stream: HTTP2Stream{
+							Path: http2Path{
+								Is_huffman_encoded: huffmanEnabled,
+								Raw_buffer:         arr,
+								Length:             uint8(len(buf)),
+							},
 						},
 					},
 				}
@@ -207,10 +211,12 @@ func TestHTTP2Method(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &EbpfTx{
-				Stream: tt.Stream,
+			eventWrapper := &EventWrapper{
+				EbpfTx: &EbpfTx{
+					Stream: tt.Stream,
+				},
 			}
-			assert.Equalf(t, tt.want, tx.Method(), "Method()")
+			assert.Equalf(t, tt.want, eventWrapper.Method(), "Method()")
 		})
 	}
 }

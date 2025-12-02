@@ -10,16 +10,27 @@ package collectorimpl
 
 import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converternoagent"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/debugexporter"
 	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
+	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
-	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 // ExtraFactories is an interface that provides extra factories for the collector.
@@ -27,21 +38,40 @@ import (
 type ExtraFactories interface {
 	GetProcessors() []processor.Factory
 	GetConverters() []confmap.ConverterFactory
+	GetExtensions() []extension.Factory
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
 type extraFactoriesWithAgentCore struct {
-	tagger   tagger.Component
-	hostname hostname.Component
+	tagger     tagger.Component
+	hostname   hostname.Component
+	ipcComp    ipc.Component
+	traceAgent traceagent.Component
+	log        log.Component
 }
 
 var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
-func NewExtraFactoriesWithAgentCore(tagger tagger.Component, hostname hostname.Component) ExtraFactories {
+func NewExtraFactoriesWithAgentCore(
+	tagger tagger.Component,
+	hostname hostname.Component, ipcComp ipc.Component,
+	traceAgent traceagent.Component,
+	log log.Component,
+) ExtraFactories {
 	return extraFactoriesWithAgentCore{
-		tagger:   tagger,
-		hostname: hostname,
+		tagger:     tagger,
+		hostname:   hostname,
+		ipcComp:    ipcComp,
+		traceAgent: traceAgent,
+		log:        log,
+	}
+}
+
+func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
+	return []extension.Factory{
+		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
+		hpflareextension.NewFactoryForAgent(e.ipcComp),
 	}
 }
 
@@ -65,22 +95,27 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 	return extraFactoriesWithoutAgentCore{}
 }
 
+// GetExtensions returns the extensions for the collector.
+func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
+	return []extension.Factory{}
+}
+
 // GetProcessors returns the processors for the collector.
 func (e extraFactoriesWithoutAgentCore) GetProcessors() []processor.Factory {
-	return nil
+	return []processor.Factory{k8sattributesprocessor.NewFactory()}
 }
 
 // GetConverters returns the converters for the collector.
 func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFactory {
 	return []confmap.ConverterFactory{
-		converternoagent.NewFactory(),
+		converters.NewFactoryWithoutAgent(),
 	}
 }
 
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		recvMap, err := otelcol.MakeFactoryMap(ebpfcollector.NewFactory())
+		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory(), otlpreceiver.NewFactory())
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
@@ -93,7 +128,15 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		processors, err := otelcol.MakeFactoryMap(extraFactories.GetProcessors()...)
+		processorFactories := []processor.Factory{attributesprocessor.NewFactory(), cumulativetodeltaprocessor.NewFactory()}
+		processorFactories = append(processorFactories, extraFactories.GetProcessors()...)
+		processors, err := otelcol.MakeFactoryMap(processorFactories...)
+		if err != nil {
+			return otelcol.Factories{}, err
+		}
+
+		extensionFactories := extraFactories.GetExtensions()
+		extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
@@ -102,6 +145,8 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			Receivers:  recvMap,
 			Exporters:  expMap,
 			Processors: processors,
+			Extensions: extensions,
+			Telemetry:  otelconftelemetry.NewFactory(),
 		}, nil
 	}
 }

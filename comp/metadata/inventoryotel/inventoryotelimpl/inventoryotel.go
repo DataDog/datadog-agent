@@ -9,7 +9,6 @@ package inventoryotelimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path"
@@ -56,13 +55,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
 }
 
 type inventoryotel struct {
@@ -158,7 +150,7 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
 	body, err := i.client.Get(u.String(), ipchttp.WithTimeout(httpTO))
 	if err != nil {
-		return nil, i.log.Error("error fetching remote otel config: %w", err)
+		return nil, i.log.Errorf("error fetching remote otel config: %v", err)
 	}
 
 	return i.parseResponseFromJSON(body)

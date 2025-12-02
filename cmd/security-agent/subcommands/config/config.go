@@ -9,6 +9,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -22,6 +23,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
@@ -56,9 +58,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -75,9 +77,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -96,9 +98,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -117,9 +119,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -138,9 +140,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					fx.Supply(cliParams),
 					fx.Supply(core.BundleParams{
 						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-						SecretParams: secrets.NewEnabledParams(),
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -167,7 +169,7 @@ func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.C
 
 func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, client ipc.HTTPClient, params *cliParams) error {
 	if len(params.args) != 2 {
-		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
+		return errors.New("exactly two parameters are required: the setting name and its value")
 	}
 
 	c, err := getSettingsClient(client)
@@ -191,7 +193,7 @@ func setConfigValue(_ log.Component, _ config.Component, _ secrets.Component, cl
 
 func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, client ipc.HTTPClient, params *cliParams) error {
 	if len(params.args) != 1 {
-		return fmt.Errorf("a single setting name must be specified")
+		return errors.New("a single setting name must be specified")
 	}
 
 	c, err := getSettingsClient(client)

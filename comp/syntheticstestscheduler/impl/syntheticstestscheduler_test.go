@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -43,7 +44,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 	mockConfig.SetWithoutSource("run_path", testDir)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	configs := &schedulerConfigs{
@@ -51,7 +52,7 @@ func Test_SyntheticsTestScheduler_StartAndStop(t *testing.T) {
 		flushInterval:              100 * time.Millisecond,
 		syntheticsSchedulerEnabled: true,
 	}
-	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{})
+	scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, time.Now, &teststatsd.Client{}, nil)
 	assert.Nil(t, err)
 	assert.False(t, scheduler.running)
 
@@ -90,7 +91,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	configs := &schedulerConfigs{
@@ -422,7 +423,7 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				return secondUpdateTime
 			}
 
-			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{})
+			scheduler := newSyntheticsTestScheduler(configs, nil, l, nil, timeNowFn, &teststatsd.Client{}, nil)
 			assert.False(t, scheduler.running)
 			applied := map[string]state.ApplyStatus{}
 			applyFunc := func(id string, status state.ApplyStatus) {
@@ -471,7 +472,6 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 				assert.Nil(t, err)
 
 				expectedNextRun := secondUpdateTime
-				expectedLastRun := time.Time{}
 
 				// If the test existed before
 				if prevCfg, existed := previousParsedConfigs[newUpdate.PublicID]; existed {
@@ -486,7 +486,6 @@ func Test_SyntheticsTestScheduler_OnConfigUpdate(t *testing.T) {
 
 				cfg[newUpdate.PublicID] = &runningTestState{
 					cfg:     newUpdate,
-					lastRun: expectedLastRun,
 					nextRun: expectedNextRun,
 				}
 			}
@@ -548,7 +547,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+			l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 			assert.Nil(t, err)
 			utillog.SetupLogger(l, "debug")
 
@@ -565,7 +564,7 @@ func Test_SyntheticsTestScheduler_Processing(t *testing.T) {
 			mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(ctrl)
 
 			ctx := context.TODO()
-			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{})
+			scheduler := newSyntheticsTestScheduler(configs, mockEpForwarder, l, &mockHostname{}, timeNowFn, &teststatsd.Client{}, nil)
 			assert.False(t, scheduler.running)
 
 			configs := map[string]state.RawConfig{}
@@ -628,7 +627,7 @@ func (m *mockHostname) Get(_ context.Context) (string, error) {
 func Test_SyntheticsTestScheduler_RunWorker_ProcessesTestCtxAndSendsResult(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 	ctx, cancel := context.WithCancel(context.TODO())
@@ -704,13 +703,14 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 	now := time.Now()
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := utillog.LoggerFromWriterWithMinLevelAndFormat(w, utillog.DebugLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
 	scheduler := &syntheticsTestScheduler{
 		timeNowFn:                    func() time.Time { return now },
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
+		running:                      true,
 		state: runningState{
 			tests: map[string]*runningTestState{
 				"test1": {
@@ -718,35 +718,99 @@ func TestFlushEnqueuesDueTests(t *testing.T) {
 						PublicID: "test1",
 						Interval: 10, // seconds
 					},
-					lastRun: now.Add(-20 * time.Second),
 					nextRun: now.Add(-10 * time.Second),
 				},
 			},
 		},
-		log: l,
+		flushInterval: 10 * time.Second,
+		log:           l,
 	}
 
 	// Flush at 'now'
-	scheduler.flush(now)
+	scheduler.flush(context.Background(), now)
 
 	select {
 	case ctx := <-scheduler.syntheticsTestProcessingChan:
-		time.Sleep(1000 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		if ctx.cfg.PublicID != "test1" {
 			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
 		}
 	case <-time.After(1 * time.Second):
-		t.Errorf("expected test1 to be enqueuedffff")
+		t.Errorf("expected test1 to be enqueued")
 	}
 
-	// The lastRun should be updated to the old nextRun
 	rt := scheduler.state.tests["test1"]
-	expectedLastRun := now.Add(-10 * time.Second)
-	assert.Equal(t, expectedLastRun, rt.lastRun)
 
 	// The nextRun should be updated based on the old nextRun, not flushTime
 	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
 	assert.Equal(t, expectedNextRun, rt.nextRun)
 }
 
+func TestFlushEnqueueExhaustion(t *testing.T) {
+	now := time.Now()
+	var b bytes.Buffer
+	w := bufio.NewWriter(&b)
+	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, utillog.DebugLvl)
+	assert.Nil(t, err)
+	tl := &testLogger{
+		LoggerInterface: l,
+	}
+	utillog.SetupLogger(tl, "debug")
+
+	scheduler := &syntheticsTestScheduler{
+		timeNowFn:                    func() time.Time { return now },
+		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 1),
+		running:                      true,
+		state: runningState{
+			tests: map[string]*runningTestState{
+				"test1": {
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "test1",
+						Interval: 10, // seconds
+					},
+					nextRun: now.Add(-10 * time.Second),
+				},
+				"test2": {
+					cfg: common.SyntheticsTestConfig{
+						PublicID: "test1",
+						Interval: 10, // seconds
+					},
+					nextRun: now.Add(-10 * time.Second),
+				},
+			},
+		},
+		flushInterval: 100 * time.Millisecond,
+		log:           tl,
+	}
+
+	// Flush at 'now'
+	scheduler.flush(context.Background(), now)
+
+	select {
+	case ctx := <-scheduler.syntheticsTestProcessingChan:
+		time.Sleep(200 * time.Millisecond)
+		if ctx.cfg.PublicID != "test1" {
+			t.Errorf("expected test1, got %s", ctx.cfg.PublicID)
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Errorf("expected test2 not to be enqueued")
+	}
+
+	assert.Equal(t, []string{"test queue high usage (≥70%), increase the number of workers", "enqueuing test test1 timed out, increase the number of workers"}, tl.errorCalls)
+	rt := scheduler.state.tests["test1"]
+
+	// The nextRun should be updated based on the old nextRun, not flushTime
+	expectedNextRun := now // old nextRun (-10s) + interval (10s) = now
+	assert.Equal(t, expectedNextRun, rt.nextRun)
+}
+
+type testLogger struct {
+	utillog.LoggerInterface
+	errorCalls []string
+}
+
+func (l *testLogger) Warnf(format string, params ...interface{}) error {
+	l.errorCalls = append(l.errorCalls, fmt.Sprintf(format, params...))
+	return nil
+}
 func ptr[T any](v T) *T { return &v }

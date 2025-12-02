@@ -26,6 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	eventsMapSuffix = "_batch_events"
+)
+
 // Configure a given `*manager.Manager` for event processing
 // This essentially instantiates the perf map/ring buffers and configure the
 // eBPF maps where events are enqueued.
@@ -192,7 +196,7 @@ func alreadySetUp(proto string, m *manager.Manager) bool {
 // handlerByProtocol acts as registry holding a temporary reference to a
 // `ddebpf.Handler` instance for a given protocol. This is done to simplify the
 // usage of this package a little bit, so a call to `events.Configure` can be
-// later linked to a call to `events.NewConsumer` without the need to explicitly
+// later linked to a call to `events.NewBatchConsumer` without the need to explicitly
 // propagate any values. The map is guarded by `handlerMux`.
 var handlerByProtocol map[string]ddebpf.EventHandler
 var handlerMux sync.Mutex

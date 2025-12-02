@@ -41,7 +41,7 @@ func NewWinCrashReporter(hive registry.Key, key string) (*WinCrashReporter, erro
 	wcr := &WinCrashReporter{
 		hive:           hive,
 		baseKey:        key,
-		sysProbeClient: sysprobeclient.GetCheckClient(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
+		sysProbeClient: sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket"))),
 	}
 	return wcr, nil
 }

@@ -2,21 +2,6 @@
 Release Notes
 =============
 
-.. _Release Notes_7.72.4:
-
-7.72.4
-======
-
-.. _Release Notes_7.72.4_Prelude:
-
-Prelude
--------
-
-Release on: 2025-12-01
-
-- Please refer to the `7.72.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7724>`_ for the list of changes on the Core Checks
-
-
 .. _Release Notes_7.72.3:
 
 7.72.3
@@ -16726,7 +16711,7 @@ New Features
   only updates when containers start/die to save resources
 
 - Add a new option, `force_tls_12`, to the agent configuration to force the
-  TLS version to 1.2 when contactin Datatog.
+  TLS version to 1.2 when contactin Datadog.
 
 - Reno and releasenotes are now mandatory. A test will fail if no
   releasenotes where added/updated to the PR. A 'noreno' label can be added

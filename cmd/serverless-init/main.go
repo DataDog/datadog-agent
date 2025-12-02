@@ -52,13 +52,11 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
-	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const datadogConfigPath = "datadog.yaml"
@@ -86,10 +84,8 @@ func main() {
 		fx.Supply(coreconfig.NewParams("")),
 		coreconfig.Module(),
 		logscompressionfx.Module(),
-		fx.Supply(secrets.NewEnabledParams()),
 		secretsfx.Module(),
-		fx.Provide(func(secrets secrets.Component) option.Option[secrets.Component] { return option.New(secrets) }),
-		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "off", true)),
+		fx.Supply(logdef.ForOneShot(modeConf.LoggerName, "error", true)),
 		logfx.Module(),
 		nooptelemetry.Module(),
 		hostnameimpl.Module(),
@@ -105,20 +101,20 @@ func main() {
 }
 
 // removing these unused dependencies will cause silent crash due to fx framework
-func run(_ secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(modeConf, tagger, compression, hostname)
+func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
-	// Defers are LIFO
+	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
 	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer cloudService.Shutdown(*metricAgent, traceAgent, err)
 
 	return err
 }
 
-func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
-	tracelog.SetLogger(corelogger{})
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
 	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
@@ -126,10 +122,6 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 	cloudService := cloudservice.GetCloudServiceType()
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
-
-	// Ignore errors for now. Once we go GA, check for errors
-	// and exit right away.
-	_ = cloudService.Init()
 
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
@@ -144,16 +136,23 @@ func setup(_ mode.Conf, tagger tagger.Component, compression logscompression.Com
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, nil)
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
+
+	// Disable UDS listener for serverless environments - traces are sent via HTTP to localhost instead.
+	// This avoids noisy error logs.
+	pkgconfigsetup.Datadog().Set("apm_config.receiver_socket", "", model.SourceAgentRuntime)
 
 	origin := cloudService.GetOrigin()
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
 	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
 	traceAgent := setupTraceAgent(tags, functionTags, tagger)
+
+	// TODO check for errors and exit
+	_ = cloudService.Init(traceAgent)
 
 	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
@@ -189,7 +188,6 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		ColdStartSpanID:     random.Random.Uint64(),
 		AzureServerlessTags: azureTags.String(),
 		FunctionTags:        functionTags,
 	})

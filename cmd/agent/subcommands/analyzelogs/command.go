@@ -9,6 +9,7 @@ package analyzelogs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -27,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -72,7 +73,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Run a Datadog agent logs configuration and print the results to stdout`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("log config file path is required")
+				return errors.New("log config file path is required")
 			}
 			cliParams.LogConfigPath = args[0]
 			return fxutil.OneShot(runAnalyzeLogs,
@@ -80,8 +81,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot("", "off", true)}),
+				secretsnoopfx.Module(),
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadmetafx.Module(defaults.DefaultParams()),
 				workloadfilterfx.Module(),
@@ -191,7 +192,7 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 	waitTime := time.Duration(1) * time.Second
 	waitCtx, cancelTimeout := context.WithTimeout(
 		context.Background(), waitTime)
-	common.LoadComponents(nil, nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(nil, nil, nil, nil, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.LogConfigPath}, 1, "", ac)
 	cancelTimeout()
@@ -214,5 +215,5 @@ func resolveCheckConfig(ac autodiscovery.Component, cliParams *CliParams) ([]*so
 		}
 		return sources, nil
 	}
-	return nil, fmt.Errorf("Cannot get source")
+	return nil, errors.New("Cannot get source")
 }

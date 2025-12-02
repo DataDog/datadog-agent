@@ -11,7 +11,6 @@ package clusterchecksimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -55,11 +54,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload returns an error since clusterchecks metadata payloads are not splittable.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split cluster checks payload")
 }
 
 type clusterChecksImpl struct {

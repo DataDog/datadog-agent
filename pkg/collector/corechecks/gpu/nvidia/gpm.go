@@ -69,7 +69,7 @@ var allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
 	},
 }
 
-func newGPMCollector(device ddnvml.Device) (c Collector, err error) {
+func newGPMCollector(device ddnvml.Device, _ *CollectorDependencies) (c Collector, err error) {
 	support, err := device.GpmQueryDeviceSupport()
 	if err != nil {
 		return nil, fmt.Errorf("failed to query for GPM support: %w", err)

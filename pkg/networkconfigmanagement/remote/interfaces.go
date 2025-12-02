@@ -14,8 +14,8 @@ import "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 type Client interface {
 	Connect() error
 	NewSession() (Session, error)
-	RetrieveRunningConfig() (string, error)
-	RetrieveStartupConfig() (string, error)
+	RetrieveRunningConfig() ([]byte, error)
+	RetrieveStartupConfig() ([]byte, error)
 	SetProfile(p *profile.NCMProfile)
 	Close() error
 }

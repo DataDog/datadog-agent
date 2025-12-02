@@ -21,8 +21,8 @@ import (
 
 const (
 	emrInjectorVersion   = "0.45.0-1"
-	emrJavaTracerVersion = "1.53.0-1"
-	emrAgentVersion      = "7.70.2-1"
+	emrJavaTracerVersion = "1.55.0-1"
+	emrAgentVersion      = "7.71.1-1"
 	hadoopLogFolder      = "/var/log/hadoop-yarn/containers/"
 	hadoopDriverFolder   = "/mnt/var/log/hadoop/steps/"
 )
@@ -57,7 +57,9 @@ type extraEmrInstanceInfo struct {
 
 // SetupEmr sets up the DJM environment on EMR
 func SetupEmr(s *common.Setup) error {
-	s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
+	if os.Getenv("DD_NO_AGENT_INSTALL") != "true" {
+		s.Packages.Install(common.DatadogAgentPackage, emrAgentVersion)
+	}
 	s.Packages.Install(common.DatadogAPMInjectPackage, emrInjectorVersion)
 	s.Packages.Install(common.DatadogAPMLibraryJavaPackage, emrJavaTracerVersion)
 
@@ -69,7 +71,7 @@ func SetupEmr(s *common.Setup) error {
 		return fmt.Errorf("failed to get hostname: %w", err)
 	}
 	s.Config.DatadogYAML.Hostname = hostname
-	s.Config.DatadogYAML.DJM.Enabled = true
+	s.Config.DatadogYAML.DJM.Enabled = config.BoolToPtr(true)
 
 	if os.Getenv("DD_DATA_STREAMS_ENABLED") == "true" {
 		s.Out.WriteString("Propagating variable DD_DATA_STREAMS_ENABLED=true to tracer configuration\n")
@@ -191,7 +193,7 @@ func resolveEmrClusterName(s *common.Setup, jobFlowID string) string {
 }
 
 func enableEmrLogs(s *common.Setup, collectFromDriver bool) {
-	s.Config.DatadogYAML.LogsEnabled = true
+	s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 	loadLogProcessingRules(s)
 	// Load the existing integration config and add logs section to it
 	sparkIntegration := s.Config.IntegrationConfigs["spark.d/conf.yaml"]

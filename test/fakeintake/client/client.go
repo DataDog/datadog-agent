@@ -84,6 +84,7 @@ const (
 	ndmEndpoint                  = "/api/v2/ndm"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
 	netpathEndpoint              = "/api/v2/netpath"
+	ncmEndpoint                  = "/api/v2/ndmconfig"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
@@ -144,8 +145,8 @@ type Client struct {
 	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
-	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
-	hostAggregator                 aggregator.HostAggregator
+	ncmAggregator                  aggregator.NCMAggregator
+	hostAggregator                 aggregator.HostTagsAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -176,8 +177,8 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
-		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
-		hostAggregator:                 aggregator.NewHostAggregator(),
+		ncmAggregator:                  aggregator.NewNCMAggregator(),
+		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -336,7 +337,15 @@ func (c *Client) getNetpathEvents() error {
 	return c.netpathAggregator.UnmarshallPayloads(payloads)
 }
 
-func (c *Client) getHostInfos() error {
+func (c *Client) getNCMEvents() error {
+	payloads, err := c.getFakePayloads(ncmEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ncmAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getHostTags() error {
 	payloads, err := c.getFakePayloads(intakeEndpoint)
 	if err != nil {
 		return err
@@ -397,14 +406,6 @@ func (c *Client) FilterContainerImages(name string, options ...MatchOpt[*aggrega
 	return filterPayload(images, options...)
 }
 
-func (c *Client) getServiceDiscoveries() error {
-	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
-	if err != nil {
-		return err
-	}
-	return c.serviceDiscoveryAggregator.UnmarshallPayloads(payloads)
-}
-
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
 // TODO: handle multiple flares / flush when returning latest flare
 func (c *Client) GetLatestFlare() (flare.Flare, error) {
@@ -421,7 +422,7 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
+	body, err := c.get("fakeintake/payloads?endpoint=" + endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +437,7 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/health", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/health")
 	if err != nil {
 		return err
 	}
@@ -449,7 +450,7 @@ func (c *Client) GetServerHealth() error {
 
 // ConfigureOverride sets a response override on the fakeintake server
 func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
-	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+	route := c.fakeIntakeURL + "/fakeintake/configure/override"
 
 	buf := new(bytes.Buffer)
 	err := json.NewEncoder(buf).Encode(override)
@@ -471,7 +472,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 
 // GetLastAPIKey returns the last apiKey sent with a payload to the intake
 func (c *Client) GetLastAPIKey() (string, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/debug/lastAPIKey", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
 	if err != nil {
 		return "", err
 	}
@@ -674,7 +675,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
 	if err != nil {
 		return err
 	}
@@ -1083,24 +1084,33 @@ func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 	return netpaths, nil
 }
 
-// GetLatestHostInfos returns the latest host information received by the fake intake
-func (c *Client) GetLatestHostInfos() ([]*aggregator.Host, error) {
-	err := c.getHostInfos()
+// GetNCMPayloads fetches fakeintake on `/api/v2/ndmconfig` endpoint and returns all received NCM payloads
+func (c *Client) GetNCMPayloads() ([]*aggregator.NCMPayload, error) {
+	err := c.getNCMEvents()
+	if err != nil {
+		return nil, err
+	}
+	var ncmPayloads []*aggregator.NCMPayload
+	for _, name := range c.ncmAggregator.GetNames() {
+		ncmPayloads = append(ncmPayloads, c.ncmAggregator.GetPayloadsByName(name)...)
+	}
+	return ncmPayloads, nil
+}
+
+// GetHostTags returns the latest host information received by the fake intake
+func (c *Client) GetHostTags(hostname string) []*aggregator.HostTags {
+	return c.hostAggregator.GetPayloadsByName(hostname)
+}
+
+// GetHosts returns the list of all known hostnames that have sent some host-tags
+func (c *Client) GetHosts() ([]string, error) {
+	err := c.getHostTags()
 
 	if err != nil {
 		return nil, err
 	}
 
-	var hostInfos []*aggregator.Host
-	for _, name := range c.hostAggregator.GetNames() {
-		payloads := c.hostAggregator.GetPayloadsByName(name)
-
-		if len(payloads) > 0 {
-			hostInfos = append(hostInfos, payloads...)
-		}
-	}
-
-	return hostInfos, nil
+	return c.hostAggregator.GetNames(), nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
@@ -1124,20 +1134,4 @@ func filterPayload[T aggregator.PayloadItem](payloads []T, options ...MatchOpt[T
 		}
 	}
 	return filteredPayloads, nil
-}
-
-// GetServiceDiscoveries fetches fakeintake on `api/v2/apmtelemetry` endpoint and returns
-// all received service discovery payloads
-func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload, error) {
-	err := c.getServiceDiscoveries()
-	if err != nil {
-		return nil, err
-	}
-
-	names := c.serviceDiscoveryAggregator.GetNames()
-	payloads := make([]*aggregator.ServiceDiscoveryPayload, 0, len(names))
-	for _, name := range names {
-		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
-	}
-	return payloads, nil
 }

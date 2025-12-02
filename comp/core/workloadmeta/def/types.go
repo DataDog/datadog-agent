@@ -77,6 +77,9 @@ const (
 	// agent from an orchestrator. `kubelet` and `ecs` use this.
 	SourceNodeOrchestrator Source = "node_orchestrator"
 
+	// SourceNVML represents entities detected by the NVML GPU collector.
+	SourceNVML Source = "nvml"
+
 	// SourceClusterOrchestrator represents entities detected by calling
 	// the central component of an orchestrator, or the Datadog Cluster
 	// Agent.  `kube_metadata` and `cloudfoundry` use this.
@@ -105,6 +108,9 @@ const (
 	// SourceServiceDiscovery represents service discovery data for processes
 	// detected by the process collector.
 	SourceServiceDiscovery Source = "service_discovery"
+
+	// SourceKubeAPIServer represents metadata collected from the Kubernetes API Server
+	SourceKubeAPIServer Source = "kubeapiserver"
 )
 
 // ContainerRuntime is the container runtime used by a container.
@@ -119,7 +125,8 @@ const (
 	ContainerRuntimeGarden     ContainerRuntime = "garden"
 	// ECS Fargate can be considered as a runtime in the sense that we don't
 	// know the actual runtime but we need to identify it's Fargate
-	ContainerRuntimeECSFargate ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSFargate          ContainerRuntime = "ecsfargate"
+	ContainerRuntimeECSManagedInstances ContainerRuntime = "ecsmanagedinstances"
 )
 
 // ContainerRuntimeFlavor is the container runtime with respect to the OCI spect
@@ -159,8 +166,9 @@ type ECSLaunchType string
 
 // Defined ECSLaunchTypes
 const (
-	ECSLaunchTypeEC2     ECSLaunchType = "ec2"
-	ECSLaunchTypeFargate ECSLaunchType = "fargate"
+	ECSLaunchTypeEC2              ECSLaunchType = "ec2"
+	ECSLaunchTypeFargate          ECSLaunchType = "fargate"
+	ECSLaunchTypeManagedInstances ECSLaunchType = "managed_instances"
 )
 
 // AgentType defines the workloadmeta agent type
@@ -210,6 +218,9 @@ const (
 	KubeletID = "kubelet-id"
 	// KubeletName is used to name the workloadmeta kubelet entity
 	KubeletName = "kubelet"
+	// KubeletMetricsID is the ID of the workloadmeta KindKubeletMetrics entity.
+	// There can only be one per node.
+	KubeletMetricsID = "kubelet-metrics"
 )
 
 // Entity represents a single unit of work being done that is of interest to
@@ -1239,6 +1250,8 @@ type Kubelet struct {
 	EntityID
 	EntityMeta
 	ConfigDocument KubeletConfigDocument
+	RawConfig      []byte
+	NodeName       string
 }
 
 // GetID implements Entity#GetID
@@ -1636,8 +1649,8 @@ type Service struct {
 	// UDPPorts is the list of UDP ports the service is listening on
 	UDPPorts []uint16
 
-	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	// APMInstrumentation indicates if the service is instrumented for APM
+	APMInstrumentation bool
 
 	// Type is the service type (e.g., "web_service")
 	Type string
@@ -1706,6 +1719,9 @@ type Process struct {
 
 	// Owner will temporarily duplicate the ContainerID field until the new collector is enabled so we can then remove the ContainerID field
 	Owner *EntityID // Owner is a reference to a container in WLM
+
+	// GPUs is a reference to a list of GPU entities in WLM that this process is using
+	GPUs []EntityID
 
 	// Service contains service discovery information for this process
 	Service *Service

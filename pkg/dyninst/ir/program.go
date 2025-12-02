@@ -7,6 +7,12 @@
 
 package ir
 
+import (
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
+)
+
 // ProgramID is a ID corresponding to an instance of a Program.  It is used to
 // identify messages from this program as they are communicated over the ring
 // buffer.
@@ -14,10 +20,6 @@ type ProgramID uint32
 
 // TypeID is a ID corresponding to a type in a program.
 type TypeID uint32
-
-// EventID is a ID corresponding to an event output by the program.  It is used
-// to identify events as they are communicated over the ring buffer.
-type EventID uint32
 
 // SubprogramID is a ID corresponding to a subprogram in a program.
 type SubprogramID uint32
@@ -101,6 +103,30 @@ type Subprogram struct {
 	Variables []*Variable
 }
 
+// VariableRole is the role of a variable within a subprogram.
+type VariableRole uint8
+
+// VariableRole values.
+const (
+	_ VariableRole = iota
+	VariableRoleParameter
+	VariableRoleReturn
+	VariableRoleLocal
+)
+
+func (vr VariableRole) String() string {
+	switch vr {
+	case VariableRoleParameter:
+		return "Parameter"
+	case VariableRoleReturn:
+		return "Return"
+	case VariableRoleLocal:
+		return "Local"
+	default:
+		return fmt.Sprintf("VariableRole(%d)", vr)
+	}
+}
+
 // Variable represents a variable or parameter in the subprogram.
 type Variable struct {
 	// Name is the name of the variable.
@@ -111,14 +137,58 @@ type Variable struct {
 	// Sorted by low limit of their ranges. Note the ranges might overlap,
 	// in case of variables inlined multiple times in the same parent subprogram.
 	Locations []Location
-	// IsParameter is true if the variable is a parameter.
-	IsParameter bool
-	// IsReturn is true if this variable is a return value.
-	IsReturn bool
+	// Role is the role of the variable within the subprogram.
+	Role VariableRole
 }
 
 // PCRange is the range of PC values that will be probed.
 type PCRange = [2]uint64
+
+// Template represents the concrete template structure for a probe.
+type Template struct {
+	// TemplateString is the complete template string.
+	TemplateString string
+	// Segments are the ordered parts of the template.
+	Segments []TemplateSegment
+}
+
+// TemplateSegment represents a concrete part of the template.
+type TemplateSegment interface {
+	templateSegment() // marker method
+}
+
+// StringSegment is a string literal in the template.
+type StringSegment string
+
+func (s StringSegment) templateSegment() {}
+
+// JSONSegment is an expression segment in the template.
+type JSONSegment struct {
+	// JSON is the AST of the DSL segment.
+	JSON exprlang.Expr
+	// DSL is the raw expression language segment.
+	DSL string
+	// EventKind is the kind of the event within the probe that corresponds to this segment (i.e. entry, return, line).
+	EventKind EventKind
+	// EventExpressionIndex is the index of the expression within the event.
+	EventExpressionIndex int
+}
+
+func (s *JSONSegment) templateSegment() {}
+
+// InvalidSegment is a segment that represents an issue with the template.
+type InvalidSegment struct {
+	// Error is the error that occurred while parsing the segment.
+	Error string
+	DSL   string
+}
+
+func (s InvalidSegment) templateSegment() {}
+
+// DurationSegment is a segment that is a simple reference to @duration.
+type DurationSegment struct{}
+
+func (s *DurationSegment) templateSegment() {}
 
 // Probe represents a probe from the config as it applies to the program.
 type Probe struct {
@@ -127,15 +197,12 @@ type Probe struct {
 	Subprogram *Subprogram
 	// The events that trigger the probe.
 	Events []*Event
-	// TODO: Add template support:
-	//	TemplateSegments []TemplateSegment
+	// Template contains the concrete template structure for this probe.
+	Template *Template
 }
 
 // Event corresponds to an action that will occur when a PC is hit.
 type Event struct {
-	// ID of the event. This is used to identify data produced by the event over
-	// the ring buffer.
-	ID EventID
 	// Kind is the kind of event.
 	Kind EventKind
 	// SourceLine for line events, empty otherwise.

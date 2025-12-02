@@ -22,6 +22,12 @@ typedef struct throttler_params {
   int64_t budget;
 } throttler_params_t;
 
+typedef struct stats {
+  uint64_t cpu_ns;
+  uint64_t hit_cnt;
+  uint64_t throttled_cnt;
+} stats_t;
+
 typedef enum dynamic_size_class {
   DYNAMIC_SIZE_CLASS_STATIC = 0,
   DYNAMIC_SIZE_CLASS_SLICE = 1,

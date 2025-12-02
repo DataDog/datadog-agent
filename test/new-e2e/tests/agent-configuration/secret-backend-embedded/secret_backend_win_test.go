@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -58,5 +58,5 @@ secret_backend_config:
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		secretOutput := v.Env().Agent.Client.Secret()
 		require.Contains(t, secretOutput, "fake_yaml_key")
-	}, 30*time.Second, 2*time.Second)
+	}, 60*time.Second, 2*time.Second, "could not check if secretOutput contains 'fake_yaml_key' within the allotted time")
 }

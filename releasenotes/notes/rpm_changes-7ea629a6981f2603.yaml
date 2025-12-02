@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    Only a minimal set of RPM libraries consisting of librpmio & librpm is now
+    bundled with the agent. The command line tools aren't bundled anymore.
+  - |
+    libmagic and the magic database aren't bundled with the agent anymore.
+  - |
+    libdb tools and libraries aren't bundled with the agent anymore
+  - |
+    elfutils tools and libarires aren't bundled with the agent anymore

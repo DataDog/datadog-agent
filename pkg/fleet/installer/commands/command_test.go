@@ -10,11 +10,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
 )
 
 const (

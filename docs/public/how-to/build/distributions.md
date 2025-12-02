@@ -225,12 +225,11 @@ You can then invoke one of the windows build scripts, available in `tasks/winbui
 These scripts read a few environment variables, notably (non-exhaustive !):
 
 - `OMNIBUS_TARGET` - usually set to `main`
-- `MAJOR_VERSION` - `7` is the latest
 - `TARGET_ARCH` - only `x64` is supported at the moment
 
 /// example
 ```powershell
-docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e MAJOR_VERSION=7 -e TARGET_ARCH=x64 registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2025_x64:v77240728-510448c3 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
+docker run -v "$(Get-Location):c:\mnt" -e OMNIBUS_TARGET=main -e TARGET_ARCH=x64 registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2025_x64:v77240728-510448c3 powershell -C "c:\mnt\tasks\winbuildscripts\Build-AgentPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
 ```
 ///
 

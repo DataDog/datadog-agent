@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -18,7 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/api/loader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // The agent loader starts the trace-agent process when required,
@@ -39,12 +39,19 @@ import (
 // os.Args[3:] are the arguments to the trace-agent command
 
 func main() {
+	// check if the trace-agent path is absolute or found in the PATH
+	fullPath, err := exec.LookPath(os.Args[2])
+	if err != nil {
+		log.Criticalf("Failed to look up the trace-agent binary: %v", err)
+		os.Exit(1)
+	}
+
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 	cfg.SetConfigFile(os.Args[1])
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), nil)
+	err = pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, nil)
 	if err != nil {
 		log.Warnf("Failed to load the configuration: %v", err)
-		execOrExit(os.Environ())
+		execOrExit(os.Environ(), fullPath)
 	}
 
 	// comp/trace/config/config*.go
@@ -66,7 +73,7 @@ func main() {
 	)
 	if err != nil {
 		log.Warnf("Failed to initialize the logger: %v", err)
-		execOrExit(os.Environ())
+		execOrExit(os.Environ(), fullPath)
 	}
 
 	if !utils.IsAPMEnabled(cfg) {
@@ -76,7 +83,7 @@ func main() {
 
 	if !cfg.GetBool("apm_config.socket_activation.enabled") {
 		log.Infof("Socket-activation for the trace-agent is disabled, running the trace-agent directly...")
-		execOrExit(os.Environ())
+		execOrExit(os.Environ(), fullPath)
 	}
 
 	listeners, err := getListeners(cfg)
@@ -88,7 +95,7 @@ func main() {
 				log.Warnf("Failed to close file descriptor %s: %v", name, err)
 			}
 		}
-		execOrExit(os.Environ())
+		execOrExit(os.Environ(), fullPath)
 	}
 
 	if len(listeners) == 0 {
@@ -118,12 +125,14 @@ func main() {
 	} else {
 		log.Debugf("Events received on %d sockets", n)
 		for _, pfd := range pollfds {
-			log.Debugf("Socket %d has events %s", pfd.Fd, reventToString(pfd.Revents))
+			if pfd.Revents != 0 {
+				log.Debugf("Socket %d has events %s", pfd.Fd, reventToString(pfd.Revents))
+			}
 		}
 	}
 
 	// start the trace-agent whether there was an error or some data on a socket
-	execOrExit(env)
+	execOrExit(env, fullPath)
 }
 
 // Returns a string representation of the events that occurred on a socket
@@ -147,11 +156,11 @@ func reventToString(revents int16) string {
 	return ret
 }
 
-func execOrExit(env []string) {
+func execOrExit(env []string, fullPath string) {
 	log.Info("Starting the trace-agent...")
 	log.Tracef("Starting the trace-agent with env: %+q", env)
 	log.Flush()
-	err := unix.Exec(os.Args[2], os.Args[2:], env)
+	err := unix.Exec(fullPath, os.Args[2:], env)
 	log.Errorf("Failed to start the trace-agent with args %+q: %v", os.Args[2:], err)
 	log.Flush()
 	os.Exit(1)
@@ -239,7 +248,7 @@ func getListeners(cfg model.Reader) (map[string]uintptr, error) {
 	}
 
 	// OTLP TCP receiver
-	if configcheck.IsEnabled(cfg) {
+	if configcheck.IsConfigEnabled(cfg) {
 		grpcPort := cfg.GetInt(pkgconfigsetup.OTLPTracePort)
 		log.Infof("Listening to otlp port %d", grpcPort)
 		ln, err := loader.GetTCPListener(fmt.Sprintf("%s:%d", traceCfgReceiverHost, grpcPort))

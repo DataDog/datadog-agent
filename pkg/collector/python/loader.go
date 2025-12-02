@@ -11,16 +11,17 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
 
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -127,7 +128,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if rtloader == nil {
-		return nil, fmt.Errorf("python is not initialized")
+		return nil, errors.New("python is not initialized")
 	}
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
@@ -159,28 +160,31 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	var name string
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
-	for _, name = range modules {
+	var loadErrors []string // store errors for each module
+	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
 		defer C._free(unsafe.Pointer(moduleName))
 		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
-			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
+			if strings.HasPrefix(name, wheelNamespace+".") {
 				loadedAsWheel = true
 			}
 			break
 		}
 
-		if err = getRtLoaderError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			log.Debugf("Unable to load python module - %s: %v", name, err)
+			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
 		} else {
 			log.Debugf("Unable to load python module - %s", name)
+			loadErrors = append(loadErrors, "unable to load python module "+name)
 		}
 	}
 
-	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
-		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, fmt.Errorf("unable to load python module %s: %v", name, err)
+		errMsg := strings.Join(loadErrors, ", ")
+		log.Debugf("Unable to load check %s: %s", moduleName, errMsg)
+		return nil, fmt.Errorf("unable to load check %s: %s", moduleName, errMsg)
 	}
 
 	wheelVersion := "unversioned"
@@ -238,7 +242,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 	configSource := config.Source
 	if instanceIndex >= 0 {
-		configSource = fmt.Sprintf("%s[%d]", configSource, instanceIndex)
+		configSource = configSource + "[" + strconv.Itoa(instanceIndex) + "]"
 	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
 	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
@@ -319,8 +323,8 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 
 	// add a serie to the aggregator to be sent on every flush
 	tags := []string{
-		fmt.Sprintf("status:%s", status),
-		fmt.Sprintf("check_name:%s", checkName),
+		"status:" + status,
+		"check_name:" + checkName,
 	}
 	tags = append(tags, agentVersionTags...)
 	aggregator.AddRecurrentSeries(&metrics.Serie{

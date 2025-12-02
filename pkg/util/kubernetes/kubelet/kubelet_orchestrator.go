@@ -25,7 +25,6 @@ type KubeUtilInterface interface {
 	GetNodename(ctx context.Context) (string, error)
 	GetLocalPodList(ctx context.Context) ([]*Pod, error)
 	GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error)
-	ForceGetLocalPodList(ctx context.Context) (*PodList, error)
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)

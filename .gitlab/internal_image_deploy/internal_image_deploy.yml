@@ -5,7 +5,7 @@
 # Base template with common configuration
 .docker_trigger_base:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_internal_or_manual]
+  rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   script:
@@ -29,23 +29,25 @@
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}"; fi
     # Also build images with zstd compression
     - export ENABLE_ZSTD_PREVIEW="true"
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS --variable ENABLE_ZSTD_PREVIEW"
+    # Also build images with nydus
+    - export ENABLE_NYDUS_PREVIEW="true"
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS --variable ENABLE_ZSTD_PREVIEW --variable ENABLE_NYDUS_PREVIEW"
   retry: 2
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v14
+  IMAGE_VERSION: tmpl-v16
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
 .cluster_agent_variables: &cluster_agent_variables
-  IMAGE_VERSION: tmpl-v6
+  IMAGE_VERSION: tmpl-v8
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
-  IMAGE_VERSION: tmpl-v1
+  IMAGE_VERSION: tmpl-v2
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 

@@ -10,13 +10,14 @@ import (
 	"os"
 	"strings"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 )
 
 type installScriptDefaultSuite struct {
@@ -118,8 +119,8 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
-	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(map[string]string{
-		"DD_API_KEY":               s.getAPIKey(),
+	_, err := s.Env().RemoteHost.Execute(strings.Join(params, " ")+" bash -c \"$(curl -L https://dd-agent.s3.amazonaws.com/scripts/install_script_agent7.sh)\"", client.WithEnvVariables(map[string]string{
+		"DD_API_KEY":               installer.GetAPIKey(),
 		"TESTING_KEYS_URL":         "apttesting.datad0g.com/test-keys",
 		"TESTING_APT_URL":          fmt.Sprintf("s3.amazonaws.com/apttesting.datad0g.com/datadog-agent/pipeline-%s-a7", os.Getenv("E2E_PIPELINE_ID")),
 		"TESTING_APT_REPO_VERSION": fmt.Sprintf("stable-%s 7", s.arch),
@@ -158,7 +159,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 // the major / minor version when installing the agent
 func (s *installScriptDefaultSuite) TestInstallIgnoreMajorMinor() {
 	params := []string{
-		"DD_API_KEY=" + s.getAPIKey(),
+		"DD_API_KEY=" + installer.GetAPIKey(),
 		"DD_REMOTE_UPDATES=true",
 		"DD_AGENT_MAJOR_VERSION=7",
 		"DD_AGENT_MINOR_VERSION=65.0",

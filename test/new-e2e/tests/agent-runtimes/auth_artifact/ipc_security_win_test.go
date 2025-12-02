@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -44,7 +44,9 @@ func TestIPCSecurityWindowsSuite(t *testing.T) {
 			awshost.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
 			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
 			awshost.WithAgentClientOptions(agentclientparams.WithSkipWaitForAgentReady()),
-		)))
+		)),
+		e2e.WithSkipCoverage(), // Test Suite is not compatible with built-in coverage computation, because auth tokens are removed at the end of the test
+	)
 }
 
 // Implementation of [path.Join] for Windows.

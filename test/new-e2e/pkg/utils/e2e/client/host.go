@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	oscomp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
@@ -50,10 +50,12 @@ type HostArtifactClient interface {
 }
 
 type sshExecutor struct {
-	client  *ssh.Client
-	context common.Context
+	client     *ssh.Client
+	privileged *ssh.Client
+	context    common.Context
 
 	username             string
+	privilegedUsername   string
 	host                 string
 	privateKey           []byte
 	privateKeyPassphrase []byte
@@ -93,9 +95,17 @@ func NewHost(context common.Context, hostOutput remote.HostOutput) (*Host, error
 		}
 	}
 
+	var privilegedUsername string
+	if hostOutput.OSFamily == oscomp.WindowsFamily {
+		privilegedUsername = "Administrator"
+	} else {
+		privilegedUsername = "root"
+	}
+
 	sshExecutor := &sshExecutor{
 		context:              context,
 		username:             hostOutput.Username,
+		privilegedUsername:   privilegedUsername,
 		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
@@ -124,12 +134,22 @@ func (h *sshExecutor) Reconnect() error {
 	if h.client != nil {
 		_ = h.client.Close()
 	}
+	if h.privileged != nil {
+		_ = h.privileged.Close()
+	}
 	return backoff.Retry(func() error {
 		client, err := getSSHClient(h.username, h.host, h.privateKey, h.privateKeyPassphrase)
 		if err != nil {
 			return err
 		}
 		h.client = client
+
+		privileged, err := getSSHClient(h.privilegedUsername, h.host, h.privateKey, h.privateKeyPassphrase)
+		if err != nil {
+			h.context.T().Logf("Unable to create privileged SSH connection: %v", err)
+			// Ignore this error for now, since SSH connection as root are not enable on some providers
+		}
+		h.privileged = privileged
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(sshRetryInterval), sshMaxRetries))
 }
@@ -246,7 +266,7 @@ func (h *Host) FileExists(path string) (bool, error) {
 func (h *Host) EnsureFileIsReadable(path string) error {
 	// ensure the file is readable on the remote host
 	if h.osFamily != oscomp.WindowsFamily {
-		_, err := h.Execute(fmt.Sprintf("sudo chmod +r %s", path))
+		_, err := h.Execute("sudo chmod +r " + path)
 		if err != nil {
 			return fmt.Errorf("failed to make file readable: %w", err)
 		}
@@ -273,11 +293,9 @@ func (h *Host) GetFolder(srcFolder string, dstFolder string) error {
 	return downloadFolder(sftpClient, srcFolder, dstFolder)
 }
 
-// ReadFile reads the content of the file, return bytes read and error if any
-func (h *Host) ReadFile(path string) ([]byte, error) {
-	h.context.T().Logf("Reading file at %s", path)
+func (h *Host) readFileWithClient(sftpClient *sftp.Client, path string) ([]byte, error) {
+	h.context.T().Logf("Reading file with client at %s", path)
 	path = h.convertPathSeparator(path)
-	sftpClient := h.getSFTPClient()
 	defer sftpClient.Close()
 
 	f, err := sftpClient.Open(path)
@@ -292,6 +310,18 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	}
 
 	return content.Bytes(), nil
+}
+
+// ReadFile reads the content of the file, return bytes read and error if any
+func (h *Host) ReadFile(path string) ([]byte, error) {
+	h.context.T().Logf("Reading file at %s", path)
+	return h.readFileWithClient(h.getSFTPClient(), path)
+}
+
+// ReadFilePrivileged reads the content of the file with a privileged user, return bytes read and error if any
+func (h *Host) ReadFilePrivileged(path string) ([]byte, error) {
+	h.context.T().Logf("Reading file with privileges at %s", path)
+	return h.readFileWithClient(h.getSFTPPrivilegedClient(), path)
 }
 
 // WriteFile write content to the file and returns the number of bytes written and error if any
@@ -341,6 +371,27 @@ func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
 	}
 
 	return entries, nil
+}
+
+// FindFiles returns a list of files with a given name
+func (h *Host) FindFiles(name string) ([]string, error) {
+	h.context.T().Logf("Finding files with name %s", name)
+	switch h.osFamily {
+	case oscomp.WindowsFamily:
+		out, err := h.Execute("Get-ChildItem -Path C:\\ -Filter " + name)
+		if err != nil {
+			return nil, err
+		}
+		return strings.Split(out, "\n"), nil
+	case oscomp.LinuxFamily:
+		out, err := h.Execute("sudo find / -name " + name)
+		if err != nil {
+			return nil, err
+		}
+		return strings.Split(out, "\n"), nil
+	default:
+		return nil, errors.ErrUnsupported
+	}
 }
 
 // Lstat returns a FileInfo structure describing path.
@@ -430,7 +481,7 @@ func (h *Host) GetAgentConfigFolder() (string, error) {
 		if err != nil {
 			return out, err
 		}
-		return fmt.Sprintf("%s\\Datadog", strings.TrimSpace(out)), nil
+		return strings.TrimSpace(out) + "\\Datadog", nil
 	case oscomp.LinuxFamily:
 		return "/etc/datadog-agent", nil
 	case oscomp.MacOSFamily:
@@ -506,6 +557,23 @@ func (h *Host) getSFTPClient() *sftp.Client {
 	return sftpClient
 }
 
+func (h *Host) getSFTPPrivilegedClient() *sftp.Client {
+	if h.privileged == nil {
+		// Some cloud provider don't provide SSH connection as root (GCP) required for these file operations
+		h.context.T().Logf("Can't SFTP files without a privileged SSH connection")
+		h.context.T().Fail()
+		return nil
+	}
+	sftpClient, err := sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
+	if err != nil {
+		err = h.Reconnect()
+		require.NoError(h.context.T(), err)
+		sftpClient, err = sftp.NewClient(h.privileged, sftp.UseConcurrentWrites(true))
+		require.NoError(h.context.T(), err)
+	}
+	return sftpClient
+}
+
 // HTTPTransport returns an http.RoundTripper which dials the remote host.
 // This transport can only reach the host.
 func (h *Host) HTTPTransport() http.RoundTripper {
@@ -568,7 +636,7 @@ func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
 }
 
 func buildCommandOnWindows(command string, envVar EnvVar) string {
-	cmd := ""
+	var builder strings.Builder
 
 	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an error instead
 	// of the default 'Continue' behavior.
@@ -585,10 +653,10 @@ func buildCommandOnWindows(command string, envVar EnvVar) string {
 	//
 	// To ignore errors, prefix command with $ErrorActionPreference='Continue' or use -ErrorAction Continue
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables#erroractionpreference
-	cmd += "$ErrorActionPreference='Stop'; "
+	builder.WriteString("$ErrorActionPreference='Stop'; ")
 
 	for envName, envValue := range envVar {
-		cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envValue)
+		fmt.Fprintf(&builder, "$env:%s='%s'; ", envName, envValue)
 	}
 	// By default, powershell will just exit with 0 or 1, so we call exit to preserve
 	// the exit code of the command provided by the caller.
@@ -597,7 +665,7 @@ func buildCommandOnWindows(command string, envVar EnvVar) string {
 	//
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables?#lastexitcode
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?#-command
-	cmd += fmt.Sprintf("$LASTEXITCODE=0; %s; if (-not $?) { exit $LASTEXITCODE }", command)
+	fmt.Fprintf(&builder, "$LASTEXITCODE=0; %s; if (-not $?) { exit $LASTEXITCODE }", command)
 	// NOTE: Do not add more commands after the command provided by the caller.
 	//
 	// `$ErrorActionPreference`='Stop' only applies to PowerShell commands, not to
@@ -608,16 +676,16 @@ func buildCommandOnWindows(command string, envVar EnvVar) string {
 	// caller, we will need to find a way to ensure that the exit code of the command
 	// provided by the caller is preserved.
 
-	return cmd
+	return builder.String()
 }
 
 func buildCommandOnLinuxAndMacOS(command string, envVar EnvVar) string {
-	cmd := ""
+	var builder strings.Builder
 	for envName, envValue := range envVar {
-		cmd += fmt.Sprintf("%s='%s' ", envName, envValue)
+		fmt.Fprintf(&builder, "%s='%s' ", envName, envValue)
 	}
-	cmd += command
-	return cmd
+	builder.WriteString(command)
+	return builder.String()
 }
 
 // convertToForwardSlashOnWindows replaces backslashes in the path with forward slashes for Windows remote hosts.

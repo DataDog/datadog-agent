@@ -30,6 +30,9 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// By setting this value to 100, the channel will buffer up to ~400KB of data in the Go heap memory.
 	cfg.BindEnvAndSetDefault(join(smNS, "data_channel_size"), 100)
 	cfg.BindEnvAndSetDefault(join(smNS, "disable_map_preallocation"), true)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer", "buffer_wakeup_count_per_cpu"), 8)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer", "channel_size"), 1000)
+	cfg.BindEnvAndSetDefault(join(smNS, "direct_consumer", "kernel_buffer_size_per_cpu"), 65536) // 64KB per CPU base size
 
 	// ========================================
 	// HTTP Protocol Configuration
@@ -69,6 +72,8 @@ func initUSMSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Deprecated flat keys for backward compatibility
 	cfg.BindEnvAndSetDefault(join(smNS, "http_idle_connection_ttl_in_s"), 30)
 	cfg.BindEnvAndSetDefault(join(spNS, "http_idle_connection_ttl_in_s"), 30)
+
+	cfg.BindEnvAndSetDefault(join(smNS, "http", "use_direct_consumer"), false)
 
 	// HTTP replace rules configuration
 	cfg.BindEnvAndSetDefault(join(smNS, "http", "replace_rules"), nil)

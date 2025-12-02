@@ -101,7 +101,7 @@ func parseProcControlGroupsData(data []byte, validateCgroupEntry func(string, st
 		data = data[nextStart:]
 	}
 
-	// return the lastest error
+	// return the latest error
 	return err
 }
 
@@ -242,6 +242,9 @@ func (cfs *CGroupFS) FindCGroupContext(tgid, pid uint32) (containerutils.Contain
 			// in case of relative path use rootCgroupPath
 			if strings.HasPrefix(path, "/..") || path == "/" {
 				cgroupPath = filepath.Join(cfs.rootCGroupPath, path)
+				if mountpoint == cgroupPath { // if relative path == the relative mount point, it means that's our current cgroup
+					cgroupPath = cfs.rootCGroupPath
+				}
 			} else {
 				cgroupPath = filepath.Join(mountpoint, ctrlDirectory, path)
 			}
@@ -301,7 +304,7 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	for scanner.Scan() {
-		if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == expectedPid {
+		if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == expectedPid {
 			return true, nil
 		}
 	}
@@ -328,7 +331,7 @@ func (cfs *CGroupFS) GetCgroupPids(cgroupName string) ([]uint32, error) {
 		scanner := bufio.NewScanner(bytes.NewReader(data))
 		res := []uint32{}
 		for scanner.Scan() {
-			if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil {
+			if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil {
 				res = append(res, uint32(pid))
 			}
 		}
@@ -393,7 +396,7 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 				if err == nil {
 					scanner := bufio.NewScanner(bytes.NewReader(data))
 					for scanner.Scan() {
-						if pid, err := strconv.Atoi(strings.TrimSpace(scanner.Text())); err == nil && uint32(pid) == currentNSPid {
+						if pid, err := strconv.ParseUint(strings.TrimSpace(scanner.Text()), 10, 32); err == nil && uint32(pid) == currentNSPid {
 							cgroupPath = filepath.Dir(path)
 							return fs.SkipAll
 						}

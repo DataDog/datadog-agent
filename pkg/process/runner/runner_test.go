@@ -170,7 +170,6 @@ func TestIgnoreResponseBody(t *testing.T) {
 		{checkName: checks.ContainerCheckName, ignore: false},
 		{checkName: checks.RTContainerCheckName, ignore: false},
 		{checkName: checks.ConnectionsCheckName, ignore: false},
-		{checkName: checks.ProcessEventsCheckName, ignore: true},
 	} {
 		t.Run(tc.checkName, func(t *testing.T) {
 			assert.Equal(t, tc.ignore, ignoreResponseBody(tc.checkName))

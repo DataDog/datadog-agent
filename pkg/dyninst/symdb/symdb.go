@@ -17,6 +17,7 @@ import (
 	"math"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -308,7 +309,7 @@ func (v Variable) Serialize(w StringWriter, indent string) {
 	w.WriteString(": ")
 	w.WriteString(v.TypeName)
 	w.WriteString(" (declared at line ")
-	w.WriteString(fmt.Sprintf("%d", v.DeclLine))
+	w.WriteString(strconv.Itoa(v.DeclLine))
 	w.WriteString(", available: ")
 	for i, r := range v.AvailableLineRanges {
 		if i > 0 {
@@ -743,6 +744,13 @@ func (b *packagesIterator) close() {
 // Packages with no types or functions not yielded.
 func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 	var err error
+	// Keep track of packages we've seen so that we ignore compile units
+	// belonging to packages we've already yielded. This happens for packages
+	// that have assembly sources: each assembly file gets its own compile unit,
+	// and they all have the same name (the name of the Go package). In these
+	// cases, the iterator only yields the first compile unit for each package
+	// name; empirically the first unit corresponds to the non-assembly sources.
+	seenPackages := make(map[string]struct{})
 	return func(yield func(pkg Package, err error) bool) {
 		defer b.close()
 		entryReader := b.dwarfData.Reader()
@@ -768,6 +776,9 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 			if pkg == nil {
 				continue
 			}
+			if _, ok := seenPackages[pkg.Name]; ok {
+				continue
+			}
 
 			// Move all accumulated abstract functions to the output package.
 			// Note that we may have discovered abstract functions belonging to
@@ -783,6 +794,7 @@ func (b *packagesIterator) iterator() iter.Seq2[Package, error] {
 				if !yield(*pkg, nil /* error */) {
 					break
 				}
+				seenPackages[pkg.Name] = struct{}{}
 			}
 		}
 		if err != nil {

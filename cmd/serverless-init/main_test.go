@@ -16,12 +16,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -44,11 +44,10 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup(mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	_, _, traceAgent, metricAgent, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
-	assert.Subset(t, logs.GetLogsTags(), allTags)
 }
 
 func TestFxApp(t *testing.T) {

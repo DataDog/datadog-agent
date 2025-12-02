@@ -30,13 +30,8 @@ source url: "https://github.com/SELinuxProject/selinux/releases/download/#{versi
 relative_path "#{name}-#{version}"
 
 build do
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  patch source: "ln_no_relative.patch", env: env # don't use relative symlink on installed libraries
-
-  make "-j #{workers} PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
-  make "-j #{workers} install PREFIX=/ DESTDIR=#{install_dir}/embedded", env: env
-
-  delete "#{install_dir}/embedded/lib/libsepol.a"
-  delete "#{install_dir}/embedded/lib/libselinux.a"
+  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
+    " #{install_dir}/embedded/lib/libsepol.so"
 end

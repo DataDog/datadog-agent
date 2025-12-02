@@ -175,9 +175,9 @@ type libInfo struct {
 	tag        string
 }
 
-func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver ImageResolver) podMutator {
+func (i libInfo) podMutator(opts libRequirementOptions, imageResolver ImageResolver) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		reqs, ok := i.libRequirement(v, imageResolver)
+		reqs, ok := i.libRequirement(imageResolver)
 		if !ok {
 			return fmt.Errorf(
 				"language %q is not supported. Supported languages are %v",
@@ -197,35 +197,30 @@ func (i libInfo) podMutator(v version, opts libRequirementOptions, imageResolver
 
 // initContainers is which initContainers we are injecting
 // into the pod that runs for this language.
-func (i libInfo) initContainers(v version, resolver ImageResolver) []initContainer {
+func (i libInfo) initContainers(resolver ImageResolver) []initContainer {
 	var (
 		args, command []string
 		mounts        []corev1.VolumeMount
 		cName         = initContainerName(i.lang)
 	)
 
-	if v.usesInjector() {
-		mounts = []corev1.VolumeMount{
-			// we use the library mount on its lang-based sub-path
-			{
-				MountPath: v1VolumeMount.MountPath,
-				SubPath:   v2VolumeMountLibrary.SubPath + "/" + string(i.lang),
-				Name:      sourceVolume.Name,
-			},
-			// injector mount for the timestamps
-			v2VolumeMountInjector.VolumeMount,
-		}
-		tsFilePath := v2VolumeMountInjector.MountPath + "/c-init-time." + cName
-		command = []string{"/bin/sh", "-c", "--"}
-		args = []string{
-			fmt.Sprintf(
-				`sh copy-lib.sh %s && echo $(date +%%s) >> %s`,
-				mounts[0].MountPath, tsFilePath,
-			),
-		}
-	} else {
-		mounts = []corev1.VolumeMount{v1VolumeMount.VolumeMount}
-		command = []string{"sh", "copy-lib.sh", mounts[0].MountPath}
+	mounts = []corev1.VolumeMount{
+		// we use the library mount on its lang-based sub-path
+		{
+			MountPath: v1VolumeMount.MountPath,
+			SubPath:   v2VolumeMountLibrary.SubPath + "/" + string(i.lang),
+			Name:      sourceVolume.Name,
+		},
+		// injector mount for the timestamps
+		v2VolumeMountInjector.VolumeMount,
+	}
+	tsFilePath := v2VolumeMountInjector.MountPath + "/c-init-time." + cName
+	command = []string{"/bin/sh", "-c", "--"}
+	args = []string{
+		fmt.Sprintf(
+			`sh copy-lib.sh %s && echo $(date +%%s) >> %s`,
+			mounts[0].MountPath, tsFilePath,
+		),
 	}
 
 	if resolver != nil {
@@ -249,94 +244,18 @@ func (i libInfo) initContainers(v version, resolver ImageResolver) []initContain
 	}
 }
 
-func (i libInfo) volumeMount(v version) volumeMount {
-	if v.usesInjector() {
-		return v2VolumeMountLibrary
-	}
-
-	return v1VolumeMount
+func (i libInfo) volumeMount() volumeMount {
+	return v2VolumeMountLibrary
 }
 
-func (i libInfo) envVars(v version) []envVar {
-	if v.usesInjector() {
-		return nil
-	}
-
-	switch i.lang {
-	case java:
-		return []envVar{
-			{
-				key:     javaToolOptionsKey,
-				valFunc: javaEnvValFunc,
-			},
-		}
-	case js:
-		return []envVar{
-			{
-				key:     nodeOptionsKey,
-				valFunc: jsEnvValFunc,
-			},
-		}
-	case python:
-		return []envVar{
-			{
-				key:     pythonPathKey,
-				valFunc: pythonEnvValFunc,
-			},
-		}
-	case dotnet:
-		return []envVar{
-			{
-				key:     dotnetClrEnableProfilingKey,
-				valFunc: identityValFunc(dotnetClrEnableProfilingValue),
-			},
-			{
-				key:     dotnetClrProfilerIDKey,
-				valFunc: identityValFunc(dotnetClrProfilerIDValue),
-			},
-			{
-				key:     dotnetClrProfilerPathKey,
-				valFunc: identityValFunc(dotnetClrProfilerPathValue),
-			},
-			{
-				key:     dotnetTracerHomeKey,
-				valFunc: identityValFunc(dotnetTracerHomeValue),
-			},
-			{
-				key:     dotnetTracerLogDirectoryKey,
-				valFunc: identityValFunc(dotnetTracerLogDirectoryValue),
-			},
-			{
-				key:     dotnetProfilingLdPreloadKey,
-				valFunc: dotnetProfilingLdPreloadEnvValFunc,
-				isEligibleToInject: func(_ *corev1.Container) bool {
-					// N.B. Always disabled for now until we have a better mechanism to inject
-					//      this safely.
-					return false
-				},
-			},
-		}
-	case ruby:
-		return []envVar{
-			{
-				key:     rubyOptKey,
-				valFunc: rubyEnvValFunc,
-			},
-		}
-	default:
-		return nil
-	}
-}
-
-func (i libInfo) libRequirement(v version, resolver ImageResolver) (libRequirement, bool) {
+func (i libInfo) libRequirement(resolver ImageResolver) (libRequirement, bool) {
 	if !i.lang.isSupported() {
 		return libRequirement{}, false
 	}
 
 	return libRequirement{
-		envVars:        i.envVars(v),
-		initContainers: i.initContainers(v, resolver),
-		volumeMounts:   []volumeMount{i.volumeMount(v)},
+		initContainers: i.initContainers(resolver),
+		volumeMounts:   []volumeMount{i.volumeMount()},
 		volumes:        []volume{sourceVolume},
 	}, true
 }

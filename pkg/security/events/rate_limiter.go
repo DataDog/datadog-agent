@@ -7,7 +7,6 @@
 package events
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -43,6 +42,7 @@ var (
 		BrokenProcessLineageErrorRuleID: rate.Every(30 * time.Second),
 		EBPFLessHelloMessageRuleID:      rate.Inf, // No limit on hello message
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
+		FailedDNSRuleID:                 rate.Every(30 * time.Second),
 	}
 )
 
@@ -100,7 +100,7 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 	rl.applyBaseLimitersFromDefault(newLimiters)
 
 	var err error
-	for id, rule := range ruleSet.GetRules() {
+	for _, rule := range ruleSet.GetRules() {
 		every, burst := defaultEvery, defaultBurst
 
 		if duration := rule.Def.Every.GetDuration(); duration != 0 {
@@ -108,13 +108,13 @@ func (rl *RateLimiter) Apply(ruleSet *rules.RuleSet, customRuleIDs []eval.RuleID
 		}
 
 		if len(rule.Def.RateLimiterToken) > 0 {
-			newLimiters[id], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
+			newLimiters[rule.Def.ID], err = NewTokenLimiter(maxUniqueToken, burst, every, rule.Def.RateLimiterToken)
 			if err != nil {
 				seclog.Errorf("unable to use the token based rate limiter, fallback to the standard one: %s", err)
-				newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+				newLimiters[rule.Def.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 			}
 		} else {
-			newLimiters[id] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
+			newLimiters[rule.Def.ID] = NewStdLimiter(rate.Every(time.Duration(every)), burst)
 		}
 	}
 
@@ -150,7 +150,7 @@ func (rl *RateLimiter) GetStats() map[string][]utils.LimiterStat {
 // for the set of rules
 func (rl *RateLimiter) SendStats() error {
 	for ruleID, stats := range rl.GetStats() {
-		ruleIDTag := fmt.Sprintf("rule_id:%s", ruleID)
+		ruleIDTag := "rule_id:" + ruleID
 		for _, stat := range stats {
 			tags := []string{ruleIDTag}
 			if len(stat.Tags) > 0 {
