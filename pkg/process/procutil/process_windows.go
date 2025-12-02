@@ -42,7 +42,7 @@ var fileDescCache *simplelru.LRU[string, string]
 
 func init() {
 	var err error
-	fileDescCache, err = simplelru.NewLRU[string, string](128, nil)
+	fileDescCache, err = simplelru.NewLRU[string, string](512, nil)
 	if err != nil {
 		log.Errorf("Failed to create file description cache: %v", err)
 	}
