@@ -1642,7 +1642,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		p.Resolvers.DentryResolver.DelCacheEntriesForMountID(event.MountReleased.MountID)
 
 		// Delete new mount point from cache
-		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
+		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID, event.MountReleased.MountIDUnique); err != nil {
 			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 
