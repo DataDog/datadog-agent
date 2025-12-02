@@ -237,14 +237,17 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 	go runStartupCheck(ctx, objectStores)
 
-	kubeCapEvent := collectKubeCapabilities(ctx, apiserverClient)
-	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
-		{
-			Type:   kubeCapEvent.Type,
-			Source: workloadmeta.SourceKubeAPIServer,
-			Entity: kubeCapEvent.Entity,
-		},
-	})
+	// TODO: kube capability collection could be blocking or fail. Need to investigate how to handle
+	go func() {
+		kubeCapEvent := collectKubeCapabilities(ctx, apiserverClient)
+		wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+			{
+				Type:   kubeCapEvent.Type,
+				Source: workloadmeta.SourceKubeAPIServer,
+				Entity: kubeCapEvent.Entity,
+			},
+		})
+	}()
 
 	return nil
 }
