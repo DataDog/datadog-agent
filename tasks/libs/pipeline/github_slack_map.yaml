@@ -55,3 +55,4 @@
 '@datadog/windows-products': '#windows-products-ops'
 '@datadog/synthetics-executing': '#synthetics'
 '@datadog/agent-health': '#agent-health'
+'@datadog/network-path': '#network-path'

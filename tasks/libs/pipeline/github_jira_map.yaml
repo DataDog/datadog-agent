@@ -51,3 +51,4 @@
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
 '@datadog/agent-health': AHEALTH
+'@datadog/network-path': NETPATH
