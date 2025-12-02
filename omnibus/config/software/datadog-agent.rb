@@ -79,8 +79,6 @@ build do
     end
   end
 
-  command_on_repo_root "bazelisk run -- //distribs/install_dir/embedded:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
-
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"

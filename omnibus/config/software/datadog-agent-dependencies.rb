@@ -2,6 +2,10 @@ name 'datadog-agent-dependencies'
 
 description "Enforce building dependencies as soon as possible so they can be cached"
 
+build do
+  command_on_repo_root "bazelisk run -- //distribs/install_dir/embedded:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
+end
+
 # Linux-specific dependencies
 if linux_target?
   dependency 'procps-ng'
