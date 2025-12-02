@@ -54,7 +54,7 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	}
 
 	// upgrade to the new version
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -91,7 +91,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	vm := s.Env().RemoteHost
 
 	// install current version
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
@@ -106,7 +106,7 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	s.Require().NoError(err, "should get product version")
 
 	// upgrade to test agent
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.upgradeAgentPackge.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -204,7 +204,7 @@ func (s *testUpgradeRollbackWithoutCWSSuite) SetupSuite() {
 	var err error
 	majorVersion := strings.Split(s.AgentPackage.Version, ".")[0]
 	s.previousAgentPackage = &windowsAgent.Package{
-		Version: fmt.Sprintf("%s.51.0-1", majorVersion),
+		Version: majorVersion + ".51.0-1",
 		Arch:    "x86_64",
 	}
 	s.previousAgentPackage.URL, err = windowsAgent.GetStableMSIURL(s.previousAgentPackage.Version, s.previousAgentPackage.Arch, "")
@@ -277,7 +277,7 @@ func (s *testUpgradeChangeUserSuite) TestUpgradeChangeUser() {
 	s.installAndTestLastStable(host)
 
 	// upgrade to the new version
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(host,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -364,7 +364,7 @@ func (s *testUpgradeFromV5Suite) TestUpgrade5() {
 	s.installAgent5()
 
 	// upgrade to the new version
-	if !s.Run(fmt.Sprintf("upgrade to %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("upgrade to "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(host,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),

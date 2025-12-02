@@ -8,7 +8,7 @@
 package otlp
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -16,7 +16,7 @@ import (
 
 func checkAndUpdateCfg(_ config.Component, pcfg PipelineConfig, logsAgentChannel chan *message.Message) error {
 	if pcfg.LogsEnabled && logsAgentChannel == nil {
-		pipelineError.Store(fmt.Errorf("OTLP logs is enabled but logs agent is not enabled"))
+		pipelineError.Store(errors.New("OTLP logs is enabled but logs agent is not enabled"))
 		return pipelineError.Load()
 	}
 	return nil

@@ -10,6 +10,7 @@ package diskv2
 import (
 	"bufio"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -375,7 +376,7 @@ func (r *rootFsDeviceFinder) Find() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not determine rootfs device")
+	return "", errors.New("could not determine rootfs device")
 }
 
 // ReadlinkFs method

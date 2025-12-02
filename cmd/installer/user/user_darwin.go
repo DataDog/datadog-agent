@@ -9,12 +9,12 @@
 package user
 
 import (
-	"fmt"
+	"errors"
 	"syscall"
 )
 
 // ErrRootRequired is the error returned when an operation requires root privileges.
-var ErrRootRequired = fmt.Errorf("operation requires root privileges")
+var ErrRootRequired = errors.New("operation requires root privileges")
 
 // IsRoot always returns true on darwin.
 func IsRoot() bool {

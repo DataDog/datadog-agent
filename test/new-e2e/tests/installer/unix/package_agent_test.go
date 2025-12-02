@@ -60,7 +60,7 @@ func (s *packageAgentSuite) TestInstall() {
 
 	agentVersion := s.host.AgentStableVersion()
 	agentDir := "/opt/datadog-agent"
-	agentRunSymlink := fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
+	agentRunSymlink := "/opt/datadog-packages/run/datadog-agent/" + agentVersion
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
@@ -300,7 +300,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 
 		// stop experiment
 		timestamp = s.host.LastJournaldTimestamp()
-		s.host.Run(fmt.Sprintf(`sudo systemctl %s`, stopCommand))
+		s.host.Run("sudo systemctl " + stopCommand)
 
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 			// stop order

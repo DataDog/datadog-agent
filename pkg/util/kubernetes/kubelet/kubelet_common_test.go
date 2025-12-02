@@ -8,7 +8,6 @@
 package kubelet
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +48,7 @@ func TestKubeContainerIDToTaggerEntityID(t *testing.T) {
 		"/deadbeef":               "",
 		"runtime://foo/bar":       "container_id://foo/bar",
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			res, _ := KubeContainerIDToTaggerEntityID(in)
 			assert.Equal(t, out, res.String())
 		})
@@ -66,7 +65,7 @@ func TestKubePodUIDToTaggerEntityID(t *testing.T) {
 		"deadbeef":                      "",
 		"/deadbeef":                     "",
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			res, _ := KubePodUIDToTaggerEntityID(in)
 			assert.Equal(t, out, res.String())
 		})
@@ -83,7 +82,7 @@ func TestKubeIDToTaggerEntityID(t *testing.T) {
 		"deadbeef":                  "",
 		"/deadbeef":                 "",
 	} {
-		t.Run(fmt.Sprintf("case: %s", in), func(t *testing.T) {
+		t.Run("case: "+in, func(t *testing.T) {
 			res, _ := KubeIDToTaggerEntityID(in)
 			assert.Equal(t, out, res.String())
 		})

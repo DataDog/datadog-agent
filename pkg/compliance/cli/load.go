@@ -11,6 +11,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -51,7 +52,7 @@ func RunLoad(_ log.Component, _ config.Component, loadArgs *LoadParams) error {
 		resourceType, resource = aptconfig.LoadConfiguration(ctx, hostroot)
 	case "db", "database":
 		if loadArgs.ProcPid == 0 {
-			return fmt.Errorf("missing required flag --proc-pid")
+			return errors.New("missing required flag --proc-pid")
 		}
 		proc, _, rootPath, err := getProcMeta(hostroot, int32(loadArgs.ProcPid))
 		if err != nil {

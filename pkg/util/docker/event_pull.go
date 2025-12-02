@@ -51,14 +51,14 @@ func (d *DockerUtil) processContainerEvent(ctx context.Context, msg events.Messa
 	// Container filtering
 	containerName, found := msg.Actor.Attributes["name"]
 	//nolint:gosimple // TODO(CINT) Fix gosimple linter
-	if found == false {
+	if !found {
 		// TODO: inspect?
 		m, _ := json.Marshal(msg)
 		return nil, fmt.Errorf("missing container name in event %s", string(m))
 	}
 	imageName, found := msg.Actor.Attributes["image"]
 	//nolint:gosimple // TODO(CINT) Fix gosimple linter
-	if found == false {
+	if !found {
 		// TODO: inspect?
 		m, _ := json.Marshal(msg)
 		return nil, fmt.Errorf("missing image name in event %s", string(m))
