@@ -97,20 +97,9 @@ func run(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
 }
 
 func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient) error {
-	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
+	cr, err := getConfigCheckResponse(client)
 	if err != nil {
 		return err
-	}
-
-	res, err := endpoint.DoGet()
-	if err != nil {
-		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
-	}
-
-	cr := integration.ConfigCheckResponse{}
-	err = json.Unmarshal(res, &cr)
-	if err != nil {
-		return fmt.Errorf("unable to parse configcheck: %v", err)
 	}
 
 	var b bytes.Buffer
@@ -135,7 +124,7 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 			return err
 		}
 
-		fmt.Fprintln(color.Output, string(jsonConfigsBytes))
+		fmt.Fprintln(color.Output, strings.ReplaceAll(string(jsonConfigsBytes), "\\n", "\n"))
 
 	} else {
 		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
@@ -150,20 +139,9 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 		return errors.New("only one check must be specified")
 	}
 
-	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
+	cr, err := getConfigCheckResponse(client)
 	if err != nil {
 		return err
-	}
-
-	res, err := endpoint.DoGet()
-	if err != nil {
-		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
-	}
-
-	cr := integration.ConfigCheckResponse{}
-	err = json.Unmarshal(res, &cr)
-	if err != nil {
-		return fmt.Errorf("unable to parse configcheck: %v", err)
 	}
 
 	// search through the configs for a check with the same name
@@ -172,22 +150,22 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 			var b bytes.Buffer
 			color.Output = &b
 
-			if cliParams.prettyJSON {
-				// pretty json print
-				config, err := json.MarshalIndent(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs), "", "  ")
+			if cliParams.json || cliParams.prettyJSON {
+				jsonConfig := convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs)
+
+				var jsonConfigBytes []byte
+
+				if cliParams.prettyJSON {
+					jsonConfigBytes, err = json.MarshalIndent(jsonConfig, "", "  ")
+				} else {
+					jsonConfigBytes, err = json.Marshal(jsonConfig)
+				}
 				if err != nil {
 					return err
 				}
 
-				fmt.Fprintln(color.Output, strings.ReplaceAll(string(config), "\\n", "\n"))
-			} else if cliParams.json {
-				// raw json print
-				config, err := json.Marshal(convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs))
-				if err != nil {
-					return err
-				}
+				fmt.Fprintln(color.Output, strings.ReplaceAll(string(jsonConfigBytes), "\\n", "\n"))
 
-				fmt.Fprintln(color.Output, strings.ReplaceAll(string(config), "\\n", "\n"))
 			} else {
 				// flare format print
 				flare.PrintConfigWithInstanceIDs(color.Output, configResponse.Config, configResponse.InstanceIDs, "")
@@ -200,6 +178,27 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 
 	// return an error if the name wasn't found in the checks list
 	return fmt.Errorf("no check named %q was found", cliParams.args[0])
+}
+
+func getConfigCheckResponse(client ipc.HTTPClient) (integration.ConfigCheckResponse, error) {
+	var cr integration.ConfigCheckResponse
+
+	endpoint, err := client.NewIPCEndpoint("/agent/config-check")
+	if err != nil {
+		return cr, err
+	}
+
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return cr, fmt.Errorf("the agent ran into an error while checking config: %v", err)
+	}
+
+	err = json.Unmarshal(res, &cr)
+	if err != nil {
+		return cr, fmt.Errorf("unable to parse configcheck: %v", err)
+	}
+
+	return cr, nil
 }
 
 func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) jsonConfig {
