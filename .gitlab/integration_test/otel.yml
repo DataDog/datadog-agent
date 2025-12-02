@@ -45,6 +45,7 @@ docker_image_build_otel:
       --build-arg AGENT_GIT_REF=$CI_COMMIT_REF_NAME \
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
+      --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       --tag agent-byoc:latest \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
@@ -102,6 +103,7 @@ ddot_byoc_package_build_test_rpm:
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
       --build-arg PACKAGE_TYPE=rpm \
+      --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
@@ -137,6 +139,7 @@ ddot_byoc_package_build_test_deb:
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
       --build-arg PACKAGE_TYPE=deb \
+      --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
@@ -178,6 +181,7 @@ ddot_byoc_binary_build_test_ubuntu2004:
       --build-arg AGENT_DOCKER_REPO=datadog/agent-dev \
       --build-arg AGENT_DOCKER_TAG=$AGENT_VERSION \
       --build-arg UBUNTU_VERSION=20.04 \
+      --build-arg CI \
       --build-arg DDA_VERSION=$DDA_VERSION \
       -f /tmp/otel-ci/Dockerfile.agent-otel \
       /tmp/otel-ci
