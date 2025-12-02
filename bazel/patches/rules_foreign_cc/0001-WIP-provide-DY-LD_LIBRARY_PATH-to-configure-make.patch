@@ -1,18 +1,18 @@
-From 55cdfe64724285e5577bc9a0b88db96c6f6e4f39 Mon Sep 17 00:00:00 2001
+From 345ad34f54fbd21591a4c4d65519ca476ebd88fe Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
 Date: Mon, 1 Dec 2025 15:46:12 +0100
 Subject: [PATCH] WIP: provide (DY)LD_LIBRARY_PATH to configure/make
 
 ---
- foreign_cc/private/configure_script.bzl           |  3 ++-
- .../private/framework/toolchains/commands.bzl     | 11 +++++++++++
- .../framework/toolchains/linux_commands.bzl       | 15 +++++++++++++++
- .../framework/toolchains/macos_commands.bzl       | 14 ++++++++++++++
- foreign_cc/private/make_script.bzl                |  8 ++++++++
- 5 files changed, 50 insertions(+), 1 deletion(-)
+ foreign_cc/private/configure_script.bzl          |  3 ++-
+ .../private/framework/toolchains/commands.bzl    | 15 +++++++++++++++
+ .../framework/toolchains/linux_commands.bzl      | 16 ++++++++++++++++
+ .../framework/toolchains/macos_commands.bzl      | 14 ++++++++++++++
+ foreign_cc/private/make_script.bzl               |  7 +++++++
+ 5 files changed, 54 insertions(+), 1 deletion(-)
 
 diff --git a/foreign_cc/private/configure_script.bzl b/foreign_cc/private/configure_script.bzl
-index bbb5056..d4b4255 100644
+index bbb5056..9e14e3d 100644
 --- a/foreign_cc/private/configure_script.bzl
 +++ b/foreign_cc/private/configure_script.bzl
 @@ -1,6 +1,6 @@
@@ -27,15 +27,26 @@ index bbb5056..d4b4255 100644
      ext_build_dirs = inputs.ext_build_dirs
  
      script = pkgconfig_script(ext_build_dirs)
-+    script.extend(ldpath_script(ext_build_dirs))
++    script.extend(ldpath_script())
  
      root_path = "$$EXT_BUILD_ROOT$$/{}".format(root)
      configure_path = "{}/{}".format(root_path, configure_command)
 diff --git a/foreign_cc/private/framework/toolchains/commands.bzl b/foreign_cc/private/framework/toolchains/commands.bzl
-index e4f1073..ce201f9 100644
+index e4f1073..b5f8f70 100644
 --- a/foreign_cc/private/framework/toolchains/commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/commands.bzl
-@@ -128,6 +128,17 @@ PLATFORM_COMMANDS = {
+@@ -113,6 +113,10 @@ PLATFORM_COMMANDS = {
+         arguments = [],
+         doc = "Print all environment variables",
+     ),
++    "export_ld_library_path_var": _command_info(
++        arguments = [],
++        doc = "Export the dynamic linked additional paths env variable",
++    ),
+     "export_var": _command_info(
+         arguments = [
+             _argument_info(name = "name", data_type = type(""), doc = "Variable name"),
+@@ -128,6 +132,17 @@ PLATFORM_COMMANDS = {
              _argument_info(name = "else_text", data_type = type(""), doc = "Else block text"),
          ],
      ),
@@ -54,7 +65,7 @@ index e4f1073..ce201f9 100644
          arguments = [
              _argument_info(
 diff --git a/foreign_cc/private/framework/toolchains/linux_commands.bzl b/foreign_cc/private/framework/toolchains/linux_commands.bzl
-index 69bd3c9..8b85599 100644
+index 69bd3c9..80a692b 100644
 --- a/foreign_cc/private/framework/toolchains/linux_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/linux_commands.bzl
 @@ -17,6 +17,9 @@ def echo(text):
@@ -62,18 +73,19 @@ index 69bd3c9..8b85599 100644
      return "{name}={value}; export {name}".format(name = name, value = value)
  
 +def export_ld_library_path_var():
-+    return "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
++    return "LD_LIBRARY_PATH=\"${LD_LIBRARY_PATH:-}\"; export LD_LIBRARY_PATH"
 +
  def local_var(name, value):
      return "local {name}={value}".format(name = name, value = value)
  
-@@ -173,6 +176,16 @@ fi
+@@ -173,6 +176,17 @@ fi
  def script_prelude():
      return "set -euo pipefail"
  
 +def increment_ld_library_path(_source):
 +    text = """\
 +    local children=$(find "$1" -name '*.so')
++    LD_LIBRARY_PATH=""
 +    for child in $children; do
 +      export LD_LIBRARY_PATH="$${LD_LIBRARY_PATH:-}$$:$(dirname $child)"
 +    done
@@ -84,7 +96,7 @@ index 69bd3c9..8b85599 100644
  def increment_pkg_config_path(_source):
      text = """\
  local children=$(find "$1" -mindepth 1 -name '*.pc')
-@@ -266,8 +279,10 @@ commands = struct(
+@@ -266,8 +280,10 @@ commands = struct(
      echo = echo,
      enable_tracing = enable_tracing,
      env = env,
@@ -96,7 +108,7 @@ index 69bd3c9..8b85599 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/framework/toolchains/macos_commands.bzl b/foreign_cc/private/framework/toolchains/macos_commands.bzl
-index a749ae2..79718ca 100644
+index a749ae2..e52d7b5 100644
 --- a/foreign_cc/private/framework/toolchains/macos_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/macos_commands.bzl
 @@ -17,6 +17,9 @@ def echo(text):
@@ -104,7 +116,7 @@ index a749ae2..79718ca 100644
      return "{name}={value}; export {name}".format(name = name, value = value)
  
 +def export_ld_library_path_var():
-+    return "export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH}"
++    return "DYLD_LIBRARY_PATH=\"${DYLD_LIBRARY_PATH:-}\"; export DYLD_LIBRARY_PATH"
 +
  def local_var(name, value):
      return "local {name}={value}".format(name = name, value = value)
@@ -137,17 +149,16 @@ index a749ae2..79718ca 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/make_script.bzl b/foreign_cc/private/make_script.bzl
-index 0dd6126..7ceb0ce 100644
+index 0dd6126..e951e3b 100644
 --- a/foreign_cc/private/make_script.bzl
 +++ b/foreign_cc/private/make_script.bzl
-@@ -49,6 +49,14 @@ def create_make_script(
+@@ -49,6 +49,13 @@ def create_make_script(
      script.append("##disable_tracing##")
      return script
  
-+def ldpath_script(ext_build_dirs):
++def ldpath_script():
 +    script = []
-+    for ext_dir in ext_build_dirs:
-+        script.append("##increment_ld_library_path## $$EXT_BUILD_DEPS$$/" + ext_dir.basename)
++    script.append("##increment_ld_library_path## $$EXT_BUILD_DEPS$$/")
 +    script.append("##export_ld_library_path_var##")
 +    return script
 +
