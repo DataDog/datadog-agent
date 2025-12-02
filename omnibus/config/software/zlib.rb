@@ -18,4 +18,9 @@ name "zlib"
 
 build do
   command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}'"
+  unless windows_target?
+    sh_lib = if linux_target? then "libz.so" else "libz.dylib" end
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+        " #{install_dir}/embedded/lib/#{sh_lib}"
+  end
 end
