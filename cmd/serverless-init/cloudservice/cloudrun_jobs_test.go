@@ -113,7 +113,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "error:true")
+			require.Contains(t, sample.Tags, "succeeded:false")
 			foundShutdown = true
 		}
 	}
@@ -134,7 +134,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "error:false")
+			require.Contains(t, sample.Tags, "succeeded:true")
 			foundShutdown = true
 		}
 	}
