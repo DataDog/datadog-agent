@@ -140,6 +140,10 @@ cc_shared_library(
     name = "xml2",
     deps = [":libxml2"],
     visibility = ["//visibility:public"],
+    dynamic_deps = [
+        "@zlib//:z",
+        "@xz//:lzma",
+    ]
 )
 
 so_symlink(
