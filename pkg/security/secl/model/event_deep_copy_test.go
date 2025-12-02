@@ -159,14 +159,18 @@ func createFullyPopulatedEvent() *Event {
 				CapPermitted: 0x5678,
 			},
 			UserSession: UserSessionContext{
-				ID:          123,
+				ID:          "123",
 				SessionType: 1,
-				K8SUsername: "k8s-user",
-				K8SUID:      "k8s-uid-123",
-				K8SGroups:   []string{"system:masters", "developers"},
-				K8SExtra: map[string][]string{
-					"scopes":      {"read", "write"},
-					"extraGroups": {"group1", "group2"},
+				Identity:    "k8s-user",
+				K8SSessionContext: K8SSessionContext{
+					K8SSessionID: 123,
+					K8SUsername:  "k8s-user",
+					K8SUID:       "k8s-uid-123",
+					K8SGroups:    []string{"system:masters", "developers"},
+					K8SExtra: map[string][]string{
+						"scopes":      {"read", "write"},
+						"extraGroups": {"group1", "group2"},
+					},
 				},
 			},
 			Argv0:         "test",

@@ -831,7 +831,7 @@ func printFieldTreeDebug(node *FieldNode, prefix string, isLast bool) {
 		strategyInfo := ""
 		elementInfo := ""
 		if node.Field != nil {
-			typeInfo = fmt.Sprintf(" [%s", node.Field.OrigType)
+			typeInfo = " [" + node.Field.OrigType
 			if node.Field.IsOrigTypePtr {
 				typeInfo += "*"
 			}
@@ -959,7 +959,7 @@ func formatBuildTags(buildTags string) []string {
 	var formatted []string
 	for _, tag := range tags {
 		if tag != "" {
-			formatted = append(formatted, fmt.Sprintf("go:build %s", tag))
+			formatted = append(formatted, "go:build "+tag)
 		}
 	}
 	return formatted
@@ -998,7 +998,7 @@ func init() {
 func main() {
 	cfg := &packages.Config{
 		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", buildTags)},
+		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
 	}
 
 	astFiles, err := newAstFiles(cfg, modelFile)
