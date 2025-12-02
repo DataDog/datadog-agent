@@ -174,6 +174,12 @@ type Filterable interface {
 	ToBytes() ([]byte, error)
 }
 
+// FilterIdentifier identifies a specific filter instance
+type FilterIdentifier interface {
+	TargetResource() ResourceType
+	GetFilterName() string
+}
+
 //
 // Container Definition
 //
@@ -260,6 +266,16 @@ func setContainerOwner(c *core.FilterContainer, owner Filterable) {
 // ContainerFilter defines the type of container filter.
 type ContainerFilter string
 
+// TargetResource returns the resource type for ContainerFilter
+func (f ContainerFilter) TargetResource() ResourceType {
+	return ContainerType
+}
+
+// GetFilterName returns the name for ContainerFilter
+func (f ContainerFilter) GetFilterName() string {
+	return string(f)
+}
+
 // Defined Container filter kinds
 const (
 	ContainerLegacyMetrics        ContainerFilter = "container-legacy-metrics"
@@ -320,6 +336,16 @@ func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
 // PodFilter defines the type of pod filter.
 type PodFilter string
 
+// TargetResource returns the resource type for PodFilter
+func (f PodFilter) TargetResource() ResourceType {
+	return PodType
+}
+
+// GetFilterName returns the name for PodFilter
+func (f PodFilter) GetFilterName() string {
+	return string(f)
+}
+
 // Defined Pod filter kinds
 const (
 	PodLegacyMetrics        PodFilter = "pod-legacy-metrics"
@@ -370,6 +396,16 @@ func (s *Service) ToBytes() ([]byte, error) {
 
 // ServiceFilter defines the type of service filter.
 type ServiceFilter string
+
+// TargetResource returns the resource type for ServiceFilter
+func (f ServiceFilter) TargetResource() ResourceType {
+	return ServiceType
+}
+
+// GetFilterName returns the name for ServiceFilter
+func (f ServiceFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Service filter kinds
 const (
@@ -422,6 +458,16 @@ func (e *Endpoint) ToBytes() ([]byte, error) {
 // EndpointFilter defines the type of endpoint filter.
 type EndpointFilter string
 
+// TargetResource returns the resource type for EndpointFilter
+func (f EndpointFilter) TargetResource() ResourceType {
+	return EndpointType
+}
+
+// GetFilterName returns the name for EndpointFilter
+func (f EndpointFilter) GetFilterName() string {
+	return string(f)
+}
+
 // Defined Endpoint filter kinds
 const (
 	EndpointLegacyMetrics        EndpointFilter = "endpoint-legacy-metrics"
@@ -471,6 +517,16 @@ func (p *Process) SetLogFile(logFile string) {
 
 // ProcessFilter defines the type of process filter.
 type ProcessFilter string
+
+// TargetResource returns the resource type for ProcessFilter
+func (f ProcessFilter) TargetResource() ResourceType {
+	return ProcessType
+}
+
+// GetFilterName returns the name for ProcessFilter
+func (f ProcessFilter) GetFilterName() string {
+	return string(f)
+}
 
 // Defined Process filter kinds.
 const (
