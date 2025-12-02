@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
@@ -60,7 +60,7 @@ func (s *packageAgentSuite) TestInstall() {
 
 	agentVersion := s.host.AgentStableVersion()
 	agentDir := "/opt/datadog-agent"
-	agentRunSymlink := fmt.Sprintf("/opt/datadog-packages/run/datadog-agent/%s", agentVersion)
+	agentRunSymlink := "/opt/datadog-packages/run/datadog-agent/" + agentVersion
 	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
 	agentSymlink := path.Join(agentDir, "bin/agent/agent")
 
@@ -300,7 +300,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 
 		// stop experiment
 		timestamp = s.host.LastJournaldTimestamp()
-		s.host.Run(fmt.Sprintf(`sudo systemctl %s`, stopCommand))
+		s.host.Run("sudo systemctl " + stopCommand)
 
 		s.host.AssertSystemdEvents(timestamp, host.SystemdEvents().
 			// stop order

@@ -195,7 +195,7 @@ func (c *ProcessAgentCheck) Configure(senderManager sender.SenderManager, _ uint
 	configFile := pkgconfigsetup.Datadog().ConfigFileUsed()
 	c.commandOpts = []string{}
 	if _, err := os.Stat(configFile); !os.IsNotExist(err) {
-		c.commandOpts = append(c.commandOpts, fmt.Sprintf("-config=%s", configFile))
+		c.commandOpts = append(c.commandOpts, "-config="+configFile)
 	}
 
 	c.source = source
@@ -250,11 +250,6 @@ func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 
 // IsHASupported returns if the check is compatible with High Availability
 func (c *ProcessAgentCheck) IsHASupported() bool {
-	return false
-}
-
-// RunOnce returns false
-func (c *ProcessAgentCheck) RunOnce() bool {
 	return false
 }
 

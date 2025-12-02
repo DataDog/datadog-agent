@@ -18,7 +18,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/gosym"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symbol"
@@ -34,11 +33,12 @@ type logger struct {
 }
 
 type debuggerData struct {
-	Snapshot         snapshotData      `json:"snapshot"`
+	Snapshot         snapshotData      `json:"snapshot,omitempty"`
 	EvaluationErrors []evaluationError `json:"evaluationErrors,omitempty"`
 }
 
 type messageData struct {
+	duration    *uint64
 	entryOrLine *captureEvent
 	_return     *captureEvent
 	template    *ir.Template
@@ -80,9 +80,14 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			// Update limits after processing segment.
 			limits.maxBytes = maxLogLineBytes - result.Len()
 		case ir.InvalidSegment:
-			// Check limits for invalid segment.
-			limits.maxBytes = maxLogLineBytes - result.Len()
-			writeBoundedString(&result, limits, seg.Error)
+			writeBoundedError(&result, limits, "error", seg.Error)
+		case *ir.DurationSegment:
+			if m.duration == nil {
+				writeBoundedError(&result, limits, "error", "@duration is not available")
+			} else {
+				n, _ := fmt.Fprintf(&result, "%f", time.Duration(*m.duration).Seconds()*1000)
+				limits.consume(n)
+			}
 
 		default:
 			return fmt.Errorf(
@@ -136,11 +141,11 @@ func (m *messageData) processJSONSegment(
 	// Check presence bit using same logic as processExpression.
 	presenceBitsetSize := ev.rootType.PresenceBitsetSize
 	if int(presenceBitsetSize) > len(ev.rootData) {
-		return fmt.Errorf("presence bitset is out of bounds")
+		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
 	if exprIdx >= int(presenceBitsetSize)*8 {
-		return fmt.Errorf("expression index out of bounds")
+		return errors.New("expression index out of bounds")
 	}
 	if !presenceBitSet.get(exprIdx) {
 		// Expression evaluation failed.
@@ -156,7 +161,7 @@ func (m *messageData) processJSONSegment(
 	exprDataStart := expr.Offset
 	exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
 	if exprDataEnd > uint32(len(ev.rootData)) {
-		return fmt.Errorf("expression data out of bounds")
+		return errors.New("expression data out of bounds")
 	}
 	exprData := ev.rootData[exprDataStart:exprDataEnd]
 
@@ -184,9 +189,12 @@ type snapshotData struct {
 	Language  string    `json:"language"`
 
 	// dynamic fields:
-	Stack    stackData   `json:"stack"`
-	Probe    probeData   `json:"probe"`
-	Captures captureData `json:"captures"`
+	Stack    *stackData   `json:"stack,omitempty"`
+	Probe    probeData    `json:"probe"`
+	Captures *captureData `json:"captures,omitempty"`
+
+	stack    stackData
+	captures captureData
 }
 
 type probeData struct {
@@ -391,14 +399,16 @@ func (ce *captureEvent) MarshalJSONTo(enc *jsontext.Encoder) error {
 			}
 			if !haveKind {
 				haveKind = true
-				if err := writeTokens(enc, kind.token, jsontext.BeginObject); err != nil {
+				if err := writeTokens(
+					enc, kind.token, jsontext.BeginObject,
+				); err != nil {
 					return err
 				}
 			}
 			err := ce.processExpression(enc, expr, presenceBitSet, i)
 			if errors.Is(err, errEvaluation) {
-				// This expression resulted in an evaluation error, we mark it to be
-				// skipped and will try again
+				// This expression resulted in an evaluation error, we mark it
+				// to be skipped and will try again
 				ce.skippedIndices.set(i)
 			}
 			if err != nil {
@@ -422,39 +432,27 @@ type stackData struct {
 }
 
 func (sd *stackData) MarshalJSONTo(enc *jsontext.Encoder) error {
-	var err error
-	if err = writeTokens(enc, jsontext.BeginArray); err != nil {
+	if err := writeTokens(enc, jsontext.BeginArray); err != nil {
 		return err
 	}
-
 	for i := range sd.frames {
 		for j := range sd.frames[i].Lines {
-			if err = json.MarshalEncode(
-				enc, (*stackLine)(&sd.frames[i].Lines[j]),
+			sl := sd.frames[i].Lines[j]
+			if err := writeTokens(enc,
+				jsontext.BeginObject,
+				jsontext.String("function"),
+				jsontext.String(sl.Function),
+				jsontext.String("fileName"),
+				jsontext.String(sl.File),
+				jsontext.String("lineNumber"),
+				jsontext.Int(int64(sl.Line)),
+				jsontext.EndObject,
 			); err != nil {
 				return err
 			}
 		}
 	}
-	if err = writeTokens(enc, jsontext.EndArray); err != nil {
-		return err
-	}
-	return nil
-}
-
-type stackLine gosym.GoLocation
-
-func (sl *stackLine) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if err := writeTokens(enc,
-		jsontext.BeginObject,
-		jsontext.String("function"),
-		jsontext.String(sl.Function),
-		jsontext.String("fileName"),
-		jsontext.String(sl.File),
-		jsontext.String("lineNumber"),
-		jsontext.Int(int64(sl.Line)),
-		jsontext.EndObject,
-	); err != nil {
+	if err := writeTokens(enc, jsontext.EndArray); err != nil {
 		return err
 	}
 	return nil
@@ -474,7 +472,9 @@ func encodeValue(
 	if err := writeTokens(enc, jsontext.BeginObject); err != nil {
 		return err
 	}
-	if err := writeTokens(enc, jsontext.String("type"), jsontext.String(valueType)); err != nil {
+	if err := writeTokens(
+		enc, jsontext.String("type"), jsontext.String(valueType),
+	); err != nil {
 		return err
 	}
 	if err := decoderType.encodeValueFields(c, enc, data); err != nil {

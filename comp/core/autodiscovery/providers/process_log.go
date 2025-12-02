@@ -235,7 +235,7 @@ func checkFileReadable(logPath string) error {
 
 	if !utf8.Valid(buf) {
 		log.Infof("Discovered log file %s is not a text file", logPath)
-		return fmt.Errorf("file is not a text file")
+		return errors.New("file is not a text file")
 	}
 
 	return nil
@@ -500,7 +500,7 @@ func getServiceID(logFile string) string {
 
 func (p *processLogConfigProvider) getProcessTags(pid int32) ([]string, error) {
 	if p.tagger == nil {
-		return nil, fmt.Errorf("tagger not available")
+		return nil, errors.New("tagger not available")
 	}
 	entityID := taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(pid)))
 	return p.tagger.Tag(entityID, taggertypes.HighCardinality)

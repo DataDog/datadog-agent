@@ -210,10 +210,6 @@ func (jq *jobQueue) process(s *Scheduler) bool {
 				return false
 			}
 
-			if check.RunOnce() {
-				_ = jq.removeJob(check.ID())
-			}
-
 			select {
 			// we were able to schedule a check so we're not stuck, therefore poll the health chan
 			case <-jq.health.C:

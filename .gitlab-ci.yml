@@ -164,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v83165674-efec7b86
+  CI_IMAGE_BTF_GEN: v84348379-5989c48d
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v83165674-efec7b86
+  CI_IMAGE_DOCKER_X64: v84348379-5989c48d
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v83165674-efec7b86
+  CI_IMAGE_DOCKER_ARM64: v84348379-5989c48d
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v83165674-efec7b86
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v84348379-5989c48d
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v83165674-efec7b86
+  CI_IMAGE_LINUX: v84348379-5989c48d
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v83165674-efec7b86
+  CI_IMAGE_RPM_X64: v84348379-5989c48d
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v83165674-efec7b86
+  CI_IMAGE_RPM_ARM64: v84348379-5989c48d
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v83165674-efec7b86
+  CI_IMAGE_RPM_ARMHF: v84348379-5989c48d
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v83281312-efec7b86
+  CI_IMAGE_WIN_LTSC2022_X64: v84348379-5989c48d
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v83281312-efec7b86
+  CI_IMAGE_WIN_LTSC2025_X64: v84348379-5989c48d
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -241,7 +241,15 @@ variables:
   VIRUS_TOTAL: virus-total # windows-products
   # End vault variables
 
-  DD_PKG_VERSION: "latest"
+  # dda configuration variables
+  DDA_CLIENT_TOKEN: dda-feature-flags-client-token # agent-devx
+  DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS: token
+  DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS: aws/arn:aws:iam::486234852809:role/ci-datadog-agent/$DDA_CLIENT_TOKEN
+  DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS: ci.datadog-agent.dda-feature-flags-client-token
+  DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
+  DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
+
+  DD_PKG_VERSION: "0.6.0-beta.4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
@@ -359,6 +367,12 @@ variables:
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
+
+.on_build_changes: &on_build_changes
+  changes:
+    paths: 
+      - omnibus/**/*
+    compare_to: $COMPARE_TO_BRANCH
 
 #
 # Workflow rules
@@ -518,19 +532,23 @@ workflow:
     allow_failure: true
 
 .on_all_builds:
+  - !reference [.except_mergequeue]
   - <<: *if_run_all_builds
-
-.on_e2e_tests:
-  - <<: *if_installer_tests
+  - <<: *on_build_changes
 
 .on_all_install_script_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
   - <<: *if_installer_tests
+  - <<: *on_build_changes
 
 .on_default_new_e2e_tests:
   - !reference [.except_mergequeue]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
+  - <<: *on_build_changes
   - <<: *if_auto_e2e_tests
     variables:
       E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS

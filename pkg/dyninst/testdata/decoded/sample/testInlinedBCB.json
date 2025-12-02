@@ -56,8 +56,7 @@
           "location": {
             "method": "main.testInlinedBCB"
           }
-        },
-        "captures": {}
+        }
       }
     },
     "timestamp": "[ts]",

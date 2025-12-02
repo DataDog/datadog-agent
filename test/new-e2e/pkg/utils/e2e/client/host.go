@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	oscomp "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	oscomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/cenkalti/backoff"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
@@ -266,7 +266,7 @@ func (h *Host) FileExists(path string) (bool, error) {
 func (h *Host) EnsureFileIsReadable(path string) error {
 	// ensure the file is readable on the remote host
 	if h.osFamily != oscomp.WindowsFamily {
-		_, err := h.Execute(fmt.Sprintf("sudo chmod +r %s", path))
+		_, err := h.Execute("sudo chmod +r " + path)
 		if err != nil {
 			return fmt.Errorf("failed to make file readable: %w", err)
 		}
@@ -378,13 +378,13 @@ func (h *Host) FindFiles(name string) ([]string, error) {
 	h.context.T().Logf("Finding files with name %s", name)
 	switch h.osFamily {
 	case oscomp.WindowsFamily:
-		out, err := h.Execute(fmt.Sprintf("Get-ChildItem -Path C:\\ -Filter %s", name))
+		out, err := h.Execute("Get-ChildItem -Path C:\\ -Filter " + name)
 		if err != nil {
 			return nil, err
 		}
 		return strings.Split(out, "\n"), nil
 	case oscomp.LinuxFamily:
-		out, err := h.Execute(fmt.Sprintf("sudo find / -name %s", name))
+		out, err := h.Execute("sudo find / -name " + name)
 		if err != nil {
 			return nil, err
 		}
@@ -481,7 +481,7 @@ func (h *Host) GetAgentConfigFolder() (string, error) {
 		if err != nil {
 			return out, err
 		}
-		return fmt.Sprintf("%s\\Datadog", strings.TrimSpace(out)), nil
+		return strings.TrimSpace(out) + "\\Datadog", nil
 	case oscomp.LinuxFamily:
 		return "/etc/datadog-agent", nil
 	case oscomp.MacOSFamily:
@@ -636,7 +636,7 @@ func buildCommandFactory(osFamily oscomp.Family) buildCommandFn {
 }
 
 func buildCommandOnWindows(command string, envVar EnvVar) string {
-	cmd := ""
+	var builder strings.Builder
 
 	// Set $ErrorActionPreference to 'Stop' to cause PowerShell to stop on an error instead
 	// of the default 'Continue' behavior.
@@ -653,10 +653,10 @@ func buildCommandOnWindows(command string, envVar EnvVar) string {
 	//
 	// To ignore errors, prefix command with $ErrorActionPreference='Continue' or use -ErrorAction Continue
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables#erroractionpreference
-	cmd += "$ErrorActionPreference='Stop'; "
+	builder.WriteString("$ErrorActionPreference='Stop'; ")
 
 	for envName, envValue := range envVar {
-		cmd += fmt.Sprintf("$env:%s='%s'; ", envName, envValue)
+		fmt.Fprintf(&builder, "$env:%s='%s'; ", envName, envValue)
 	}
 	// By default, powershell will just exit with 0 or 1, so we call exit to preserve
 	// the exit code of the command provided by the caller.
@@ -665,7 +665,7 @@ func buildCommandOnWindows(command string, envVar EnvVar) string {
 	//
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables?#lastexitcode
 	// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_powershell_exe?#-command
-	cmd += fmt.Sprintf("$LASTEXITCODE=0; %s; if (-not $?) { exit $LASTEXITCODE }", command)
+	fmt.Fprintf(&builder, "$LASTEXITCODE=0; %s; if (-not $?) { exit $LASTEXITCODE }", command)
 	// NOTE: Do not add more commands after the command provided by the caller.
 	//
 	// `$ErrorActionPreference`='Stop' only applies to PowerShell commands, not to
@@ -676,16 +676,16 @@ func buildCommandOnWindows(command string, envVar EnvVar) string {
 	// caller, we will need to find a way to ensure that the exit code of the command
 	// provided by the caller is preserved.
 
-	return cmd
+	return builder.String()
 }
 
 func buildCommandOnLinuxAndMacOS(command string, envVar EnvVar) string {
-	cmd := ""
+	var builder strings.Builder
 	for envName, envValue := range envVar {
-		cmd += fmt.Sprintf("%s='%s' ", envName, envValue)
+		fmt.Fprintf(&builder, "%s='%s' ", envName, envValue)
 	}
-	cmd += command
-	return cmd
+	builder.WriteString(command)
+	return builder.String()
 }
 
 // convertToForwardSlashOnWindows replaces backslashes in the path with forward slashes for Windows remote hosts.

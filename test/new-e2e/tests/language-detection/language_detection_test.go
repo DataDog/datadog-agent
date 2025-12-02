@@ -16,9 +16,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -72,7 +72,7 @@ func (s *languageDetectionSuite) SetupSuite() {
 }
 
 func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language string, source string) {
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -0 %s", pid)) // check PID refers to an existing, signalable process
+	s.Env().RemoteHost.MustExecute("kill -0 " + pid) // check PID refers to an existing, signalable process
 
 	var actualLanguage string
 	var err error
@@ -86,7 +86,7 @@ func (s *languageDetectionSuite) checkDetectedLanguage(pid string, language stri
 			pid, language, actualLanguage, err),
 	)
 
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("kill -SIGTERM %s", pid))
+	s.Env().RemoteHost.MustExecute("kill -SIGTERM " + pid)
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string, source string) (string, error) {

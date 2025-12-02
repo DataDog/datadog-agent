@@ -9,13 +9,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
 
 	"testing"
 )
@@ -67,7 +67,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeMSI() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestGMSAUser)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -102,7 +102,7 @@ func (s *testAgentUpgradeOnDCWithGMSASuite) TestUpgradeAgentPackage() {
 
 	// Install the stable MSI artifact
 	s.installPreviousAgentVersion(
-		installerwindows.WithMSIArg(fmt.Sprintf("DDAGENTUSER_NAME=%s", TestGMSAUser)),
+		installerwindows.WithMSIArg("DDAGENTUSER_NAME=" + TestGMSAUser),
 	)
 	s.AssertSuccessfulAgentPromoteExperiment(s.StableAgentVersion().PackageVersion())
 
@@ -154,7 +154,7 @@ func createGMSAAccount(host *components.RemoteHost, accountName, domain string) 
 	userWithoutSuffix := strings.TrimSuffix(accountName, "$")
 
 	// Check if the gMSA account already exists
-	checkCmd := fmt.Sprintf("Get-ADServiceAccount -Identity %s", userWithoutSuffix)
+	checkCmd := "Get-ADServiceAccount -Identity " + userWithoutSuffix
 	_, err := host.Execute(checkCmd)
 	if err == nil {
 		// Account already exists, skip creation

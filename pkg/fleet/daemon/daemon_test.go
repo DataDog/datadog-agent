@@ -146,9 +146,10 @@ func (m *testPackageManager) Close() error {
 
 type testRemoteConfigClient struct {
 	sync.Mutex
-	t         *testing.T
-	clientID  string
-	listeners map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+	t              *testing.T
+	clientID       string
+	listeners      map[string][]func(map[string]state.RawConfig, func(cfgPath string, status state.ApplyStatus))
+	installerState *pbgo.ClientUpdater
 }
 
 func newTestRemoteConfigClient(t *testing.T) *testRemoteConfigClient {
@@ -171,11 +172,16 @@ func (c *testRemoteConfigClient) Subscribe(product string, fn func(update map[st
 	c.listeners[product] = append(c.listeners[product], fn)
 }
 
-func (c *testRemoteConfigClient) SetInstallerState(_ *pbgo.ClientUpdater) {
+func (c *testRemoteConfigClient) SetInstallerState(state *pbgo.ClientUpdater) {
+	c.Lock()
+	defer c.Unlock()
+	c.installerState = state
 }
 
 func (c *testRemoteConfigClient) GetInstallerState() *pbgo.ClientUpdater {
-	return nil
+	c.Lock()
+	defer c.Unlock()
+	return c.installerState
 }
 
 func (c *testRemoteConfigClient) GetClientID() string {
@@ -450,4 +456,76 @@ func TestRemoteRequestClientIDCheckDisabled(t *testing.T) {
 	// Verify that InstallExperiment was called even though client ID is the special bypass value
 	i.bm.AssertExpectations(t)
 	i.pm.AssertExpectations(t)
+}
+
+func TestRefreshStateRunningVersions(t *testing.T) {
+	// Setup test state
+	testPackageStates := map[string]repository.State{
+		"datadog-agent": {
+			Stable:     "7.50.0",
+			Experiment: "7.51.0",
+		},
+	}
+	testConfigStates := map[string]repository.State{
+		"datadog-agent": {
+			Stable:     "config-stable-1",
+			Experiment: "config-exp-1",
+		},
+	}
+
+	// Create test components with our custom mocks
+	bm := &testBoostrapper{}
+	installExperimentFunc = bm.InstallExperiment
+	pm := &testPackageManager{}
+	pm.On("AvailableDiskSpace").Return(uint64(1000000000), nil)
+	pm.On("States", mock.Anything).Return(testPackageStates, nil)
+	pm.On("ConfigStates", mock.Anything).Return(testConfigStates, nil)
+	rcc := newTestRemoteConfigClient(t)
+	rc := &remoteConfig{client: rcc}
+	taskDB, err := newTaskDB(filepath.Join(t.TempDir(), "tasks.db"))
+	require.NoError(t, err)
+
+	testEnv := &env.Env{
+		RemoteUpdates: true,
+		ConfigID:      "test-config-id-123",
+	}
+	daemon := newDaemon(
+		rc,
+		func(_ *env.Env) installer.Installer { return pm },
+		testEnv,
+		taskDB,
+	)
+	i := &testInstaller{
+		daemonImpl: daemon,
+		rcc:        rcc,
+		pm:         pm,
+		bm:         bm,
+	}
+	i.Start(context.Background())
+	defer i.Stop()
+
+	// Call refreshState to trigger the state update
+	i.daemonImpl.refreshState(context.Background())
+
+	// Wait a bit for the state to be set
+	require.Eventually(t, func() bool {
+		state := i.rcc.GetInstallerState()
+		return state != nil && len(state.Packages) > 0
+	}, 1*time.Second, 10*time.Millisecond)
+
+	// Get the state and verify RunningVersion and RunningConfigVersion are set correctly
+	state := i.rcc.GetInstallerState()
+	require.NotNil(t, state)
+	require.Len(t, state.Packages, 1)
+
+	pkg := state.Packages[0]
+	assert.Equal(t, "datadog-agent", pkg.Package)
+	assert.Equal(t, "7.50.0", pkg.StableVersion)
+	assert.Equal(t, "7.51.0", pkg.ExperimentVersion)
+	assert.Equal(t, "config-stable-1", pkg.StableConfigVersion)
+	assert.Equal(t, "config-exp-1", pkg.ExperimentConfigVersion)
+	assert.Equal(t, version.AgentPackageVersion, pkg.RunningVersion, "RunningVersion should be set to AgentPackageVersion")
+	assert.Equal(t, "test-config-id-123", pkg.RunningConfigVersion, "RunningConfigVersion should be set to env.ConfigID")
+
+	pm.AssertExpectations(t)
 }

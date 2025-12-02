@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
@@ -41,7 +41,7 @@ var _ common.Diagnosable = (*Host)(nil)
 func (e *Host) Diagnose(outputDir string) (string, error) {
 	diagnoses := []string{}
 	if e.RemoteHost == nil {
-		return "", fmt.Errorf("RemoteHost component is not initialized")
+		return "", errors.New("RemoteHost component is not initialized")
 	}
 	// add Agent diagnose
 	if e.Agent != nil {
@@ -50,7 +50,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
-		diagnoses = append(diagnoses, fmt.Sprintf("Flare archive downloaded to %s", dstPath))
+		diagnoses = append(diagnoses, "Flare archive downloaded to "+dstPath)
 		diagnoses = append(diagnoses, "\n")
 	}
 
@@ -59,7 +59,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 
 func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
 	if agent == nil || host == nil {
-		return "", fmt.Errorf("Agent or RemoteHost component is not initialized, cannot generate flare")
+		return "", errors.New("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
 	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
 	// todo skip uploading it to backend, requires further changes in agent executor
@@ -179,7 +179,7 @@ func (e *Host) Coverage(outputDir string) (string, error) {
 		re := regexp.MustCompile(`(?m)Coverage written to (.+)$`)
 		matches := re.FindStringSubmatch(output)
 		if len(matches) < 2 {
-			outStr, errs = updateErrorOutput(target, outStr, errs, fmt.Sprintf("output does not contain the path to the coverage folder, output: %s", output))
+			outStr, errs = updateErrorOutput(target, outStr, errs, "output does not contain the path to the coverage folder, output: "+output)
 			continue
 		}
 		err = e.RemoteHost.GetFolder(matches[1], filepath.Join(outputDir, filepath.Base(matches[1])))
@@ -187,7 +187,7 @@ func (e *Host) Coverage(outputDir string) (string, error) {
 			outStr, errs = updateErrorOutput(target, outStr, errs, err.Error())
 			continue
 		}
-		outStr = append(outStr, fmt.Sprintf("Downloaded coverage folder: %s", matches[1]))
+		outStr = append(outStr, "Downloaded coverage folder: "+matches[1])
 	}
 
 	if len(errs) > 0 {

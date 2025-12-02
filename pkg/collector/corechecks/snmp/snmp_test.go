@@ -8,6 +8,7 @@ package snmp
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -970,7 +971,7 @@ func TestServiceCheckFailures(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	sess.ConnectErr = fmt.Errorf("can't connect")
+	sess.ConnectErr = errors.New("can't connect")
 	chk := Check{sessionFactory: sessionFactory}
 
 	// language=yaml
@@ -1148,12 +1149,12 @@ func TestCheck_Run(t *testing.T) {
 	}{
 		{
 			name:             "connection error",
-			sessionConnError: fmt.Errorf("can't connect"),
+			sessionConnError: errors.New("can't connect"),
 			expectedErr:      "snmp connection error: can't connect",
 		},
 		{
 			name:                     "failed to fetch sysobjectid",
-			sysObjectIDError:         fmt.Errorf("no sysobjectid"),
+			sysObjectIDError:         errors.New("no sysobjectid"),
 			valuesPacket:             valuesPacketUptime,
 			reachableValuesPacket:    gosnmplib.MockValidReachableGetNextPacket,
 			expectedErr:              "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid",
@@ -1193,23 +1194,23 @@ func TestCheck_Run(t *testing.T) {
 			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
 			sysObjectIDPacket:     sysObjectIDPacketOkMock,
 			valuesPacket:          valuesPacketErrMock,
-			valuesError:           fmt.Errorf("no value"),
+			valuesError:           errors.New("no value"),
 			expectedErr:           "failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.2.3.4.5 1.3.6.1.2.1.1.3.0 1.3.6.1.2.1.1.5.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.0 1.3.6.1.4.1.3375.2.1.1.2.1.44.999]`: no value",
 		},
 		{
 			name:                  "failed to fetch sysobjectid and failed to fetch values",
 			reachableValuesPacket: gosnmplib.MockValidReachableGetNextPacket,
-			sysObjectIDError:      fmt.Errorf("no sysobjectid"),
+			sysObjectIDError:      errors.New("no sysobjectid"),
 			valuesPacket:          valuesPacketErrMock,
-			valuesError:           fmt.Errorf("no value"),
+			valuesError:           errors.New("no value"),
 			expectedErr:           "failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 		{
 			name:                  "failed reachability check",
-			sysObjectIDError:      fmt.Errorf("no sysobjectid"),
-			reachableGetNextError: fmt.Errorf("no value for GextNext"),
+			sysObjectIDError:      errors.New("no sysobjectid"),
+			reachableGetNextError: errors.New("no value for GextNext"),
 			valuesPacket:          valuesPacketErrMock,
-			valuesError:           fmt.Errorf("no value"),
+			valuesError:           errors.New("no value"),
 			expectedErr:           "check device reachable: failed: no value for GextNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no sysobjectid; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: error getting oids `[1.3.6.1.2.1.1.3.0]`: no value",
 		},
 	}
@@ -1274,7 +1275,7 @@ func TestCheck_Run_sessionCloseError(t *testing.T) {
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
-	sess.CloseErr = fmt.Errorf("close error")
+	sess.CloseErr = errors.New("close error")
 	chk := Check{sessionFactory: sessionFactory}
 
 	// language=yaml
@@ -1505,7 +1506,7 @@ tags:
 	}
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	var sysObjectIDPacket *gosnmp.SnmpPacket
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, fmt.Errorf("no value"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(sysObjectIDPacket, errors.New("no value"))
 
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.1.0",
@@ -1666,20 +1667,20 @@ tags:
 	sender.On("Commit").Return()
 
 	var nilPacket *gosnmp.SnmpPacket
-	sess.On("GetNext", []string{"1.0"}).Return(nilPacket, fmt.Errorf("no value for GetNext"))
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("no value"))
+	sess.On("GetNext", []string{"1.0"}).Return(nilPacket, errors.New("no value for GetNext"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, errors.New("no value"))
 
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
 		"1.3.6.1.2.1.1.3.0",
 		"1.3.6.1.2.1.1.5.0",
-	}).Return(nilPacket, fmt.Errorf("device failure"))
+	}).Return(nilPacket, errors.New("device failure"))
 	sess.On("Get", []string{
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
-	}).Return(nilPacket, fmt.Errorf("device failure"))
-	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, fmt.Errorf("device failure"))
+	}).Return(nilPacket, errors.New("device failure"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.1.0"}).Return(nilPacket, errors.New("device failure"))
 
 	expectedErrMsg := "check device reachable: failed: no value for GetNext; failed to autodetect profile: failed to fetch sysobjectid: cannot get sysobjectid: no value; failed to fetch values: failed to fetch scalar oids with batching: failed to fetch scalar oids: fetch scalar: failed getting oids `[1.3.6.1.2.1.1.1.0]` using Get: device failure"
 
@@ -2158,7 +2159,7 @@ metric_tags:
 	sender.On("ServiceCheck", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("Commit").Return()
 
-	sess.On("Get", mock.Anything).Return(&gosnmp.SnmpPacket{}, fmt.Errorf("get error"))
+	sess.On("Get", mock.Anything).Return(&gosnmp.SnmpPacket{}, errors.New("get error"))
 
 	err = chk.Run()
 	assert.Nil(t, err)
@@ -2629,10 +2630,10 @@ namespace: namespace
 
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "1.1.1.1",
-	}).Once()
+	}, false).Once()
 	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
 		DeviceIP: "2.2.2.2",
-	}).Once()
+	}, false).Once()
 
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test")

@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -47,6 +47,12 @@ func (v *baseHealthSuite) TestDefaultInstallHealthy() {
 }
 
 func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
+	// restart the agent, which validates the key using the fakeintake at startup
+	v.UpdateEnv(awshost.Provisioner(
+		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
+		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
+	))
+
 	// the fakeintake says that any API key is invalid by sending a 403 code
 	override := api.ResponseOverride{
 		Endpoint:   "/api/v1/validate",
@@ -54,21 +60,16 @@ func (v *baseHealthSuite) TestDefaultInstallUnhealthy() {
 		Method:     http.MethodGet,
 		Body:       []byte("invalid API key"),
 	}
+
 	err := v.Env().FakeIntake.Client().ConfigureOverride(override)
 	require.NoError(v.T(), err)
 
-	// restart the agent, which validates the key using the fakeintake at startup
-	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-		awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info\nforwarder_apikey_validation_interval: 1")),
-	))
-
 	require.EventuallyWithT(v.T(), func(collect *assert.CollectT) {
-		// forwarder should be unhealthy because the key is invalid
+		// forwarder should become unhealthy when next checking because the fakeintake will return 403
 		_, err = v.Env().Agent.Client.Health()
 		assert.ErrorContains(collect, err, "Agent health: FAIL")
 		assert.ErrorContains(collect, err, "=== 1 unhealthy components ===\nforwarder")
-	}, time.Second*30, time.Second)
+	}, 2*time.Minute, 10*time.Second)
 
 	// the fakeintake now says that the api key is valid
 	override.StatusCode = 200
