@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from ci.merge import deep_merge, extends_merge, resolve_extends
+from ci.merge import apply_job_injections, deep_merge, extends_merge, resolve_extends
 
 
 class TestDeepMerge:
@@ -298,3 +298,232 @@ class TestResolveExtends:
 
         # Job's before_script should completely override template's
         assert result["my-job"]["before_script"] == ["echo job_setup"]
+
+
+class TestApplyJobInjections:
+    """Tests for the apply_job_injections function."""
+
+    def test_inject_before_script(self):
+        """Test injecting before_script to all jobs."""
+        content = {
+            "variables": {"VAR1": "value"},
+            "stages": ["build"],
+            "job1": {
+                "script": ["echo job1"],
+            },
+            "job2": {
+                "before_script": ["echo existing"],
+                "script": ["echo job2"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            before_script=["echo global_setup"],
+        )
+
+        # Job without before_script gets injected
+        assert result["job1"]["before_script"] == ["echo global_setup"]
+        # Job with before_script gets injected at the beginning
+        assert result["job2"]["before_script"] == ["echo global_setup", "echo existing"]
+        # Non-job content unchanged
+        assert result["variables"] == {"VAR1": "value"}
+
+    def test_inject_after_script(self):
+        """Test injecting after_script to all jobs."""
+        content = {
+            "job1": {
+                "script": ["echo job1"],
+            },
+            "job2": {
+                "after_script": ["echo cleanup"],
+                "script": ["echo job2"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            after_script=["echo global_cleanup"],
+        )
+
+        assert result["job1"]["after_script"] == ["echo global_cleanup"]
+        assert result["job2"]["after_script"] == ["echo cleanup", "echo global_cleanup"]
+
+    def test_inject_needs(self):
+        """Test injecting needs to all jobs."""
+        content = {
+            "job1": {
+                "script": ["echo job1"],
+            },
+            "job2": {
+                "needs": ["existing-dep"],
+                "script": ["echo job2"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            needs=["global-setup"],
+        )
+
+        assert result["job1"]["needs"] == ["global-setup"]
+        assert result["job2"]["needs"] == ["global-setup", "existing-dep"]
+
+    def test_inject_needs_no_duplicates(self):
+        """Test that duplicate needs are not added."""
+        content = {
+            "job1": {
+                "needs": ["global-setup", "other-dep"],
+                "script": ["echo job1"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            needs=["global-setup"],
+        )
+
+        # Should not duplicate global-setup
+        assert result["job1"]["needs"] == ["global-setup", "other-dep"]
+
+    def test_inject_variables(self):
+        """Test injecting variables to all jobs."""
+        content = {
+            "job1": {
+                "script": ["echo job1"],
+            },
+            "job2": {
+                "variables": {
+                    "JOB_VAR": "job_value",
+                    "OVERRIDE_ME": "job_override",
+                },
+                "script": ["echo job2"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            variables={"GLOBAL_VAR": "global", "OVERRIDE_ME": "global_value"},
+        )
+
+        # Job without variables gets injected
+        assert result["job1"]["variables"] == {"GLOBAL_VAR": "global", "OVERRIDE_ME": "global_value"}
+        # Job with variables: job's own variables take precedence
+        assert result["job2"]["variables"]["GLOBAL_VAR"] == "global"
+        assert result["job2"]["variables"]["JOB_VAR"] == "job_value"
+        assert result["job2"]["variables"]["OVERRIDE_ME"] == "job_override"
+
+    def test_inject_tags(self):
+        """Test injecting tags to all jobs."""
+        content = {
+            "job1": {
+                "script": ["echo job1"],
+            },
+            "job2": {
+                "tags": ["runner-a"],
+                "script": ["echo job2"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            tags=["global-tag"],
+        )
+
+        assert result["job1"]["tags"] == ["global-tag"]
+        assert result["job2"]["tags"] == ["global-tag", "runner-a"]
+
+    def test_skip_hidden_templates(self):
+        """Test that hidden templates (starting with .) are not injected."""
+        content = {
+            ".template": {
+                "script": ["echo template"],
+            },
+            "job1": {
+                "extends": ".template",
+                "script": ["echo job1"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            before_script=["echo setup"],
+        )
+
+        # Template should not have injection
+        assert "before_script" not in result[".template"]
+        # Job should have injection
+        assert result["job1"]["before_script"] == ["echo setup"]
+
+    def test_skip_special_keys(self):
+        """Test that special top-level keys are not treated as jobs."""
+        content = {
+            "variables": {"VAR1": "value"},
+            "stages": ["build", "test"],
+            "default": {"image": "alpine"},
+            "workflow": {"rules": []},
+            "job1": {
+                "script": ["echo job1"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            before_script=["echo setup"],
+        )
+
+        # Special keys unchanged
+        assert result["variables"] == {"VAR1": "value"}
+        assert result["stages"] == ["build", "test"]
+        assert result["default"] == {"image": "alpine"}
+        # Job gets injection
+        assert result["job1"]["before_script"] == ["echo setup"]
+
+    def test_inject_multiple(self):
+        """Test injecting multiple things at once."""
+        content = {
+            "job1": {
+                "script": ["echo job1"],
+            },
+        }
+        result = apply_job_injections(
+            content,
+            before_script=["echo setup"],
+            after_script=["echo cleanup"],
+            needs=["init-job"],
+            variables={"GLOBAL": "value"},
+            tags=["runner"],
+        )
+
+        assert result["job1"]["before_script"] == ["echo setup"]
+        assert result["job1"]["after_script"] == ["echo cleanup"]
+        assert result["job1"]["needs"] == ["init-job"]
+        assert result["job1"]["variables"] == {"GLOBAL": "value"}
+        assert result["job1"]["tags"] == ["runner"]
+
+    def test_skip_trigger_jobs_for_scripts(self):
+        """Test that trigger jobs don't get before_script, after_script, or tags."""
+        content = {
+            "regular-job": {
+                "script": ["echo job"],
+            },
+            "trigger-job": {
+                "trigger": {
+                    "include": "child-pipeline.yml",
+                },
+            },
+        }
+        result = apply_job_injections(
+            content,
+            before_script=["echo setup"],
+            after_script=["echo cleanup"],
+            needs=["init-job"],
+            variables={"GLOBAL": "value"},
+            tags=["runner"],
+        )
+
+        # Regular job gets all injections
+        assert result["regular-job"]["before_script"] == ["echo setup"]
+        assert result["regular-job"]["after_script"] == ["echo cleanup"]
+        assert result["regular-job"]["needs"] == ["init-job"]
+        assert result["regular-job"]["variables"] == {"GLOBAL": "value"}
+        assert result["regular-job"]["tags"] == ["runner"]
+
+        # Trigger job only gets needs and variables (allowed)
+        assert "before_script" not in result["trigger-job"]
+        assert "after_script" not in result["trigger-job"]
+        assert "tags" not in result["trigger-job"]
+        assert result["trigger-job"]["needs"] == ["init-job"]
+        assert result["trigger-job"]["variables"] == {"GLOBAL": "value"}

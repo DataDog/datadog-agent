@@ -3,9 +3,10 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
-from ci.merge import deep_merge, resolve_extends, resolve_includes
+from ci.merge import apply_job_injections, deep_merge, resolve_extends, resolve_includes
 from ci.pipelines import (
     ChangesTrigger,
+    JobInjection,
     Pipeline,
     PipelinesConfig,
     get_changed_files,
@@ -20,8 +21,10 @@ __all__ = [
     "deep_merge",
     "resolve_includes",
     "resolve_extends",
+    "apply_job_injections",
     "PipelinesConfig",
     "Pipeline",
+    "JobInjection",
     "ChangesTrigger",
     "get_changed_files",
     "get_pipelines_folder",

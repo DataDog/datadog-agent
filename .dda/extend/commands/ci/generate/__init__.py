@@ -12,6 +12,7 @@ from dda.cli.base import dynamic_command, pass_app
 from ci import (
     Pipeline,
     PipelinesConfig,
+    apply_job_injections,
     deep_merge,
     dump_yaml,
     get_changed_files,
@@ -66,12 +67,20 @@ def merge_pipeline_configs(
     - stages: concatenated and deduplicated (preserving order)
     - variables: deep merged (later pipelines override individual vars)
     - extends: optionally resolved (templates merged into jobs)
+    - inject: collected from all pipelines and applied to all jobs
     - jobs: merged (later pipelines override)
     - other keys: merged (later pipelines override)
     """
     merged: dict[str, Any] = {}
     all_stages: list[str] = []
     all_variables: dict[str, Any] = {}
+
+    # Collect injections from all pipelines
+    all_before_script: list[str] = []
+    all_after_script: list[str] = []
+    all_needs: list[str | dict] = []
+    all_inject_variables: dict[str, Any] = {}
+    all_tags: list[str] = []
 
     for pipeline in pipelines:
         if not pipeline.entrypoint:
@@ -94,6 +103,20 @@ def merge_pipeline_configs(
 
         if should_resolve_includes:
             content = resolve_includes(content, entrypoint_path.parent, project_root)
+
+        # Collect injection config from this pipeline
+        if pipeline.inject:
+            inj = pipeline.inject
+            if inj.before_script:
+                all_before_script.extend(inj.before_script)
+            if inj.after_script:
+                all_after_script.extend(inj.after_script)
+            if inj.needs:
+                all_needs.extend(inj.needs)
+            if inj.variables:
+                all_inject_variables = deep_merge(all_inject_variables, inj.variables)
+            if inj.tags:
+                all_tags.extend(inj.tags)
 
         # Handle stages specially - collect and deduplicate
         if "stages" in content:
@@ -122,6 +145,19 @@ def merge_pipeline_configs(
     if should_resolve_extends:
         app.display_info("Resolving extends directives...")
         merged = resolve_extends(merged)
+
+    # Apply injections to all jobs
+    has_injections = any([all_before_script, all_after_script, all_needs, all_inject_variables, all_tags])
+    if has_injections:
+        app.display_info("Applying job injections...")
+        merged = apply_job_injections(
+            merged,
+            before_script=all_before_script or None,
+            after_script=all_after_script or None,
+            needs=all_needs or None,
+            variables=all_inject_variables or None,
+            tags=all_tags or None,
+        )
 
     return merged
 

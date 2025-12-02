@@ -254,3 +254,101 @@ def resolve_extends(content: dict[str, Any]) -> dict[str, Any]:
         result[name] = resolved
 
     return result
+
+
+def apply_job_injections(
+    content: dict[str, Any],
+    before_script: list[str] | None = None,
+    after_script: list[str] | None = None,
+    needs: list[str | dict] | None = None,
+    variables: dict[str, Any] | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Apply injections to all jobs in the GitLab CI configuration.
+
+    Injections are prepended/added with lower priority than the job's own config:
+    - before_script: prepended to job's before_script
+    - after_script: appended to job's after_script
+    - needs: prepended to job's needs
+    - variables: merged with job's variables (job takes precedence)
+    - tags: prepended to job's tags
+
+    Args:
+        content: The GitLab CI configuration.
+        before_script: Commands to prepend to all jobs' before_script.
+        after_script: Commands to append to all jobs' after_script.
+        needs: Dependencies to add to all jobs' needs.
+        variables: Variables to add to all jobs (job's own vars take precedence).
+        tags: Tags to add to all jobs.
+
+    Returns:
+        Modified configuration with injections applied.
+    """
+    result = copy.deepcopy(content)
+
+    # Identify which keys are jobs (dicts that aren't special top-level keys)
+    special_keys = {"variables", "stages", "default", "workflow", "include"}
+
+    for key, value in result.items():
+        # Skip non-job content
+        if not isinstance(value, dict):
+            continue
+        # Skip hidden templates (start with .)
+        if key.startswith("."):
+            continue
+        # Skip special top-level keys
+        if key in special_keys:
+            continue
+
+        job = value
+
+        # Check if this is a trigger job (can't have before_script, after_script, tags)
+        is_trigger_job = "trigger" in job
+
+        # Inject before_script (prepend) - not allowed for trigger jobs
+        if before_script and not is_trigger_job:
+            existing = job.get("before_script") or []
+            job["before_script"] = before_script + existing
+
+        # Inject after_script (append) - not allowed for trigger jobs
+        if after_script and not is_trigger_job:
+            existing = job.get("after_script") or []
+            job["after_script"] = existing + after_script
+
+        # Inject needs (prepend) - allowed for trigger jobs
+        if needs:
+            existing = job.get("needs") or []
+            # Avoid duplicates
+            new_needs = []
+            existing_names = set()
+            for n in existing:
+                if isinstance(n, str):
+                    existing_names.add(n)
+                elif isinstance(n, dict) and "job" in n:
+                    existing_names.add(n["job"])
+
+            for n in needs:
+                need_name = n if isinstance(n, str) else n.get("job", "")
+                if need_name and need_name not in existing_names:
+                    new_needs.append(n)
+
+            if new_needs or existing:
+                job["needs"] = new_needs + existing
+
+        # Inject variables (job's own take precedence) - allowed for trigger jobs
+        if variables:
+            existing = job.get("variables") or {}
+            merged_vars = copy.deepcopy(variables)
+            merged_vars.update(existing)  # Job's vars override
+            job["variables"] = merged_vars
+
+        # Inject tags (prepend) - not allowed for trigger jobs
+        if tags and not is_trigger_job:
+            existing = job.get("tags") or []
+            # Avoid duplicates
+            new_tags = [t for t in tags if t not in existing]
+            if new_tags or existing:
+                job["tags"] = new_tags + existing
+
+    return result

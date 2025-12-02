@@ -4,6 +4,7 @@
 """
 Parser for dd.pipelines.yml configuration.
 """
+
 from __future__ import annotations
 
 import fnmatch
@@ -88,12 +89,36 @@ class ChangesTrigger:
 
 
 @dataclass
+class JobInjection:
+    """Configuration to inject into all jobs.
+
+    Example in pipeline YAML:
+    ```yaml
+    inject:
+      before_script:
+        - echo "Global setup"
+      needs:
+        - global-setup-job
+      variables:
+        GLOBAL_VAR: "value"
+    ```
+    """
+
+    before_script: list[str] = field(default_factory=list)
+    after_script: list[str] = field(default_factory=list)
+    needs: list[str | dict] = field(default_factory=list)
+    variables: dict[str, Any] = field(default_factory=dict)
+    tags: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Pipeline:
     """Represents a pipeline configuration."""
 
     name: str
     entrypoint: str = ""  # Path to GitLab CI config file
     triggers: list[ChangesTrigger] = field(default_factory=list)
+    inject: JobInjection | None = None  # Optional injection config
 
     def should_trigger(self, changed_files: list[str]) -> bool:
         """Check if this pipeline should be triggered by the changed files."""
@@ -139,19 +164,34 @@ class PipelinesConfig:
                         if "include" in item:
                             include.extend(item["include"])
 
-                triggers.append(ChangesTrigger(
-                    include=include,
-                    all_except=all_except,
-                ))
+                triggers.append(
+                    ChangesTrigger(
+                        include=include,
+                        all_except=all_except,
+                    )
+                )
+
+        # Parse inject section
+        inject = None
+        inject_data = data.get("inject")
+        if inject_data:
+            inject = JobInjection(
+                before_script=inject_data.get("before_script", []),
+                after_script=inject_data.get("after_script", []),
+                needs=inject_data.get("needs", []),
+                variables=inject_data.get("variables", {}),
+                tags=inject_data.get("tags", []),
+            )
 
         return Pipeline(
             name=data.get("name", ""),
             entrypoint=data.get("entrypoint", ""),
             triggers=triggers,
+            inject=inject,
         )
 
     @classmethod
-    def load_from_folder(cls, folder_path: Path) -> "PipelinesConfig":
+    def load_from_folder(cls, folder_path: Path) -> PipelinesConfig:
         """Load pipeline configurations from a folder of YAML files.
 
         Each YAML file in the folder represents a single pipeline.
@@ -182,7 +222,7 @@ class PipelinesConfig:
         return cls(pipelines=pipelines)
 
     @classmethod
-    def load(cls, path: Path) -> "PipelinesConfig":
+    def load(cls, path: Path) -> PipelinesConfig:
         """Load configuration from dd.pipelines.yml (legacy format)."""
         if not path.exists():
             return cls()
@@ -233,7 +273,7 @@ def _matches_pattern(file_path: str, pattern: str) -> bool:
             if prefix:
                 if not (file_path.startswith(prefix + "/") or file_path == prefix):
                     return False
-                remaining = file_path[len(prefix):].lstrip("/")
+                remaining = file_path[len(prefix) :].lstrip("/")
             else:
                 remaining = file_path
 
@@ -256,7 +296,7 @@ def _matches_pattern(file_path: str, pattern: str) -> bool:
             return False
 
         # Match each segment
-        for pp, fp in zip(pattern_parts, path_parts):
+        for pp, fp in zip(pattern_parts, path_parts, strict=False):
             if not fnmatch.fnmatch(fp, pp):
                 return False
         return True
@@ -313,4 +353,3 @@ def get_pipelines_folder(project_root: Path) -> Path:
 def get_default_pipelines_path(project_root: Path) -> Path:
     """Get the default pipelines configuration file path (legacy)."""
     return project_root / "dd.pipelines.yml"
-
