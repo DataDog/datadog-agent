@@ -254,6 +254,7 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 				hookFunc("hook_clone_mnt"),
 				hookFunc("rethook_clone_mnt"),
 				hookFunc("hook_mnt_change_mountpoint"),
+				hookFunc("hook_cleanup_mnt"),
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("rethook_alloc_vfsmnt"),
@@ -266,7 +267,6 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "unshare", hasFentry, EntryAndExit)},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_attach_mnt"),
-				hookFunc("hook_cleanup_mnt"),
 				hookFunc("hook___attach_mnt"),
 				hookFunc("hook_mnt_set_mountpoint"),
 			}},
