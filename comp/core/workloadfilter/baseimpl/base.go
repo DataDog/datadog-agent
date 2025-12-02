@@ -114,7 +114,7 @@ func NewBaseFilterStore(cfg config.Component, logger logcomp.Component, telemetr
 	baseFilter.RegisterFactory(workloadfilter.PodADAnnotationsMetrics, genericADMetricsProgramFactory)
 
 	// Process Filters
-	baseFilter.RegisterFactory(workloadfilter.ProcessLegacyExclude, catalog.LegacyProcessExcludeProgram)
+	baseFilter.RegisterFactory(workloadfilter.ProcessType, string(workloadfilter.ProcessLegacyExclude), catalog.LegacyProcessExcludeProgram)
 
 	return baseFilter
 }
