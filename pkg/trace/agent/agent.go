@@ -782,6 +782,7 @@ func warnIfInvalidAPMModeSpanTag(apmMode string) {
 		log.Warnf("empty value for '_dd.apm_mode' span tag")
 	} else {
 		// It's possible we may support other modes in the future, so we log the invalid value in debug mode only.
+		log.Debugf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
 	}
 }
 
