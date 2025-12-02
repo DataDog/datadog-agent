@@ -78,6 +78,7 @@ func TestCompressorLimits(t *testing.T) {
 
 	require.NoError(t, err)
 
+	//nolint:revive // https://github.com/mgechev/revive/issues/386
 	for c.AddItem([]byte("contentontent")) == nil {
 	}
 
