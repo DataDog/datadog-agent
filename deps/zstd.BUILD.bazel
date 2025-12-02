@@ -90,12 +90,13 @@ so_symlink(
     libname = "libzstd",
     src = ":zstd",
     version = _VERSION,
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "include/",
+    prefix = "embedded/include",
 )
 
 expand_template(
@@ -116,7 +117,7 @@ expand_template(
 pkg_files(
     name = "pc_file",
     srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
+    prefix = "embedded/lib/pkgconfig",
 )
 
 pkg_install(
