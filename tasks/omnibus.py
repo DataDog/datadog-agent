@@ -541,6 +541,15 @@ def docker_build(
     """
     Build the Agent inside a Docker container and create a runnable Docker image.
 
+    This is ideal for local development when you want production-like builds without
+    setting up a local omnibus/Ruby environment. It handles Docker Desktop VirtioFS
+    quirks and uses the same buildimages as CI.
+
+    Related tasks:
+    - omnibus.build: For CI pipelines or when you have local omnibus/Ruby setup
+    - agent.image-build: Creates Docker image from existing omnibus deb package
+    - agent.hacky-dev-image-build: Quick iteration with locally-built binaries (not omnibus)
+
     This task:
     1. Runs the omnibus build inside a Docker container (with caching)
     2. Creates a Docker image from the build output
