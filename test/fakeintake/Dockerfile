@@ -28,6 +28,7 @@ COPY test/fakeintake .
 
 # need to explicitely run with CGO enabled
 ENV CGO_ENABLED=1
+ARG CI
 RUN go build -o /fakeintake cmd/server/main.go
 
 ## Deploy
