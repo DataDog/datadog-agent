@@ -82,12 +82,3 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	defer func() { installer.Finish(err) }()
 	return installer.Uninstrument(ctx)
 }
-
-// RestartService restarts a service or container using the specified manager
-func RestartService(ctx context.Context, manager string, targetName string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "restart_service")
-	span.SetTag("manager", manager)
-	span.SetTag("target_name", targetName)
-	defer func() { span.Finish(err) }()
-	return restartServiceImpl(ctx, manager, targetName)
-}

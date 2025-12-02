@@ -23,8 +23,6 @@ const (
 	TaskFlare TaskType = "flare"
 	// TaskDeviceScan is the task sent to request a device scan for NDM device onboarding.
 	TaskDeviceScan TaskType = "ndm-device-scan"
-	// TaskRestart is the task sent to request a restart of a service or container
-	TaskRestart TaskType = "restart"
 )
 
 // AgentTaskConfig is a deserialized agent task configuration file

@@ -174,7 +174,6 @@ func RootCommands() []*cobra.Command {
 		prermCommand(),
 		hooksCommand(),
 		packageCommand(),
-		restartCommand(),
 	}
 }
 
@@ -549,27 +548,5 @@ func packageCommand() *cobra.Command {
 		},
 	}
 
-	return cmd
-}
-
-func restartCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:     "restart <manager> <target_name>",
-		Short:   "Restart a service or container",
-		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i, err := newInstallerCmd("restart")
-			if err != nil {
-				return err
-			}
-			defer func() { i.stop(err) }()
-			manager := args[0]
-			targetName := args[1]
-			i.span.SetTag("params.manager", manager)
-			i.span.SetTag("params.target_name", targetName)
-			return i.Restart(i.ctx, manager, targetName)
-		},
-	}
 	return cmd
 }

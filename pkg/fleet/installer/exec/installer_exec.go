@@ -226,13 +226,6 @@ func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method stri
 	return cmd.Run()
 }
 
-// Restart restarts a service or container using the specified manager
-func (i *InstallerExec) Restart(ctx context.Context, manager string, targetName string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "restart", manager, targetName)
-	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
-}
-
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
