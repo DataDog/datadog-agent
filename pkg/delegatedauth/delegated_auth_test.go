@@ -132,3 +132,104 @@ func TestTokenResponseStructure(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "test-key", unmarshaled.Data.Attributes.APIKey)
 }
+
+func TestGetAPIDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		endpoint string
+		want     string
+	}{
+		// Production domains
+		{
+			name:     "production intake domain",
+			endpoint: "https://agent.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "production intake domain with trailing dot",
+			endpoint: "https://agent.datadoghq.com.",
+			want:     "https://api.datadoghq.com.",
+		},
+		{
+			name:     "production EU domain",
+			endpoint: "https://agent.datadoghq.eu",
+			want:     "https://api.datadoghq.eu",
+		},
+		{
+			name:     "production regional US1 domain",
+			endpoint: "https://agent.us1.datadoghq.com",
+			want:     "https://api.us1.datadoghq.com",
+		},
+		{
+			name:     "production regional EU1 domain",
+			endpoint: "https://metrics.eu1.datadoghq.com",
+			want:     "https://api.eu1.datadoghq.com",
+		},
+		// Staging/internal domains (datad0g.com)
+		{
+			name:     "staging intake domain",
+			endpoint: "https://agent.datad0g.com",
+			want:     "https://api.datad0g.com",
+		},
+		{
+			name:     "staging intake domain with trailing dot",
+			endpoint: "https://agent.datad0g.com.",
+			want:     "https://api.datad0g.com.",
+		},
+		{
+			name:     "staging EU domain",
+			endpoint: "https://agent.datad0g.eu",
+			want:     "https://api.datad0g.eu",
+		},
+		{
+			name:     "staging regional US1 domain",
+			endpoint: "https://agent.us1.datad0g.com",
+			want:     "https://api.us1.datad0g.com",
+		},
+		// Gov cloud
+		{
+			name:     "gov cloud domain",
+			endpoint: "https://agent.ddog-gov.com",
+			want:     "https://api.ddog-gov.com",
+		},
+		{
+			name:     "gov cloud domain with trailing dot",
+			endpoint: "https://agent.ddog-gov.com.",
+			want:     "https://api.ddog-gov.com.",
+		},
+		// Unknown/custom domains (should pass through unchanged)
+		{
+			name:     "custom domain unchanged",
+			endpoint: "https://custom.example.com",
+			want:     "https://custom.example.com",
+		},
+		{
+			name:     "localhost unchanged",
+			endpoint: "http://localhost:8080",
+			want:     "http://localhost:8080",
+		},
+		{
+			name:     "IP address unchanged",
+			endpoint: "https://192.168.1.1",
+			want:     "https://192.168.1.1",
+		},
+		// Edge cases
+		{
+			name:     "already app subdomain",
+			endpoint: "https://api.datadoghq.com",
+			want:     "https://api.datadoghq.com",
+		},
+		{
+			name:     "with trailing slash",
+			endpoint: "https://agent.datadoghq.com/",
+			want:     "https://api.datadoghq.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getAPIDomain(tt.endpoint)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
