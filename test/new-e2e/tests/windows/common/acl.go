@@ -392,7 +392,7 @@ func objectSecurityDTOFromCommand(host *components.RemoteHost, cmd string) (Obje
 			}
 		`, strings.ReplaceAll(cmd, "`", "``"))
 		_, _ = host.Execute(diagScript)
-		return s, fmt.Errorf("failed executing ACL command: %v\nDiagnostics saved under C:\\Windows\\Temp (acl_diag_*.txt).", err)
+		return s, fmt.Errorf("failed executing ACL command: %v; diagnostics saved under C:\\Windows\\Temp (acl_diag_*\\.txt)", err)
 	}
 
 	err = json.Unmarshal([]byte(output), &s)
