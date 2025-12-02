@@ -3,22 +3,23 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
-from ci.yaml import load_yaml, dump_yaml
-from ci.merge import deep_merge, resolve_includes
+from ci.merge import deep_merge, resolve_extends, resolve_includes
 from ci.pipelines import (
-    PipelinesConfig,
-    Pipeline,
     ChangesTrigger,
+    Pipeline,
+    PipelinesConfig,
     get_changed_files,
-    get_pipelines_folder,
     get_default_pipelines_path,
+    get_pipelines_folder,
 )
+from ci.yaml import dump_yaml, load_yaml
 
 __all__ = [
     "load_yaml",
     "dump_yaml",
     "deep_merge",
     "resolve_includes",
+    "resolve_extends",
     "PipelinesConfig",
     "Pipeline",
     "ChangesTrigger",
@@ -26,4 +27,3 @@ __all__ = [
     "get_pipelines_folder",
     "get_default_pipelines_path",
 ]
-

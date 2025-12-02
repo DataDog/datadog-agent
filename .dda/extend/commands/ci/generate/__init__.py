@@ -7,19 +7,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import click
-
 from dda.cli.base import dynamic_command, pass_app
 
 from ci import (
-    load_yaml,
-    dump_yaml,
-    resolve_includes,
-    deep_merge,
-    PipelinesConfig,
     Pipeline,
+    PipelinesConfig,
+    deep_merge,
+    dump_yaml,
     get_changed_files,
-    get_pipelines_folder,
     get_default_pipelines_path,
+    get_pipelines_folder,
+    load_yaml,
+    resolve_extends,
+    resolve_includes,
 )
 
 if TYPE_CHECKING:
@@ -55,6 +55,7 @@ def merge_pipeline_configs(
     pipelines: list[Pipeline],
     project_root: Path,
     should_resolve_includes: bool,
+    should_resolve_extends: bool,
     app: Application,
 ) -> dict[str, Any]:
     """
@@ -63,12 +64,14 @@ def merge_pipeline_configs(
     Each pipeline's entrypoint config is loaded and merged together.
     The merge strategy:
     - stages: concatenated and deduplicated (preserving order)
-    - variables: merged (later pipelines override)
+    - variables: deep merged (later pipelines override individual vars)
+    - extends: optionally resolved (templates merged into jobs)
     - jobs: merged (later pipelines override)
     - other keys: merged (later pipelines override)
     """
     merged: dict[str, Any] = {}
     all_stages: list[str] = []
+    all_variables: dict[str, Any] = {}
 
     for pipeline in pipelines:
         if not pipeline.entrypoint:
@@ -77,7 +80,9 @@ def merge_pipeline_configs(
 
         entrypoint_path = project_root / Path(pipeline.entrypoint)
         if not entrypoint_path.exists():
-            app.display_warning(f"Entrypoint '{pipeline.entrypoint}' for pipeline '{pipeline.name}' not found, skipping")
+            app.display_warning(
+                f"Entrypoint '{pipeline.entrypoint}' for pipeline '{pipeline.name}' not found, skipping"
+            )
             continue
 
         app.display_info(f"Loading config for '{pipeline.name}': {pipeline.entrypoint}")
@@ -97,12 +102,26 @@ def merge_pipeline_configs(
                     all_stages.append(stage)
             del content["stages"]
 
+        # Handle variables specially - merge them
+        if "variables" in content:
+            all_variables = deep_merge(all_variables, content["variables"])
+            del content["variables"]
+
         # Merge the rest
         merged = deep_merge(merged, content)
 
-    # Add deduplicated stages back
+    # Add variables at the top
+    if all_variables:
+        merged["variables"] = all_variables
+
+    # Add deduplicated stages
     if all_stages:
         merged["stages"] = all_stages
+
+    # Resolve extends if requested
+    if should_resolve_extends:
+        app.display_info("Resolving extends directives...")
+        merged = resolve_extends(merged)
 
     return merged
 
@@ -157,6 +176,12 @@ def merge_pipeline_configs(
     default=False,
     help="Generate all pipelines merged together",
 )
+@click.option(
+    "--resolve-extends/--no-resolve-extends",
+    "should_resolve_extends",
+    default=True,
+    help="Whether to resolve extends directives, merging templates into jobs (default: true)",
+)
 @pass_app
 def cmd(
     app: Application,
@@ -168,6 +193,7 @@ def cmd(
     compare_branch: str,
     show_pipelines: bool,
     generate_all: bool,
+    should_resolve_extends: bool,
 ) -> None:
     """
     Generate CI pipeline(s) from dd.pipelines.yml.
@@ -291,6 +317,7 @@ def cmd(
         pipelines_to_generate,
         project_root,
         should_resolve_includes,
+        should_resolve_extends,
         app,
     )
 
