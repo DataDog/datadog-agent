@@ -273,11 +273,7 @@ func (ccc *CCCache) GetCFApplications() ([]*CFApplication, error) {
 
 // GetProcesses returns all processes for the given app guid in the cache
 func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
-	ccc.RLock()
-	processesByAppGUID := ccc.processesByAppGUID
-	ccc.RUnlock()
-
-	processes, err := getResource(ccc, "Processes", appGUID, processesByAppGUID, ccc.fetchProcessesByAppGUID)
+	processes, err := getResource(ccc, "Processes", appGUID, ccc.processesByAppGUID, ccc.fetchProcessesByAppGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -286,11 +282,7 @@ func (ccc *CCCache) GetProcesses(appGUID string) ([]*cfclient.Process, error) {
 
 // GetCFApplication looks for a CF application with the given GUID in the cache
 func (ccc *CCCache) GetCFApplication(guid string) (*CFApplication, error) {
-	ccc.RLock()
-	cfApplicationsByGUID := ccc.cfApplicationsByGUID
-	ccc.RUnlock()
-
-	cfapp, err := getResource(ccc, "CFApplication", guid, cfApplicationsByGUID, ccc.fetchCFApplicationByGUID)
+	cfapp, err := getResource(ccc, "CFApplication", guid, ccc.cfApplicationsByGUID, ccc.fetchCFApplicationByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,11 +303,7 @@ func (ccc *CCCache) GetSidecars(guid string) ([]*CFSidecar, error) {
 
 // GetApp looks for an app with the given GUID in the cache
 func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
-	ccc.RLock()
-	appsByGUID := ccc.appsByGUID
-	ccc.RUnlock()
-
-	app, err := getResource(ccc, "App", guid, appsByGUID, ccc.ccAPIClient.GetV3AppByGUID)
+	app, err := getResource(ccc, "App", guid, ccc.appsByGUID, ccc.ccAPIClient.GetV3AppByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -324,11 +312,7 @@ func (ccc *CCCache) GetApp(guid string) (*cfclient.V3App, error) {
 
 // GetSpace looks for a space with the given GUID in the cache
 func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
-	ccc.RLock()
-	spacesByGUID := ccc.spacesByGUID
-	ccc.RUnlock()
-
-	space, err := getResource(ccc, "Space", guid, spacesByGUID, ccc.ccAPIClient.GetV3SpaceByGUID)
+	space, err := getResource(ccc, "Space", guid, ccc.spacesByGUID, ccc.ccAPIClient.GetV3SpaceByGUID)
 	if err != nil {
 		return nil, err
 	}
@@ -337,11 +321,7 @@ func (ccc *CCCache) GetSpace(guid string) (*cfclient.V3Space, error) {
 
 // GetOrg looks for an org with the given GUID in the cache
 func (ccc *CCCache) GetOrg(guid string) (*cfclient.V3Organization, error) {
-	ccc.RLock()
-	orgsByGUID := ccc.orgsByGUID
-	ccc.RUnlock()
-
-	org, err := getResource(ccc, "Org", guid, orgsByGUID, ccc.ccAPIClient.GetV3OrganizationByGUID)
+	org, err := getResource(ccc, "Org", guid, ccc.orgsByGUID, ccc.ccAPIClient.GetV3OrganizationByGUID)
 	if err != nil {
 		return nil, err
 	}
