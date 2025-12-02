@@ -25,7 +25,7 @@ build do
     # TODO too many things done here, should be split
     block do
         # Push all the pieces built with Bazel.
-        command_on_repo_root "bazelisk run -- //distribs/install_dir:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
+        command_on_repo_root "bazelisk run -- //packaging/install_dir:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
 
         # Conf files
         if windows_target?

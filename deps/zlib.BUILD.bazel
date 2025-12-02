@@ -45,7 +45,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["@@//distribs:__subpackages__"],
+    default_visibility = ["@@//packaging:__subpackages__"],
 )
 
 license(

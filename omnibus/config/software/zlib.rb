@@ -17,6 +17,6 @@
 name "zlib"
 
 build do
-  # No-op command that has bazel in it - solely for the purpose of tracking migrations.
-  command_on_repo_root "bazelisk query -- @zlib//:install"
+  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @zlib//:install_license --destdir='#{install_dir}/LICENSES'"
 end
