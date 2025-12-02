@@ -24,7 +24,7 @@ build do
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
-    sh_lib = if linux_target? then "libpython3.so" else "libpython3.dylib" end
+    sh_lib = if linux_target? then "libpython3.so" else "libpython3.13.dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
       " #{install_dir}/embedded/lib/pkgconfig/python*.pc" \
       " #{install_dir}/embedded/lib/#{sh_lib}" \
