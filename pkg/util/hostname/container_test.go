@@ -9,7 +9,7 @@ package hostname
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -55,13 +55,13 @@ func TestFromContainer(t *testing.T) {
 	assert.Equal(t, "kubernetes-hostname", hostname)
 
 	// kubelet
-	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	kubernetesGetKubeAPIServerHostname = func(context.Context) (string, error) { return "", errors.New("some error") }
 
 	hostname, err = fromContainer(ctx, "")
 	require.NoError(t, err)
 	assert.Equal(t, "kubelet-hostname", hostname)
 
-	kubeletGetHostname = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	kubeletGetHostname = func(context.Context) (string, error) { return "", errors.New("some error") }
 	_, err = fromContainer(ctx, "")
 	assert.Error(t, err)
 
@@ -72,7 +72,7 @@ func TestFromContainer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "docker-hostname", hostname)
 
-	dockerGetHostname = func(context.Context) (string, error) { return "", fmt.Errorf("some error") }
+	dockerGetHostname = func(context.Context) (string, error) { return "", errors.New("some error") }
 	_, err = fromContainer(ctx, "")
 	require.Error(t, err)
 }

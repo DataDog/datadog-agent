@@ -9,6 +9,7 @@ package procutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -331,7 +332,7 @@ func (p *probe) enumCounters(collectMeta bool, collectStats bool) error {
 }
 
 func (p *probe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
-	return nil, fmt.Errorf("probe(Windows): StatsWithPermByPID is not implemented")
+	return nil, errors.New("probe(Windows): StatsWithPermByPID is not implemented")
 }
 
 func (p *probe) getProc(instance string) *Process {

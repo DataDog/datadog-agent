@@ -6,6 +6,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
@@ -19,7 +20,7 @@ const (
 type unimplementedHostCache struct{}
 
 func (c *unimplementedHostCache) Get(_ string, _ string) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func hostArtifactsClientFactory(sshExecutor *sshExecutor, osFlavor oscomp.Flavor, cloudProvider components.CloudProviderIdentifier, architecture oscomp.Architecture) HostArtifactClient {
@@ -160,7 +161,7 @@ type aptPkgManager struct {
 }
 
 func (c *aptPkgManager) install(pkgName string) error {
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("sudo apt-get install -y %s", pkgName))
+	_, err := c.sshExecutor.Execute("sudo apt-get install -y " + pkgName)
 	return err
 }
 
@@ -169,7 +170,7 @@ type yumPkgManager struct {
 }
 
 func (c *yumPkgManager) install(pkgName string) error {
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("sudo yum install -y %s", pkgName))
+	_, err := c.sshExecutor.Execute("sudo yum install -y " + pkgName)
 	return err
 }
 
@@ -178,6 +179,6 @@ type zypperPkgManager struct {
 }
 
 func (c *zypperPkgManager) install(pkgName string) error {
-	_, err := c.sshExecutor.Execute(fmt.Sprintf("sudo zypper install -y %s", pkgName))
+	_, err := c.sshExecutor.Execute("sudo zypper install -y " + pkgName)
 	return err
 }

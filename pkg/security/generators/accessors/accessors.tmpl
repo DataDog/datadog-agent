@@ -313,7 +313,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		mappedField = newField
 	}
 
-	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") {
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") {
 		ev.initProcess()
 	}
 

@@ -3,6 +3,7 @@ include:
   - .gitlab/packaging/common.yml
 
 .package_deb_common:
+  extends: .bazel:defs:cache:omnibus-transition
   stage: packaging
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -21,8 +22,6 @@ include:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 .package_deb_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -132,6 +131,7 @@ installer_deb-arm64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
+  extends: .bazel:defs:cache:omnibus-transition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -154,8 +154,6 @@ installer_deb-arm64:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
     DD_PROJECT: iot-agent
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]

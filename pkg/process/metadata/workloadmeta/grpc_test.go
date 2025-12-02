@@ -313,7 +313,7 @@ func TestSingleStream(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = originalStream.Recv()
-	assert.ErrorContains(t, err, DuplicateConnectionErr.Error())
+	assert.ErrorContains(t, err, ErrDuplicateConnection.Error())
 
 	ext.diffChan <- &ProcessCacheDiff{cacheVersion: 1}
 	_, err = newStream.Recv()

@@ -146,7 +146,7 @@ type Client struct {
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
 	ncmAggregator                  aggregator.NCMAggregator
-	hostAggregator                 aggregator.HostAggregator
+	hostAggregator                 aggregator.HostTagsAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -178,7 +178,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
-		hostAggregator:                 aggregator.NewHostAggregator(),
+		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -345,7 +345,7 @@ func (c *Client) getNCMEvents() error {
 	return c.ncmAggregator.UnmarshallPayloads(payloads)
 }
 
-func (c *Client) getHostInfos() error {
+func (c *Client) getHostTags() error {
 	payloads, err := c.getFakePayloads(intakeEndpoint)
 	if err != nil {
 		return err
@@ -422,7 +422,7 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
+	body, err := c.get("fakeintake/payloads?endpoint=" + endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +437,7 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/health", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/health")
 	if err != nil {
 		return err
 	}
@@ -450,7 +450,7 @@ func (c *Client) GetServerHealth() error {
 
 // ConfigureOverride sets a response override on the fakeintake server
 func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
-	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+	route := c.fakeIntakeURL + "/fakeintake/configure/override"
 
 	buf := new(bytes.Buffer)
 	err := json.NewEncoder(buf).Encode(override)
@@ -472,7 +472,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 
 // GetLastAPIKey returns the last apiKey sent with a payload to the intake
 func (c *Client) GetLastAPIKey() (string, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/debug/lastAPIKey", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
 	if err != nil {
 		return "", err
 	}
@@ -675,7 +675,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
 	if err != nil {
 		return err
 	}
@@ -1097,24 +1097,20 @@ func (c *Client) GetNCMPayloads() ([]*aggregator.NCMPayload, error) {
 	return ncmPayloads, nil
 }
 
-// GetLatestHostInfos returns the latest host information received by the fake intake
-func (c *Client) GetLatestHostInfos() ([]*aggregator.Host, error) {
-	err := c.getHostInfos()
+// GetHostTags returns the latest host information received by the fake intake
+func (c *Client) GetHostTags(hostname string) []*aggregator.HostTags {
+	return c.hostAggregator.GetPayloadsByName(hostname)
+}
+
+// GetHosts returns the list of all known hostnames that have sent some host-tags
+func (c *Client) GetHosts() ([]string, error) {
+	err := c.getHostTags()
 
 	if err != nil {
 		return nil, err
 	}
 
-	var hostInfos []*aggregator.Host
-	for _, name := range c.hostAggregator.GetNames() {
-		payloads := c.hostAggregator.GetPayloadsByName(name)
-
-		if len(payloads) > 0 {
-			hostInfos = append(hostInfos, payloads...)
-		}
-	}
-
-	return hostInfos, nil
+	return c.hostAggregator.GetNames(), nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options
