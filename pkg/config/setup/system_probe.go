@@ -410,6 +410,14 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	initUSMSystemProbeConfig(cfg)
 
 	cfg.BindEnvAndSetDefault(join(netNS, "direct_send"), false)
+
+	// Performance testing options for net_dev_queue probe
+	cfg.BindEnvAndSetDefault(join(netNS, "dont_attach_net_dev_queue_probe"), false, "DD_DONT_ATTACH_NET_DEV_QUEUE_PROBE")
+	cfg.BindEnvAndSetDefault(join(netNS, "skip_handle_net_dev_queue"), false, "DD_SKIP_HANDLE_NET_DEV_QUEUE")
+
+	// Performance testing options for tcp_recvmsg probes
+	cfg.BindEnvAndSetDefault(join(netNS, "dont_attach_tcp_recvmsg_probes"), false, "DD_DONT_ATTACH_TCP_RECVMSG_PROBES")
+	cfg.BindEnvAndSetDefault(join(netNS, "skip_handle_tcp_recv"), false, "DD_SKIP_HANDLE_TCP_RECV")
 }
 
 func join(pieces ...string) string {

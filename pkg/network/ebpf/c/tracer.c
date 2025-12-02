@@ -1101,9 +1101,20 @@ static __always_inline struct sock *sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
+static __always_inline bool is_handle_net_dev_queue_skipped() {
+    __u64 val = 0;
+    LOAD_CONSTANT("skip_handle_net_dev_queue", val);
+    return val == ENABLED;
+}
+
 static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
     // Track function call count
     increment_telemetry_count(net_dev_queue_calls);
+
+    // Early return for performance testing - skip main work if configured
+    if (is_handle_net_dev_queue_skipped()) {
+        return 0;
+    }
 
     struct sock *sk = sk_buff_sk(skb);
     if (!sk) {

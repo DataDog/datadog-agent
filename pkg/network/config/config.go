@@ -216,6 +216,27 @@ type Config struct {
 	// DirectSend controls whether we send payloads directly from system-probe or they are queried from process-agent.
 	// Not supported on Windows
 	DirectSend bool
+
+	// DontAttachNetDevQueueProbe skips attaching the net_dev_queue tracepoint/kprobe entirely.
+	// This is useful for performance testing to measure the overhead of the probe.
+	// When true, no telemetry will be collected for this probe.
+	DontAttachNetDevQueueProbe bool
+
+	// SkipHandleNetDevQueue causes handle_net_dev_queue() to return early after incrementing telemetry.
+	// This is useful for performance testing to measure the overhead of the probe's main work
+	// while still collecting call count telemetry.
+	SkipHandleNetDevQueue bool
+
+	// DontAttachTCPRecvMsgProbes skips attaching the tcp_recvmsg kprobe and kretprobe entirely.
+	// This is useful for performance testing to measure the overhead of these probes.
+	// When true, no telemetry will be collected for these probes.
+	DontAttachTCPRecvMsgProbes bool
+
+	// SkipHandleTCPRecv causes the tcp_recvmsg kretprobe to return early after deleting the
+	// pid_tgid from the map, before calling handle_tcp_recv().
+	// This is useful for performance testing to measure the overhead of handle_tcp_recv()
+	// while still maintaining map cleanup.
+	SkipHandleTCPRecv bool
 }
 
 // New creates a config for the network tracer
@@ -302,6 +323,12 @@ func New() *Config {
 		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
 
 		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
+
+		DontAttachNetDevQueueProbe: cfg.GetBool(sysconfig.FullKeyPath(netNS, "dont_attach_net_dev_queue_probe")),
+		SkipHandleNetDevQueue:      cfg.GetBool(sysconfig.FullKeyPath(netNS, "skip_handle_net_dev_queue")),
+
+		DontAttachTCPRecvMsgProbes: cfg.GetBool(sysconfig.FullKeyPath(netNS, "dont_attach_tcp_recvmsg_probes")),
+		SkipHandleTCPRecv:          cfg.GetBool(sysconfig.FullKeyPath(netNS, "skip_handle_tcp_recv")),
 	}
 
 	if !c.CollectTCPv4Conns {
