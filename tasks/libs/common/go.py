@@ -4,26 +4,53 @@ import io
 import os
 import os.path
 import platform
+import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from time import sleep
 from pathlib import Path
 from typing import cast
 
 from invoke.context import Context
 from invoke.runners import Local, Result
 
-from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
 
 
-def download_go_dependencies(ctx: Context, paths: list[str], verbose: bool = False, max_retry: int = 3):
-    print("downloading dependencies")
+def download_go_dependencies(
+    ctx: Context, paths: list[str], verbose: bool = False, max_retry: int = 3, max_workers: int = 8
+):
+    """
+    Download and tidy Go dependencies for all modules in parallel.
+
+    Args:
+        ctx: Invoke context (unused, kept for API compatibility)
+        paths: List of paths to Go modules
+        verbose: Enable verbose output
+        max_retry: Maximum retries per module (uses exponential backoff: 10s, 100s, 1000s)
+        max_workers: Maximum parallel workers (default: 8)
+    """
+    print(f"downloading dependencies for {len(paths)} modules (max {max_workers} parallel workers)")
+    verbosity = ' -x' if verbose else ''
+    cmd_template = f"go mod download{verbosity} && go mod tidy{verbosity}"
+
+    def process_module(path: str):
+        """Process a single module. Raises RuntimeError on failure after retries."""
+        for attempt in range(max_retry):
+            result = subprocess.run(cmd_template, shell=True, cwd=path, capture_output=True, text=True)
+            if result.returncode == 0:
+                return
+            if attempt < max_retry - 1:
+                wait = 10 ** (attempt + 1)
+                print(f"  Retry {attempt + 1}/{max_retry} for {path} in {wait}s")
+                sleep(wait)
+        raise RuntimeError(f"go mod failed for {path}: {result.stderr or result.stdout}")
+
     with timed("go mod download && go mod tidy"):
-        verbosity = ' -x' if verbose else ''
-        for path in paths:
-            with ctx.cd(path):
-                run_command_with_retry(
-                    ctx, f"go mod download{verbosity} && go mod tidy{verbosity}", max_retry=max_retry
-                )
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(process_module, path) for path in paths]
+            for future in as_completed(futures):
+                future.result()  # Raises if module failed
 
 
 def go_build(
