@@ -177,7 +177,7 @@ filegroup(
     srcs = [":openssl"],
     output_group = select({
         "@platforms//os:windows": "openssl.exe",
-        "//conditions:default": [],
+        "//conditions:default": "",
     }),
 )
 
