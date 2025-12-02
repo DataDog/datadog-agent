@@ -270,17 +270,3 @@ func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	}
 	return nil
 }
-
-// RestartService restarts a service or container using the specified manager
-func RestartService(ctx context.Context, manager string, targetName string) (err error) {
-	span, ctx := telemetry.StartSpanFromContext(ctx, "restart_service")
-	span.SetTag("manager", manager)
-	span.SetTag("target_name", targetName)
-	defer func() { span.Finish(err) }()
-	return restartServiceImpl(ctx, manager, targetName)
-}
-
-// restartServiceImpl implements restart service for Windows
-func restartServiceImpl(ctx context.Context, manager string, targetName string) error {
-	return fmt.Errorf("restart service not implemented for Windows yet")
-}
