@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.176
+	github.com/DataDog/agent-payload/v5 v5.0.177
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.0.0-00010101000000-000000000000
@@ -199,6 +199,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/health => ../../../../pkg/util/health
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http

@@ -5,7 +5,7 @@ go 1.24.10
 // every datadog-agent module replaced in the fakeintake go.mod needs to be copied in the Dockerfile
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.176
+	github.com/DataDog/agent-payload/v5 v5.0.177
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -53,7 +53,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
 	golang.org/x/sys v0.38.0 // indirect
@@ -207,6 +207,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/health => ../../pkg/util/health
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http

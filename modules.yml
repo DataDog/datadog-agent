@@ -310,6 +310,8 @@ modules:
     used_by_otel: true
   pkg/util/grpc:
     used_by_otel: true
+  pkg/util/health:
+    used_by_otel: true
   pkg/util/hostinfo:
     used_by_otel: true
   pkg/util/hostname/validate:

@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/lo
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.176
+	github.com/DataDog/agent-payload/v5 v5.0.177
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.73.0-rc.5
@@ -11,9 +11,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50
-	github.com/DataDog/datadog-agent/pkg/util/otel v0.64.0
+	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.5
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.140.1
@@ -59,6 +59,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/health v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.5 // indirect
@@ -89,7 +90,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/gofrs/flock v0.12.1 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -123,7 +124,7 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tinylib/msgp v1.5.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
@@ -326,6 +327,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/health => ../../../../../../pkg/util/health
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../../../pkg/util/http

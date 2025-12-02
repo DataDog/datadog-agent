@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -98,6 +99,23 @@ func detectDocker(features FeatureMap) {
 			exists, reachable := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
 			if exists && !reachable {
 				log.Infof("Agent found Docker socket at: %s but socket not reachable (permissions?)", defaultDockerSocketPath)
+				// Register a periodic health check to monitor Docker socket accessibility
+				health.RegisterHealthCheck(
+					"docker-socket-check",
+					"Docker Socket Access",
+					func() (string, map[string]string) {
+						// Re-check socket accessibility
+						exists, reachable := socket.IsAvailable(defaultDockerSocketPath, socketTimeout)
+						if exists && !reachable {
+							return "docker-socket-permission-denied", map[string]string{
+								"socketPath": defaultDockerSocketPath,
+								"os":         runtime.GOOS,
+							}
+						}
+						// Issue resolved
+						return "", nil
+					},
+				)
 				continue
 			}
 

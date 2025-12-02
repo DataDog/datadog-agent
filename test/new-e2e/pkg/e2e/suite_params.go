@@ -6,8 +6,6 @@
 package e2e
 
 import (
-	"fmt"
-
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -60,7 +58,7 @@ func WithSkipDeleteOnFailure() SuiteOption {
 func WithProvisioner(provisioner provisioners.Provisioner) SuiteOption {
 	return func(options *suiteParams) {
 		if _, found := options.provisioners[provisioner.ID()]; found {
-			panic(fmt.Sprintf("Duplicate provider in test Suite: %s", provisioner.ID()))
+			panic("Duplicate provider in test Suite: " + provisioner.ID())
 		}
 
 		if options.provisioners == nil {

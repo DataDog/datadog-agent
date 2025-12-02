@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage
 go 1.24.0
 
 require (
-	github.com/golangci/plugin-module-register v0.1.1
+	github.com/golangci/plugin-module-register v0.1.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/tools v0.39.0
 )
@@ -162,6 +162,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/flavor => ../../../../pkg/util/flavor
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/health => ../../../../pkg/util/health
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http

@@ -8,6 +8,7 @@ package healthplatformimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -19,6 +20,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
+	"github.com/DataDog/datadog-agent/pkg/util/health"
 )
 
 // Requires defines the dependencies for the health-platform component
@@ -54,6 +56,10 @@ type healthPlatformImpl struct {
 	// Forwarder
 	forwarder *forwarder // Forwarder for sending health reports to Datadog intake
 
+	// Lifecycle
+	ctx    context.Context    // Context for managing component lifecycle
+	cancel context.CancelFunc // Cancel function for stopping background tasks
+
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
 }
@@ -77,6 +83,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Info("Creating health platform component")
 
+	// Create context for component lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
@@ -90,6 +99,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Issue tracking
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+
+		// Lifecycle
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
 	// Initialize the forwarder if API key is available
@@ -121,6 +134,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		),
 	}
 
+	// Register this component as the health checker
+	// This will flush any health checks that were registered before the component was created
+	health.SetChecker(comp)
+
 	// Return the component wrapped in Provides
 	provides := Provides{Comp: comp}
 	return provides, nil
@@ -146,6 +163,9 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
 
+	// Cancel all background tasks
+	h.cancel()
+
 	// Stop the forwarder if it's running
 	if h.forwarder != nil {
 		h.forwarder.stop()
@@ -164,7 +184,7 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // If report is nil, it clears any existing issue (issue resolution)
 func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
 	if checkID == "" {
-		return fmt.Errorf("check ID cannot be empty")
+		return errors.New("check ID cannot be empty")
 	}
 
 	// Get previous issue for state change detection
@@ -176,7 +196,7 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	var newIssue *healthplatform.Issue
 	if report != nil {
 		if report.IssueID == "" {
-			return fmt.Errorf("issue ID cannot be empty")
+			return errors.New("issue ID cannot be empty")
 		}
 
 		// Build complete issue from the registry using the issue ID and context
@@ -314,4 +334,56 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 	}
 
 	h.issues[checkID] = issue
+}
+
+// RegisterHealthCheck implements the Checker interface
+// It registers a periodic health check and starts monitoring immediately
+func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	h.log.Infof("Registering health check: %s", checkName)
+
+	// Get the check interval from config
+	interval := h.config.GetDuration("health_platform.forwarder.interval") * time.Minute
+	if interval <= 0 {
+		interval = 15 * time.Minute // Default to 15 minutes
+	}
+
+	// Run the check immediately
+	h.runHealthCheck(checkID, checkName, checkFunc)
+
+	// Schedule periodic checks using the configured interval
+	go h.periodicHealthCheck(checkID, checkName, checkFunc, interval)
+}
+
+// runHealthCheck executes a health check function and reports the result
+func (h *healthPlatformImpl) runHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	issueID, context := checkFunc()
+
+	// Build issue report (nil if no issue detected)
+	var issueReport *healthplatform.IssueReport
+	if issueID != "" {
+		issueReport = &healthplatform.IssueReport{
+			IssueID: issueID,
+			Context: context,
+		}
+	}
+
+	// Report or clear the issue
+	if err := h.ReportIssue(checkID, checkName, issueReport); err != nil {
+		h.log.Warnf("Failed to update issue for check %s: %v", checkID, err)
+	}
+}
+
+// periodicHealthCheck runs a health check periodically
+func (h *healthPlatformImpl) periodicHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			h.runHealthCheck(checkID, checkName, checkFunc)
+		case <-h.ctx.Done():
+			return
+		}
+	}
 }

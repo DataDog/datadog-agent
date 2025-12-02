@@ -1309,7 +1309,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", false)
-	config.BindEnvAndSetDefault("health_platform.forwarder.interval_minutes", 15)
+	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 15)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
@@ -1402,7 +1402,7 @@ func fleet(config pkgconfigmodel.Setup) {
 }
 
 func autoscaling(config pkgconfigmodel.Setup) {
-	// Autoscaling product
+	// Workload autoscaling product
 	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.failover.enabled", false)
 	config.BindEnvAndSetDefault("autoscaling.workload.limit", 1000)
@@ -1410,6 +1410,9 @@ func autoscaling(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.cert_file", "")
 	config.BindEnvAndSetDefault("autoscaling.workload.external_recommender.tls.key_file", "")
 	config.BindEnvAndSetDefault("autoscaling.failover.metrics", []string{"container.memory.usage", "container.cpu.usage"})
+
+	// Cluster autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.cluster.enabled", false)
 }
 
 func fips(config pkgconfigmodel.Setup) {
@@ -2479,8 +2482,8 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	log.Warnf("FIPS mode is enabled! All communication to DataDog will be routed to the local FIPS proxy on '%s' starting from port %d", localAddress, portRangeStart)
 
 	// Disabling proxy to make sure all data goes directly to the FIPS proxy
-	os.Unsetenv("HTTP_PROXY")
-	os.Unsetenv("HTTPS_PROXY")
+	_ = os.Unsetenv("HTTP_PROXY")
+	_ = os.Unsetenv("HTTPS_PROXY")
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"

@@ -263,7 +263,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 	// add source tag
 	if len(utils.GetTagValue("source", contextTags)) == 0 {
-		contextTags = append(contextTags, fmt.Sprintf("source:%s", ActivityDumpSource))
+		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
 	containerFilters, err := utils.NewContainerFilter()

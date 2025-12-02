@@ -70,7 +70,7 @@ func newForwarder(comp *healthPlatformImpl, hostname string, apiKey string) *for
 		http.CanonicalHeaderKey("Content-Type"):     []string{"application/json"},
 		http.CanonicalHeaderKey("DD-API-KEY"):       []string{apiKey},
 		http.CanonicalHeaderKey("DD-Agent-Version"): []string{version.AgentVersion},
-		http.CanonicalHeaderKey("User-Agent"):       []string{fmt.Sprintf("datadog-agent/%s", version.AgentVersion)},
+		http.CanonicalHeaderKey("User-Agent"):       []string{"datadog-agent/" + version.AgentVersion},
 	}
 
 	return &forwarder{
@@ -97,7 +97,7 @@ func computeIntakeURL(cfg config.Component) string {
 // start begins the periodic forwarding of health reports
 func (f *forwarder) start() {
 	// Get the interval from config with default fallback
-	interval := f.config.GetDuration("health_platform.forwarder.interval_minutes") * time.Minute
+	interval := f.config.GetDuration("health_platform.forwarder.interval") * time.Minute
 	if interval <= 0 {
 		interval = defaultForwarderInterval
 	}
@@ -158,6 +158,7 @@ func (f *forwarder) sendHealthReport() {
 	}
 
 	// Create the HTTP request
+	f.comp.log.Info("Sending health report to " + f.intakeURL)
 	req, err := http.NewRequestWithContext(f.ctx, "POST", f.intakeURL, bytes.NewBuffer(payload))
 	if err != nil {
 		f.comp.log.Warn("Failed to create request: " + err.Error())
