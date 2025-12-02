@@ -9,8 +9,7 @@
 package tests
 
 import (
-	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 	"syscall"
@@ -41,34 +40,33 @@ func TestUmount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Println("Created new mount at", mountDir, mountID)
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 
-	found := false
-	fmt.Println("Start")
-	err = test.GetProbeEvent(func() error {
-		err = unix.Unmount(mountDir, syscall.MNT_DETACH)
-		if err != nil {
-			fmt.Println("Error unmounting", err)
-		}
-
-		if err != nil {
-			fmt.Println("Error closing", err)
-		}
-		return nil
-	}, func(event *model.Event) bool {
-		if event.GetType() != "mount_released" {
-			return false
-		}
-		if event.MountReleased.MountID != mountID {
-			return false
-		}
-		found = true
-		return true
-	}, 3*time.Second, model.MountReleasedEventType)
-	fmt.Println("Finish")
-	if err != nil {
-		fmt.Println("Error getting probe event", err)
+	if !ok {
+		t.Skip("not supported")
 	}
 
-	assert.True(t, found, "expected mount was never detached")
+	time.Sleep(1 * time.Second)
+
+	mnt, _, _, err := p.Resolvers.MountResolver.ResolveMount(mountID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mnt == nil {
+		t.Fatal("nil mount")
+	}
+
+	assert.Equal(t, "tmpfs", mnt.FSType)
+
+	err = unix.Unmount(mountDir, syscall.MNT_DETACH)
+	time.Sleep(1 * time.Second)
+
+	// Resolve the mount after detaching, without using redemption or reloading. Should return nil
+	mnt, _, _, err = p.Resolvers.MountResolver.ResolveMount(mountID, 0, true)
+	if err == nil {
+		t.Fatal("No error")
+	}
+	if mnt != nil {
+		t.Fatal("mount not nil")
+	}
 }

@@ -1631,8 +1631,6 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
 
-		// Hack and only necessary for the tests. Find a better way to do it
-		p.DispatchEvent(event, true)
 		return false
 	case model.ArgsEnvsEventType:
 		if !p.regularUnmarshalEvent(&event.ArgsEnvs, eventType, offset, dataLen, data) {
