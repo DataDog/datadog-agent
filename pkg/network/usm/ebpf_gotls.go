@@ -33,6 +33,11 @@ import (
 )
 
 var (
+	// Whether the attacher should perform an initial scan of the processes.
+	// Disabled by default because the process monitor will scan for new processes at startup.
+	// Defined as a var to allow tests to override it.
+	performInitialScan = false
+
 	// The interval of the periodic scan for terminated processes. Increasing the interval, might cause larger spikes in cpu
 	// and lowering it might cause constant cpu usage.
 	// Defined as a var to allow tests to override it.
@@ -154,7 +159,7 @@ func newGoTLS(mgr *manager.Manager, c *config.Config) (protocols.Protocol, error
 			},
 		}},
 		ExcludeTargets:                 uprobes.ExcludeInternal,
-		PerformInitialScan:             false, // the process monitor will scan for new processes at startup
+		PerformInitialScan:             performInitialScan,
 		EnablePeriodicScanNewProcesses: true,
 		ScanProcessesInterval:          scanTerminatedProcessesInterval,
 		OnSyncCallback:                 prog.cleanupDeadPids,

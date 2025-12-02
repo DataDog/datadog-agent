@@ -1395,7 +1395,7 @@ def test(
 
         args = [
             f"-packages-run-config {remote_run_config}",
-            f"-retry {retry}",
+            "-retry 0",
             "-verbose" if test_logs else "",
             f"-run-count {run_count}",
             f"-test-root /opt/{component}-tests",

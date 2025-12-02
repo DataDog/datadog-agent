@@ -122,6 +122,13 @@ func (s *usmHTTPSuite) TestSimple() {
 func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 	cfg := s.getCfg()
 
+	// Enable initial scan for GoTLS to immediately discover the proxy process.
+	// The default behavior (PerformInitialScan=false) relies on netlink events,
+	// but the proxy starts before the monitor, causing events to be missed.
+	if s.isTLS {
+		SetGoTLSPerformInitialScan(t, true)
+	}
+
 	srvDoneFn := testutil.HTTPServer(t, getServerAddress(isIPv6), testutil.Options{
 		EnableTLS:       s.isTLS,
 		EnableKeepAlive: true,
@@ -135,7 +142,7 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackDisabled)
 	}
 
 	tests := []struct {
@@ -175,7 +182,6 @@ func (s *usmHTTPSuite) testSimple(t *testing.T, isIPv6 bool) {
 				tt.runClients(t, clientCount)
 
 				res := make(map[usmhttp.Key]int)
-				time.Sleep(time.Second)
 				assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 					for key, stat := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
 						if key.DstPort == httpSrvPort || key.SrcPort == httpSrvPort {
@@ -319,6 +325,11 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 	cfg := s.getCfg()
 	cfg.HTTPUseDirectConsumer = true
 
+	// Enable initial scan for GoTLS to immediately discover the proxy process.
+	if s.isTLS {
+		SetGoTLSPerformInitialScan(t, true)
+	}
+
 	srvDoneFn := testutil.HTTPServer(t, getServerAddress(isIPv6), testutil.Options{
 		EnableTLS:       s.isTLS,
 		EnableKeepAlive: true,
@@ -332,7 +343,7 @@ func (s *usmHTTPSuite) testDirectConsumerFunctionality(t *testing.T, isIPv6 bool
 
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	if s.isTLS {
-		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackEnabled)
+		utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, GoTLSAttacherName, proxyProcess.Process.Pid, utils.ManualTracingFallbackDisabled)
 	}
 
 	t.Cleanup(func() { cleanProtocolMaps(t, "http", monitor.ebpfProgram.Manager.Manager) })

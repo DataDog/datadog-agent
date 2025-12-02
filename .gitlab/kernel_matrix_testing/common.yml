@@ -237,8 +237,8 @@
 # -- Test runners
 .kmt_run_tests:
   retry:
-    max: 2
-    exit_codes: 42
+    max: 0
+    exit_codes: 43
     when:
       - job_execution_timeout
       - runner_system_failure
@@ -250,7 +250,7 @@
       - data_integrity_failure
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
-    RETRY: 2
+    RETRY: 0
     EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   before_script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
