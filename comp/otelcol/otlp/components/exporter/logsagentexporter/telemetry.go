@@ -6,33 +6,51 @@
 package logsagentexporter
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 )
 
 // These COAT metrics are for measuring the current volume of traffic for OTLP Log ingestion in the Agent/DDOT.
 var (
-	OTLPIngestAgentLogsEvents = telemetry.NewCounter(
+	OTLPIngestAgentLogsEvents   coretelemetry.Counter
+	OTLPIngestAgentLogsRequests coretelemetry.Counter
+	OTLPIngestDDOTLogsEvents    coretelemetry.Counter
+	OTLPIngestDDOTLogsRequests  coretelemetry.Counter
+)
+
+func init() {
+	InitTelemetry(nil)
+}
+
+// InitTelemetry wires the OTLP logs ingestion counters with the provided telemetry component.
+// Passing nil falls back to a noop component so callers can safely invoke the counters before initialization.
+func InitTelemetry(tm coretelemetry.Component) {
+	if tm == nil {
+		tm = nooptelemetry.GetCompatComponent()
+	}
+
+	OTLPIngestAgentLogsEvents = tm.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_logs_events",
 		[]string{},
 		"Counter metric of OTLP Log events in OTLP ingestion for the Datadog agent",
 	)
-	OTLPIngestAgentLogsRequests = telemetry.NewCounter(
+	OTLPIngestAgentLogsRequests = tm.NewCounter(
 		"runtime",
 		"datadog_agent_otlp_logs_requests",
 		[]string{},
 		"Counter metric of OTLP Log requests in OTLP ingestion for the Datadog agent",
 	)
-	OTLPIngestDDOTLogsEvents = telemetry.NewCounter(
+	OTLPIngestDDOTLogsEvents = tm.NewCounter(
 		"runtime",
 		"ddot_otlp_logs_events",
 		[]string{},
 		"Counter metric of OTLP Log events in OTLP ingestion for DDOT",
 	)
-	OTLPIngestDDOTLogsRequests = telemetry.NewCounter(
+	OTLPIngestDDOTLogsRequests = tm.NewCounter(
 		"runtime",
 		"ddot_otlp_logs_requests",
 		[]string{},
 		"Counter metric of OTLP Log requests in OTLP ingestion for DDOT",
 	)
-)
+}
