@@ -181,7 +181,6 @@ type Filterable interface {
 // Container represents a filterable container object.
 type Container struct {
 	*core.FilterContainer
-	Owner Filterable
 }
 
 var _ Filterable = &Container{}
@@ -237,7 +236,6 @@ func CreateContainer(id, name, reference string, owner Filterable) *Container {
 
 	return &Container{
 		FilterContainer: c,
-		Owner:           owner,
 	}
 }
 
@@ -474,7 +472,7 @@ type ProcessFilter string
 
 // Defined Process filter kinds.
 const (
-	ProcessLegacyExcludeList ProcessFilter = "process-legacy-exclude-list"
-	ProcessCELLogs           ProcessFilter = "process-cel-logs"
-	ProcessCELGlobal         ProcessFilter = "process-cel-global"
+	ProcessLegacyExclude ProcessFilter = "process-legacy-exclude"
+	ProcessCELLogs       ProcessFilter = "process-cel-logs"
+	ProcessCELGlobal     ProcessFilter = "process-cel-global"
 )
