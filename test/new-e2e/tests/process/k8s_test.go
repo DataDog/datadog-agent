@@ -79,6 +79,9 @@ func TestK8sTestSuite(t *testing.T) {
 					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 					}),
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", "", false, nil)
+					}),
 					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
 				),
 			),
@@ -123,6 +126,7 @@ func (s *K8sSuite) TestManualProcessDiscoveryCheck() {
 func (s *K8sSuite) TestManualContainerCheck() {
 	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "container")
 	assertManualContainerCheck(s.T(), checkOutput, "stress-ng")
+	assertAbsentManualContainerCheck(s.T(), checkOutput, "nginx")
 }
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {

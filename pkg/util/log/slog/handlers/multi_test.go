@@ -223,3 +223,25 @@ func TestMultiHandlerChaining(t *testing.T) {
 	err := handler.Handle(context.Background(), record)
 	assert.NoError(t, err)
 }
+
+func TestMultiHandlerOnlyCallsEnabledHandlers(t *testing.T) {
+	inner1 := newMockInnerHandler()
+	inner1.enabled = true
+	inner2 := newMockInnerHandler()
+	inner2.enabled = false
+	inner3 := newMockInnerHandler()
+	inner3.enabled = true
+
+	handler := NewMulti(inner1, inner2, inner3)
+
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
+	err := handler.Handle(context.Background(), record)
+
+	// Should not return error
+	assert.NoError(t, err)
+
+	// Only enabled handlers should have Handle called
+	assert.Equal(t, 1, inner1.recordCount())
+	assert.Equal(t, 0, inner2.recordCount())
+	assert.Equal(t, 1, inner3.recordCount())
+}

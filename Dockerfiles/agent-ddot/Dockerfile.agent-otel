@@ -10,6 +10,7 @@ FROM ubuntu:${UBUNTU_VERSION} AS builder
 # Set environment variables
 ARG AGENT_VERSION
 ARG AGENT_GIT_REF
+ARG CI
 ARG DDA_VERSION=v0.29.0
 ENV DEBIAN_FRONTEND=noninteractive
 

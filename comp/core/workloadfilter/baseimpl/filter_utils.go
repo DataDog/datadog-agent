@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package workloadfilterimpl contains the implementation of the filter component.
-package workloadfilterimpl
+// Package baseimpl contains the base implementation of the filter component.
+package baseimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -133,18 +133,18 @@ func (pf *filterSelection) computeContainerAutodiscoveryFilters(cfg config.Compo
 
 	switch filterScope {
 	case workloadfilter.GlobalFilter:
-		low = append(low, workloadfilter.LegacyContainerGlobal)
+		low = append(low, workloadfilter.ContainerLegacyGlobal)
 		if len(cfg.GetStringSlice("container_include")) == 0 {
-			low = append(low, workloadfilter.LegacyContainerACInclude)
+			low = append(low, workloadfilter.ContainerLegacyACInclude)
 		}
 		if len(cfg.GetStringSlice("container_exclude")) == 0 {
-			low = append(low, workloadfilter.LegacyContainerACExclude)
+			low = append(low, workloadfilter.ContainerLegacyACExclude)
 		}
 	case workloadfilter.MetricsFilter:
-		low = append(low, workloadfilter.LegacyContainerMetrics, workloadfilter.ContainerCELMetrics)
+		low = append(low, workloadfilter.ContainerLegacyMetrics, workloadfilter.ContainerCELMetrics)
 		high = append(high, workloadfilter.ContainerADAnnotationsMetrics)
 	case workloadfilter.LogsFilter:
-		low = append(low, workloadfilter.LegacyContainerLogs, workloadfilter.ContainerCELLogs)
+		low = append(low, workloadfilter.ContainerLegacyLogs, workloadfilter.ContainerCELLogs)
 		high = append(high, workloadfilter.ContainerADAnnotationsLogs)
 	default:
 	}
@@ -160,7 +160,7 @@ func (pf *filterSelection) computeContainerSharedMetricFilters(cfg config.Compon
 	flist := make([][]workloadfilter.ContainerFilter, 2)
 
 	high := []workloadfilter.ContainerFilter{workloadfilter.ContainerADAnnotations, workloadfilter.ContainerADAnnotationsMetrics}
-	low := []workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerMetrics, workloadfilter.ContainerCELGlobal, workloadfilter.ContainerCELMetrics}
+	low := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyGlobal, workloadfilter.ContainerLegacyMetrics, workloadfilter.ContainerCELGlobal, workloadfilter.ContainerCELMetrics}
 
 	includeList := cfg.GetStringSlice("container_include")
 	excludeList := cfg.GetStringSlice("container_exclude")
@@ -168,10 +168,10 @@ func (pf *filterSelection) computeContainerSharedMetricFilters(cfg config.Compon
 	excludeList = append(excludeList, cfg.GetStringSlice("container_exclude_metrics")...)
 
 	if len(includeList) == 0 {
-		low = append(low, workloadfilter.LegacyContainerACInclude)
+		low = append(low, workloadfilter.ContainerLegacyACInclude)
 	}
 	if len(excludeList) == 0 {
-		low = append(low, workloadfilter.LegacyContainerACExclude)
+		low = append(low, workloadfilter.ContainerLegacyACExclude)
 	}
 
 	if cfg.GetBool("exclude_pause_container") {
@@ -194,14 +194,14 @@ func (pf *filterSelection) computeContainerPausedFilters(cfg config.Component) [
 // computeContainerSBOMFilters computes container SBOM filters (migrated from def/utils.go)
 func (pf *filterSelection) computeContainerSBOMFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
 	if cfg.GetBool("sbom.container_image.exclude_pause_container") {
-		return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM, workloadfilter.ContainerPaused}}
+		return [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacySBOM, workloadfilter.ContainerPaused}}
 	}
-	return [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}}
+	return [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacySBOM}}
 }
 
 // computePodSharedMetricFilters computes pod shared metric filters (migrated from def/utils.go)
 func (pf *filterSelection) computePodSharedMetricFilters(_ config.Component) [][]workloadfilter.PodFilter {
-	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPodMetrics, workloadfilter.LegacyPodGlobal, workloadfilter.PodCELGlobal, workloadfilter.PodCELMetrics}}
+	return [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.PodLegacyMetrics, workloadfilter.PodLegacyGlobal, workloadfilter.PodCELGlobal, workloadfilter.PodCELMetrics}}
 }
 
 // computeServiceAutodiscoveryFilters computes service autodiscovery filters
@@ -214,9 +214,9 @@ func (pf *filterSelection) computeServiceAutodiscoveryFilters(_ config.Component
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.ServiceADAnnotationsMetrics)
-		low = append(low, workloadfilter.LegacyServiceMetrics, workloadfilter.ServiceCELMetrics)
+		low = append(low, workloadfilter.ServiceLegacyMetrics, workloadfilter.ServiceCELMetrics)
 	case workloadfilter.GlobalFilter:
-		low = append(low, workloadfilter.LegacyServiceGlobal)
+		low = append(low, workloadfilter.ServiceLegacyGlobal)
 	}
 
 	flist[0] = high // highPrecedence
@@ -235,9 +235,9 @@ func (pf *filterSelection) computeEndpointAutodiscoveryFilters(_ config.Componen
 	switch filterScope {
 	case workloadfilter.MetricsFilter:
 		high = append(high, workloadfilter.EndpointADAnnotationsMetrics)
-		low = append(low, workloadfilter.LegacyEndpointMetrics, workloadfilter.EndpointCELMetrics)
+		low = append(low, workloadfilter.EndpointLegacyMetrics, workloadfilter.EndpointCELMetrics)
 	case workloadfilter.GlobalFilter:
-		low = append(low, workloadfilter.LegacyEndpointGlobal)
+		low = append(low, workloadfilter.EndpointLegacyGlobal)
 	default:
 	}
 

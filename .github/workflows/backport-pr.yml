@@ -21,19 +21,22 @@ jobs:
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
     steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: github
+
       - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
         id: octo-sts
         with:
           scope: DataDog/datadog-agent
           policy: self.backport-pr.create-pr
-      - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
-        with:
-          label_pattern: "^backport/(?<base>([^ ]+))$"
-          labels_template: "<%= JSON.stringify([...labels, 'backport', 'bot']) %>"
-          github_token: ${{ steps.octo-sts.outputs.token }}
-          body_template: |
-            Backport <%- mergeCommitSha %> from #<%- number %>.
 
-            ___
-
-            <%- body %>
+      - name: Backport PR
+        run: dda gh backport
+        env:
+          GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
