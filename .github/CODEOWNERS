@@ -761,7 +761,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/container-experiences
 /test/new-e2e/tests/ndm                       @DataDog/ndm-core
 /test/new-e2e/tests/ndm/netflow               @DataDog/ndm-integrations
-/test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products
+/test/new-e2e/tests/netpath                   @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
 /test/new-e2e/tests/npm                       @DataDog/cloud-network-monitoring
 /test/new-e2e/tests/npm/ec2_1host_wkit_test.go @DataDog/cloud-network-monitoring @DataDog/windows-products
 /test/new-e2e/tests/orchestrator              @DataDog/kubernetes-experiences
