@@ -304,12 +304,13 @@ func (mr *Resolver) finalize(mount *model.Mount) {
 	mr.mounts.Remove(mount.MountID)
 }
 
-// Delete a mount from the cache
-func (mr *Resolver) Delete(mountID uint32) error {
+// Delete a mount from the cache. Set mountIDUnique to 0 if you don't have a unique mount id.
+func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	if m, exists := mr.mounts.Get(mountID); exists {
+	m, exists := mr.mounts.Get(mountID)
+	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
 		return &ErrMountNotFound{MountID: mountID}
@@ -557,7 +558,7 @@ func (mr *Resolver) ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAn
 	defer mr.lock.Unlock()
 
 	useRedemptionAndSync := true
-	if len(dontUseRedemptionAndSync) > 0 && dontUseRedemptionAndSync[0] == true {
+	if len(dontUseRedemptionAndSync) > 0 && dontUseRedemptionAndSync[0] {
 		useRedemptionAndSync = false
 	}
 
