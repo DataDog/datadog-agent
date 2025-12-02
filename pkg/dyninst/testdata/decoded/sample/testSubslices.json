@@ -71,10 +71,6 @@
                   {
                     "type": "uint",
                     "value": "1"
-                  },
-                  {
-                    "type": "uint",
-                    "value": "2"
                   }
                 ]
               },
