@@ -70,7 +70,7 @@ func TestGetSecurityCreds(t *testing.T) {
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	assert.EventuallyWithT(
-		t, func(c *assert.CollectT) {
+		t, func(_ *assert.CollectT) {
 			cred, err := getSecurityCreds(ctx)
 			require.NoError(t, err)
 			assert.Equal(t, "123456", cred.AccessKeyID)

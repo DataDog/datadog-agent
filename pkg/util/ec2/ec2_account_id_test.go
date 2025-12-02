@@ -35,7 +35,7 @@ func TestGetInstanceIdentity(t *testing.T) {
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
 	assert.EventuallyWithT(
-		t, func(c *assert.CollectT) {
+		t, func(_ *assert.CollectT) {
 			val, err := GetInstanceIdentity(ctx)
 			require.NoError(t, err)
 			assert.Equal(t, "us-east-1", val.Region)
