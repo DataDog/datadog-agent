@@ -32,14 +32,14 @@ func (m *mockLeaderEngine) GetLeaderIP() (string, error) {
 // fakeLeaderForwarder is a fake implementation of the forwarder for testing purposes.
 // It tracks leader IP changes and forward calls for verifying leadership transition behavior.
 type fakeLeaderForwarder struct {
-	currentLeaderIP  string
-	leaderIPChanges  []string
-	forwardCallCount int
+	currentLeaderIP     string
+	leaderIPChangeCount int
+	forwardCallCount    int
 }
 
 func (f *fakeLeaderForwarder) SetLeaderIP(ip string) {
 	f.currentLeaderIP = ip
-	f.leaderIPChanges = append(f.leaderIPChanges, ip)
+	f.leaderIPChangeCount++
 }
 
 func (f *fakeLeaderForwarder) GetLeaderIP() string {
@@ -164,7 +164,7 @@ func TestRejectOrForwardLeaderQuery_LeaderIPChange(t *testing.T) {
 	assert.True(t, lph.rejectOrForwardLeaderQuery(rw1, req1))
 	assert.Equal(t, 1, forwarder.forwardCallCount)
 	// IP didn't change, so SetLeaderIP should not have been called
-	assert.Equal(t, 0, len(forwarder.leaderIPChanges), "Should not update IP when unchanged")
+	assert.Equal(t, 0, forwarder.leaderIPChangeCount, "Should not update IP when unchanged")
 
 	// Simulate leader failover - new leader elected
 	mockEngine.leaderIP = "2.2.2.2"
@@ -174,7 +174,7 @@ func TestRejectOrForwardLeaderQuery_LeaderIPChange(t *testing.T) {
 	req2 := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	assert.True(t, lph.rejectOrForwardLeaderQuery(rw2, req2))
 	assert.Equal(t, 2, forwarder.forwardCallCount)
-	assert.Equal(t, 1, len(forwarder.leaderIPChanges), "Should update IP once")
+	assert.Equal(t, 1, forwarder.leaderIPChangeCount, "Should update IP once")
 	assert.Equal(t, "2.2.2.2", forwarder.currentLeaderIP, "Should have new leader IP")
 
 	// Third request: IP hasn't changed again
@@ -182,5 +182,5 @@ func TestRejectOrForwardLeaderQuery_LeaderIPChange(t *testing.T) {
 	req3 := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	assert.True(t, lph.rejectOrForwardLeaderQuery(rw3, req3))
 	assert.Equal(t, 3, forwarder.forwardCallCount)
-	assert.Equal(t, 1, len(forwarder.leaderIPChanges), "Should not update IP when unchanged")
+	assert.Equal(t, 1, forwarder.leaderIPChangeCount, "Should not update IP when unchanged")
 }
