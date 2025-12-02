@@ -388,6 +388,15 @@ func TestCGroupVariables(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
+
+			variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "foo")
+			assert.NotNil(t, variables)
+			assert.Contains(t, variables, event.ProcessContext.Process.CGroup.Hash())
+			variable, ok := variables[event.ProcessContext.Process.CGroup.Hash()]
+			assert.True(t, ok)
+			value, ok := variable.GetValue()
+			assert.True(t, ok)
+			assert.Equal(t, 1, value.(int))
 		})
 
 		test.WaitSignal(t, func() error {
@@ -402,4 +411,9 @@ func TestCGroupVariables(t *testing.T) {
 		})
 	})
 
+	t.Run("cgroup-variables-release", func(t *testing.T) {
+		variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "foo")
+		assert.NotNil(t, variables)
+		assert.Len(t, variables, 0)
+	})
 }
