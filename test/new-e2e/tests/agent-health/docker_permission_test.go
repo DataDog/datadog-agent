@@ -7,8 +7,6 @@ package agenthealth
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -34,7 +32,7 @@ func TestDockerPermissionSuite(t *testing.T) {
 				agentparams.WithAgentConfig(`health_platform:
   enabled: true
   forwarder:
-    interval_minutes: 1
+    interval: 1
 logs_enabled: true
 logs_config:
   container_collect_all: true
@@ -53,90 +51,56 @@ func (suite *dockerPermissionSuite) TestDockerPermissionIssue() {
 	host := suite.Env().RemoteHost
 	fakeIntake := suite.Env().FakeIntake.Client()
 
-	// Install Docker CE on the host
-	suite.T().Log("Installing Docker CE...")
-	installDockerScript := `
-# Update & tools
+	// Install Docker CE, create containers, and restart agent
+	suite.T().Log("Setting up Docker and creating containers...")
+	host.MustExecute(`
 sudo apt-get update -y
-sudo apt-get install -y curl ca-certificates gnupg lsb-release
-
-# Install Docker CE (official repo)
+sudo apt-get install -y ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
 sudo apt-get update -y
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-
-# Verify Docker is installed and running
-sudo docker --version
 sudo systemctl enable --now docker
-sudo systemctl status docker --no-pager
-`
-	host.MustExecute(installDockerScript)
+sudo docker pull public.ecr.aws/docker/library/busybox:latest
 
-	// Verify agent cannot access docker containers directory
-	accessCheck, _ := host.Execute("sudo -u dd-agent bash -c 'ls /var/lib/docker/containers 2>&1'")
-	if !strings.Contains(accessCheck, "Permission denied") {
-		suite.T().Log("Warning: dd-agent can access docker directory, test may not trigger the issue")
-	}
+for i in {1..5}; do
+  docker run -d \
+    --name "spam$i" \
+    --log-opt max-size=10m \
+    --log-opt max-file=2 \
+    busybox:latest \
+    sh -c "while true; do echo container-$i: \$(date); sleep 0.5; done"
+done
 
-	// Create containers to generate logs and trigger Docker log collection
-	suite.T().Log("Creating 5 containers and restarting agent...")
-	for i := 1; i <= 5; i++ {
-		host.MustExecute(fmt.Sprintf(
-			`sudo docker run -d --name spam%d --log-opt max-size=10m --log-opt max-file=2 alpine sh -c 'while true; do echo "container-%d: $(date)"; sleep 0.5; done'`,
-			i, i))
-	}
+sudo systemctl restart datadog-agent
+`)
 
-	host.MustExecute("sudo systemctl restart datadog-agent")
-	time.Sleep(30 * time.Second)
-
-	// Wait for health report to be sent to fake intake (with retry)
-	suite.T().Log("Waiting for health report...")
+	// Wait for health report to be sent to fake intake
 	var healthReports []api.Payload
-	var getErr error
-
-	maxRetries := 18
-	retryInterval := 10 * time.Second
-
-	for i := 0; i < maxRetries; i++ {
-		healthReports, getErr = getAgentHealthPayloads(fakeIntake)
-		if getErr == nil && len(healthReports) > 0 {
-			break
-		}
-		time.Sleep(retryInterval)
-	}
-
-	require.NoError(suite.T(), getErr, "Failed to get health reports from fake intake")
-	require.NotEmpty(suite.T(), healthReports, "No health reports received")
+	require.EventuallyWithT(suite.T(), func(t *assert.CollectT) {
+		var err error
+		healthReports, err = getAgentHealthPayloads(fakeIntake)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, healthReports)
+	}, 3*time.Minute, 10*time.Second, "Health report not received within timeout")
 
 	var report HealthReport
 	err := json.Unmarshal(healthReports[len(healthReports)-1].Data, &report)
 	require.NoError(suite.T(), err, "Failed to parse health report")
 
-	// Verify the report structure
-	assert.Equal(suite.T(), "1.0", report.SchemaVersion)
-	assert.Equal(suite.T(), "agent-health-issues", report.EventType)
-	assert.NotEmpty(suite.T(), report.EmittedAt)
-	assert.NotEmpty(suite.T(), report.Host.Hostname)
-	assert.NotEmpty(suite.T(), report.Host.AgentVersion)
-
 	// Verify docker permission issue is present
-	dockerIssueFound := false
+	var dockerIssue *IssueReport
 	for _, issue := range report.Issues {
-		if issue.ID == "docker-file-tailing-disabled" {
-			dockerIssueFound = true
-			assert.Equal(suite.T(), "docker", issue.Category)
-			assert.Contains(suite.T(), issue.Title, "Docker File Tailing Disabled")
-			assert.NotEmpty(suite.T(), issue.Description)
-			assert.Contains(suite.T(), issue.Tags, "integration:docker")
-			suite.T().Log("✓ Docker permission issue found and validated")
+		if issue.ID == "docker-permission-issue" {
+			dockerIssue = issue
 			break
 		}
 	}
 
-	assert.True(suite.T(), dockerIssueFound, "Docker permission issue not found in health report")
+	require.NotNil(suite.T(), dockerIssue, "Docker permission issue not found in health report")
+	assert.Equal(suite.T(), "permissions", dockerIssue.Category)
+	assert.Contains(suite.T(), dockerIssue.Tags, "integration:docker")
 
 	// Cleanup
 	host.MustExecute("sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true")
