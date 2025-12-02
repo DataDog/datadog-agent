@@ -32,7 +32,8 @@ pkg_files(
     srcs = [":gstatus"],
     attributes = pkg_attributes(
         group = "root",
-        mode = "0555",
+        # Must be writable for signing script to work.
+        mode = "0755",
         owner = "root",
     ),
     prefix = "embedded/sbin",
