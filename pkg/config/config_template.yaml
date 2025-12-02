@@ -2136,6 +2136,12 @@ api_key:
 ## Uncomment this parameter and the one below to enable them.
 #
 # system_probe_config:
+#   # @param dns_monitoring_ports - list of integers - optional - default: [53]
+#   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
+#   # A list of ports that should be monitored for DNS traffic.
+#   #
+#   # dns_monitoring_ports:
+#   #   - 53
 {{ if (eq .OS "windows") }}
 #   # @param sysprobe_socket - string - optional - default: localhost:3333
 #   # @env DD_SYSTEM_PROBE_CONFIG_SYSPROBE_SOCKET - string - optional - default: localhost:3333

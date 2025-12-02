@@ -285,7 +285,7 @@ func TestDNSOverNonPort53(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, reps[0])
 
-	// we only pick up on port 53 traffic, so we shouldn't ever get stats
+	// we only pick up on configured DNS ports (default 53), so we shouldn't ever get stats
 	key := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
 	var allStats StatsByKeyByNameByType
 	require.Never(t, func() bool {
@@ -294,9 +294,43 @@ func TestDNSOverNonPort53(t *testing.T) {
 	}, 3*time.Second, 10*time.Millisecond, "found DNS data for key %v when it should be missing", key)
 }
 
+func TestDNSOverCustomPort(t *testing.T) {
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.CollectLocalDNS = true
+	cfg.DNSTimeout = 1 * time.Second
+	// Add custom port 5353
+	cfg.DNSMonitoringPortList = []int{53, 5353}
+
+	rdns, err := NewReverseDNS(cfg, nil)
+	require.NoError(t, err)
+	reverseDNS := rdns.(*dnsMonitor)
+	defer reverseDNS.Close()
+
+	statKeeper := reverseDNS.statKeeper
+	domains := []string{"golang.org"}
+	shutdown, port := newTestServerOnPort(t, localhost, "udp", 5353)
+	defer shutdown()
+
+	queryIP, queryPort, reps, err := testdns.SendDNSQueriesOnPort(domains, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
+	require.NoError(t, err)
+	require.NotNil(t, reps[0])
+
+	key := getKey(queryIP, queryPort, localhost, syscall.IPPROTO_UDP)
+	var allStats StatsByKeyByNameByType
+	require.Eventually(t, func() bool {
+		allStats = statKeeper.Snapshot()
+		return allStats[key] != nil
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
+}
+
 func newTestServer(t *testing.T, ip string, protocol string) (func(), uint16) {
+	return newTestServerOnPort(t, ip, protocol, 0)
+}
+
+func newTestServerOnPort(t *testing.T, ip string, protocol string, port int) (func(), uint16) {
 	t.Helper()
-	addr := net.JoinHostPort(ip, "0")
+	addr := net.JoinHostPort(ip, strconv.Itoa(port))
 	srv := &mdns.Server{
 		Addr: addr,
 		Net:  protocol,

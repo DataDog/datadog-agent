@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -58,6 +59,9 @@ type Config struct {
 	// CollectDNSDomains specifies whether collected DNS stats would be scoped by domain
 	// It is relevant *only* when DNSInspection and CollectDNSStats is enabled.
 	CollectDNSDomains bool
+
+	// DNSMonitoringPortList specifies the list of ports to monitor for DNS traffic
+	DNSMonitoringPortList []int
 
 	// DNSTimeout determines the length of time to wait before considering a DNS Query to have timed out
 	DNSTimeout time.Duration
@@ -254,8 +258,8 @@ func New() *Config {
 		DNSInspection:       !cfg.GetBool(sysconfig.FullKeyPath(spNS, "disable_dns_inspection")),
 		CollectDNSStats:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_stats")),
 		CollectLocalDNS:     cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_local_dns")),
-		CollectDNSDomains:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_domains")),
-		MaxDNSStats:         cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_dns_stats")),
+		CollectDNSDomains: cfg.GetBool(sysconfig.FullKeyPath(spNS, "collect_dns_domains")),
+		MaxDNSStats:       cfg.GetInt(sysconfig.FullKeyPath(spNS, "max_dns_stats")),
 		MaxDNSStatsBuffered: 75000,
 		DNSTimeout:          time.Duration(cfg.GetInt(sysconfig.FullKeyPath(spNS, "dns_timeout_in_s"))) * time.Second,
 
@@ -320,9 +324,18 @@ func New() *Config {
 		log.Info("network tracer DNS inspection disabled by configuration")
 	}
 
+	if err := structure.UnmarshalKey(cfg, sysconfig.FullKeyPath(spNS, "dns_monitoring_ports"), &c.DNSMonitoringPortList); err != nil {
+		log.Warnf("failed to parse dns_monitoring_ports: %v", err)
+	}
+
 	if !c.EnableProcessEventMonitoring {
 		log.Info("network process event monitoring disabled")
 	}
+
+	if len(c.DNSMonitoringPortList) == 0 {
+		c.DNSMonitoringPortList = []int{53}
+	}
+
 	return c
 }
 
