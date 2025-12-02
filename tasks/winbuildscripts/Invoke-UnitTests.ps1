@@ -102,11 +102,21 @@ Invoke-BuildScript `
     }
 
     # rtloader unit tests
-    & dda inv -- -e rtloader.test
+    $Output = & dda inv -- -e rtloader.test 2>&1
     $err = $LASTEXITCODE
     Write-Host rtloader test result is $err
     if($err -ne 0){
         Write-Host -ForegroundColor Red "rtloader test failed $err"
+        Write-Host ($Output | Out-String)
+        $WorkLine = $Output | Select-String -Pattern "WORK="
+        if ($WorkLine) {
+            $WorkDir = $WorkLine -replace "WORK=", ""
+            Write-Host "Captured WORK directory: $WorkDir"
+            $ArtifactPath = "C:\mnt\cgo-build-debug.zip"
+            Compress-Archive -Path "$WorkDir\*" -DestinationPath $ArtifactPath -CompressionLevel Fastest -Force
+        } else {
+            Write-Warning "Could not find WORK directory in go build output."
+        }
         exit $err
     }
 
