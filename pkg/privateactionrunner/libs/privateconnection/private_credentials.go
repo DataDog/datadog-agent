@@ -6,7 +6,7 @@
 package privateconnection
 
 import (
-	"fmt"
+	"errors"
 )
 
 type AuthType string
@@ -45,7 +45,7 @@ func (p PrivateCredentialsToken) GetNameSegments() []string {
 
 func (p PrivateCredentials) GetUsernamePasswordBasicAuth() (string, string, error) {
 	if p.Type != BasicAuthType {
-		return "", "", fmt.Errorf("not a basic auth credential")
+		return "", "", errors.New("not a basic auth credential")
 	}
 	tokens := p.AsTokenMap()
 	return tokens[UsernameTokenName], tokens[PasswordTokenName], nil

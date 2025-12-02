@@ -7,6 +7,7 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
@@ -40,10 +41,10 @@ func (task *Task) GetFQN() string {
 
 func (task *Task) Validate() error {
 	if task == nil || task.Data.Attributes == nil {
-		return fmt.Errorf("empty task provided")
+		return errors.New("empty task provided")
 	}
 	if task.Data.Attributes.JobId == "" {
-		return fmt.Errorf("no JobId provided")
+		return errors.New("no JobId provided")
 	}
 	return nil
 }

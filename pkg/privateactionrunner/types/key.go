@@ -9,7 +9,7 @@ import (
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rsa"
-	"fmt"
+	"errors"
 
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
@@ -51,7 +51,7 @@ func (key ED25519Key) GetKeyType() KeyType { return key.KeyType }
 func (key X509RSAKey) Verify(data, signature []byte) error {
 	err := rsa.VerifyPSS(key.Key, crypto.SHA256, data, signature, nil)
 	if err != nil {
-		return fmt.Errorf("invalid signature")
+		return errors.New("invalid signature")
 	}
 	return nil
 }
@@ -59,7 +59,7 @@ func (key X509RSAKey) Verify(data, signature []byte) error {
 func (key ED25519Key) Verify(data, signature []byte) error {
 	valid := ed25519.Verify(key.Key, data, signature)
 	if !valid {
-		return fmt.Errorf("invalid signature")
+		return errors.New("invalid signature")
 	}
 	return nil
 }
