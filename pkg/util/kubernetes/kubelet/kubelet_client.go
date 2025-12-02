@@ -194,10 +194,16 @@ func (kc *kubeletClient) query(ctx context.Context, path string) ([]byte, int, e
 		return nil, 0, err
 	}
 
-	b := make([]byte, kc.responseBuffer.Len())
+	b := []byte{}
 
-	// Read can only return EOF or nil, don't check for errors
-	kc.responseBuffer.Read(b) ////nolint:errcheck
+	// prevent trying to allocate a negative slice size.
+	if buffLen := kc.responseBuffer.Len(); buffLen > 0 {
+		b = make([]byte, buffLen)
+		// Read can only return EOF or nil, don't check for errors
+		kc.responseBuffer.Read(b) ////nolint:errcheck
+	}
+
+	kc.responseBuffer.Reset()
 	return b, response.StatusCode, nil
 }
 
