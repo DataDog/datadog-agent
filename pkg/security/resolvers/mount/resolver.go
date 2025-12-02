@@ -246,7 +246,7 @@ func (mr *Resolver) getAllChildrenRecursive(mount *model.Mount, mountList map[ui
 	mountList[mount.MountID] = mount
 
 	for _, mountid := range mount.Children {
-		mnt := mr.lookupByMountID(mountid)
+		mnt := mr.lookupByMountID(mountid, true)
 		if mnt != nil {
 			err := mr.getAllChildrenRecursive(mnt, mountList)
 			if err != nil {
@@ -323,7 +323,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, _, _, err := mr.resolveMount(mountID, pid)
+	mount, _, _, err := mr.resolveMount(mountID, pid, true)
 	if err != nil {
 		return model.UnknownFS, err
 	}
@@ -415,16 +415,20 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	return entry.mount
 }
 
-func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
+func (mr *Resolver) lookupByMountID(mountID uint32, useRedemption bool) *model.Mount {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		return mount
 	}
 
-	return mr.getFromRedemption(mountID)
+	if useRedemption {
+		return mr.getFromRedemption(mountID)
+	}
+
+	return nil
 }
 
-func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
-	mount := mr.lookupByMountID(mountID)
+func (mr *Resolver) lookupMount(mountID uint32, useRedemption bool) (*model.Mount, model.MountSource, model.MountOrigin) {
+	mount := mr.lookupByMountID(mountID, useRedemption)
 
 	if mount == nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
@@ -438,7 +442,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID)
+	mount, source, origin := mr.lookupMount(mountID, true)
 	if mount == nil {
 		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
@@ -502,7 +506,7 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.
 }
 
 func (mr *Resolver) resolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mount, source, origin, err := mr.resolveMount(mountID, pid)
+	mount, source, origin, err := mr.resolveMount(mountID, pid, true)
 	if err != nil {
 		return "", source, origin, err
 	}
@@ -548,34 +552,41 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAndSync ...bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMount(mountID, pid)
+	useRedemptionAndSync := true
+	if len(dontUseRedemptionAndSync) > 0 && dontUseRedemptionAndSync[0] == true {
+		useRedemptionAndSync = false
+	}
+
+	return mr.resolveMount(mountID, pid, useRedemptionAndSync)
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMount(mountID uint32, pid uint32, useRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID)
+	mount, source, origin := mr.lookupMount(mountID, useRedemptionAndSync)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
-	if err := mr.syncPidNamespace(pid); err != nil {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
-	}
+	if useRedemptionAndSync {
+		if err := mr.syncPidNamespace(pid); err != nil {
+			return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+		}
 
-	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
-		mr.procHitsStats.Inc()
-		return mount, model.MountSourceMountID, mount.Origin, nil
+		if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
+			mr.procHitsStats.Inc()
+			return mount, model.MountSourceMountID, mount.Origin, nil
+		}
+		mr.procMissStats.Inc()
 	}
-	mr.procMissStats.Inc()
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
