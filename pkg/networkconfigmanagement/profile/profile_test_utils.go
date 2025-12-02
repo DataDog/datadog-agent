@@ -10,7 +10,7 @@ package profile
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
+	"path"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -216,14 +216,14 @@ func getRunningScrubber() *scrubber.Scrubber {
 
 // IOSProfile parses the test profile for IOS devices to test with
 func IOSProfile() *NCMProfile {
-	b, _ := defaultProfilesFS.ReadFile(filepath.Join(defaultProfilesFolder, "cisco-ios.json"))
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-ios.json"))
 	prof, _ := parseNCMProfileFromBytes(b, "cisco-ios")
 	return prof
 }
 
 // JunOSProfile parses the test profile for junOS devices to test with
 func JunOSProfile() *NCMProfile {
-	b, _ := defaultProfilesFS.ReadFile(filepath.Join(defaultProfilesFolder, "junos.json"))
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "junos.json"))
 	prof, _ := parseNCMProfileFromBytes(b, "junos")
 	return prof
 }

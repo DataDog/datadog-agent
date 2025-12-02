@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -139,7 +140,7 @@ func GetProfileMap(profilesFolder string) (Map, error) {
 			continue
 		}
 		profileName := strings.TrimSuffix(filename, filepath.Ext(filename))
-		filePath := filepath.Join(folderToRead, filename)
+		filePath := path.Join(folderToRead, filename)
 
 		bytes, err := fs.ReadFile(profileFS, filePath)
 		if err != nil {
