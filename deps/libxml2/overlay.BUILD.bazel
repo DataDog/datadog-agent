@@ -54,7 +54,7 @@ expand_template(
         "@WITH_REGEXPS@": "1",
         "@WITH_RELAXNG@": "1",
         "@WITH_SCHEMAS@": "1",
-        "@WITH_SCHEMATRON@": "0",
+        "@WITH_SCHEMATRON@": "1",
         "@WITH_MODULES@": "1",
         "@WITH_ZLIB@": "1",
         # Enabled for now but very likely not needed
