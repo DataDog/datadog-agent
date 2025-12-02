@@ -10,6 +10,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -145,8 +146,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
 				// TODO: (component) - once we remove the dependency of workloadmeta component from the tagger component
 				// we can include the tagger as part of the workloadmeta component.
-				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component) {
-					proccontainers.InitSharedContainerProvider(wmeta, tagger)
+				fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
+					proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 				}),
 				haagentfx.Module(),
 				logscompressionfx.Module(),
@@ -202,7 +203,7 @@ func run(
 	}
 	pkglog.Infof("Hostname is: %s", hname)
 
-	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
+	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion + " - Datadog Cluster Agent")
 
 	pkglog.Infof("Datadog Cluster Agent is now running.")
 
@@ -338,7 +339,7 @@ func initializeBBSCache(ctx context.Context) error {
 			}
 		case <-timer.C:
 			ticker.Stop()
-			return fmt.Errorf("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
+			return errors.New("BBS Cache failed to warm up. Misconfiguration error? Inspect logs")
 		}
 	}
 }

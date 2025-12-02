@@ -6,19 +6,19 @@
 package process
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/ecsagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	ecsComp "github.com/DataDog/test-infra-definitions/components/ecs"
-	tifEcs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
+	tifEcs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -47,7 +47,7 @@ func ecsEC2CPUStressProvisioner(runInCoreAgent bool) provisioners.PulumiEnvRunFu
 			ecs.WithECSOptions(tifEcs.WithLinuxNodeGroup()),
 			ecs.WithAgentOptions(
 				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", "true"),
-				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", fmt.Sprintf("%t", runInCoreAgent)),
+				ecsagentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED", strconv.FormatBool(runInCoreAgent)),
 			),
 			ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
 				return cpustress.EcsAppDefinition(e, clusterArn)

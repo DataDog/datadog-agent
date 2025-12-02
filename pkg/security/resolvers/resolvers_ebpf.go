@@ -11,7 +11,6 @@ package resolvers
 import (
 	"context"
 	"fmt"
-	"os"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -21,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
@@ -75,7 +73,7 @@ type EBPFResolvers struct {
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -144,7 +142,11 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	if opts.PathResolutionEnabled {
 		// Force the use of redemption for now, as it seems that the kernel reference counter on mounts used to remove mounts is not working properly.
 		// This means that we can remove mount entries that are still in use.
-		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, dentryResolver, mount.ResolverOpts{UseProcFS: true})
+		resolverOpts := mount.ResolverOpts{
+			UseProcFS:              true,
+			SnapshotUsingListMount: config.Probe.SnapshotUsingListmount,
+		}
+		mountResolver, err = mount.NewResolver(statsdClient, cgroupsResolver, dentryResolver, resolverOpts)
 		if err != nil {
 			return nil, err
 		}
@@ -217,11 +219,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		DNSResolver:            dnsResolver,
 		FileMetadataResolver:   fileMetadataResolver,
 		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
-	}
-
-	if resolvers.SnapshotUsingListmount && !mountResolver.HasListMount() {
-		seclog.Warnf("listmount not found in this system, will default to procfs")
-		resolvers.SnapshotUsingListmount = false
 	}
 
 	return resolvers, nil
@@ -328,12 +325,11 @@ func (r *EBPFResolvers) snapshot() error {
 		return createA < createB
 	})
 
-	if r.SnapshotUsingListmount {
-		err = r.MountResolver.SyncCacheFromListMount()
-		if err != nil {
-			seclog.Errorf("Failed to sync cache from listmount: %v", err)
-			r.SnapshotUsingListmount = false
-		}
+	err = r.MountResolver.SyncCache()
+
+	if err != nil {
+		seclog.Errorf("failed to sync cache from listmount: %v", err)
+		r.SnapshotUsingListmount = false
 	}
 
 	for _, proc := range processes {
@@ -346,16 +342,6 @@ func (r *EBPFResolvers) snapshot() error {
 
 		if process.IsKThread(uint32(ppid), pid) {
 			continue
-		}
-
-		// Start with the mount resolver because the process resolver might need it to resolve paths
-		if !r.SnapshotUsingListmount {
-			if err = r.MountResolver.SyncCache(pid); err != nil {
-				if !os.IsNotExist(err) {
-					log.Debugf("snapshot failed for %d: couldn't sync mount points: %s", proc.Pid, err)
-				}
-				continue
-			}
 		}
 
 		// Sync the process cache
@@ -399,6 +385,9 @@ func (r *EBPFResolvers) Close() error {
 		fmt.Println(err)
 		return err
 	}
-
+	// clean up the user sessions resolver goroutine and resources
+	if r.UserSessionsResolver != nil {
+		r.UserSessionsResolver.Close()
+	}
 	return nil
 }

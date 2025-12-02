@@ -12,6 +12,7 @@ name 'datadog-otel-agent'
 source path: '..',
        options: {
          exclude: [
+           "**/.cache/**/*",
            "**/testdata/**/*",
          ],
        }
@@ -24,6 +25,7 @@ build do
 
     # set GOPATH on the omnibus source dir for this software
     gopath = Pathname.new(project_dir) + '../../../..'
+    flavor_arg = ENV['AGENT_FLAVOR']
 
     # include embedded path (mostly for `pkg-config` binary)
     #
@@ -46,6 +48,24 @@ build do
 
     env = with_standard_compiler_flags(env)
 
+    if fips_mode?
+      if windows_target?
+        msgoroot = ENV['MSGO_ROOT']
+        if msgoroot.nil? || msgoroot.empty?
+          raise "MSGO_ROOT not set"
+        end
+        if !File.exist?("#{msgoroot}\\bin\\go.exe")
+          raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
+        end
+        env["GOROOT"] = msgoroot
+        env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+      else
+        msgoroot = "/usr/local/msgo"
+        env["GOROOT"] = msgoroot
+        env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+      end
+    end
+
     if windows_target?
       conf_dir = "#{install_dir}/etc/datadog-agent"
     else
@@ -56,7 +76,7 @@ build do
     mkdir conf_dir
     mkdir embedded_bin_dir
 
-    command "dda inv -- -e otel-agent.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 
     if windows_target?
       copy 'bin/otel-agent/otel-agent.exe', embedded_bin_dir

@@ -16,6 +16,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -116,6 +118,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := fxutil.Test[TestDeps](t,
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		haagentmock.Module(),
@@ -155,7 +158,7 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 		} else {
 			require.False(supported, fmt.Sprintf("Metric type %s should be not supported", test.metricType.String()))
 		}
-		require.Equal(test.apiMetricType, rv, fmt.Sprintf("Wrong conversion for %s", test.metricType.String()))
+		require.Equal(test.apiMetricType, rv, "Wrong conversion for "+test.metricType.String())
 	}
 }
 
@@ -173,6 +176,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 
 	return fxutil.Test[DemultiplexerAgentTestDeps](
 		t,
+		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
 		orchestratorimpl.MockModule(),

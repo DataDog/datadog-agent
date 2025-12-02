@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
@@ -298,8 +298,9 @@ func (s *linuxTestSuite) testProcessCheckWithServiceDiscovery(agentConfigStr str
 				// therefore we should wait for 2 minutes to ensure service discovery is run at least once
 				// start --> process collection, service discovery ignoring
 				// 1 min --> process collection + service discovery collection ignores processes/may capture some
-				// 2 min --> process collection + service discovery collection should capture everythinf
-			}, 2*time.Minute, 10*time.Second)
+				// 2 min --> process collection + service discovery collection should capture everything
+				// 3 min --> extra time for the collected data to actually be sent by the process check
+			}, 3*time.Minute, 10*time.Second)
 		})
 		if !ok {
 			s.dumpDebugInfo(t)

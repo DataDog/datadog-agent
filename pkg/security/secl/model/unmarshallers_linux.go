@@ -229,7 +229,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.ID = binary.NativeEndian.Uint64(data[32:40])
+	e.UserSession.K8SSessionID = binary.NativeEndian.Uint64(data[32:40])
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := UnmarshalBinary(data[40:], &e.Credentials)
@@ -437,7 +437,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 64 {
+	if len(data) < 88 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -455,16 +455,20 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 
 	m.Device = binary.NativeEndian.Uint32(data[0:4])
 	m.BindSrcMountID = binary.NativeEndian.Uint32(data[4:8])
-	m.FSType, err = UnmarshalString(data[8:], 16)
+	m.MountIDUnique = binary.NativeEndian.Uint64(data[8:16])
+	m.ParentMountIDUnique = binary.NativeEndian.Uint64(data[16:24])
+	m.BindSrcMountIDUnique = binary.NativeEndian.Uint64(data[24:32])
+	m.FSType, err = UnmarshalString(data[32:], 16)
 	if err != nil {
 		return 0, err
 	}
 
 	m.MountID = m.RootPathKey.MountID
-	m.Visible = binary.NativeEndian.Uint16(data[24:26]) != 0
-	m.Detached = binary.NativeEndian.Uint16(data[26:28]) != 0
+	m.Visible = binary.NativeEndian.Uint16(data[48:50]) != 0
+	m.Detached = binary.NativeEndian.Uint16(data[50:52]) != 0
 
-	return 64, nil
+	m.NamespaceInode = binary.NativeEndian.Uint32(data[52:56])
+	return 88, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -580,7 +584,7 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself, process_context_t kernel side
 func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 32 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -589,8 +593,9 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.NetNS = binary.NativeEndian.Uint32(data[8:12])
 	p.IsKworker = binary.NativeEndian.Uint32(data[12:16]) > 0
 	p.ExecInode = binary.NativeEndian.Uint64(data[16:24])
+	p.UserSessionID = binary.NativeEndian.Uint64(data[24:32])
 
-	return 24, nil
+	return 32, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -1077,6 +1082,7 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 
 	e.Size = binary.NativeEndian.Uint32(data[read+40 : read+44])
 	e.NetworkDirection = binary.NativeEndian.Uint32(data[read+44 : read+48])
+	e.Type = uint32(UnspecType)
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {

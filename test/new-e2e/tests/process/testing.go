@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -334,7 +333,7 @@ func assertContainersNotCollected(t *testing.T, payloads []*aggregator.ProcessPa
 // containers and whether it has the expected data populated
 func findContainer(name string, containers []*agentmodel.Container) bool {
 	// check if there is a tag for the container. The tag could be `container_name:*` or `short_image:*`
-	containerNameTag := fmt.Sprintf(":%s", name)
+	containerNameTag := ":" + name
 	for _, container := range containers {
 		for _, tag := range container.Tags {
 			if strings.HasSuffix(tag, containerNameTag) {
@@ -362,6 +361,14 @@ func assertManualProcessCheck(t require.TestingT, check string, withIOStats bool
 	assertManualContainerCheck(t, check, expectedContainers...)
 }
 
+// assertManualRTProcessCheck asserts that the realtime manual check output contains at least one process stat
+func assertManualRTProcessCheck(t require.TestingT, check string) {
+	var rt agentmodel.CollectorRealTime
+	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
+	require.NoError(t, err)
+	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
+}
+
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
 func assertManualContainerCheck(t require.TestingT, check string, expectedContainers ...string) {
 	var checkOutput struct {
@@ -374,6 +381,21 @@ func assertManualContainerCheck(t require.TestingT, check string, expectedContai
 	for _, container := range expectedContainers {
 		assert.Truef(t, findContainer(container, checkOutput.Containers),
 			"%s container not found in %+v", container, checkOutput.Containers)
+	}
+}
+
+// assertAbsentManualContainerCheck asserts that the given container is not collected from a manual container check
+func assertAbsentManualContainerCheck(t require.TestingT, check string, unexpectedContainers ...string) {
+	var checkOutput struct {
+		Containers []*agentmodel.Container `json:"containers"`
+	}
+
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
+	for _, container := range unexpectedContainers {
+		assert.Falsef(t, findContainer(container, checkOutput.Containers),
+			"%s container found in %+v", container, checkOutput.Containers)
 	}
 }
 

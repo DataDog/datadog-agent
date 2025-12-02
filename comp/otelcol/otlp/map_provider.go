@@ -37,13 +37,23 @@ func buildTracesMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	return baseMap, err
 }
 
+// ensureNonNilMap converts a nil map to an empty map.
+// This ensures consistent behavior when merging configurations.
+func ensureNonNilMap(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return map[string]interface{}{}
+	}
+	return m
+}
+
 func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultMetricsConfig)
 	if err != nil {
 		return nil, err
 	}
 	smap := map[string]interface{}{
-		buildKey("exporters", "serializer", "metrics"): cfg.Metrics,
+		buildKey("exporters", "serializer", "metrics"):                cfg.Metrics,
+		buildKey("exporters", "serializer", "sending_queue", "batch"): ensureNonNilMap(cfg.MetricsBatch),
 	}
 	{
 		configMap := confmap.NewFromStringMap(smap)
@@ -52,11 +62,21 @@ func buildMetricsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	return baseMap, err
 }
 
-func buildLogsMap(_ PipelineConfig) (*confmap.Conf, error) {
+func buildLogsMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	baseMap, err := configutils.NewMapFromYAMLString(defaultLogsConfig)
 	if err != nil {
 		return nil, err
 	}
+
+	smap := map[string]interface{}{
+		buildKey("exporters", "logsagent", "sending_queue", "batch"): ensureNonNilMap(cfg.Logs)["batch"],
+	}
+
+	{
+		configMap := confmap.NewFromStringMap(smap)
+		err = baseMap.Merge(configMap)
+	}
+
 	return baseMap, err
 }
 

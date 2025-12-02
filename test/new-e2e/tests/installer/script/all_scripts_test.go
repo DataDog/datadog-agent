@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -176,8 +176,8 @@ func (s *installerScriptBaseSuite) RunInstallScriptWithError(url string, params 
 		time.Sleep(1 * time.Second)
 	}
 
-	scriptParams := append(params, fmt.Sprintf("DD_API_KEY=%s", installer.GetAPIKey()), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
-	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("%s bash install_script", strings.Join(scriptParams, " ")))
+	scriptParams := append(params, "DD_API_KEY="+installer.GetAPIKey(), "DD_INSTALLER_REGISTRY_URL_INSTALLER_PACKAGE=installtesting.datad0g.com.internal.dda-testing.com")
+	_, err = s.Env().RemoteHost.Execute(strings.Join(scriptParams, " ") + " bash install_script")
 	return err
 }
 

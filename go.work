@@ -1,4 +1,4 @@
-go 1.24.9
+go 1.24.10
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
@@ -63,7 +63,6 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
-	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -91,6 +90,7 @@ use (
 	pkg/collector/check/defaults
 	pkg/config/create
 	pkg/config/env
+	pkg/config/helper
 	pkg/config/mock
 	pkg/config/model
 	pkg/config/nodetreemodel
@@ -131,6 +131,7 @@ use (
 	pkg/opentelemetry-mapping-go/otlp/metrics
 	pkg/opentelemetry-mapping-go/otlp/rum
 	pkg/orchestrator/model
+	pkg/orchestrator/util
 	pkg/process/util/api
 	pkg/proto
 	pkg/remoteconfig/state
@@ -178,6 +179,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	test/e2e-framework
 	test/fakeintake
 	test/new-e2e
 	test/otel

@@ -108,8 +108,6 @@ modules:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
     used_by_otel: true
-  comp/otelcol/otlp/components/connector/datadogconnector:
-    used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/logsagentexporter:
@@ -178,6 +176,8 @@ modules:
   pkg/config/create:
     used_by_otel: true
   pkg/config/env:
+    used_by_otel: true
+  pkg/config/helper:
     used_by_otel: true
   pkg/config/mock:
     used_by_otel: true
@@ -255,6 +255,8 @@ modules:
   pkg/opentelemetry-mapping-go/otlp/rum:
     used_by_otel: true
   pkg/orchestrator/model:
+    used_by_otel: true
+  pkg/orchestrator/util:
     used_by_otel: true
   pkg/process/procutil/resources: ignored
   pkg/process/util/api:
@@ -358,6 +360,8 @@ modules:
     used_by_otel: true
   tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
+  test/e2e-framework:
+    independent: false
   test/fakeintake: default
   test/integration/serverless/recorder-extension: ignored
   test/integration/serverless/src: ignored

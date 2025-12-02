@@ -51,7 +51,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(""),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
+					LogParams:            log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				// no need to provide sysprobe logger since ForOneShot ignores config values
 				core.Bundle(),
@@ -68,7 +68,7 @@ func debugRuntime(sysprobeconfig sysprobeconfig.Component, cliParams *cliParams)
 
 	var path string
 	if len(cliParams.args) == 1 {
-		path = fmt.Sprintf("http://localhost/debug/%s", cliParams.args[0])
+		path = "http://localhost/debug/" + cliParams.args[0]
 	} else {
 		path = fmt.Sprintf("http://localhost/%s/debug/%s", cliParams.args[0], cliParams.args[1])
 	}

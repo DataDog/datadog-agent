@@ -21,7 +21,7 @@ import (
 
 // sendErrorResponse sends an error response to the client and logs the error
 func (f *privilegedLogsModule) sendErrorResponse(unixConn *net.UnixConn, message string) {
-	log.Errorf(message)
+	log.Error(message)
 	response := common.OpenFileResponse{
 		Success: false,
 		Error:   message,

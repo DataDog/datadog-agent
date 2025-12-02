@@ -160,7 +160,7 @@ DOGSTATSD_TAGS = {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"}
 IOT_AGENT_TAGS = {"jetson", "systemd", "zlib", "zstd"}
 
 # INSTALLER_TAGS lists the tags needed when building the installer
-INSTALLER_TAGS = {"docker", "ec2", "kubelet", "grpcnotrace"}
+INSTALLER_TAGS = {"ec2"}
 
 # PROCESS_AGENT_TAGS lists the tags necessary to build the process-agent
 PROCESS_AGENT_TAGS = {
@@ -299,9 +299,16 @@ build_tags = {
         "loader": LOADER_TAGS,
         "full-host-profiler": FULL_HOST_PROFILER_TAGS,
         # Test setups
-        "test": AGENT_TEST_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
+        .union(UNIT_TEST_TAGS)
+        .difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
+        .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
         .difference(UNIT_TEST_EXCLUDE_TAGS),
     },
@@ -321,6 +328,7 @@ build_tags = {
         # Test setups
         "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "otel-agent": OTEL_AGENT_TAGS.union(FIPS_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
@@ -349,6 +357,7 @@ def compute_build_tags_for_flavor(
     build_exclude: str | None,
     flavor: AgentFlavor = AgentFlavor.base,
     include_sds: bool = False,
+    platform: str | None = None,
 ):
     """
     Given a flavor, an architecture, a list of tags to include and exclude, get the final list
@@ -360,7 +369,7 @@ def compute_build_tags_for_flavor(
     Then, remove from these the provided list of tags to exclude.
     """
     build_include = (
-        get_default_build_tags(build=build, flavor=flavor)
+        get_default_build_tags(build=build, flavor=flavor, platform=platform)
         if build_include is None
         else filter_incompatible_tags(build_include.split(","))
     )

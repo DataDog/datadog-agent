@@ -669,6 +669,13 @@ class GithubAPI:
         data = self.graphql(query)
         return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
 
+    def get_fork_name(self, owner):
+        forks = self._repository.get_forks()
+        for fork in forks:
+            if fork.owner.login == owner:
+                return fork.name
+        return None
+
 
 def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
     print(color_message("Creating PR", "bold"))

@@ -236,11 +236,6 @@ func init() {
 	// Setting environment variables must happen as early as possible in the process lifetime to avoid data race with
 	// `getenv`. Ideally before we start any goroutines that call native code or open network connections.
 	initFIPS()
-
-	// Workaround for a hang issue in ddtrace's stack profiling v2 feature (incident-43814).
-	// The workaround disables the code path in ddtrace that can cause hangs.
-	// See: https://ddtrace.readthedocs.io/en/stable/configuration.html#DD_PROFILING_STACK_V2_ENABLED
-	os.Setenv("DD_PROFILING_STACK_V2_ENABLED", "false")
 }
 
 func expvarPythonInitErrors() interface{} {
@@ -400,7 +395,7 @@ func Initialize(paths ...string) error {
 
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(
-			fmt.Sprintf("could not load runtime python for version 3: %s", C.GoString(pyErr)),
+			"could not load runtime python for version 3: " + C.GoString(pyErr),
 		)
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
@@ -444,7 +439,7 @@ func Initialize(paths ...string) error {
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
-		err := fmt.Sprintf("could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
+		err := "could not initialize rtloader: " + C.GoString(C.get_error(rtloader))
 		return addExpvarPythonInitErrors(err)
 	}
 

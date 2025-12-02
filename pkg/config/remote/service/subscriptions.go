@@ -290,6 +290,8 @@ func (s *subscriptions) notify(
 		files := responseFiles
 		if !tracked.seenAny {
 			files = allFiles
+			tracked.seenAny = true
+			sub.trackedClients[runtimeID] = tracked
 		}
 		products := s.productsMappings[tracked.products]
 		files = filtered(files, func(file *pbgo.File) bool {
@@ -314,13 +316,9 @@ func (s *subscriptions) popUpdate(
 		update := sub.pendingQueue[0]
 		sub.pendingQueue[0], sub.pendingQueue = nil, sub.pendingQueue[1:]
 		runtimeID := getRuntimeIDFromClient(update.Client)
-		tracked, ok := sub.trackedClients[runtimeID]
-		if !ok {
-			continue
+		if _, ok := sub.trackedClients[runtimeID]; ok {
+			return update
 		}
-		tracked.seenAny = true
-		sub.trackedClients[runtimeID] = tracked
-		return update
 	}
 	return nil
 }
