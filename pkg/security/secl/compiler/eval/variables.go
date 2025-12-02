@@ -1059,6 +1059,11 @@ func (v *Variables) CleanupExpiredVariables() {
 	}
 }
 
+// GetScopedVariables returns nothing for global variables
+func (v *Variables) GetScopedVariables(_ string) map[string]Variable {
+	return nil
+}
+
 // MutableSECLVariable describes the interface implemented by mutable SECL variable
 type MutableSECLVariable interface {
 	Variable
@@ -1222,6 +1227,19 @@ func (v *ScopedVariables) ReleaseVariable(key string) {
 	v.expirablesLock.Lock()
 	delete(v.expirables, key)
 	v.expirablesLock.Unlock()
+}
+
+// GetScopedVariables returns all scoped variables that match the given name
+func (v *ScopedVariables) GetScopedVariables(name string) map[string]Variable {
+	variables := make(map[string]Variable)
+	for key, vars := range v.vars {
+		for varName, variable := range vars {
+			if varName == name {
+				variables[key] = variable
+			}
+		}
+	}
+	return variables
 }
 
 // NewScopedVariables returns a new set of scope variables
