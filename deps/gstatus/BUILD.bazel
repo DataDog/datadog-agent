@@ -6,6 +6,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
+    default_visibility = ["//packaging:__subpackages__"],
 )
 
 license(
@@ -31,7 +32,8 @@ pkg_files(
     srcs = [":gstatus"],
     attributes = pkg_attributes(
         group = "root",
-        mode = "0555",
+        # Must be writable for signing script to work.
+        mode = "0755",
         owner = "root",
     ),
     prefix = "embedded/sbin",
