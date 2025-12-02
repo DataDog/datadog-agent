@@ -224,8 +224,10 @@ def main():
 
     if options.licenses_dir:
         for origin, data in attrs.licenses.items():
+            # If origin is a PURL, this may just be a name, like "acl"
             licensed_package = purl_to_package(origin)
-            canonical_package = normalize_repo(repo_of_target(licensed_package))
+            # but if we get it through bazel repos, use that name - falling back to the package name if from the PURL
+            canonical_package = normalize_repo(repo_of_target(licensed_package)) or licensed_package
             # This good enough for today. The DD policy is that all licenses have SPDX
             # identifiers, so the repo name is always constant.
             license_type = data[0].replace("@rules_license+//licenses/spdx:", "")
@@ -234,7 +236,7 @@ def main():
             license_file_short = os.path.basename(license_file)
             copy_to = os.path.join(options.licenses_dir, f"{canonical_package}-{license_file_short}")
             if _DEBUG > 1:
-                print(f"writing {copy_to}")
+                print(f"writing for {canonical_package} to {copy_to}")
             with open(copy_to, "w", encoding="UTF-8") as out:
                 out.write(license_text)
 
