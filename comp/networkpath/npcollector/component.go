@@ -8,7 +8,7 @@ package npcollector
 
 import model "github.com/DataDog/agent-payload/v5/process"
 
-// team: cloud-network-monitoring
+// team: network-path cloud-network-monitoring
 
 // Component is the component type.
 type Component interface {
