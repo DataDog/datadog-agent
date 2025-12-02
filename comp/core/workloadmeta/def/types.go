@@ -47,6 +47,7 @@ const (
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubeletMetrics         Kind = "kubelet_metrics"
+	KindKubeCapabilities       Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
@@ -54,7 +55,6 @@ const (
 	KindGPU                    Kind = "gpu"
 	KindKubelet                Kind = "kubelet"
 	KindCRD                    Kind = "crd"
-	KindKubeCapabilities       Kind = "kubernetes_capability"
 )
 
 // Source is the source name of an entity.
