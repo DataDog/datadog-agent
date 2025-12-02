@@ -8,7 +8,6 @@ package awskubernetes
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -43,7 +42,7 @@ func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Dumping EKS cluster state:\n%s", dumpResult), nil
+	return "Dumping EKS cluster state:\n" + dumpResult, nil
 }
 
 // EKSProvisioner creates a new provisioner
@@ -146,6 +145,9 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Provi
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
 
+		// Explicitly set cluster name to avoid autodiscovery race conditions
+		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithClusterName(cluster.ClusterName)}
+		params.agentOptions = append(newOpts, params.agentOptions...)
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
 			return err

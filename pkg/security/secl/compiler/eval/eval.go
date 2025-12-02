@@ -223,14 +223,16 @@ func isVariableName(str string) (string, bool) {
 }
 
 func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
-	variableEvaluator, err := opts.VariableStore.GetEvaluator(VariableName(varname))
-	if err == nil {
-		return variableEvaluator, pos, nil
+	var variableEvaluator interface{}
+	variable := opts.VariableStore.Get(varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
 	}
 
 	if strings.HasSuffix(varname, ".length") {
 		trimmedVariable := strings.TrimSuffix(varname, ".length")
-		if variableEvaluator, _ := opts.VariableStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
 			switch evaluator := variableEvaluator.(type) {
 			case *StringArrayEvaluator:
 				return &IntEvaluator{
@@ -264,6 +266,7 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state
 				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
 			}
 		}
+
 	}
 
 	evaluator, err := state.model.GetEvaluator(varname, "", 0)
@@ -293,14 +296,14 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, sta
 			case *IntArrayEvaluator:
 				evaluators = append(evaluators, &StringEvaluator{
 					EvalFnc: func(ctx *Context) string {
-						var result string
+						var builder strings.Builder
 						for i, number := range evaluator.EvalFnc(ctx) {
 							if i != 0 {
-								result += ","
+								builder.WriteString(",")
 							}
-							result += strconv.FormatInt(int64(number), 10)
+							builder.WriteString(strconv.FormatInt(int64(number), 10))
 						}
-						return result
+						return builder.String()
 					}})
 			case *StringEvaluator:
 				evaluators = append(evaluators, evaluator)
@@ -341,15 +344,15 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, sta
 		Value:     str,
 		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
-			var result string
+			var builder strings.Builder
 			for _, evaluator := range evaluators {
 				if evaluator.EvalFnc != nil {
-					result += evaluator.EvalFnc(ctx)
+					builder.WriteString(evaluator.EvalFnc(ctx))
 				} else {
-					result += evaluator.Value
+					builder.WriteString(evaluator.Value)
 				}
 			}
-			return result
+			return builder.String()
 		},
 	}, pos, nil
 }

@@ -1,0 +1,44 @@
+# dd-compile-policy - make the prebuilt compiler part of the distribution.
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+
+# Pull from the right repo, depending on build architecture.
+alias(
+    name = "dd_compile_policy",
+    actual = select({
+        "//:linux_arm64": "@compile_policy_arm64//:dd-compile-policy",
+        "//:linux_x86_64": "@compile_policy_x86_64//:dd-compile-policy",
+    }),
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [":dd_compile_policy"],
+    attributes = pkg_attributes(
+        group = "root",
+        mode = "0555",
+        owner = "root",
+    ),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "license_file",
+    srcs = [":LICENSE"],
+    prefix = "LICENSES",
+    renames = {
+        "LICENSE": "dd-compile-policy-LICENSE",
+    },
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":bin_files",
+        ":license_file",
+    ],
+)

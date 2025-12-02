@@ -9,13 +9,13 @@ package awskubernetes
 import (
 	"context"
 	_ "embed"
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
 	csidriver "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/csi-driver"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -83,7 +83,7 @@ func KindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Dumping Kind cluster state:\n%s", dumpResult), nil
+	return "Dumping Kind cluster state:\n" + dumpResult, nil
 }
 
 // KindProvisioner creates a new provisioner
@@ -283,7 +283,12 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 			return err
 		}
 
-		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider); err != nil {
+		// Get CoreDNS Deployment to use as dependency for etcd which needs DNS
+		coreDNS, err := appsv1.GetDeployment(ctx, "coredns", pulumi.ID("kube-system/coredns"), nil, pulumi.Provider(kubeProvider))
+		if err != nil {
+			return err
+		}
+		if _, err := etcd.K8sAppDefinition(&awsEnv, kubeProvider, utils.PulumiDependsOn(coreDNS)); err != nil {
 			return err
 		}
 

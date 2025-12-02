@@ -40,6 +40,32 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, a.hostname)
 
 	// setup the pipeline provider that provides pairs of processor and sender
+	pipelineProvider := buildPipelineProvider(a, processingRules, diagnosticMessageReceiver, destinationsCtx)
+
+	// setup the launchers
+	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+
+	a.addLauncherInstances(lnchrs, wmeta, integrationsLogs, fingerprintConfig)
+
+	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
+	a.destinationsCtx = destinationsCtx
+	a.pipelineProvider = pipelineProvider
+	a.launchers = lnchrs
+	a.diagnosticMessageReceiver = diagnosticMessageReceiver
+}
+
+// buildEndpoints builds endpoints for the logs agent, either HTTP or TCP,
+// dependent on configuration and connectivity
+func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
+	httpConnectivity := config.HTTPConnectivityFailure
+	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
+		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
+	}
+	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+}
+
+// buildPipelineProvider builds a new pipeline provider with the given configuration
+func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule, diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver, destinationsCtx *client.DestinationsContext) pipeline.Provider {
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
@@ -54,10 +80,32 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
 		false, // serverless
 	)
+	return pipelineProvider
+}
 
-	// setup the launchers
-	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+// rebuildTransientComponents recreates only the components that need to change during a restart.
+//
+// Components recreated (transient):
+//   - destinationsCtx: New context for new transport connections
+//   - pipelineProvider: New pipeline with updated endpoints and configuration
+//   - launchers: New launchers connected to the new pipeline
+func (a *logAgent) rebuildTransientComponents(processingRules []*config.ProcessingRule, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
+	destinationsCtx := client.NewDestinationsContext()
+	pipelineProvider := buildPipelineProvider(a, processingRules, a.diagnosticMessageReceiver, destinationsCtx)
 
+	// recreate launchers with new pipelineProvider
+	// use OLD: sources, auditor, tracker
+	lnchers := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
+	a.addLauncherInstances(lnchers, wmeta, integrationsLogs, fingerprintConfig)
+
+	// update agent with new components
+	// schedulers, sources, tracker, auditor, diagnosticMessageReceiver remain unchanged
+	a.destinationsCtx = destinationsCtx
+	a.pipelineProvider = pipelineProvider
+	a.launchers = lnchers
+}
+
+func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta option.Option[workloadmeta.Component], integrationsLogs integrations.Component, fingerprintConfig types.FingerprintConfig) {
 	fileLimits := a.config.GetInt("logs_config.open_files_limit")
 	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
@@ -83,18 +131,4 @@ func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))
 
-	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
-	a.destinationsCtx = destinationsCtx
-	a.pipelineProvider = pipelineProvider
-	a.launchers = lnchrs
-	a.diagnosticMessageReceiver = diagnosticMessageReceiver
-}
-
-// buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
-	httpConnectivity := config.HTTPConnectivityFailure
-	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
-		httpConnectivity = http.CheckConnectivity(endpoints.Main, coreConfig)
-	}
-	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }

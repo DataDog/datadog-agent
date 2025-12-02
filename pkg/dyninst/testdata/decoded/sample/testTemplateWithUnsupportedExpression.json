@@ -73,6 +73,6 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "unsupported operation: foobar"
+    "message": "{error: unsupported operation: foobar}"
   }
 ]

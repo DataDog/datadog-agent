@@ -258,7 +258,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 		ns     netns.NsHandle
 	}{
 		{
-			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
+			desc: "net ns 0, origin exists, proto " + proto,
 			c: Con{
 				Origin: newIPTuple(laddrIP, "2.2.2.4", uint16(laddrPort), 80, ipProto),
 			},
@@ -266,7 +266,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 			ns:     rootNs,
 		},
 		{
-			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
+			desc: "net ns 0, reply exists, proto " + proto,
 			c: Con{
 				Reply: newIPTuple("2.2.2.4", laddrIP, 80, uint16(laddrPort), ipProto),
 			},
@@ -274,7 +274,7 @@ func testConntrackExists(t *testing.T, laddrIP string, laddrPort int, proto stri
 			ns:     rootNs,
 		},
 		{
-			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
+			desc: "net ns 0, origin does not exist, proto " + proto,
 			c: Con{
 				Origin: newIPTuple(laddrIP, "2.2.2.3", uint16(laddrPort), 80, ipProto),
 			},
@@ -341,7 +341,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 		ns     netns.NsHandle
 	}{
 		{
-			desc: fmt.Sprintf("net ns 0, origin exists, proto %s", proto),
+			desc: "net ns 0, origin exists, proto " + proto,
 			c: Con{
 				Origin: newIPTuple(laddrIP, "fd00::2", uint16(laddrPort), 80, ipProto),
 			},
@@ -349,7 +349,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 			ns:     rootNs,
 		},
 		{
-			desc: fmt.Sprintf("net ns 0, reply exists, proto %s", proto),
+			desc: "net ns 0, reply exists, proto " + proto,
 			c: Con{
 				Reply: newIPTuple("fd00::2", laddrIP, 80, uint16(laddrPort), ipProto),
 			},
@@ -357,7 +357,7 @@ func testConntrackExists6(t *testing.T, laddrIP string, laddrPort int, proto str
 			ns:     rootNs,
 		},
 		{
-			desc: fmt.Sprintf("net ns 0, origin does not exist, proto %s", proto),
+			desc: "net ns 0, origin does not exist, proto " + proto,
 			c: Con{
 				Origin: newIPTuple(laddrIP, "fd00::1", uint16(laddrPort), 80, ipProto),
 			},
