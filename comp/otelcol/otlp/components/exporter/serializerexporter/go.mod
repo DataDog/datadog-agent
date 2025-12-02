@@ -85,7 +85,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.5 // indirect

@@ -18,7 +18,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/serializer v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
@@ -99,6 +98,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/status/health v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagset v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.73.0-rc.5 // indirect
