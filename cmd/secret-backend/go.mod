@@ -6,7 +6,7 @@ replace (
 	github.com/DataDog/datadog-agent/cmd/secret-backend/backend => ./backend
 	github.com/DataDog/datadog-agent/cmd/secret-backend/backend/aws => ./backend/aws
 	github.com/DataDog/datadog-agent/cmd/secret-backend/backend/aws/secretsmanager => ./backend/aws/secretsmanager
-	github.com/hashicorp/go-cmp => github.com/google/go-cmp v0.7.0
+	github.com/hashicorp/go-cmp => github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 )
 
