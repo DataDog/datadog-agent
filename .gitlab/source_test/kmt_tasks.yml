@@ -45,8 +45,6 @@ test_kmt_local_setup_macos:
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-    - dda inv -- -e rtloader.make
-    - dda inv -- -e rtloader.install
   tags: ["macos:sonoma-amd64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:
