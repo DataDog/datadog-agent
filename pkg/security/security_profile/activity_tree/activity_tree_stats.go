@@ -83,7 +83,7 @@ func (stats *Stats) ApproximateSize() int64 {
 
 // SendStats sends metrics to Datadog
 func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) error {
-	treeTypeTag := fmt.Sprintf("tree_type:%s", treeType)
+	treeTypeTag := "tree_type:" + treeType
 
 	for evtType, count := range stats.counts {
 		evtTypeTag := fmt.Sprintf("event_type:%s", evtType)

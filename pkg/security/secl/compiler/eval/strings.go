@@ -219,7 +219,7 @@ type PatternStringMatcher struct {
 func (p *PatternStringMatcher) Compile(pattern string, caseInsensitive bool) error {
 	// ** are not allowed in normal patterns
 	if strings.Contains(pattern, "**") {
-		return fmt.Errorf("`**` is not allowed in patterns")
+		return errors.New("`**` is not allowed in patterns")
 	}
 
 	p.pattern = newPatternElement(pattern)

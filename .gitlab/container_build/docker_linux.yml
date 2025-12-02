@@ -47,7 +47,7 @@
           ${CACHE_TO} \
           ${DOCKER_NO_CACHE} \
           --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
-          --build-arg CIBUILD=true \
+          --build-arg CI \
           --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
           --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
           --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
@@ -65,7 +65,7 @@
         ${CACHE_SOURCE} \
         ${DOCKER_NO_CACHE} \
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
-        --build-arg CIBUILD=true \
+        --build-arg CI \
         --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
         $BUILD_ARG \
         $TARGET_ARG \
@@ -165,7 +165,7 @@ single_machine_performance-full-amd64-a7:
   variables:
     IMG_REGISTRIES: smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64,52130853-agent:${CI_COMMIT_SHA}-7-full-amd64
 
 docker_build_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]

@@ -8,7 +8,7 @@ package message
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -295,9 +295,9 @@ func (m *Message) Render() ([]byte, error) {
 	case StateRendered:
 		return m.content, nil
 	case StateEncoded:
-		return m.content, fmt.Errorf("render call on an encoded message")
+		return m.content, errors.New("render call on an encoded message")
 	default:
-		return m.content, fmt.Errorf("unknown message state for rendering")
+		return m.content, errors.New("unknown message state for rendering")
 	}
 }
 
@@ -390,12 +390,12 @@ func (m *MessageMetadata) RecordProcessingRule(ruleType string, ruleName string)
 
 // TruncatedReasonTag returns a tag with the reason for truncation.
 func TruncatedReasonTag(reason string) string {
-	return fmt.Sprintf("truncated:%s", reason)
+	return "truncated:" + reason
 }
 
 // MultiLineSourceTag returns a tag for multiline logs.
 func MultiLineSourceTag(source string) string {
-	return fmt.Sprintf("multiline:%s", source)
+	return "multiline:" + source
 }
 
 // IsMRF returns true if the payload should be sent to MRF endpoints.

@@ -7,7 +7,7 @@ package defaultforwarder
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"net"
 	"net/http"
 	"sync"
@@ -217,7 +217,7 @@ func (f *domainForwarder) Start() error {
 	defer f.m.Unlock()
 
 	if f.internalState == Started {
-		return fmt.Errorf("the forwarder is already started")
+		return errors.New("the forwarder is already started")
 	}
 
 	// reset internal state to purge transactions from past starts
