@@ -6,6 +6,8 @@
 package worker
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"expvar"
 	"fmt"
@@ -32,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/tracker"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type testCheck struct {
@@ -787,4 +790,87 @@ func getWorkerUtilizationExpvar(c *assert.CollectT, name string) float64 {
 	require.NotNil(c, workerStats)
 
 	return workerStats.Utilization
+}
+
+func TestWorkerWatchdogWarningLog(t *testing.T) {
+	tests := []struct {
+		name             string
+		watchdogTimeout  time.Duration
+		checkDuration    time.Duration
+		expectWarningLog bool
+	}{
+		{
+			name:             "logs warning when check exceeds timeout",
+			watchdogTimeout:  50 * time.Millisecond,
+			checkDuration:    100 * time.Millisecond,
+			expectWarningLog: true,
+		},
+		{
+			name:             "no warning when timeout is not configured",
+			watchdogTimeout:  0,
+			checkDuration:    100 * time.Millisecond,
+			expectWarningLog: false,
+		},
+		{
+			name:             "no warning when check completes before timeout",
+			watchdogTimeout:  200 * time.Millisecond,
+			checkDuration:    10 * time.Millisecond,
+			expectWarningLog: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expvars.Reset()
+			mockConfig := configmock.New(t)
+			mockConfig.SetWithoutSource("hostname", "myhost")
+
+			var logBuffer bytes.Buffer
+			logWriter := bufio.NewWriter(&logBuffer)
+			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(logWriter, log.WarnLvl)
+			require.NoError(t, err)
+			log.SetupLogger(l, "warn")
+
+			checksTracker := tracker.NewRunningChecksTracker()
+			pendingChecksChan := make(chan check.Check, 1)
+
+			slowCheck := newCheck(t, "slow_check:123", false, nil)
+			slowCheck.Lock()
+			pendingChecksChan <- slowCheck
+
+			worker, err := newWorkerWithOptions(
+				1, 2,
+				pendingChecksChan,
+				checksTracker,
+				func(checkid.ID) bool { return true },
+				func() (sender.Sender, error) { return nil, nil },
+				haagentmock.NewMockHaAgent(),
+				100*time.Millisecond,
+				tt.watchdogTimeout,
+			)
+			require.NoError(t, err)
+
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				worker.Run()
+			}()
+
+			time.Sleep(tt.checkDuration)
+			slowCheck.Unlock()
+			close(pendingChecksChan)
+			wg.Wait()
+
+			logWriter.Flush()
+			logOutput := logBuffer.String()
+
+			if tt.expectWarningLog {
+				assert.Contains(t, logOutput, "slow_check:123")
+				assert.Contains(t, logOutput, "running for longer than the watchdog warning timeout")
+			} else {
+				assert.NotContains(t, logOutput, "running for longer than the watchdog warning timeout")
+			}
+		})
+	}
 }
