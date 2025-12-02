@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package workloadfilterimpl contains the implementation of the filter component.
-package workloadfilterimpl
+// Package baseimpl contains the base implementation of the filter component.
+package baseimpl
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
