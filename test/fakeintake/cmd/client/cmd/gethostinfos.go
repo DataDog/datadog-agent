@@ -14,26 +14,23 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-// NewGetHostTags adds a new command to get host tags
-func NewGetHostTags(cl **client.Client) (cmd *cobra.Command) {
+// NewGetHostInfosCommand adds a new command to get host infos
+func NewGetHostInfosCommand(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
-		Use:   "host-tags",
-		Short: "Get Host tags",
+		Use:   "host-infos",
+		Short: "Get Host infos",
 		RunE: func(*cobra.Command, []string) error {
-			hosts, err := (*cl).GetHosts()
+			hostInfos, err := (*cl).GetLatestHostInfos()
 			if err != nil {
 				return err
 			}
 
-			for _, host := range hosts {
-				hostTags := (*cl).GetHostTags(host)
-				output, err := json.MarshalIndent(hostTags, "", "  ")
-				if err != nil {
-					return err
-				}
-
-				fmt.Println(string(output))
+			output, err := json.MarshalIndent(hostInfos, "", "  ")
+			if err != nil {
+				return err
 			}
+
+			fmt.Println(string(output))
 
 			return nil
 		},
