@@ -9,13 +9,14 @@ _SPECS = [
 def _gen_targets(base_name, src, libname, version, prefix, spec):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
+    dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
 
     # Windows: no symlinks, no renaming - just copy the DLL as-is
     if spec.os == "windows":
         pkg_files(
             name = name,
             srcs = [src],
-            prefix = spec.prefix,
+            prefix = dest_prefix,
             target_compatible_with = [platform],
         )
         return platform, ":{}".format(name)
@@ -23,7 +24,6 @@ def _gen_targets(base_name, src, libname, version, prefix, spec):
     # Unix: create symlink chain with versioning
     target = spec.format.format(libname, ".{}".format(version))
     targets = ["{}_real_name".format(name)]
-    dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
     pkg_files(
         name = targets[-1],
         srcs = [src],
