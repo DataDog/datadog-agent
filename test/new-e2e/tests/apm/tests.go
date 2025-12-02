@@ -24,8 +24,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// Add new e2e test for APM IOT mode as well
-
 func testBasicTraces(c *assert.CollectT, service string, intake *components.FakeIntake, agent agentclient.Agent) {
 	traces, err := intake.Client().GetTraces()
 	assert.NoError(c, err)
@@ -40,7 +38,7 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	tp := trace.TracerPayloads[0]
 	assert.Equal(c, "go", tp.LanguageName)
-	// assert.Equal(c, "full", tp.APMMode)
+	assert.NotContains(c, tp.Tags, "_dd.apm_mode")
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}

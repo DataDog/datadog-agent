@@ -704,16 +704,16 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 }
 
-// warnIfInvalidAPMModeSpanTag logs a warning when apmMode is empty or an unknown value. We keep empty and unknown values in order to still see them on the spans in the Datadog UI (to aid troubleshooting).
+// warnIfInvalidAPMModeSpanTag logs when apmMode is empty or an unknown value. We keep empty and unknown values in order to still see them on the spans in the Datadog UI (to aid troubleshooting).
 func warnIfInvalidAPMModeSpanTag(apmMode string) {
 	normalized := strings.ToLower(apmMode)
-	if normalized == "full" || normalized == "edge" {
+	if normalized == "edge" {
 		return // Valid
 	}
 	if apmMode == "" {
 		log.Warnf("empty value for '_dd.apm_mode' span tag")
 	} else {
-		log.Warnf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
+		// It's possible we may support other modes in the future, so we log the invalid value in debug mode only.
 	}
 }
 
