@@ -1007,6 +1007,9 @@ replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.2.
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
 exclude go.opentelemetry.io/proto/otlp v1.1.0
 
+// Prevent ambiguous import between old monolithic SDK and new split modules
+exclude github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.480
+
 replace github.com/google/gopacket v1.1.19 => github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e
 
 // Remove once https://github.com/kubernetes/kube-state-metrics/pull/2553 is merged
