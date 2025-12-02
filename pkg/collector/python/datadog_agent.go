@@ -332,7 +332,7 @@ func BatchObfuscateSQL(queriesJSON, opts *C.char, errResult **C.char) *C.char {
 	var sqlOpts sqlConfig
 	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
 		log.Errorf("Failed to unmarshal batch obfuscation options: %s", err.Error())
-		*errResult = TrackedCString(fmt.Sprintf("Failed to parse options: %s", err.Error()))
+		*errResult = TrackedCString(err.Error())
 		return nil
 	}
 
@@ -341,7 +341,7 @@ func BatchObfuscateSQL(queriesJSON, opts *C.char, errResult **C.char) *C.char {
 	queriesStr := C.GoString(queriesJSON)
 	if err := json.Unmarshal([]byte(queriesStr), &queries); err != nil {
 		log.Errorf("Failed to unmarshal queries array: %s", err.Error())
-		*errResult = TrackedCString(fmt.Sprintf("Failed to parse queries: %s", err.Error()))
+		*errResult = TrackedCString(err.Error())
 		return nil
 	}
 
@@ -381,7 +381,7 @@ func BatchObfuscateSQL(queriesJSON, opts *C.char, errResult **C.char) *C.char {
 	// Marshal results array to JSON
 	out, err := json.Marshal(results)
 	if err != nil {
-		*errResult = TrackedCString(fmt.Sprintf("Failed to marshal results: %s", err.Error()))
+		*errResult = TrackedCString(err.Error())
 		return nil
 	}
 
