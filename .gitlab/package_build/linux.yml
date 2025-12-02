@@ -27,6 +27,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    DD_DISABLE_VPA: true
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -144,6 +145,7 @@ iot-agent-armhf:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    DD_DISABLE_VPA: true
   artifacts:
     expire_in: 2 weeks
     paths:
@@ -176,6 +178,7 @@ dogstatsd-arm64:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    DD_DISABLE_VPA: true
   artifacts:
     expire_in: 2 weeks
     paths:
