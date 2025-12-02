@@ -158,8 +158,8 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 
 // GetGlobalCCCache returns the global instance of CCCache (or error if the instance is not configured yet)
 func GetGlobalCCCache() (*CCCache, error) {
-	globalCCCache.Lock()
-	defer globalCCCache.Unlock()
+	globalCCCache.RLock()
+	defer globalCCCache.RUnlock()
 	if !globalCCCache.configured {
 		return nil, errors.New("global CC Cache not configured")
 	}
