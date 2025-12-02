@@ -32,6 +32,7 @@
       powershell -Command "$(Get-Location)\tools\ci\retry.ps1
       docker build
       --no-cache
+      --build-arg CI
       --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}
       ${BUILD_ARG}
       --pull
