@@ -22,9 +22,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configCommon "github.com/DataDog/test-infra-definitions/common/config"
-	awsResources "github.com/DataDog/test-infra-definitions/resources/aws"
-	ecsResources "github.com/DataDog/test-infra-definitions/resources/aws/ecs"
+	configCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	awsResources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	ecsResources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
@@ -157,9 +157,9 @@ func TestECSFargate(t *testing.T) {
 							"trace",
 							"selftests",
 							"--exec",
-							fmt.Sprintf("--exec.path=%s", execFilePath),
+							"--exec.path=" + execFilePath,
 							"--open",
-							fmt.Sprintf("--open.path=%s", openFilePath),
+							"--open.path=" + openFilePath,
 						}),
 						DependsOn: ecsx.TaskDefinitionContainerDependencyArray{
 							ecsx.TaskDefinitionContainerDependencyArgs{

@@ -10,13 +10,13 @@ import (
 	"fmt"
 	sysos "os"
 
-	"github.com/DataDog/test-infra-definitions/components/activedirectory"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
@@ -222,7 +222,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, awsEnv aws.Environm
 	}
 
 	if params.agentOptions != nil {
-		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{fmt.Sprintf("stackid:%s", ctx.Stack())}))
+		agentOptions := append(params.agentOptions, agentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 		agent, err := agent.NewHostAgent(&awsEnv, host, agentOptions...)
 		if err != nil {
 			return err

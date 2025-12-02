@@ -41,6 +41,7 @@ from tasks import (
     installer,
     invoke_unit_tests,
     issue,
+    k8s_versions,
     kmt,
     linter,
     loader,
@@ -226,6 +227,7 @@ ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
+ns.add_collection(k8s_versions)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)

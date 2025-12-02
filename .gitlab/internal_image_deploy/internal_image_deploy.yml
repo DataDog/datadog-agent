@@ -5,7 +5,7 @@
 # Base template with common configuration
 .docker_trigger_base:
   stage: internal_image_deploy
-  rules: !reference [.on_deploy_internal_or_manual]
+  rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   script:
@@ -36,18 +36,18 @@
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v15
+  IMAGE_VERSION: tmpl-v16
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
 .cluster_agent_variables: &cluster_agent_variables
-  IMAGE_VERSION: tmpl-v7
+  IMAGE_VERSION: tmpl-v8
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
-  IMAGE_VERSION: tmpl-v1
+  IMAGE_VERSION: tmpl-v2
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 

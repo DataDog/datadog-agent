@@ -2,6 +2,41 @@
 Release Notes
 =============
 
+.. _Release Notes_7.72.3:
+
+7.72.3
+======
+
+.. _Release Notes_7.72.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-11-26
+Pinned to datadog-agent v7.72.3: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7723>`_.
+
+
+.. _Release Notes_7.72.3_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix a memory leak in the orchestrator check when the Cluster Agent is deployed with multiple replicas and leader-election enabled.
+
+
+.. _Release Notes_7.72.2:
+
+7.72.2
+======
+
+.. _Release Notes_7.72.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2025-11-12
+Pinned to datadog-agent v7.72.2: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7722>`_.
+
 .. _Release Notes_7.72.1:
 
 7.72.1

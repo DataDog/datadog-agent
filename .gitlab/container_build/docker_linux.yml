@@ -165,7 +165,7 @@ single_machine_performance-full-amd64-a7:
   variables:
     IMG_REGISTRIES: smp
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64
-    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64
+    IMG_DESTINATIONS: 08450328-agent:${CI_COMMIT_SHA}-7-full-amd64,52130853-agent:${CI_COMMIT_SHA}-7-full-amd64
 
 docker_build_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
@@ -294,6 +294,24 @@ docker_build_agent7_full_arm64:
   variables:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
+
+docker_build_agent7_fips_full:
+  extends: [.docker_build_amd64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-x64-fips
+    - job: datadog-otel-agent-x64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
+
+docker_build_agent7_fips_full_arm64:
+  extends: [.docker_build_arm64, .docker_build_agent7]
+  needs:
+    - job: datadog-agent-7-arm64-fips
+    - job: datadog-otel-agent-arm64-fips
+  variables:
+    TAG_SUFFIX: -7-fips-full
+    BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
 
 # build the cluster-agent image
 .docker_build_cluster_agent:

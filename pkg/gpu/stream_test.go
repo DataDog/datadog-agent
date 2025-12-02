@@ -8,9 +8,9 @@
 package gpu
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -379,7 +379,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			if fatbinParsingEnabled {
 				// Create all parent directories,
 				// the path should match the procBinPath var value in cuda.AddKernelCacheEntry
-				tmpFoldersPath := filepath.Join(proc, fmt.Sprintf("%d", pid), "root")
+				tmpFoldersPath := filepath.Join(proc, strconv.FormatUint(pid, 10), "root")
 				err := os.MkdirAll(tmpFoldersPath, 0755)
 				require.NoError(t, err)
 				filePath := filepath.Join(tmpFoldersPath, binPath)
@@ -971,17 +971,17 @@ func getPoolStats(t *testing.T, telemetryMock telemetry.Mock, pool string) poolS
 	active, err := telemetryMock.GetGaugeMetric("sync__pool", "active")
 	require.NoError(t, err)
 	require.NotEmpty(t, active)
-	activeCount := getMetricWithTags(t, active, map[string]string{"module": "gpu", "name": pool})
+	activeCount := getMetricWithTags(t, active, map[string]string{"module": "gpu", "pool_name": pool})
 
 	get, err := telemetryMock.GetCountMetric("sync__pool", "get")
 	require.NoError(t, err)
 	require.NotEmpty(t, get)
-	getCount := getMetricWithTags(t, get, map[string]string{"module": "gpu", "name": pool})
+	getCount := getMetricWithTags(t, get, map[string]string{"module": "gpu", "pool_name": pool})
 
 	put, err := telemetryMock.GetCountMetric("sync__pool", "put")
 	require.NoError(t, err)
 	require.NotEmpty(t, put)
-	putCount := getMetricWithTags(t, put, map[string]string{"module": "gpu", "name": pool})
+	putCount := getMetricWithTags(t, put, map[string]string{"module": "gpu", "pool_name": pool})
 
 	return poolStats{
 		active: activeCount,
@@ -1131,4 +1131,72 @@ func TestMemorySpanPool(t *testing.T) {
 			Addr: uint64(10),
 		})
 	}, 10)
+}
+
+func TestGetKernelDataReturnsUnwrappedErrors(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	streamTelemetry := newStreamTelemetry(testutil.GetTelemetryMock(t))
+
+	t.Run("errFatbinParsingDisabled when cache is nil", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(false))
+		require.Nil(t, sysCtx.cudaKernelCache)
+
+		stream, err := newStreamHandler(streamMetadata{pid: 1, smVersion: 75}, sysCtx, config.New().StreamConfig, streamTelemetry)
+		require.NoError(t, err)
+
+		enrichedLaunch := &enrichedKernelLaunch{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Kernel_addr: 42,
+			},
+			stream: stream,
+		}
+
+		_, err = enrichedLaunch.getKernelData()
+		require.Error(t, err)
+		// Test that the error is the exact sentinel error, not wrapped
+		require.True(t, err == errFatbinParsingDisabled, "error should be the exact sentinel error errFatbinParsingDisabled")
+	})
+
+	t.Run("errFatbinParsingDisabled when smVersion is noSmVersion", func(t *testing.T) {
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true))
+		sysCtx.cudaKernelCache.Start()
+		t.Cleanup(sysCtx.cudaKernelCache.Stop)
+
+		stream, err := newStreamHandler(streamMetadata{pid: 1, smVersion: noSmVersion}, sysCtx, config.New().StreamConfig, streamTelemetry)
+		require.NoError(t, err)
+
+		enrichedLaunch := &enrichedKernelLaunch{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Kernel_addr: 42,
+			},
+			stream: stream,
+		}
+
+		_, err = enrichedLaunch.getKernelData()
+		require.Error(t, err)
+		// Test that the error is the exact sentinel error, not wrapped
+		require.True(t, err == errFatbinParsingDisabled, "error should be the exact sentinel error errFatbinParsingDisabled")
+	})
+
+	t.Run("cuda.ErrKernelNotProcessedYet when kernel not in cache", func(t *testing.T) {
+		proc := t.TempDir()
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true), withProcRoot(proc))
+		sysCtx.cudaKernelCache.Start()
+		t.Cleanup(sysCtx.cudaKernelCache.Stop)
+
+		stream, err := newStreamHandler(streamMetadata{pid: 1, smVersion: 75}, sysCtx, config.New().StreamConfig, streamTelemetry)
+		require.NoError(t, err)
+
+		enrichedLaunch := &enrichedKernelLaunch{
+			CudaKernelLaunch: gpuebpf.CudaKernelLaunch{
+				Kernel_addr: 42,
+			},
+			stream: stream,
+		}
+
+		_, err = enrichedLaunch.getKernelData()
+		require.Error(t, err)
+		// Test that the error is the exact sentinel error, not wrapped
+		require.True(t, err == cuda.ErrKernelNotProcessedYet, "error should be the exact sentinel error cuda.ErrKernelNotProcessedYet")
+	})
 }

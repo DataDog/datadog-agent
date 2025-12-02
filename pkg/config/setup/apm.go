@@ -8,7 +8,7 @@ package setup
 import (
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"runtime"
 	"strconv"
 	"strings"
@@ -189,6 +189,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
 	config.BindEnvAndSetDefault("apm_config.enable_v1_trace_endpoint", false, "DD_APM_ENABLE_V1_TRACE_ENDPOINT")
 	config.BindEnvAndSetDefault("apm_config.send_all_internal_stats", false, "DD_APM_SEND_ALL_INTERNAL_STATS")
+	config.BindEnvAndSetDefault("apm_config.enable_container_tags_buffer", true, "DD_APM_ENABLE_CONTAINER_TAGS_BUFFER")
 	config.BindEnv("apm_config.features", "DD_APM_FEATURES") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
 		// Either commas or spaces can be used as separators.
@@ -277,11 +278,11 @@ func splitCSVString(s string, sep rune) ([]string, error) {
 func parseNameAndRate(token string) (string, float64, error) {
 	parts := strings.Split(token, "=")
 	if len(parts) != 2 {
-		return "", 0, fmt.Errorf("Bad format")
+		return "", 0, errors.New("Bad format")
 	}
 	rate, err := strconv.ParseFloat(parts[1], 64)
 	if err != nil {
-		return "", 0, fmt.Errorf("Unabled to parse rate")
+		return "", 0, errors.New("Unabled to parse rate")
 	}
 	return parts[0], rate, nil
 }

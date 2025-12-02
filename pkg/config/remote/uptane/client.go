@@ -9,9 +9,7 @@ package uptane
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -58,13 +56,6 @@ type CoreAgentClient struct {
 	*Client
 	configRemoteStore   *remoteStoreConfig
 	directorRemoteStore *remoteStoreDirector
-}
-
-// CDNClient is an uptane client that fetches the latest configs from the server over HTTP(s)
-type CDNClient struct {
-	*Client
-	directorRemoteStore *cdnRemoteDirectorStore
-	configRemoteStore   *cdnRemoteConfigStore
 }
 
 // ClientOption describes a function in charge of changing the uptane client
@@ -203,102 +194,9 @@ func (c *CoreAgentClient) updateRepos(response *pbgo.LatestConfigsResponse) erro
 	return nil
 }
 
-// NewCDNClient creates a new uptane client that will fetch the latest configs from the server over HTTP(s)
-func NewCDNClient(dbMetadata *Metadata, options ...ClientOption) (c *CDNClient, err error) {
-	transactionalStore, err := newTransactionalStore(dbMetadata)
-	if err != nil {
-		return nil, err
-	}
-	targetStore := newTargetStore(transactionalStore)
-	orgStore := newOrgStore(transactionalStore)
-
-	httpClient := &http.Client{}
-
-	c = &CDNClient{
-		configRemoteStore:   newCDNRemoteConfigStore(httpClient, dbMetadata.URL, dbMetadata.APIKey),
-		directorRemoteStore: newCDNRemoteDirectorStore(httpClient, dbMetadata.URL, dbMetadata.APIKey),
-		Client: &Client{
-			site:                   dbMetadata.URL,
-			targetStore:            targetStore,
-			transactionalStore:     transactionalStore,
-			orgStore:               orgStore,
-			orgVerificationEnabled: false,
-			orgUUIDProvider: func() (string, error) {
-				return "", nil
-			},
-		},
-	}
-	for _, o := range options {
-		o(c.Client)
-	}
-
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, dbMetadata.URL, c.configRootOverride); err != nil {
-		return nil, err
-	}
-
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, dbMetadata.URL, c.directorRootOverride); err != nil {
-		return nil, err
-	}
-
-	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
-	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
-	return c, nil
-}
-
 // Close will close the underlying boltDB
 func (c *Client) Close() error {
 	return c.transactionalStore.Close()
-}
-
-// Update updates the uptane client and rollbacks in case of error
-func (c *CDNClient) Update(ctx context.Context) error {
-	var err error
-	c.Lock()
-	defer c.Unlock()
-	c.cachedVerify = false
-
-	// in case the commit is successful it is a no-op.
-	// the defer is present to be sure a transaction is never left behind.
-	defer c.transactionalStore.rollback()
-
-	err = c.update(ctx)
-	if err != nil {
-		c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
-		c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
-		return err
-	}
-	return c.transactionalStore.commit()
-}
-
-// update updates the uptane client
-func (c *CDNClient) update(ctx context.Context) error {
-	var err error
-
-	err = c.updateRepos(ctx)
-	if err != nil {
-		return err
-	}
-	err = c.pruneTargetFiles()
-	if err != nil {
-		return err
-	}
-	return c.verify()
-}
-
-func (c *CDNClient) updateRepos(_ context.Context) error {
-	var err error
-
-	_, err = c.directorTUFClient.Update()
-	if err != nil {
-		err = errors.Wrap(err, "failed updating director repository")
-		return err
-	}
-	_, err = c.configTUFClient.Update()
-	if err != nil {
-		err = errors.Wrap(err, "could not update config repository")
-		return err
-	}
-	return nil
 }
 
 // TargetsCustom returns the current targets custom of this uptane client
@@ -406,7 +304,7 @@ func (c *Client) unsafeTargetsMeta() ([]byte, error) {
 	}
 	targets, found := metas[metaTargets]
 	if !found {
-		return nil, fmt.Errorf("empty targets meta in director local store")
+		return nil, errors.New("empty targets meta in director local store")
 	}
 	return targets, nil
 }

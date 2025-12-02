@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"cmp"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"slices"
@@ -93,7 +94,7 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 	rng := rand.New(rand.NewSource(seed))
 
 	pts := &propertyTestState{
-		sm:               newState(),
+		sm:               newState(CircuitBreakerConfig{}),
 		processIDCounter: 1000,
 		rng:              rng,
 	}
@@ -278,7 +279,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 
 				updates = append(updates, ProcessUpdate{
 					Info: procinfo.Info{
-						ProcessID:  processID.ProcessID,
+						ProcessID:  processID,
 						Executable: existingProcess.executable,
 					},
 					Probes: probes,
@@ -290,7 +291,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			existingProcesses := pts.existingProcesses()
 			if len(existingProcesses) > 0 {
 				toRemove := existingProcesses[pts.rng.Intn(len(existingProcesses))]
-				removals = append(removals, toRemove.ProcessID)
+				removals = append(removals, toRemove)
 			}
 		}
 	}
@@ -301,18 +302,15 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 	}
 }
 
-func (pts *propertyTestState) existingProcesses() []processKey {
-	existingProcesses := make([]processKey, 0, len(pts.sm.processes))
-	for key := range pts.sm.processes {
-		existingProcesses = append(existingProcesses, key)
-	}
-	slices.SortFunc(existingProcesses, func(a, b processKey) int {
-		return cmp.Or(
-			cmp.Compare(a.tenantID, b.tenantID),
-			cmp.Compare(a.PID, b.PID),
-		)
+func (pts *propertyTestState) existingProcesses() []ProcessID {
+	existing := slices.AppendSeq(
+		make([]ProcessID, 0, len(pts.sm.processes)),
+		maps.Keys(pts.sm.processes),
+	)
+	slices.SortFunc(existing, func(a, b ProcessID) int {
+		return cmp.Compare(a.PID, b.PID)
 	})
-	return existingProcesses
+	return existing
 }
 
 func (pts *propertyTestState) completeRandomEffect() event {
@@ -340,11 +338,9 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					programID: eff.programID,
 				},
 			}
-		} else {
-			return eventProgramLoadingFailed{
-				programID: eff.programID,
-				err:       fmt.Errorf("mock loading failure"),
-			}
+		}
+		return eventProgramLoadingFailed{
+			programID: eff.programID,
 		}
 
 	case effectAttachToProcess:
@@ -357,12 +353,10 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					processID: eff.processID,
 				},
 			}
-		} else {
-			return eventProgramAttachingFailed{
-				programID: eff.programID,
-				processID: eff.processID,
-				err:       fmt.Errorf("mock attaching failure"),
-			}
+		}
+		return eventProgramAttachingFailed{
+			programID: eff.programID,
+			processID: eff.processID,
 		}
 
 	case effectDetachFromProcess:

@@ -14,9 +14,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
@@ -57,7 +57,7 @@ func TestRpmScript(t *testing.T) {
 			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
 
-		t.Run(fmt.Sprintf("test RPM package on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
+		t.Run("test RPM package on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 			slice := strings.Split(osDesc.Version, "-")
