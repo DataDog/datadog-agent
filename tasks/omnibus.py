@@ -524,7 +524,7 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
         'compress': "Compress the package with XZ (slower but smaller). Default: False for local builds",
         'workers': "Number of parallel workers for compression and builds (default: 8)",
         'container-name': "Docker container name (default: ddagentbuilder)",
-        'build-image': "Docker build image to use (default: datadog/agent-buildimages-linux)",
+        'build-image': "Docker build image to use (default: uses version from .gitlab-ci.yml)",
         'tag': "Tag for the built Docker image (default: datadog-agent:local)",
     }
 )
@@ -535,7 +535,7 @@ def docker_build(
     compress=False,
     workers=8,
     container_name="ddagentbuilder",
-    build_image="datadog/agent-buildimages-linux",
+    build_image=None,
     tag="datadog-agent:local",
 ):
     """
@@ -582,6 +582,13 @@ def docker_build(
         cxx = 'x86_64-unknown-linux-gnu-g++'
     else:
         raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
+
+    # Resolve build image using version from .gitlab-ci.yml if not specified
+    if build_image is None:
+        from tasks.buildimages import get_tag
+
+        image_tag = get_tag(ctx, image_type="linux")
+        build_image = f"registry.ddbuild.io/ci/datadog-agent-buildimages/linux:{image_tag}"
 
     # Set up cache directories with intelligent defaults for Workspaces
     if cache_dir is None:
@@ -643,6 +650,10 @@ def docker_build(
         f"-e OMNIBUS_WORKERS_OVERRIDE={workers}",
         f"-e DD_CC={cc}",
         f"-e DD_CXX={cxx}",
+        # Set git safe.directory via env vars (doesn't persist to global config)
+        "-e GIT_CONFIG_COUNT=1",
+        "-e GIT_CONFIG_KEY_0=safe.directory",
+        "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
     ]
 
     if not compress:
@@ -672,7 +683,6 @@ def docker_build(
         'mkdir -p /omnibus-state/opt/datadog-agent && '
         'rm -rf /opt/datadog-agent && '
         'ln -sfn /omnibus-state/opt/datadog-agent /opt/datadog-agent && '
-        'git config --global --add safe.directory /go/src/github.com/DataDog/datadog-agent && '
         'dda inv -- -e omnibus.build --base-dir=/omnibus --gem-path=/gems'
         '"'
     )
@@ -685,6 +695,7 @@ def docker_build(
     )
 
     print(f"Building Datadog Agent for {arch}")
+    print(f"Build image: {build_image}")
     print(f"Cache directory: {cache_dir}")
     print(f"Compress package: {compress}")
     print(f"Workers: {workers}")

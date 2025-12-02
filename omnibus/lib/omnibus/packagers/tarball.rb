@@ -42,16 +42,15 @@ module Omnibus
       "#{project.package_name}#{debug ? "-dbg" : ""}-#{project.build_version}-#{project.build_iteration}-#{safe_architecture}.tar"
     end
 
-    def safe_architecture(val = NULL)
-      val = shellout!("uname --processor").stdout.strip
+    def safe_architecture
+      raw = shellout!("uname --processor").stdout.strip
 
-      val = case val
-            when "x86_64", "x64", "amd64" then "amd64"
-            when "arm64", "aarch64" then "arm64"
-            when "armv7l" then "arm"
-            else raise ArgumentError, "Unknown architecture '#{val}'"
-            end
-      val
+      case raw
+      when "x86_64", "x64", "amd64" then "amd64"
+      when "arm64", "aarch64" then "arm64"
+      when "armv7l" then "arm"
+      else raise ArgumentError, "Unknown architecture '#{raw}'"
+      end
     end
   end
 
