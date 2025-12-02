@@ -18,7 +18,7 @@
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build
 # Go linters and pre-commit config
-/.golangci.yml                          @DataDog/agent-devx
+/.golangci.yml                          @DataDog/agent-devx @cmourot
 /.custom-gcl.yml                        @DataDog/agent-devx
 /.pre-commit-config.yaml                @DataDog/agent-devx
 /.vscode/                               @DataDog/agent-devx
