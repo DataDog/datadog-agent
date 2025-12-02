@@ -1,7 +1,7 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
 
-package(default_visibility = ["//packaging:__subpackages__"])
+package(default_visibility = ["//packages:__subpackages__"])
 
 pkg_filegroup(
     name = "everything",
