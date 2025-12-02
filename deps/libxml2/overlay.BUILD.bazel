@@ -127,6 +127,7 @@ cc_library(
     ],
     copts = [
         "-O2",
+        "-std=gnu11",
     ],
     local_defines = [
         "NDEBUG",
