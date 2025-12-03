@@ -24,6 +24,7 @@ func NewParams(options ...Option) (*Params, error) {
 		DDDevForwarding: true,
 		Memory:          1024,
 		LoadBalancer:    false,
+		RetentionPeriod: "15m",
 	}
 	return common.ApplyOption(params, options)
 }
@@ -36,7 +37,8 @@ func WithImageURL(imageURL string) Option {
 	}
 }
 
-// WithoutDDDevForwarding sets the flag to disable DD Dev forwarding
+// WithoutDDDevForwarding disables payload forwarding to dddev account.
+// dddev forwarding is enabled by default
 func WithoutDDDevForwarding() Option {
 	return func(p *Params) error {
 		p.DDDevForwarding = false
@@ -45,6 +47,7 @@ func WithoutDDDevForwarding() Option {
 }
 
 // WithMemory sets the amount (in MiB) of memory to allocate to the fakeintake
+// Default is 1024 MiB
 func WithMemory(memory int) Option {
 	return func(p *Params) error {
 		p.Memory = memory
@@ -61,6 +64,8 @@ func WithLoadBalancer() Option {
 }
 
 // WithRetentionPeriod set the retention period for the fakeintake
+// Default is 15 minutes
+// Possible values are: 1m, 10s, 1h
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod

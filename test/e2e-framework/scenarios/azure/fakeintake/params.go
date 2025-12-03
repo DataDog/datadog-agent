@@ -18,8 +18,9 @@ type Option = func(*Params) error
 // NewParams returns a new instance of Fakeintake Params
 func NewParams(options ...Option) (*Params, error) {
 	params := &Params{
-		ImageURL:        "public.ecr.aws/datadog/fakeintake:latest",
 		DDDevForwarding: true,
+		ImageURL:        "public.ecr.aws/datadog/fakeintake:latest",
+		RetentionPeriod: "15m",
 	}
 	return common.ApplyOption(params, options)
 }
@@ -32,7 +33,8 @@ func WithImageURL(imageURL string) Option {
 	}
 }
 
-// WithDDDevForwarding sets the flag to enable DD Dev forwarding
+// WithDDDevForwarding enables payload forwarding to dddev account.
+// dddev forwarding is enabled by default
 func WithoutDDDevForwarding() Option {
 	return func(p *Params) error {
 		p.DDDevForwarding = false
@@ -41,6 +43,8 @@ func WithoutDDDevForwarding() Option {
 }
 
 // WithRetentionPeriod set the retention period for the fakeintake
+// Default is 15 minutes
+// Possible values are: 1m, 10s, 1h
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod

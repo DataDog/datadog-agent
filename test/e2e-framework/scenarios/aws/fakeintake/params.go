@@ -26,11 +26,13 @@ func NewParams(options ...Option) (*Params, error) {
 		CPU:                 512,
 		Memory:              1024,
 		DDDevForwarding:     true,
+		RetentionPeriod:     "15m",
 	}
 	return common.ApplyOption(params, options)
 }
 
 // WithLoadBalancer enable load balancer in front of the fakeintake
+// Default is false
 func WithLoadBalancer() Option {
 	return func(p *Params) error {
 		p.LoadBalancerEnabled = true
@@ -47,6 +49,7 @@ func WithImageURL(imageURL string) Option {
 }
 
 // WithCPU sets the number of CPU units to allocate to the fakeintake
+// Default is 512 CPU units
 func WithCPU(cpu int) Option {
 	return func(p *Params) error {
 		p.CPU = cpu
@@ -55,6 +58,7 @@ func WithCPU(cpu int) Option {
 }
 
 // WithMemory sets the amount (in MiB) of memory to allocate to the fakeintake
+// Default is 1024 MiB
 func WithMemory(memory int) Option {
 	return func(p *Params) error {
 		p.Memory = memory
@@ -62,6 +66,8 @@ func WithMemory(memory int) Option {
 	}
 }
 
+// WithoutDDDevForwarding disables payload forwarding to dddev account.
+// dddev forwarding is enabled by default
 func WithoutDDDevForwarding() Option {
 	return func(p *Params) error {
 		p.DDDevForwarding = false
@@ -70,6 +76,8 @@ func WithoutDDDevForwarding() Option {
 }
 
 // WithRetentionPeriod set the retention period for the fakeintake
+// Default is 15 minutes
+// Possible values are: 1m, 10s, 1h
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod
