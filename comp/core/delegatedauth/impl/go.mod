@@ -9,6 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/delegatedauth v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/option v0.74.0-devel
+	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
 )
 
@@ -76,7 +77,6 @@ require (
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
