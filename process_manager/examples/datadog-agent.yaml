@@ -39,10 +39,9 @@ environment_file: -/etc/datadog-agent/environment
 env:
   DD_FLEET_POLICIES_DIR: /etc/datadog-agent/managed/datadog-agent/stable
 
-# Runtime directory (systemd RuntimeDirectory=datadog)
-# Creates /run/datadog with proper permissions
-runtime_directory:
-  - datadog
+# Note: RuntimeDirectory is NOT configured here because systemd already handles it
+# via RuntimeDirectory=datadog in the service unit file. If we configured it here,
+# stopping the agent would clean up /run/datadog/ and delete dd-procmgrd's socket.
 
 # Ambient capabilities (systemd AmbientCapabilities=)
 # Allows binding to privileged ports (< 1024) when running as non-root
