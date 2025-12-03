@@ -886,10 +886,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.enabled", true)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.endpoint", "/injectlib")
 	config.BindEnv("admission_controller.auto_instrumentation.container_registry") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", map[string]any{
-		"gcr.io/datadoghq":       struct{}{},
-		"docker.io/datadog":      struct{}{},
-		"public.ecr.aws/datadog": struct{}{},
+	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.default_dd_registries", []string{
+		"gcr.io/datadoghq",
+		"docker.io/datadog",
+		"public.ecr.aws/datadog",
 	})
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
