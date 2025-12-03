@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/aarzilli/whydeadcode v0.0.0-20241226171816-ed86f8ea0a6f

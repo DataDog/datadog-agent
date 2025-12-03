@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/internal/tools/proto
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/favadi/protoc-go-inject-tag v1.4.0

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/core/status/statusimpl
 
-go 1.24.10
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.72.0-rc.1
