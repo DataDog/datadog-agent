@@ -367,7 +367,7 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"init_config":    map[string]any{},
 					"instances": []map[string]any{
 						{
-							"periodic_refresh_seconds": 300, // To have at least one refresh per test
+							"periodic_refresh_seconds": 60, // To have at least one refresh per test
 						},
 					},
 				})),
@@ -376,7 +376,7 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"init_config":    map[string]any{},
 					"instances": []map[string]any{
 						{
-							"periodic_refresh_seconds": 300, // To have at least one refresh per test
+							"periodic_refresh_seconds": 60, // To have at least one refresh per test
 						},
 					},
 				})),

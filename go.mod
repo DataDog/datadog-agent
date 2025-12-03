@@ -177,7 +177,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.5
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
-	github.com/DataDog/datadog-traceroute v0.1.30
+	github.com/DataDog/datadog-traceroute v0.1.32
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.10
