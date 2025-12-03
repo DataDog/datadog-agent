@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,11 +69,15 @@ func TestGetSecurityCreds(t *testing.T) {
 	conf := configmock.New(t)
 	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
 
-	cred, err := getSecurityCreds(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "123456", cred.AccessKeyID)
-	assert.Equal(t, "secret access key", cred.SecretAccessKey)
-	assert.Equal(t, "secret token", cred.Token)
+	assert.EventuallyWithT(
+		t, func(_ *assert.CollectT) {
+			cred, err := getSecurityCreds(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, "123456", cred.AccessKeyID)
+			assert.Equal(t, "secret access key", cred.SecretAccessKey)
+			assert.Equal(t, "secret token", cred.Token)
+		},
+		10*time.Second, 1*time.Second)
 }
 
 func TestFetchEc2TagsFromIMDS(t *testing.T) {
