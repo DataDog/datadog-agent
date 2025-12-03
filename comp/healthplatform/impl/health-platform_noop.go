@@ -6,6 +6,8 @@
 package healthplatformimpl
 
 import (
+	"net/http"
+
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
@@ -34,4 +36,16 @@ func (n *noopHealthPlatform) ClearIssuesForCheck(_ string) {
 
 // ClearAllIssues does nothing when the health platform is disabled
 func (n *noopHealthPlatform) ClearAllIssues() {
+}
+
+// handleHealthIssues returns a 503 response when the health platform is disabled
+func (n *noopHealthPlatform) handleHealthIssues(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusServiceUnavailable)
+	w.Write([]byte(`{"error":"Health platform is disabled"}`))
+}
+
+// handleHealthDetect returns a 503 response when the health platform is disabled
+func (n *noopHealthPlatform) handleHealthDetect(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusServiceUnavailable)
+	w.Write([]byte(`{"error":"Health platform is disabled"}`))
 }
