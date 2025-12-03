@@ -40,7 +40,7 @@ windows_choco_7_x64:
   #   - if the job is run manually it will create a package, but before the
   #     package can be installed, the deploy_windows_testing-a7 job must
   #     be run to push the MSI to the dd-agent-mstesting bucket.
-  needs: ["windows_msi_and_bosh_zip_x6asdas4-a7"]
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
   variables:
     FLAVOR: "datadog-agent"
 
