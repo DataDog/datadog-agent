@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 const (
@@ -94,6 +95,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
+	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
 	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
 	if err != nil {
 		return nil, err
@@ -111,7 +113,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		apiServer:     apiServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcCmdServer: grpcutils.NewServer(common.GetFamilyAddress(cmdSocketPath), cmdSocketPath),
+		grpcCmdServer: grpcutils.NewServer(family, socketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
@@ -300,9 +302,9 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 	tags := []string{
 		fmt.Sprintf("success:%d", len(success)),
 		fmt.Sprintf("fails:%d", len(fails)),
-		fmt.Sprintf("os:%s", runtime.GOOS),
-		fmt.Sprintf("arch:%s", utils.RuntimeArch()),
-		fmt.Sprintf("origin:%s", c.probe.Origin()),
+		"os:" + runtime.GOOS,
+		"arch:" + utils.RuntimeArch(),
+		"origin:" + c.probe.Origin(),
 	}
 	if err := c.statsdClient.Gauge(metrics.MetricSelfTest, 1.0, tags, 1.0); err != nil {
 		seclog.Errorf("failed to send self_test metric: %s", err)
@@ -376,8 +378,8 @@ func (c *CWSConsumer) sendStats() {
 	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
 		if counter > 0 {
 			tags := []string{
-				fmt.Sprintf("rule_id:%s", statsTags.RuleID),
-				fmt.Sprintf("suppression_type:%s", statsTags.SuppressionType),
+				"rule_id:" + statsTags.RuleID,
+				"suppression_type:" + statsTags.SuppressionType,
 			}
 			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
 		}

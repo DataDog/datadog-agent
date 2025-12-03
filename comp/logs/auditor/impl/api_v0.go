@@ -7,7 +7,6 @@ package auditorimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 )
@@ -36,7 +35,7 @@ func unmarshalRegistryV0(b []byte) (map[string]*RegistryEntry, error) {
 		switch {
 		case entry.Offset > 0:
 			// from v0 to v1 and further, we also prefixed path with file:
-			newIdentifier := fmt.Sprintf("file:%s", identifier)
+			newIdentifier := "file:" + identifier
 			registry[newIdentifier] = &RegistryEntry{LastUpdated: entry.Timestamp, Offset: strconv.FormatInt(entry.Offset, 10)}
 		default:
 			// no valid offset for this entry

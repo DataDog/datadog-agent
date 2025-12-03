@@ -6,11 +6,11 @@
 package util
 
 import (
-	"fmt"
+	"strings"
+
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"strings"
 )
 
 const (
@@ -76,7 +76,7 @@ func GetGVR(namespacedOwnerRef *NamespacedOwnerReference) (schema.GroupVersionRe
 		return schema.GroupVersionResource{}, err
 	}
 
-	gvr := gv.WithResource(fmt.Sprintf("%ss", strings.ToLower(namespacedOwnerRef.Kind)))
+	gvr := gv.WithResource(strings.ToLower(namespacedOwnerRef.Kind) + "s")
 
 	return gvr, nil
 }

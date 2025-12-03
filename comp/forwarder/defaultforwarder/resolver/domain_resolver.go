@@ -46,6 +46,9 @@ type DomainResolver = *domainResolver
 
 // SingleDomainResolver will always return the same host
 type domainResolver struct {
+	// configName is the url as it was configured by the user.
+	configName string
+	// domain is the url base to be used for network requests, it is modified by the forwarder.
 	domain          string
 	apiKeys         []utils.APIKeys
 	keyVersion      int
@@ -164,6 +167,7 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
 
 	return &domainResolver{
+		configName:     descriptor.BaseURL,
 		domain:         descriptor.BaseURL,
 		apiKeys:        descriptor.APIKeySet,
 		keyVersion:     0,
@@ -321,6 +325,7 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 	deduped := utils.DedupAPIKeys(apiKeys)
 
 	return &domainResolver{
+		configName:          domain,
 		domain:              domain,
 		apiKeys:             apiKeys,
 		keyVersion:          0,
@@ -332,13 +337,13 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 }
 
 // Resolve returns the destiation for a given request endpoint
-func (r *domainResolver) Resolve(endpoint transaction.Endpoint) (string, DestinationType) {
+func (r *domainResolver) Resolve(endpoint transaction.Endpoint) string {
 	if r.overrides != nil {
 		if d, ok := r.overrides[endpoint.Name]; ok {
-			return d.domain, d.dType
+			return d.domain
 		}
 	}
-	return r.domain, r.destinationType
+	return r.domain
 }
 
 // GetAlternateDomains returns a slice with all alternate domain
@@ -377,6 +382,7 @@ func NewDomainResolverWithMetricToVector(mainEndpoint string, apiKeys []utils.AP
 // For example, the internal cluster-agent endpoint
 func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 	return &domainResolver{
+		configName:      domain,
 		domain:          domain,
 		authToken:       authToken,
 		destinationType: Local,
@@ -396,4 +402,36 @@ func (r *domainResolver) IsLocal() bool {
 // IsMRF returns true when the domain is used as the target for multi region failover.
 func (r *domainResolver) IsMRF() bool {
 	return r.isMRF
+}
+
+type authHeader struct {
+	key, value string
+}
+
+// Authorize configures required headers on a transaction.
+func (ah authHeader) Authorize(t *transaction.HTTPTransaction) {
+	t.Headers.Set(ah.key, ah.value)
+}
+
+// GetAuthHeaders returns
+func (r *domainResolver) GetAuthorizers() (res []authHeader) {
+	if r.IsLocal() {
+		res = append(res, authHeader{
+			key:   "Authorization",
+			value: "Bearer " + r.authToken,
+		})
+	} else {
+		for _, key := range r.GetAPIKeys() {
+			res = append(res, authHeader{
+				key:   "DD-Api-Key",
+				value: key,
+			})
+		}
+	}
+	return
+}
+
+// GetConfigName returns the base url as it was originally written in the config.
+func (r *domainResolver) GetConfigName() string {
+	return r.configName
 }

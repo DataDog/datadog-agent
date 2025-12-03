@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
+	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,6 +28,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -206,7 +209,7 @@ func getOverridedAuthToken(ctx context.Context, log log.Component, cfg config.Co
 
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("unable to read the artifact in the given time")
+			return "", errors.New("unable to read the artifact in the given time")
 		case <-time.After(time.Second):
 			// waiting 1 second before retrying
 		}
@@ -228,6 +231,24 @@ func start(remoteTagger *remoteTagger) error {
 		remoteTagger.options.Target,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+			if vsockAddr := remoteTagger.cfg.GetString("vsock_addr"); vsockAddr != "" {
+				_, sPort, err := net.SplitHostPort(url)
+				if err != nil {
+					return nil, err
+				}
+
+				port, err := strconv.Atoi(sPort)
+				if err != nil {
+					return nil, fmt.Errorf("invalid port for vsock listener: %v", err)
+				}
+
+				cid, err := socket.ParseVSockAddress(vsockAddr)
+				if err != nil {
+					return nil, err
+				}
+
+				return vsock.Dial(cid, uint32(port), &vsock.Config{})
+			}
 			return net.Dial("tcp", url)
 		}),
 	)
@@ -317,7 +338,7 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	// Create the context with the auth token
 	queryCtx, queryCancel := context.WithTimeout(
 		metadata.NewOutgoingContext(t.ctx, metadata.MD{
-			"authorization": []string{fmt.Sprintf("Bearer %s", t.authToken)}, // TODO IPC: implement GRPC client
+			"authorization": []string{"Bearer " + t.authToken}, // TODO IPC: implement GRPC client
 		}),
 		1*time.Second,
 	)
@@ -377,7 +398,7 @@ func (t *remoteTagger) Standard(entityID types.EntityID) ([]string, error) {
 func (t *remoteTagger) GetEntity(entityID types.EntityID) (*types.Entity, error) {
 	entity := t.store.getEntity(entityID)
 	if entity == nil {
-		return nil, fmt.Errorf("Entity not found for entityID")
+		return nil, errors.New("Entity not found for entityID")
 	}
 
 	return entity, nil
@@ -576,7 +597,7 @@ func (t *remoteTagger) startTaggerStream(maxElapsed time.Duration) error {
 
 			t.streamCtx, t.streamCancel = context.WithCancel(
 				metadata.NewOutgoingContext(t.ctx, metadata.MD{
-					"authorization": []string{fmt.Sprintf("Bearer %s", t.authToken)}, // TODO IPC: implement GRPC client
+					"authorization": []string{"Bearer " + t.authToken}, // TODO IPC: implement GRPC client
 				}),
 			)
 

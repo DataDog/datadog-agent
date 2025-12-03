@@ -110,14 +110,14 @@ func RemoveInstallInfo() {
 func getToolVersion(ctx context.Context, installType string) (tool string, toolVersion string, installerVersion string) {
 	tool = toolInstaller
 	toolVersion = version.AgentVersion
-	installerVersion = fmt.Sprintf("%s_package", installType)
+	installerVersion = installType + "_package"
 	if _, err := exec.LookPath("dpkg-query"); err == nil {
 		tool = "dpkg"
 		toolVersion, err = getDpkgVersion(ctx)
 		if err != nil {
 			toolVersion = "unknown"
 		}
-		toolVersion = fmt.Sprintf("dpkg-%s", toolVersion)
+		toolVersion = "dpkg-" + toolVersion
 	}
 	if _, err := exec.LookPath("rpm"); err == nil {
 		tool = "rpm"
@@ -125,7 +125,7 @@ func getToolVersion(ctx context.Context, installType string) (tool string, toolV
 		if err != nil {
 			toolVersion = "unknown"
 		}
-		toolVersion = fmt.Sprintf("rpm-%s", toolVersion)
+		toolVersion = "rpm-" + toolVersion
 	}
 	return
 }
@@ -137,7 +137,7 @@ func getRPMVersion(ctx context.Context) (version string, err error) {
 	}()
 	cancelctx, cancelfunc := context.WithTimeout(ctx, execTimeout)
 	defer cancelfunc()
-	output, err := exec.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
+	output, err := telemetry.CommandContext(cancelctx, "rpm", "-q", "-f", "/bin/rpm", "--queryformat", "%%{VERSION}").Output()
 	return string(output), err
 }
 
@@ -148,7 +148,7 @@ func getDpkgVersion(ctx context.Context) (version string, err error) {
 	}()
 	cancelctx, cancelfunc := context.WithTimeout(ctx, execTimeout)
 	defer cancelfunc()
-	cmd := exec.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
+	cmd := telemetry.CommandContext(cancelctx, "dpkg-query", "--showformat=${Version}", "--show", "dpkg")
 	output, err := cmd.Output()
 	if err != nil {
 		log.Warnf("Failed to get dpkg version: %s", err)

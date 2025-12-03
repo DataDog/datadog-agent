@@ -8,7 +8,14 @@
             "arch": "x86_64",
             "console_type": "file",
             "kernels": [],
-            "disks": []
+            "disks": [
+                {
+                    "mount_point": "/mnt/docker",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-x86_64.qcow2.xz",
+                    "target": "%KMTDIR%/rootfs/docker-x86_64.qcow2",
+                    "type": "default"
+                }
+            ]
         },
         {
             "tags": [
@@ -19,7 +26,14 @@
             "console_type": "file",
             "kernels": [],
             "machine": "virt",
-            "disks": []
+            "disks": [
+                {
+                    "mount_point": "/mnt/docker",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-arm64.qcow2.xz",
+                    "target": "%KMTDIR%/rootfs/docker-arm64.qcow2",
+                    "type": "default"
+                }
+            ]
         }
     ]
 }

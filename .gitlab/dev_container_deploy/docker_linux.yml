@@ -118,17 +118,6 @@ dca_dev_branch:
   rules: !reference [.manual]
   needs:
     - docker_build_cluster_agent_amd64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
-    IMG_DESTINATIONS: cluster-agent-dev:${CI_COMMIT_REF_SLUG}
-
-dca_dev_branch_multiarch:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.manual]
-  needs:
-    - docker_build_cluster_agent_amd64
     - docker_build_cluster_agent_arm64
   variables:
     IMG_REGISTRIES: dev
@@ -141,9 +130,10 @@ dca_dev_master:
   rules: !reference [.on_main]
   needs:
     - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: cluster-agent-dev:master
 
 cws_instrumentation_dev_branch_multiarch:

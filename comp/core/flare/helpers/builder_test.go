@@ -7,7 +7,7 @@ package helpers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -118,7 +118,7 @@ func TestAddFileFromFunc(t *testing.T) {
 	assertFileContent(t, fb, "", "test/AddFileFromFunc_nil")
 
 	err := fb.AddFileFromFunc(FromSlash("test/AddFileFromFunc_error"), func() ([]byte, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	})
 	assert.Error(t, err)
 	assert.Equal(t, FromSlash("error collecting data for 'test/AddFileFromFunc_error': some error"), err.Error())

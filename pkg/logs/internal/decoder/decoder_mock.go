@@ -53,10 +53,27 @@ func (d *MockDecoder) GetLineCount() int64 {
 	return 0
 }
 
+// MockDecoderOptions are the options for creating a mock decoder
+type MockDecoderOptions struct {
+	InputChanSize  int
+	OutputChanSize int
+}
+
+// NewMockDecoderWithOptions creates a new mock decoder with the given options
+func NewMockDecoderWithOptions(options *MockDecoderOptions) *MockDecoder {
+	if options == nil {
+		return NewMockDecoder()
+	}
+	return &MockDecoder{
+		inputChan:  make(chan *message.Message, options.InputChanSize),
+		outputChan: make(chan *message.Message, options.OutputChanSize),
+	}
+}
+
 // NewMockDecoder creates a new mock decoder
 func NewMockDecoder() *MockDecoder {
 	return &MockDecoder{
-		inputChan:  make(chan *message.Message),
-		outputChan: make(chan *message.Message),
+		inputChan:  make(chan *message.Message, 10),
+		outputChan: make(chan *message.Message, 10),
 	}
 }

@@ -10,6 +10,7 @@ package actuator
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -95,7 +96,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	}()
 
 	// Process each event
-	s := newState()
+	s := newState(CircuitBreakerConfig{})
 	effects := effectRecorder{}
 	for i, ev := range events {
 
@@ -367,14 +368,14 @@ func parseEventsFromNode(
 	eventsNode *yaml.Node,
 ) ([]yamlEvent, []*yaml.Node, error) {
 	if eventsNode.Kind != yaml.DocumentNode || len(eventsNode.Content) != 1 {
-		return nil, nil, fmt.Errorf(
+		return nil, nil, errors.New(
 			"expected document with single content node",
 		)
 	}
 
 	listNode := eventsNode.Content[0]
 	if listNode.Kind != yaml.SequenceNode {
-		return nil, nil, fmt.Errorf("expected sequence node for events list")
+		return nil, nil, errors.New("expected sequence node for events list")
 	}
 
 	events := make([]yamlEvent, len(listNode.Content))

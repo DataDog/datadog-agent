@@ -116,27 +116,29 @@ func newWorkerPool(
 func (l *workerPool) run(doWork func() destinationResult) {
 	l.resizeUnsafe()
 	<-l.pool
-	go func() {
-		result := doWork()
-		l.pool <- struct{}{}
+	go l.performWork(doWork)
+}
 
-		if l.maxWorkers == l.minWorkers {
-			// If we can't change the worker count there's no point in adjusting latency calcs.
-			return
-		}
-		l.Lock()
-		defer l.Unlock()
-		if result.err != nil {
-			// We only want to trigger a backoff for retryable errors. Issues such as
-			// server 400s should effectively freeze the pipeline pending a resolution.
-			_, ok := result.err.(*client.RetryableError)
-			l.shouldBackoff = l.shouldBackoff || ok
-			return
-		}
+func (l *workerPool) performWork(doWork func() destinationResult) {
+	result := doWork()
+	l.pool <- struct{}{}
 
-		l.windowSum += float64(result.latency)
-		l.samples++
-	}()
+	if l.maxWorkers == l.minWorkers {
+		// If we can't change the worker count there's no point in adjusting latency calcs.
+		return
+	}
+	l.Lock()
+	defer l.Unlock()
+	if result.err != nil {
+		// We only want to trigger a backoff for retryable errors. Issues such as
+		// server 400s should effectively freeze the pipeline pending a resolution.
+		_, ok := result.err.(*client.RetryableError)
+		l.shouldBackoff = l.shouldBackoff || ok
+		return
+	}
+
+	l.windowSum += float64(result.latency)
+	l.samples++
 }
 
 // Concurrency is scaled by attempting to converge on a target virtual latency.

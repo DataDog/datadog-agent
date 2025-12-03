@@ -19,16 +19,12 @@ unless do_repackage?
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-  # Alternative memory allocator which has better support for memory allocated by cgo calls,
-  # especially at higher thread counts.
-  dependency "libjemalloc" if linux_target?
-
   dependency 'datadog-agent-dependencies'
 end
 
 source path: '..',
        options: {
-         exclude: ["**/testdata/**/*"],
+         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -150,8 +146,15 @@ build do
   end
 
   if linux_target?
-    command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+    if heroku_target?
+      # shouldn't be needed in practice, but it is used by the systemd service,
+      # which is used when installing the deb manually
+      copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
+      command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
+    else
+      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+    end
   end
 
   if windows_target?

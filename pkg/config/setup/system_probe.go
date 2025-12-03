@@ -84,8 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
 	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
-	// those configs are used by the core agent path, but are not used by the system probe
-	cfg.SetKnown("sbom.container_image.overlayfs_direct_scan") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -189,6 +187,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "max_total_bytes"), int64(2<<30 /* 2GiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_bytes"), int64(512<<20 /* 512MiB */))
 	cfg.BindEnvAndSetDefault(join(diNS, "debug_info_disk_cache", "required_disk_space_percent"), float64(0.0))
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interval"), 1*time.Second)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "per_probe_cpu_limit"), 0.1)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "all_probes_cpu_limit"), 0.5)
+	cfg.BindEnvAndSetDefault(join(diNS, "circuit_breaker", "interrupt_overhead"), 5*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -298,7 +300,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join("ebpf_check", "entry_count", "entries_for_iteration_restart_detection"), 100)
 
 	// event monitoring
-	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
 	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_all_probes"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
@@ -310,6 +311,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dns_resolution.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.tags_cardinality"), "high")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_words"), []string{})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "custom_sensitive_regexps"), []string{})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "erpc_dentry_resolution_enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "map_dentry_resolution_enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "dentry_cache_size"), 8000)
@@ -341,12 +343,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.enabled"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "capabilities_monitoring.period"), "5s")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "snapshot_using_listmount"), false)
-	cfg.BindEnvAndSetDefault(join(evNS, "socket"), defaultEventMonitorAddress)
-	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 	cfg.BindEnvAndSetDefault(join(evNS, "env_vars_resolution.enabled"), true)
 
 	// process event monitoring data limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
+
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "enabled"), true)
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "container_store", "max_containers_tracked"), 1024)
 
 	cfg.BindEnvAndSetDefault(join(compNS, "enabled"), false)
 
@@ -390,7 +393,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault(join(gpuNS, "attacher_detailed_logs"), false)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "ringbuffer_flush_interval"), 1*time.Second)
 	cfg.BindEnvAndSetDefault(join(gpuNS, "device_cache_refresh_interval"), 5*time.Second)
-	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_delay"), 30*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_interval"), 30*time.Second)
+	cfg.BindEnvAndSetDefault(join(gpuNS, "cgroup_reapply_infinitely"), false)
 
 	// gpu - stream config
 	cfg.BindEnvAndSetDefault(join(gpuNS, "streams", "max_kernel_launches"), 1000)
@@ -402,6 +406,8 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	initCWSSystemProbeConfig(cfg)
 	initUSMSystemProbeConfig(cfg)
+
+	cfg.BindEnvAndSetDefault(join(netNS, "direct_send"), false)
 }
 
 func join(pieces ...string) string {

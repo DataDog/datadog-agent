@@ -36,16 +36,14 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-func extractField(field string, state *State) (Field, Field, RegisterID, error) {
-	if state.regexpCache.arraySubscriptFindRE == nil {
-		state.regexpCache.arraySubscriptFindRE = regexp.MustCompile(`\[([^\]]*)\]`)
-	}
-	if state.regexpCache.arraySubscriptReplaceRE == nil {
-		state.regexpCache.arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
-	}
+var (
+	arraySubscriptFindRE    = regexp.MustCompile(`\[([^\]]*)\]`)
+	arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+)
 
+func extractField(field string) (Field, Field, RegisterID, error) {
 	var regID RegisterID
-	ids := state.regexpCache.arraySubscriptFindRE.FindStringSubmatch(field)
+	ids := arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
@@ -56,8 +54,8 @@ func extractField(field string, state *State) (Field, Field, RegisterID, error) 
 		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
-	resField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
-	itField := state.regexpCache.arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
+	resField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
+	itField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
 	return resField, itField, regID, nil
 }
@@ -78,7 +76,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident, state)
+	field, itField, regID, err := extractField(*obj.Ident)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -179,7 +177,7 @@ func arrayToEvaluator(array *ast.Array, opts *Opts, state *State) (interface{}, 
 		if !ok {
 			return nil, array.Pos, NewError(array.Pos, "invalid variable name '%s'", *array.Variable)
 		}
-		return evaluatorFromVariable(varName, array.Pos, opts)
+		return evaluatorFromVariable(varName, array.Pos, opts, state)
 	} else if array.CIDR != nil {
 		var values CIDRValues
 		if err := values.AppendCIDR(*array.CIDR); err != nil {
@@ -224,15 +222,17 @@ func isVariableName(str string) (string, bool) {
 	return "", false
 }
 
-func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
-	variableEvaluator, err := opts.VariableStore.GetEvaluator(VariableName(varname))
-	if err == nil {
-		return variableEvaluator, pos, nil
+func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
+	var variableEvaluator interface{}
+	variable := opts.VariableStore.Get(varname)
+	if variable != nil {
+		return variable.GetEvaluator(), pos, nil
 	}
 
 	if strings.HasSuffix(varname, ".length") {
 		trimmedVariable := strings.TrimSuffix(varname, ".length")
-		if variableEvaluator, _ := opts.VariableStore.GetEvaluator(VariableName(trimmedVariable)); variableEvaluator != nil {
+		if variable = opts.VariableStore.Get(trimmedVariable); variable != nil {
+			variableEvaluator = variable.GetEvaluator()
 			switch evaluator := variableEvaluator.(type) {
 			case *StringArrayEvaluator:
 				return &IntEvaluator{
@@ -266,17 +266,23 @@ func evaluatorFromVariable(varname string, pos lexer.Position, opts *Opts) (inte
 				return nil, pos, NewError(pos, "'length' cannot be used on '%s'", trimmedVariable)
 			}
 		}
+
+	}
+
+	evaluator, err := state.model.GetEvaluator(varname, "", 0)
+	if err == nil {
+		return evaluator, pos, nil
 	}
 
 	return nil, pos, NewError(pos, "variable '%s' doesn't exist", varname)
 }
 
-func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (interface{}, lexer.Position, error) {
+func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts, state *State) (interface{}, lexer.Position, error) {
 	var evaluators []*StringEvaluator
 
 	doLoc := func(sub string) error {
 		if varname, ok := isVariableName(sub); ok {
-			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts)
+			evaluator, pos, err := evaluatorFromVariable(varname, pos, opts, state)
 			if err != nil {
 				return err
 			}
@@ -290,14 +296,14 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 			case *IntArrayEvaluator:
 				evaluators = append(evaluators, &StringEvaluator{
 					EvalFnc: func(ctx *Context) string {
-						var result string
+						var builder strings.Builder
 						for i, number := range evaluator.EvalFnc(ctx) {
 							if i != 0 {
-								result += ","
+								builder.WriteString(",")
 							}
-							result += strconv.FormatInt(int64(number), 10)
+							builder.WriteString(strconv.FormatInt(int64(number), 10))
 						}
-						return result
+						return builder.String()
 					}})
 			case *StringEvaluator:
 				evaluators = append(evaluators, evaluator)
@@ -338,15 +344,15 @@ func stringEvaluatorFromVariable(str string, pos lexer.Position, opts *Opts) (in
 		Value:     str,
 		ValueType: VariableValueType,
 		EvalFnc: func(ctx *Context) string {
-			var result string
+			var builder strings.Builder
 			for _, evaluator := range evaluators {
 				if evaluator.EvalFnc != nil {
-					result += evaluator.EvalFnc(ctx)
+					builder.WriteString(evaluator.EvalFnc(ctx))
 				} else {
-					result += evaluator.Value
+					builder.WriteString(evaluator.Value)
 				}
 			}
-			return result
+			return builder.String()
 		},
 	}, pos, nil
 }
@@ -1396,7 +1402,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 				return nil, obj.Pos, NewError(obj.Pos, "internal variable error '%s'", varname)
 			}
 
-			return evaluatorFromVariable(varname, obj.Pos, opts)
+			return evaluatorFromVariable(varname, obj.Pos, opts, state)
 		case obj.Duration != nil:
 			return &IntEvaluator{
 				Value:      *obj.Duration,
@@ -1408,7 +1414,7 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 			// contains variables
 			if len(variableRegex.FindAllIndex([]byte(str), -1)) > 0 {
-				return stringEvaluatorFromVariable(str, obj.Pos, opts)
+				return stringEvaluatorFromVariable(str, obj.Pos, opts, state)
 			}
 
 			return &StringEvaluator{

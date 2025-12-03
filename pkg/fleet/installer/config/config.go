@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	patch "gopkg.in/evanphx/json-patch.v4"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -387,17 +387,14 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 		return FileOperation{}, err
 	}
 
-	// Since the config is YAML, we need to convert it to JSON
-	// 1. Parse the YAML in interface{}
-	// 2. Serialize the interface{} to JSON
-	var stableDatadogJSON interface{}
+	var stableDatadogJSON map[string]any
 	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
 	if err != nil {
-		return FileOperation{}, err
+		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
 	}
 	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
 	if err != nil {
-		return FileOperation{}, err
+		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
 	}
 
 	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
