@@ -6,7 +6,7 @@
 package kubernetes
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path"
 
@@ -67,5 +67,5 @@ func credentialsToConfigs(c *privateconnection.PrivateCredentials) (*clientcmd.C
 	if ok := parseAsServiceAccountCredentials(c); ok {
 		return &clientcmd.ClientConfigLoadingRules{}, &clientcmd.ConfigOverrides{}, nil
 	}
-	return nil, nil, fmt.Errorf("unsupported credential type")
+	return nil, nil, errors.New("unsupported credential type")
 }
