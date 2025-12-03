@@ -261,8 +261,8 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 				return
 			case <-heartbeatTicker.C:
 				tags := []string{
-					fmt.Sprintf("version:%s", version.AgentVersion),
-					fmt.Sprintf("os:%s", runtime.GOOS),
+					"version:" + version.AgentVersion,
+					"os:" + runtime.GOOS,
 					constants.CardinalityTagPrefix + "none",
 				}
 
@@ -291,7 +291,7 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
-					tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+					tags = append(tags, "policies_version:"+version)
 				}
 				e.RUnlock()
 
@@ -516,7 +516,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
@@ -531,9 +531,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -546,9 +546,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	var extTagsCb func() ([]string, bool)
 
-	if ev.ContainerContext.ContainerID != "" {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ContainerID
+		containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
 
 		extTagsCb = func() ([]string, bool) {
 			return e.probe.GetEventTags(containerID), true

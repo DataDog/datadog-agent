@@ -9,6 +9,7 @@ package customresources
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,8 +98,11 @@ func TestDeploymentRolloutGeneration_OngoingRollout(t *testing.T) {
 	assert.Equal(t, []string{"default", "test-deployment"}, metric.LabelValues)
 
 	// Verify deployment was stored in tracker (indirectly by checking if rollout duration can be retrieved)
-	duration := tracker.GetRolloutDuration("default", "test-deployment")
-	assert.Greater(t, duration, 0.0, "Rollout duration should be greater than 0 for ongoing rollout")
+	assert.EventuallyWithT(t, func(t *assert.CollectT) {
+		duration := tracker.GetRolloutDuration("default", "test-deployment")
+		assert.Greater(t, duration, 0.0, "Rollout duration should be greater than 0 for ongoing rollout")
+	}, 5*time.Second, 100*time.Millisecond)
+
 }
 
 func TestDeploymentRolloutGeneration_CompletedRollout(t *testing.T) {

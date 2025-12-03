@@ -297,7 +297,7 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	test.RunMultiMode(t, "args-envs", func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		args := []string{"-al", "--password", "secret", "--custom", "secret"}
+		args := []string{"-al", "--password", "secret", "--custom", "secret", "gh-1234567890"}
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib", "DD_API_KEY=dd-api-key"}
 		test.WaitSignal(t, func() error {
 			cmd := cmdFunc("ls", args, envs)
@@ -362,6 +362,10 @@ func TestProcessContext(t *testing.T) {
 			if strings.Contains(str, "secret") || strings.Contains(str, "dd-api-key") {
 				t.Error("secret or env values exposed")
 			}
+
+			if strings.Contains(str, "gh-1234567890") {
+				t.Error("gh-1234567890 exposed")
+			}
 		}))
 	})
 
@@ -401,11 +405,16 @@ func TestProcessContext(t *testing.T) {
 	})
 
 	t.Run("args-options", func(t *testing.T) {
-		lsExecutable := which(t, "ls")
-
 		test.WaitSignal(t, func() error {
-			cmd := exec.Command(lsExecutable, "--block-size", "123")
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "check", "--block-size=123")
+		}, test.validateExecEvent(t, noWrapperType, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_args_options")
+		}))
+	})
+
+	t.Run("args-options-2", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "check", "--block-size", "123")
 		}, test.validateExecEvent(t, noWrapperType, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_args_options")
 		}))
@@ -416,10 +425,7 @@ func TestProcessContext(t *testing.T) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// size overflow
-		var long string
-		for i := 0; i != 1024; i++ {
-			long += "a"
-		}
+		long := strings.Repeat("a", 1024)
 		args = append(args, long)
 
 		test.WaitSignal(t, func() error {
@@ -562,11 +568,7 @@ func TestProcessContext(t *testing.T) {
 		envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
 
 		// size overflow
-		var long string
-		for i := 0; i != 1024; i++ {
-			long += "a"
-		}
-		long += "="
+		long := strings.Repeat("a", 1024) + "="
 		envs = append(envs, long)
 
 		if kind == dockerWrapperType {
@@ -1019,9 +1021,9 @@ func TestProcessContext(t *testing.T) {
 			assert.Equal(t, "test_rule_container", rule.ID, "wrong rule triggered")
 
 			if kind == dockerWrapperType {
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Ancestor.ContainerID)
-				assert.Equal(t, event.Exec.Process.ContainerID, event.ProcessContext.Parent.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Process.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Ancestor.ContainerContext.ContainerID)
+				assert.Equal(t, event.Exec.Process.ContainerContext.ContainerID, event.ProcessContext.Parent.ContainerContext.ContainerID)
 			}
 		}))
 	})
@@ -1340,9 +1342,7 @@ func TestProcessExec(t *testing.T) {
 
 	t.Run("exec-in-pthread", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			args := []string{"exec-in-pthread", executable, "/dev/null"}
-			cmd := exec.Command(syscallTester, args...)
-			return cmd.Run()
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "exec-in-pthread", executable, "/dev/null")
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, _ *rules.Rule) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldEqual(t, event, "process.parent.file.name", "syscall_tester", "wrong process parent file name")
@@ -1489,28 +1489,31 @@ func TestProcessExecExit(t *testing.T) {
 	assert.NotEmpty(t, execPid, "exec pid not found")
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
-	err = retry.Do(func() error {
-		if !ebpfLessEnabled {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+	if !ebpfLessEnabled {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Get(execPid)
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		} else {
-			p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
-			if !ok {
-				t.Skip("not supported")
-			}
+			return nil
+		})
+	} else {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFLessProbe)
+		if !ok {
+			t.Skip("not supported")
+		}
+		err = retry.Do(func() error {
 			entry := p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: execPid, NSID: nsID})
 			if entry != nil {
 				return errors.New("the process cache entry was not deleted from the user space cache")
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+	}
 	if err != nil {
 		t.Error(err)
 	}
@@ -2312,7 +2315,7 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.FileEvent.PathnameStr, entry2.FileEvent.PathnameStr)
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
-			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.ProcessContext.Process.ContainerContext.ContainerID, entry2.ProcessContext.Process.ContainerContext.ContainerID)
 			if checkCookie {
 				assert.Equal(t, entry1.Cookie, entry2.Cookie)
 			}

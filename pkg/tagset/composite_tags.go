@@ -135,3 +135,9 @@ func (t CompositeTags) UnsafeToReadOnlySliceString() []string {
 	}
 	return slices.Concat(t.tags1, t.tags2)
 }
+
+// UnsafeGet returns an internal copy of the tags. Returned value should not
+// be modified or appended to.
+func (t CompositeTags) UnsafeGet() ([]string, []string) {
+	return t.tags1, t.tags2
+}

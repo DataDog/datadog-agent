@@ -549,8 +549,8 @@ struct setsockopt_event_t {
     u16 socket_protocol;
     int level;
     int optname;
-    u32 truncated; 
-    int sent_size; 
+    u32 truncated;
+    int sent_size;
     char bpf_filters_buffer[MAX_BPF_FILTER_SIZE];
 };
 
@@ -570,9 +570,19 @@ struct prctl_event_t {
     struct syscall_t syscall;
 
     int option;
-    int sent_size;
+    u32 sent_size;
     u32 name_truncated;
     char name[MAX_PRCTL_NAME_LEN];
+};
+
+struct tracer_memfd_seal_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct syscall_t syscall;
+
+    u32 fd;
 };
 
 #endif

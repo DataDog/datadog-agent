@@ -21,9 +21,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	mapstructure "github.com/go-viper/mapstructure/v2"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -201,6 +200,10 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	if source == model.SourceEnvVar {
+		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
+	}
+
 	c.maybeRebuild()
 
 	c.Lock()
@@ -216,7 +219,7 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	}
 	schemaNode := c.nodeAtPathFromNode(key, c.schema)
 	if _, ok := schemaNode.(LeafNode); schemaNode != missingLeaf && !ok {
-		panicInTest("Key '%s' is not a setting but part of the config tree: 'Set' method only works on settings", key)
+		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
 		c.Unlock()
 		return
 	}
@@ -267,22 +270,14 @@ func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source mo
 // SetWithoutSource assigns the value to the given key using source Unknown, may only be called from tests
 func (c *ntmConfig) SetWithoutSource(key string, value interface{}) {
 	c.assertIsTest("SetWithoutSource")
-	v := reflect.ValueOf(value)
-	if v.Kind() == reflect.Pointer {
-		v = v.Elem()
-	}
-	if v.Kind() == reflect.Struct {
-		panic("SetWithoutSource cannot assign struct to a setting")
+	if !viperconfig.ValidateBasicTypes(value) {
+		panic(fmt.Errorf("SetWithoutSource can only be called with basic types (int, string, slice, map, etc), got %v", value))
 	}
 	c.Set(key, value, model.SourceUnknown)
-	keySet := make(map[string]struct{}, len(c.allSettings))
-	for _, k := range c.allSettings {
-		keySet[k] = struct{}{}
-	}
-	keySet[key] = struct{}{}
-	allKeys := slices.Collect(maps.Keys(keySet))
-	slices.Sort(allKeys)
-	c.allSettings = allKeys
+
+	c.Lock()
+	defer c.Unlock()
+	c.computeAllSettings()
 }
 
 // SetDefault assigns the value to the given key using source Default
@@ -508,25 +503,22 @@ func (c *ntmConfig) mergeAllLayers() error {
 
 	c.root = merged
 	// recompile allSettings now that we have the full config
-	c.allSettings = c.computeAllSettings("")
+	c.computeAllSettings()
 	return nil
 }
 
-func (c *ntmConfig) computeAllSettings(path string) []string {
+func (c *ntmConfig) computeAllSettings() {
 	keySet := make(map[string]struct{})
 
 	// 1. Collect all known keys from schema
-	c.collectKeysFromNode(c.schema, path, keySet, true)
+	c.collectKeysFromNode(c.schema, "", keySet, true)
 
 	// 2. Collect all keys from merged tree (only ones with values)
 	c.collectKeysFromNode(c.root, "", keySet, false)
 
-	// 3. Collect all unknown keys, even if they have no value set
-	c.collectKeysFromNode(c.unknown, "", keySet, true)
-
 	allKeys := slices.Collect(maps.Keys(keySet))
 	slices.Sort(allKeys)
-	return allKeys
+	c.allSettings = allKeys
 }
 
 func (c *ntmConfig) collectKeysFromNode(node InnerNode, path string, keySet map[string]struct{}, includeAllKeys bool) {
@@ -560,7 +552,7 @@ func (c *ntmConfig) buildSchema() {
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
-	c.allSettings = c.computeAllSettings("")
+	c.computeAllSettings()
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -674,17 +666,18 @@ func (c *ntmConfig) IsSet(key string) bool {
 	return true
 }
 
-func hasNoneDefaultsLeaf(node InnerNode) bool {
+func hasNonDefaultLeaf(node InnerNode) bool {
 	// We're on an InnerNode, we need to check if any child leaf are not defaults
 	for _, name := range node.ChildrenKeys() {
 		child, _ := node.GetChild(name)
 		if leaf, ok := child.(LeafNode); ok {
-			if leaf.Source().IsGreaterThan(model.SourceDefault) {
+			// Leaf has to be on a non-default layer and have a non-nil value
+			if leaf.Source().IsGreaterThan(model.SourceDefault) && leaf.Get() != nil {
 				return true
 			}
 			continue
 		}
-		if hasNoneDefaultsLeaf(child.(InnerNode)) {
+		if hasNonDefaultLeaf(child.(InnerNode)) {
 			return true
 		}
 	}
@@ -712,11 +705,42 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	}
 	// if key is a leaf, we just check the source
 	if leaf, ok := curr.(LeafNode); ok {
-		return leaf.Source().IsGreaterThan(model.SourceDefault)
+		return leaf.Source().IsGreaterThan(model.SourceDefault) && leaf.Get() != nil
 	}
 
 	// if the key was an InnerNode we need to check all the inner leaf node to check if one was set by the user
-	return hasNoneDefaultsLeaf(curr.(InnerNode))
+	return hasNonDefaultLeaf(curr.(InnerNode))
+}
+
+func isInnerOrLeafWithNilValue(node Node) bool {
+	if node == missingLeaf {
+		return false
+	}
+	if _, isInner := node.(InnerNode); isInner {
+		return true
+	}
+	if leaf, isLeaf := node.(LeafNode); isLeaf {
+		return leaf.Get() == nil
+	}
+	return false
+}
+
+// HasSection returns true if the setting is either an inner node,
+// or a leaf node with a nil value
+func (c *ntmConfig) HasSection(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+
+	for _, src := range model.Sources {
+		if src == model.SourceDefault {
+			continue
+		}
+		tree, _ := c.getTreeBySource(src)
+		if isInnerOrLeafWithNilValue(c.nodeAtPathFromNode(key, tree)) {
+			return true
+		}
+	}
+	return false
 }
 
 // AllKeysLowercased returns all keys lower-cased from the default tree, including keys that are merely marked as known
@@ -813,24 +837,13 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.envKeyReplacer = r
 }
 
-// UnmarshalKey unmarshals the data for the given key
-// DEPRECATED: use pkg/config/structure.UnmarshalKey instead
-func (c *ntmConfig) UnmarshalKey(key string, _rawVal interface{}, _opts ...func(*mapstructure.DecoderConfig)) error {
-	c.maybeRebuild()
-
-	c.RLock()
-	defer c.RUnlock()
-	c.checkKnownKey(key)
-	return fmt.Errorf("nodetreemodel.UnmarshalKey not available, use pkg/config/structure.UnmarshalKey instead")
-}
-
 // MergeConfig merges in another config
 func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		return fmt.Errorf("attempt to MergeConfig before config is constructed")
+		return errors.New("attempt to MergeConfig before config is constructed")
 	}
 
 	content, err := io.ReadAll(in)
@@ -914,6 +927,8 @@ func (c *ntmConfig) AllSettingsWithoutDefault() map[string]interface{} {
 
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 

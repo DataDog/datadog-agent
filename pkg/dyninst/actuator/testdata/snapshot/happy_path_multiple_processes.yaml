@@ -36,6 +36,10 @@ state:
   programs:
     1: <nil> -> Loading (proc 1001)
     2: <nil> -> Queued (proc 1002)
+  stats:
+    numProcesses: 0 -> 2
+    numPrograms: 0 -> 2
+    numWaitingForProgram: 0 -> 2
 ---
 event: !loaded {program_id: 1}
 effects:
@@ -50,6 +54,10 @@ state:
   programs:
     1: Loading (proc 1001) -> Loaded (proc 1001)
     2: Queued (proc 1002) -> Loading (proc 1002)
+  stats:
+    loaded: 0 -> 1
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 2 -> 1
 ---
 event: !attached {program_id: 1, process_id: 1001}
 state:
@@ -61,6 +69,10 @@ state:
   programs:
     1: Loaded (proc 1001)
     2: Loading (proc 1002)
+  stats:
+    attached: 0 -> 1
+    numAttached: 0 -> 1
+    numAttaching: 1 -> 0
 ---
 event: !loaded {program_id: 2}
 effects:
@@ -74,6 +86,10 @@ state:
   programs:
     1: Loaded (proc 1001)
     2: Loading (proc 1002) -> Loaded (proc 1002)
+  stats:
+    loaded: 1 -> 2
+    numAttaching: 0 -> 1
+    numWaitingForProgram: 1 -> 0
 ---
 event: !attached {program_id: 2, process_id: 1002}
 state:
@@ -85,3 +101,7 @@ state:
   programs:
     1: Loaded (proc 1001)
     2: Loaded (proc 1002)
+  stats:
+    attached: 1 -> 2
+    numAttached: 1 -> 2
+    numAttaching: 1 -> 0

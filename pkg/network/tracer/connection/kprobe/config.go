@@ -19,37 +19,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// HasTCPSendPage checks if the kernel has the tcp_sendpage function.
-// After kernel 6.5.0, tcp_sendpage and udp_sendpage are removed.
-// We used to only check for kv < 6.5.0 here - however, OpenSUSE 15.6 backported
-// this change into 6.4.0 to pick up a CVE so the version number is not reliable.
-// Instead, we directly check if the function exists.
-func HasTCPSendPage(kv kernel.Version) bool {
-	missing, err := ebpf.VerifyKernelFuncs("tcp_sendpage")
-	if err == nil {
-		return len(missing) == 0
+func enableProbe(enabled map[manager.ProbeIdentificationPair]struct{}, name probes.ProbeFuncName) {
+	probeIdentifier := manager.ProbeIdentificationPair{
+		EBPFFuncName: name,
+		UID:          probeUID,
 	}
-
-	log.Debugf("unable to determine whether tcp_sendpage exists, using kernel version instead: %s", err)
-
-	kv650 := kernel.VersionCode(6, 5, 0)
-	return kv < kv650
-}
-
-func enableProbe(enabled map[probes.ProbeFuncName]struct{}, name probes.ProbeFuncName) {
-	enabled[name] = struct{}{}
+	enabled[probeIdentifier] = struct{}{}
 }
 
 // enabledProbes returns a map of probes that are enabled per config settings.
 // This map does not include the probes used exclusively in the offset guessing process.
-func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes.ProbeFuncName]struct{}, error) {
-	enabled := make(map[probes.ProbeFuncName]struct{}, 0)
+func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manager.ProbeIdentificationPair]struct{}, error) {
+	enabled := make(map[manager.ProbeIdentificationPair]struct{}, 0)
 
 	kv410 := kernel.VersionCode(4, 1, 0)
+	kv415 := kernel.VersionCode(4, 15, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
 	kv4180 := kernel.VersionCode(4, 18, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
@@ -60,12 +49,20 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		return nil, err
 	}
 
-	netDevQueue := probes.NetDevQueueTracepoint
-	if features.HaveProgramType(libebpf.RawTracepoint) == nil {
-		netDevQueue = probes.NetDevQueueRawTracepoint
-	}
+	// Default to kprobe fallback for net_dev_queue (works on all kernel versions)
+	netDevQueue := probes.DevQueueXmitNitKprobe
 
-	hasSendPage := HasTCPSendPage(kv)
+	// Upgrade to tracepoint or raw tracepoint based on kernel version and capabilities
+	if features.HaveProgramType(libebpf.RawTracepoint) == nil {
+		// Kernel >= 4.17 typically - use raw tracepoint (most efficient)
+		netDevQueue = probes.NetDevQueueRawTracepoint
+	} else if kv >= kv415 {
+		// Kernel >= 4.15 - use regular tracepoint (multiple attachment supported)
+		netDevQueue = probes.NetDevQueueTracepoint
+	}
+	// else: Kernel < 4.15 - keep kprobe fallback (no multiple tracepoint attachment)
+
+	hasSendPage := util.HasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
 		if ClassificationSupported(c) {
@@ -176,6 +173,11 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 		}
 	}
 
+	if c.EnableCertCollection {
+		// SSL uprobes use a separate UID
+		enabled[ssluprobes.IDPairFromFuncName(probes.RawTracepointSchedProcessExit)] = struct{}{}
+	}
+
 	return enabled, nil
 }
 
@@ -235,7 +237,7 @@ func protocolClassificationTailCalls(cfg *config.Config) []manager.TailCallRoute
 	return tcs
 }
 
-func enableAdvancedUDP(enabled map[probes.ProbeFuncName]struct{}) error {
+func enableAdvancedUDP(enabled map[manager.ProbeIdentificationPair]struct{}) error {
 	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)

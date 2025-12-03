@@ -8,10 +8,10 @@ package languagedetection
 import (
 	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/require"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 func (s *languageDetectionSuite) installPHP() {
@@ -21,12 +21,14 @@ func (s *languageDetectionSuite) installPHP() {
 }
 
 func (s *languageDetectionSuite) TestPHPDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
-	s.runPHP()
-	s.checkDetectedLanguage("php", "php", "process_collector")
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(coreConfigStr),
+	})...))
+	pid := s.startPHP()
+	s.checkDetectedLanguage(pid, "php", "process_collector")
 }
 
-func (s *languageDetectionSuite) runPHP() {
+func (s *languageDetectionSuite) startPHP() string {
 	s.Env().RemoteHost.MustExecute("echo -e '<?php sleep(60);' > prog.php")
-	s.Env().RemoteHost.MustExecute("nohup php prog.php >myscript.log 2>&1 </dev/null &")
+	return s.Env().RemoteHost.MustExecute("nohup php prog.php >myscript.log 2>&1 </dev/null & echo -n $!")
 }

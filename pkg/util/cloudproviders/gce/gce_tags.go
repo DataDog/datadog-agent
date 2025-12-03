@@ -8,11 +8,13 @@ package gce
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,8 +53,8 @@ func getCachedTags(err error) ([]string, error) {
 // GetTags gets the tags from the GCE api
 func GetTags(ctx context.Context) ([]string, error) {
 
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return nil, errors.New("cloud provider is disabled by configuration")
 	}
 
 	metadataResponse, err := getResponse(ctx, metadataURL+"/?recursive=true")
@@ -70,22 +72,22 @@ func GetTags(ctx context.Context) ([]string, error) {
 	tags := metadata.Instance.Tags
 	if metadata.Instance.Zone != "" {
 		ts := strings.Split(metadata.Instance.Zone, "/")
-		tags = append(tags, fmt.Sprintf("zone:%s", ts[len(ts)-1]))
+		tags = append(tags, "zone:"+ts[len(ts)-1])
 	}
 	if metadata.Instance.MachineType != "" {
 		ts := strings.Split(metadata.Instance.MachineType, "/")
-		tags = append(tags, fmt.Sprintf("instance-type:%s", ts[len(ts)-1]))
+		tags = append(tags, "instance-type:"+ts[len(ts)-1])
 	}
 	if metadata.Instance.Hostname != "" {
-		tags = append(tags, fmt.Sprintf("internal-hostname:%s", metadata.Instance.Hostname))
+		tags = append(tags, "internal-hostname:"+metadata.Instance.Hostname)
 	}
 	if metadata.Instance.ID != 0 {
 		tags = append(tags, fmt.Sprintf("instance-id:%d", metadata.Instance.ID))
 	}
 	if metadata.Project.ProjectID != "" {
-		tags = append(tags, fmt.Sprintf("project:%s", metadata.Project.ProjectID))
+		tags = append(tags, "project:"+metadata.Project.ProjectID)
 		if pkgconfigsetup.Datadog().GetBool("gce_send_project_id_tag") {
-			tags = append(tags, fmt.Sprintf("project_id:%s", metadata.Project.ProjectID))
+			tags = append(tags, "project_id:"+metadata.Project.ProjectID)
 		}
 	}
 	if metadata.Project.NumericProjectID != 0 {

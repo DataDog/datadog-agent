@@ -1243,7 +1243,7 @@ func TestGetKubeletMetrics(t *testing.T) {
 	testKubeletMetrics := &wmdef.KubeletMetrics{
 		EntityID: wmdef.EntityID{
 			Kind: wmdef.KindKubeletMetrics,
-			ID:   "kubelet-metrics",
+			ID:   wmdef.KubeletMetricsID,
 		},
 		ExpiredPodCount: 10,
 	}

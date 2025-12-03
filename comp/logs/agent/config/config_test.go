@@ -172,6 +172,22 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.Equal(5*time.Second, taggerWarmupDuration)
 }
 
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigCount() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err, "Expected no error")
+	suite.NotNil(config, "Expected config to be set")
+	suite.Equal(types.DefaultLinesCount, config.Count, "Expected count to be set to default lines count")
+
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "byte_checksum")
+
+	config, err = GlobalFingerprintConfig(suite.config)
+	suite.Nil(err, "Expected no error")
+	suite.NotNil(config, "Expected config to be set")
+	suite.Equal(types.DefaultBytesCount, config.Count, "Expected count to be set to default bytes count")
+}
+
 func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
 	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
 	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
@@ -704,7 +720,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
-		Origin:                 "lambda-extension",
+		Origin:                 "serverless",
 		Protocol:               "test-proto",
 		isReliable:             true,
 	}

@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
@@ -23,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,9 +37,10 @@ var (
 
 type upgradeSuite struct {
 	e2e.BaseSuite[environments.Host]
-	osDesc      e2eos.Descriptor
-	srcVersion  string
-	destVersion string
+	osDesc         e2eos.Descriptor
+	srcVersion     string
+	destVersion    string
+	testingKeysURL string
 }
 
 func TestUpgradeScript(t *testing.T) {
@@ -60,17 +60,19 @@ func TestUpgradeScript(t *testing.T) {
 	for _, osDesc := range osDescriptors {
 		osDesc := osDesc
 
-		t.Run(fmt.Sprintf("test upgrade on %s", platforms.PrettifyOsDescriptor(osDesc)), func(tt *testing.T) {
-			flake.Mark(tt)
+		t.Run("test upgrade on "+platforms.PrettifyOsDescriptor(osDesc), func(tt *testing.T) {
 			tt.Parallel()
 			tt.Logf("Testing %s", platforms.PrettifyOsDescriptor(osDesc))
 
 			vmOpts = append(vmOpts, ec2.WithOS(osDesc))
 
+			suite := &upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion, osDesc: osDesc}
+			suite.testingKeysURL = "apttesting.datad0g.com/test-keys"
+
 			e2e.Run(tt,
-				&upgradeSuite{srcVersion: *srcAgentVersion, destVersion: *destAgentVersion},
+				suite,
 				e2e.WithProvisioner(awshost.ProvisionerNoAgentNoFakeIntake(
-					awshost.WithEC2InstanceOptions(vmOpts...),
+					awshost.WithRunOptions(ec2.WithEC2InstanceOptions(vmOpts...)),
 				)),
 				e2e.WithStackName(fmt.Sprintf("upgrade-from-%s-to-%s-test-%s-%s", *srcAgentVersion, *destAgentVersion, *flavorName, platforms.PrettifyOsDescriptor(osDesc))),
 			)
@@ -93,7 +95,17 @@ func (is *upgradeSuite) TestUpgrade() {
 }
 
 func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(string(is.osDesc.Architecture)), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.srcVersion), installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")), installparams.WithPipelineID(""))
+	installOptions := []installparams.Option{
+		installparams.WithArch(string(is.osDesc.Architecture)),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithMajorVersion(is.srcVersion),
+		installparams.WithAPIKey(os.Getenv("DATADOG_AGENT_API_KEY")),
+		installparams.WithPipelineID(""),
+	}
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 	var err error
 	if is.srcVersion == "5" {
 		_, err = VMclient.Host.Execute("sudo /etc/init.d/datadog-agent stop")
@@ -104,7 +116,17 @@ func (is *upgradeSuite) SetupAgentStartVersion(VMclient *common.TestClient) {
 }
 
 func (is *upgradeSuite) UpgradeAgentVersion(VMclient *common.TestClient) {
-	install.Unix(is.T(), VMclient, installparams.WithArch(string(is.osDesc.Architecture)), installparams.WithFlavor(*flavorName), installparams.WithMajorVersion(is.destVersion), installparams.WithUpgrade(true))
+	installOptions := []installparams.Option{
+		installparams.WithArch(string(is.osDesc.Architecture)),
+		installparams.WithFlavor(*flavorName),
+		installparams.WithMajorVersion(is.destVersion),
+		installparams.WithUpgrade(true),
+	}
+
+	if is.testingKeysURL != "" {
+		installOptions = append(installOptions, installparams.WithTestingKeysURL(is.testingKeysURL))
+	}
+	install.Unix(is.T(), VMclient, installOptions...)
 	_, err := VMclient.SvcManager.Restart("datadog-agent")
 	require.NoError(is.T(), err)
 }

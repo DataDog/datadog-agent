@@ -30,16 +30,17 @@ const noSmVersion uint32 = 0
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata           streamMetadata
-	kernelLaunches     []*enrichedKernelLaunch
-	memAllocEvents     *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	pendingKernelSpans chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
-	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
-	ended              bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
-	sysCtx             *systemContext
-	config             config.StreamConfig
-	telemetry          *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	lastEventKtimeNs   uint64           // The kernel-time timestamp of the last event processed by this handler
+	metadata            streamMetadata
+	kernelLaunchesMutex sync.RWMutex
+	kernelLaunches      []*enrichedKernelLaunch
+	memAllocEvents      *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
+	pendingKernelSpans  chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
+	pendingMemorySpans  chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
+	ended               bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
+	sysCtx              *systemContext
+	config              config.StreamConfig
+	telemetry           *streamTelemetry // shared telemetry objects for stream-specific telemetry
+	lastEventKtimeNs    uint64           // The kernel-time timestamp of the last event processed by this handler
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -173,7 +174,11 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 		return nil, errFatbinParsingDisabled
 	}
 
-	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, cuda.ErrKernelNotProcessedYet)) {
+	// Use direct comparison instead of errors.Is() for performance in the hot path.
+	// Both cuda.ErrKernelNotProcessedYet and errFatbinParsingDisabled are sentinel errors
+	// that are never wrapped, so direct comparison is safe and faster.
+	// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+	if e.kernel != nil || (e.err != nil && e.err != cuda.ErrKernelNotProcessedYet) {
 		return e.kernel, e.err
 	}
 
@@ -212,13 +217,17 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
-	if err != nil && !errors.Is(err, cuda.ErrKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
-		if logLimitProbe.ShouldLog() {
-			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
-		}
+	// Use direct comparison instead of errors.Is() for performance in the hot path.
+	// Both cuda.ErrKernelNotProcessedYet and errFatbinParsingDisabled are sentinel errors
+	// that are never wrapped, so direct comparison is safe and faster.
+	// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+	if err != nil && err != cuda.ErrKernelNotProcessedYet && err != errFatbinParsingDisabled && logLimitProbe.ShouldLog() { // Only log the error if it's not the retryable error
+		log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 	}
 
+	sh.kernelLaunchesMutex.Lock()
 	sh.kernelLaunches = append(sh.kernelLaunches, enrichedLaunch)
+	sh.kernelLaunchesMutex.Unlock()
 
 	// If we've reached the kernel launch limit, trigger a sync. This stops us from just collecting
 	// kernel launches and not generating any spans if for some reason we are missing sync events.
@@ -284,6 +293,8 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		trySendSpan(sh, sh.pendingMemorySpans, alloc, memPools.memorySpanPool)
 	}
 
+	sh.kernelLaunchesMutex.Lock()
+	defer sh.kernelLaunchesMutex.Unlock()
 	remainingLaunches := []*enrichedKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= ts {
@@ -318,6 +329,9 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage = make(map[memAllocType]uint64)
 	}
 
+	sh.kernelLaunchesMutex.RLock()
+	defer sh.kernelLaunchesMutex.RUnlock()
+
 	for _, launch := range sh.kernelLaunches {
 		// Skip launches that happened after the max time we are interested in
 		// For example, do not include launches that happened after the synchronization event
@@ -333,10 +347,13 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.Shared_mem_size)
 
 		kernel, err := launch.getKernelData()
-		if err != nil {
-			if !errors.Is(err, errFatbinParsingDisabled) && logLimitProbe.ShouldLog() {
-				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
-			}
+		if err != nil && err != errFatbinParsingDisabled && err != cuda.ErrKernelNotProcessedYet && logLimitProbe.ShouldLog() {
+			// Use direct comparison instead of errors.Is() for performance in the hot path.
+			// errFatbinParsingDisabled is a sentinel error that is never wrapped,
+			// so direct comparison is safe and faster.
+			// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+
+			log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
 		} else if kernel != nil {
 			span.avgMemoryUsage[constantMemAlloc] += uint64(kernel.ConstantMem)
 			span.avgMemoryUsage[sharedMemAlloc] += uint64(kernel.SharedMem)

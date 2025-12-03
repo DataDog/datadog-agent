@@ -297,22 +297,23 @@ float_list:
 }
 
 func TestGetFloat64SliceStringFromEnv(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
-	cfg.SetDefault("float_list", []string{})
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("float_list", []string{})
+	t.Setenv("TEST_FLOAT_LIST", "1.1 2.2 3.3")
 	cfg.BuildSchema()
-	cfg.Set("float_list", "1.1 2.2 3.3", model.SourceEnvVar)
 
 	assert.Equal(t, []float64{1.1, 2.2, 3.3}, cfg.GetFloat64Slice("float_list"))
 }
 
 func TestGetAllSources(t *testing.T) {
-	cfg := NewNodeTreeConfig("test", "", nil)
-	cfg.SetDefault("a", 0)
+	t.Setenv("TEST_A", "3")
+
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+	cfg.BindEnvAndSetDefault("a", 0)
 	cfg.BuildSchema()
 
 	cfg.Set("a", 1, model.SourceUnknown)
 	cfg.Set("a", 2, model.SourceFile)
-	cfg.Set("a", 3, model.SourceEnvVar)
 	cfg.Set("a", 4, model.SourceFleetPolicies)
 	cfg.Set("a", 5, model.SourceAgentRuntime)
 	cfg.Set("a", 6, model.SourceLocalConfigProcess)
@@ -325,7 +326,7 @@ func TestGetAllSources(t *testing.T) {
 			{Source: model.SourceDefault, Value: 0},
 			{Source: model.SourceUnknown, Value: 1},
 			{Source: model.SourceFile, Value: 2},
-			{Source: model.SourceEnvVar, Value: 3},
+			{Source: model.SourceEnvVar, Value: "3"},
 			{Source: model.SourceFleetPolicies, Value: 4},
 			{Source: model.SourceAgentRuntime, Value: 5},
 			{Source: model.SourceLocalConfigProcess, Value: 6},

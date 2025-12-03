@@ -8,11 +8,8 @@ exporters:
     api:
       key: KEY
 processors:
-  batch:
-    timeout: 10s
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
       exporters: [datadog]

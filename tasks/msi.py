@@ -18,7 +18,8 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.utils import download_to_tempfile, timed
-from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version, load_dependencies
+from tasks.libs.dependencies import get_effective_dependencies_env
+from tasks.libs.releasing.version import VERSION_RE, _create_version_from_match, get_version
 
 # Windows only import
 try:
@@ -78,7 +79,7 @@ def _get_vs_build_command(cmd, vstudio_root=None):
 
 
 def _get_env(ctx, flavor=None):
-    env = load_dependencies(ctx)
+    env = get_effective_dependencies_env()
 
     if flavor is None:
         flavor = os.getenv("AGENT_FLAVOR", "")
@@ -282,6 +283,18 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
+def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
+    datadog_interop_sln = os.path.join(os.getcwd(), "tools", "windows", "DatadogInterop", "DatadogInterop.sln")
+    cmd = _get_vs_build_command(
+        f'msbuild "{datadog_interop_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        vstudio_root,
+    )
+    print(f"Building DatadogInterop: {cmd}")
+    succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
+    if not succeeded:
+        raise Exit("Failed to build DatadogInterop.", code=1)
+
+
 def _msi_output_name(env):
     if _is_fips_mode(env):
         return f"datadog-fips-agent-{env['AGENT_PRODUCT_NAME_SUFFIX']}{env['PACKAGE_VERSION']}-1-x86_64"
@@ -313,6 +326,14 @@ def build(
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
+
+    # Build libdatadog-interop.dll
+    _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
+    datadog_interop_output = os.path.join(
+        os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
+    )
+    shutil.copy2(datadog_interop_output, AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'libdatadog-interop.dll'))
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
@@ -497,7 +518,7 @@ def get_msm_info(ctx):
     """
     Get the merge module info from the release.json
     """
-    env = load_dependencies(ctx)
+    env = get_effective_dependencies_env()
     base_url = "https://s3.amazonaws.com/dd-windowsfilter/builds"
     msm_info = {}
     if 'WINDOWS_DDNPM_VERSION' in env:

@@ -15,7 +15,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
-func getBenchmarkDB(b *testing.B) *bbolt.DB {
+func getBenchmarkTransactionalStore(b *testing.B) *transactionalStore {
 	dir := b.TempDir()
 	db, err := bbolt.Open(dir+"/remote-config.db", 0600, &bbolt.Options{})
 	if err != nil {
@@ -24,7 +24,10 @@ func getBenchmarkDB(b *testing.B) *bbolt.DB {
 	b.Cleanup(func() {
 		db.Close()
 	})
-	return db
+	return &transactionalStore{
+		db:         db,
+		cachedData: make(map[string]dbBucket),
+	}
 }
 
 func BenchmarkVerify(b *testing.B) {
@@ -45,8 +48,8 @@ func BenchmarkVerify(b *testing.B) {
 			}
 			repository := newTestRepository(2, 1, configTargets, directorTargets, targetFiles)
 			cfg := newTestConfig(b, repository)
-			db := getBenchmarkDB(b)
-			client, err := newTestClient(db, cfg)
+			ts := getBenchmarkTransactionalStore(b)
+			client, err := newTestClient(ts, cfg)
 			if err != nil {
 				b.Fatal(err)
 			}

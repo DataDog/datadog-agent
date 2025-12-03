@@ -21,6 +21,8 @@ const (
 	ECSEC2 Feature = "ecsec2"
 	// ECSFargate environment
 	ECSFargate Feature = "ecsfargate"
+	// ECSManagedInstances environment
+	ECSManagedInstances Feature = "ecsmanagedinstances"
 	// EKSFargate environment
 	EKSFargate Feature = "eksfargate"
 	// KubeOrchestratorExplorer can be enabled
@@ -35,4 +37,7 @@ const (
 	PodResources Feature = "podresources"
 	// NVML library present for GPU detection
 	NVML Feature = "nvml"
+	// NonstandardCRIRuntime is a fallback value for when customers supply a CRI compliant runtime via the
+	// cri_socket_path configuration field
+	NonstandardCRIRuntime = "nonstandard-cri-runtime"
 )

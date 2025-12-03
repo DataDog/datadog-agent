@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
 	"testing"
 
@@ -359,7 +359,40 @@ func objectSecurityDTOFromCommand(host *components.RemoteHost, cmd string) (Obje
 	// Get the ACL information
 	output, err := host.Execute(cmd)
 	if err != nil {
-		return s, err
+		// On error, collect diagnostics to aid root cause (e.g., PowerShell crash with clr.dll)
+		diagScript := fmt.Sprintf(`
+			$ts = Get-Date -Format 'yyyyMMdd_HHmmss'
+			$out = "C:\Windows\Temp\acl_diag_$ts.txt"
+			try {
+				"=== ACL diagnostics ===" | Out-File -FilePath $out -Encoding UTF8
+				"Command: %s"               | Out-File $out -Append
+				"PSVersionTable:"           | Out-File $out -Append
+				$PSVersionTable             | Out-File $out -Append
+				"Is64BitProcess: $([Environment]::Is64BitProcess)" | Out-File $out -Append
+				try {
+					$clr = Get-Item "$env:WINDIR\Microsoft\NET\Framework64\v4.0.30319\clr.dll"
+					"CLR64: $($clr.VersionInfo.FileVersion)" | Out-File $out -Append
+				} catch {}
+				try {
+					$clr32 = Get-Item "$env:WINDIR\Microsoft\NET\Framework\v4.0.30319\clr.dll"
+					"CLR32: $($clr32.VersionInfo.FileVersion)" | Out-File $out -Append
+				} catch {}
+				"Privileges (whoami /priv):" | Out-File $out -Append
+				whoami /priv | Out-File $out -Append
+				""
+				"Recent Application errors (.NET Runtime 1023, Application Error 1000):" | Out-File $out -Append
+				try {
+					Get-WinEvent -FilterHashtable @{LogName='Application'; Level=1,2} -MaxEvents 30 |
+						Where-Object { $_.ProviderName -in @('.NET Runtime','Application Error') } |
+						Select TimeCreated, Id, ProviderName, Message |
+						Format-List | Out-String -Width 4096 | Out-File $out -Append
+				} catch {}
+			} catch {
+				"Diagnostics collection error: $($_.Exception.Message)" | Out-File $out -Append
+			}
+		`, strings.ReplaceAll(cmd, "`", "``"))
+		_, _ = host.Execute(diagScript)
+		return s, fmt.Errorf("failed executing ACL command: %v; diagnostics saved under C:\\Windows\\Temp (acl_diag_*\\.txt)", err)
 	}
 
 	err = json.Unmarshal([]byte(output), &s)

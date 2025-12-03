@@ -1,0 +1,116 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:MIT"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "libpopt",
+    srcs = [
+        "src/popt.c",
+        "src/poptconfig.c",
+        "src/popthelp.c",
+        "src/poptint.c",
+        "src/poptint.h",
+        "src/poptparse.c",
+        "src/system.h",
+    ],
+    textual_hdrs = [
+        "src/lookup3.c",
+    ],
+    hdrs = [
+        "src/popt.h",
+    ],
+    copts = [
+        "-std=gnu99",
+        "-O2",
+    ],
+    local_defines = [
+        "_GNU_SOURCE",
+        "HAVE_STPCPY",
+        "HAVE_STRERROR",
+        "HAVE_GETUID",
+        "HAVE_GETEUID",
+        "HAVE_MTRACE",
+        "HAVE_SECURE_GETENV",
+        "HAVE_SETUID",
+        "HAVE_VASPRINTF",
+        "HAVE_SRANDOM",
+        "HAVE_GLOB_PATTERN_P",
+        "HAVE_MBSRTOWCS",
+        "HAVE_FNMATCH_H",
+        "HAVE_GLOB_H",
+        "HAVE_LANGINFO_H",
+        "HAVE_MCHECK_H",
+        "HAVE_STDALIGN_H",
+        'PACKAGE=\\"popt\\"',
+        'POPT_SYSCONFDIR=\\"/etc/\\"',
+    ],
+)
+
+cc_shared_library(
+    name = "popt",
+    deps = [
+        ":libpopt",
+    ],
+    additional_linker_inputs = [
+        "src/libpopt.vers",
+    ],
+    user_link_flags = [
+        "-Wl,--no-undefined",
+        "-Wl,--version-script=$(location src/libpopt.vers)",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":popt",
+    libname = "libpopt",
+    version = "0.0.2",
+)
+
+expand_template(
+    name = "gen_pkgconfig",
+    out = "popt.pc",
+    substitutions = {
+        # Prepare the .pc file for our own substitution later
+        "@prefix@": "##PREFIX##",
+        "@exec_prefix@": "${prefix}",
+        "@libdir@": "${prefix}/lib",
+        "@includedir@": "${prefix}/include",
+        "@VERSION@": "1.19",
+        "@LTLIBICONV@": "",
+    },
+    template = "popt.pc.in",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = glob(["src/popt.h"]),
+    prefix = "include",
+)
+
+pkg_files(
+    name = "pc_file",
+    srcs = [":gen_pkgconfig"],
+    prefix = "lib/pkgconfig",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+        ":pc_file",
+    ],
+)

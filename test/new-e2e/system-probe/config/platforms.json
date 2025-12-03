@@ -20,18 +20,18 @@
     "amazon_4.14": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "4.14.314-237.533.amzn2",
+      "kernel": "4.14.355-275.570.amzn2",
       "os_version": "2",
       "image": "amzn2-x86_64-4.14.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "amazon_5.10": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "5.10.226-214.879.amzn2",
+      "kernel": "5.10.244-240.970.amzn2",
       "os_version": "2",
       "image": "amzn2-x86_64-5.10.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "amazon_5.4": {
       "os_name": "Amazon Linux",
@@ -44,10 +44,10 @@
     "amazon_2023": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "6.1.77-99.164.amzn2023",
+      "kernel": "6.1.119-129.201.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-amd64-2023.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "centos_7.9": {
       "os_name": "CentOS Linux",
@@ -79,10 +79,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-32",
+      "kernel": "5.10.0-35",
       "os_version": "11",
       "image": "debian-11-generic-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "20251015_301103a6",
       "alt_version_names": [
         "bullseye"
       ]
@@ -90,10 +90,10 @@
     "debian_12": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "6.1.0-25",
+      "kernel": "6.1.0-39",
       "os_version": "12",
       "image": "debian-12-generic-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "20251015_301103a6",
       "alt_version_names": [
         "bookworm"
       ]
@@ -215,18 +215,18 @@
     "opensuse_15.5": {
       "os_name": "openSUSE Leap",
       "os_id": "opensuse-leap",
-      "kernel": "5.14.21-150500.55.80.2",
+      "kernel": "5.14.21-150500.55.88.1",
       "os_version": "15.5",
       "image": "opensuse-15.5-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "suse_12.5": {
       "os_name": "SLES",
       "os_id": "sles",
-      "kernel": "4.12.14-122.228.1",
+      "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251120_7497a561"
     },
     "debian_9": {
       "os_name": "Debian GNU/Linux",
@@ -273,6 +273,28 @@
       "os_version": "8.4",
       "image": "rocky-8.4-x86_64.qcow2.xz",
       "image_version": "20250320_7cf8bbf7"
+    },
+    "ubuntu_25.04": {
+      "image": "ubuntu-25.04-x86_64.qcow2.xz",
+      "image_version": "20251020_18933692",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.14.0-33-generic",
+      "os_version": "25.04",
+      "alt_version_names": [
+        "plucky"
+      ]
+    },
+    "ubuntu_25.10": {
+      "image": "ubuntu-25.10-x86_64.qcow2.xz",
+      "image_version": "20251024_ac38a07f",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.17.0-5-generic",
+      "os_version": "25.10",
+      "alt_version_names": [
+        "questing"
+      ]
     }
   },
   "arm64": {
@@ -295,10 +317,10 @@
     "amazon_4.14": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "4.14.314-237.533.amzn2",
+      "kernel": "4.14.355-275.570.amzn2",
       "os_version": "2",
       "image": "amzn2-arm64-4.14.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "amazon_5.4": {
       "os_name": "Amazon Linux",
@@ -338,10 +360,10 @@
     "debian_11": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "5.10.0-32",
+      "kernel": "5.10.0-35",
       "os_version": "11",
       "image": "debian-11-generic-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "20251015_301103a6",
       "alt_version_names": [
         "bullseye"
       ]
@@ -349,10 +371,10 @@
     "debian_12": {
       "os_name": "Debian GNU/Linux",
       "os_id": "debian",
-      "kernel": "6.1.0-25",
+      "kernel": "6.1.0-39",
       "os_version": "12",
       "image": "debian-12-generic-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356",
+      "image_version": "20251015_301103a6",
       "alt_version_names": [
         "bookworm"
       ]
@@ -392,18 +414,18 @@
     "amazon_5.10": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "5.10.226-214.879.amzn2",
+      "kernel": "5.10.244-240.970.amzn2",
       "os_version": "2",
       "image": "amzn2-arm64-5.10.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "amazon_2023": {
       "os_name": "Amazon Linux",
       "os_id": "amzn",
-      "kernel": "6.1.77-99.164.amzn2023",
+      "kernel": "6.1.119-129.201.amzn2023",
       "os_version": "2023",
       "image": "amzn2023-arm64-2023.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "ubuntu_18.04": {
       "os_name": "Ubuntu",
@@ -471,18 +493,18 @@
     "opensuse_15.5": {
       "os_name": "openSUSE Leap",
       "os_id": "opensuse-leap",
-      "kernel": "5.14.21-150500.55.80.2",
+      "kernel": "5.14.21-150500.55.88.1",
       "os_version": "15.5",
       "image": "opensuse-15.5-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251015_301103a6"
     },
     "suse_12.5": {
       "os_name": "SLES",
       "os_id": "sles",
-      "kernel": "4.12.14-122.228.1",
+      "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
-      "image_version": "20241003_a9a46356"
+      "image_version": "20251120_7497a561"
     },
     "fedora_40": {
       "os_name": "Fedora Linux",
@@ -510,6 +532,28 @@
       "os_version": "9.4",
       "image": "rocky-9.4-arm64.qcow2.xz",
       "image_version": "20241209_f6a14db0"
+    },
+    "ubuntu_25.04": {
+      "image": "ubuntu-25.04-arm64.qcow2.xz",
+      "image_version": "20251020_18933692",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.14.0-33-generic",
+      "os_version": "25.04",
+      "alt_version_names": [
+        "plucky"
+      ]
+    },
+    "ubuntu_25.10": {
+      "image": "ubuntu-25.10-arm64.qcow2.xz",
+      "image_version": "20251024_ac38a07f",
+      "os_name": "Ubuntu",
+      "os_id": "ubuntu",
+      "kernel": "6.17.0-5-generic",
+      "os_version": "25.10",
+      "alt_version_names": [
+        "questing"
+      ]
     }
   }
 }

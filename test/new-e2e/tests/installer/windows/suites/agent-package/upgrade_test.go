@@ -15,8 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
@@ -574,6 +574,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 
 // TestDowngradeWithMissingInstallSource tests that a downgrade will succeed even if the original install source is missing
 func (s *testAgentUpgradeSuite) TestDowngradeWithMissingInstallSource() {
+	s.T().Skip("Skipping test due to removal of update install source custom action")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()

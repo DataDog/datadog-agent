@@ -13,17 +13,17 @@ import (
 
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 //go:embed fixtures/openssl-default.cnf
@@ -41,23 +41,24 @@ type LinuxFIPSComplianceSuite struct {
 
 func TestLinuxFIPSComplianceSuite(t *testing.T) {
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-		awshost.WithAgentOptions(
-			agentparams.WithFlavor("datadog-fips-agent"),
-			// Install custom check that reports the FIPS mode of Python
-			// TODO ADXT-881: Need forward slashes to workaround test-infra bug
-			agentparams.WithFile(
-				`/etc/datadog-agent/checks.d/e2e_fips_test.py`,
-				fipsTestCheck,
-				false,
-			),
-			agentparams.WithFile(
-				`/etc/datadog-agent/conf.d/e2e_fips_test.yaml`,
-				`
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			ec2.WithAgentOptions(
+				agentparams.WithFlavor("datadog-fips-agent"),
+				// Install custom check that reports the FIPS mode of Python
+				agentparams.WithFile(
+					`/etc/datadog-agent/checks.d/e2e_fips_test.py`,
+					fipsTestCheck,
+					true,
+				),
+				agentparams.WithFile(
+					`/etc/datadog-agent/conf.d/e2e_fips_test.yaml`,
+					`
 init_config:
 instances: [{}]
 `,
-				false,
+					false,
+				),
 			),
 		),
 	)),
@@ -121,11 +122,13 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 // this test check that the FIPS Agent processes are loaded with the FIPS OpenSSL libraries
 func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
 	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-		awshost.WithAgentOptions(
-			agentparams.WithFlavor("datadog-fips-agent"),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
+			ec2.WithAgentOptions(
+				agentparams.WithFlavor("datadog-fips-agent"),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+			),
 		),
 	))
 

@@ -6,6 +6,7 @@
 package payload
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -20,7 +21,7 @@ func NewPathtraceID() string {
 // Returns an error if any run does not have a valid destination IP address.
 func ValidateNetworkPath(path *NetworkPath) error {
 	if path == nil {
-		return fmt.Errorf("invalid nil path")
+		return errors.New("invalid nil path")
 	}
 
 	if len(path.Traceroute.Runs) == 0 {

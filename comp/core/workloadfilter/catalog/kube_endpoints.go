@@ -12,22 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 )
 
-// LegacyEndpointsMetricsProgram creates a program for filtering endpoints metrics
-func LegacyEndpointsMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyEndpointsMetricsProgram"
-	include := filterConfig.ContainerIncludeMetrics
-	exclude := filterConfig.ContainerExcludeMetrics
-	return createFromOldFilters(programName, include, exclude, workloadfilter.EndpointType, logger)
-}
-
-// LegacyEndpointsGlobalProgram creates a program for filtering endpoints globally
-func LegacyEndpointsGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyEndpointsGlobalProgram"
-	includeList := filterConfig.GetLegacyContainerInclude()
-	excludeList := filterConfig.GetLegacyContainerExclude()
-	return createFromOldFilters(programName, includeList, excludeList, workloadfilter.EndpointType, logger)
-}
-
 // EndpointCELMetricsProgram creates a program for filtering endpoints metrics via CEL rules
 func EndpointCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
 	programName := "EndpointCELMetricsProgram"

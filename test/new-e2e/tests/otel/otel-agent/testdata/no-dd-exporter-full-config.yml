@@ -6,7 +6,6 @@ exporters:
       key: '[REDACTED]'
       site: datadoghq.com
     force_attempt_http2: true
-    headers: {}
     host_metadata:
       enabled: true
       hostname_source: config_or_system
@@ -18,7 +17,6 @@ exporters:
     logs:
       batch_wait: 5
       compression_level: 6
-      dump_payloads: false
       use_compression: true
     max_idle_conns: 100
     metrics:
@@ -35,6 +33,9 @@ exporters:
         cumulative_monotonic_mode: to_delta
         initial_cumulative_monotonic_value: auto
     only_metadata: false
+    orchestrator_explorer:
+      cluster_name: ""
+      enabled: false
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -69,9 +70,9 @@ exporters:
     sending_queue:
       batch: null
       block_on_overflow: false
-      enabled: true
+      enabled: false
       num_consumers: 10
-      queue_size: 1
+      queue_size: 1000
       sizer: {}
       storage: null
       wait_for_result: false
@@ -82,7 +83,6 @@ extensions:
     endpoint: localhost:7777
     idle_timeout: 0s
     read_header_timeout: 0s
-    response_headers: {}
     tls: null
     write_timeout: 0s
   health_check/dd-autoconfigured:
@@ -96,7 +96,6 @@ extensions:
     path: /
     read_header_timeout: 0s
     response_body: null
-    response_headers: {}
     tls: null
     write_timeout: 0s
   pprof/dd-autoconfigured:
@@ -111,7 +110,6 @@ extensions:
       enabled: false
     idle_timeout: 0s
     read_header_timeout: 0s
-    response_headers: {}
     tls: null
     write_timeout: 0s
 processors:
@@ -121,6 +119,7 @@ processors:
       exclude: null
       include: null
       log_record: []
+      resource: []
     metrics:
       datapoint: []
       exclude:
@@ -135,16 +134,21 @@ processors:
       include: null
       metric: []
       regexp: null
+      resource: []
+    profiles:
+      profile: []
+      resource: []
     spans:
       exclude: null
       include: null
     traces:
+      resource: []
       span: []
       spanevent: []
 receivers:
   otlp:
     protocols:
-      grpc: 
+      grpc:
         endpoint: 0.0.0.0:4317
         keepalive:
           enforcement_policy: {}
@@ -155,21 +159,20 @@ receivers:
         cors: null
         endpoint: 0.0.0.0:4318
         idle_timeout: 0s
+        keep_alives_enabled: true
         logs_url_path: /v1/logs
         metrics_url_path: /v1/metrics
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         traces_url_path: /v1/traces
         write_timeout: 0s
   prometheus/dd-autoconfigured:
-    api_server: 
+    api_server:
       enabled: false
       server_config:
         cors: null
         idle_timeout: 0s
         read_header_timeout: 0s
-        response_headers: {}
         tls: null
         write_timeout: 0s
     config:

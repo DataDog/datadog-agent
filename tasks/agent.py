@@ -14,10 +14,17 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+    get_default_build_tags,
+)
 from tasks.cluster_agent import CONTAINER_PLATFORM_MAPPING
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.gointegrationtest import (
+    CORE_AGENT_WINDOWS_IT_CONF,
+    containerized_integration_tests,
+)
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
@@ -74,6 +81,7 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_kubelet_config",
     "orchestrator_ecs",
     "cisco_sdwan",
     "network_path",
@@ -81,6 +89,7 @@ AGENT_CORECHECKS = [
     "wlan",
     "discovery",
     "versa",
+    "network_config_management",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -192,14 +201,13 @@ def build(
 
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
-            include_tags = (
-                get_default_build_tags(build=build, flavor=flavor)
-                if build_include is None
-                else filter_incompatible_tags(build_include.split(","))
+            build_tags = compute_build_tags_for_flavor(
+                build=build,
+                flavor=flavor,
+                build_include=build_include,
+                build_exclude=build_exclude,
+                include_sds=include_sds,
             )
-
-            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
-            build_tags = get_build_tags(include_tags, exclude_tags)
 
             all_tags |= set(build_tags)
         build_tags = list(all_tags)
@@ -209,9 +217,6 @@ def build(
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
-
-    if include_sds:
-        build_tags.append("sds")
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
     with gitlab_section("Build agent", collapsed=True):
@@ -226,6 +231,7 @@ def build(
             gcflags=gcflags,
             ldflags=ldflags,
             build_tags=build_tags,
+            check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         )
 
@@ -447,6 +453,7 @@ def hacky_dev_image_build(
     trace_agent=False,
     system_probe=False,
     security_agent=False,
+    trace_loader=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -517,11 +524,36 @@ def hacky_dev_image_build(
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
+    if trace_loader:
+        from tasks.loader import build as trace_loader_build
+
+        trace_loader_build(ctx)
+        copy_extra_agents += "COPY bin/trace-loader/trace-loader /opt/datadog-agent/embedded/bin/trace-loader\n"
+
+    copy_ebpf_assets = ""
+    copy_ebpf_assets_final = ""
     if system_probe:
+        from tasks.libs.types.arch import Arch
         from tasks.system_probe import build as system_probe_build
+        from tasks.system_probe import get_ebpf_build_dir, get_ebpf_runtime_dir
 
         system_probe_build(ctx)
+
+        build_arch = Arch.from_str(arch)
+        build_dir = get_ebpf_build_dir(build_arch)
+        runtime_dir = get_ebpf_runtime_dir()
+
         copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_ebpf_assets = f"""
+RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+COPY {build_dir}/*.o         /opt/datadog-agent/embedded/share/system-probe/ebpf/
+COPY {build_dir}/co-re/*.o   /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+COPY {runtime_dir}/*.c       /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+"""
+        copy_ebpf_assets_final = """
+COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
+"""
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -535,13 +567,15 @@ RUN find /usr/src/datadog-agent -type d -empty -print0 | xargs -0 rmdir
 FROM ubuntu:latest AS bin
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y patchelf
 
 COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
 COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_ebpf_assets}
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
@@ -553,7 +587,8 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
 FROM {base_image} AS bash_completion
 
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y gawk
 
 RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable bash completion/ {{uncomment=1}} {{print}}' /etc/bash.bashrc
@@ -561,7 +596,8 @@ RUN awk -i inplace '!/^#/ {{uncomment=0}} uncomment {{gsub(/^#/, "")}} /# enable
 FROM {base_image}
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
+RUN apt-get clean && \
+    apt-get -o Acquire::Retries=4 update && \
     apt-get install -y bash-completion less vim tshark && \
     apt-get clean
 
@@ -575,6 +611,7 @@ COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
+{copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
@@ -593,6 +630,17 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
         if push:
             ctx.run(f'docker push {target_image}')
+
+
+@task
+def integration_tests(ctx, race=False, go_mod="readonly", timeout=""):
+    """
+    Run integration tests for the Agent
+    """
+    if sys.platform == 'win32':
+        return containerized_integration_tests(
+            ctx, CORE_AGENT_WINDOWS_IT_CONF, race=race, go_mod=go_mod, timeout=timeout
+        )
 
 
 def check_supports_python_version(check_dir, python):

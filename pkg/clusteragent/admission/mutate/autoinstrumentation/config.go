@@ -9,6 +9,7 @@ package autoinstrumentation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +38,9 @@ type Config struct {
 
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
+
+	// mutateUnlabelled is used to control if we require workloads to have a label when using Local Lib Injection.
+	mutateUnlabelled bool
 
 	// precomputed containerMutators for the security and profiling products
 	securityClientLibraryMutator  containerMutator
@@ -106,11 +110,14 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
+	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
+
 	return &Config{
 		Webhook:                       NewWebhookConfig(datadogConfig),
 		LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 		Instrumentation:               instrumentationConfig,
 		containerRegistry:             containerRegistry,
+		mutateUnlabelled:              mutateUnlabelled,
 		initResources:                 initResources,
 		initSecurityContext:           initSecurityContext,
 		defaultResourceRequirements:   defaultResourceRequirements,
@@ -119,22 +126,6 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		containerFilter:               excludedContainerNamesContainerFilter,
 		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
 	}, nil
-}
-
-// WebhookConfig use to store options from the config.Component for the autoinstrumentation webhook
-type WebhookConfig struct {
-	// IsEnabled is the flag to enable the autoinstrumentation webhook.
-	IsEnabled bool
-	// Endpoint is the endpoint to use for the autoinstrumentation webhook.
-	Endpoint string
-}
-
-// NewWebhookConfig retrieves the configuration for the autoinstrumentation webhook from the datadog config
-func NewWebhookConfig(datadogConfig config.Component) *WebhookConfig {
-	return &WebhookConfig{
-		IsEnabled: datadogConfig.GetBool("admission_controller.auto_instrumentation.enabled"),
-		Endpoint:  datadogConfig.GetString("admission_controller.auto_instrumentation.endpoint"),
-	}
 }
 
 // LanguageDetectionConfig is a struct to store the configuration for the language detection. It can be populated using
@@ -199,23 +190,23 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 
 	// Ensure both enabled and disabled namespaces are not set together.
 	if len(cfg.EnabledNamespaces) > 0 && len(cfg.DisabledNamespaces) > 0 {
-		return nil, fmt.Errorf("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
+		return nil, errors.New("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
 	}
 
 	// Ensure both enabled namespaces and targets are not set together.
 	if len(cfg.EnabledNamespaces) > 0 && len(cfg.Targets) > 0 {
-		return nil, fmt.Errorf("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
+		return nil, errors.New("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
 	}
 
 	// Ensure both library versions and targets are not set together.
 	if len(cfg.LibVersions) > 0 && len(cfg.Targets) > 0 {
-		return nil, fmt.Errorf("apm_config.instrumentation.lib_versions and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
+		return nil, errors.New("apm_config.instrumentation.lib_versions and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
 	}
 
 	// Ensure both namespace names and labels are not set together.
 	for _, target := range cfg.Targets {
 		if target.NamespaceSelector != nil && len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
-			return nil, fmt.Errorf("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
+			return nil, errors.New("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
 		}
 	}
 

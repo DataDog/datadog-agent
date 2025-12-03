@@ -431,6 +431,14 @@ namespace Datadog.CustomActions
 
         private ActionResult StartDDServices()
         {
+            // Check if DD_INSTALL_ONLY flag is set
+            var installOnly = _session.Property("DD_INSTALL_ONLY");
+            if (!string.IsNullOrEmpty(installOnly) && (installOnly == "1" || installOnly.ToLower() == "true"))
+            {
+                _session.Log("DD_INSTALL_ONLY is set, skipping service start.");
+                return ActionResult.Success;
+            }
+
             try
             {
                 var ddservices = new[]

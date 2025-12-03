@@ -7,6 +7,7 @@ package packages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,14 +47,16 @@ var datadogAgentPackage = hooks{
 }
 
 const (
-	agentPackage = "datadog-agent"
-	agentSymlink = "/usr/bin/datadog-agent"
+	agentPackage     = "datadog-agent"
+	agentSymlink     = "/usr/bin/datadog-agent"
+	installerSymlink = "/usr/bin/datadog-installer"
 )
 
 var (
 	// agentDirectories are the directories that the agent needs to function
 	agentDirectories = file.Directories{
 		{Path: "/etc/datadog-agent", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
+		{Path: "/etc/datadog-agent/managed", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/var/log/datadog", Mode: 0750, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/run", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
 		{Path: "/opt/datadog-packages/tmp", Mode: 0755, Owner: "dd-agent", Group: "dd-agent"},
@@ -62,7 +65,7 @@ var (
 	// agentConfigPermissions are the ownerships and modes that are enforced on the agent configuration files
 	agentConfigPermissions = file.Permissions{
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
-		{Path: "managed", Owner: "root", Group: "root", Recursive: true},
+		{Path: "managed", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 		{Path: "inject", Owner: "root", Group: "root", Recursive: true},
 		{Path: "compliance.d", Owner: "root", Group: "root", Recursive: true},
 		{Path: "runtime-security.d", Owner: "root", Group: "root", Recursive: true},
@@ -99,14 +102,20 @@ var (
 	agentService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent.service",
 		SystemdMainUnitExp:    "datadog-agent-exp.service",
-		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service"},
-		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service"},
+		SystemdUnitsStable:    []string{"datadog-agent.service", "datadog-agent-installer.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service", "datadog-agent-data-plane.service"},
+		SystemdUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service"},
 
 		UpstartMainService: "datadog-agent",
-		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security"},
+		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane"},
 
 		SysvinitMainService: "datadog-agent",
-		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security"},
+		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane"},
+	}
+
+	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
+	oldInstallerUnitPaths = file.Paths{
+		"datadog-installer-exp.service",
+		"datadog-installer.service",
 	}
 )
 
@@ -154,6 +163,11 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = installinfo.WriteInstallInfo(ctx, string(ctx.PackageType)); err != nil {
 		return fmt.Errorf("failed to write install info: %v", err)
 	}
+
+	// 6. Remove old installer units if they exist
+	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
+		return fmt.Errorf("failed to remove old installer units: %v", err)
+	}
 	return nil
 }
 
@@ -178,10 +192,10 @@ func uninstallFilesystem(ctx HookContext) (err error) {
 	}
 
 	installerTarget, err := os.Readlink(installerSymlink)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to read installer symlink: %w", err)
 	}
-	if strings.HasPrefix(installerTarget, ctx.PackagePath) {
+	if err == nil && strings.HasPrefix(installerTarget, ctx.PackagePath) {
 		err = file.EnsureSymlinkAbsent(ctx, installerSymlink)
 		if err != nil {
 			return fmt.Errorf("failed to remove installer symlink: %w", err)
@@ -415,14 +429,14 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 		return nil
 	case service.UpstartType:
 		if ctx.PackageType != PackageTypeDEB && ctx.PackageType != PackageTypeRPM {
-			return fmt.Errorf("upstart is only supported in DEB and RPM packages")
+			return errors.New("upstart is only supported in DEB and RPM packages")
 		}
 	case service.SysvinitType:
 		if ctx.PackageType != PackageTypeDEB {
-			return fmt.Errorf("sysvinit is only supported in DEB packages")
+			return errors.New("sysvinit is only supported in DEB packages")
 		}
 	default:
-		return fmt.Errorf("could not determine service manager type, platform is not supported")
+		return errors.New("could not determine service manager type, platform is not supported")
 	}
 	return nil
 }
@@ -440,7 +454,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.InstallAll(ctx, s.SysvinitServices...)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -457,7 +471,7 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.RemoveAll(ctx, s.SysvinitServices...)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -481,7 +495,7 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.Restart(ctx, s.SysvinitMainService)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -498,7 +512,7 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return sysvinit.StopAll(ctx, reverseStringSlice(s.SysvinitServices)...)
 	default:
-		return fmt.Errorf("unsupported service manager")
+		return errors.New("unsupported service manager")
 	}
 }
 
@@ -515,7 +529,7 @@ func (s *datadogAgentService) WriteStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // RemoveStable removes the stable units
@@ -531,7 +545,7 @@ func (s *datadogAgentService) RemoveStable(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Nothing to do, files are embedded in the package
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // StartExperiment starts the experiment unit
@@ -543,11 +557,11 @@ func (s *datadogAgentService) StartExperiment(ctx HookContext) error {
 	case service.SystemdType:
 		return systemd.StartUnit(ctx, s.SystemdMainUnitExp)
 	case service.UpstartType:
-		return fmt.Errorf("experiments are not supported on upstart")
+		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
-		return fmt.Errorf("experiments are not supported on sysvinit")
+		return errors.New("experiments are not supported on sysvinit")
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // StopExperiment stops the experiment units
@@ -563,7 +577,7 @@ func (s *datadogAgentService) StopExperiment(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Experiments are not supported on sysvinit
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // WriteExperiment writes the experiment units to the system and reloads the systemd daemon
@@ -575,11 +589,11 @@ func (s *datadogAgentService) WriteExperiment(ctx HookContext) error {
 	case service.SystemdType:
 		return writeEmbeddedUnitsAndReload(ctx, s.SystemdUnitsExp...)
 	case service.UpstartType:
-		return fmt.Errorf("experiments are not supported on upstart")
+		return errors.New("experiments are not supported on upstart")
 	case service.SysvinitType:
-		return fmt.Errorf("experiments are not supported on sysvinit")
+		return errors.New("experiments are not supported on sysvinit")
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // RemoveExperiment removes the experiment units from the disk
@@ -595,7 +609,7 @@ func (s *datadogAgentService) RemoveExperiment(ctx HookContext) error {
 	case service.SysvinitType:
 		return nil // Experiments are not supported on sysvinit
 	}
-	return fmt.Errorf("unsupported service manager")
+	return errors.New("unsupported service manager")
 }
 
 // isAgentConfigFilePresent checks if the agent config file exists
@@ -633,6 +647,11 @@ func removeUnits(ctx HookContext, units ...string) error {
 }
 
 func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
+	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
+	if err != nil {
+		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
+		ambiantCapabilitiesSupported = true // Assume true if we can't check
+	}
 	var unitType embedded.SystemdUnitType
 	var unitsPath string
 	switch ctx.PackageType {
@@ -647,7 +666,7 @@ func writeEmbeddedUnitsAndReload(ctx HookContext, units ...string) error {
 		unitsPath = ociUnitsPath
 	}
 	for _, unit := range units {
-		content, err := embedded.GetSystemdUnit(unit, unitType)
+		content, err := embedded.GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
 		if err != nil {
 			return err
 		}
@@ -676,4 +695,12 @@ func reverseStringSlice(slice []string) []string {
 	copy(reversed, slice)
 	slices.Reverse(reversed)
 	return reversed
+}
+
+func isAmbiantCapabilitiesSupported() (bool, error) {
+	content, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return false, fmt.Errorf("failed to read /proc/self/status: %v", err)
+	}
+	return strings.Contains(string(content), "CapAmb:"), nil
 }

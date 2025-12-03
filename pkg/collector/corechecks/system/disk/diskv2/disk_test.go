@@ -248,7 +248,7 @@ func TestGivenADiskCheckWithDefaultConfig_WhenCheckRunsAndUsageSystemCallReturns
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -298,7 +298,7 @@ file_system_global_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -319,7 +319,7 @@ device_global_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -340,7 +340,7 @@ mount_point_global_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -361,7 +361,7 @@ file_system_whitelist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -382,7 +382,7 @@ file_system_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -403,7 +403,7 @@ device_whitelist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -424,7 +424,7 @@ device_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -445,7 +445,7 @@ mount_point_whitelist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -466,7 +466,7 @@ mount_point_blacklist:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -487,7 +487,7 @@ excluded_mountpoint_re:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -508,7 +508,7 @@ excluded_filesystems:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -529,7 +529,7 @@ excluded_disks:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -550,7 +550,7 @@ excluded_disk_re:
 `))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.DebugLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.DebugLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "debug")
 
@@ -1088,7 +1088,7 @@ func TestGivenADiskCheckWithMinDiskSizeConfiguredTo1MiBConfig_WhenCheckRunsAndUs
 	config := integration.Data([]byte(`min_disk_size: 1`))
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "[%LEVEL] %Msg")
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(w, log.InfoLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(logger, "info")
 
@@ -1353,22 +1353,6 @@ func TestGivenADiskCheckWithDefaultConfig_WhenUsagePartitionTimeout_ThenUsageMet
 	m.AssertNotCalled(t, "Gauge", "system.disk.free", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.disk.utilized", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
 	m.AssertNotCalled(t, "Gauge", "system.disk.in_use", mock.AnythingOfType("float64"), mock.AnythingOfType("string"), mock.AnythingOfType("[]string"))
-}
-
-func TestDiskCheckWithoutCoreLoader(t *testing.T) {
-	flavor.SetTestFlavor(t, flavor.DefaultAgent)
-
-	cfg := configmock.New(t)
-	cfg.Set("disk_check.use_core_loader", false, configmodel.SourceAgentRuntime)
-
-	diskFactory := diskv2.Factory()
-	diskCheckFunc, ok := diskFactory.Get()
-	require.True(t, ok)
-	diskCheck := diskCheckFunc()
-
-	mock := mocksender.NewMockSender(diskCheck.ID())
-	err := diskCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-	require.ErrorIs(t, err, check.ErrSkipCheckInstance)
 }
 
 func TestDiskCheckNonDefaultFlavor(t *testing.T) {

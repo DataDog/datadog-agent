@@ -89,6 +89,7 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameContainerd), string(provider.RuntimeFlavorKata)): collectors,
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):                                       collectors,
 			provider.NewRuntimeMetadata(string(provider.RuntimeNameDocker), ""):                                     collectors,
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRINonstandard), ""):                             collectors,
 		},
 	}, nil
 }

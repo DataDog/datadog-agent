@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -36,7 +37,6 @@ const (
 	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
-	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
@@ -66,11 +66,16 @@ type KubeUtil struct {
 
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
-	podListCacheDuration time.Duration
+	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
 
 	useAPIServer bool
+
+	// The node name is immutable in Kubernetes, so once it is fetched it should
+	// be cached
+	nodeName      string
+	nodeNameMutex sync.Mutex
 }
 
 func (ku *KubeUtil) init() error {
@@ -82,7 +87,7 @@ func (ku *KubeUtil) init() error {
 
 	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
 	if ku.kubeletClient.config.scheme == "https" {
-		ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", ku.kubeletClient.config.tlsVerify)
+		ku.rawConnectionInfo["verify_tls"] = strconv.FormatBool(ku.kubeletClient.config.tlsVerify)
 		if ku.kubeletClient.config.caPath != "" {
 			ku.rawConnectionInfo["ca_cert"] = ku.kubeletClient.config.caPath
 		}
@@ -170,49 +175,69 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
 	if logOptions.SinceTime != nil {
-		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+		query += "&sinceTime=" + logOptions.SinceTime.Format(time.RFC3339)
 	}
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
 	return ku.kubeletClient.queryWithResp(ctx, path)
 }
 
-// GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
+// GetNodename returns the nodename
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
+	ku.nodeNameMutex.Lock()
+	defer ku.nodeNameMutex.Unlock()
+
+	if ku.nodeName != "" {
+		return ku.nodeName, nil
+	}
+
+	var nodeName string
+
 	if ku.useAPIServer {
 		if ku.kubeletClient.config.nodeName != "" {
-			return ku.kubeletClient.config.nodeName, nil
+			nodeName = ku.kubeletClient.config.nodeName
+		} else {
+			stats, err := ku.GetLocalStatsSummary(ctx)
+			if err == nil && stats.Node.NodeName != "" {
+				nodeName = stats.Node.NodeName
+			} else {
+				return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
+			}
 		}
-		stats, err := ku.GetLocalStatsSummary(ctx)
-		if err == nil && stats.Node.NodeName != "" {
-			return stats.Node.NodeName, nil
+	} else {
+		pods, err := ku.GetLocalPodList(ctx)
+		if err != nil {
+			return "", fmt.Errorf("error getting pod list from kubelet: %w", err)
 		}
-		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
-	}
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
+
+		for _, pod := range pods {
+			if pod.Spec.NodeName != "" {
+				nodeName = pod.Spec.NodeName
+				break
+			}
+		}
+		if nodeName == "" {
+			return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+		}
 	}
 
-	for _, pod := range pods {
-		if pod.Spec.NodeName == "" {
-			continue
-		}
-		return pod.Spec.NodeName, nil
-	}
+	// Cache the node name, it's immutable
+	ku.nodeName = nodeName
 
-	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+	return nodeName, nil
 }
 
 func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	var ok bool
 	pods := PodList{}
 
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
-		if !ok {
-			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-		} else {
-			return &pods, nil
+	if ku.podListCacheDuration > 0 {
+		if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+			pods, ok = cached.(PodList)
+			if !ok {
+				log.Errorf("Invalid pod list cache format, forcing a cache miss")
+			} else {
+				return &pods, nil
+			}
 		}
 	}
 
@@ -256,8 +281,9 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 	pods.Items = tmpSlice
 
-	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	if ku.podListCacheDuration > 0 {
+		cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	}
 
 	return &pods, nil
 }
@@ -415,16 +441,6 @@ func IsPodReady(pod *Pod) bool {
 
 	if pod.Status.Phase != "Running" {
 		return false
-	}
-
-	// In the previous implementation that used the pod watcher, the
-	// tolerate-unready annotation logic was handled here. The new
-	// implementation moves this logic into the autodiscovery parts that need
-	// it.
-	if pkgconfigsetup.Datadog().GetBool("kubelet_use_pod_watcher") {
-		if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-			return true
-		}
 	}
 
 	for _, status := range pod.Status.Conditions {
