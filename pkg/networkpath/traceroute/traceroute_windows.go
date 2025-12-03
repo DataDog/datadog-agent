@@ -43,5 +43,5 @@ func New(cfg config.Config, _ telemetry.Component) (*WindowsTraceroute, error) {
 
 // Run executes a traceroute
 func (w *WindowsTraceroute) Run(ctx context.Context) (payload.NetworkPath, error) {
-	return getTraceroute(ctx, l.sysprobeClient, clientID, l.cfg)
+	return getTraceroute(ctx, w.sysprobeClient, clientID, w.cfg)
 }
