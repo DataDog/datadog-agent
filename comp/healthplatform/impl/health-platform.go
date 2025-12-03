@@ -136,7 +136,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Register this component as the health checker
 	// This will flush any health checks that were registered before the component was created
-	health.SetChecker(comp)
+	health.SetCollector(comp)
 
 	// Return the component wrapped in Provides
 	provides := Provides{Comp: comp}
