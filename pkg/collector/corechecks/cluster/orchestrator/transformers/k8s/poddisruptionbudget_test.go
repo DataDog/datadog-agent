@@ -8,7 +8,6 @@
 package k8s
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -261,8 +260,8 @@ func TestExtractPodDisruptionBudget(t *testing.T) {
 					CreationTimestamp: 0,
 					DeletionTimestamp: 0,
 					Labels: []string{
-						fmt.Sprintf("%s:ultimate", kubernetes.VersionTagLabelKey),
-						fmt.Sprintf("%s:honorable", kubernetes.ServiceTagLabelKey),
+						kubernetes.VersionTagLabelKey + ":ultimate",
+						kubernetes.ServiceTagLabelKey + ":honorable",
 						"app:my-app",
 					},
 					Annotations: []string{"annotation:my-annotation"},

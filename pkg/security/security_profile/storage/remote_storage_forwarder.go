@@ -11,7 +11,7 @@ package storage
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -50,7 +50,7 @@ func (storage *ActivityDumpRemoteStorageForwarder) Persist(request config.Storag
 	// marshal event metadata
 	headerData, err := json.Marshal(p.Header)
 	if err != nil {
-		return fmt.Errorf("couldn't marshall event metadata")
+		return errors.New("couldn't marshall event metadata")
 	}
 
 	if storage.activityDumpHandler == nil {

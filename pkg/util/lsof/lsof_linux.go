@@ -139,7 +139,7 @@ func (ofl *openFilesLister) mmapMetadata() (Files, error) {
 }
 
 func permToString(perms *procfs.ProcMapPermissions) string {
-	s := ""
+	var builder strings.Builder
 
 	for _, perm := range []struct {
 		set       bool
@@ -153,13 +153,13 @@ func permToString(perms *procfs.ProcMapPermissions) string {
 		{perms.Shared, "s", ""},
 	} {
 		if perm.set {
-			s += perm.charSet
+			builder.WriteString(perm.charSet)
 		} else {
-			s += perm.charUnset
+			builder.WriteString(perm.charUnset)
 		}
 	}
 
-	return s
+	return builder.String()
 }
 
 func mmapFD(path string, fileType, cwd string) string {

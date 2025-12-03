@@ -18,10 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 // LinuxFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -42,10 +43,11 @@ func TestLinuxVMFileTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithAgentOptions(
-					agentparams.WithLogs(),
-					agentparams.WithIntegration("custom_logs.d", logConfig),
-				))),
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(
+						agentparams.WithLogs(),
+						agentparams.WithIntegration("custom_logs.d", logConfig),
+					)))),
 	}
 	t.Parallel()
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)
@@ -70,7 +72,7 @@ func (s *LinuxFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	}, 2*time.Minute, 10*time.Second)
 
 	// Create a new log folder location
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo mkdir -p %s", utils.LinuxLogsFolderPath))
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p " + utils.LinuxLogsFolderPath)
 }
 
 func (s *LinuxFakeintakeSuite) TearDownSuite() {
@@ -106,7 +108,7 @@ func (s *LinuxFakeintakeSuite) TestLinuxLogTailing() {
 func (s *LinuxFakeintakeSuite) testLogCollection() {
 	t := s.T()
 	// Create a new log file with permissions accessible to the agent
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo touch %s", logFilePath))
+	s.Env().RemoteHost.MustExecute("sudo touch " + logFilePath)
 
 	// Adjust permissions of new log file before log generation
 	output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo chmod +r %s && echo true", logFilePath))
@@ -122,8 +124,8 @@ func (s *LinuxFakeintakeSuite) testLogCollection() {
 
 	// Given expected tags
 	expectedTags := []string{
-		fmt.Sprintf("filename:%s", logFileName),
-		fmt.Sprintf("dirname:%s", utils.LinuxLogsFolderPath),
+		"filename:" + logFileName,
+		"dirname:" + utils.LinuxLogsFolderPath,
 	}
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)

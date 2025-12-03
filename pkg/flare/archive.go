@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -221,7 +222,7 @@ func getSystemProbeConfig() ([]byte, error) {
 func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
-		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
+		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
 
 	procStatusURL := fmt.Sprintf("https://%s/config/all", addressPort)
@@ -242,7 +243,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 	checkURL := fmt.Sprintf("https://%s/check/", addressPort)
 
 	getCheck := func(checkName, setting string) {
-		filename := fmt.Sprintf("%s_check_output.json", checkName)
+		filename := checkName + "_check_output.json"
 
 		if !pkgconfigsetup.Datadog().GetBool(setting) {
 			fb.AddFile(filename, []byte(fmt.Sprintf("'%s' is disabled", setting))) //nolint:errcheck
@@ -279,7 +280,7 @@ func (r *RemoteFlareProvider) getAgentTaggerList() ([]byte, error) {
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
 	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
-		return nil, fmt.Errorf("wrong configuration to connect to process-agent")
+		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
 
 	taggerListURL := fmt.Sprintf("https://%s/agent/tagger-list", addressPort)
