@@ -13,19 +13,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 type ipcSecurityLinuxSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestIPCSecuirityLinuxSuite(t *testing.T) {
+func TestIPCSecurityLinuxSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &ipcSecurityLinuxSuite{}, e2e.WithProvisioner(awshost.Provisioner()))
 }
@@ -49,14 +50,16 @@ func (v *ipcSecurityLinuxSuite) TestServersideIPCCertUsage() {
 
 	// start the agent with that configuration
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(coreconfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		),
-		awshost.WithAgentClientOptions(
-			agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
-			agentclientparams.WithProcessAgentOnPort(processCmdPort),
-			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(coreconfig),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			),
+			ec2.WithAgentClientOptions(
+				agentclientparams.WithTraceAgentOnPort(apmReceiverPort),
+				agentclientparams.WithProcessAgentOnPort(processCmdPort),
+				agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+			),
 		),
 	))
 

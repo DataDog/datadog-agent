@@ -3,7 +3,7 @@
 
 #include "map-defs.h"
 
-BPF_HASH_MAP(ssl_sock_by_ctx, void *, ssl_sock_t, 1)
+BPF_HASH_MAP(ssl_sock_by_ctx, ssl_ctx_pid_tgid_t, ssl_sock_t, 1)
 
 BPF_HASH_MAP(ssl_ctx_by_tuple, conn_tuple_t, void *, 1)
 

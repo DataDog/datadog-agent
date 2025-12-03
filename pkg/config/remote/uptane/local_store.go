@@ -38,8 +38,8 @@ type localStore struct {
 func newLocalStore(ts *transactionalStore, repository string, initialRoots meta.EmbeddedRoot) (*localStore, error) {
 	s := &localStore{
 		store:       ts,
-		metasBucket: fmt.Sprintf("%s_metas", repository),
-		rootsBucket: fmt.Sprintf("%s_roots", repository),
+		metasBucket: repository + "_metas",
+		rootsBucket: repository + "_roots",
 	}
 	err := s.init(initialRoots)
 	return s, err

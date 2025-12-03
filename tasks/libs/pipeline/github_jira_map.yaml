@@ -22,6 +22,7 @@
 '@datadog/kubernetes-experiences': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
+'@datadog/serverless-azure-gcp': SVLS
 '@datadog/remote-config': RC
 '@datadog/fleet': FA
 '@datadog/agent-all': DEFAULT_JIRA_PROJECT
@@ -49,3 +50,4 @@
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
+'@datadog/agent-health': AHEALTH

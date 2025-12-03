@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -65,7 +66,7 @@ type KubeUtil struct {
 
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
-	podListCacheDuration time.Duration
+	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
 
@@ -86,7 +87,7 @@ func (ku *KubeUtil) init() error {
 
 	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
 	if ku.kubeletClient.config.scheme == "https" {
-		ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", ku.kubeletClient.config.tlsVerify)
+		ku.rawConnectionInfo["verify_tls"] = strconv.FormatBool(ku.kubeletClient.config.tlsVerify)
 		if ku.kubeletClient.config.caPath != "" {
 			ku.rawConnectionInfo["ca_cert"] = ku.kubeletClient.config.caPath
 		}
@@ -174,7 +175,7 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
 	if logOptions.SinceTime != nil {
-		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+		query += "&sinceTime=" + logOptions.SinceTime.Format(time.RFC3339)
 	}
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
 	return ku.kubeletClient.queryWithResp(ctx, path)
@@ -229,12 +230,14 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	var ok bool
 	pods := PodList{}
 
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
-		if !ok {
-			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-		} else {
-			return &pods, nil
+	if ku.podListCacheDuration > 0 {
+		if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+			pods, ok = cached.(PodList)
+			if !ok {
+				log.Errorf("Invalid pod list cache format, forcing a cache miss")
+			} else {
+				return &pods, nil
+			}
 		}
 	}
 
@@ -278,8 +281,9 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 	pods.Items = tmpSlice
 
-	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	if ku.podListCacheDuration > 0 {
+		cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	}
 
 	return &pods, nil
 }

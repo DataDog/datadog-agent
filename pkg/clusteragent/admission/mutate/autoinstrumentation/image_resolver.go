@@ -54,7 +54,7 @@ type remoteConfigImageResolver struct {
 
 	mu                  sync.RWMutex
 	imageMappings       map[string]map[string]ImageInfo // repository name -> tag -> resolved image
-	datadoghqRegistries map[string]any
+	datadoghqRegistries map[string]struct{}
 
 	// Retry configuration for initial cache loading
 	maxRetries int
@@ -148,7 +148,7 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	return resolvedImage, true
 }
 
-func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]any) bool {
+func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]struct{}) bool {
 	_, exists := datadoghqRegistries[registry]
 	return exists
 }
@@ -277,4 +277,12 @@ func NewImageResolver(cfg imageresolver.Config) ImageResolver {
 	}
 
 	return newRcImageResolver(cfg)
+}
+
+func newDatadoghqRegistries(datadogRegistriesList []string) map[string]struct{} {
+	datadoghqRegistries := make(map[string]struct{})
+	for _, registry := range datadogRegistriesList {
+		datadoghqRegistries[registry] = struct{}{}
+	}
+	return datadoghqRegistries
 }
