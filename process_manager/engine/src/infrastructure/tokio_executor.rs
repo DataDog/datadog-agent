@@ -603,6 +603,18 @@ impl ProcessExecutor for TokioProcessExecutor {
                         // Ignore error if already session leader, it's not critical
                     }
 
+                    // 0.5. Set parent death signal - when dd-procmgrd dies, this child gets SIGKILL
+                    // This prevents orphaned child processes when the process manager is killed
+                    // PR_SET_PDEATHSIG tells the kernel to send the specified signal to this
+                    // process when its parent dies, ensuring clean shutdown even with SIGKILL
+                    #[cfg(target_os = "linux")]
+                    {
+                        const PR_SET_PDEATHSIG: libc::c_int = 1;
+                        if libc::prctl(PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                    }
+
                     // 1. Duplicate socket FDs to FD 3, 4, 5, etc. (systemd socket activation)
                     // This MUST happen before setuid/setgid to ensure proper FD inheritance
                     if has_socket_fds {
@@ -842,7 +854,7 @@ impl ProcessExecutor for TokioProcessExecutor {
                 KillMode::ControlGroup => {
                     // Try to kill via cgroup, fallback to process group
                     let cgroup_path = format!("/sys/fs/cgroup/pm-{}/cgroup.procs", pid);
-                    
+
                     if let Ok(contents) = std::fs::read_to_string(&cgroup_path) {
                         // Read all PIDs from cgroup and send signal to each
                         let mut kill_count = 0;
@@ -873,10 +885,7 @@ impl ProcessExecutor for TokioProcessExecutor {
                         Ok(())
                     } else {
                         // Cgroup not found, fallback to process group
-                        debug!(
-                            pid = pid,
-                            "Cgroup not found, falling back to ProcessGroup"
-                        );
+                        debug!(pid = pid, "Cgroup not found, falling back to ProcessGroup");
                         let result = unsafe { libc::kill(-(pid as i32), signal) };
                         if result != 0 {
                             let err = std::io::Error::last_os_error();
