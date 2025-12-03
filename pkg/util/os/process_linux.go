@@ -3,24 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux || freebsd || openbsd || darwin
-
 // Package os provides additional OS utilities
 package os
 
 import (
-	"errors"
-	"syscall"
+	"os"
+	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // PidExists returns true if the pid is still alive
 func PidExists(pid int) bool {
-	// the kill syscall will check for the existence of a process
-	// if the signal is 0. See
-	// https://man7.org/linux/man-pages/man2/kill.2.html
-	if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+	_, err := os.Stat(kernel.HostProc(strconv.Itoa(pid)))
+	if os.IsNotExist(err) {
 		return false
 	}
-
-	return true
+	return err == nil
 }
