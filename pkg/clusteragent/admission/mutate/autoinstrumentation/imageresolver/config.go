@@ -25,7 +25,7 @@ type RemoteConfigClient interface {
 // Config contains information needed to create an ImageResolver
 type Config struct {
 	Site           string
-	DDRegistries   map[string]any
+	DDRegistries   []string
 	RCClient       RemoteConfigClient
 	MaxInitRetries int
 	InitRetryDelay time.Duration
