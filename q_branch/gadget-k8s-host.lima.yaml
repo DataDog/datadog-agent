@@ -57,7 +57,11 @@ provision:
       # Helm
       curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-      # Datadog helm repo (as root, available to all users)
+  # Datadog helm repo for lima user
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux
       helm repo add datadog https://helm.datadoghq.com
       helm repo update
 
