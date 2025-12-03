@@ -43,6 +43,9 @@ jobs:
         scope: DataDog/datadog-agent
         policy: self.assign-issue.label-issue
 
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
     - name: Get issue details
       id: get-issue
       uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
@@ -64,17 +67,18 @@ jobs:
             issue = context.payload.issue;
           }
 
-          // Set outputs for use in later steps
-          core.setOutput('title', issue.title);
-          core.setOutput('number', issue.number);
-          core.setOutput('author', issue.user.login);
-          core.setOutput('url', issue.html_url);
-          core.setOutput('body', issue.body || '');
+          // Save issue details into a local JSON file for later steps
+          const fs = require('fs');
+          const path = './issue_details.json';
+          const issueDetails = {
+            title: issue.title,
+            number: issue.number,
+            author: issue.user.login,
+            url: issue.html_url,
+            body: issue.body || ''
+          };
+          fs.writeFileSync(path, JSON.stringify(issueDetails, null, 2));
 
-          return issue;
-
-    - name: Checkout repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
     - name: Intelligent Issue Triage
       id: claude
@@ -91,14 +95,7 @@ jobs:
           You are an expert triage system for the Datadog Agent repository. Your job is to analyze this GitHub issue and determine which team should handle it. You have full access to the Datadog Agent codebase and can use all available tools to analyze issues.
 
           ## Current Issue
-          **Title:** ${{ steps.get-issue.outputs.title }}
-          **Number:** #${{ steps.get-issue.outputs.number }}
-          **Author:** @${{ steps.get-issue.outputs.author }}
-          **URL:** ${{ steps.get-issue.outputs.url }}
-          **Body:**
-          ```
-          ${{ steps.get-issue.outputs.body }}
-          ```
+          Read the issue details from the local JSON file issue_details.json. This file contains the title, number, author, url, and body of the issue.
 
           ## Analysis Protocol
           1. **Extract Technical Keywords**: Parse issue for component names, error messages, config keys, file paths
