@@ -10,6 +10,7 @@ package containers
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -17,9 +18,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -30,6 +33,7 @@ var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
+	dockerInspectTimeout       = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
@@ -66,13 +70,54 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
-	// We can't use container.EnvVars as it doesn't contain the environment variables
-	// added by the container runtime. We need to get them from the main PID environment.
+	// We can't use container.EnvVars as it doesn't contain the environment
+	// variables added by the container runtime, we only get those defined by
+	// the container image, and those can be overridden by the container
+	// runtime. We need to get them from the main PID environment.
 	envVar, err := kernel.GetProcessEnvVariable(container.PID, kernel.ProcFSRoot(), nvidiaVisibleDevicesEnvVar)
-	if err != nil {
-		return "", fmt.Errorf("error getting %s for container %s: %w", nvidiaVisibleDevicesEnvVar, container.ID, err)
+	if err == nil {
+		return strings.TrimSpace(envVar), nil
 	}
-	return strings.TrimSpace(envVar), nil
+
+	// If we have an error, fall back to the container runtime data
+	dockerUtil, err := docker.GetDockerUtil()
+	if err != nil {
+		return "", fmt.Errorf("error getting docker util: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), dockerInspectTimeout)
+	defer cancel()
+
+	containerInspect, err := dockerUtil.Inspect(ctx, container.ID, false)
+	if err != nil {
+		return "", fmt.Errorf("error inspecting container %s: %w", container.ID, err)
+	}
+
+	if containerInspect.HostConfig == nil {
+		return "", fmt.Errorf("container %s has no host config", container.ID)
+	}
+
+	for _, device := range containerInspect.HostConfig.Resources.DeviceRequests {
+		for _, capabilityGroup := range device.Capabilities {
+			if slices.Contains(capabilityGroup, "gpu") {
+				numGpus := device.Count
+				if numGpus == -1 {
+					return "all", nil
+				}
+
+				// return 0,1,...numGpus-1 as the assumed visible devices variable,
+				// that's how Docker assigns devices to containers, there's no exclusive
+				// allocation.
+				visibleDevices := make([]string, numGpus)
+				for i := 0; i < numGpus; i++ {
+					visibleDevices[i] = strconv.Itoa(i)
+				}
+				return strings.Join(visibleDevices, ","), nil
+			}
+		}
+	}
+
+	return "", nil
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
