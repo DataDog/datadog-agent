@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.13.7"
+default_version "3.13.10"
 
 unless windows?
   dependency "libffi"
@@ -13,7 +13,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2"
+       :sha256 => "de5930852e95ba8c17b56548e04648470356ac47f7506014664f8f510d7bd61b"
 
 relative_path "Python-#{version}"
 
@@ -77,7 +77,7 @@ build do
 
     # This is not necessarily the version we built, but the version
     # the Python build system expects.
-    openssl_version = "3.0.16.2"
+    openssl_version = "3.0.18"
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
