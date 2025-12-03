@@ -47,13 +47,6 @@ var (
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
-			Type:                   "file",
-			Path:                   "/var/log/databricks/stderr",
-			Source:                 "driver_stderr",
-			Service:                "databricks",
-			AutoMultiLineDetection: config.BoolToPtr(true),
-		},
-		{
 			Type:    "file",
 			Path:    "/databricks/driver/logs/stdout",
 			Source:  "driver_stdout",
@@ -61,6 +54,22 @@ var (
 			LogProcessingRules: []config.LogProcessingRule{
 				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+	}
+	driverLogsStandardAccessMode = []config.IntegrationConfigLogs{
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks/*.log",
+			Source:                 "driver_logs",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks/stderr",
+			Source:                 "driver_stderr",
+			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
@@ -281,12 +290,10 @@ func setupPrivilegedLogs(s *common.Setup) {
 		log.Warnf("Failed to create /var/log/databricks directory: %v", err)
 		return
 	}
-
 	if err := os.MkdirAll("/databricks/driver/logs", 0755); err != nil {
 		log.Warnf("Failed to create /databricks/driver/logs directory: %v", err)
 		return
 	}
-
 	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks")
 	if err != nil {
 		log.Warnf("Failed to mount driver logs: %v", err)
@@ -300,11 +307,14 @@ func setupDatabricksDriver(s *common.Setup) {
 	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
-		sparkIntegration.Logs = driverLogs
-		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 
 		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
 			setupPrivilegedLogs(s)
+			sparkIntegration.Logs = driverLogsStandardAccessMode
+			s.Span.SetTag("host_tag_set.driver_logs_enabled_standard_am", "true")
+		} else {
+			sparkIntegration.Logs = driverLogs
+			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
