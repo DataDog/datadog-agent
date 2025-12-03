@@ -76,7 +76,7 @@ func parseFeatureGatesFromMetrics(metricsData []byte) (map[string]FeatureGate, e
 }
 
 // ClusterFeatureGates queries the /metrics endpoint and returns feature gates
-func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface, timeout time.Duration) (map[string]FeatureGate, error) {
+func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface, _ time.Duration) (map[string]FeatureGate, error) {
 	if featureGates, found := cache.Cache.Get(featureGatesCacheKey); found {
 		return featureGates.(map[string]FeatureGate), nil
 	}
@@ -85,9 +85,7 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 	err := retrier.SetupRetrier(&retry.Config{
 		Name: "featureGates",
 		AttemptMethod: func() error {
-			timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-			metricsData, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(timeoutCtx)
+			metricsData, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to query /metrics endpoint: %v", err)
 			}

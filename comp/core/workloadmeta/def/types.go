@@ -2221,8 +2221,8 @@ func (kc KubeCapabilities) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Version:", kc.Version)
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Feature Gates:")
-		for name, featureGate := range kc.FeatureGates {
-			_, _ = fmt.Fprintln(&sb, "  ", name, " - ", featureGate)
+		for _, featureGate := range kc.FeatureGates {
+			_, _ = fmt.Fprintln(&sb, "\t", featureGate.Name, ":", featureGate.Enabled)
 		}
 	}
 
