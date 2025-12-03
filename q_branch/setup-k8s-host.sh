@@ -8,6 +8,21 @@ VM_NAME="gadget-k8s-host"
 CLUSTER_NAME="gadget-dev"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KUBECONFIG_FILE="$HOME/.kube/gadget-k8s-host.yaml"
+DEFAULT_KUBECONFIG="$HOME/.kube/config"
+
+# Merge extracted kubeconfig into default config so kubectx/kubectl can find it
+merge_kubeconfig() {
+    if [[ -f "$DEFAULT_KUBECONFIG" ]]; then
+        # Merge with existing config
+        KUBECONFIG="$DEFAULT_KUBECONFIG:$KUBECONFIG_FILE" kubectl config view --flatten > "$DEFAULT_KUBECONFIG.tmp"
+        mv "$DEFAULT_KUBECONFIG.tmp" "$DEFAULT_KUBECONFIG"
+    else
+        # No existing config, just copy
+        cp "$KUBECONFIG_FILE" "$DEFAULT_KUBECONFIG"
+    fi
+    chmod 600 "$DEFAULT_KUBECONFIG"
+    rm -f "$KUBECONFIG_FILE"
+}
 
 echo "==> Setting up $VM_NAME..."
 
@@ -26,11 +41,12 @@ if limactl list --format '{{.Name}}' 2>/dev/null | grep -q "^${VM_NAME}$"; then
                 echo "==> Deleting existing cluster..."
                 limactl shell "$VM_NAME" -- sudo kind delete cluster --name "$CLUSTER_NAME"
             else
-                echo "Keeping existing cluster. Copying kubeconfig..."
+                echo "Keeping existing cluster. Updating kubeconfig..."
                 mkdir -p "$(dirname "$KUBECONFIG_FILE")"
                 limactl shell "$VM_NAME" -- sudo kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
                 chmod 600 "$KUBECONFIG_FILE"
-                echo "Done. Use: export KUBECONFIG=$KUBECONFIG_FILE"
+                merge_kubeconfig
+                echo "Done. Context 'kind-$CLUSTER_NAME' is available in kubectl/kubectx."
                 exit 0
             fi
         fi
@@ -74,23 +90,24 @@ nodes:
   - role: worker
 EOF
 
-# Copy kubeconfig to host
-echo "==> Copying kubeconfig to host..."
+# Copy kubeconfig to host and merge into default config
+echo "==> Merging kubeconfig into ~/.kube/config..."
 mkdir -p "$(dirname "$KUBECONFIG_FILE")"
 limactl shell "$VM_NAME" -- sudo kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
 chmod 600 "$KUBECONFIG_FILE"
+merge_kubeconfig
 
 # Verify
 echo ""
 echo "==> Verifying..."
-KUBECONFIG="$KUBECONFIG_FILE" kubectl get nodes
+kubectl --context "kind-$CLUSTER_NAME" get nodes
 
 echo ""
 echo "======================================================="
-echo "✅ Ready!"
+echo "Ready!"
 echo ""
-echo "  export KUBECONFIG=$KUBECONFIG_FILE"
-echo "  kubectl get nodes"
+echo "  kubectl --context kind-$CLUSTER_NAME get nodes"
+echo "  kubectx kind-$CLUSTER_NAME"
 echo ""
 echo "SSH: limactl shell $VM_NAME"
 echo "======================================================="

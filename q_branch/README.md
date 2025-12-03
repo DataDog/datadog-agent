@@ -11,12 +11,12 @@ Lima VM with a Kind cluster for local Kubernetes development.
 This creates:
 - Lima VM: `gadget-k8s-host`
 - Kind cluster: `gadget-dev` (1 control-plane + 2 workers)
-- Kubeconfig: `~/.kube/gadget-k8s-host.yaml`
+- Kubeconfig merged into `~/.kube/config`
 
 ## Usage
 
 ```bash
-export KUBECONFIG=~/.kube/gadget-k8s-host.yaml
+kubectx kind-gadget-dev
 kubectl get nodes
 ```
 
@@ -24,4 +24,16 @@ kubectl get nodes
 
 ```bash
 limactl shell gadget-k8s-host
+```
+
+## Teardown
+
+```bash
+# Delete VM
+limactl delete gadget-k8s-host --force
+
+# Remove kubeconfig entries (context, cluster, and user)
+kubectl config delete-context kind-gadget-dev
+kubectl config delete-cluster kind-gadget-dev
+kubectl config delete-user kind-gadget-dev
 ```
