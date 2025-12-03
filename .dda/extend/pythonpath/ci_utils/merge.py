@@ -8,15 +8,15 @@ Utilities for merging GitLab CI configuration files.
 from __future__ import annotations
 
 import copy
-import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ci_utils.pipelines import Pipeline
-from ci_utils.yaml import load_yaml
 
 if TYPE_CHECKING:
     from dda.cli.application import Application
+
+    from ci_utils.git import FileReader
 
 
 def merge_pipeline_configs(
@@ -25,6 +25,7 @@ def merge_pipeline_configs(
     should_resolve_includes: bool,
     should_resolve_extends: bool,
     app: Application,
+    file_reader: FileReader | None = None,
 ) -> dict[str, Any]:
     """
     Merge GitLab CI configs from multiple pipelines.
@@ -36,32 +37,48 @@ def merge_pipeline_configs(
     - extends: optionally resolved (templates merged into jobs)
     - jobs: merged (later pipelines override)
     - other keys: merged (later pipelines override)
+
+    Args:
+        pipelines: List of pipelines to merge.
+        project_root: Root path of the project.
+        should_resolve_includes: Whether to resolve include directives.
+        should_resolve_extends: Whether to resolve extends directives.
+        app: Application for logging.
+        file_reader: Optional FileReader to read files (LocalFileReader or GitFileReader).
     """
     merged: dict[str, Any] = {}
     all_stages: list[str] = []
     all_variables: dict[str, Any] = {}
+
+    # Use provided file_reader or create a local one
+    if file_reader is None:
+        from ci_utils.git import LocalFileReader
+
+        file_reader = LocalFileReader(project_root)
 
     for pipeline in pipelines:
         if not pipeline.entrypoint:
             app.display_warning(f"Pipeline '{pipeline.name}' has no entrypoint, skipping")
             continue
 
-        entrypoint_path = project_root / Path(pipeline.entrypoint)
-        if not entrypoint_path.exists():
+        # Load content from file reader
+        if not file_reader.file_exists(pipeline.entrypoint):
             app.display_warning(
-                f"Entrypoint '{pipeline.entrypoint}' for pipeline '{pipeline.name}' not found, skipping"
+                f"Entrypoint '{pipeline.entrypoint}' for pipeline '{pipeline.name}' not found ({file_reader.source_description}), skipping"
             )
             continue
 
-        app.display_info(f"Loading config for '{pipeline.name}': {pipeline.entrypoint}")
-        content = load_yaml(entrypoint_path)
+        app.display_info(
+            f"Loading config for '{pipeline.name}': {pipeline.entrypoint} ({file_reader.source_description})"
+        )
+        content = file_reader.load_yaml(pipeline.entrypoint)
 
         if not content:
             app.display_warning(f"Config for '{pipeline.name}' is empty, skipping")
             continue
 
         if should_resolve_includes:
-            content = resolve_includes(content, entrypoint_path.parent, project_root)
+            content = resolve_includes(content, Path(pipeline.entrypoint).parent, project_root, file_reader=file_reader)
 
         # Handle stages specially - collect and deduplicate
         if "stages" in content:
@@ -150,7 +167,11 @@ def extends_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, A
     return result
 
 
-def _resolve_include_path(include: str | dict, project_root: Path) -> list[Path]:
+def _resolve_include_path(
+    include: str | dict,
+    project_root: Path,
+    file_reader: FileReader | None = None,
+) -> list[str]:
     """
     Resolve an include directive to a list of file paths.
 
@@ -162,38 +183,48 @@ def _resolve_include_path(include: str | dict, project_root: Path) -> list[Path]
     Args:
         include: Include directive (string or dict).
         project_root: Root path of the project.
+        file_reader: FileReader for reading files.
 
     Returns:
-        List of resolved file paths.
+        List of file paths (as strings, relative to project root).
 
     Raises:
         FileNotFoundError: If a local include file doesn't exist.
     """
     if isinstance(include, str):
-        pattern = include
+        pattern = include.lstrip("/")
     elif isinstance(include, dict) and "local" in include:
         pattern = include["local"].lstrip("/")
     else:
         # Skip remote includes, project includes, etc.
         return []
 
+    # Use provided file_reader or create a local one
+    if file_reader is None:
+        from ci_utils.git import LocalFileReader
+
+        file_reader = LocalFileReader(project_root)
+
     # Check if it's a glob pattern
     if "*" in pattern or "?" in pattern or "[" in pattern:
-        full_pattern = str(project_root / pattern)
-        matched_files = glob.glob(full_pattern, recursive=True)
-        return sorted(Path(f) for f in matched_files if Path(f).is_file())
+        # List all files and filter manually
+        all_files = file_reader.list_files()
+        import fnmatch
+
+        matched = [f for f in all_files if fnmatch.fnmatch(f, pattern)]
+        return sorted(matched)
     else:
-        path = project_root / pattern
-        if not path.exists():
-            raise FileNotFoundError(f"Include file not found: {pattern}")
-        return [path]
+        if not file_reader.file_exists(pattern):
+            raise FileNotFoundError(f"Include file not found ({file_reader.source_description}): {pattern}")
+        return [pattern]
 
 
 def resolve_includes(
     content: dict[str, Any],
     base_path: Path,
     project_root: Path,
-    already_included: set[Path] | None = None,
+    already_included: set[str] | None = None,
+    file_reader: FileReader | None = None,
 ) -> dict[str, Any]:
     """
     Recursively resolve all include directives in the YAML content.
@@ -206,12 +237,19 @@ def resolve_includes(
         base_path: Path of the current file being processed.
         project_root: Root path of the project.
         already_included: Set of file paths already included (for deduplication).
+        file_reader: FileReader for reading files (LocalFileReader or GitFileReader).
 
     Returns:
         Merged content with all includes resolved.
     """
     if already_included is None:
         already_included = set()
+
+    # Use provided file_reader or create a local one
+    if file_reader is None:
+        from ci_utils.git import LocalFileReader
+
+        file_reader = LocalFileReader(project_root)
 
     if "include" not in content:
         return content
@@ -223,19 +261,25 @@ def resolve_includes(
     merged: dict[str, Any] = {}
 
     for include in includes:
-        include_paths = _resolve_include_path(include, project_root)
+        include_paths = _resolve_include_path(include, project_root, file_reader)
 
         for include_path in include_paths:
             # Skip already-included files to avoid duplicates
-            resolved_path = include_path.resolve()
-            if resolved_path in already_included:
+            if include_path in already_included:
                 continue
-            already_included.add(resolved_path)
+            already_included.add(include_path)
 
-            included_content = load_yaml(include_path)
+            # Load the included file
+            included_content = file_reader.load_yaml(include_path)
 
             # Recursively resolve includes in the included file
-            included_content = resolve_includes(included_content, include_path.parent, project_root, already_included)
+            included_content = resolve_includes(
+                included_content,
+                Path(include_path).parent,
+                project_root,
+                already_included,
+                file_reader,
+            )
 
             # Merge the included content
             merged = deep_merge(merged, included_content)

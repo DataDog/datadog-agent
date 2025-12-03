@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 from __future__ import annotations
 
+from ci_utils.git import FileReader, GitFileReader, LocalFileReader, get_commit_info, resolve_ref
 from ci_utils.merge import deep_merge, merge_pipeline_configs, resolve_extends, resolve_includes
 from ci_utils.pipelines import (
     ChangesTrigger,
@@ -25,4 +26,9 @@ __all__ = [
     "get_pipelines_folder",
     "get_default_pipelines_path",
     "merge_pipeline_configs",
+    "FileReader",
+    "LocalFileReader",
+    "GitFileReader",
+    "get_commit_info",
+    "resolve_ref",
 ]

@@ -4,4 +4,3 @@ on:
   - changes:
     - all_except:
       - docs/**/*
-

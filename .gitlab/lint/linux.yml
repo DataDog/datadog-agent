@@ -1,7 +1,7 @@
 
 .linux_lint:
   stage: lint
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["go_deps", "go_tools_sdasdasdasdasddeps"]
   variables:
     FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
