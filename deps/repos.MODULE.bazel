@@ -161,9 +161,9 @@ http_archive(
 
 http_archive(
     name = "nghttp2",
-    build_file = "//deps:nghttp2.BUILD.bazel",
     files = {
-        "config.h": "//deps/nghttp2:config.h",
+        "BUILD.bazel": "//deps:nghttp2/nghttp2.BUILD.bazel",
+        "config.h": "//deps:nghttp2/config.h",
     },
     sha256 = "9ebdfbfbca164ef72bdf5fd2a94a4e6dfb54ec39d2ef249aeb750a91ae361dfb",
     strip_prefix = "nghttp2-1.58.0",
