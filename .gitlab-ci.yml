@@ -1025,6 +1025,10 @@ workflow:
   - <<: *if_scheduled_main
     when: on_success
 
+.on_scheduled_main_or_release_branch:
+  - if: $DDR_WORKFLOW_ID != null && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/)
+    when: always
+
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests
     when: never
