@@ -19,15 +19,15 @@ type Collector interface {
 	RegisterHealthCheck(checkID, checkName string, checkFunc HealthCheckFunc)
 }
 
-// StartupHealthCheck represents a periodic health check registered during startup
-type StartupHealthCheck struct {
+// startupHealthCheck represents a periodic health check registered during startup
+type startupHealthCheck struct {
 	CheckID   string          // Unique identifier for this check
 	CheckName string          // Human-readable name
 	CheckFunc HealthCheckFunc // Function to call to check for issues
 }
 
 var (
-	healthChecks []StartupHealthCheck
+	healthChecks []startupHealthCheck
 	collector    Collector
 	mutex        sync.RWMutex
 )
@@ -61,7 +61,7 @@ func RegisterHealthCheck(checkID, checkName string, checkFunc HealthCheckFunc) {
 	}
 
 	// Otherwise, store it for later registration when the component initializes
-	healthChecks = append(healthChecks, StartupHealthCheck{
+	healthChecks = append(healthChecks, startupHealthCheck{
 		CheckID:   checkID,
 		CheckName: checkName,
 		CheckFunc: checkFunc,
