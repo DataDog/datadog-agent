@@ -261,6 +261,7 @@ def run(
     use_prebuilt_binaries=False,
     max_retries=0,
     osdescriptors="",
+    module_name="test/new-e2e",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -272,7 +273,8 @@ def run(
             1,
         )
 
-    e2e_module = get_default_modules()["test/new-e2e"]
+    e2e_module = get_default_modules()[module_name]
+
     e2e_module.should_test_condition = "always"
     if targets:
         e2e_module.test_targets = targets
