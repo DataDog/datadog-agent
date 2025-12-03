@@ -521,9 +521,7 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
     help={
         'arch': "Target architecture: 'arm64' or 'amd64' (default: auto-detect from host)",
         'cache-dir': "Base directory for caches (default: ~/.omnibus-docker-cache)",
-        'compress': "Compress the package with XZ (slower but smaller). Default: False for local builds",
         'workers': "Number of parallel workers for compression and builds (default: 8)",
-        'container-name': "Docker container name (default: ddagentbuilder)",
         'build-image': "Docker build image to use (default: uses version from .gitlab-ci.yml)",
         'tag': "Tag for the built Docker image (default: datadog-agent:local)",
     }
@@ -532,9 +530,7 @@ def docker_build(
     ctx,
     arch=None,
     cache_dir=None,
-    compress=False,
     workers=8,
-    container_name="ddagentbuilder",
     build_image=None,
     tag="datadog-agent:local",
 ):
@@ -564,13 +560,9 @@ def docker_build(
 
         # Build for specific architecture
         dda inv omnibus.docker-build --arch=arm64
-
-        # Compressed build (like CI, slower)
-        dda inv omnibus.docker-build --compress
     """
     import glob
     import platform as plat
-    import shutil
 
     # Auto-detect architecture if not specified
     if arch is None:
@@ -660,10 +652,9 @@ def docker_build(
         "-e GIT_CONFIG_COUNT=1",
         "-e GIT_CONFIG_KEY_0=safe.directory",
         "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
+        # Skip XZ compression - faster for local dev, use omnibus.build for CI
+        "-e COMPRESS_PACKAGE=false",
     ]
-
-    if not compress:
-        env_args.append("-e COMPRESS_PACKAGE=false")
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
     volume_args = [
@@ -679,9 +670,6 @@ def docker_build(
     env_str = " ".join(env_args)
     vol_str = " ".join(volume_args)
 
-    # Remove existing container if present
-    ctx.run(f"docker rm -f {container_name} 2>/dev/null || true", warn=True, hide=True)
-
     # Create symlink for /opt/datadog-agent pointing to the single volume mount
     # This ensures git-cache and install-dir share the same VirtioFS I/O channel
     build_cmd = (
@@ -693,7 +681,7 @@ def docker_build(
         '"'
     )
     docker_cmd = (
-        f"docker run --name {container_name} "
+        f"docker run --rm "
         f"{env_str} {vol_str} "
         f"-w /go/src/github.com/DataDog/datadog-agent "
         f"{build_image} "
@@ -703,7 +691,6 @@ def docker_build(
     print(f"Building Datadog Agent for {arch}")
     print(f"Build image: {build_image}")
     print(f"Cache directory: {cache_dir}")
-    print(f"Compress package: {compress}")
     print(f"Workers: {workers}")
     print()
 
@@ -717,23 +704,17 @@ def docker_build(
 
     artifacts_dir = os.path.join(omnibus_dir, "pkg")
 
-    # Find the tarball - prefer .tar over .tar.xz (faster to extract)
+    # Find the uncompressed tarball (we always set COMPRESS_PACKAGE=false)
     tar_pattern = os.path.join(artifacts_dir, f"datadog-agent-*-{arch}.tar")
-    tar_xz_pattern = os.path.join(artifacts_dir, f"datadog-agent-*-{arch}.tar.xz")
-
     tar_files = sorted(glob.glob(tar_pattern), key=os.path.getmtime, reverse=True)
-    tar_xz_files = sorted(glob.glob(tar_xz_pattern), key=os.path.getmtime, reverse=True)
 
     # Exclude debug packages
     tar_files = [f for f in tar_files if '-dbg-' not in f]
-    tar_xz_files = [f for f in tar_xz_files if '-dbg-' not in f]
 
-    if tar_files:
-        tarball = tar_files[0]
-    elif tar_xz_files:
-        tarball = tar_xz_files[0]
-    else:
-        raise Exit(f"No tarball found in {artifacts_dir}. Build may have failed.")
+    if not tar_files:
+        raise Exit(f"No tarball found matching {tar_pattern}. Build may have failed.")
+
+    tarball = tar_files[0]
 
     artifact_name = os.path.basename(tarball)
     print(f"Using tarball: {tarball}")
@@ -762,12 +743,13 @@ def docker_build(
         f"Dockerfiles/agent"
     )
 
-    # Copy tarball to build context (Docker buildx doesn't follow symlinks)
+    # Create empty placeholder to satisfy Dockerfile line 140's COPY instruction.
+    # The actual extraction uses --mount from artifacts context (line 158), so
+    # line 140's COPY is dead code - we just need the file to exist.
     dockerfile_dir = os.path.join(os.getcwd(), "Dockerfiles", "agent")
     temp_tarball_path = os.path.join(dockerfile_dir, artifact_name)
     try:
-        print(f"Copying tarball to build context ({os.path.getsize(tarball) / 1024 / 1024:.1f} MB)...")
-        shutil.copy2(tarball, temp_tarball_path)
+        open(temp_tarball_path, 'w').close()  # Create 0-byte file
         ctx.run(docker_build_cmd)
     finally:
         if os.path.exists(temp_tarball_path):
