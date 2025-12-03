@@ -793,7 +793,7 @@ func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []
 	kubeCapabilities := ev.Entity.(*workloadmeta.KubeCapabilities)
 
 	tagList := taglist.NewTagList()
-	tagList.AddLow("kube_capabilities_version", kubeCapabilities.Version.String())
+	tagList.AddLow(tags.KubeServerVersion, kubeCapabilities.Version.String())
 
 	low, orch, high, standard := tagList.Compute()
 
