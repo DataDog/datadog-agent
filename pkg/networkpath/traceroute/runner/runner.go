@@ -122,14 +122,6 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		timeout = cfg.Timeout
 	}
 
-	// hostname.Get(context.TODO())
-	hname, err := r.hostnameService.Get(ctx)
-	if err != nil {
-		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return payload.NetworkPath{}, err
-	}
-	log.Warnf("[RunTraceroute] hostname: %s", hname)
-
 	params := traceroute.TracerouteParams{
 		Hostname:              cfg.DestHostname,
 		Port:                  int(cfg.DestPort),
