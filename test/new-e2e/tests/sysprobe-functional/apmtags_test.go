@@ -320,16 +320,16 @@ func (v *apmvmSuite) TestUSMAutoTaggingSuite() {
 			if test.targetPath != "" {
 				targetpath = test.targetPath
 			}
-			var envstring string
+			var envstringBuilder strings.Builder
 			for k, v := range test.clientEnvVars {
-				envstring += fmt.Sprintf("$Env:%s=\"%s\" ; ", k, v)
+				fmt.Fprintf(&envstringBuilder, "$Env:%s=\"%s\" ; ", k, v)
 			}
-			localcmd := fmt.Sprintf(pscommand, envstring, testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
+			localcmd := fmt.Sprintf(pscommand, envstringBuilder.String(), testScript, targetport, targetpath, strings.Join(test.expectedClientTags, ","), strings.Join(test.expectedServerTags, ","), testExe)
 
 			if len(test.clientEnvVars) > 0 {
-				var envarg string
+				var envargBuilder strings.Builder
 				for k, v := range test.clientEnvVars {
-					envarg += fmt.Sprintf("%s=%s", k, v)
+					fmt.Fprintf(&envargBuilder, "%s=%s", k, v)
 				}
 			}
 

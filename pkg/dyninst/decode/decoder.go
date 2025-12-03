@@ -278,7 +278,7 @@ func (s *message) init(
 		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
-		return nil, fmt.Errorf("entry event is nil")
+		return nil, errors.New("entry event is nil")
 	}
 	if err := decoder.entryOrLine.init(
 		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
@@ -308,7 +308,7 @@ func (s *message) init(
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
 		if returnProbeEvent.probe != probe {
-			return nil, fmt.Errorf("return probe event has different probe than entry probe")
+			return nil, errors.New("return probe event has different probe than entry probe")
 		}
 		returnHeader, err = event.Return.Header()
 		if err != nil {
@@ -342,7 +342,7 @@ func (s *message) init(
 				s.Debugger.EvaluationErrors,
 				evaluationError{
 					Expression: missingReturnReasonExpression,
-					Message:    fmt.Sprintf("no return value available: %s", reason),
+					Message:    "no return value available: " + reason,
 				},
 			)
 		}

@@ -11,6 +11,8 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -178,6 +180,7 @@ type RuleState struct {
 	ProductTags            []string          `json:"product_tags,omitempty"`
 	Actions                []RuleAction      `json:"actions,omitempty"`
 	ModifiedBy             []*PolicyMetadata `json:"modified_by,omitempty"`
+	Priority               int               `json:"priority,omitempty"`
 }
 
 // PolicyStatus defines the status of a policy
@@ -330,6 +333,7 @@ func RuleStateFromRule(rule *rules.PolicyRule, policy *rules.PolicyInfo, status 
 		ProductTags:            rule.Def.ProductTags,
 		AgentVersionConstraint: rule.Def.AgentVersionConstraint,
 		Filters:                rule.Def.Filters,
+		Priority:               rule.Def.Priority,
 	}
 
 	for _, action := range rule.Actions {
@@ -424,6 +428,7 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	}
 
 	// rules ignored due to errors
+	// they will be reported at the end of the policies list
 	if err != nil && err.Errors != nil {
 		for _, err := range err.Errors {
 			if rerr, ok := err.(*rules.ErrRuleLoad); ok {
@@ -470,6 +475,11 @@ func NewPoliciesState(rs *rules.RuleSet, filteredRules []*rules.PolicyRule, err 
 	for _, policy := range mp {
 		policies = append(policies, policy)
 	}
+
+	// sort by policy type & name
+	slices.SortStableFunc(policies, func(a, b *PolicyState) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	return policies
 }
