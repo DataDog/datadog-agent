@@ -1582,6 +1582,7 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.endpoints", []string{})
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.validate", false)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.sketches.validate", false)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent

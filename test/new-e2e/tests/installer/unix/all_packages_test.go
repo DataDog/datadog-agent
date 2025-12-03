@@ -18,10 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -109,8 +109,10 @@ func TestPackages(t *testing.T) {
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				opts := []awshost.ProvisionerOption{
-					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
-					awshost.WithoutAgent(),
+					awshost.WithRunOptions(
+						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+						ec2.WithoutAgent(),
+					),
 				}
 				opts = append(opts, suite.ProvisionerOptions()...)
 				e2e.Run(t, suite,

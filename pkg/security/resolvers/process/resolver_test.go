@@ -886,7 +886,8 @@ func TestCGroupContext(t *testing.T) {
 		)
 
 		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
-			CGroupID: cgroupID,
+			Releasable: &model.Releasable{},
+			CGroupID:   cgroupID,
 			CGroupFile: model.PathKey{
 				Inode: 4242,
 			},

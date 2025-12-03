@@ -19,11 +19,12 @@ import (
 	"github.com/cenkalti/backoff"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	scenwindows "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -424,13 +425,15 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 
 func run[Env any](t *testing.T, s e2e.Suite[Env], systemProbeConfig string, agentConfig string, securityAgentConfig string) {
 	opts := []e2e.SuiteOption{e2e.WithProvisioner(awsHostWindows.ProvisionerNoFakeIntake(
-		awsHostWindows.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfig),
-			agentparams.WithSystemProbeConfig(systemProbeConfig),
-			agentparams.WithSecurityAgentConfig(securityAgentConfig),
-		),
-		awsHostWindows.WithAgentClientOptions(
-			agentclientparams.WithSkipWaitForAgentReady(),
+		awsHostWindows.WithRunOptions(
+			scenwindows.WithAgentOptions(
+				agentparams.WithAgentConfig(agentConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+			),
+			scenwindows.WithAgentClientOptions(
+				agentclientparams.WithSkipWaitForAgentReady(),
+			),
 		),
 	))}
 	e2e.Run(t, s, opts...)
