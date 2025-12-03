@@ -14,8 +14,8 @@ import (
 // Returns empty issueID if no issue is detected
 type HealthCheckFunc func() (issueID string, context map[string]string)
 
-// Checker is the interface for registering health checks
-type Checker interface {
+// Collector is the interface for registering health checks
+type Collector interface {
 	RegisterHealthCheck(checkID, checkName string, checkFunc HealthCheckFunc)
 }
 
@@ -28,20 +28,20 @@ type StartupHealthCheck struct {
 
 var (
 	healthChecks []StartupHealthCheck
-	checker      Checker
+	collector    Collector
 	mutex        sync.RWMutex
 )
 
-// SetChecker sets the health checker component (called by health platform on initialization)
-// Any health checks registered before this call will be flushed to the checker
-func SetChecker(c Checker) {
+// SetCollector sets the health collector component (called by health platform on initialization)
+// Any health checks registered before this call will be flushed to the collector
+func SetCollector(c Collector) {
 	mutex.Lock()
 	defer mutex.Unlock()
-	checker = c
+	collector = c
 
 	// Flush any health checks that were collected before the component was available
 	for _, check := range healthChecks {
-		checker.RegisterHealthCheck(check.CheckID, check.CheckName, check.CheckFunc)
+		collector.RegisterHealthCheck(check.CheckID, check.CheckName, check.CheckFunc)
 	}
 
 	// Clear the temporary storage
@@ -55,8 +55,8 @@ func RegisterHealthCheck(checkID, checkName string, checkFunc HealthCheckFunc) {
 	defer mutex.Unlock()
 
 	// If the component is available, register directly
-	if checker != nil {
-		checker.RegisterHealthCheck(checkID, checkName, checkFunc)
+	if collector != nil {
+		collector.RegisterHealthCheck(checkID, checkName, checkFunc)
 		return
 	}
 
