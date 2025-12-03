@@ -12,7 +12,8 @@ from textwrap import dedent
 
 import pytest
 
-from ci_utils.merge import deep_merge, extends_merge, resolve_extends, resolve_includes
+from ci_utils.merge import deep_merge, extends_merge, resolve_extends, resolve_includes, resolve_references
+from ci_utils.yaml import GitLabReference
 
 
 class TestDeepMerge:
@@ -573,3 +574,215 @@ class TestResolveIncludes:
         }
         with pytest.raises(FileNotFoundError, match="nonexistent.yml"):
             resolve_includes(content, tmp_path, tmp_path)
+
+
+class TestResolveReferences:
+    """Tests for the resolve_references function (!reference tag resolution)."""
+
+    def test_no_references(self):
+        """Test that content without references is unchanged."""
+        content = {
+            ".template": {
+                "script": ["echo hello"],
+            },
+            "my-job": {
+                "script": ["echo world"],
+            },
+        }
+        result = resolve_references(content)
+        assert result == content
+
+    def test_simple_reference(self):
+        """Test resolving a simple !reference tag."""
+        content = {
+            ".template": {
+                "script": ["echo hello", "echo world"],
+            },
+            "my-job": {
+                "script": [GitLabReference([".template", "script"])],
+            },
+        }
+        result = resolve_references(content)
+
+        # The reference should be replaced with the actual value
+        assert result["my-job"]["script"] == ["echo hello", "echo world"]
+
+    def test_reference_in_list_flattened(self):
+        """Test that a reference to a list in a list is flattened."""
+        content = {
+            ".template": {
+                "script": ["echo template1", "echo template2"],
+            },
+            "my-job": {
+                "script": [
+                    "echo start",
+                    GitLabReference([".template", "script"]),
+                    "echo end",
+                ],
+            },
+        }
+        result = resolve_references(content)
+
+        # The list from the reference should be flattened into the parent list
+        assert result["my-job"]["script"] == [
+            "echo start",
+            "echo template1",
+            "echo template2",
+            "echo end",
+        ]
+
+    def test_reference_to_scalar(self):
+        """Test resolving a reference to a scalar value."""
+        content = {
+            ".template": {
+                "image": "alpine:latest",
+            },
+            "my-job": {
+                "image": GitLabReference([".template", "image"]),
+                "script": ["echo hello"],
+            },
+        }
+        result = resolve_references(content)
+
+        assert result["my-job"]["image"] == "alpine:latest"
+
+    def test_reference_to_dict(self):
+        """Test resolving a reference to a dictionary."""
+        content = {
+            ".template": {
+                "variables": {
+                    "VAR1": "value1",
+                    "VAR2": "value2",
+                },
+            },
+            "my-job": {
+                "variables": GitLabReference([".template", "variables"]),
+                "script": ["echo hello"],
+            },
+        }
+        result = resolve_references(content)
+
+        assert result["my-job"]["variables"] == {"VAR1": "value1", "VAR2": "value2"}
+
+    def test_nested_reference(self):
+        """Test resolving a reference inside a nested structure."""
+        content = {
+            ".template": {
+                "cache": {
+                    "key": "my-key",
+                    "paths": ["node_modules/"],
+                },
+            },
+            "my-job": {
+                "cache": {
+                    "key": GitLabReference([".template", "cache", "key"]),
+                    "paths": GitLabReference([".template", "cache", "paths"]),
+                },
+                "script": ["echo hello"],
+            },
+        }
+        result = resolve_references(content)
+
+        assert result["my-job"]["cache"]["key"] == "my-key"
+        assert result["my-job"]["cache"]["paths"] == ["node_modules/"]
+
+    def test_reference_to_before_script(self):
+        """Test resolving a reference to before_script (common GitLab CI pattern)."""
+        content = {
+            ".setup": {
+                "before_script": ["apt-get update", "apt-get install -y curl"],
+            },
+            "my-job": {
+                "before_script": [
+                    GitLabReference([".setup", "before_script"]),
+                    "echo 'Custom setup'",
+                ],
+                "script": ["echo hello"],
+            },
+        }
+        result = resolve_references(content)
+
+        # before_script should have the setup commands flattened, then the custom one
+        assert result["my-job"]["before_script"] == [
+            "apt-get update",
+            "apt-get install -y curl",
+            "echo 'Custom setup'",
+        ]
+
+    def test_multiple_references_in_same_list(self):
+        """Test multiple references in the same list."""
+        content = {
+            ".setup": {
+                "commands": ["setup1", "setup2"],
+            },
+            ".teardown": {
+                "commands": ["teardown1", "teardown2"],
+            },
+            "my-job": {
+                "script": [
+                    GitLabReference([".setup", "commands"]),
+                    "echo 'main'",
+                    GitLabReference([".teardown", "commands"]),
+                ],
+            },
+        }
+        result = resolve_references(content)
+
+        assert result["my-job"]["script"] == [
+            "setup1",
+            "setup2",
+            "echo 'main'",
+            "teardown1",
+            "teardown2",
+        ]
+
+    def test_reference_not_found_preserved(self):
+        """Test that references to non-existent paths are preserved."""
+        content = {
+            "my-job": {
+                "script": [GitLabReference([".nonexistent", "script"])],
+            },
+        }
+        result = resolve_references(content)
+
+        # The reference should be preserved (GitLab will handle/error at runtime)
+        assert isinstance(result["my-job"]["script"][0], GitLabReference)
+
+    def test_chained_references(self):
+        """Test resolving references that point to other references."""
+        content = {
+            ".base": {
+                "script": ["echo base"],
+            },
+            ".intermediate": {
+                "script": [GitLabReference([".base", "script"])],
+            },
+            "my-job": {
+                "script": [GitLabReference([".intermediate", "script"])],
+            },
+        }
+        result = resolve_references(content)
+
+        # The chained references should all be resolved
+        assert result["my-job"]["script"] == ["echo base"]
+
+    def test_reference_in_rules(self):
+        """Test resolving references in rules (another common pattern)."""
+        content = {
+            ".common_rules": {
+                "rules": [
+                    {"if": "$CI_COMMIT_BRANCH == 'main'"},
+                    {"when": "manual"},
+                ],
+            },
+            "my-job": {
+                "rules": GitLabReference([".common_rules", "rules"]),
+                "script": ["echo hello"],
+            },
+        }
+        result = resolve_references(content)
+
+        assert result["my-job"]["rules"] == [
+            {"if": "$CI_COMMIT_BRANCH == 'main'"},
+            {"when": "manual"},
+        ]

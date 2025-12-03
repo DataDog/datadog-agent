@@ -110,6 +110,10 @@ def merge_pipeline_configs(
         app.display_info("Resolving extends directives...")
         merged = resolve_extends(merged)
 
+    # Always resolve references after extends (they depend on the full config)
+    app.display_info("Resolving !reference tags...")
+    merged = resolve_references(merged)
+
     return merged
 
 
@@ -402,3 +406,100 @@ def resolve_extends(content: dict[str, Any]) -> dict[str, Any]:
         result[name] = resolved
 
     return result
+
+
+def _get_reference_value(content: dict[str, Any], path: list[str]) -> Any:
+    """
+    Get a value from the content by following a path.
+
+    Args:
+        content: The full configuration.
+        path: List of keys to follow (e.g., [".template", "script"]).
+
+    Returns:
+        The value at the path.
+
+    Raises:
+        KeyError: If the path doesn't exist.
+    """
+    current = content
+    for key in path:
+        if isinstance(current, dict) and key in current:
+            current = current[key]
+        else:
+            raise KeyError(f"Reference path not found: {path}")
+    return current
+
+
+def _resolve_references_recursive(value: Any, content: dict[str, Any]) -> Any:
+    """
+    Recursively resolve !reference tags in a value.
+
+    Args:
+        value: The value to process (can be dict, list, or scalar).
+        content: The full configuration (for looking up references).
+
+    Returns:
+        The value with all !reference tags resolved.
+    """
+    from ci_utils.yaml import GitLabReference
+
+    if isinstance(value, GitLabReference):
+        # Resolve the reference
+        try:
+            resolved = _get_reference_value(content, value.value)
+            # Recursively resolve any nested references in the resolved value
+            return _resolve_references_recursive(copy.deepcopy(resolved), content)
+        except KeyError:
+            # If reference can't be resolved, keep it as-is (GitLab will handle it)
+            return value
+
+    elif isinstance(value, dict):
+        return {k: _resolve_references_recursive(v, content) for k, v in value.items()}
+
+    elif isinstance(value, list):
+        result = []
+        for item in value:
+            resolved_item = _resolve_references_recursive(item, content)
+            # If the resolved item is a list (from a reference), flatten it
+            if isinstance(item, GitLabReference) and isinstance(resolved_item, list):
+                result.extend(resolved_item)
+            else:
+                result.append(resolved_item)
+        return result
+
+    else:
+        return value
+
+
+def resolve_references(content: dict[str, Any]) -> dict[str, Any]:
+    """
+    Resolve all `!reference` tags in the GitLab CI configuration.
+
+    This replaces !reference tags with the actual values they reference,
+    similar to what GitLab CI does at pipeline creation time.
+
+    Example:
+        Input:
+            .template:
+              script:
+                - echo "hello"
+            job:
+              script:
+                - !reference [.template, script]
+
+        Output:
+            .template:
+              script:
+                - echo "hello"
+            job:
+              script:
+                - echo "hello"
+
+    Args:
+        content: The full GitLab CI configuration.
+
+    Returns:
+        Configuration with all !reference tags resolved.
+    """
+    return _resolve_references_recursive(content, content)

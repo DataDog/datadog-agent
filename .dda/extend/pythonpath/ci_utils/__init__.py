@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from ci_utils.git import FileReader, GitFileReader, LocalFileReader, get_commit_info, resolve_ref
-from ci_utils.merge import deep_merge, merge_pipeline_configs, resolve_extends, resolve_includes
+from ci_utils.merge import deep_merge, merge_pipeline_configs, resolve_extends, resolve_includes, resolve_references
 from ci_utils.pipelines import (
     ChangesTrigger,
     Pipeline,
@@ -20,6 +20,7 @@ __all__ = [
     "deep_merge",
     "resolve_includes",
     "resolve_extends",
+    "resolve_references",
     "PipelinesConfig",
     "Pipeline",
     "ChangesTrigger",
