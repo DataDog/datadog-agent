@@ -277,6 +277,16 @@ func setupPrivilegedLogs(s *common.Setup) {
 	}
 	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
 
+	if err := os.MkdirAll("/var/log/databricks", 0755); err != nil {
+		log.Warnf("Failed to create /var/log/databricks directory: %v", err)
+		return
+	}
+
+	if err := os.MkdirAll("/databricks/driver/logs", 0755); err != nil {
+		log.Warnf("Failed to create /databricks/driver/logs directory: %v", err)
+		return
+	}
+
 	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks")
 	if err != nil {
 		log.Warnf("Failed to mount driver logs: %v", err)
