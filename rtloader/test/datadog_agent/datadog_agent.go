@@ -38,6 +38,7 @@ extern void setExternalHostTags(char*, char*, char**);
 extern void writePersistentCache(char*, char*);
 extern char* readPersistentCache(char*);
 extern char* obfuscateSQL(char*, char*, char**);
+extern char* batchObfuscateSQL(char**, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
 extern char* obfuscateMongoDBString(char*, char**);
@@ -59,6 +60,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_write_persistent_cache_cb(rtloader, writePersistentCache);
    set_read_persistent_cache_cb(rtloader, readPersistentCache);
    set_obfuscate_sql_cb(rtloader, obfuscateSQL);
+   set_batch_obfuscate_sql_cb(rtloader, batchObfuscateSQL);
    set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
    set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
@@ -336,6 +338,63 @@ func obfuscateSQLExecPlan(rawQuery *C.char, normalize C.bool, errResult **C.char
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
 		return nil
 	}
+}
+
+//export batchObfuscateSQL
+func batchObfuscateSQL(queries **C.char, opts *C.char, errResult **C.char) *C.char {
+	var sqlOpts sqlConfig
+	optStr := C.GoString(opts)
+	if optStr == "" {
+		optStr = "{}"
+	}
+	if err := json.Unmarshal([]byte(optStr), &sqlOpts); err != nil {
+		*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
+		return nil
+	}
+
+	// Convert C string array to Go slice
+	querySlice := helpers.CStringArrayToSlice(queries)
+
+	// Handle empty batch
+	if len(querySlice) == 0 {
+		return (*C.char)(helpers.TrackedCString("[]"))
+	}
+
+	// Process each query
+	results := make([]interface{}, len(querySlice))
+	for i, query := range querySlice {
+		switch query {
+		case "select * from table where id = 1":
+			obfuscatedQuery := obfuscate.ObfuscatedQuery{
+				Query: "select * from table where id = ?",
+				Metadata: obfuscate.SQLMetadata{
+					TablesCSV: "table",
+					Commands:  []string{"SELECT"},
+					Comments:  []string{"-- SQL test comment"},
+				},
+			}
+			if sqlOpts.ReturnJSONMetadata {
+				results[i] = obfuscatedQuery
+			} else {
+				results[i] = obfuscatedQuery.Query
+			}
+		case "":
+			*errResult = (*C.char)(helpers.TrackedCString(fmt.Sprintf("result is empty at index %d", i)))
+			return nil
+		default:
+			*errResult = (*C.char)(helpers.TrackedCString(fmt.Sprintf("unknown test case at index %d: %s", i, query)))
+			return nil
+		}
+	}
+
+	// Marshal results array to JSON
+	out, err := json.Marshal(results)
+	if err != nil {
+		*errResult = (*C.char)(helpers.TrackedCString(err.Error()))
+		return nil
+	}
+
+	return (*C.char)(helpers.TrackedCString(string(out)))
 }
 
 var processStartTime = float64(time.Now().Unix())
