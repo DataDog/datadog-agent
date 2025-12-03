@@ -10,7 +10,6 @@ package containers
 
 import (
 	"cmp"
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -22,7 +21,6 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -79,45 +77,15 @@ func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, erro
 		return strings.TrimSpace(envVar), nil
 	}
 
-	// If we have an error, fall back to the container runtime data
-	dockerUtil, err := docker.GetDockerUtil()
-	if err != nil {
-		return "", fmt.Errorf("error getting docker util: %w", err)
+	// If we have an error (e.g, the agent does not have permissions to inspect
+	// the process environment variables) fall back to the container runtime
+	// data
+	envVar, dockerErr := getDockerVisibleDevicesEnvFromRuntime(container)
+	if dockerErr == nil {
+		return strings.TrimSpace(envVar), nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), dockerInspectTimeout)
-	defer cancel()
-
-	containerInspect, err := dockerUtil.Inspect(ctx, container.ID, false)
-	if err != nil {
-		return "", fmt.Errorf("error inspecting container %s: %w", container.ID, err)
-	}
-
-	if containerInspect.HostConfig == nil {
-		return "", fmt.Errorf("container %s has no host config", container.ID)
-	}
-
-	for _, device := range containerInspect.HostConfig.Resources.DeviceRequests {
-		for _, capabilityGroup := range device.Capabilities {
-			if slices.Contains(capabilityGroup, "gpu") {
-				numGpus := device.Count
-				if numGpus == -1 {
-					return "all", nil
-				}
-
-				// return 0,1,...numGpus-1 as the assumed visible devices variable,
-				// that's how Docker assigns devices to containers, there's no exclusive
-				// allocation.
-				visibleDevices := make([]string, numGpus)
-				for i := 0; i < numGpus; i++ {
-					visibleDevices[i] = strconv.Itoa(i)
-				}
-				return strings.Join(visibleDevices, ","), nil
-			}
-		}
-	}
-
-	return "", nil
+	return "", errors.Join(err, dockerErr)
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
