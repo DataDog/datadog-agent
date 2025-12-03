@@ -92,10 +92,7 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 		log.Warnf("gateway lookup is not enabled")
 	}
 
-	tracerouteInst, err := traceroute.NewTraceroute()
-	if err != nil {
-		return nil, fmt.Errorf("error creating traceroute instance: %s", err)
-	}
+	tracerouteInst := traceroute.NewTraceroute()
 	return &Runner{
 		gatewayLookup:   gatewayLookup,
 		nsIno:           nsIno,
