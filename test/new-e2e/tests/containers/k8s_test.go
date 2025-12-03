@@ -54,7 +54,7 @@ var GitCommit string
 type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
 	envSpecificClusterTags []string
-	newProvisioner         func(string) provisioners.Provisioner
+	newProvisioner         func(helmValues string) provisioners.Provisioner
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -1467,8 +1467,11 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 type scanMethod struct {
-	mode         string
-	helmValues   string
+	mode       string
+	helmValues string
+}
+
+type scanResult struct {
 	app          string
 	version      string
 	expectedTags []*regexp.Regexp
@@ -1485,12 +1488,6 @@ clusterAgent:
   envDict:
     DD_CSI_ENABLED: "true"
 `,
-			app:     "ghcr.io/datadog/apps-nginx-server",
-			version: apps.Version,
-			expectedTags: []*regexp.Regexp{
-				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
-				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
-			},
 		},
 		{
 			mode: "mount",
@@ -1503,12 +1500,6 @@ datadog:
     containerImage:
       uncompressedLayersSupport: true
 `,
-			app:     "ghcr.io/datadog/redis",
-			version: apps.Version,
-			expectedTags: []*regexp.Regexp{
-				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
-				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
-			},
 		},
 		{
 			mode: "overlayfs",
@@ -1522,7 +1513,28 @@ datadog:
       uncompressedLayersSupport: true
       overlayfsDirectScan: true
 `,
-			app:     "quay.io/coreos/etcd", // using this image just because there were no other workload deployed to compute SBOMs
+		},
+	}
+
+	images := []scanResult{
+		{
+			app:     "ghcr.io/datadog/apps-nginx-server",
+			version: apps.Version,
+			expectedTags: []*regexp.Regexp{
+				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
+				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
+			},
+		},
+		{
+			app:     "ghcr.io/datadog/redis",
+			version: apps.Version,
+			expectedTags: []*regexp.Regexp{
+				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),
+				regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`),
+			},
+		},
+		{
+			app:     "quay.io/coreos/etcd",
 			version: "v3.5.1",
 		},
 	}
@@ -1530,151 +1542,155 @@ datadog:
 	for n, mode := range scanMethods {
 		m := mode.mode
 		helmValues := mode.helmValues
-		appImage := mode.app
-		appShortImage := filepath.Base(appImage)
-		appVersion := mode.version
 
-		suite.Run("sbom_mode="+m, func() {
-			sendEvent := func(alertType, text string) {
-				if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-					Title: pointer.Ptr(suite.T().Name()),
-					Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
-`+"```"+`
-%s
-`+"```"+`
- %%%%%%`, text)),
-					AlertType: &alertType,
-					Tags: []string{
-						"app:agent-new-e2e-tests-containers",
-						"cluster_name:" + suite.clusterName,
-						"sbom:" + appImage,
-						"sbom_mode:" + m,
-						"test:" + suite.T().Name(),
-					},
-				}); err != nil {
-					suite.T().Logf("Failed to post event: %s", err)
+		for _, img := range images {
+			appImage := img.app
+			appShortImage := filepath.Base(appImage)
+			appVersion := img.version
+
+			suite.Run("sbom_mode="+m+",image="+appImage, func() {
+				sendEvent := func(alertType, text string) {
+					if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
+						Title: pointer.Ptr(suite.T().Name()),
+						Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+	`+"```"+`
+	%s
+	`+"```"+`
+	%%%%%%`, text)),
+						AlertType: &alertType,
+						Tags: []string{
+							"app:agent-new-e2e-tests-containers",
+							"cluster_name:" + suite.clusterName,
+							"sbom:" + appImage,
+							"sbom_mode:" + m,
+							"test:" + suite.T().Name(),
+						},
+					}); err != nil {
+						suite.T().Logf("Failed to post event: %s", err)
+					}
 				}
-			}
-
-			defer func() {
-				if suite.T().Failed() {
-					sendEvent("error", fmt.Sprintf("Failed finding the `%s` SBOM payload with proper tags", appImage))
-				} else {
-					sendEvent("success", "All good!")
-				}
-			}()
-
-			if n > 0 {
-				suite.T().Logf("Updating Helm with values: %s", helmValues)
-				provisioner := suite.newProvisioner(helmValues)
-				suite.UpdateEnv(provisioner)
-
-				time.Sleep(2 * time.Minute) // Wait for the agent to be fully ready after the upgrade
-			}
-
-			suite.EventuallyWithTf(func(collect *assert.CollectT) {
-				c := &myCollectT{
-					CollectT: collect,
-					errors:   []error{},
-				}
-				// To enforce the use of myCollectT instead
-				collect = nil //nolint:ineffassign
 
 				defer func() {
-					if len(c.errors) == 0 {
-						sendEvent("success", "All good!")
+					if suite.T().Failed() {
+						sendEvent("error", fmt.Sprintf("Failed finding the `%s` SBOM payload with proper tags", appImage))
 					} else {
-						sendEvent("warning", errors.Join(c.errors...).Error())
+						sendEvent("success", "All good!")
 					}
 				}()
 
-				sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
-				// Can be replaced by require.NoErrorf(…) once https://github.com/testify/pull/1481 is merged
-				if !assert.NoErrorf(c, err, "Failed to query fake intake") {
-					return
+				if n > 0 {
+					suite.Fakeintake.FlushServerAndResetAggregators()
+
+					provisioner := suite.newProvisioner(helmValues)
+					suite.UpdateEnv(provisioner)
+
+					time.Sleep(2 * time.Minute) // Wait for the agent to be fully ready after the upgrade
 				}
 
-				suite.T().Logf("Found SBOM IDs: %v", sbomIDs)
+				suite.EventuallyWithTf(func(collect *assert.CollectT) {
+					c := &myCollectT{
+						CollectT: collect,
+						errors:   []error{},
+					}
+					// To enforce the use of myCollectT instead
+					collect = nil //nolint:ineffassign
 
-				sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
-					return strings.HasPrefix(id, appImage)
-				})
+					defer func() {
+						if len(c.errors) == 0 {
+							sendEvent("success", "All good!")
+						} else {
+							sendEvent("warning", errors.Join(c.errors...).Error())
+						}
+					}()
 
-				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NotEmptyf(c, sbomIDs, fmt.Sprintf("No SBOM for %s yet", appImage)) {
-					return
-				}
-
-				images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
-					images, err := suite.Fakeintake.FilterSBOMs(id)
-					assert.NoErrorf(c, err, "Failed to query fake intake")
-					return images
-				})
-
-				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
-					return
-				}
-
-				images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
-					return image.Status == sbom.SBOMStatus_SUCCESS
-				})
-
-				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
-					return
-				}
-
-				images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
-					cyclonedx := image.GetCyclonedx()
-					return cyclonedx != nil &&
-						cyclonedx.Metadata != nil &&
-						cyclonedx.Metadata.Component != nil
-				})
-
-				// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
-				if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
-					return
-				}
-
-				for _, image := range images {
-					cyclonedx := image.GetCyclonedx()
-					if !assert.NotNil(c, cyclonedx.Metadata.Component.Properties) {
-						continue
+					sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
+					// Can be replaced by require.NoErrorf(…) once https://github.com/testify/pull/1481 is merged
+					if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+						return
 					}
 
-					expectedTags := []*regexp.Regexp{
-						regexp.MustCompile(`^architecture:(amd|arm)64$`),
-						regexp.MustCompile(fmt.Sprintf(`^image_id:%s@sha256:`, regexp.QuoteMeta(appImage))),
-						regexp.MustCompile(fmt.Sprintf(`^image_name:%s$`, regexp.QuoteMeta(appImage))),
-						regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
-						regexp.MustCompile(`^os_name:linux$`),
-						regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),
-					}
+					suite.T().Logf("Found SBOM IDs: %v", sbomIDs)
 
-					if len(mode.expectedTags) != 0 {
-						expectedTags = append(expectedTags, mode.expectedTags...)
-					}
-
-					err = assertTags(image.GetTags(), expectedTags, mode.optionalTags, false)
-					assert.NoErrorf(c, err, "Tags mismatch")
-
-					properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
-						return property.Name, *property.Value
+					sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
+						return strings.HasPrefix(id, appImage)
 					})
 
-					if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
-						assert.Equal(c, appImage+":"+appVersion, properties["aquasecurity:trivy:RepoTag"])
+					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+					if !assert.NotEmptyf(c, sbomIDs, fmt.Sprintf("No SBOM for %s yet", appImage)) {
+						return
 					}
 
-					if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
-						assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], appImage+"@sha256:")
+					images := lo.FlatMap(sbomIDs, func(id string, _ int) []*aggregator.SBOMPayload {
+						images, err := suite.Fakeintake.FilterSBOMs(id)
+						assert.NoErrorf(c, err, "Failed to query fake intake")
+						return images
+					})
+
+					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+					if !assert.NotEmptyf(c, images, "No SBOM payload yet") {
+						return
 					}
 
-					assert.Greater(c, len(cyclonedx.Components), 1, "Less than 2 components in CycloneDX SBOM")
-				}
-			}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
-		})
+					images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
+						return image.Status == sbom.SBOMStatus_SUCCESS
+					})
+
+					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+					if !assert.NotEmptyf(c, images, "No successful SBOM yet") {
+						return
+					}
+
+					images = lo.Filter(images, func(image *aggregator.SBOMPayload, _ int) bool {
+						cyclonedx := image.GetCyclonedx()
+						return cyclonedx != nil &&
+							cyclonedx.Metadata != nil &&
+							cyclonedx.Metadata.Component != nil
+					})
+
+					// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+					if !assert.NotEmptyf(c, images, "No SBOM with complete CycloneDX") {
+						return
+					}
+
+					for _, image := range images {
+						cyclonedx := image.GetCyclonedx()
+						if !assert.NotNil(c, cyclonedx.Metadata.Component.Properties) {
+							continue
+						}
+
+						expectedTags := []*regexp.Regexp{
+							regexp.MustCompile(`^architecture:(amd|arm)64$`),
+							regexp.MustCompile(fmt.Sprintf(`^image_id:%s@sha256:`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(fmt.Sprintf(`^image_name:%s$`, regexp.QuoteMeta(appImage))),
+							regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
+							regexp.MustCompile(`^os_name:linux$`),
+							regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),
+						}
+
+						if len(img.expectedTags) != 0 {
+							expectedTags = append(expectedTags, img.expectedTags...)
+						}
+
+						err = assertTags(image.GetTags(), expectedTags, img.optionalTags, false)
+						assert.NoErrorf(c, err, "Tags mismatch")
+
+						properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
+							return property.Name, *property.Value
+						})
+
+						if assert.Contains(c, properties, "aquasecurity:trivy:RepoTag") {
+							assert.Equal(c, appImage+":"+appVersion, properties["aquasecurity:trivy:RepoTag"])
+						}
+
+						if assert.Contains(c, properties, "aquasecurity:trivy:RepoDigest") {
+							assert.Contains(c, properties["aquasecurity:trivy:RepoDigest"], appImage+"@sha256:")
+						}
+
+						assert.Greater(c, len(cyclonedx.Components), 1, "Less than 2 components in CycloneDX SBOM")
+					}
+				}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+			})
+		}
 	}
 }
 
