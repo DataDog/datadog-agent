@@ -28,6 +28,12 @@ sudo python3 -m usm_leak_detector --system-probe /path/to/system-probe
 
 # Check specific maps only
 sudo python3 -m usm_leak_detector --maps pid_fd_by_tuple,http_in_flight
+
+# Disable race condition re-check (faster, but may have false positives)
+sudo python3 -m usm_leak_detector --recheck-delay 0
+
+# Custom /proc path (useful in containers)
+sudo python3 -m usm_leak_detector --proc-root /host/proc
 ```
 
 ## Deployment to Customer Environments
@@ -72,6 +78,17 @@ For maps keyed by pid_tgid (8-byte uint64):
 
 Maps checked: `ssl_read_args`, `ssl_read_ex_args`, `ssl_write_args`, `ssl_write_ex_args`,
 `bio_new_socket_args`, `ssl_ctx_by_pid_tgid`
+
+## Race Condition Handling
+
+The detector has a TOCTOU (time-of-check to time-of-use) race condition: connections may be
+established between reading /proc/net/tcp and reading the eBPF maps. To filter these false
+positives, the detector re-checks leaked entries after a delay (default: 2 seconds).
+
+- `--recheck-delay 2.0` (default): Wait 2 seconds, rebuild connection index, re-validate
+- `--recheck-delay 0`: Disable re-check for faster runs (may report false positives)
+
+The report shows how many false positives were filtered by this mechanism.
 
 ## Package Structure
 
