@@ -97,13 +97,6 @@ instances:
     #
     # ip_address: <IP_ADDRESS>
 
-    ## @param profile - string - optional
-    ## The device profile name that defines how to collect configurations.
-    ## Examples: "cisco-ios", "junos"
-    ## If not specified, the agent will attempt to auto-detect the device type.
-    #
-    # profile: <PROFILE_NAME>
-
     ## @param auth - object - required
     ## Authentication credentials to connect to the network device.
     #
