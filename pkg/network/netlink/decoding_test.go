@@ -9,7 +9,7 @@ package netlink
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"io"
 	"net/netip"
 	"os"
@@ -101,7 +101,7 @@ func loadDumpData() ([]netlink.Message, error) {
 		m := netlink.Message{Data: make([]byte, size)}
 		_, err = io.ReadFull(f, m.Data)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't read enough data")
+			return nil, errors.New("couldn't read enough data")
 		}
 
 		messages = append(messages, m)

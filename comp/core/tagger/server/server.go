@@ -8,7 +8,7 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -105,7 +105,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	if streamingID == "" {
 		streamingID = uuid.New().String()
 	}
-	subscriptionID := fmt.Sprintf("streaming-client-%s", streamingID)
+	subscriptionID := "streaming-client-" + streamingID
 
 	// initBurst is a flag indicating if the initial sync is still in progress or not
 	// true means the sync hasn't yet been finalised
@@ -137,7 +137,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 		case events, ok := <-subscription.EventsChan():
 			if !ok {
 				log.Warnf("subscriber channel closed, client will reconnect")
-				return fmt.Errorf("subscriber channel closed")
+				return errors.New("subscriber channel closed")
 			}
 
 			ticker.Reset(streamKeepAliveInterval)

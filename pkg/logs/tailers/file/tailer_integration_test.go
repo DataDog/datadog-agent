@@ -121,6 +121,7 @@ func (suite *TailerIntegrationTestSuite) encodingTestRunner(encoding string, enc
 	suite.testFile, err = os.Create(suite.testPath)
 	suite.Require().NoError(err)
 	suite.Require().NotNil(suite.testFile)
+	defer suite.testFile.Close()
 
 	tailer := suite.createTailerWithEncoding(encoding)
 	defer tailer.Stop()

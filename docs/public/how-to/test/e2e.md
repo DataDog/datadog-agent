@@ -1,6 +1,6 @@
 # Running E2E tests
 
-End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](../../../../test/new-e2e/) folder.
+End-to-End (E2E) tests validate complete user workflows in production-like environments with real infrastructure and external services. The Datadog Agent uses the [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) framework to provision and manage test environments. Tests are stored in the [test/new-e2e](../../../../test/new-e2e/) folder.
 
 ## Prerequisites
 
@@ -187,9 +187,9 @@ package examples
 import (
     "testing"
 
-    "github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-    "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-    awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+    "github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+    "github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+    awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type vmSuite struct {
@@ -294,4 +294,4 @@ func (v *vmSuite) TestAgentInstallation() {
 - [Test Categories](../../guidelines/testing/test-categories.md) - Understanding different test types
 - [Unit Testing](unit.md) - Running unit tests
 - [Using Developer Environments](../../tutorials/dev/env.md) - Setting up development environments
-- [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) - Infrastructure provisioning framework
+- [test-infra-definitions](https://github.com/DataDog/datadog-agent/test/e2e-framework) - Infrastructure provisioning framework

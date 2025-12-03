@@ -632,7 +632,8 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            };
+            }
+                .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
             // Rollback StartDDServices stops the the services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(

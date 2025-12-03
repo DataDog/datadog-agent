@@ -8,22 +8,23 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	agentclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 )
 
 // LinuxLogsFolderPath is the folder where log files will be stored for Linux tests
@@ -69,7 +70,7 @@ func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 		logPath = fmt.Sprintf("%s\\%s", WindowsLogsFolderPath, logFileName)
 		t.Logf("Log path: %s", logPath)
 
-		checkCmd = fmt.Sprintf("type %s", logPath)
+		checkCmd = "type " + logPath
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			// AppendFile instead of echo since echo introduce encoding into the file.
 			bytes, err := ls.Env().RemoteHost.AppendFile(osStr, logPath, []byte(logContent))
@@ -88,7 +89,7 @@ func AppendLog(ls LogsTestSuite, logFileName, content string, recurrence int) {
 				t.Logf("Writing %d bytes to %s", bytes, logPath)
 			}
 		}, 1*time.Minute, 5*time.Second)
-		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
+		checkCmd = "sudo cat " + logPath
 	}
 
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -250,7 +251,7 @@ func FetchAndFilterLogs(fakeIntake *components.FakeIntake, service, content stri
 	}
 
 	if len(names) == 0 {
-		return nil, fmt.Errorf("the fake intake has no logs for any services")
+		return nil, errors.New("the fake intake has no logs for any services")
 	}
 
 	var contains bool
@@ -324,7 +325,7 @@ func CleanUp(ls LogsTestSuite) {
 	if ls.IsDevMode() {
 		switch ls.Env().RemoteHost.OSFamily {
 		default: // default is linux
-			ls.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo rm -rf %s", LinuxLogsFolderPath))
+			ls.Env().RemoteHost.MustExecute("sudo rm -rf " + LinuxLogsFolderPath)
 			checkCmd = fmt.Sprintf("ls %s 2>/dev/null || echo 'Files do not exist'", LinuxLogsFolderPath)
 		case os.WindowsFamily:
 			if ls.IsDevMode() {
