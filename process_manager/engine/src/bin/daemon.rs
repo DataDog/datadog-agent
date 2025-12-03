@@ -30,12 +30,68 @@ use pm_engine::{
 };
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio::signal;
+#[cfg(unix)]
+use tokio::signal::unix::{signal as unix_signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Server as TonicServer;
 use tonic_health::server::health_reporter;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
+
+/// Wait for shutdown signal (SIGINT or SIGTERM)
+/// Returns the signal name that triggered shutdown
+#[cfg(unix)]
+async fn wait_for_shutdown_signal() -> &'static str {
+    let mut sigterm =
+        unix_signal(SignalKind::terminate()).expect("Failed to install SIGTERM handler");
+    let mut sigint =
+        unix_signal(SignalKind::interrupt()).expect("Failed to install SIGINT handler");
+
+    tokio::select! {
+        _ = sigterm.recv() => "SIGTERM",
+        _ = sigint.recv() => "SIGINT",
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_for_shutdown_signal() -> &'static str {
+    signal::ctrl_c()
+        .await
+        .expect("Failed to install Ctrl+C handler");
+    "Ctrl+C"
+}
+
+/// Graceful shutdown: stop all managed processes
+async fn graceful_shutdown(registry: &Application) {
+    info!("Starting graceful shutdown of managed processes...");
+
+    // Get list of all processes
+    let list_result = registry.list_processes().execute().await;
+
+    match list_result {
+        Ok(response) => {
+            let running_count = response.processes.iter().filter(|p| p.is_running()).count();
+            info!(running = running_count, "Stopping managed processes");
+
+            for process in response.processes {
+                if process.is_running() {
+                    info!(process = %process.name(), pid = ?process.pid(), "Stopping process");
+                    let stop_cmd = pm_engine::domain::StopProcessCommand::from_name(
+                        process.name().to_string(),
+                    );
+                    if let Err(e) = registry.stop_process().execute(stop_cmd).await {
+                        warn!(process = %process.name(), error = %e, "Failed to stop process during shutdown");
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            error!(error = %e, "Failed to list processes during shutdown");
+        }
+    }
+
+    info!("Graceful shutdown complete");
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -252,13 +308,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             error!("REST server error: {}", e);
                         }
                     }
-                    _ = signal::ctrl_c() => {
-                        info!("Received Ctrl+C, shutting down...");
+                    signal_name = wait_for_shutdown_signal() => {
+                        info!(signal = signal_name, "Received shutdown signal");
                     }
                 }
 
-                // Cancel supervisor
+                // Cancel supervisor first
                 cancellation_token.cancel();
+
+                // Graceful shutdown: stop all managed processes
+                graceful_shutdown(&registry).await;
             } else {
                 info!("Daemon ready. All services started");
 
@@ -272,13 +331,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ = grpc_unix_server => {
                         // Unix server task completed
                     }
-                    _ = signal::ctrl_c() => {
-                        info!("Received Ctrl+C, shutting down...");
+                    signal_name = wait_for_shutdown_signal() => {
+                        info!(signal = signal_name, "Received shutdown signal");
                     }
                 }
 
-                // Cancel supervisor
+                // Cancel supervisor first
                 cancellation_token.cancel();
+
+                // Graceful shutdown: stop all managed processes
+                graceful_shutdown(&registry).await;
             }
         }
     } else {
@@ -334,8 +396,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tokio::select! {
                     _ = grpc_server => {}
                     _ = rest_server => {}
-                    _ = signal::ctrl_c() => {
-                        info!("Received Ctrl+C, shutting down...");
+                    signal_name = wait_for_shutdown_signal() => {
+                        info!(signal = signal_name, "Received shutdown signal");
                     }
                 }
             } else {
@@ -343,14 +405,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tokio::select! {
                     _ = grpc_server => {}
-                    _ = signal::ctrl_c() => {
-                        info!("Received Ctrl+C, shutting down...");
+                    signal_name = wait_for_shutdown_signal() => {
+                        info!(signal = signal_name, "Received shutdown signal");
                     }
                 }
             }
 
-            // Cancel supervisor
+            // Cancel supervisor first
             cancellation_token.cancel();
+
+            // Graceful shutdown: stop all managed processes
+            graceful_shutdown(&registry).await;
 
             // Cleanup sockets
             let _ = std::fs::remove_file(&config.grpc_socket);
