@@ -111,6 +111,8 @@ type BatteryInfo struct {
 	FullChargedCapacity float64
 	CycleCount          float64
 	CurrentCharge       float64
+	Voltage             float64
+	ChargeRate          float64
 	PowerState          []string
 	HasData             bool
 }
@@ -157,6 +159,8 @@ func (c *Check) Run() error {
 	sender.Gauge("system.battery.maximum_capacity", info.FullChargedCapacity, "", nil)
 	sender.Gauge("system.battery.cycle_count", info.CycleCount, "", nil)
 	sender.Gauge("system.battery.current_charge", info.CurrentCharge, "", nil)
+	sender.Gauge("system.battery.voltage", info.Voltage, "", nil)
+	sender.Gauge("system.battery.charge_rate", info.ChargeRate, "", nil)
 
 	if len(info.PowerState) > 0 {
 		sender.Gauge("system.battery.power_state", 1, "", info.PowerState)
@@ -263,6 +267,8 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 		info.FullChargedCapacity = (float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100
 		info.CycleCount = float64(bi.CycleCount)
 		info.CurrentCharge = float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100
+		info.Voltage = float64(bs.Voltage)
+		info.ChargeRate = float64(bs.Rate)
 		info.PowerState = getPowerState(bs.PowerState)
 		info.HasData = true
 
