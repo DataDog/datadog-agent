@@ -224,10 +224,15 @@ pkg_install(
     name = "install",
     srcs = [
         ":openssl_hdr_files",
-        ":openssl_pkgconfig",
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
-        ":dll_a",
-        ":openssl_binary_files",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            ":dll_a",
+            ":openssl_binary_files",
+        ],
+        "//conditions:default": [
+            ":openssl_pkgconfig",
+        ],
+    }),
 )
