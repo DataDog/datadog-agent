@@ -383,8 +383,6 @@ modules:
     - ./examples
     should_test_condition: is_linux
     test_targets:
-    - ./pkg/runner
-    - ./pkg/utils/e2e/client
     - ./system-probe/
   test/otel:
     used_by_otel: true
