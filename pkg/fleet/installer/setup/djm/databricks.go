@@ -60,21 +60,21 @@ var (
 	driverLogsStandardAccessMode = []config.IntegrationConfigLogs{
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks/*.log",
+			Path:                   "/var/log/databricks_privileged/*.log",
 			Source:                 "driver_logs",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:                   "file",
-			Path:                   "/var/log/databricks/stderr",
+			Path:                   "/var/log/databricks_privileged/stderr",
 			Source:                 "driver_stderr",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
 		{
 			Type:    "file",
-			Path:    "/var/log/databricks/stdout",
+			Path:    "/var/log/databricks_privileged/stdout",
 			Source:  "driver_stdout",
 			Service: "databricks",
 			LogProcessingRules: []config.LogProcessingRule{
@@ -286,15 +286,15 @@ func setupPrivilegedLogs(s *common.Setup) {
 	}
 	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
 
-	if err := os.MkdirAll("/var/log/databricks", 0755); err != nil {
-		log.Warnf("Failed to create /var/log/databricks directory: %v", err)
+	if err := os.MkdirAll("/var/log/databricks_privileged", 0755); err != nil {
+		log.Warnf("Failed to create /var/log/databricks_privileged directory: %v", err)
 		return
 	}
 	if err := os.MkdirAll("/databricks/driver/logs", 0755); err != nil {
 		log.Warnf("Failed to create /databricks/driver/logs directory: %v", err)
 		return
 	}
-	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks")
+	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks_privileged")
 	if err != nil {
 		log.Warnf("Failed to mount driver logs: %v", err)
 	}
