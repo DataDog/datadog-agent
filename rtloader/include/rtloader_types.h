@@ -155,7 +155,6 @@ typedef void (*cb_get_subprocess_output_t)(char **, char **, char **, char **, i
 // memory
 //
 typedef void (*cb_cgo_free_t)(void *);
-typedef void (*cb_memory_tracker_t)(void *, size_t sz, rtloader_mem_ops_t op);
 
 // tagger
 //

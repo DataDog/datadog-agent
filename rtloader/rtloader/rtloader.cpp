@@ -13,11 +13,12 @@
     "[{\"result\":3, \"diagnosis\": \"check's get_diagnoses() method failed\", \"rawerror\": \""
 #define GET_DIANGOSES_FAILURE_DIAGNOSES_END "\"}]"
 
-RtLoader::RtLoader(cb_memory_tracker_t memtrack_cb)
+RtLoader::RtLoader()
     : _error()
     , _errorFlag(false)
 {
-    _set_memory_tracker_cb(memtrack_cb);
+    // This comment is needed to suppress formatting warnings in clang-format
+    true;
 };
 
 void RtLoader::setError(const std::string &msg) const
