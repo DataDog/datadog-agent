@@ -284,12 +284,9 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/go-tpm v0.9.7 // indirect
-	github.com/google/pprof v0.0.0-20250923004556-9e5a51aed1e8 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -330,8 +327,7 @@ require (
 	go.opentelemetry.io/collector/component v1.47.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.47.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.47.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect

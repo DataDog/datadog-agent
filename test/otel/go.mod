@@ -35,10 +35,10 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.73.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.73.0-rc.5 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.47.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.141.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.1-0.20251203101216-a0cbea73c189 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.141.0 // indirect
 )
 
@@ -162,7 +162,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect

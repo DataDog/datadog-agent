@@ -136,7 +136,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect
@@ -206,7 +206,7 @@ require (
 	go.opentelemetry.io/collector/consumer v1.47.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.141.0 // indirect
 	go.opentelemetry.io/collector/exporter v1.47.0 // indirect
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.1-0.20251203101216-a0cbea73c189 // indirect
 	go.opentelemetry.io/collector/extension/extensionauth v1.47.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.141.0 // indirect
 	go.opentelemetry.io/collector/extension/xextension v0.141.0 // indirect
