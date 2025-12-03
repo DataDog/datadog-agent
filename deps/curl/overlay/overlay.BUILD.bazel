@@ -94,6 +94,16 @@ cc_binary(
         "-I.",
     ],
     deps = ["curl_static"],
+    dynamic_deps = [
+        "@nghttp2//:nghttp2_shared",
+        "@zlib//:z",
+    ],
+    linkopts = [
+        "-Wl,-L/opt/datadog-agent/embedded/lib",
+        "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        "-Wl,-lnghttp2",
+    ],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -111,9 +121,13 @@ cc_library(
     ],
     local_defines = [
         "BUILDING_LIBCURL",
-        "CURL_MACOS_CALL_COPYPROXIES",
         "HAVE_CONFIG_H",
-    ],
+    ] + select({
+        "@platforms//os:macos": [
+            "CURL_MACOS_CALL_COPYPROXIES",
+        ],
+        "//conditions:default": [],
+    }),
     copts = [
         "-Wno-implicit-function-declaration",
         "-Wno-int-conversion",
@@ -138,7 +152,14 @@ cc_library(
 
 cc_shared_library(
     name = "curl",
-    deps = [":curl_static"],
+    deps = [
+        ":curl_static",
+        "@openssl//:openssl",
+    ],
+    dynamic_deps = [
+        "@nghttp2//:nghttp2_shared",
+        "@zlib//:z",
+    ],
     visibility = ["//visibility:public"],
 )
 
