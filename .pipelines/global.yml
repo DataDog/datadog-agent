@@ -1,0 +1,4 @@
+# Global pipeline that should be added in every pipeline, contains global variables and default behavior for jobs.
+name: global
+entrypoint: .global-ci.yml
+
