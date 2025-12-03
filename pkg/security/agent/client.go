@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"runtime"
@@ -202,10 +203,10 @@ func NewRuntimeSecurityCmdClient() (*RuntimeSecurityCmdClient, error) {
 	family, cmdSocketPath := socket.GetSocketAddress(cmdSocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		cmdSocketPath = fmt.Sprintf("unix://%s", cmdSocketPath)
+		cmdSocketPath = "unix://" + cmdSocketPath
 	}
 
 	conn, err := grpc.NewClient(
@@ -240,10 +241,10 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	family, addr := socket.GetSocketAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		socketPath = fmt.Sprintf("unix://%s", addr)
+		socketPath = "unix://" + addr
 	}
 
 	opts := []grpc.DialOption{

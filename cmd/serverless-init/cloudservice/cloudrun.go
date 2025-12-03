@@ -155,12 +155,12 @@ func (c *CloudRun) Init(_ interface{}) error {
 
 // Shutdown emits the shutdown metric for CloudRun
 func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", cloudRunPrefix), 1.0, c.GetSource(), metricAgent)
+	metric.Add(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (c *CloudRun) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", cloudRunPrefix)
+	return cloudRunPrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.
@@ -175,7 +175,7 @@ func isCloudRunService() bool {
 
 func isCloudRunFunction() bool {
 	_, cloudRunFunctionMode := os.LookupEnv(functionTargetEnvVar)
-	log.Debug(fmt.Sprintf("cloud run namespace SET TO: %s", cloudRunFunction))
+	log.Debug("cloud run namespace SET TO: " + cloudRunFunction)
 	return cloudRunFunctionMode
 }
 

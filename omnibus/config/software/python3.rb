@@ -21,7 +21,7 @@ build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
-  unless windows_target?
+  if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     python_configure_options = [
       "--without-readline",  # Disables readline support
@@ -66,7 +66,7 @@ build do
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
-  else
+  elsif fips_mode?
     ###############################
     # Setup openssl dependency... #
     ###############################
@@ -123,6 +123,8 @@ build do
 
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"
+  else
+    command_on_repo_root "bazelisk run -- @cpython//:install --destdir=#{python_3_embedded}"
   end
 end
 

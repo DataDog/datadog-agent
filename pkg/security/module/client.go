@@ -147,10 +147,10 @@ func NewSecurityAgentAPIClient(cfg *config.RuntimeSecurityConfig) (*SecurityAgen
 	family, socketPath := socket.GetSocketAddress(cfg.SocketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
-			return nil, fmt.Errorf("unix sockets are not supported on Windows")
+			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		socketPath = fmt.Sprintf("unix://%s", socketPath)
+		socketPath = "unix://" + socketPath
 	}
 
 	opts := []grpc.DialOption{

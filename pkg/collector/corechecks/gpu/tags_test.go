@@ -82,7 +82,7 @@ func newContainerWorkloadID(containerID string) workloadmeta.EntityID {
 func newProcessWorkloadID(pid int32) workloadmeta.EntityID {
 	return workloadmeta.EntityID{
 		Kind: workloadmeta.KindProcess,
-		ID:   fmt.Sprintf("%d", pid),
+		ID:   strconv.FormatInt(int64(pid), 10),
 	}
 }
 
@@ -440,7 +440,7 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: &container.EntityID,
@@ -450,7 +450,7 @@ func TestBuildProcessTagsFromWorkloadMetaIncludingContainer(t *testing.T) {
 	// Set up tagger for container
 	setWorkloadTags(t, mocks.tagger, container.EntityID, containerTags, nil, nil)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -473,14 +473,14 @@ func TestBuildProcessTagsWithoutContainer(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: nil,
 	}
 	mocks.workloadMeta.Set(process)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -501,14 +501,14 @@ func TestBuildProcessTagsNsPidZero(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: 0,
 		Owner: nil,
 	}
 	mocks.workloadMeta.Set(process)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -538,7 +538,7 @@ func TestBuildProcessTagsWithNoNsPidField(t *testing.T) {
 	// Ensure the process exists in the fake procfs
 	require.True(t, kernel.ProcessExists(int(pid)))
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -576,7 +576,7 @@ func TestBuildProcessTagsFallbackToContainerProvider(t *testing.T) {
 	setWorkloadInWorkloadMeta(t, mocks.workloadMeta, newContainerWorkloadID(containerID), workloadmeta.ContainerRuntimeContainerd)
 	setWorkloadTags(t, mocks.tagger, newContainerWorkloadID(containerID), containerTags, nil, nil)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	expectedTags := []string{
@@ -605,7 +605,7 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: &workloadmeta.EntityID{
@@ -617,7 +617,7 @@ func TestBuildProcessTagsContainerNotFound(t *testing.T) {
 
 	// Don't set up container in workloadmeta - it will return NotFound
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	assert.NoError(t, err) //
 
 	expectedTags := []string{
@@ -641,7 +641,7 @@ func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   fmt.Sprintf("%d", pid),
+			ID:   strconv.FormatInt(int64(pid), 10),
 		},
 		NsPid: nspid,
 		Owner: &workloadmeta.EntityID{
@@ -655,7 +655,7 @@ func TestBuildProcessTagsContainerTagsReturnsEmpty(t *testing.T) {
 
 	// Don't set up tagger tags - the fake tagger returns empty tags (no error)
 
-	tags, err := cache.buildProcessTags(fmt.Sprintf("%d", pid))
+	tags, err := cache.buildProcessTags(strconv.FormatInt(int64(pid), 10))
 	require.NoError(t, err)
 
 	// Tags should include process tags but no container tags
@@ -877,12 +877,12 @@ func TestBuildProcessTagsUsesCachedPidToCid(t *testing.T) {
 	kernel.WithFakeProcFS(t, procRoot)
 
 	// First process - should initialize pidToCid
-	tags1, err := cache.buildProcessTags(fmt.Sprintf("%d", pid1))
+	tags1, err := cache.buildProcessTags(strconv.FormatInt(int64(pid1), 10))
 	require.NoError(t, err)
 	assert.Contains(t, tags1, "service:service1")
 
 	// Second process - should reuse cached pidToCid (mockContainerProvider.EXPECT() will fail if called again)
-	tags2, err := cache.buildProcessTags(fmt.Sprintf("%d", pid2))
+	tags2, err := cache.buildProcessTags(strconv.FormatInt(int64(pid2), 10))
 	require.NoError(t, err)
 	assert.Contains(t, tags2, "service:service2")
 }

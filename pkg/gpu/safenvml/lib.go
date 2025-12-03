@@ -316,7 +316,7 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 
 	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))
 	if lib == nil {
-		return fmt.Errorf("failed to create NVML library")
+		return errors.New("failed to create NVML library")
 	}
 
 	ret := lib.Init()

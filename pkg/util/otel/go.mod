@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/util/otel
 
 go 1.24.0
 
-require github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.74.0-rc.1
+require github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
 
 require (
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.74.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000 // indirect
 	go.opentelemetry.io/collector/component v1.46.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.46.0 // indirect
 	go.opentelemetry.io/otel v1.38.0 // indirect
