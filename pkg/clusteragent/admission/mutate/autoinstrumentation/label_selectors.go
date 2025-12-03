@@ -38,7 +38,7 @@ type LabelSelectors struct {
 	config *LabelSelectorsConfig
 }
 
-// NewLabelSelectors initalizes a LabelSelectors with the provided config.
+// NewLabelSelectors initializes a LabelSelectors with the provided config.
 func NewLabelSelectors(config *LabelSelectorsConfig) *LabelSelectors {
 	return &LabelSelectors{
 		config: config,
@@ -83,7 +83,7 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 func (ls *LabelSelectors) setupObjectSelector(selector *metav1.LabelSelector) {
 	if ls.config.Enabled || ls.config.MutateUnlabelled {
 		// If instrumentation or mutate unlabelled is enabled, then we want to receive webhooks for everything but
-		// workloads that have explicitely opted out.
+		// workloads that have explicitly opted out.
 		selector.MatchExpressions = []metav1.LabelSelectorRequirement{
 			{
 				Key:      common.EnabledLabelKey,
