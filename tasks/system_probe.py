@@ -1451,7 +1451,7 @@ def run_ninja(
 
 
 def get_clang_version_and_build_version() -> tuple[str, str]:
-    gitlab_ci_file = Path(__file__).parent.parent / ".gitlab-ci.yml"
+    gitlab_ci_file = Path(__file__).parent.parent / ".global-ci.yml"
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(gitlab_ci_file) as f:
         ci_config = yaml.safe_load(f)
