@@ -95,9 +95,9 @@ func dockerImageName() string {
 	return fmt.Sprintf("%s:%s", vectorAddDockerImg, *imageTag)
 }
 
-func mandatoryMetricTagRegexes() []*regexp.Regexp {
-	regexes := make([]*regexp.Regexp, 0, len(mandatoryMetricTags))
-	for _, tag := range mandatoryMetricTags {
+func buildTagRegexes(tags []string) []*regexp.Regexp {
+	regexes := make([]*regexp.Regexp, 0, len(tags))
+	for _, tag := range tags {
 		regexes = append(regexes, regexp.MustCompile(tag+":.*"))
 	}
 
@@ -287,8 +287,8 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 func (v *gpuBaseSuite[Env]) runCudaDockerWorkload() string {
 	// Configure some defaults
 	vectorSize := 50000
-	numLoops := 100      // Loop extra times to ensure the kernel runs for a bit
-	waitTimeSeconds := 5 // Give enough time to our monitor to hook the probes
+	numLoops := 300       // Loop extra times to ensure the kernel runs for a bit
+	waitTimeSeconds := 15 // Give enough time to our monitor to hook the probes and for workloadmeta to laod things
 	binary := "/usr/local/bin/cuda-basic"
 	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops), strconv.Itoa(waitTimeSeconds)}
 
@@ -346,10 +346,11 @@ func (v *gpuBaseSuite[Env]) TestLimitMetricsAreReported() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
+	tagRegexes := buildTagRegexes(mandatoryMetricTags)
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		metricNames := []string{"gpu.core.limit", "gpu.memory.limit"}
 		for _, metricName := range metricNames {
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 		}
@@ -371,6 +372,9 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 	flake.MarkOnLog(v.T(), "error code CUDA-capable device(s) is/are busy or unavailable")
 	containerID := v.runCudaDockerWorkload()
 
+	expectedTags := v.caps.ExpectedWorkloadTags()
+	expectedTags = append(expectedTags, mandatoryMetricTags...)
+	tagRegexes := buildTagRegexes(expectedTags)
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Check for workload errors first
 		err := v.caps.CheckWorkloadErrors(containerID)
@@ -378,11 +382,14 @@ func (v *gpuBaseSuite[Env]) TestVectorAddProgramDetected() {
 
 		// We are not including "gpu.memory", as that represents the "current
 		// memory usage" and that might be zero at the time it's checked
-		metricNames := []string{"gpu.process.core.usage"}
+		metricNames := []string{
+			"gpu.process.core.usage",
+			"gpu.sm_active",
+		}
 
 		var usageMetricTags []string
 		for _, metricName := range metricNames {
-			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metricName, client.WithMetricValueHigherThan(0), client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
 			assert.NoError(c, err)
 			assert.Greater(c, len(metrics), 0, "no '%s' with value higher than 0 yet", metricName)
 
@@ -414,6 +421,7 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 		v.T().Skip("skipping test as system does not have all the critical NVML APIs")
 	}
 
+	tagRegexes := buildTagRegexes(mandatoryMetricTags)
 	// Nvml metrics are always being collected
 	v.EventuallyWithT(func(c *assert.CollectT) {
 		// Not all NVML metrics are supported in all devices. We check for some basic ones
@@ -432,7 +440,7 @@ func (v *gpuBaseSuite[Env]) TestNvmlMetricsPresent() {
 			var options []client.MatchOpt[*aggregator.MetricSeries]
 			if metric.deviceSpecific {
 				// device-specific metrics should be tagged with device tags
-				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](mandatoryMetricTagRegexes()))
+				options = append(options, client.WithMatchingTags[*aggregator.MetricSeries](tagRegexes))
 			}
 
 			metrics, err := v.caps.FakeIntake().Client().FilterMetrics(metric.name, options...)
