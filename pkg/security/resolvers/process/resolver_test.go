@@ -886,13 +886,14 @@ func TestCGroupContext(t *testing.T) {
 		)
 
 		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
-			CGroupID: cgroupID,
+			Releasable: &model.Releasable{},
+			CGroupID:   cgroupID,
 			CGroupFile: model.PathKey{
 				Inode: 4242,
 			},
 		}, nil)
 
 		assert.Equal(t, cgroupID, node.ProcessCacheEntry.CGroup.CGroupID)
-		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerID)
+		assert.Equal(t, containerID, node.ProcessCacheEntry.ContainerContext.ContainerID)
 	})
 }

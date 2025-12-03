@@ -9,7 +9,7 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -106,9 +106,9 @@ func getLocalIntegrationConfigs(
 	config config.Component) ([]integration.Config, error) {
 	wmetaInstance, ok := wmeta.Get()
 	if !ok {
-		return nil, fmt.Errorf("Workload Meta is not available")
+		return nil, errors.New("Workload Meta is not available")
 	}
-	common.LoadComponents(secretResolver, wmetaInstance, tagger, ac, config.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, tagger, filterStore, ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to AutoDiscovery.

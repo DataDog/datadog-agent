@@ -10,9 +10,12 @@ package cgroup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
+
+	"go.uber.org/atomic"
 
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
@@ -70,6 +73,14 @@ type Resolver struct {
 	hostWorkloads      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 	containerWorkloads *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
 	history            *simplelru.LRU[uint32, uint64]
+
+	// metrics
+	addedCgroups        *atomic.Int64
+	deletedCgroups      *atomic.Int64
+	fallbackSucceed     *atomic.Int64
+	fallbackFailed      *atomic.Int64
+	addPidCgroupPresent *atomic.Int64
+	addPidCgroupAbsent  *atomic.Int64
 }
 
 // NewResolver returns a new cgroups monitor
@@ -79,9 +90,15 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 	}
 
 	cr := &Resolver{
-		Notifier:     utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
-		statsdClient: statsdClient,
-		cgroupFS:     cgroupFS,
+		Notifier:            utils.NewNotifier[Event, *cgroupModel.CacheEntry](),
+		statsdClient:        statsdClient,
+		cgroupFS:            cgroupFS,
+		addedCgroups:        atomic.NewInt64(0),
+		deletedCgroups:      atomic.NewInt64(0),
+		fallbackSucceed:     atomic.NewInt64(0),
+		fallbackFailed:      atomic.NewInt64(0),
+		addPidCgroupPresent: atomic.NewInt64(0),
+		addPidCgroupAbsent:  atomic.NewInt64(0),
 	}
 
 	cleanup := func(value *cgroupModel.CacheEntry) {
@@ -89,7 +106,9 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 		if value.ContainerContext.Resolved && value.ContainerContext.ContainerID != "" {
 			value.ContainerContext.CallReleaseCallback()
 		}
-		value.CGroupContext.CallReleaseCallback()
+		if value.CGroupContext.Releasable != nil {
+			value.CGroupContext.CallReleaseCallback()
+		}
 		value.Deleted.Store(true)
 
 		cr.NotifyListeners(CGroupDeleted, value)
@@ -133,6 +152,7 @@ func (cr *Resolver) removeCgroup(cgroup *cgroupModel.CacheEntry) {
 	if cgroup.ContainerID != "" {
 		cr.containerWorkloads.Remove(cgroup.ContainerID)
 	}
+	cr.deletedCgroups.Inc()
 }
 
 // cgroup already locked
@@ -165,11 +185,12 @@ func (cr *Resolver) syncOrDeleteCgroup(cgroup *cgroupModel.CacheEntry, deletedPi
 
 // currentCgroup already locked
 func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup *cgroupModel.CacheEntry) {
-	for _, cgroup := range cr.containerWorkloads.Values() {
+	cr.iterate(func(cgroup *cgroupModel.CacheEntry) bool {
 		if cgroup.CGroupFile.Inode == currentCgroup.CGroupFile.Inode {
-			continue
+			return false
 		}
 		cgroup.Lock()
+		defer cgroup.Unlock()
 		for _, pid := range pids {
 			delete(cgroup.PIDs, pid)
 		}
@@ -179,35 +200,18 @@ func (cr *Resolver) cleanupPidsWithMultipleCgroups(pids []uint32, currentCgroup 
 			// No need to introduce a recursion here.
 			cr.removeCgroup(cgroup)
 		}
-		cgroup.Unlock()
-	}
-
-	for _, cgroup := range cr.hostWorkloads.Values() {
-		if cgroup.CGroupFile.Inode == currentCgroup.CGroupFile.Inode {
-			continue
-		}
-		cgroup.Lock()
-		for _, pid := range pids {
-			delete(cgroup.PIDs, pid)
-		}
-		if len(cgroup.PIDs) == 0 {
-			// No double check here to ensure that the cgroup is REALLY empty,
-			// because we already are in such a double check for another cgroup.
-			// No need to introduce a recursion here.
-			cr.removeCgroup(cgroup)
-		}
-		cgroup.Unlock()
-	}
+		return false
+	})
 }
 
 func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
-	newCGroup := cgroupModel.NewCacheEntry(process.ContainerID, &process.CGroup, process.Pid)
+	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext.ContainerID, &process.CGroup, process.Pid)
 	newCGroup.CreatedAt = uint64(process.ProcessContext.ExecTime.UnixNano())
 
 	// add the new CGroup to the cache
-	if process.ContainerID != "" {
-		cr.containerWorkloads.Add(process.ContainerID, newCGroup)
+	if process.ContainerContext.ContainerID != "" {
+		cr.containerWorkloads.Add(process.ContainerContext.ContainerID, newCGroup)
 	} else {
 		cr.hostWorkloads.Add(process.CGroup.CGroupID, newCGroup)
 	}
@@ -216,6 +220,7 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &cgroupCopy)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
+	cr.addedCgroups.Inc()
 }
 
 // returns false if the fallback failed
@@ -226,14 +231,14 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
 		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 		process.CGroup.CGroupID = cgroup.CGroupID
-		process.ContainerID = cid
+		process.ContainerContext.ContainerID = cid
 		seclog.Infof("Fallback to resolve cgroup for pid %d: %s", process.Pid, cgroup.CGroupID)
 		return true
 	}
 
 	// fallback can fail for short lived processes, in this case we try to assign the parent cgroup
 	if process.PPid == process.Pid || process.PPid <= 0 {
-		seclog.Warnf("Fallback to resolve cgroup for %d, missing parend PPID: %d", process.Pid, process.PPid)
+		seclog.Infof("Failed to fallback to resolve cgroup for %d, missing parend PPID: %d", process.Pid, process.PPid)
 		return false
 	}
 
@@ -244,7 +249,7 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 			process.CGroup.CGroupFile.MountID = cgroup.CGroupFile.MountID
 			process.CGroup.CGroupFile.Inode = cgroup.CGroupFile.Inode
 			process.CGroup.CGroupID = cgroup.CGroupID
-			process.ContainerID = containerutils.FindContainerID(cgroup.CGroupID)
+			process.ContainerContext.ContainerID = containerutils.FindContainerID(cgroup.CGroupID)
 			seclog.Infof("Fallback to resolve cgroup for pid %d from parent: %d", process.Pid, process.PPid)
 			return true
 		}
@@ -256,12 +261,15 @@ func (cr *Resolver) resolvePidCgroupFallback(process *model.ProcessCacheEntry) b
 		process.CGroup.CGroupFile.MountID = cgroup.CGroupFileMountID
 		process.CGroup.CGroupFile.Inode = cgroup.CGroupFileInode
 		process.CGroup.CGroupID = cgroup.CGroupID
-		process.ContainerID = cid
+		process.ContainerContext.ContainerID = cid
 		seclog.Infof("Fallback to resolve parent cgroup for ppid %d: %s", process.PPid, cgroup.CGroupID)
 		return true
 	}
 
-	seclog.Warnf("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
+	if err == nil {
+		err = errors.New("FindCGroupContext returned an empty cgroup")
+	}
+	seclog.Infof("Failed to add pid %d, error on fallback to resolve its cgroup: %v", process.Pid, err)
 	return false
 }
 
@@ -272,10 +280,15 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 	defer cr.Unlock()
 
 	if process.CGroup.CGroupID == "" || process.CGroup.CGroupFile.Inode == 0 {
+		cr.addPidCgroupAbsent.Inc()
 		if !cr.resolvePidCgroupFallback(process) {
 			// all fallback failed :/
+			cr.fallbackFailed.Inc()
 			return
 		}
+		cr.fallbackSucceed.Inc()
+	} else {
+		cr.addPidCgroupPresent.Inc()
 	}
 
 	// push pid:cgroup pair to an history cache for fallbacks for short lived processes
@@ -419,6 +432,39 @@ func (cr *Resolver) SendStats() error {
 	if val := float64(cr.cgroups.Len()); val > 0 {
 		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveCGroups, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricCGroupResolverActiveCGroups: %w", err)
+		}
+	}
+
+	if count := cr.addedCgroups.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverAddedCgroups, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+	if count := cr.deletedCgroups.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverDeletedCgroups, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+
+	if count := cr.fallbackSucceed.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverFallbackSucceed, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+	if count := cr.fallbackFailed.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverFallbackFailed, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+
+	if count := cr.addPidCgroupPresent.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverAddPIDCgroupPresent, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
+		}
+	}
+	if count := cr.addPidCgroupAbsent.Swap(0); count > 0 {
+		if err := cr.statsdClient.Count(metrics.MetricCGroupResolverAddPIDCgroupAbsent, count, []string{}, 1.0); err != nil {
+			return fmt.Errorf("failed to send cgroup_resolver metric: %w", err)
 		}
 	}
 

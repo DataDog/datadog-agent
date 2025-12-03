@@ -261,6 +261,7 @@ def run(
     use_prebuilt_binaries=False,
     max_retries=0,
     osdescriptors="",
+    module_name="test/new-e2e",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -268,11 +269,12 @@ def run(
 
     if shutil.which("pulumi") is None:
         raise Exit(
-            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/test-infra-definitions/blob/main/README.md)",
+            "pulumi CLI not found, Pulumi needs to be installed on the system (see https://github.com/DataDog/datadog-agent/test/e2e-framework/blob/main/README.md)",
             1,
         )
 
-    e2e_module = get_default_modules()["test/new-e2e"]
+    e2e_module = get_default_modules()[module_name]
+
     e2e_module.should_test_condition = "always"
     if targets:
         e2e_module.test_targets = targets
@@ -288,7 +290,7 @@ def run(
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
                 to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
-                ctx.run(f"datadog-ci metric --level job --metrics 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
+                ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
         except Exception as e:

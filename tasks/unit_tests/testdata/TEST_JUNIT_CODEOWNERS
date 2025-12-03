@@ -55,9 +55,9 @@
 /.github/CODEOWNERS                                  # do not notify anyone
 /.github/*_TEMPLATE.md                               @DataDog/agent-devx
 /.github/dependabot.yaml                             @DataDog/agent-devx
-/.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-aws
-/.github/workflows/serverless-integration.yml        @DataDog/serverless @Datadog/serverless-aws
+/.github/workflows/serverless-benchmarks.yml         @DataDog/serverless @Datadog/serverless-azure-gcp
+/.github/workflows/serverless-binary-size.yml        @DataDog/serverless @Datadog/serverless-azure-gcp
+/.github/workflows/serverless-integration.yml        @DataDog/serverless @Datadog/serverless-azure-gcp
 /.github/workflows/cws-btfhub-sync.yml               @DataDog/agent-security
 /.github/workflows/gohai.yml                         @DataDog/agent-configuration
 /.github/workflows/go-update-commenter.yml           @DataDog/agent-runtimes
@@ -126,7 +126,7 @@
 /.gitlab/binary_build/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-build
 /.gitlab/binary_build/cluster_agent.yml              @DataDog/container-integrations @DataDog/agent-build
 /.gitlab/binary_build/fakeintake.yml                 @DataDog/agent-devx
-/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @Datadog/serverless-aws @DataDog/agent-build
+/.gitlab/binary_build/serverless.yml                 @DataDog/serverless @Datadog/serverless-azure-gcp @DataDog/agent-build
 /.gitlab/binary_build/otel_agent.yml                 @DataDog/opentelemetry-agent @DataDog/agent-build
 /.gitlab/binary_build/system_probe.yml               @DataDog/ebpf-platform @DataDog/agent-build
 /.gitlab/binary_build/windows.yml                    @DataDog/agent-build @DataDog/windows-products
@@ -150,7 +150,6 @@
 /.gitlab/e2e_install_packages/windows.yml            @DataDog/agent-onboarding @DataDog/windows-products
 
 /.gitlab/common/                                     @DataDog/agent-devx
-/.gitlab/common/test_infra_version.yml               @DataDog/agent-devx
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx
 /.gitlab/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
@@ -238,7 +237,7 @@
 /cmd/dogstatsd/                         @DataDog/agent-metric-pipelines
 /cmd/otel-agent/                        @DataDog/opentelemetry-agent
 /cmd/process-agent/                     @DataDog/container-experiences
-/cmd/serverless/                        @DataDog/serverless @Datadog/serverless-aws
+/cmd/serverless/                        @DataDog/serverless @Datadog/serverless-azure-gcp
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/sbomgen/                           @DataDog/agent-security
 /cmd/system-probe/                      @DataDog/ebpf-platform
@@ -323,7 +322,6 @@
 /comp/updater @DataDog/fleet @DataDog/windows-products
 /comp/agent/cloudfoundrycontainer @DataDog/agent-integrations
 /comp/agent/jmxlogger @DataDog/agent-metric-pipelines
-/comp/aggregator/diagnosesendermanager @DataDog/agent-configuration
 /comp/checks/agentcrashdetect @DataDog/windows-products
 /comp/checks/windowseventlog @DataDog/windows-products
 /comp/checks/winregistry @DataDog/windows-products
@@ -392,7 +390,7 @@
 /pkg/metrics/metricsource.go            @DataDog/agent-metric-pipelines @DataDog/agent-integrations
 /pkg/serializer/                        @DataDog/agent-metric-pipelines
 /pkg/serializer/internal/metrics/origin_mapping.go  @DataDog/agent-metric-pipelines @DataDog/agent-integrations
-/pkg/serverless/                        @DataDog/serverless @Datadog/serverless-aws
+/pkg/serverless/                        @DataDog/serverless @Datadog/serverless-azure-gcp
 /pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-configuration
 /pkg/status/health                      @DataDog/agent-runtimes
@@ -516,7 +514,6 @@
 /pkg/util/crio/                         @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/container-integrations
-/pkg/util/encoding/                     @DataDog/ebpf-platform
 /pkg/util/funcs/                        @DataDog/ebpf-platform
 /pkg/util/gpu/                          @DataDog/container-platform
 /pkg/util/installinfo/                  @DataDog/agent-configuration
@@ -682,7 +679,7 @@
 /test/                                  @DataDog/agent-devx
 /test/benchmarks/                       @DataDog/agent-metric-pipelines
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
-/test/integration/                      @DataDog/serverless @Datadog/serverless-aws
+/test/integration/                      @DataDog/serverless @Datadog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core

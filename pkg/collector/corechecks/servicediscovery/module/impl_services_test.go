@@ -11,7 +11,6 @@ package module
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -24,7 +23,6 @@ import (
 	"time"
 
 	"github.com/prometheus/procfs"
-	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
@@ -418,72 +416,6 @@ func TestServicesLogsWithoutPorts(t *testing.T) {
 	assert.True(t, found, "expected to find log file %s in LogFiles: %v", logFileName, svc.LogFiles)
 }
 
-func testServicesCaptureWrappedCommands(t *testing.T, script string, commandWrapper []string, validator func(service model.Service) bool) {
-	// Changing permissions
-	require.NoError(t, os.Chmod(script, 0o755))
-
-	commandLineArgs := append(commandWrapper, script)
-	cmd := exec.Command(commandLineArgs[0], commandLineArgs[1:]...)
-	// Running the binary in the background
-	require.NoError(t, cmd.Start())
-
-	var proc *process.Process
-	var err error
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		proc, err = process.NewProcess(int32(cmd.Process.Pid))
-		require.NoError(collect, err)
-
-		// If we wrap the script with `sh -c`, we can have differences between a
-		// local run and a kmt run, as for kmt `sh` is symbolic link to bash,
-		// while locally it can be a symbolic link to dash.
-		//
-		// In the dash case, we will see 2 processes `sh -c script.py` and a
-		// sub-process `python3 script.py`, while in the bash case we will see
-		// only `python3 script.py` (after initially potentially seeing `sh -c
-		// script.py` before the process execs). We need to check for the
-		// command line arguments of the process to make sure we are looking at
-		// the right process.
-		cmdline, err := proc.Cmdline()
-		require.NoError(t, err)
-		if cmdline == strings.Join(commandLineArgs, " ") && len(commandWrapper) > 0 {
-			var children []*process.Process
-			children, err = proc.Children()
-			require.NoError(collect, err)
-			require.Len(collect, children, 1)
-			proc = children[0]
-		}
-	}, 10*time.Second, 100*time.Millisecond)
-
-	t.Cleanup(func() { _ = proc.Kill() })
-
-	discovery := setupDiscoveryModule(t)
-
-	pid := int(proc.Pid)
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.Services)
-		require.NotNilf(collect, startEvent, "could not find service for pid %v", pid)
-		assert.True(collect, validator(*startEvent))
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
-func TestServicesPythonFromBashScript(t *testing.T) {
-	curDir, err := testutil.CurDir()
-	require.NoError(t, err)
-	pythonScriptPath := filepath.Join(curDir, "testdata", "script.py")
-
-	t.Run("PythonFromBashScript", func(t *testing.T) {
-		testServicesCaptureWrappedCommands(t, pythonScriptPath, []string{"sh", "-c"}, func(service model.Service) bool {
-			return service.Language == string(language.Python)
-		})
-	})
-	t.Run("DirectPythonScript", func(t *testing.T) {
-		testServicesCaptureWrappedCommands(t, pythonScriptPath, nil, func(service model.Service) bool {
-			return service.Language == string(language.Python)
-		})
-	})
-}
-
 func TestServicesAPMInstrumentationProvided(t *testing.T) {
 	testCases := map[string]struct {
 		commandline []string // The command line of the fake server
@@ -536,34 +468,7 @@ func TestServicesAPMInstrumentationProvided(t *testing.T) {
 	}
 }
 
-func TestServicesCommandLineSanitization(t *testing.T) {
-	serverDir := buildFakeServer(t)
-	discovery := setupDiscoveryModule(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() { cancel() })
-
-	bin := filepath.Join(serverDir, "node")
-
-	actualCommandLine := []string{bin, "--password", "secret", strings.Repeat("A", maxCommandLine*10)}
-	sanitizedCommandLine := []string{bin, "--password", "********", "placeholder"}
-	sanitizedCommandLine[3] = strings.Repeat("A", maxCommandLine-(len(bin)+len(sanitizedCommandLine[1])+len(sanitizedCommandLine[2])))
-
-	cmd := exec.CommandContext(ctx, bin, actualCommandLine[1:]...)
-	require.NoError(t, cmd.Start())
-
-	pid := cmd.Process.Pid
-
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		resp := getServices(collect, discovery.url)
-		startEvent := findService(pid, resp.Services)
-		require.NotNilf(collect, startEvent, "could not find start event for pid %v", pid)
-		assert.Equal(collect, sanitizedCommandLine, startEvent.CommandLine)
-	}, 30*time.Second, 100*time.Millisecond)
-}
-
 func TestServicesNodeDocker(t *testing.T) {
-	t.Skip("Skip temporarily")
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 
@@ -584,7 +489,7 @@ func TestServicesNodeDocker(t *testing.T) {
 		assert.Equal(collect, svc.PID, pid)
 		assert.Equal(collect, "test_nodejs-https-server", svc.GeneratedName)
 		assert.Equal(collect, string(usm.Nodejs), svc.GeneratedNameSource)
-		assert.Equal(collect, true, svc.APMInstrumentation)
+		assert.Equal(collect, false, svc.APMInstrumentation)
 		assert.Equal(collect, "web_service", svc.Type)
 	}, 30*time.Second, 100*time.Millisecond)
 }
@@ -606,7 +511,7 @@ func TestServicesAPMInstrumentationProvidedWithMaps(t *testing.T) {
 				"..", "..", "..", "..",
 				"network", "usm", "testdata",
 				"site-packages", "ddtrace",
-				fmt.Sprintf("libssl.so.%s", runtime.GOARCH)),
+				"libssl.so."+runtime.GOARCH),
 			language: language.Python,
 		},
 		{

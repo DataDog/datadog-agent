@@ -106,6 +106,10 @@ struct syscall_cache_t {
             struct mount *parent;
             struct dentry *mountpoint_dentry;
             u32 bind_src_mount_id;
+            u64 mount_id_unique;
+            u64 parent_mount_id_unique;
+            u64 bind_src_mount_id_unique;
+
             // populated from collected
             const char *fstype;
             struct path_key_t root_key;
@@ -113,6 +117,7 @@ struct syscall_cache_t {
             dev_t device;
             int clone_mnt_ctr;
             int source;
+            u64 ns_inum;
         } mount;
 
         struct {
@@ -149,6 +154,7 @@ struct syscall_cache_t {
         struct {
             u32 is_thread;
             u32 is_kthread;
+            u32 parent_pid;
         } fork;
 
         struct {

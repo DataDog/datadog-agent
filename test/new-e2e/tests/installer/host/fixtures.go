@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +38,7 @@ func (h *Host) uploadFixtures() {
 	for _, fixture := range fixtures {
 		if filepath.Ext(fixture.Name()) == ".sh" {
 			fixturePath := filepath.Join("/opt/fixtures", fixture.Name())
-			h.remote.MustExecute(fmt.Sprintf("chmod +x %s", fixturePath))
+			h.remote.MustExecute("chmod +x " + fixturePath)
 		}
 	}
 

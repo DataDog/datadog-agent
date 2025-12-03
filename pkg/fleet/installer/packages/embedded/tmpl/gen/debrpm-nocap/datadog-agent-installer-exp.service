@@ -11,10 +11,9 @@ Type=simple
 PIDFile=/opt/datadog-agent/run/installer.pid
 Restart=on-failure
 EnvironmentFile=-/etc/datadog-agent-exp/environment
-Environment="DD_BUNDLED_AGENT=installer"
-Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/experiment"
+Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
-ExecStart=/opt/datadog-agent/bin/agent/agent run -c /etc/datadog-agent-exp -p /opt/datadog-agent/run/installer.pid
+ExecStart=/opt/datadog-agent/embedded/bin/installer run -c /etc/datadog-agent-exp -p /opt/datadog-agent/run/installer.pid
 StartLimitInterval=10
 StartLimitBurst=5
 

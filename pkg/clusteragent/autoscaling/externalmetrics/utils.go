@@ -78,7 +78,7 @@ func buildDatadogQueryForExternalMetric(metricName string, labels map[string]str
 	var result string
 
 	if len(labels) == 0 {
-		result = fmt.Sprintf("%s{*}", metricName)
+		result = metricName + "{*}"
 	} else {
 		datadogTags := []string{}
 		for key, val := range labels {

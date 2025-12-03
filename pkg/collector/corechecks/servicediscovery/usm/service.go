@@ -287,6 +287,8 @@ var executableDetectors = map[string]detectorCreatorFn{
 	"gunicorn": newGunicornDetector,
 	"puma":     newRailsDetector,
 	"sudo":     newSimpleDetector,
+	"beam.smp": newErlangDetector,
+	"beam":     newErlangDetector,
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.

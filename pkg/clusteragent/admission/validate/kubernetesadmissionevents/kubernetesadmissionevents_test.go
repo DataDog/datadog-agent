@@ -43,7 +43,7 @@ const (
 
 // compareText compares text while ignoring the timestamp
 func compareText(expected, actual event.Event) bool {
-	re := regexp.MustCompile(`\*\*Time:\*\*.*?(\\n|$)`)
+	re := regexp.MustCompile(`(?m)^\*\*Time:\*\*.*$`)
 	expectedText := re.ReplaceAllString(expected.Text, "**Time:** <TIME>\n")
 	actualText := re.ReplaceAllString(actual.Text, "**Time:** <TIME>\n")
 	return expectedText == actualText

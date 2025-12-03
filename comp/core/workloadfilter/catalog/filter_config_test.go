@@ -23,11 +23,11 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		mockConfig := configmock.New(t)
 
 		// Set up valid CEL config that should unmarshal successfully
-		celConfig := []workloadfilter.RuleBundle{
+		celConfig := []map[string]interface{}{
 			{
-				Products: []workloadfilter.Product{workloadfilter.ProductMetrics},
-				Rules: map[workloadfilter.ResourceType][]string{
-					workloadfilter.ContainerType: {"container.name == 'test'"},
+				"products": []string{"metrics"},
+				"rules": map[string][]string{
+					"container": {"container.name == 'test'"},
 				},
 			},
 		}

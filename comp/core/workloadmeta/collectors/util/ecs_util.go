@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -85,6 +86,10 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 	if strings.ToUpper(task.LaunchType) == "FARGATE" {
 		entity.LaunchType = workloadmeta.ECSLaunchTypeFargate
 		source = workloadmeta.SourceRuntime
+	}
+	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
+		source = workloadmeta.SourceRuntime
+		entity.LaunchType = workloadmeta.ECSLaunchTypeManagedInstances
 	}
 
 	events = append(events, containerEvents...)
@@ -231,6 +236,10 @@ func ParseV4TaskContainers(
 			// Unlike in the case above, it is OK to set the runtime here, as
 			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
+		}
+		if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
+			source = workloadmeta.SourceRuntime
+			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{

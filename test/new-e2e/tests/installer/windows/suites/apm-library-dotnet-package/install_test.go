@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
@@ -78,7 +78,7 @@ func (s *testDotnetLibraryInstallSuite) TestUpdate() {
 	defer s.stopIISApp()
 	s.startIISApp(webConfigFile, aspxFile)
 
-	// Check that the expected version of the library is loadedi
+	// Check that the expected version of the library is loaded
 	oldLibraryPath := s.getLibraryPathFromInstrumentedIIS()
 	s.Require().Contains(oldLibraryPath, initialVersion[:len(initialVersion)-2])
 

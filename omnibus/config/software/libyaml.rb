@@ -16,29 +16,20 @@
 #
 
 name "libyaml"
-default_version "0.2.2"
+default_version "0.2.5"
+
+license "MIT"
+license_file "./LICENSE"
 
 source url: "https://pyyaml.org/download/libyaml/yaml-#{version}.tar.gz"
-source sha256: "4a9100ab61047fd9bd395bcef3ce5403365cafd55c1e0d0299cde14958e47be9"
+source sha256: "c642ae9b75fee120b2d96c712538bd2cf283228d2337df2cf2988e3c02678ef4"
 
 relative_path "yaml-#{version}"
 
-dependency "config_guess"
-
-env = with_embedded_path
-env = with_standard_compiler_flags(env)
-
 build do
-  license "MIT"
-  license_file "./LICENSE"
-
-  update_config_guess(target: "config")
-
-  configure_options = [
-    " --enable-shared",
-    " --disable-static",
-  ]
-  configure(*configure_options, env: env)
-  command "make -j #{workers}", env: env
-  command "make -j #{workers} install", env: env
+  command_on_repo_root "bazelisk run -- @libyaml//:install --destdir='#{install_dir}/embedded'"
+  sh_lib = if linux_target? then "libyaml.so" else "libyaml.dylib" end
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+    "#{install_dir}/embedded/lib/pkgconfig/yaml-0.1.pc " \
+    "#{install_dir}/embedded/lib/#{sh_lib}"
 end

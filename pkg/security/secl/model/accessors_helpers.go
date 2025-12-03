@@ -14,6 +14,11 @@ import (
 
 // GetFieldValue retrieves the value of a field from the event using the evaluator.
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
+
 	m := &Model{}
 	evaluator, err := m.GetEvaluator(field, "", 0)
 	if err != nil {
@@ -36,9 +41,7 @@ func (ev *Event) initProcess() {
 		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
 	}
 
-	if ev.Exec.Process == nil {
-		ev.Exec.Process = &Process{}
-	}
+	ev.initProcessEventTypes()
 }
 
 // nolint: unused

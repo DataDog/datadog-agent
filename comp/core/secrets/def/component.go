@@ -10,21 +10,22 @@ package secrets
 
 // ConfigParams holds parameters for configuration
 type ConfigParams struct {
-	Type                        string
-	Config                      map[string]interface{}
-	Command                     string
-	Arguments                   []string
-	Timeout                     int
-	MaxSize                     int
-	RefreshInterval             int
-	RefreshIntervalScatter      bool
-	GroupExecPerm               bool
-	RemoveLinebreak             bool
-	RunPath                     string
-	AuditFileMaxSize            int
-	ScopeIntegrationToNamespace bool
-	AllowedNamespace            []string
-	ImageToHandle               map[string][]string
+	Type                         string
+	Config                       map[string]interface{}
+	Command                      string
+	Arguments                    []string
+	Timeout                      int
+	MaxSize                      int
+	RefreshInterval              int
+	RefreshIntervalScatter       bool
+	GroupExecPerm                bool
+	RemoveLinebreak              bool
+	RunPath                      string
+	AuditFileMaxSize             int
+	ScopeIntegrationToNamespace  bool
+	AllowedNamespace             []string
+	ImageToHandle                map[string][]string
+	APIKeyFailureRefreshInterval int
 }
 
 // Component is the component type.
@@ -35,6 +36,8 @@ type Component interface {
 	Resolve(data []byte, origin string, imageName string, kubeNamespace string) ([]byte, error)
 	// SubscribeToChanges registers a callback to be invoked whenever secrets are resolved or refreshed
 	SubscribeToChanges(callback SecretChangeCallback)
-	// Refresh will resolve secret handles again, notifying any subscribers of changed values
-	Refresh() (string, error)
+	// Refresh will resolve secret handles again, notifying any subscribers of changed values.
+	// If updateNow is true, the function performs the refresh immediately and blocks, returning an informative message suitable for user display.
+	// If updateNow is false, the function will asynchronously perform a refresh, and may fail to refresh due to throttling. No message is returned, just an empty string.
+	Refresh(updateNow bool) (string, error)
 }

@@ -19,19 +19,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testos "github.com/DataDog/test-infra-definitions/components/os"
+	testos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 const (
@@ -58,12 +58,14 @@ func TestAgentWindowsSuite(t *testing.T) {
 	e2e.Run[environments.Host](t, &agentSuiteWindows{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
-				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(agentConfig),
-					agentparams.WithSecurityAgentConfig(securityAgentConfig),
-					agentparams.WithSystemProbeConfig(systemProbeConfig),
+				awshost.WithRunOptions(
+					ec2.WithAgentOptions(
+						agentparams.WithAgentConfig(agentConfig),
+						agentparams.WithSecurityAgentConfig(securityAgentConfig),
+						agentparams.WithSystemProbeConfig(systemProbeConfig),
+					),
+					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 				),
-				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 			),
 		),
 	)
@@ -92,7 +94,7 @@ func (a *agentSuiteWindows) Test00RulesetLoadedDefaultFile() {
 
 func (a *agentSuiteWindows) Test01RulesetLoadedDefaultRC() {
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
-		testRulesetLoaded(c, a, "remote-config", "default.policy")
+		testRulesetLoaded(c, a, "remote-config", "threat-detection.policy")
 	}, 4*time.Minute, 10*time.Second)
 }
 
@@ -119,7 +121,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 			assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
 		}
 		if dirname != "" {
-			a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
+			a.Env().RemoteHost.MustExecute("rm -r " + dirname)
 		}
 	}()
 
@@ -127,9 +129,9 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 	cmd := "New-Item -ItemType Directory -Path $env:TEMP -Name ([Guid]::NewGuid().Guid) | Select-Object -ExpandProperty FullName"
 	tempDir := a.Env().RemoteHost.MustExecute(cmd)
 	dirname = strings.TrimSpace(tempDir)
-	filepath := fmt.Sprintf("%s\\secret", dirname)
-	desc := fmt.Sprintf("e2e test rule %s", a.testID)
-	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
+	filepath := dirname + "\\secret"
+	desc := "e2e test rule " + a.testID
+	agentRuleName := "new_e2e_agent_rule_" + a.testID
 
 	// Create CWS Agent rule
 	rule := fmt.Sprintf(`create.file.path == "%s"`, filepath)
@@ -167,7 +169,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	// Push policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("cp temp.txt '%s'; rm temp.txt", policiesPathWindows))
-	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPathWindows))
+	policiesFile := a.Env().RemoteHost.MustExecute("cat " + policiesPathWindows)
 	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
@@ -206,7 +208,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 		if !assert.NotNil(c, signal) {
 			return
 		}
-		assert.Contains(c, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		assert.Contains(c, signal.Tags, "rule_id:"+strings.ToLower(agentRuleName), "unable to find rule_id tag")
 		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
 			return
 		}

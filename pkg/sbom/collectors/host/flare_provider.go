@@ -10,13 +10,22 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 )
 
 // FlareProvider generates a host SBOM and adds it to the flare.
-func FlareProvider(fb flaretypes.FlareBuilder) error {
+type FlareProvider struct {
+	Config config.Component
+}
+
+// ProvideFlare generates a host SBOM and adds it to the flare.
+func (p *FlareProvider) ProvideFlare(fb flaretypes.FlareBuilder) error {
+	if !p.Config.GetBool("sbom.host.enabled") {
+		return nil
+	}
+
 	globalScanner := scanner.GetGlobalScanner()
 	if globalScanner == nil {
 		return nil

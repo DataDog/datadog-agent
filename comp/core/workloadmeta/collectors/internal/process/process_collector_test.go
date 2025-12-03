@@ -5,13 +5,11 @@
 
 //go:build linux && test
 
-// Package processlanguage implements the process language collector for
-// Workloadmeta.
+// Package process implements the process collector for Workloadmeta.
 package process
 
 import (
 	"context"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -99,7 +97,6 @@ func TestBasicCreatedProcessesCollection(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 			cfg.SetWithoutSource("process_config.intervals.process", 10)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
@@ -178,7 +175,6 @@ func TestCreatedProcessesCollectionWithLanguages(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 			cfg.SetWithoutSource("process_config.intervals.process", 10)
 			cfg.SetWithoutSource("language_detection.enabled", true)
 
@@ -286,7 +282,6 @@ func TestCreatedProcessesCollectionWithContainers(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 			cfg.SetWithoutSource("process_config.intervals.process", 10)
 
 			c := setUpCollectorTest(t, cfg, nil, nil)
@@ -445,7 +440,6 @@ func TestProcessLifecycleCollection(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			cfg := config.NewMock(t)
 			cfg.SetWithoutSource("process_config.process_collection.enabled", true)
-			cfg.SetWithoutSource("process_config.process_collection.use_wlm", true)
 			cfg.SetWithoutSource("process_config.intervals.process", 10)
 			cfg.SetWithoutSource("language_detection.enabled", true)
 
@@ -505,7 +499,6 @@ func TestStartConfiguration(t *testing.T) {
 			description: "everything enabled correctly",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": true,
@@ -516,7 +509,6 @@ func TestStartConfiguration(t *testing.T) {
 			description: "only process collection enabled",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": false,
@@ -527,7 +519,6 @@ func TestStartConfiguration(t *testing.T) {
 			description: "only service discovery enabled",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": true,
@@ -535,49 +526,24 @@ func TestStartConfiguration(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			description: "only service discovery enabled but use_wlm gate disabled",
+			description: "only GPU monitoring enabled",
 			configOverrides: map[string]interface{}{
-				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": false,
-			},
-			sysConfigOverrides: map[string]interface{}{
-				"discovery.enabled": true,
-			},
-			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
-		},
-		{
-			description: "only process collection enabled but use_wlm gate disabled",
-			configOverrides: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": false,
+				"gpu.enabled": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": false,
 			},
-			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
-		},
-
-		{
-			description: "everything enabled but use_wlm gate disabled",
-			configOverrides: map[string]interface{}{
-				"process_config.process_collection.enabled": true,
-				"process_config.process_collection.use_wlm": false,
-			},
-			sysConfigOverrides: map[string]interface{}{
-				"discovery.enabled": true,
-			},
-			expectedError: errors.NewDisabled(componentName, "wlm process collection disabled"),
+			expectedError: nil,
 		},
 		{
-			description: "use_wlm gate_enabled but process collection and service discovery not enabled",
+			description: "process collection and service discovery not enabled",
 			configOverrides: map[string]interface{}{
 				"process_config.process_collection.enabled": false,
-				"process_config.process_collection.use_wlm": true,
 			},
 			sysConfigOverrides: map[string]interface{}{
 				"discovery.enabled": false,
 			},
-			expectedError: errors.NewDisabled(componentName, "wlm process collection and service discovery are disabled"),
+			expectedError: errors.NewDisabled(componentName, "process collection, service discovery, language collection, and GPU monitoring are disabled"),
 		},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
@@ -663,7 +629,6 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
 	))
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
-	processCollector.sysProbeClient = &http.Client{}
 	processCollector.containerProvider = mockContainerProvider
 
 	return collectorTest{&processCollector, mockProbe, mockSystemProbeConfig, mockClock, mockStore, mockContainerProvider}

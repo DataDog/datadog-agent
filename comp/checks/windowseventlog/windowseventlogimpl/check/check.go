@@ -9,6 +9,7 @@
 package evtlog
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -27,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
+	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	evtsession "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	evtsubscribe "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
@@ -67,7 +69,7 @@ type Check struct {
 	evtapi                 evtapi.API
 	systemRenderContext    evtapi.EventRenderContextHandle
 	userRenderContext      evtapi.EventRenderContextHandle
-	bookmarkSaver          *bookmarkSaver
+	bookmarkManager        evtbookmark.Manager
 	publisherMetadataCache publishermetadatacache.Component
 }
 
@@ -101,7 +103,7 @@ func (c *Check) Run() error {
 	// if the events read are less than bookmark_frequency then a bookmark won't
 	// be saved before the process exits. saving here, too, gives us a good time periodic
 	// save/persist in addition to the count periodic bookmark_frequency option.
-	err = c.bookmarkSaver.saveLastBookmark()
+	err = c.bookmarkManager.Save()
 	if err != nil {
 		c.Warnf("error saving bookmark: %v", err)
 	}
@@ -118,7 +120,7 @@ func (c *Check) fetchEventsLoop(outCh chan<- *evtapi.EventRecord, pipelineWaiter
 
 	// Save the bookmark at the end of the loop, regardless of the bookmarkFrequency
 	defer func() {
-		err := c.bookmarkSaver.saveLastBookmark()
+		err := c.bookmarkManager.Save()
 		if err != nil {
 			c.Warnf("error saving bookmark: %v", err)
 		}
@@ -209,7 +211,7 @@ func (c *Check) validateConfig() error {
 		return fmt.Errorf("invalid instance config `event_priority`: %w", err)
 	}
 	if isaffirmative(c.config.instance.LegacyMode) && isaffirmative(c.config.instance.LegacyModeV2) {
-		return fmt.Errorf("legacy_mode and legacy_mode_v2 are both true. Each instance must set a single mode to true")
+		return errors.New("legacy_mode and legacy_mode_v2 are both true. Each instance must set a single mode to true")
 	}
 	if isaffirmative(c.config.instance.LegacyMode) {
 		// wrap ErrSkipCheckInstance for graceful skipping
@@ -231,13 +233,13 @@ func (c *Check) validateConfig() error {
 	ddSecurityEventsIsSetAndValid := false
 	if val, isSet := c.config.instance.DDSecurityEvents.Get(); isSet && len(val) > 0 {
 		if !ddSecurityEventsFeatureEnabled {
-			return fmt.Errorf("instance config `dd_security_events` is set, but the feature is not yet available")
+			return errors.New("instance config `dd_security_events` is set, but the feature is not yet available")
 		}
 		if !strings.EqualFold(val, "high") && !strings.EqualFold(val, "low") {
-			return fmt.Errorf("instance config `dd_security_events`, if set, must be either 'high' or 'low'")
+			return errors.New("instance config `dd_security_events`, if set, must be either 'high' or 'low'")
 		}
 		if _, isSet := c.logsAgent.Get(); !isSet {
-			return fmt.Errorf("instance config `dd_security_events` is set, but logs-agent is not available. Set `logs_enabled: true` in datadog.yaml to enable sending Logs to Datadog")
+			return errors.New("instance config `dd_security_events` is set, but logs-agent is not available. Set `logs_enabled: true` in datadog.yaml to enable sending Logs to Datadog")
 		}
 		f, err := c.loadDDSecurityProfile(val)
 		if err != nil {
@@ -247,15 +249,15 @@ func (c *Check) validateConfig() error {
 		ddSecurityEventsIsSetAndValid = true
 	}
 	if !channelPathIsSetAndNotEmpty && !ddSecurityEventsIsSetAndValid {
-		return fmt.Errorf("instance config `path` or `dd_security_events` must be provided")
+		return errors.New("instance config `path` or `dd_security_events` must be provided")
 	}
 	if channelPathIsSetAndNotEmpty && ddSecurityEventsIsSetAndValid {
-		return fmt.Errorf("instance config `path` and `dd_security_events` are mutually exclusive, only one must be set per instance")
+		return errors.New("instance config `path` and `dd_security_events` are mutually exclusive, only one must be set per instance")
 	}
 
 	if val, isSet := c.config.instance.Query.Get(); !isSet || len(val) == 0 {
 		// Query should always be set by this point, but might be ""
-		return fmt.Errorf("instance config `query` if provided must not be empty")
+		return errors.New("instance config `query` if provided must not be empty")
 	}
 	startMode, isSet := c.config.instance.Start.Get()
 	if !isSet || (startMode != "now" && startMode != "oldest") {
@@ -292,8 +294,8 @@ func (c *Check) Cancel() {
 		c.session.Close()
 	}
 
-	if c.bookmarkSaver != nil && c.bookmarkSaver.bookmark != nil {
-		c.bookmarkSaver.bookmark.Close()
+	if c.bookmarkManager != nil {
+		c.bookmarkManager.Close()
 	}
 
 	if c.systemRenderContext != evtapi.EventRenderContextHandle(0) {

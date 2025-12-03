@@ -69,7 +69,7 @@ func (as *AutoSuppression) Init(opts Opts) {
 
 // Suppresses returns true if the event should be suppressed for the given rule, false otherwise. It also counts statistics depending on this result
 func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool {
-	if isAllowAutosuppressionRule(rule) && event.ContainerContext.ContainerID != "" && slices.Contains(as.opts.EventTypes, event.GetEventType()) {
+	if isAllowAutosuppressionRule(rule) && event.ProcessContext.Process.ContainerContext.ContainerID != "" && slices.Contains(as.opts.EventTypes, event.GetEventType()) {
 		if as.opts.ActivityDumpEnabled && as.opts.ActivityDumpAutoSuppressionEnabled {
 			if event.HasActiveActivityDump() {
 				as.count(rule.ID, activityDumpSuppressionType)

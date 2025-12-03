@@ -51,7 +51,6 @@ static_quality_gates:
     max: 2
     exit_codes:
       - 42
-      - 101 # Failed to extract dependencies
     when:
       - runner_system_failure
       - stuck_or_timeout_failure

@@ -331,11 +331,11 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
 		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
-			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+			return false, errors.New("untraced event: IMDS response without credentials")
 		}
 		// ignore IMDS requests without URLs
 		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
-			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+			return false, errors.New("invalid event: IMDS request without any URL")
 		}
 	}
 	return true, nil
@@ -959,9 +959,16 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	return syscalls
 }
 
+// ImageProcessKey represents a unique key for process cache entries by image name, tag, and filepath
+type ImageProcessKey struct {
+	ImageName string
+	ImageTag  string
+	Filepath  string
+}
+
 // EvictUnusedNodes evicts all nodes that haven't been touched since the given timestamp
 // and returns the total number of nodes evicted
-func (at *ActivityTree) EvictUnusedNodes(before time.Time) int {
+func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCache map[ImageProcessKey]bool, profileImageName, profileImageTag string) int {
 	totalEvicted := 0
 
 	// Iterate through all process nodes and evict unused nodes
@@ -970,7 +977,9 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time) int {
 		if node == nil {
 			continue
 		}
-		evicted := node.EvictUnusedNodes(before)
+
+		// Evict unused nodes
+		evicted := node.EvictUnusedNodes(before, filepathsInProcessCache, profileImageName, profileImageTag)
 		totalEvicted += evicted
 
 		// If the process node itself has no image tags left after eviction, remove it entirely

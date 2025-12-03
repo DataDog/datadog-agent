@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package connfilter
 
 import (
@@ -22,6 +24,7 @@ func TestNewConnFilter(t *testing.T) {
 		name                      string
 		config                    string
 		ddSite                    string
+		monitorIPWithoutDomain    bool
 		expectedMatches           []expectedMatch
 		expectedErr               string
 		expectedCustomFilterCount int
@@ -107,9 +110,9 @@ filters:
     type: exclude
 `,
 			expectedMatches: []expectedMatch{
-				{ip: "10.10.10.10", shouldMatch: false},
-				{ip: "10.10.10.9", shouldMatch: true},
-				{ip: "10.10.10.11", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.10", shouldMatch: false},
+				{domain: "abc", ip: "10.10.10.9", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.11", shouldMatch: true},
 			},
 			expectedCustomFilterCount: 1,
 		},
@@ -121,8 +124,8 @@ filters:
     type: exclude
 `,
 			expectedMatches: []expectedMatch{
-				{ip: "2001:4860:4860::8888", shouldMatch: false},
-				{ip: "2001:4860:4860::8844", shouldMatch: true},
+				{domain: "abc", ip: "2001:4860:4860::8888", shouldMatch: false},
+				{domain: "abc", ip: "2001:4860:4860::8844", shouldMatch: true},
 			},
 			expectedCustomFilterCount: 1,
 		},
@@ -136,9 +139,9 @@ filters:
     type: include
 `,
 			expectedMatches: []expectedMatch{
-				{ip: "10.10.10.10", shouldMatch: true},
-				{ip: "10.10.10.9", shouldMatch: true},
-				{ip: "10.10.10.11", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.10", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.9", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.11", shouldMatch: true},
 			},
 			expectedCustomFilterCount: 2,
 		},
@@ -154,16 +157,16 @@ filters:
     type: include
 `,
 			expectedMatches: []expectedMatch{
-				{ip: "10.10.10.0", shouldMatch: true},
-				{ip: "10.10.10.1", shouldMatch: true},
-				{ip: "10.10.10.2", shouldMatch: true},
-				{ip: "10.10.10.3", shouldMatch: true},
-				{ip: "10.10.10.4", shouldMatch: false},
-				{ip: "10.10.10.5", shouldMatch: false},
-				{ip: "10.10.10.100", shouldMatch: true},
-				{ip: "10.10.10.101", shouldMatch: false},
-				{ip: "10.10.10.255", shouldMatch: false},
-				{ip: "10.10.10.256", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.0", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.1", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.2", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.3", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.4", shouldMatch: false},
+				{domain: "abc", ip: "10.10.10.5", shouldMatch: false},
+				{domain: "abc", ip: "10.10.10.100", shouldMatch: true},
+				{domain: "abc", ip: "10.10.10.101", shouldMatch: false},
+				{domain: "abc", ip: "10.10.10.255", shouldMatch: false},
+				{domain: "abc", ip: "10.10.10.256", shouldMatch: true},
 			},
 			expectedCustomFilterCount: 3,
 		},
@@ -335,16 +338,69 @@ filters:
 			expectedErr:               "invalid filter type: invalid",
 			expectedCustomFilterCount: 1,
 		},
+		{
+			name: "monitor IP without domain enabled",
+			config: `
+filters:
+`,
+			ddSite:                 "datad0g.com",
+			monitorIPWithoutDomain: true,
+			expectedMatches: []expectedMatch{
+				{domain: "", ip: "1.1.1.1", shouldMatch: true},
+				{domain: "cloudflare", ip: "1.1.1.1", shouldMatch: true},
+			},
+			expectedErr:               "",
+			expectedCustomFilterCount: 1,
+		},
+		{
+			name: "monitor IP without domain disabled",
+			config: `
+filters:
+`,
+			ddSite:                 "datad0g.com",
+			monitorIPWithoutDomain: false,
+			expectedMatches: []expectedMatch{
+				{domain: "", ip: "1.1.1.1", shouldMatch: false},
+				{domain: "cloudflare", ip: "1.1.1.1", shouldMatch: true},
+			},
+			expectedErr:               "",
+			expectedCustomFilterCount: 0,
+		},
+		{
+			name: "monitor IP without domain disabled with filters",
+			config: `
+filters:
+  - match_ip: 10.10.10.0/30
+    type: include
+  - match_ip: 10.10.10.100
+    type: include
+`,
+			ddSite:                 "datad0g.com",
+			monitorIPWithoutDomain: false,
+			expectedMatches: []expectedMatch{
+				{domain: "cloudflare", ip: "1.1.1.1", shouldMatch: true},
+				{ip: "1.1.1.1", shouldMatch: false},
+				{ip: "10.10.20.0", shouldMatch: false},
+				{ip: "10.10.10.0", shouldMatch: true},
+				{ip: "10.10.10.1", shouldMatch: true},
+				{ip: "10.10.10.2", shouldMatch: true},
+				{ip: "10.10.10.3", shouldMatch: true},
+				{ip: "10.10.10.4", shouldMatch: false},
+				{ip: "10.10.10.100", shouldMatch: true},
+			},
+			expectedErr:               "",
+			expectedCustomFilterCount: 2,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			connFilter, err := getConnFilter(t, tt.config, tt.ddSite)
+			connFilter, err := getConnFilter(t, tt.config, tt.ddSite, tt.monitorIPWithoutDomain)
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			} else {
 				require.NoError(t, err)
 			}
-			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite)))
+			assert.Len(t, connFilter.filters, tt.expectedCustomFilterCount+len(getDefaultConnFilters(tt.ddSite, false)))
 			for _, expMatch := range tt.expectedMatches {
 				require.NotNil(t, connFilter)
 				assert.Equal(t, connFilter.IsIncluded(expMatch.domain, expMatch.ip), expMatch.shouldMatch, expMatch)

@@ -344,7 +344,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 	tests := []struct {
 		name                   string
 		env                    map[string]string
-		expectedEnableGPUM     bool
+		expectedEnableGPUM     *bool
 		expectedSystemProbeGPU bool
 	}{
 		{
@@ -352,7 +352,7 @@ func TestSetupGPUIntegration(t *testing.T) {
 			env: map[string]string{
 				"DD_GPU_ENABLED": "true",
 			},
-			expectedEnableGPUM:     true,
+			expectedEnableGPUM:     config.BoolToPtr(true),
 			expectedSystemProbeGPU: true,
 		},
 		{
@@ -360,13 +360,13 @@ func TestSetupGPUIntegration(t *testing.T) {
 			env: map[string]string{
 				"DD_GPU_ENABLED": "",
 			},
-			expectedEnableGPUM:     false,
+			expectedEnableGPUM:     nil,
 			expectedSystemProbeGPU: false,
 		},
 		{
 			name:                   "GPU monitoring not set",
 			env:                    map[string]string{},
-			expectedEnableGPUM:     false,
+			expectedEnableGPUM:     nil,
 			expectedSystemProbeGPU: false,
 		},
 	}

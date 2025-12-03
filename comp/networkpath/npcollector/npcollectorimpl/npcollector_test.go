@@ -27,11 +27,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go4.org/netipx"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -546,7 +549,7 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
+	assert.Equal(t, 1000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
@@ -1477,15 +1480,17 @@ var cidrExcludedStat = teststatsd.MetricsArgs{Name: netpathConnsSkippedMetricNam
 
 func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {
-		name               string
-		conn               *model.Connection
-		vpcSubnets         []*net.IPNet
-		domain             string
-		shouldSchedule     bool
-		subnetSkipped      bool
-		sourceExcludes     map[string][]string
-		destExcludes       map[string][]string
-		connectionExcluded bool
+		name                   string
+		conn                   *model.Connection
+		vpcSubnets             []netip.Prefix
+		domain                 string
+		shouldSchedule         bool
+		subnetSkipped          bool
+		sourceExcludes         map[string][]string
+		destExcludes           map[string][]string
+		filters                string
+		monitorIPWithoutDomain bool
+		connectionExcluded     bool
 	}{
 		{
 			name:   "should schedule",
@@ -1574,7 +1579,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1586,7 +1591,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1598,7 +1603,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1614,7 +1619,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 					ReplDstIP:   "10.1.2.3",
 				},
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "10.0.0.0/8")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1631,7 +1636,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 					// ReplDstIP is the empty string
 				},
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "10.0.0.0/8")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1737,15 +1742,77 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 			shouldSchedule:     true,
 			connectionExcluded: false,
 		},
+		{
+			name:   "exclusion: exclude system probe conn",
+			domain: "abc",
+			conn: &model.Connection{
+				Type:            model.ConnectionType_tcp,
+				Laddr:           &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:           &model.Addr{Ip: "10.0.0.2", Port: int32(123)},
+				Direction:       model.ConnectionDirection_outgoing,
+				SystemProbeConn: true,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name:   "FILTERS: excluded domain to test that filters works",
+			domain: "google.com",
+			filters: `
+network_path:
+  collector:
+    filters:
+      - match_domain: 'google.com'
+        type: exclude
+`,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: false,
+		},
+		{
+			name: "FILTERS: include IP",
+			filters: `
+network_path:
+  collector:
+    filters:
+      - match_ip: '10.10.10.10'
+        type: include
+`,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.10.10.10", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
+		{
+			name:                   "FILTERS: test monitor all IPs without domain",
+			domain:                 "",
+			monitorIPWithoutDomain: true,
+			conn: &model.Connection{
+				Laddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(30000)},
+				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
+				Direction: model.ConnectionDirection_outgoing,
+			},
+			shouldSchedule: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var configs []connfilter.Config
+			cfg := configComponent.NewMockFromYAML(t, tt.filters)
+			err := structure.UnmarshalKey(cfg, "network_path.collector.filters", &configs)
+			require.NoError(t, err)
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled":         true,
 				"network_path.collector.disable_intra_vpc_collection": true,
 				"network_path.collector.source_excludes":              tt.sourceExcludes,
 				"network_path.collector.dest_excludes":                tt.destExcludes,
+				"network_path.collector.filters":                      configs,
+				"network_path.collector.monitor_ip_without_domain":    tt.monitorIPWithoutDomain,
 			}
 			stats := &teststatsd.Client{}
 			_, npCollector := newTestNpCollector(t, agentConfigs, stats)
@@ -1766,9 +1833,9 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	}
 }
 
-func mustParseCIDR(t *testing.T, cidr string) *net.IPNet {
-	_, ipNet, err := net.ParseCIDR(cidr)
-	assert.Nil(t, err)
+func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
+	ipNet, err := netip.ParsePrefix(cidr)
+	assert.NoError(t, err)
 	return ipNet
 }
 

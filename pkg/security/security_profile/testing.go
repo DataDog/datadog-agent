@@ -12,7 +12,6 @@ import (
 	"errors"
 
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/cilium/ebpf"
@@ -131,18 +130,4 @@ func (m *Manager) ClearTracedCgroups() {
 		// Then delete from traced map
 		_ = m.tracedCgroupsMap.Delete(cgroupInode)
 	}
-
-	// Also iterate through all currently running containers on the system
-	// and add them to the discarded map to prevent automatic tracing
-
-	// Walk through all process cache entries and blacklist their cgroups
-	m.resolvers.ProcessResolver.Walk(func(entry *model.ProcessCacheEntry) {
-		if entry.ContainerID != "" && !entry.CGroup.CGroupFile.IsNull() {
-			if err := m.tracedCgroupsDiscardedMap.Put(entry.CGroup.CGroupFile.Inode, uint8(1)); err != nil {
-				if !errors.Is(err, ebpf.ErrKeyNotExist) {
-					seclog.Warnf("couldn't add system container cgroup to discarded map: %v", err)
-				}
-			}
-		}
-	})
 }
