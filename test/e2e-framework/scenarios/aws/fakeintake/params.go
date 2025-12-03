@@ -13,7 +13,6 @@ type Params struct {
 	CPU                 int
 	Memory              int
 	DDDevForwarding     bool
-	StoreStype          string
 	RetentionPeriod     string
 }
 
@@ -74,14 +73,6 @@ func WithoutDDDevForwarding() Option {
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod
-		return nil
-	}
-}
-
-// WithStoreType set the store type for the fakeintake
-func WithStoreType(storeType string) Option {
-	return func(p *Params) error {
-		p.StoreStype = storeType
 		return nil
 	}
 }

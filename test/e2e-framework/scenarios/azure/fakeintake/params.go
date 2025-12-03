@@ -10,7 +10,6 @@ import "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 type Params struct {
 	DDDevForwarding bool
 	ImageURL        string
-	StoreStype      string
 	RetentionPeriod string
 }
 
@@ -45,14 +44,6 @@ func WithoutDDDevForwarding() Option {
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod
-		return nil
-	}
-}
-
-// WithStoreType set the store type for the fakeintake
-func WithStoreType(storeType string) Option {
-	return func(p *Params) error {
-		p.StoreStype = storeType
 		return nil
 	}
 }
