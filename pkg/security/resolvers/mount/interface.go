@@ -22,7 +22,7 @@ type ResolverInterface interface {
 	InsertMoved(m model.Mount) error
 	ResolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
 	ResolveMountPath(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error)
-	ResolveMount(uint32, uint32, ...bool) (*model.Mount, model.MountSource, model.MountOrigin, error)
+	ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAndSync ...bool) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
 	ToJSON() ([]byte, error)
 }
