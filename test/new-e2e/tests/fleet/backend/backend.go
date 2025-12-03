@@ -24,7 +24,7 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"golang.org/x/mod/semver"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 // RemoteConfigState is the state of the remote config.

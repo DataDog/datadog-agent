@@ -12,10 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 
 	"testing"
@@ -68,7 +68,7 @@ func TestPackageSigningComponent(t *testing.T) {
 		e2e.Run(tt,
 			&packageSigningTestSuite{osName: osDesc.Flavor.String()},
 			e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
-				awshost.WithEC2InstanceOptions(ec2.WithOS(osDesc)),
+				awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(osDesc))),
 			)),
 			e2e.WithStackName("pkgSigning-"+osDesc.Flavor.String()),
 		)

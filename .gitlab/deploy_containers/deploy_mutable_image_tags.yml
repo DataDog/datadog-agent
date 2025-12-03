@@ -3,9 +3,10 @@
 
 deploy_latest_rc_only:
   stage: deploy_mutable_image_tags
+  tags: ["arch:amd64", "specific:true"]
   rules:
     !reference [.on_deploy_rc]
-  dependencies: []
+  needs: []
   script:
     - ./tools/ci/check_latest_rc.sh
 

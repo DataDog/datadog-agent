@@ -18,10 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 // LinuxFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -42,10 +43,11 @@ func TestLinuxVMFileTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			awshost.Provisioner(
-				awshost.WithAgentOptions(
-					agentparams.WithLogs(),
-					agentparams.WithIntegration("custom_logs.d", logConfig),
-				))),
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(
+						agentparams.WithLogs(),
+						agentparams.WithIntegration("custom_logs.d", logConfig),
+					)))),
 	}
 	t.Parallel()
 	e2e.Run(t, &LinuxFakeintakeSuite{}, options...)

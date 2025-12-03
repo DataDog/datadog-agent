@@ -28,9 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 //go:embed testdata/config/agent_config.yaml
@@ -82,7 +82,7 @@ const nvidiaSMIValidationCmd = "nvidia-smi -L | grep GPU"
 
 // validationCommandMarker is a command that can be appended to all validation commands
 // to identify them in the output, which can be useful to later force retries. Retries
-// are controlled in test/new-e2e/pkg/utils/infra/retriable_errors.go, and the way to
+// are controlled in test/e2e-framework/testing/utils/infra/retriable_errors.go, and the way to
 // identify them are based on the pulumi logs. This command will be echoed to the output
 // and can be used to identify the validation commands.
 const validationCommandMarker = "echo 'gpu-validation-command'"
@@ -327,7 +327,7 @@ func gpuK8sProvisioner(params *provisionerParams) provisioners.Provisioner {
 		return nil
 	}, nil)
 
-	provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
+	provisioner.SetDiagnoseFunc(awskubernetes.DiagnoseFunc)
 
 	return provisioner
 }

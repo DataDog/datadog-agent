@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 )
 
@@ -27,7 +28,7 @@ type installScriptDefaultSuite struct {
 
 func testDefaultScript(os e2eos.Descriptor, arch e2eos.Architecture) installerScriptSuite {
 	s := &installScriptDefaultSuite{
-		installerScriptBaseSuite: newInstallerScriptSuite("installer-default", os, arch, awshost.WithoutFakeIntake(), awshost.WithoutAgent()),
+		installerScriptBaseSuite: newInstallerScriptSuite("installer-default", os, arch, awshost.WithRunOptions(scenec2.WithoutFakeIntake()), awshost.WithRunOptions(scenec2.WithoutAgent())),
 	}
 	s.url = s.scriptURLPrefix + "install.sh"
 

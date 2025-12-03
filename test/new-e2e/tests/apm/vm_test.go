@@ -25,10 +25,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
@@ -74,11 +74,13 @@ sudo groupadd -f -r docker
 sudo usermod -a -G docker dd-agent
 `
 	opts = append(opts,
-		awshost.WithDocker(),
-		// Create the /var/run/datadog directory and ensure
-		// permissions are correct so the agent can create
-		// unix sockets for the UDS transport and communicate with the docker socket.
-		awshost.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+		awshost.WithRunOptions(
+			ec2.WithDocker(),
+			// Create the /var/run/datadog directory and ensure
+			// permissions are correct so the agent can create
+			// unix sockets for the UDS transport and communicate with the docker socket.
+			ec2.WithEC2InstanceOptions(ec2.WithUserData(setupScript)),
+		),
 	)
 	return opts
 }
@@ -112,18 +114,18 @@ apm_config.enabled: true
 func TestVMFakeintakeSuiteUDS(t *testing.T) {
 	options := vmSuiteOpts(uds,
 		// Enable the UDS receiver in the trace-agent
-		awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, ""))))
+		awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(uds, "")))))
 	e2e.Run(t, NewVMFakeintakeSuite(uds), options...)
 }
 
 // TestVMFakeintakeSuiteTCP runs basic Trace Agent tests over the TCP transport
 func TestVMFakeintakeSuiteTCP(t *testing.T) {
 	options := vmSuiteOpts(tcp,
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(
 			// Enable the UDS receiver in the trace-agent
-			agentparams.WithAgentConfig(vmAgentConfig(tcp, "")),
+			ec2.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(tcp, ""))),
+			ec2.WithEC2InstanceOptions(),
 		),
-		awshost.WithEC2InstanceOptions(),
 	)
 	e2e.Run(t, NewVMFakeintakeSuite(tcp), options...)
 }
@@ -365,11 +367,16 @@ func (s *VMFakeintakeSuite) TestProcessTagsTrace() {
 }
 
 func (s *VMFakeintakeSuite) TestProbabilitySampler() {
-	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
-apm_config.probabilistic_sampler.enabled: true
+	cfg := `apm_config.probabilistic_sampler.enabled: true
 apm_config.probabilistic_sampler.sampling_percentage: 50
 apm_config.probabilistic_sampler.hash_seed: 22
-`))))...))
+`
+	opts := vmProvisionerOpts(awshost.WithRunOptions(
+		ec2.WithAgentOptions(
+			agentparams.WithAgentConfig(vmAgentConfig(s.transport, cfg)),
+		),
+	))
+	s.UpdateEnv(awshost.Provisioner(opts...))
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
@@ -513,10 +520,12 @@ agent_ipc:
 
 	s.UpdateEnv(awshost.Provisioner(
 		vmProvisionerOpts(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
-				secretsutils.WithUnixSetupScript(secretResolverPath, true),
-				agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithAgentConfig(vmAgentConfig(s.transport, extraconfig)),
+					secretsutils.WithUnixSetupScript(secretResolverPath, true),
+					agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
+				),
 			),
 		)...),
 	)
