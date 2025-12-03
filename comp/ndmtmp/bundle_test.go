@@ -26,7 +26,6 @@ func TestBundleDependencies(t *testing.T) {
 		defaultforwarder.MockModule(),
 		eventplatformimpl.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 	)
 }
 

@@ -28,7 +28,6 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		fx.Supply(option.None[runnerimpl.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 		collectorimpl.MockModule(),

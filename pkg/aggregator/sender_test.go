@@ -87,7 +87,7 @@ type SenderTestDeps struct {
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
 	demux := testDemux(deps.Log, deps.Hostname)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -107,7 +107,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
 	demux := testDemux(deps.Log, deps.Hostname)
 
 	aggregatorInstance := demux.Aggregator()
@@ -137,7 +137,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
 	demux := testDemux(deps.Log, deps.Hostname)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -160,7 +160,7 @@ func TestDestroySender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
 	demux := testDemux(deps.Log, deps.Hostname)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -190,7 +190,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
 	demux := testDemux(deps.Log, deps.Hostname)
 
 	itemChan := make(chan senderItem, 10)
@@ -213,7 +213,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle())
 	demux := testDemux(deps.Log, deps.Hostname)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()

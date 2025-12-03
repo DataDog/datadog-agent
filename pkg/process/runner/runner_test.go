@@ -36,10 +36,10 @@ func TestUpdateRTStatus(t *testing.T) {
 
 	// Mock IPC component to provide TLS credentials
 	ipcMock := ipcmock.New(t)
-	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 	assert := assert.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), hostnameimpl.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	c, err := NewRunner(cfg, nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig(), taggerMock)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -78,8 +78,8 @@ func TestUpdateRTInterval(t *testing.T) {
 	assert := assert.New(t)
 	// Mock IPC component to provide TLS credentials
 	ipcMock := ipcmock.New(t)
-	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), hostnameimpl.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	c, err := NewRunner(configmock.New(t), nil, &checks.HostInfo{}, []checks.Check{checks.NewProcessCheck(cfg, cfg, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig(), taggerMock)}, nil)
 	assert.NoError(err)
 	// XXX: Give the collector a big channel so it never blocks.
@@ -139,7 +139,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			disableRealtime: false,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), hostnameimpl.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := configmock.New(t)
@@ -149,7 +149,7 @@ func TestDisableRealTimeProcessCheck(t *testing.T) {
 			ipcMock := ipcmock.New(t)
 
 			assert := assert.New(t)
-			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+			taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 			expectedChecks := []checks.Check{checks.NewProcessCheck(mockConfig, mockConfig, wmeta, nil, &statsd.NoOpClient{}, ipcMock.GetTLSServerConfig(), taggerMock)}
 
 			c, err := NewRunner(mockConfig, nil, &checks.HostInfo{}, expectedChecks, nil)

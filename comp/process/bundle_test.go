@@ -54,7 +54,6 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
@@ -122,7 +121,6 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
 		// Provide None for optional delegated auth component in tests
 		fx.Provide(func() option.Option[delegatedauth.Component] {
 			return option.None[delegatedauth.Component]()

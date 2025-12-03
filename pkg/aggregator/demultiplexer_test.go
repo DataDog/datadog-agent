@@ -288,7 +288,6 @@ func createDemuxDepsWithOrchestratorFwd(
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		orchestratorForwarderImpl.Module(orchestratorParams),
 		eventplatformimpl.Module(eventPlatformParams),
 		eventplatformreceiverimpl.Module(),

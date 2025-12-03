@@ -22,7 +22,6 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		rdnsquerier.MockModule(),
 		logscompression.MockModule(),

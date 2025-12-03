@@ -64,7 +64,6 @@ func TestStatusOutPut(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		haagentmock.Module(),

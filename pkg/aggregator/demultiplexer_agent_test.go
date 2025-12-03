@@ -122,7 +122,6 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		haagentmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule())
@@ -181,7 +180,6 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		orchestratorimpl.MockModule(),
 		eventplatformimpl.MockModule(),
 		logscompression.MockModule(),

@@ -828,7 +828,6 @@ func createAggrDeps(t *testing.T) aggregatorDeps {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		defaultforwarder.MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		logscompressionmock.MockModule(),
 		metricscompressionmock.MockModule(),
 		haagentmock.Module())

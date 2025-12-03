@@ -67,7 +67,6 @@ func processCheckWithMocks(t *testing.T) (*ProcessCheck, *mocks.Probe, workloadm
 
 	mockWLM := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
@@ -101,7 +100,6 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 	// Workload meta + tagger
 	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		fx.Supply(context.Background()),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
@@ -521,7 +519,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useWindowsServiceName := true
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
-	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
@@ -687,7 +685,7 @@ func TestProcessTaggerIntegration(t *testing.T) {
 	}
 
 	// Create tagger mock and configure it to return specific tags for our test processes
-	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(),
+	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), taggerfxmock.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 
 	// Set up expected tags for process 1234

@@ -29,7 +29,7 @@ type deps struct {
 }
 
 func TestSnmpScanComp(t *testing.T) {
-	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), logscomp.MockModule(), core.MockBundle(), hostnameimpl.MockModule())
+	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), logscomp.MockModule(), core.MockBundle())
 	deps := Requires{
 		Logger:        logmock.New(t),
 		EventPlatform: testDeps.EventPlatform,

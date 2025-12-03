@@ -32,7 +32,6 @@ func (m *mockLifecycle) Append(_ fx.Hook) {}
 func TestUpdaterWithoutRemoteConfig(t *testing.T) {
 	deps := fxutil.Test[testDependencies](t, fx.Options(
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(option.None[rcservice.Component]()),
 		Module(),

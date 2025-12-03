@@ -22,7 +22,6 @@ import (
 func TestSetDefaultSender(t *testing.T) {
 	mock := fxutil.Test[demultiplexerComp.Mock](t, MockModule(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 		defaultforwarder.MockModule())
 
 	sender := &mocksender.MockSender{}

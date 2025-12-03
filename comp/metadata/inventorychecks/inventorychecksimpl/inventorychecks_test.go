@@ -52,7 +52,6 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
-			hostnameimpl.MockModule(),
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -139,7 +138,6 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
-			hostnameimpl.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -162,7 +160,6 @@ func TestGetPayload(t *testing.T) {
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
-			hostnameimpl.MockModule(),
 			inventoryagentimpl.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
