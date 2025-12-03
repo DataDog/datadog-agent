@@ -23,7 +23,7 @@ require (
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/docker/cli v27.5.0+incompatible
+	github.com/docker/cli v29.1.2+incompatible
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
