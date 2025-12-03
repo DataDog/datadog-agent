@@ -59,7 +59,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 
 	unixConn, ok := conn.(*net.UnixConn)
 	if !ok {
-		return nil, fmt.Errorf("not a Unix connection")
+		return nil, errors.New("not a Unix connection")
 	}
 
 	// Read the message and file descriptor using ReadMsgUnix
@@ -73,7 +73,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 	}
 
 	if n == 0 {
-		return nil, fmt.Errorf("no response received")
+		return nil, errors.New("no response received")
 	}
 
 	var response common.OpenFileResponse
@@ -108,7 +108,7 @@ func OpenPrivileged(socketPath string, filePath string) (*os.File, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no file descriptor received")
+	return nil, errors.New("no file descriptor received")
 }
 
 // Open attempts to open a file, and if it fails due to permissions, it opens
