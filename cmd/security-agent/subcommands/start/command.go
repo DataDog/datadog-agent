@@ -177,7 +177,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				settingsimpl.Module(),
 				logscompressionfx.Module(),
 				ipcfx.ModuleReadWrite(),
-				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
 			)
 		},
