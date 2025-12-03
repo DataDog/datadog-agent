@@ -43,7 +43,7 @@ const (
 	maxChannel = 233 // Maximum channel number in 6GHz band (WiFi 6E/7)
 
 	// Noise level valid range in dBm
-	minNoise = -105  // minimum or best noise level
+	minNoise = -105 // minimum or best noise level
 	maxNoise = -75  // level above this will be extremely congested or faulty
 
 	// Data rate (PHY link rate) valid range in Mbps
