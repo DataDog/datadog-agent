@@ -1,0 +1,7 @@
+name: docs
+entrypoint: docs/.gitlab-ci.yml
+on:
+  - changes:
+    - include:
+      - docs/**/*
+
