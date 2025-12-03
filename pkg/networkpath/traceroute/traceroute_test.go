@@ -87,7 +87,7 @@ func TestGetTracerouteError(t *testing.T) {
 
 	client := &http.Client{
 		Transport: &mockTransport{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
+			RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusInternalServerError,
 					Body:       io.NopCloser(bytes.NewReader([]byte("internal server error"))),
@@ -114,7 +114,7 @@ func TestGetTracerouteInvalidJSON(t *testing.T) {
 
 	client := &http.Client{
 		Transport: &mockTransport{
-			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
+			RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body:       io.NopCloser(bytes.NewReader([]byte("invalid json"))),
