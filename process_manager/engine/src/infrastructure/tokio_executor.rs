@@ -603,20 +603,9 @@ impl ProcessExecutor for TokioProcessExecutor {
                         // Ignore error if already session leader, it's not critical
                     }
 
-                    // 0.5. Set parent death signal - when dd-procmgrd dies, this child gets SIGKILL
-                    // This prevents orphaned child processes when the process manager is killed
-                    // PR_SET_PDEATHSIG tells the kernel to send the specified signal to this
-                    // process when its parent dies, ensuring clean shutdown even with SIGKILL
-                    #[cfg(target_os = "linux")]
-                    {
-                        const PR_SET_PDEATHSIG: libc::c_int = 1;
-                        if libc::prctl(PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
-                            return Err(std::io::Error::last_os_error());
-                        }
-                    }
-
                     // 1. Duplicate socket FDs to FD 3, 4, 5, etc. (systemd socket activation)
                     // This MUST happen before setuid/setgid to ensure proper FD inheritance
+                    // (renumbered after moving PR_SET_PDEATHSIG to step 7)
                     if has_socket_fds {
                         for (i, &fd) in socket_fds.iter().enumerate() {
                             let target_fd = 3 + i as i32;
@@ -676,6 +665,22 @@ impl ProcessExecutor for TokioProcessExecutor {
                     #[cfg(target_os = "linux")]
                     if needs_caps_after_setuid {
                         Self::apply_ambient_capabilities(&capabilities)?;
+                    }
+
+                    // 7. Set parent death signal - MUST be after setuid()!
+                    // When dd-procmgrd dies, this child gets SIGKILL.
+                    // This prevents orphaned child processes when the process manager is killed.
+                    //
+                    // IMPORTANT: setuid() clears PR_SET_PDEATHSIG, so we must set it AFTER
+                    // the privilege drop, not before. From prctl(2):
+                    // "The parent-death signal is cleared when the process's effective
+                    // user ID is changed."
+                    #[cfg(target_os = "linux")]
+                    {
+                        const PR_SET_PDEATHSIG: libc::c_int = 1;
+                        if libc::prctl(PR_SET_PDEATHSIG, libc::SIGKILL) != 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
                     }
 
                     Ok(())
