@@ -94,14 +94,12 @@ cc_binary(
         "-I.",
     ],
     deps = ["curl_static"],
-    dynamic_deps = [
-        "@nghttp2//:nghttp2_shared",
-        "@zlib//:z",
-    ],
     linkopts = [
         "-Wl,-L/opt/datadog-agent/embedded/lib",
         "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
         "-Wl,-lnghttp2",
+        "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        "-Wl,-lz",
     ],
     visibility = ["//visibility:public"],
 )
