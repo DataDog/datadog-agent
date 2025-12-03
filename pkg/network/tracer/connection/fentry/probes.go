@@ -8,6 +8,7 @@
 package fentry
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -215,7 +216,7 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 	} else if _, miss := missing["skb_free_datagram_locked"]; !miss {
 		enableProgram(enabled, skbFreeDatagramLocked)
 	} else {
-		return fmt.Errorf("missing desired UDP receive kernel functions")
+		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
 }

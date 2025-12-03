@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -389,7 +390,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
-		return nil, fmt.Errorf("some prometheus gatherer error")
+		return nil, errors.New("some prometheus gatherer error")
 	})
 
 	// 2/ Act
@@ -507,7 +508,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 
 	aggregator := NewFlowAggregator(sender, epForwarder, &conf, "my-hostname", logger, rdnsQuerier)
 	aggregator.goflowPrometheusGatherer = prometheus.GathererFunc(func() ([]*promClient.MetricFamily, error) {
-		return nil, fmt.Errorf("some prometheus gatherer error")
+		return nil, errors.New("some prometheus gatherer error")
 	})
 
 	// 2/ Act

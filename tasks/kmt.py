@@ -101,8 +101,8 @@ except ImportError:
     tabulate = None
 
 
-X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
-ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+X86_AMI_ID_SANDBOX = "ami-0ee01fdc00d76ae88"
+ARM_AMI_ID_SANDBOX = "ami-0b200b09727f5cd75"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 

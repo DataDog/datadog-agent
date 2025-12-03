@@ -40,7 +40,7 @@ func (v *baseDogstatsdReplaySuite) TestReplayWithTagEnrichment() {
 	v.uploadCaptureFile(metricsWithTagsCapture, captureFile)
 
 	output := v.Env().RemoteHost.MustExecute(
-		fmt.Sprintf("sudo datadog-agent dogstatsd-replay -f %s", captureFile))
+		"sudo datadog-agent dogstatsd-replay -f " + captureFile)
 
 	assert.Contains(v.T(), output, "replay done")
 	assert.NotContains(v.T(), output, "Unable to load state API error")

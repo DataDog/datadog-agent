@@ -409,7 +409,7 @@ func (s *agentServiceDisabledSuite) TestStartingDisabledService() {
 		if !slices.Contains(kernel, service) {
 			// try and start it and verify that it does correctly outputs to event log
 			err := windowsCommon.StartService(s.Env().RemoteHost, service)
-			s.Require().NoError(err, fmt.Sprintf("should start %s", service))
+			s.Require().NoError(err, "should start "+service)
 
 			// verify that service returns to stopped state
 			s.assertServiceState("Stopped", service, nil)
@@ -645,7 +645,7 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 		for _, logName := range []string{"System", "Application"} {
 			// collect the full event log as an evtx file
 			s.T().Logf("Exporting %s event log", logName)
-			outputPath := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("%s.evtx", logName))
+			outputPath := filepath.Join(s.SessionOutputDir(), logName+".evtx")
 			err := windowsCommon.ExportEventLog(host, logName, outputPath)
 			s.Assert().NoError(err, "should export %s event log", logName)
 			// Log errors and warnings to the screen for easy access
