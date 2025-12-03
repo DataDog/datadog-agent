@@ -20,6 +20,6 @@ func OpenLogFile(path string) (*os.File, error) {
 }
 
 // StatLogFile stats a log file
-func StatLogFile(path string) (FileInfo, error) {
+func StatLogFile(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
