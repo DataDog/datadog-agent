@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	databricksAgentVersion          = "7.71.1-1"
+	databricksAgentVersion          = "7.72.3-1"
 	databricksApmInjectVersion      = "0.45.0"
 	databricksApmLibraryJavaVersion = "1.55.0"
 )
