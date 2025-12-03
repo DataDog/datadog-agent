@@ -134,6 +134,48 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			}},
 		},
 		{
+			name: "single tag filter returns single result from API with matching tag with global DB viewq",
+			configureClient: func(k *MockrdsService) {
+				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
+					Filters: []types.Filter{
+						{
+							Name:   aws.String("engine"),
+							Values: []string{mysqlEngine, postgresEngine, auroraMysqlEngine, auroraPostgresqlEngine},
+						},
+					},
+				}).Return(&rds.DescribeDBInstancesOutput{
+					DBInstances: []types.DBInstance{
+						{
+							Endpoint: &types.Endpoint{
+								Address: aws.String("test-endpoint"),
+								Port:    aws.Int32(5432),
+							},
+							DBInstanceIdentifier:             aws.String("test-instance"),
+							IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+							AvailabilityZone:                 aws.String("us-east-1a"),
+							DBInstanceStatus:                 aws.String("available"),
+							Engine:                           aws.String("postgres"),
+							TagList: []types.Tag{
+								{Key: aws.String("datadoghq.com/global_db_view"), Value: aws.String("custom")},
+								{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")},
+							},
+						},
+					},
+				}, nil).Times(1)
+			},
+			tags: []string{"test:tag"},
+			expectedInstances: []Instance{{
+				ID:           "test-instance",
+				Endpoint:     "test-endpoint",
+				Port:         5432,
+				IamEnabled:   true,
+				Engine:       "postgres",
+				DbmEnabled:   true,
+				DbName:       "postgres",
+				GlobalDbView: "custom",
+			}},
+		},
+		{
 			name: "single tag filter returns single result from API with non-matching tag",
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{

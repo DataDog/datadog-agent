@@ -16,14 +16,15 @@ import (
 
 // Instance represents an Aurora or RDS instance
 type Instance struct {
-	ID         string
-	ClusterID  string
-	Endpoint   string
-	Port       int32
-	IamEnabled bool
-	Engine     string
-	DbName     string
-	DbmEnabled bool
+	ID           string
+	ClusterID    string
+	Endpoint     string
+	Port         int32
+	IamEnabled   bool
+	Engine       string
+	DbName       string
+	GlobalDbView string
+	DbmEnabled   bool
 }
 
 // dbNameFromEngine returns the default database name for a given engine type
@@ -94,6 +95,9 @@ func makeInstance(db types.DBInstance, dbmTag string) (*Instance, error) {
 		}
 		if tag.Value != nil {
 			tagString += ":" + *tag.Value
+		}
+		if tag.Key != nil && *tag.Key == "datadoghq.com/global_db_view" {
+			instance.GlobalDbView = *tag.Value
 		}
 		if tagString == dbmTag {
 			instance.DbmEnabled = true
