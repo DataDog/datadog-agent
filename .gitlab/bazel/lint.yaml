@@ -1,5 +1,6 @@
 bazel:mod-deps:
-  extends: [ .bazel:defs, .bazel:runner:linux-amd64 ]
+  allow_failure: true  #incident-46079
+  extends: .bazel:runner:linux-amd64
   stage: lint
   script:
     - bazel mod deps --lockfile_mode=error
@@ -7,10 +8,12 @@ bazel:mod-deps:
     - |-
       if [ $CI_JOB_STATUS = failed ]; then
         echo >&2 "💡 bazel mod deps"
+        bazel mod deps
+        git diff
       fi
 
 bazel:run-buildifier-test:
-  extends: [ .bazel:defs, .bazel:runner:linux-amd64 ]
+  extends: .bazel:runner:linux-amd64
   stage: lint
   script:
     - bazel run //bazel/buildifier:test

@@ -187,7 +187,7 @@ func (s *dpkgScanner) parseInfoFile(root *os.Root, path string) ([]string, error
 		// so we cut on the first space and then trim the path
 		_, installedPath, ok := strings.Cut(scanner.Text(), " ")
 		if !ok {
-			return nil, fmt.Errorf("failed to parse installed file line, bad format")
+			return nil, errors.New("failed to parse installed file line, bad format")
 		}
 		installedPath = strings.TrimSpace(installedPath)
 		installedFiles = append(installedFiles, "/"+installedPath)

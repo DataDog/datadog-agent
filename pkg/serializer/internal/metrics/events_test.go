@@ -118,7 +118,7 @@ func createBenchmarkEvents(numberOfItem int) []*event.Event {
 func runBenchmark(b *testing.B, bench func(*testing.B, int)) {
 	for i := 1; i <= 1000*1000; i *= 10 {
 		numberOfItem := i // To avoid linter waring
-		b.Run(fmt.Sprintf("%d", i), func(b *testing.B) {
+		b.Run(strconv.Itoa(i), func(b *testing.B) {
 			bench(b, numberOfItem)
 		})
 	}

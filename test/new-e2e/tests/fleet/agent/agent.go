@@ -18,9 +18,9 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
@@ -105,7 +105,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	}
 
 	err := retry.Do(func() error {
-		_, err := a.host.RemoteHost.Execute(fmt.Sprintf("%s config --all", baseCommand))
+		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
 		return err
 	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {

@@ -305,7 +305,7 @@ func (fi *Server) IsRunning() bool {
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
 	if !fi.IsRunning() {
-		return fmt.Errorf("server not running")
+		return errors.New("server not running")
 	}
 	defer close(fi.shutdown)
 	defer fi.store.Close()
@@ -436,6 +436,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		writeHTTPResponse(w, response)
 		return nil
 	}
+	collectTime := fi.clock.Now().UTC() // record before I/O to cut down on variability
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err.Error())
@@ -456,7 +457,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	contentType := req.Header.Get("Content-Type")
 
 	apiKey := fi.extractDatadogAPIKey(req)
-	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime)
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
@@ -544,7 +545,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
+		writeHTTPResponse(w, buildErrorResponse(errors.New("invalid route parameter")))
 		return
 	}
 

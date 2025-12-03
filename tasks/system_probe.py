@@ -30,7 +30,6 @@ from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    environ,
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
@@ -709,41 +708,10 @@ def build_libpcap(ctx, env: dict, arch: Arch | None = None):
         if version == LIBPCAP_VERSION:
             ctx.run(f"echo 'libpcap version {version} already exists at {target_file}'")
             return
-    dist_dir = os.path.join(embedded_path, "dist")
-    lib_dir = os.path.join(dist_dir, f"libpcap-{LIBPCAP_VERSION}")
-    ctx.run(f"rm -rf {lib_dir}")
-    with ctx.cd(dist_dir):
-        # TODO check the checksum of the download before using
-        ctx.run(f"curl -L https://www.tcpdump.org/release/libpcap-{LIBPCAP_VERSION}.tar.xz | tar xJ")
-    with ctx.cd(lib_dir):
-        with environ(env):
-            config_opts = [
-                f"--prefix={embedded_path}",
-                "--disable-shared",
-                "--disable-largefile",
-                "--disable-instrument-functions",
-                "--disable-remote",
-                "--disable-usb",
-                "--disable-netmap",
-                "--disable-bluetooth",
-                "--disable-dbus",
-                "--disable-rdma",
-                "--without-dag",
-                "--without-dpdk",
-                "--without-libnl",
-                "--without-septel",
-                "--without-snf",
-                "--without-turbocap",
-            ]
-            if arch and arch.is_cross_compiling():
-                config_opts.append("--host=" + arch.gcc_prefix())
-            ctx.run(f"./configure {' '.join(config_opts)}")
-            ctx.run("make install")
-    ctx.run(f"rm -f {os.path.join(embedded_path, 'bin', 'pcap-config')}")
-    ctx.run(f"rm -rf {os.path.join(embedded_path, 'share')}")
-    ctx.run(f"rm -rf {os.path.join(embedded_path, 'lib', 'pkgconfig')}")
-    ctx.run(f"rm -rf {lib_dir}")
+
+    ctx.run(f"bazelisk run -- @libpcap//:install --destdir='{embedded_path}'")
     ctx.run(f"strip -g {target_file}")
+    return
 
 
 def get_libpcap_cgo_flags(ctx, install_path: str = None):
@@ -1911,36 +1879,6 @@ def process_btfhub_archive(ctx, branch="main"):
                     # include btfs-$ARCH as prefix for all paths
                     # set modification time to zero to ensure deterministic tarball
                     ctx.run(f"tar --mtime=@0 -cf {output_path} btfs-{arch}")
-
-
-@task
-def generate_event_monitor_proto(ctx):
-    with tempfile.TemporaryDirectory() as temp_gobin:
-        with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
-
-            plugin_opts = " ".join(
-                [
-                    f"--plugin protoc-gen-go=\"{temp_gobin}/protoc-gen-go\"",
-                    f"--plugin protoc-gen-go-grpc=\"{temp_gobin}/protoc-gen-go-grpc\"",
-                    f"--plugin protoc-gen-go-vtproto=\"{temp_gobin}/protoc-gen-go-vtproto\"",
-                ]
-            )
-
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
-            )
-
-    for path in glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True):
-        print(f"replacing protoc version in {path}")
-        with open(path) as f:
-            content = f.read()
-
-        replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
-        with open(path, "w") as f:
-            f.write(replaced_content)
 
 
 @task

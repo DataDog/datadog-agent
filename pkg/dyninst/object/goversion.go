@@ -9,6 +9,7 @@ package object
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -46,7 +47,7 @@ func ReadGoVersion(mef File) (*GoVersion, error) {
 	}
 
 	if buildVersionSym == nil {
-		return nil, fmt.Errorf("runtime.buildVersion not found")
+		return nil, errors.New("runtime.buildVersion not found")
 	}
 
 	// Find the section containing the symbol
@@ -59,7 +60,7 @@ func ReadGoVersion(mef File) (*GoVersion, error) {
 	}
 
 	if section == nil {
-		return nil, fmt.Errorf("section containing runtime.buildVersion not found")
+		return nil, errors.New("section containing runtime.buildVersion not found")
 	}
 
 	// Read the string
@@ -85,7 +86,7 @@ func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size
 
 	offset := address - section.Addr
 	if offset+size > uint64(len(msData)) {
-		return "", fmt.Errorf("string data out of bounds")
+		return "", errors.New("string data out of bounds")
 	}
 
 	// Handle string header based on size
@@ -93,14 +94,14 @@ func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size
 	if size == 8 {
 		// 32-bit pointers
 		if offset+8 > uint64(len(msData)) {
-			return "", fmt.Errorf("not enough data for 32-bit string header")
+			return "", errors.New("not enough data for 32-bit string header")
 		}
 		dataAddr = uint64(binary.LittleEndian.Uint32(msData[offset:]))
 		dataSize = uint64(binary.LittleEndian.Uint32(msData[offset+4:]))
 	} else if size == 16 {
 		// 64-bit pointers
 		if offset+16 > uint64(len(msData)) {
-			return "", fmt.Errorf("not enough data for 64-bit string header")
+			return "", errors.New("not enough data for 64-bit string header")
 		}
 		dataAddr = binary.LittleEndian.Uint64(msData[offset:])
 		dataSize = binary.LittleEndian.Uint64(msData[offset+8:])
@@ -118,7 +119,7 @@ func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size
 	}
 
 	if dataSection == nil {
-		return "", fmt.Errorf("failed to find data section")
+		return "", errors.New("failed to find data section")
 	}
 
 	mds, err := mef.SectionData(dataSection)
@@ -130,7 +131,7 @@ func readString(mef SectionLoader, section *safeelf.SectionHeader, address, size
 
 	dataOffset := dataAddr - dataSection.Addr
 	if dataOffset+dataSize > uint64(len(mdsData)) {
-		return "", fmt.Errorf("string data out of bounds in data section")
+		return "", errors.New("string data out of bounds in data section")
 	}
 
 	return string(mdsData[dataOffset : dataOffset+dataSize]), nil

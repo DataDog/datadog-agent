@@ -20,7 +20,7 @@ var peerTagFile []byte
 // basePeerTags is the base set of peer tag precursors (tags from which peer tags
 // are derived) we aggregate on when peer tag aggregation is enabled.
 var basePeerTags = func() []string {
-	var precursors []string = []string{"_dd.base_service"}
+	var precursors = []string{"_dd.base_service"}
 
 	cfg, err := ini.Load(peerTagFile)
 	if err != nil {
