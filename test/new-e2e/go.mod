@@ -225,6 +225,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.64.0
+	github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/testutils v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/metrics v0.64.0
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.67.0
@@ -414,6 +415,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd => ../../comp/trace/compression/impl-zstd
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
+	github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/testutils => ../../pkg/clusteragent/admission/mutate/autoinstrumentation/testutils
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
