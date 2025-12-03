@@ -41,7 +41,10 @@ def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int], verbose
             maps_with_leaks += 1
 
         valid_pct = info.valid_rate * 100
-        print(f"{info.name}: {info.total - info.leaked}/{info.total} entries ({valid_pct:.1f}% valid)")
+        if info.leaked > 0:
+            print(f"{info.name}: {info.total - info.leaked}/{info.total} entries ({valid_pct:.2f}% valid, {info.leaked} leaked)")
+        else:
+            print(f"{info.name}: {info.total}/{info.total} entries (100% valid)")
 
         if info.leaked > 0:
             print(f"  Leaked entries: {info.leaked}")

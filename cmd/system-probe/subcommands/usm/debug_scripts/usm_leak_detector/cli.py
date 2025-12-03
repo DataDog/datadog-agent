@@ -71,6 +71,9 @@ def main():
         print("Warning: Not running as root. May not have access to all maps/namespaces.",
               file=sys.stderr)
 
+    if not args.verbose:
+        print("Analyzing USM eBPF maps (this may take a few seconds)...")
+
     # Step 1: Get eBPF backend
     backend = get_backend(system_probe_path=args.system_probe, verbose=args.verbose)
     if backend is None:
