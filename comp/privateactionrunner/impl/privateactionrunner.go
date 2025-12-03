@@ -9,15 +9,22 @@ package privateactionrunnerimpl
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/remote-config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
+	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 )
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	// Remove this field if the component has no lifecycle hooks
+	Config    config.Component
 	Lifecycle compdef.Lifecycle
+	RcClient  rcclient.Component
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -31,8 +38,27 @@ type privateactionrunnerImpl struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
+	enabled := reqs.Config.GetBool("privateactionrunner.enabled")
+	if !enabled {
+		// Return a no-op component when disabled
+		return Provides{
+			Comp: &privateactionrunnerImpl{},
+		}, nil
+	}
+	cfg, err := parconfig.FromDDConfig(reqs.Config)
+	if err != nil {
+		return Provides{}, err
+	}
+	keysManager := remoteconfig.New(reqs.RcClient)
+	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
+	opmsClient := opms.NewClient(cfg)
+
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
+	if err != nil {
+		return Provides{}, err
+	}
 	runner := &privateactionrunnerImpl{
-		WorkflowRunner: runners.NewWorkflowRunner(),
+		WorkflowRunner: r,
 	}
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
@@ -44,9 +70,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (p *privateactionrunnerImpl) Start(ctx context.Context) error {
-	return p.WorkflowRunner.Start(ctx)
+	p.WorkflowRunner.Start(ctx)
+	return nil
 }
 
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
-	return p.WorkflowRunner.Close(ctx)
+	p.WorkflowRunner.Close(ctx)
+	return nil
 }
