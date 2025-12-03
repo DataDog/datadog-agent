@@ -36,8 +36,6 @@
         DOCKER_NO_CACHE="--no-cache"
         CACHE_SOURCE=""
       fi
-    # Temporary change to test branch changes affecting cache export
-    - CACHE_TO="--cache-to type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET}-test,mode=max"
     - |
       if [[ -n "${CACHE_TO}" && -n "${CACHE_TARGET}" ]]; then
         # Build cacheable target to only export certain steps to registry.
@@ -76,7 +74,6 @@
           --file $BUILD_CONTEXT/Dockerfile \
           --target ${CACHE_TARGET} \
           $BUILD_CONTEXT \
-          && false \
           || send_docker_export_failure_event \
           || true
 
