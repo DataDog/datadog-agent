@@ -352,5 +352,6 @@ func (c *kubernetesCapabilities) GetRestartCount(component agentComponent) int {
 
 // ExpectedWorkloadTags returns tags that are expected to be present on workloads
 func (c *kubernetesCapabilities) ExpectedWorkloadTags() []string {
-	return []string{"kube_container_name", "pod_name"}
+	// Kubernetes tag support not added yet
+	return nil
 }
