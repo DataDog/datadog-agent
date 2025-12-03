@@ -1,0 +1,19 @@
+---
+upgrade:
+  - |
+    The Datadog Cluster Agent has several mutating webhooks as part of the [Admission Controller](https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator).
+    The Admission Controller generates [MutatingWebhookConfiguration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/#mutatingwebhookconfiguration-v1-admissionregistration-k8s-io)
+    resources to configure when it should receive webhooks. Historically, these have been based on the
+    `admission_controller.mutate_unlabelled` configuration value and the `admission.datadoghq.com/enabled` label on a
+    pod. With the introduction of [Single Step Instrumentation](https://docs.datadoghq.com/tracing/trace_collection/automatic_instrumentation/single-step-apm/),
+    all other webhooks began to rely on configuration values that are specific to SSI. Specifically
+    `apm_config.instrumentation.enabled` and `apm_config.instrumentation.enabled_namespaces`.  This has caused a great
+    deal of confusion, as having instrumentation enabled would have impacts to mutating webhooks that are not related to SSI.
+
+    This change removes the SSI specific configuration options from the default mutating webhook label selectors. For
+    Single Step Instrumentation customers, no change is required and no behavior change is expected. For customers using
+    the `config` or `tagsfromlabels` webhooks to add APM configuration for manually instrumented apps, there is no
+    change from the [documented behavior](https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator#apm-and-dogstatsd).
+    However, if customers were inadvertently relying on `apm_config.instrumentation.enabled` and
+    `apm_config.instrumentation.enabled_namespaces` without Single Step Instrumentation, they will need to apply the
+    appropriate label or set `mutate_unlabelled` in config [as documented here](https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator#apm-and-dogstatsd).
