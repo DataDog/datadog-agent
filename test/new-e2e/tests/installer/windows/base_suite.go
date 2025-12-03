@@ -26,6 +26,17 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+// isWERDumpCollectionEnabled returns true by default; it is disabled when DD_E2E_SKIP_WER_DUMPS is truthy
+func isWERDumpCollectionEnabled() bool {
+	val := os.Getenv("DD_E2E_SKIP_WER_DUMPS")
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "1", "true", "yes", "on":
+		return false
+	default:
+		return true
+	}
+}
+
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
 // To run the test suites locally, pick a pipeline and define the following environment variables:
 // E2E_PIPELINE_ID: the ID of the pipeline
@@ -111,15 +122,19 @@ func (s *BaseSuite) SetupSuite() {
 	s.T().Logf("stable agent version: %s", s.StableAgentVersion())
 
 	// Enable crash dumps
-	host := s.Env().RemoteHost
-	s.dumpFolder = `C:\dumps`
-	err := windowscommon.EnableWERGlobalDumps(host, s.dumpFolder)
-	s.Require().NoError(err, "should enable WER dumps")
-	// Set the environment variable at the machine level.
-	// The tests will be re-installing services so the per-service environment
-	// won't be persisted.
-	_, err = host.Execute(`[Environment]::SetEnvironmentVariable("GOTRACEBACK", "wer", "Machine")`)
-	s.Require().NoError(err, "should set GOTRACEBACK environment variable")
+	if isWERDumpCollectionEnabled() {
+		host := s.Env().RemoteHost
+		s.dumpFolder = `C:\dumps`
+		err := windowscommon.EnableWERGlobalDumps(host, s.dumpFolder)
+		s.Require().NoError(err, "should enable WER dumps")
+		// Set the environment variable at the machine level.
+		// The tests will be re-installing services so the per-service environment
+		// won't be persisted.
+		_, err = host.Execute(`[Environment]::SetEnvironmentVariable("GOTRACEBACK", "wer", "Machine")`)
+		s.Require().NoError(err, "should set GOTRACEBACK environment variable")
+	} else {
+		s.T().Log("WER dump collection disabled via DD_E2E_SKIP_WER_DUMPS")
+	}
 }
 
 // createCurrentAgent sets the current agent version for the test suite.
@@ -276,14 +291,66 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 	}
 
 	// look for and download crashdumps
-	dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
-	s.Assert().NoError(err, "should download crash dumps")
-	if !s.Assert().Empty(dumps, "should not have crash dumps") {
-		s.T().Logf("Found crash dumps:")
-		for _, dump := range dumps {
-			s.T().Logf("  %s", dump)
+	if isWERDumpCollectionEnabled() {
+		// Poll for up to ~30s (1s interval) to allow WER to finish writing full dumps (DumpType=2)
+		h := s.Env().RemoteHost
+		deadline := time.Now().Add(30 * time.Second)
+		for time.Now().Before(deadline) {
+			entries, _ := h.ReadDir(s.dumpFolder)
+			hasDump := false
+			for _, e := range entries {
+				if !e.IsDir() && strings.HasSuffix(strings.ToLower(e.Name()), ".dmp") {
+					hasDump = true
+					break
+				}
+			}
+			if hasDump {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
+		s.Assert().NoError(err, "should download crash dumps")
+		if !s.Assert().Empty(dumps, "should not have crash dumps") {
+			s.T().Logf("Found crash dumps:")
+			for _, dump := range dumps {
+				s.T().Logf("  %s", dump)
+			}
 		}
 	}
+	// Collect WER ReportArchive entries for powershell.exe if present.
+	// Synchronously scan the WER ReportArchive for PowerShell crash
+	// reports and copy any found files into the test’s output directory.
+	func() {
+		host := s.Env().RemoteHost
+		base := `C:\ProgramData\Microsoft\Windows\WER\ReportArchive`
+		entries, derr := host.ReadDir(base)
+		if derr != nil {
+			return
+		}
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if !strings.HasPrefix(strings.ToLower(name), strings.ToLower("AppCrash_powershell.exe")) {
+				continue
+			}
+			dir := filepath.Join(base, name)
+			files, derr2 := host.ReadDir(dir)
+			if derr2 != nil {
+				continue
+			}
+			for _, f := range files {
+				if f.IsDir() {
+					continue
+				}
+				src := filepath.Join(dir, f.Name())
+				dst := filepath.Join(s.SessionOutputDir(), fmt.Sprintf("WER_%s_%s", name, f.Name()))
+				_ = host.GetFile(src, dst)
+			}
+		}
+	}()
 
 	if s.T().Failed() {
 		// If the test failed, export the event logs for debugging

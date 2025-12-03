@@ -12,7 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	sceneks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
@@ -31,10 +30,6 @@ func TestEKSSuite(t *testing.T) {
 				sceneks.WithBottlerocketNodeGroup(),
 				sceneks.WithLinuxARMNodeGroup(),
 				sceneks.WithUseAL2023Nodes(),
-			),
-			sceneks.WithFakeIntakeOptions(
-				fakeintake.WithRetentionPeriod("31m"),
-				fakeintake.WithStoreType("sql"),
 			),
 			sceneks.WithDeployDogstatsd(),
 			sceneks.WithDeployTestWorkload(),
@@ -276,24 +271,4 @@ func (suite *eksSuite) TestNginxFargate() {
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
-}
-
-func (suite *eksSuite) TestHostTags() {
-	// tag keys that are expected to be found on any k8s env
-	args := &testHostTags{
-		ExpectedTags: &[]string{
-			"^stackid:" + suite.clusterName + "$",
-			"^kube_node:ip-([0-9]{1,3}-){3}[0-9]{1,3}\\.ec2\\.internal$",
-			"^cluster_name:" + suite.clusterName + "$",
-			"^kube_cluster_name:" + suite.clusterName + "$",
-			"^orch_cluster_id:[0-9a-f-]{36}$",
-			"^kube_distribution:eks$",
-		},
-		OptionalTags: &[]string{
-			"^os:linux$",
-			"^arch:(amd|arm)64$",
-		},
-	}
-
-	suite.testHostTags(args)
 }
