@@ -67,6 +67,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
@@ -600,6 +601,19 @@ func start(log log.Component,
 		}
 	} else {
 		pkglog.Info("Admission controller is disabled")
+	}
+
+	if config.GetBool("cluster_agent.mcp.enabled") {
+		// Get MCP configured endpoint
+		mcpEndpoint := config.GetString("cluster_agent.mcp.endpoint")
+		// Register MCP endpoints with the main API server
+		mcpHandler := mcp.CreateMCPHandler(mcpEndpoint)
+		api.ModifyRootRouter(func(r *mux.Router) {
+			r.Handle(mcpEndpoint, mcpHandler)
+		})
+		pkglog.Info("MCP endpoints registered with main API server")
+	} else {
+		pkglog.Debug("MCP server is disabled")
 	}
 
 	pkglog.Infof("All components started. Cluster Agent now running.")
