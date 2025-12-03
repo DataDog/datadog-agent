@@ -218,7 +218,6 @@ class CompilerImage:
             platform = f"--platform linux/{self.arch.go_arch}"
         res = self.ctx.run(
             f"docker run {platform} -d --restart always --name {self.name} "
-            f"--env=CI "
             f"--mount type=bind,source={get_repo_root()},target={CONTAINER_AGENT_PATH} "
             f"{self.expected_image_name} sleep \"infinity\"",
             warn=True,
