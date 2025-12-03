@@ -9,8 +9,6 @@ package battery
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -22,27 +20,10 @@ const (
 	defaultMinCollectionInterval = 300
 )
 
-// Check is the battery check
+// Check is the battery check for Windows
 type Check struct {
 	core.CheckBase
 }
-
-// BatteryInfo contains battery information
-//
-//nolint:revive // Type name intentionally includes package name for clarity
-type BatteryInfo struct {
-	DesignedCapacity    float64
-	FullChargedCapacity float64
-	CycleCount          float64
-	CurrentCharge       float64
-	HasData             bool
-}
-
-// QueryBatteryInfo queries the battery information
-var QueryBatteryInfo = queryBatteryInfo
-
-// For testing - can be mocked
-var hasBatteryAvailableFunc = hasBatteryAvailable
 
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
@@ -53,43 +34,4 @@ func newCheck() check.Check {
 	return &Check{
 		CheckBase: core.NewCheckBaseWithInterval(CheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
-}
-
-// Configure handles initial configuration/initialization of the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
-	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
-		return err
-	}
-
-	// Check if battery is available before enabling the check
-	hasBattery, err := hasBatteryAvailableFunc()
-	if err != nil {
-		return err
-	}
-	if !hasBattery {
-		return check.ErrSkipCheckInstance
-	}
-
-	return err
-}
-
-// Run executes the check
-func (c *Check) Run() error {
-	sender, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-
-	info, err := QueryBatteryInfo()
-	if err != nil {
-		return err
-	}
-
-	sender.Gauge("system.battery.designed_capacity", info.DesignedCapacity, "", nil)
-	sender.Gauge("system.battery.maximum_capacity", info.FullChargedCapacity, "", nil)
-	sender.Gauge("system.battery.cycle_count", info.CycleCount, "", nil)
-	sender.Gauge("system.battery.current_charge", info.CurrentCharge, "", nil)
-
-	sender.Commit()
-	return nil
 }
