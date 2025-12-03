@@ -12,6 +12,20 @@ from .parser import hex_array_to_bytes, parse_conn_tuple
 from .validator import validate_tuple
 
 
+def seccomp_safe_sleep(delay: float) -> None:
+    """Sleep that works in seccomp-restricted environments.
+
+    Falls back to busy-wait if time.sleep() is blocked by seccomp.
+    """
+    try:
+        time.sleep(delay)
+    except (PermissionError, OSError):
+        # Busy-wait fallback for seccomp-restricted environments
+        end = time.monotonic() + delay
+        while time.monotonic() < end:
+            pass
+
+
 def analyze_map(
     map_name: str,
     backend: EbpfBackend,
@@ -69,7 +83,7 @@ def analyze_map(
     if recheck_delay > 0 and leaked:
         if verbose:
             print(f"  Re-checking {len(leaked)} leaked entries after {recheck_delay}s delay...")
-        time.sleep(recheck_delay)
+        seccomp_safe_sleep(recheck_delay)
 
         # Rebuild fresh connection index
         namespaces = discover_namespaces(proc_root)
