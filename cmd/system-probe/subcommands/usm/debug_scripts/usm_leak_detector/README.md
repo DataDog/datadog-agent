@@ -5,8 +5,8 @@ Detects leaked entries in USM eBPF maps by comparing map contents against system
 ## Requirements
 
 - Python 3.6+ (stdlib only, no pip dependencies)
-- `bpftool` in PATH **OR** `system-probe` binary accessible
 - Root privileges (for accessing eBPF maps and /proc)
+- Internet access (for auto-downloading bpftool if not installed)
 
 ## Usage
 
@@ -56,7 +56,15 @@ The script automatically selects the best available backend:
 1. **bpftool** (preferred) - Outputs hex arrays, requires parsing
 2. **system-probe** (fallback) - Uses `system-probe ebpf map` commands with BTF-formatted output
 
-If neither is available, the script will exit with an error.
+### Automatic bpftool Download
+
+If `bpftool` is not installed, the script automatically downloads a static binary from
+[libbpf/bpftool releases](https://github.com/libbpf/bpftool/releases) to `/tmp/bpftool`.
+
+- Supports **amd64** and **arm64** architectures
+- Works on Ubuntu, Debian, RHEL, Amazon Linux, and other common cloud images
+- Cached in `/tmp/bpftool` - reused on subsequent runs until reboot
+- Falls back to `system-probe` if download fails (e.g., no internet access)
 
 ## What It Does
 
@@ -110,6 +118,7 @@ usm_leak_detector/
     ├── __init__.py       # Backend exports
     ├── ebpf_backend.py   # Abstract backend interface
     ├── bpftool.py        # bpftool backend implementation
+    ├── bpftool_downloader.py  # Auto-download static bpftool binary
     ├── system_probe.py   # system-probe backend implementation
     └── backend_selector.py  # Backend selection logic
 ```

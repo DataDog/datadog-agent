@@ -31,11 +31,12 @@ def get_backend(system_probe_path: Optional[str] = None, verbose: bool = False) 
             return backend
         print(f"Warning: Specified system-probe not found at {system_probe_path}")
 
-    # Try bpftool first
-    if BpftoolBackend.is_available():
+    # Try bpftool first (with auto-download if not available)
+    backend = BpftoolBackend.get_backend(try_download=True, verbose=verbose)
+    if backend:
         if verbose:
             print("Using bpftool backend")
-        return BpftoolBackend()
+        return backend
 
     # Fall back to system-probe
     backend = SystemProbeBackend()

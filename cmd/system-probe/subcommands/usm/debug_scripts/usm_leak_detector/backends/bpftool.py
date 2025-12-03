@@ -8,31 +8,69 @@ import sys
 from typing import Dict, List, Optional
 
 from .ebpf_backend import EbpfBackend
+from .bpftool_downloader import download_bpftool
 
 
 class BpftoolBackend(EbpfBackend):
     """eBPF backend using bpftool."""
+
+    def __init__(self, bpftool_path: str = "bpftool"):
+        """Initialize with optional custom bpftool path."""
+        self._bpftool_path = bpftool_path
 
     @staticmethod
     def name() -> str:
         return "bpftool"
 
     @staticmethod
-    def is_available() -> bool:
-        """Check if bpftool is available."""
+    def is_available(try_download: bool = True, verbose: bool = False) -> bool:
+        """Check if bpftool is available, optionally downloading it."""
+        # First try system bpftool
         try:
             result = subprocess.run(
                 ["bpftool", "version"],
                 capture_output=True,
                 timeout=5
             )
-            return result.returncode == 0
+            if result.returncode == 0:
+                return True
         except (FileNotFoundError, subprocess.TimeoutExpired):
-            return False
+            pass
+
+        # Try downloading if allowed
+        if try_download:
+            path = download_bpftool(verbose=verbose)
+            if path:
+                return True
+
+        return False
+
+    @staticmethod
+    def get_backend(try_download: bool = True, verbose: bool = False) -> Optional["BpftoolBackend"]:
+        """Get a BpftoolBackend instance, downloading bpftool if needed."""
+        # Try system bpftool first
+        try:
+            result = subprocess.run(
+                ["bpftool", "version"],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return BpftoolBackend("bpftool")
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        # Try downloading
+        if try_download:
+            path = download_bpftool(verbose=verbose)
+            if path:
+                return BpftoolBackend(path)
+
+        return None
 
     def _run(self, args: List[str]) -> Optional[str]:
         """Run bpftool command and return stdout, or None on error."""
-        cmd = ["bpftool"] + args
+        cmd = [self._bpftool_path] + args
         try:
             result = subprocess.run(
                 cmd,
