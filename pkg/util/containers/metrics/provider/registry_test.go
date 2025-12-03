@@ -6,7 +6,7 @@
 package provider
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -57,7 +57,7 @@ func TestCollectorRegistry(t *testing.T) {
 			Constructor: func(*Cache, option.Option[workloadmeta.Component]) (CollectorMetadata, error) {
 				if dummy3Retries < 2 {
 					dummy3Retries++
-					return CollectorMetadata{}, fmt.Errorf("not yet okay")
+					return CollectorMetadata{}, errors.New("not yet okay")
 				}
 
 				collector := dummyCollector{

@@ -19,13 +19,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/common"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/k8s"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/k8s"
 )
 
 const agentNamespace = "datadog"
@@ -93,7 +93,7 @@ func (c *hostCapabilities) QuerySysprobe(path string) (string, error) {
 }
 
 func (c *hostCapabilities) removeContainer(containerName string) error {
-	_, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("docker rm -f %s", containerName))
+	_, err := c.suite.Env().RemoteHost.Execute("docker rm -f " + containerName)
 	return err
 }
 
@@ -132,7 +132,7 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 		// Cleanup the container
 		_ = c.removeContainer(containerName)
 	})
-	containerIDCmd := fmt.Sprintf("docker inspect -f {{.Id}} %s", containerName)
+	containerIDCmd := "docker inspect -f {{.Id}} " + containerName
 	idOut, err := c.suite.Env().RemoteHost.Execute(containerIDCmd)
 	if err != nil {
 		return "", err
@@ -145,7 +145,7 @@ func (c *hostCapabilities) RunContainerWorkloadWithGPUs(image string, arguments 
 
 func (c *hostCapabilities) GetRestartCount(component agentComponent) int {
 	service := agentComponentToSystemdService[component]
-	out, err := c.suite.Env().RemoteHost.Execute(fmt.Sprintf("systemctl show -p NRestarts %s", service))
+	out, err := c.suite.Env().RemoteHost.Execute("systemctl show -p NRestarts " + service)
 	c.suite.Require().NoError(err)
 	c.suite.Require().NotEmpty(out)
 
@@ -165,7 +165,7 @@ func (c *hostCapabilities) CheckWorkloadErrors(containerID string) error {
 	}
 
 	// Check container exit code using docker inspect
-	exitCodeCmd := fmt.Sprintf("docker inspect -f '{{.State.ExitCode}}' %s", containerName)
+	exitCodeCmd := "docker inspect -f '{{.State.ExitCode}}' " + containerName
 	exitCodeOut, err := c.suite.Env().RemoteHost.Execute(exitCodeCmd)
 	if err != nil {
 		return fmt.Errorf("error inspecting container %s: %w", containerName, err)
@@ -179,7 +179,7 @@ func (c *hostCapabilities) CheckWorkloadErrors(containerID string) error {
 
 	if exitCode != 0 {
 		// Get container status for more details
-		statusCmd := fmt.Sprintf("docker inspect -f '{{.State.Status}}' %s", containerName)
+		statusCmd := "docker inspect -f '{{.State.Status}}' " + containerName
 		statusOut, _ := c.suite.Env().RemoteHost.Execute(statusCmd)
 		status := strings.TrimSpace(statusOut)
 

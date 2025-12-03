@@ -179,7 +179,7 @@ func rebalance(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) err
 
 func isolate(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	if cliParams.checkID == "" {
-		return fmt.Errorf("checkID must be specified")
+		return errors.New("checkID must be specified")
 	}
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
 

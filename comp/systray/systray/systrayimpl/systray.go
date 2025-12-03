@@ -12,6 +12,7 @@ import "C"
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -118,7 +119,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 		return nil, fmt.Errorf("failed to call IsUserAnAdmin %v", err)
 	}
 	if !isAdmin {
-		return nil, fmt.Errorf("not running as an admin, systray requires administrative privileges")
+		return nil, errors.New("not running as an admin, systray requires administrative privileges")
 	}
 
 	// fx init
@@ -246,7 +247,7 @@ func acquireProcessSingleton(eventname string) (windows.Handle, error) {
 
 		if h != windows.Handle(0) {
 			windows.CloseHandle(h)
-			return windows.Handle(0), fmt.Errorf("systray is already running")
+			return windows.Handle(0), errors.New("systray is already running")
 		}
 	}
 

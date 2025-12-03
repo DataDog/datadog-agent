@@ -6,6 +6,8 @@ for %%F in (%MSBUILD%) do set MSBUILD=%%~fF
 
 set build_outdir=%sourcedir%\PCbuild\amd64
 
+set script_errorlevel=0
+
 :: Start from a clean state
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
 rmdir /q /s %build_outdir%
@@ -51,7 +53,10 @@ echo "/p:SkipCopySSLDLL=1" >> %response_file%
 :: won't be built.
 call %sourcedir%\PCbuild\build.bat -e --pgo
 
-if ERRORLEVEL 1 exit /b %ERRORLEVEL%
+if %errorlevel% neq 0 (
+   set script_errorlevel=%errorlevel%
+   goto :cleanup
+)
 
 @echo on
 
@@ -70,11 +75,20 @@ xcopy /f %OPENSSL_DIR%*.dll %build_outdir%\
 :: --include-stable - adds python3.dll
 %build_outdir%\python.exe %sourcedir%PC\layout\main.py --build %build_outdir% --precompile --copy %destdir% --include-dev --include-venv --include-stable -vv
 
-if ERRORLEVEL 1 exit /b %ERRORLEVEL%
+if %errorlevel% neq 0 (
+   set script_errorlevel=%errorlevel%
+   goto :cleanup
+)
 
 :: Bootstrap pip
 %destdir%\python.exe -m ensurepip
 
+if %errorlevel% neq 0 (
+   set script_errorlevel=%errorlevel%
+   goto :cleanup
+)
+
+:cleanup
 :: Clean so that no artifacts produced by the build remain
 %MSBUILD% "%sourcedir%\PCbuild\pcbuild.proj" /t:CleanAll
 rmdir /q /s %build_outdir%
@@ -82,3 +96,7 @@ rmdir /q /s %sourcedir%\PCbuild\obj
 rmdir /q /s %sourcedir%\PCbuild\win32
 del /q %response_file%
 del /q %sourcedir%\python.bat
+
+if %script_errorlevel% neq 0 (
+   exit /b %script_errorlevel%
+)

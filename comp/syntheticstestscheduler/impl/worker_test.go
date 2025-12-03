@@ -7,7 +7,7 @@ package syntheticstestschedulerimpl
 
 import (
 	"crypto/rand"
-	"fmt"
+	"errors"
 	"io"
 	"math"
 	"math/big"
@@ -350,7 +350,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 			name: "failure case",
 			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{},
-				tracerouteError:  fmt.Errorf("connection timeout"),
+				tracerouteError:  errors.New("connection timeout"),
 				tracerouteCfg:    trCfg,
 				testCfg: SyntheticsTestCtx{
 					cfg: common.SyntheticsTestConfig{
@@ -434,7 +434,7 @@ func TestGenerateRandomStringUInt63(t *testing.T) {
 
 	t.Run("error path", func(t *testing.T) {
 		randIntFn := func(_ io.Reader, _ *big.Int) (*big.Int, error) {
-			return nil, fmt.Errorf("some errors")
+			return nil, errors.New("some errors")
 		}
 
 		got, err := generateRandomStringUInt63(randIntFn)

@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"time"
 	"unique"
@@ -203,7 +204,7 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 
 	if config.EnableCertCollection {
 		if err := ssluprobes.ValidateSupported(); err != nil {
-			log.Warn("TLS certificate collection is not supported on this kernel. Disabling. Details: %w", err)
+			log.Warnf("TLS certificate collection is not supported on this kernel. Disabling. Details: %v", err)
 			config.EnableCertCollection = false
 		}
 	}
@@ -755,7 +756,7 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 
 	// Collect the TCP failure telemetry
 	for k, v := range t.getTCPFailureTelemetry() {
-		EbpfTracerTelemetry.tcpFailedConnections.Add(float64(v), fmt.Sprintf("%d", k))
+		EbpfTracerTelemetry.tcpFailedConnections.Add(float64(v), strconv.Itoa(int(k)))
 	}
 }
 
