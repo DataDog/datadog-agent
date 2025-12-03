@@ -937,9 +937,9 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
     \brief This function implements the `datadog_agent.batch_obfuscate_sql` method,
     obfuscating multiple SQL queries in a single call.
     \param self A PyObject* pointer to the `datadog_agent` module.
-    \param args A PyObject* pointer to a tuple containing the queries JSON string.
+    \param args A PyObject* pointer to a tuple containing the queries list.
     \param kwargs A PyObject* pointer to a map of key value pairs.
-    \return A PyObject* pointer to the JSON string containing results.
+    \return A PyObject* pointer to a JSON string containing results.
 
     This function is callable as the `datadog_agent.batch_obfuscate_sql` Python method and
     uses the `cb_batch_obfuscate_sql()` callback to batch process queries.
@@ -953,18 +953,67 @@ static PyObject *batch_obfuscate_sql(PyObject *self, PyObject *args, PyObject *k
 
     PyGILState_STATE gstate = PyGILState_Ensure();
 
-    char *queriesJSON = NULL;
+    PyObject *queriesList = NULL;
     char *optionsObj = NULL;
-    static char *kwlist[] = {"queries_json", "options", NULL};
+    static char *kwlist[] = {"queries", "options", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &queriesJSON, &optionsObj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|s", kwlist, &queriesList, &optionsObj)) {
         PyGILState_Release(gstate);
         return NULL;
     }
 
+    // Ensure queries is a list
+    if (!PyList_Check(queriesList)) {
+        PyErr_SetString(PyExc_TypeError, "queries must be a list");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    // Convert Python list to null-terminated array of C strings
+    Py_ssize_t numQueries = PyList_Size(queriesList);
+    char **queries = (char **)malloc((numQueries + 1) * sizeof(char *));
+    if (queries == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for queries");
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    // Convert each Python string to C string
+    for (Py_ssize_t i = 0; i < numQueries; i++) {
+        PyObject *item = PyList_GetItem(queriesList, i);
+        if (!PyUnicode_Check(item)) {
+            // Clean up already allocated strings
+            for (Py_ssize_t j = 0; j < i; j++) {
+                free(queries[j]);
+            }
+            free(queries);
+            PyErr_SetString(PyExc_TypeError, "all queries must be strings");
+            PyGILState_Release(gstate);
+            return NULL;
+        }
+        const char *str = PyUnicode_AsUTF8(item);
+        if (str == NULL) {
+            // Clean up already allocated strings
+            for (Py_ssize_t j = 0; j < i; j++) {
+                free(queries[j]);
+            }
+            free(queries);
+            PyGILState_Release(gstate);
+            return NULL;
+        }
+        queries[i] = strdup(str);
+    }
+    queries[numQueries] = NULL;  // Null terminator
+
     char *resultsJSON = NULL;
     char *error_message = NULL;
-    resultsJSON = cb_batch_obfuscate_sql(queriesJSON, optionsObj, &error_message);
+    resultsJSON = cb_batch_obfuscate_sql(queries, optionsObj, &error_message);
+
+    // Free the queries array
+    for (Py_ssize_t i = 0; i < numQueries; i++) {
+        free(queries[i]);
+    }
+    free(queries);
 
     PyObject *retval = NULL;
     if (error_message != NULL) {

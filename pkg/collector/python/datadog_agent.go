@@ -319,10 +319,11 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 }
 
 // BatchObfuscateSQL obfuscates multiple SQL queries in a single call, writing errors into errResult
-// if the operation fails. The queries are provided as a JSON array string, and options are optional.
+// if the operation fails. The queries are provided as a null-terminated array of C strings, and options are optional.
+// Returns a JSON array string of results.
 //
 //export BatchObfuscateSQL
-func BatchObfuscateSQL(queriesJSON, opts *C.char, errResult **C.char) *C.char {
+func BatchObfuscateSQL(queries **C.char, opts *C.char, errResult **C.char) *C.char {
 	// Parse options once for all queries
 	optStr := C.GoString(opts)
 	if optStr == "" {
@@ -336,25 +337,19 @@ func BatchObfuscateSQL(queriesJSON, opts *C.char, errResult **C.char) *C.char {
 		return nil
 	}
 
-	// Parse queries array from JSON
-	var queries []string
-	queriesStr := C.GoString(queriesJSON)
-	if err := json.Unmarshal([]byte(queriesStr), &queries); err != nil {
-		log.Errorf("Failed to unmarshal queries array: %s", err.Error())
-		*errResult = TrackedCString(err.Error())
-		return nil
-	}
+	// Convert C string array to Go slice
+	querySlice := cStringArrayToSlice(queries)
 
 	// Handle empty batch
-	if len(queries) == 0 {
+	if len(querySlice) == 0 {
 		return TrackedCString("[]")
 	}
 
 	// Process each query with fail-fast error handling
 	obfuscator := lazyInitObfuscator()
-	results := make([]interface{}, len(queries))
+	results := make([]interface{}, len(querySlice))
 
-	for i, query := range queries {
+	for i, query := range querySlice {
 		obfuscatedQuery, err := obfuscator.ObfuscateSQLStringWithOptions(
 			query,
 			&sqlOpts.SQLConfig,
