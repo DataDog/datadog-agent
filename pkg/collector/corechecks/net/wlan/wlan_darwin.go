@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -211,7 +212,7 @@ func validateSocketOwnership(socketPath string) error {
 	// Get socket file owner UID
 	stat, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
-		return fmt.Errorf("cannot get socket file stat")
+		return errors.New("cannot get socket file stat")
 	}
 
 	actualUID := strconv.FormatUint(uint64(stat.Uid), 10)
