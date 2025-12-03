@@ -1,0 +1,10 @@
+variables:
+  CI_IMAGE_LINUX: v84122467-e282bfd7
+  FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
+
+test:subjob:
+  tags: ["arch:amd64", "specific:true"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  stage: source_test
+  script:
+    - echo "Hello, world!"
