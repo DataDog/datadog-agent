@@ -20,7 +20,7 @@ import (
 )
 
 // getDockerVisibleDevicesEnvFromRuntime returns the value of the NVIDIA_VISIBLE_DEVICES environment variable by
-// inspecting the container data
+// inspecting the container data from the Docker API.
 func getDockerVisibleDevicesEnvFromRuntime(container *workloadmeta.Container) (string, error) {
 	dockerUtil, err := docker.GetDockerUtil()
 	if err != nil {
