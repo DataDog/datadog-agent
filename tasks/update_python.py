@@ -32,13 +32,11 @@ def python_version(_):
 
 @task(
     help={
-        "warn": "Don't exit on errors, just warn.",
         "release_note": "Whether to create a release note (default: True).",
     }
 )
 def update_python(
     ctx: Context,
-    warn: bool = False,
     release_note: bool = True,
 ):
     """
@@ -52,6 +50,16 @@ def update_python(
     Example:
         dda inv update-python
     """
+    # Import optional dependencies needed for this task
+    try:
+        from packaging.version import Version
+    except ImportError as e:
+        raise Exit(
+            f"Missing required dependency: {e}\n\n"
+            "To use this task, install the required dependencies:\n"
+            "  pip install packaging httpx orjson"
+        ) from e
+
     current_version = _get_current_python_version()
     current_major_minor = _get_major_minor_version(current_version)
 
@@ -62,8 +70,6 @@ def update_python(
         raise Exit(f"Could not find latest Python version for {current_major_minor}")
 
     # Check if update is needed
-    from packaging.version import Version
-
     if Version(target_version) <= Version(current_version):
         print(color_message(f"Already at Python {current_version} (target: {target_version})", "yellow"))
         return
@@ -75,18 +81,25 @@ def update_python(
     try:
         sha256_hash = _get_python_sha256_hash(target_version)
     except Exception as e:
-        msg = f"Failed to fetch SHA256 hash: {e}"
-        if warn:
-            print(color_message(f"WARNING: {msg}", "orange"))
-            sha256_hash = None
-        else:
-            raise Exit(msg) from e
+        raise Exit(f"Failed to fetch SHA256 hash: {e}") from e
 
     # Update all files
     print("Updating version references...")
-    _update_omnibus_python(target_version, sha256_hash, warn)
-    _update_bazel_python(target_version, sha256_hash, warn)
-    _update_test_python(target_version, warn)
+
+    # Prepare all updates first to validate patterns before writing anything
+    updates = []
+    try:
+        updates.append(_prepare_omnibus_update(target_version, sha256_hash))
+        updates.append(_prepare_bazel_update(target_version, sha256_hash))
+        updates.append(_prepare_test_update(target_version))
+    except Exit:
+        # If any validation fails, don't write anything
+        raise
+
+    # All validations passed, now write all files
+    for file_path, new_content in updates:
+        file_path.write_text(new_content)
+        print(f"  ✓ Updated {file_path}")
 
     if release_note:
         releasenote_path = _create_releasenote(ctx, current_version, target_version)
@@ -94,10 +107,6 @@ def update_python(
             print(color_message(f"Release note created at {releasenote_path}", "green"))
 
     print(color_message(f"\n✓ Python version upgraded from {current_version} to {target_version}", "green"))
-    print(color_message("\nRemember to:", "blue"))
-    print(color_message("  1. Review and test the changes", "blue"))
-    print(color_message("  2. Run 'dda inv omnibus.build' to verify the build works", "blue"))
-    print(color_message("  3. Update the release note if needed", "blue"))
 
 
 def _get_current_python_version() -> str:
@@ -140,15 +149,8 @@ def _get_latest_python_version(major_minor: str) -> str | None:
     Returns:
         Latest version string (e.g., "3.13.8") or None if not found
     """
-    try:
-        import httpx
-        from packaging.version import Version
-    except ImportError as e:
-        raise Exit(
-            f"Missing required dependency: {e}\n\n"
-            "To use this task, install the required dependencies:\n"
-            "  pip install packaging httpx orjson"
-        ) from e
+    import httpx
+    from packaging.version import Version
 
     try:
         response = httpx.get(PYTHON_FTP_URL, timeout=30, verify=True)
@@ -232,8 +234,12 @@ def _get_python_sha256_hash(version: str) -> str:
     return hash_value.lower()
 
 
-def _update_omnibus_python(version: str, sha256: str | None, warn: bool):
-    """Update Python version and SHA256 in omnibus config."""
+def _prepare_omnibus_update(version: str, sha256: str) -> tuple[Path, str]:
+    """Prepare Python version and SHA256 update for omnibus config.
+
+    Returns:
+        Tuple of (file_path, new_content) ready to write
+    """
     file_path = Path("omnibus/config/software/python3.rb")
     content = file_path.read_text()
 
@@ -242,30 +248,24 @@ def _update_omnibus_python(version: str, sha256: str | None, warn: bool):
     new_content, count = re.subn(version_pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
 
     if count != 1:
-        msg = f"Expected 1 version match in {file_path}, found {count}"
-        if warn:
-            print(color_message(f"WARNING: {msg}", "orange"))
-            return
-        raise Exit(msg)
+        raise Exit(f"Expected 1 version match in {file_path}, found {count}")
 
-    # Update SHA256 if provided
-    if sha256:
-        sha_pattern = r'(:sha256\s+=>\s+")([0-9a-fA-F]{64})(")'
-        new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
+    # Update SHA256
+    sha_pattern = r'(:sha256\s+=>\s+")([0-9a-fA-F]{64})(")'
+    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
 
-        if count != 1:
-            msg = f"Expected 1 SHA256 match in {file_path}, found {count}"
-            if warn:
-                print(color_message(f"WARNING: {msg}", "orange"))
-            else:
-                raise Exit(msg)
+    if count != 1:
+        raise Exit(f"Expected 1 SHA256 match in {file_path}, found {count}")
 
-    file_path.write_text(new_content)
-    print(f"  ✓ Updated {file_path}")
+    return (file_path, new_content)
 
 
-def _update_bazel_python(version: str, sha256: str | None, warn: bool):
-    """Update Python version and SHA256 in Bazel module file."""
+def _prepare_bazel_update(version: str, sha256: str) -> tuple[Path, str]:
+    """Prepare Python version and SHA256 update for Bazel module file.
+
+    Returns:
+        Tuple of (file_path, new_content) ready to write
+    """
     file_path = Path("deps/cpython/cpython.MODULE.bazel")
     content = file_path.read_text()
 
@@ -274,30 +274,24 @@ def _update_bazel_python(version: str, sha256: str | None, warn: bool):
     new_content, count = re.subn(version_pattern, rf'\g<1>{version}\g<3>', content, flags=re.MULTILINE)
 
     if count != 1:
-        msg = f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}"
-        if warn:
-            print(color_message(f"WARNING: {msg}", "orange"))
-            return
-        raise Exit(msg)
+        raise Exit(f"Expected 1 PYTHON_VERSION match in {file_path}, found {count}")
 
-    # Update sha256 if provided
-    if sha256:
-        sha_pattern = r'(sha256\s+=\s+")([0-9a-fA-F]{64})(")'
-        new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
+    # Update sha256
+    sha_pattern = r'(sha256\s+=\s+")([0-9a-fA-F]{64})(")'
+    new_content, count = re.subn(sha_pattern, rf'\g<1>{sha256}\g<3>', new_content)
 
-        if count != 1:
-            msg = f"Expected 1 sha256 match in {file_path}, found {count}"
-            if warn:
-                print(color_message(f"WARNING: {msg}", "orange"))
-            else:
-                raise Exit(msg)
+    if count != 1:
+        raise Exit(f"Expected 1 sha256 match in {file_path}, found {count}")
 
-    file_path.write_text(new_content)
-    print(f"  ✓ Updated {file_path}")
+    return (file_path, new_content)
 
 
-def _update_test_python(version: str, warn: bool):
-    """Update expected Python version in E2E tests."""
+def _prepare_test_update(version: str) -> tuple[Path, str]:
+    """Prepare expected Python version update for E2E tests.
+
+    Returns:
+        Tuple of (file_path, new_content) ready to write
+    """
     file_path = Path("test/new-e2e/tests/agent-platform/common/agent_behaviour.go")
     content = file_path.read_text()
 
@@ -305,14 +299,9 @@ def _update_test_python(version: str, warn: bool):
     new_content, count = re.subn(pattern, rf'\g<1>{version}\g<3>', content)
 
     if count != 1:
-        msg = f"Expected 1 version match in {file_path}, found {count}"
-        if warn:
-            print(color_message(f"WARNING: {msg}", "orange"))
-            return
-        raise Exit(msg)
+        raise Exit(f"Expected 1 version match in {file_path}, found {count}")
 
-    file_path.write_text(new_content)
-    print(f"  ✓ Updated {file_path}")
+    return (file_path, new_content)
 
 
 def _create_releasenote(ctx: Context, old_version: str, new_version: str) -> str | None:
@@ -329,13 +318,12 @@ enhancements:
         print(color_message("WARNING: Could not create release note. Please create manually.", "orange"))
         return None
 
-    match = re.match(r"^Created new notes file in (.*)$", res.stdout, flags=re.MULTILINE)
+    match = re.match(r"^Created new notes file in (.*)$", res.stdout)
     if not match:
         print(color_message("WARNING: Could not get created release note path. Please create manually.", "orange"))
         return None
 
     path = match.group(1)
-    with open(path, "w") as writer:
-        writer.write(template)
+    Path(path).write_text(template)
 
     return path

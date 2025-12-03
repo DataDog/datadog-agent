@@ -90,8 +90,8 @@ end
 class TestOmnibusUpdate(unittest.TestCase):
     @unittest.mock.patch('tasks.update_python.Path')
     def test_update_omnibus_python_version_and_sha(self, mock_path):
-        """Test updating version and SHA256 in omnibus file."""
-        from tasks.update_python import _update_omnibus_python
+        """Test preparing version and SHA256 update for omnibus file."""
+        from tasks.update_python import _prepare_omnibus_update
 
         original_content = '''name "python3"
 
@@ -106,26 +106,25 @@ source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
         mock_file.read_text.return_value = original_content
         mock_path.return_value = mock_file
 
-        # Update to new version
-        _update_omnibus_python("3.13.9", "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c", warn=False)
-
-        # Get the written content
-        written_content = mock_file.write_text.call_args[0][0]
+        # Prepare update to new version
+        file_path, new_content = _prepare_omnibus_update(
+            "3.13.9", "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"
+        )
 
         # Verify version was updated
-        self.assertIn('default_version "3.13.9"', written_content)
-        self.assertNotIn('default_version "3.13.7"', written_content)
+        self.assertIn('default_version "3.13.9"', new_content)
+        self.assertNotIn('default_version "3.13.7"', new_content)
 
         # Verify SHA256 was updated
-        self.assertIn(':sha256 => "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"', written_content)
-        self.assertNotIn('6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2', written_content)
+        self.assertIn(':sha256 => "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"', new_content)
+        self.assertNotIn('6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2', new_content)
 
 
 class TestBazelUpdate(unittest.TestCase):
     @unittest.mock.patch('tasks.update_python.Path')
     def test_update_bazel_python_version_and_sha(self, mock_path):
-        """Test updating version and SHA256 in Bazel file."""
-        from tasks.update_python import _update_bazel_python
+        """Test preparing version and SHA256 update for Bazel file."""
+        from tasks.update_python import _prepare_bazel_update
 
         original_content = '''http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -143,26 +142,25 @@ http_archive(
         mock_file.read_text.return_value = original_content
         mock_path.return_value = mock_file
 
-        # Update to new version
-        _update_bazel_python("3.13.9", "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c", warn=False)
-
-        # Get the written content
-        written_content = mock_file.write_text.call_args[0][0]
+        # Prepare update to new version
+        file_path, new_content = _prepare_bazel_update(
+            "3.13.9", "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"
+        )
 
         # Verify version was updated
-        self.assertIn('PYTHON_VERSION = "3.13.9"', written_content)
-        self.assertNotIn('PYTHON_VERSION = "3.13.7"', written_content)
+        self.assertIn('PYTHON_VERSION = "3.13.9"', new_content)
+        self.assertNotIn('PYTHON_VERSION = "3.13.7"', new_content)
 
         # Verify SHA256 was updated
-        self.assertIn('sha256 = "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"', written_content)
-        self.assertNotIn('6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2', written_content)
+        self.assertIn('sha256 = "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"', new_content)
+        self.assertNotIn('6c9d80839cfa20024f34d9a6dd31ae2a9cd97ff5e980e969209746037a5153b2', new_content)
 
 
 class TestGoTestUpdate(unittest.TestCase):
     @unittest.mock.patch('tasks.update_python.Path')
     def test_update_test_python_version(self, mock_path):
-        """Test updating expected Python version in Go tests."""
-        from tasks.update_python import _update_test_python
+        """Test preparing expected Python version update for Go tests."""
+        from tasks.update_python import _prepare_test_update
 
         original_content = '''package common
 
@@ -179,18 +177,15 @@ const (
         mock_file.read_text.return_value = original_content
         mock_path.return_value = mock_file
 
-        # Update to new version
-        _update_test_python("3.13.9", warn=False)
-
-        # Get the written content
-        written_content = mock_file.write_text.call_args[0][0]
+        # Prepare update to new version
+        file_path, new_content = _prepare_test_update("3.13.9")
 
         # Verify version was updated
-        self.assertIn('ExpectedPythonVersion3 = "3.13.9"', written_content)
-        self.assertNotIn('ExpectedPythonVersion3 = "3.13.7"', written_content)
+        self.assertIn('ExpectedPythonVersion3 = "3.13.9"', new_content)
+        self.assertNotIn('ExpectedPythonVersion3 = "3.13.7"', new_content)
 
         # Verify Python 2 version unchanged
-        self.assertIn('ExpectedPythonVersion2 = "2.7.18"', written_content)
+        self.assertIn('ExpectedPythonVersion2 = "2.7.18"', new_content)
 
 
 class TestGetLatestPythonVersion(unittest.TestCase):
