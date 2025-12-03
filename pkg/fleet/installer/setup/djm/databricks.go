@@ -22,7 +22,7 @@ import (
 const (
 	databricksInjectorVersion   = "0.45.0-1"
 	databricksJavaTracerVersion = "1.55.0-1"
-	databricksAgentVersion      = "7.71.1-1"
+	databricksAgentVersion      = "7.72.3-1"
 	gpuIntegrationRestartDelay  = 60 * time.Second
 	restartLogFile              = "/var/log/datadog-gpu-restart"
 )
@@ -49,6 +49,32 @@ var (
 		{
 			Type:    "file",
 			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+			},
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+	}
+	driverLogsStandardAccessMode = []config.IntegrationConfigLogs{
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks_privileged/*.log",
+			Source:                 "driver_logs",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks_privileged/stderr",
+			Source:                 "driver_stderr",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:    "file",
+			Path:    "/var/log/databricks_privileged/stdout",
 			Source:  "driver_stdout",
 			Service: "databricks",
 			LogProcessingRules: []config.LogProcessingRule{
@@ -251,6 +277,29 @@ func setupGPUIntegration(s *common.Setup) {
 	s.DelayedAgentRestartConfig.LogFile = restartLogFile
 }
 
+func setupPrivilegedLogs(s *common.Setup) {
+	s.Out.WriteString("Setting up privileged logs with system probe for standard access mode\n")
+	s.Span.SetTag("host_tag_set.privileged_logs_enabled", "true")
+
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.PrivilegedLogsConfig.Enabled = config.BoolToPtr(true)
+
+	if err := os.MkdirAll("/var/log/databricks_privileged", 0755); err != nil {
+		log.Warnf("Failed to create /var/log/databricks_privileged directory: %v", err)
+		return
+	}
+	if err := os.MkdirAll("/databricks/driver/logs", 0755); err != nil {
+		log.Warnf("Failed to create /databricks/driver/logs directory: %v", err)
+		return
+	}
+	_, err := common.ExecuteCommandWithTimeout(s, "mount", "--bind", "/databricks/driver/logs", "/var/log/databricks_privileged")
+	if err != nil {
+		log.Warnf("Failed to mount driver logs: %v", err)
+	}
+}
+
 func setupDatabricksDriver(s *common.Setup) {
 	s.Out.WriteString("Setting up Spark integration config on the Driver\n")
 	setClearHostTag(s, "spark_node", "driver")
@@ -258,8 +307,15 @@ func setupDatabricksDriver(s *common.Setup) {
 	var sparkIntegration config.IntegrationConfig
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
-		sparkIntegration.Logs = driverLogs
-		s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+
+		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+			setupPrivilegedLogs(s)
+			sparkIntegration.Logs = driverLogsStandardAccessMode
+			s.Span.SetTag("host_tag_set.driver_logs_enabled_standard_am", "true")
+		} else {
+			sparkIntegration.Logs = driverLogs
+			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
 		sparkIntegration.Instances = []any{
@@ -284,6 +340,10 @@ func setupDatabricksWorker(s *common.Setup) {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 		sparkIntegration.Logs = workerLogs
 		s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+
+		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+			setupPrivilegedLogs(s)
+		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
 		sparkIntegration.Instances = []any{

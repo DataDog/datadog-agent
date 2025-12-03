@@ -497,9 +497,7 @@ def selfcheck(
 def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
     info("[+] Configuring SSH key for use with the KMT AWS instances")
-    info(
-        "[+] Ensure your desired SSH key is set up in the AWS sandbox account (not agent-sandbox) so we can check its existence"
-    )
+    info("[+] Ensure your desired SSH key is set up in the AWS agent-sandbox account so we can check its existence")
     info("[+] Reminder that key pairs for AWS are configured in AWS > EC2 > Key Pairs")
     agent_choices = [
         ("ssh", "Keys located in ~/.ssh"),
