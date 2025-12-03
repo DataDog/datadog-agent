@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package ssi provides end to end tests for Single Step Instrumentation. It focuses on user configuration and how that
+// impacts targeting in Kubernetes.
 package ssi
 
 import (
@@ -43,7 +45,7 @@ func FindPodInNamespace(t *testing.T, client kubeClient.Interface, namespace str
 
 func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName string) []*trace.TracerPayload {
 	filtered := []*trace.TracerPayload{}
-	serviceNameTag := fmt.Sprintf("service:%s", serviceName)
+	serviceNameTag := "service:" + serviceName
 
 	payloads, err := intake.GetTraces()
 	require.NoError(t, err, "got error fetching traces from fake intake")
