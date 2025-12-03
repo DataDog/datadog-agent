@@ -615,33 +615,30 @@ def docker_build(
     go_mod_dir = os.path.join(cache_dir, "go-mod")
     go_build_dir = os.path.join(cache_dir, "go-build")
 
-    # ┌─────────────────────────────────────────────────────────────────────────┐
-    # │ VIRTIO-FS WORKAROUND: Single Volume for Git Cache + Install Dir         │
-    # ├─────────────────────────────────────────────────────────────────────────┤
-    # │ Docker Desktop's VirtioFS can corrupt git objects when operations       │
-    # │ span multiple bind mounts. Omnibus's git cache uses --git-dir separate  │
-    # │ from --work-tree, which normally means reads from /opt/datadog-agent    │
-    # │ and writes to /omnibus-git-cache cross volume boundaries.               │
-    # │                                                                         │
-    # │ VirtioFS may process I/O to different mounts through independent        │
-    # │ channels, causing ordering issues that corrupt git's loose objects.     │
-    # │                                                                         │
-    # │ Solution: Put both directories under ONE bind mount, use a symlink      │
-    # │ to maintain the expected /opt/datadog-agent path:                       │
-    # │                                                                         │
-    # │   Host: ~/.omnibus-docker-cache/omnibus-state/                          │
-    # │         ├── git-cache/opt/datadog-agent/  (git objects)                 │
-    # │         └── opt/datadog-agent/            (build artifacts)             │
-    # │                                                                         │
-    # │   Container: /omnibus-state/  (single volume mount)                     │
-    # │              ├── git-cache/...                                          │
-    # │              └── opt/datadog-agent/                                     │
-    # │                        ▲                                                │
-    # │              /opt/datadog-agent ──symlink──┘                            │
-    # │                                                                         │
-    # │ See: https://github.com/docker/for-mac/issues/7494                      │
-    # │      https://docs.kernel.org/filesystems/virtiofs.html                  │
-    # └─────────────────────────────────────────────────────────────────────────┘
+    # VIRTIO-FS WORKAROUND: Single Volume for Git Cache + Install Dir
+    #
+    # Docker Desktop's VirtioFS can corrupt git objects when operations
+    # span multiple bind mounts. Omnibus's git cache uses --git-dir separate
+    # from --work-tree, which normally means reads from /opt/datadog-agent
+    # and writes to /omnibus-git-cache cross volume boundaries.
+    #
+    # VirtioFS may process I/O to different mounts through independent
+    # channels, causing ordering issues that corrupt git's loose objects.
+    #
+    # Solution: Put both directories under ONE bind mount, use a symlink
+    # to maintain the expected /opt/datadog-agent path:
+    #
+    #   Host directory:
+    #     ~/.omnibus-docker-cache/omnibus-state/git-cache/opt/datadog-agent/  (git objects)
+    #     ~/.omnibus-docker-cache/omnibus-state/opt/datadog-agent/            (build artifacts)
+    #
+    #   Container mounts and symlinks:
+    #     MOUNT: ~/.omnibus-docker-cache/omnibus-state/ -> /omnibus-state/
+    #     SYMLINK: /opt/datadog-agent -> /omnibus-state/opt/datadog-agent/
+    #
+    # See: https://github.com/docker/for-mac/issues/7494
+    #      https://docs.kernel.org/filesystems/virtiofs.html
+    #
     omnibus_state_dir = os.path.join(cache_dir, "omnibus-state")
     git_cache_subdir = os.path.join(omnibus_state_dir, "git-cache")
     opt_subdir = os.path.join(omnibus_state_dir, "opt", "datadog-agent")
