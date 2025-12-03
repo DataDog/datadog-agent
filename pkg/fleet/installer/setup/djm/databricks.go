@@ -41,21 +41,14 @@ var (
 		},
 		{
 			Type:                   "file",
-			Path:                   "/databricks/init_logs/*.log",
-			Source:                 "init",
-			Service:                "databricks",
-			AutoMultiLineDetection: config.BoolToPtr(true),
-		},
-		{
-			Type:                   "file",
-			Path:                   "/var/log/databricks/stdout",
-			Source:                 "driver_stdout_mount",
-			Service:                "databricks",
-			AutoMultiLineDetection: config.BoolToPtr(true),
-		},
-		{
-			Type:                   "file",
 			Path:                   "/databricks/driver/logs/stderr",
+			Source:                 "driver_stderr",
+			Service:                "databricks",
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:                   "file",
+			Path:                   "/var/log/databricks/stderr",
 			Source:                 "driver_stderr",
 			Service:                "databricks",
 			AutoMultiLineDetection: config.BoolToPtr(true),
@@ -63,6 +56,16 @@ var (
 		{
 			Type:    "file",
 			Path:    "/databricks/driver/logs/stdout",
+			Source:  "driver_stdout",
+			Service: "databricks",
+			LogProcessingRules: []config.LogProcessingRule{
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+			},
+			AutoMultiLineDetection: config.BoolToPtr(true),
+		},
+		{
+			Type:    "file",
+			Path:    "/var/log/databricks/stdout",
 			Source:  "driver_stdout",
 			Service: "databricks",
 			LogProcessingRules: []config.LogProcessingRule{
