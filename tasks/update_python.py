@@ -50,8 +50,10 @@ def update_python(
     Example:
         dda inv update-python
     """
-    # Import optional dependencies needed for this task
+    # Check all optional dependencies upfront
     try:
+        import httpx  # noqa: F401
+        import orjson  # noqa: F401
         from packaging.version import Version
     except ImportError as e:
         raise Exit(

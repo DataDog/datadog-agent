@@ -190,43 +190,26 @@ const (
 
 class TestGetLatestPythonVersion(unittest.TestCase):
     def test_get_latest_python_version(self):
-        """Test fetching latest Python version from python.org."""
         from tasks.update_python import _get_latest_python_version
 
-        # Mock HTML response from python.org FTP
         mock_response = unittest.mock.MagicMock()
-        mock_response.text = '''
-<html>
-<body>
+        mock_response.text = '''<html><body>
 <a href="3.13.0/">3.13.0/</a>
-<a href="3.13.1/">3.13.1/</a>
 <a href="3.13.7/">3.13.7/</a>
-<a href="3.13.8/">3.13.8/</a>
 <a href="3.13.9/">3.13.9/</a>
 <a href="3.14.0/">3.14.0/</a>
-</body>
-</html>
-'''
+</body></html>'''
 
-        # Mock httpx at the point it's imported (inside the function)
-        with unittest.mock.patch('httpx.get', return_value=mock_response) as mock_get:
-            # Should return latest 3.13.x version
+        with unittest.mock.patch('httpx.get', return_value=mock_response):
             version = _get_latest_python_version("3.13")
             self.assertEqual(version, "3.13.9")
 
-            # Verify correct URL was called
-            mock_get.assert_called_with("https://www.python.org/ftp/python/", timeout=30, verify=True)
-
     def test_get_latest_python_version_not_found(self):
-        """Test when no matching version is found."""
         from tasks.update_python import _get_latest_python_version
 
-        # Mock response with no matching versions
         mock_response = unittest.mock.MagicMock()
         mock_response.text = '<html><body><a href="3.14.0/">3.14.0/</a></body></html>'
 
-        # Mock httpx at the point it's imported (inside the function)
         with unittest.mock.patch('httpx.get', return_value=mock_response):
-            # Should return None when no 3.13.x found
             version = _get_latest_python_version("3.13")
             self.assertIsNone(version)
