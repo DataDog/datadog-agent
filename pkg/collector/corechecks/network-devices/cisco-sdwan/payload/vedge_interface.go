@@ -6,6 +6,7 @@
 package payload
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -64,7 +65,7 @@ func (itf *VEdgeInterface) AdminStatus() devicemetadata.IfAdminStatus {
 func (itf *VEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceMetadata, error) {
 	return devicemetadata.InterfaceMetadata{
 		DeviceID:    fmt.Sprintf("%s:%s", namespace, itf.VmanageSystemIP), // VmanageSystemIP is the device's System IP from vManage
-		IDTags:      []string{fmt.Sprintf("interface:%s", itf.Ifname)},
+		IDTags:      []string{"interface:" + itf.Ifname},
 		Index:       int32(itf.Ifindex),
 		Name:        itf.Ifname,
 		Description: itf.Desc,
@@ -108,7 +109,7 @@ func parseVEdgeIP(ip string) (string, int32, error) {
 	}
 
 	if ipaddr.IsUnspecified() {
-		return "", 0, fmt.Errorf("IP address is unspecified")
+		return "", 0, errors.New("IP address is unspecified")
 	}
 
 	prefixLen, _ := ipv4Net.Mask.Size()

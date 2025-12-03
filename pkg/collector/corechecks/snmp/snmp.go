@@ -172,7 +172,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		} else {
 			c.scanManager.RequestScan(snmpscanmanager.ScanRequest{
 				DeviceIP: c.singleDeviceCk.GetIPAddress(),
-			})
+			}, false)
 		}
 	}
 	return nil

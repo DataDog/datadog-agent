@@ -9,7 +9,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//packages:__subpackages__"],
 )
 
 license(
@@ -99,7 +99,7 @@ cc_library(
                 "-O3",
             ],
             "@platforms//os:windows": [
-                "/O2",
+                "-O2",
             ],
         },
         no_match_error = "No target platform detected",
@@ -108,7 +108,7 @@ cc_library(
         "@platforms//os:windows": ["_CRT_NONSTDC_NO_WARNINGS"],
         "//conditions:default": [],
     }),
-    includes = ['.'],
+    includes = ["."],
     visibility = ["//visibility:public"],
 )
 
@@ -138,19 +138,19 @@ cc_shared_library(
 
 pkg_mklink(
     name = "so_major_minor",
-    link_name = "lib/libbz2.so.1.0",
+    link_name = "embedded/lib/libbz2.so.1.0",
     target = SONAME,
 )
 
 pkg_mklink(
     name = "so_major",
-    link_name = "lib/libbz2.so.1",
+    link_name = "embedded/lib/libbz2.so.1",
     target = SONAME,
 )
 
 pkg_mklink(
     name = "so",
-    link_name = "lib/libbz2.so",
+    link_name = "embedded/lib/libbz2.so",
     target = SONAME,
 )
 
@@ -161,13 +161,13 @@ pkg_files(
         # Note: you would think you can put :so and other links here, but pkg_files
         # seems to drop links in srcs.
     ],
-    prefix = "lib",
+    prefix = "embedded/lib",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _PUBLIC_HEADERS,
-    prefix = "include",
+    prefix = "embedded/include",
 )
 
 pkg_install(

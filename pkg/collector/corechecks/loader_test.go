@@ -7,7 +7,6 @@ package corechecks
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -23,11 +22,9 @@ type TestCheck struct {
 	stub.StubCheck
 }
 
-func (c *TestCheck) RunOnce() bool { return false }
-
 func (c *TestCheck) Configure(_ sender.SenderManager, _ uint64, data integration.Data, _ integration.Data, _ string) error {
 	if string(data) == "err" {
-		return fmt.Errorf("testError")
+		return errors.New("testError")
 	}
 	if string(data) == "skip" {
 		return check.ErrSkipCheckInstance

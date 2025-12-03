@@ -468,10 +468,10 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 
 			// Validate the output.
 			if test.expected == nil {
-				require.Nil(t, actual)
+				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			}
 		})
 	}

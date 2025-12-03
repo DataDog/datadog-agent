@@ -8,6 +8,7 @@
 package remote
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -74,7 +75,7 @@ func buildHostKeyCallback(config *ncmconfig.SSHConfig) (ssh.HostKeyCallback, err
 		log.Warnf("SSH host key verification is disabled - connects are insecure!")
 		return ssh.InsecureIgnoreHostKey(), nil
 	}
-	return nil, fmt.Errorf("No SSH host key configured: set known_hosts file path or enable insecure_skip_verify")
+	return nil, errors.New("No SSH host key configured: set known_hosts file path or enable insecure_skip_verify")
 }
 
 func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) {
@@ -103,7 +104,7 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	}
 
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("no SSH authentication methods configured")
+		return nil, errors.New("no SSH authentication methods configured")
 	}
 
 	return methods, nil
@@ -196,7 +197,7 @@ func isTransientSSH(err error) bool {
 // CombinedOutput runs a command using the SSH session and returns its output
 func (s *SSHSession) CombinedOutput(cmd string) ([]byte, error) {
 	if s.session == nil {
-		return nil, fmt.Errorf("SSH session is nil")
+		return nil, errors.New("SSH session is nil")
 	}
 	return s.session.CombinedOutput(cmd)
 }
