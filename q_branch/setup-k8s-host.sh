@@ -1,0 +1,96 @@
+#!/bin/bash
+# Setup script for gadget-k8s-host Lima VM (uses gadget-k8s-host.lima.yaml)
+# Creates VM, Kind cluster, and configures kubectl access from macOS
+
+set -euo pipefail
+
+VM_NAME="gadget-k8s-host"
+CLUSTER_NAME="gadget-dev"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KUBECONFIG_FILE="$HOME/.kube/gadget-k8s-host.yaml"
+
+echo "==> Setting up $VM_NAME..."
+
+# Check if VM exists
+if limactl list --format '{{.Name}}' 2>/dev/null | grep -q "^${VM_NAME}$"; then
+    STATUS=$(limactl list --format '{{.Name}} {{.Status}}' | grep "^${VM_NAME} " | awk '{print $2}')
+    if [[ "$STATUS" == "Running" ]]; then
+        echo "VM '$VM_NAME' is already running."
+
+        # Check if cluster exists
+        if limactl shell "$VM_NAME" -- sudo kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+            echo "Kind cluster '$CLUSTER_NAME' exists."
+            read -p "Recreate cluster? [y/N] " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                echo "==> Deleting existing cluster..."
+                limactl shell "$VM_NAME" -- sudo kind delete cluster --name "$CLUSTER_NAME"
+            else
+                echo "Keeping existing cluster. Copying kubeconfig..."
+                mkdir -p "$(dirname "$KUBECONFIG_FILE")"
+                limactl shell "$VM_NAME" -- sudo kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
+                chmod 600 "$KUBECONFIG_FILE"
+                echo "Done. Use: export KUBECONFIG=$KUBECONFIG_FILE"
+                exit 0
+            fi
+        fi
+    else
+        echo "VM exists but is $STATUS. Starting..."
+        limactl start "$VM_NAME"
+    fi
+else
+    echo "==> Creating VM (this takes ~5 minutes)..."
+    limactl create --name "$VM_NAME" "$SCRIPT_DIR/gadget-k8s-host.lima.yaml" --tty=false
+    limactl start "$VM_NAME"
+fi
+
+# Wait for Docker
+echo "==> Waiting for Docker..."
+for i in {1..60}; do
+    if limactl shell "$VM_NAME" -- sudo docker info &>/dev/null; then
+        break
+    fi
+    sleep 2
+done
+
+# Create Kind cluster
+echo "==> Creating Kind cluster '$CLUSTER_NAME'..."
+limactl shell "$VM_NAME" -- sudo kind create cluster --name "$CLUSTER_NAME" --config /dev/stdin <<'EOF'
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  apiServerAddress: "127.0.0.1"
+  apiServerPort: 6443
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30000
+        hostPort: 30000
+      - containerPort: 30080
+        hostPort: 30080
+      - containerPort: 30443
+        hostPort: 30443
+  - role: worker
+  - role: worker
+EOF
+
+# Copy kubeconfig to host
+echo "==> Copying kubeconfig to host..."
+mkdir -p "$(dirname "$KUBECONFIG_FILE")"
+limactl shell "$VM_NAME" -- sudo kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
+chmod 600 "$KUBECONFIG_FILE"
+
+# Verify
+echo ""
+echo "==> Verifying..."
+KUBECONFIG="$KUBECONFIG_FILE" kubectl get nodes
+
+echo ""
+echo "======================================================="
+echo "✅ Ready!"
+echo ""
+echo "  export KUBECONFIG=$KUBECONFIG_FILE"
+echo "  kubectl get nodes"
+echo ""
+echo "SSH: limactl shell $VM_NAME"
+echo "======================================================="
