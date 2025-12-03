@@ -94,13 +94,20 @@ cc_binary(
         "-I.",
     ],
     deps = ["curl_static"],
-    linkopts = [
-        "-Wl,-L/opt/datadog-agent/embedded/lib",
-        "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
-        "-Wl,-lnghttp2",
-        "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
-        "-Wl,-lz",
-    ],
+    linkopts = select({
+        "@platforms//os:linux": [
+            "-Wl,-L/opt/datadog-agent/embedded/lib",
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+            "-Wl,-lnghttp2",
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+            "-Wl,-lz",
+        ],
+        "@platforms//os:macos": [
+            "-Wl,-framework,CoreFoundation",
+            "-Wl,-framework,SystemConfiguration",
+        ],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
 
