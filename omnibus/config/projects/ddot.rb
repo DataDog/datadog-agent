@@ -168,14 +168,14 @@ package :msi do
 end
 
 package :xz do
-  skip_packager do_package || (ENV["COMPRESS_PACKAGE"] == "false")
+  skip_packager do_package || (ENV["SKIP_PKG_COMPRESSION"] == "true")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
 
 # Uncompressed tar for faster local builds (skip the slow XZ compression)
 package :tarball do
-  skip_packager !(ENV["COMPRESS_PACKAGE"] == "false")
+  skip_packager !(ENV["SKIP_PKG_COMPRESSION"] == "true")
 end
 
 # all flavors use the same package scripts

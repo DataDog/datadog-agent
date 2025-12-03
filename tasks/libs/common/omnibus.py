@@ -19,7 +19,7 @@ ENV_PASSHTROUGH = {
     'CI': "dda and `bazel` rely on this to be able to tell whether they're running on CI and adapt behavior",
     'DD_CC': 'Points at c compiler',
     'DD_CXX': 'Points at c++ compiler',
-    'COMPRESS_PACKAGE': 'Whether to compress the package with XZ (set to false for faster local builds)',
+    'SKIP_PKG_COMPRESSION': 'Skip package XZ compression (set to true for faster local builds)',
     'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
     'DDA_NO_DYNAMIC_DEPS': 'Variable affecting dda behavior',
     'E2E_COVERAGE_PIPELINE': 'Used to do a special build of the agent to generate coverage data',

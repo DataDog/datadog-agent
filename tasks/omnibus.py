@@ -653,7 +653,7 @@ def docker_build(
         "-e GIT_CONFIG_KEY_0=safe.directory",
         "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
         # Skip XZ compression - faster for local dev, use omnibus.build for CI
-        "-e COMPRESS_PACKAGE=false",
+        "-e SKIP_PKG_COMPRESSION=true",
     ]
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
@@ -704,7 +704,7 @@ def docker_build(
 
     artifacts_dir = os.path.join(omnibus_dir, "pkg")
 
-    # Find the uncompressed tarball (we always set COMPRESS_PACKAGE=false)
+    # Find the uncompressed tarball (we always set SKIP_PKG_COMPRESSION=true)
     tar_pattern = os.path.join(artifacts_dir, f"datadog-agent-*-{arch}.tar")
     tar_files = sorted(glob.glob(tar_pattern), key=os.path.getmtime, reverse=True)
 
