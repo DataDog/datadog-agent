@@ -33,14 +33,16 @@ func setsockoptKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field
 	for field, values := range approvers {
 		switch field {
 		case "setsockopt.level":
-			kfilter, err := getEnumsKFilters("setsockopt_level_or_optname_approvers", uintValues[uint64](values)...)
+			// Use index 0 for level field in the eBPF map
+			kfilter, err := getEnumsKFiltersWithIndex("setsockopt_level_or_optname_approvers", 0, uintValues[uint64](values)...)
 			if err != nil {
 				return nil, nil, err
 			}
 			kfilters = append(kfilters, kfilter)
 			fieldHandled = append(fieldHandled, field)
 		case "setsockopt.optname":
-			kfilter, err := getEnumsKFilters("setsockopt_level_or_optname_approvers", uintValues[uint64](values)...)
+			// Use index 1 for optname field in the eBPF map
+			kfilter, err := getEnumsKFiltersWithIndex("setsockopt_level_or_optname_approvers", 1, uintValues[uint64](values)...)
 			if err != nil {
 				return nil, nil, err
 			}
