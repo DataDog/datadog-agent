@@ -12,6 +12,11 @@ DEFAULT_KUBECONFIG="$HOME/.kube/config"
 
 # Merge extracted kubeconfig into default config so kubectx/kubectl can find it
 merge_kubeconfig() {
+    # Remove any existing entries for this cluster (avoids stale certs)
+    kubectl config delete-context "kind-$CLUSTER_NAME" 2>/dev/null || true
+    kubectl config delete-cluster "kind-$CLUSTER_NAME" 2>/dev/null || true
+    kubectl config delete-user "kind-$CLUSTER_NAME" 2>/dev/null || true
+
     if [[ -f "$DEFAULT_KUBECONFIG" ]]; then
         # Merge with existing config
         KUBECONFIG="$DEFAULT_KUBECONFIG:$KUBECONFIG_FILE" kubectl config view --flatten > "$DEFAULT_KUBECONFIG.tmp"
@@ -33,17 +38,17 @@ if limactl list --format '{{.Name}}' 2>/dev/null | grep -q "^${VM_NAME}$"; then
         echo "VM '$VM_NAME' is already running."
 
         # Check if cluster exists
-        if limactl shell "$VM_NAME" -- sudo kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
+        if limactl shell "$VM_NAME" -- kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
             echo "Kind cluster '$CLUSTER_NAME' exists."
             read -p "Recreate cluster? [y/N] " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 echo "==> Deleting existing cluster..."
-                limactl shell "$VM_NAME" -- sudo kind delete cluster --name "$CLUSTER_NAME"
+                limactl shell "$VM_NAME" -- kind delete cluster --name "$CLUSTER_NAME"
             else
                 echo "Keeping existing cluster. Updating kubeconfig..."
                 mkdir -p "$(dirname "$KUBECONFIG_FILE")"
-                limactl shell "$VM_NAME" -- sudo kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
+                limactl shell "$VM_NAME" -- kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
                 chmod 600 "$KUBECONFIG_FILE"
                 merge_kubeconfig
                 echo "Done. Context 'kind-$CLUSTER_NAME' is available in kubectl/kubectx."
@@ -58,12 +63,16 @@ else
     echo "==> Creating VM (this takes ~5 minutes)..."
     limactl create --name "$VM_NAME" "$SCRIPT_DIR/gadget-k8s-host.lima.yaml" --tty=false
     limactl start "$VM_NAME"
+    # Restart to ensure lima user's docker group membership is active
+    echo "==> Restarting VM to activate docker group..."
+    limactl stop "$VM_NAME"
+    limactl start "$VM_NAME"
 fi
 
 # Wait for Docker
 echo "==> Waiting for Docker..."
 for i in {1..60}; do
-    if limactl shell "$VM_NAME" -- sudo docker info &>/dev/null; then
+    if limactl shell "$VM_NAME" -- docker info &>/dev/null; then
         break
     fi
     sleep 2
@@ -71,7 +80,7 @@ done
 
 # Create Kind cluster
 echo "==> Creating Kind cluster '$CLUSTER_NAME'..."
-limactl shell "$VM_NAME" -- sudo kind create cluster --name "$CLUSTER_NAME" --config /dev/stdin <<'EOF'
+limactl shell "$VM_NAME" -- kind create cluster --name "$CLUSTER_NAME" --config /dev/stdin <<'EOF'
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
@@ -93,7 +102,7 @@ EOF
 # Copy kubeconfig to host and merge into default config
 echo "==> Merging kubeconfig into ~/.kube/config..."
 mkdir -p "$(dirname "$KUBECONFIG_FILE")"
-limactl shell "$VM_NAME" -- sudo kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
+limactl shell "$VM_NAME" -- kind get kubeconfig --name "$CLUSTER_NAME" > "$KUBECONFIG_FILE"
 chmod 600 "$KUBECONFIG_FILE"
 merge_kubeconfig
 
