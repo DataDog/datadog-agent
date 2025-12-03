@@ -537,7 +537,6 @@ func GetFileDescription(executablePath string) (string, error) {
 		uintptr(unsafe.Pointer(&langCodePageLen)),
 	)
 
-	// If we can't get translation table, try common language codes
 	var langCodePage string
 	if ret == 0 || langCodePageLen < 4 {
 		return "", fmt.Errorf("no language code page found: %w", err)
