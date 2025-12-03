@@ -173,18 +173,17 @@ pkg_files(
 )
 
 filegroup(
-    name = "openssl_binary",
+    name = "openssl_exe",
     srcs = [":openssl"],
-    output_group = select({
-        "@platforms//os:windows": "openssl.exe",
-        "//conditions:default": "",
-    }),
+    output_group = "openssl.exe",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
-    name = "openssl_binary_files",
-    srcs = [":openssl_binary"],
+    name = "openssl_exe_file",
+    srcs = [":openssl_exe"],
     prefix = "bin",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 filegroup(
@@ -197,12 +196,14 @@ filegroup(
     name = "libcrypto_dll_a",
     srcs = [":openssl"],
     output_group = "libcrypto.dll.a",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 filegroup(
     name = "libssl_dll_a",
     srcs = [":openssl"],
     output_group = "libssl.dll.a",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
@@ -212,6 +213,7 @@ pkg_files(
         ":libssl_dll_a",
     ],
     prefix = "lib",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
@@ -229,7 +231,7 @@ pkg_install(
     ] + select({
         "@platforms//os:windows": [
             ":dll_a",
-            ":openssl_binary_files",
+            ":openssl_exe_file",
         ],
         "//conditions:default": [
             ":openssl_pkgconfig",
