@@ -27,6 +27,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// WiFi data validation constants
+const (
+	// RSSI (Received Signal Strength Indicator) valid range in dBm
+	// In reality, the RSSI falls in the range of -10dBm to -100dBm
+	// Using some margins, we check from -5dBm to -110dBm
+	minRSSI = -110 // Absolute minimum (very weak signal)
+	maxRSSI = -5   // Absolute maximum (unrealistic)
+
+	// SSID (Network Name) maximum length per IEEE 802.11 standard
+	maxSSIDLength = 32
+
+	// WiFi channel valid range (covers all bands: 2.4GHz, 5GHz, 6GHz)
+	minChannel = 0   // 0 indicates inactive/unknown
+	maxChannel = 233 // Maximum channel number in 6GHz band (WiFi 6E/7)
+
+	// Noise level valid range in dBm
+	minNoise = -105  // minimum or best noise level
+	maxNoise = -75  // level above this will be extremely congested or faulty
+
+	// Data rate (PHY link rate) valid range in Mbps
+	minDataRate = 0     // 0 indicates unknown/inactive
+	maxDataRate = 40000 // 40 Gbps
+
+	// MAC address standard format length (XX:XX:XX:XX:XX:XX)
+	macAddressLength = 17
+
+	// Maximum IPC response size (4KB is sufficient for WiFi metadata)
+	maxIPCResponseSize = 4096
+)
+
 // guiWiFiData represents the WiFi data structure from GUI IPC
 type guiWiFiData struct {
 	RSSI               int     `json:"rssi"`
@@ -72,7 +102,7 @@ func GetWiFiInfo() (wifiInfo, error) {
 		} else {
 			log.Info("Waiting for console user's GUI to start, retrying connection...")
 
-			// Retry connection with exponential backoff (20 retries over 10 seconds)
+			// Retry connection (up to 20 fast attempts before giving up)
 			retryErr := checkpkg.Retry(500*time.Millisecond, 20, func() error {
 				info, err = fetchWiFiFromGUI(socketPath, 2*time.Second)
 				if err != nil {
@@ -192,6 +222,92 @@ func validateSocketOwnership(socketPath string) error {
 	}
 
 	log.Debugf("Socket ownership validated: UID %s", actualUID)
+	return nil
+}
+
+// isValidMACAddress validates MAC address format (XX:XX:XX:XX:XX:XX)
+func isValidMACAddress(mac string) bool {
+	// MAC address should be 17 characters: XX:XX:XX:XX:XX:XX
+	if len(mac) != macAddressLength {
+		return false
+	}
+	// Check format: hex pairs separated by colons
+	parts := strings.Split(mac, ":")
+	if len(parts) != 6 {
+		return false
+	}
+	for _, part := range parts {
+		if len(part) != 2 {
+			return false
+		}
+		for _, c := range part {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// validateWiFiData performs defensive validation on WiFi data received from GUI
+func validateWiFiData(data *guiWiFiData) error {
+	// RSSI should be in valid range
+	if data.RSSI < minRSSI || data.RSSI > maxRSSI {
+		return fmt.Errorf("invalid RSSI value: %d (expected %d to %d)", data.RSSI, minRSSI, maxRSSI)
+	}
+
+	// SSID max length per IEEE 802.11 standard
+	if len(data.SSID) > maxSSIDLength {
+		return fmt.Errorf("SSID too long: %d bytes (max %d)", len(data.SSID), maxSSIDLength)
+	}
+
+	// BSSID should be empty or valid MAC address format
+	if data.BSSID != "" && !isValidMACAddress(data.BSSID) {
+		return fmt.Errorf("invalid BSSID format: %s (expected XX:XX:XX:XX:XX:XX)", data.BSSID)
+	}
+
+	// Channel should be in valid WiFi channel range
+	if data.Channel < minChannel || data.Channel > maxChannel {
+		return fmt.Errorf("invalid channel: %d (expected %d-%d)", data.Channel, minChannel, maxChannel)
+	}
+
+	// Noise should be in reasonable range
+	if data.Noise < minNoise || data.Noise > maxNoise {
+		return fmt.Errorf("invalid noise value: %d (expected %d to %d)", data.Noise, minNoise, maxNoise)
+	}
+
+	// Data rates should be non-negative and reasonable
+	if data.TransmitRate < minDataRate || data.TransmitRate > maxDataRate {
+		return fmt.Errorf("invalid transmit rate: %f (expected %d-%d Mbps)", data.TransmitRate, minDataRate, maxDataRate)
+	}
+	if data.ReceiveRate < minDataRate || data.ReceiveRate > maxDataRate {
+		return fmt.Errorf("invalid receive rate: %f (expected %d-%d Mbps)", data.ReceiveRate, minDataRate, maxDataRate)
+	}
+
+	// MAC address should be empty or valid format
+	if data.MACAddress != "" && !isValidMACAddress(data.MACAddress) {
+		return fmt.Errorf("invalid MAC address format: %s", data.MACAddress)
+	}
+
+	// PHY mode should be from known set
+	validPHYModes := map[string]bool{
+		"802.11a":  true,
+		"802.11b":  true,
+		"802.11g":  true,
+		"802.11n":  true,
+		"802.11ac": true,
+		"802.11ax": true,
+		"802.11ah": true,
+		"802.11ad": true,
+		"802.11ay": true,
+		"802.11be": true,
+		"None":     true,
+		"Unknown":  true,
+	}
+	if !validPHYModes[data.PHYMode] {
+		return fmt.Errorf("invalid PHY mode: %s (expected 802.11a/b/g/n/ac/ax/ah/ad/ay/be/None/Unknown)", data.PHYMode)
+	}
+
 	return nil
 }
 
@@ -315,11 +431,16 @@ func fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error
 
 	log.Debugf("Sent request to GUI: %s", string(requestData))
 
-	// Read response
-	reader := bufio.NewReader(conn)
+	// Read response with size limit
+	reader := bufio.NewReaderSize(conn, maxIPCResponseSize)
 	responseLine, err := reader.ReadString('\n')
 	if err != nil {
 		return wifiInfo{}, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	// Validate response size
+	if len(responseLine) > maxIPCResponseSize {
+		return wifiInfo{}, fmt.Errorf("response too large: %d bytes (max %d)", len(responseLine), maxIPCResponseSize)
 	}
 
 	log.Debugf("Received response from GUI: %s", strings.TrimSpace(responseLine))
@@ -342,6 +463,11 @@ func fetchWiFiFromGUI(socketPath string, timeout time.Duration) (wifiInfo, error
 	}
 
 	data := response.Data
+
+	// Validate received data (defense against malicious/compromised GUI)
+	if err := validateWiFiData(data); err != nil {
+		return wifiInfo{}, fmt.Errorf("invalid WiFi data from GUI: %w", err)
+	}
 
 	// Log if location is not authorized
 	if !data.LocationAuthorized {
