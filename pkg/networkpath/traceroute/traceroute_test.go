@@ -48,6 +48,9 @@ func TestGetTraceroute(t *testing.T) {
 	jsonBytes, err := json.Marshal(expectedPath)
 	require.NoError(t, err)
 
+	// Update expectedPath with the expected source hostname
+	expectedPath.Source.Hostname = "test-agent-hostname"
+
 	client := &http.Client{
 		Transport: &mockTransport{
 			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
@@ -75,11 +78,7 @@ func TestGetTraceroute(t *testing.T) {
 
 	path, err := getTraceroute(context.Background(), client, "client-id", cfg)
 	require.NoError(t, err)
-	assert.Equal(t, expectedPath.Timestamp, path.Timestamp)
-	assert.Equal(t, expectedPath.Protocol, path.Protocol)
-	assert.Equal(t, expectedDest, path.Destination)
-	// Verify that source hostname was set by getTraceroute
-	assert.Equal(t, "test-agent-hostname", path.Source.Hostname)
+	assert.Equal(t, expectedPath, path)
 }
 
 func TestGetTracerouteError(t *testing.T) {
