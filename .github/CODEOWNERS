@@ -394,7 +394,6 @@
 
 # remoteagent implementation should also notify their respective teams
 /comp/core/remoteagent/impl-systemprobe @DataDog/agent-runtimes @DataDog/ebpf-platform
-/comp/core/remoteagent/impl-trace @DataDog/agent-runtimes @DataDog/agent-apm
 
 # pkg
 /pkg/                                   @DataDog/agent-runtimes
