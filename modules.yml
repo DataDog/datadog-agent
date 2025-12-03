@@ -170,6 +170,7 @@ modules:
     used_by_otel: true
   pkg/api:
     used_by_otel: true
+  pkg/clusteragent/admission/mutate/autoinstrumentation/testutils: default
   pkg/collector/check/defaults:
     used_by_otel: true
   pkg/config/create:
