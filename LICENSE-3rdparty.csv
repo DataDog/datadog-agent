@@ -140,13 +140,14 @@ core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyri
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v2alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-traceroute/cache,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/icmp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/packets,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-traceroute/publicip,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/result,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/reversedns,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/datadog-traceroute/runner,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/sack,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/tcp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/traceroute,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -925,6 +926,9 @@ core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/goversion,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/logflags,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-ini/ini,Apache-2.0,Copyright 2014 Unknwon
+core,github.com/go-jose/go-jose/v4,Apache-2.0,Copyright 2014 Square Inc.
+core,github.com/go-jose/go-jose/v4/cipher,Apache-2.0,Copyright 2014 Square Inc.
+core,github.com/go-jose/go-jose/v4/json,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright 2014 Square Inc.
 core,github.com/go-json-experiment/json,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
 core,github.com/go-json-experiment/json/internal,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
 core,github.com/go-json-experiment/json/internal/jsonflags,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved

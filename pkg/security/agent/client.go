@@ -22,6 +22,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mdlayher/vsock"
@@ -237,13 +238,13 @@ func (c *RuntimeSecurityEventClient) Close() {
 func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	socketPath := pkgconfigsetup.Datadog().GetString("runtime_security_config.socket")
 
-	family := socket.GetFamilyAddress(socketPath)
+	family, addr := socket.GetSocketAddress(socketPath)
 	if family == "unix" {
 		if runtime.GOOS == "windows" {
 			return nil, errors.New("unix sockets are not supported on Windows")
 		}
 
-		socketPath = "unix://" + socketPath
+		socketPath = "unix://" + addr
 	}
 
 	opts := []grpc.DialOption{
@@ -258,7 +259,12 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 	}
 
 	if family == "vsock" {
-		cmdPort, parseErr := strconv.Atoi(socketPath)
+		_, sPort, err := net.SplitHostPort(socketPath)
+		if err != nil {
+			return nil, err
+		}
+
+		cmdPort, parseErr := strconv.Atoi(sPort)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid vsock socket path '%s'", socketPath)
 		}
@@ -268,6 +274,7 @@ func NewRuntimeSecurityEventClient() (*RuntimeSecurityEventClient, error) {
 		}
 
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+			log.Infof("Dialing vsock socket on CID %d and port %d", vsock.Host, cmdPort)
 			return vsock.Dial(vsock.Host, uint32(cmdPort), &vsock.Config{})
 		}))
 	}

@@ -54,7 +54,7 @@ import csv
 import json
 import os
 
-_DEBUG = 1
+_DEBUG = 0
 
 from tasks.licenses import find_copyright_in_text
 
@@ -91,7 +91,7 @@ class AttrUsage:
     def __init__(self):
         self.licenses = {}
         self.attribute_kinds = {}
-        self.offers = []
+        self.offers = {}
 
     def set_kinds(self, attribute_kinds):
         self.attribute_kinds = attribute_kinds
@@ -159,7 +159,7 @@ class AttrUsage:
 
     def process_source_offer(self, purl=None):
         package = (purl.split("?")[0]).split("/")[-1]
-        self.offers.append(
+        self.offers[package] = (
             f"This package ships {package}\nContact Datadog Support (http://docs.datadoghq.com/help/) to request the sources of this software.\n"
         )
 
@@ -168,8 +168,9 @@ def main():
     parser = argparse.ArgumentParser(description="Helper for gathering third party license information.")
     parser.add_argument("--target", help="The target we are processing.")
     parser.add_argument("--csv_out", help="The CSV style output file.")
+    parser.add_argument("--licenses_dir", help="Directory to copy license texts to.")
+    parser.add_argument("--offers_dir", help="Directory to write 'ship source' offers to.")
     parser.add_argument("--offers_out", help="File to write 'ship source' offers to.")
-    parser.add_argument("--licenses_dir", help="Directory to copy license tesxt to.")
     parser.add_argument("--usage_map", required=True, help="The changes output file, mandatory.")
     parser.add_argument("--kinds", required=True, help="JSON file mapping file paths to their kinds, mandatory.")
     parser.add_argument("--metadata", action='append', help="path to a metadata bundle")
@@ -207,14 +208,26 @@ def main():
             for license in licenses:
                 csv_writer.writerow(license)
 
+    if options.offers_dir:
+        for package in attrs.offers:
+            short_package = package.split("@")[0]  #  foo@version => foo
+            os.mkdir(os.path.join(options.offers_dir, short_package))
+            copy_to = os.path.join(options.offers_dir, short_package, "offer.txt")
+            if _DEBUG > 1:
+                print(f"writing {copy_to}")
+            with open(copy_to, "w", encoding="UTF-8") as out:
+                out.write(attrs.offers[package])
+
     if options.offers_out:
         with open(options.offers_out, "w", encoding="UTF-8") as out:
-            out.write("\n".join(attrs.offers))
+            out.write("\n".join(attrs.offers.values()))
 
     if options.licenses_dir:
         for origin, data in attrs.licenses.items():
+            # If origin is a PURL, this may just be a name, like "acl"
             licensed_package = purl_to_package(origin)
-            canonical_package = normalize_repo(repo_of_target(licensed_package))
+            # but if we get it through bazel repos, use that name - falling back to the package name if from the PURL
+            canonical_package = normalize_repo(repo_of_target(licensed_package)) or licensed_package
             # This good enough for today. The DD policy is that all licenses have SPDX
             # identifiers, so the repo name is always constant.
             license_type = data[0].replace("@rules_license+//licenses/spdx:", "")
@@ -223,7 +236,7 @@ def main():
             license_file_short = os.path.basename(license_file)
             copy_to = os.path.join(options.licenses_dir, f"{canonical_package}-{license_file_short}")
             if _DEBUG > 1:
-                print(f"writing {copy_to}")
+                print(f"writing for {canonical_package} to {copy_to}")
             with open(copy_to, "w", encoding="UTF-8") as out:
                 out.write(license_text)
 

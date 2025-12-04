@@ -5,8 +5,6 @@
 
 package vmconfig
 
-import "runtime"
-
 type PoolType string
 
 type VMSetID string
@@ -62,13 +60,6 @@ type VMSet struct {
 	Disks       []Disk  `json:"disks,omitempty"`
 	ConsoleType string  `json:"console_type"`
 	VMHost      Host    `json:"host,omitempty"`
-}
-
-func (set VMSet) Hypervisor() string {
-	if set.Arch == "local" && runtime.GOOS == "darwin" {
-		return "hvf"
-	}
-	return "kvm"
 }
 
 type Config struct {

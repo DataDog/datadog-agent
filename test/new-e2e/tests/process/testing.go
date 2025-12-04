@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 //go:embed config/process_check.yaml
@@ -381,6 +381,21 @@ func assertManualContainerCheck(t require.TestingT, check string, expectedContai
 	for _, container := range expectedContainers {
 		assert.Truef(t, findContainer(container, checkOutput.Containers),
 			"%s container not found in %+v", container, checkOutput.Containers)
+	}
+}
+
+// assertAbsentManualContainerCheck asserts that the given container is not collected from a manual container check
+func assertAbsentManualContainerCheck(t require.TestingT, check string, unexpectedContainers ...string) {
+	var checkOutput struct {
+		Containers []*agentmodel.Container `json:"containers"`
+	}
+
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
+	for _, container := range unexpectedContainers {
+		assert.Falsef(t, findContainer(container, checkOutput.Containers),
+			"%s container found in %+v", container, checkOutput.Containers)
 	}
 }
 

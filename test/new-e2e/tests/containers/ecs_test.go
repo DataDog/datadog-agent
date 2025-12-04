@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -25,9 +25,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	tifecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
-	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
+	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
 const (
@@ -44,14 +44,16 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
-	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(envecs.Provisioner(
-		envecs.WithECSOptions(
-			tifecs.WithFargateCapacityProvider(),
-			tifecs.WithLinuxNodeGroup(),
-			tifecs.WithWindowsNodeGroup(),
-			tifecs.WithLinuxBottleRocketNodeGroup(),
+	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(provecs.Provisioner(
+		provecs.WithRunOptions(
+			scenecs.WithECSOptions(
+				scenecs.WithFargateCapacityProvider(),
+				scenecs.WithLinuxNodeGroup(),
+				scenecs.WithWindowsNodeGroup(),
+				scenecs.WithLinuxBottleRocketNodeGroup(),
+			),
+			scenecs.WithTestingWorkload(),
 		),
-		envecs.WithTestingWorkload(),
 	)))
 }
 

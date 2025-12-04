@@ -208,3 +208,9 @@ func (h *PodHandlers) ScrubBeforeMarshalling(ctx processors.ProcessorContext, re
 		redact.ScrubPod(r, pctx.Cfg.Scrubber)
 	}
 }
+
+// GetNodeName is used to get the node name from the resource.
+func (h *PodHandlers) GetNodeName(_ processors.ProcessorContext, resource interface{}) string {
+	r := resource.(*corev1.Pod)
+	return r.Spec.NodeName
+}

@@ -37,7 +37,6 @@ import (
 	filter "github.com/DataDog/datadog-agent/pkg/network/tracer/networkfilter"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	usmconfig "github.com/DataDog/datadog-agent/pkg/network/usm/config"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -45,6 +44,7 @@ import (
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/os"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -789,7 +789,7 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 	// skip connection check for udp connections or if
 	// the pid for the connection is dead
 	// conn.Pid can be 0 when ebpf-less tracer is running
-	if conn.Type == network.UDP || (conn.Pid > 0 && !procutil.PidExists(int(conn.Pid))) {
+	if conn.Type == network.UDP || (conn.Pid > 0 && !os.PidExists(int(conn.Pid))) {
 		return true
 	}
 

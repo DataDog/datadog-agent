@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 //go:embed etc/process_config.yaml
@@ -43,8 +43,10 @@ type languageDetectionSuite struct {
 
 func getProvisionerOptions(agentParams []func(*agentparams.Params) error) []awshost.ProvisionerOption {
 	return []awshost.ProvisionerOption{
-		awshost.WithAgentOptions(agentParams...),
-		awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+		awshost.WithRunOptions(
+			ec2.WithAgentOptions(agentParams...),
+			ec2.WithEC2InstanceOptions(ec2.WithAMI("ami-090c309e8ced8ecc2", os.Ubuntu2204, os.AMD64Arch)),
+		),
 	}
 }
 

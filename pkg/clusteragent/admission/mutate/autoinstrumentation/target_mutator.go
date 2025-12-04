@@ -250,6 +250,11 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
 // a filter.
 func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
+	// If the namespace is disabled, we should not mutate the pod.
+	if _, ok := m.disabledNamespaces[pod.Namespace]; ok {
+		return false
+	}
+
 	// We need to explicitly check for the label being set to false, which opts out of mutation.
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
@@ -306,41 +311,62 @@ type targetInternal struct {
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
-	if target := m.getTargetFromAnnotation(pod); target != nil {
-		return target
+	result := m.getTargetFromAnnotation(pod)
+	if !result.shouldContinue {
+		return result.target
 	}
 
 	return m.getMatchingTarget(pod)
 }
 
+type annotationResult struct {
+	shouldContinue bool
+	target         *targetInternal
+}
+
 // getTargetFromAnnotation determines which tracing libraries to use given
-func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *targetInternal {
+func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
-		return nil
+		return &annotationResult{
+			shouldContinue: false,
+			target:         nil,
+		}
 	}
 
-	if !enabledLabelVal && !m.mutateUnlabelled {
-		return nil
+	if !enabledLabelExists && !m.mutateUnlabelled {
+		return &annotationResult{
+			shouldContinue: true,
+			target:         nil,
+		}
 	}
 
 	// If local lib is enabled, then we should prefer the user defined libs.
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
-		return &targetInternal{
-			libVersions: extractedLibraries,
+		return &annotationResult{
+			shouldContinue: false,
+			target: &targetInternal{
+				libVersions: extractedLibraries,
+			},
 		}
 	}
 
 	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return &targetInternal{
-			libVersions: m.defaultLibVersions,
+		return &annotationResult{
+			shouldContinue: false,
+			target: &targetInternal{
+				libVersions: m.defaultLibVersions,
+			},
 		}
 	}
 
-	return nil
+	return &annotationResult{
+		shouldContinue: true,
+		target:         nil,
+	}
 }
 
 // getMatchingTarget filters a pod based on the targets. It returns the target to inject.

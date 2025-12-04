@@ -9197,22 +9197,22 @@
       "properties": [
         {
           "name": "setsockopt.filter_hash",
-          "definition": "Hash of the socket filter using sha256",
+          "definition": "Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_hash-doc"
         },
         {
           "name": "setsockopt.filter_instructions",
-          "definition": "Filter instructions",
+          "definition": "Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_instructions-doc"
         },
         {
           "name": "setsockopt.filter_len",
-          "definition": "Length of the filter",
+          "definition": "Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_len-doc"
         },
         {
           "name": "setsockopt.is_filter_truncated",
-          "definition": "Indicates that the filter is truncated",
+          "definition": "Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-is_filter_truncated-doc"
         },
         {
@@ -9247,7 +9247,7 @@
         },
         {
           "name": "setsockopt.used_immediates",
-          "definition": "List of immediate values used in the filter",
+          "definition": "List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-used_immediates-doc"
         }
       ]
@@ -16217,7 +16217,7 @@
       "name": "setsockopt.filter_hash",
       "link": "setsockopt-filter_hash-doc",
       "type": "string",
-      "definition": "Hash of the socket filter using sha256",
+      "definition": "Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -16229,7 +16229,7 @@
       "name": "setsockopt.filter_instructions",
       "link": "setsockopt-filter_instructions-doc",
       "type": "string",
-      "definition": "Filter instructions",
+      "definition": "Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -16241,7 +16241,7 @@
       "name": "setsockopt.filter_len",
       "link": "setsockopt-filter_len-doc",
       "type": "int",
-      "definition": "Length of the filter",
+      "definition": "Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -16253,7 +16253,7 @@
       "name": "setsockopt.is_filter_truncated",
       "link": "setsockopt-is_filter_truncated-doc",
       "type": "bool",
-      "definition": "Indicates that the filter is truncated",
+      "definition": "Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -16325,7 +16325,7 @@
       "name": "setsockopt.used_immediates",
       "link": "setsockopt-used_immediates-doc",
       "type": "int",
-      "definition": "List of immediate values used in the filter",
+      "definition": "List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],

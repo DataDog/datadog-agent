@@ -20,7 +20,7 @@ import (
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 

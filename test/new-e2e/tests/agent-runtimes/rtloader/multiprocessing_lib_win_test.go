@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
 type windowsMultiProcessingLibSuite struct {

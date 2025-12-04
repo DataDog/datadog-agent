@@ -29,7 +29,7 @@ source url: "http://download.savannah.nongnu.org/releases/attr/attr-#{version}.t
 relative_path "#{name}-#{version}"
 
 build do
-  command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libattr.pc" \
     " #{install_dir}/embedded/lib/libattr.so"

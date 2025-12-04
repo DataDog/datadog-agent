@@ -544,7 +544,6 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			name: "resources explicitly requested with apm enabled and also needed for namespace labels as tags",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled":                                     true,
-				"apm_config.instrumentation.targets":                                     []interface{}{"target-1"},
 				"cluster_agent.kube_metadata_collection.enabled":                         true,
 				"cluster_agent.kube_metadata_collection.resources":                       "namespaces apps/deployments",
 				"kubernetes_namespace_labels_as_tagkubernetes_namespace_labels_as_tagss": `{"label1": "tag1"}`,
@@ -555,7 +554,6 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 			name: "apm enabled enables namespace collection",
 			cfg: map[string]interface{}{
 				"apm_config.instrumentation.enabled": true,
-				"apm_config.instrumentation.targets": []interface{}{"target-1"},
 			},
 			expectedResources: []string{"//nodes", "//namespaces"},
 		},

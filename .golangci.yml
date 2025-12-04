@@ -260,6 +260,10 @@ linters:
     - path: _test\.go
       linters:
         - errcheck
+    # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
+    - path: "pkg/privateactionrunner/"
+      linters:
+        - revive
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]
