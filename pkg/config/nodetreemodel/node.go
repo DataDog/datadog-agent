@@ -40,7 +40,7 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 }
 
 // NewNodeTree will recursively create nodes from the input value to construct a tree
-func NewNodeTree(v interface{}, source model.Source) (Node, error) {
+func NewNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
 	if helper.IsNilValue(v) {
 		// nil as a value acts as the zero value, and the cast library will correctly
 		// convert it to zero values for the types we handle
@@ -72,8 +72,8 @@ func NewNodeTree(v interface{}, source model.Source) (Node, error) {
 	return node, err
 }
 
-func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]Node, error) {
-	children := make(map[string]Node)
+func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]*nodeImpl, error) {
+	children := make(map[string]*nodeImpl)
 	for k, v := range input {
 		node, err := NewNodeTree(v, source)
 		if err != nil {
@@ -84,41 +84,18 @@ func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[
 	return children, nil
 }
 
-// NodeType represents node types in the tree (ie: inner or leaf)
-type NodeType int
-
-const (
-	// InnerType is a inner node in the config
-	InnerType NodeType = iota
-	// LeafType is a leaf node in the config
-	LeafType
-	// MissingType is a none-object representing when a child node is missing
-	MissingType
-)
-
-// Node represents a arbitrary node
+// Node is a inner or leaf node in the config tree
 type Node interface {
-	Clone() Node
-	GetChild(string) (Node, error)
-}
-
-// InnerNode represents an inner node in the config
-type InnerNode interface {
-	Node
-	HasChild(string) bool
-	ChildrenKeys() []string
-	Merge(InnerNode) (InnerNode, error)
-	SetAt([]string, interface{}, model.Source) error
-	InsertChildNode(string, Node)
-	RemoveChild(string)
-	DumpSettings(func(model.Source) bool) map[string]interface{}
-}
-
-// LeafNode represents a leaf node of the config
-type LeafNode interface {
-	Node
+	IsLeafNode() bool
+	IsInnerNode() bool
 	Get() interface{}
-	ReplaceValue(v interface{}) error
-	Source() model.Source
-	SourceGreaterThan(model.Source) bool
+	ChildrenKeys() []string
 }
+
+type nodeImpl struct {
+	children map[string]*nodeImpl
+	val      interface{}
+	source   model.Source
+}
+
+var _ Node = (*nodeImpl)(nil)

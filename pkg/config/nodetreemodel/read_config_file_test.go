@@ -174,12 +174,12 @@ c:
 	assert.Equal(t, 456, cfg.Get("c.e.f"))
 	assert.Equal(t, model.SourceDefault, cfg.GetSource("c.e.f"))
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{
-					"d": &leafNodeImpl{val: 1234, source: model.SourceFile},
+	expected := &nodeImpl{
+		children: map[string]*nodeImpl{
+			"a": &nodeImpl{val: "orange", source: model.SourceFile},
+			"c": &nodeImpl{
+				children: map[string]*nodeImpl{
+					"d": &nodeImpl{val: 1234, source: model.SourceFile},
 				},
 			},
 		},
@@ -209,13 +209,13 @@ c:
 	require.Len(t, c.warnings, 1)
 	assert.Equal(t, errors.New("unknown key from YAML: c.unknown"), c.warnings[0])
 
-	expected := &innerNode{
-		children: map[string]Node{
-			"a": &leafNodeImpl{val: "orange", source: model.SourceFile},
-			"c": &innerNode{
-				children: map[string]Node{
-					"d":       &leafNodeImpl{val: 1234, source: model.SourceFile},
-					"unknown": &leafNodeImpl{val: "key", source: model.SourceFile},
+	expected := &nodeImpl{
+		children: map[string]*nodeImpl{
+			"a": &nodeImpl{val: "orange", source: model.SourceFile},
+			"c": &nodeImpl{
+				children: map[string]*nodeImpl{
+					"d":       &nodeImpl{val: 1234, source: model.SourceFile},
+					"unknown": &nodeImpl{val: "key", source: model.SourceFile},
 				},
 			},
 		},

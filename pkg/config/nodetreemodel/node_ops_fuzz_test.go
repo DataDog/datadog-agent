@@ -36,14 +36,13 @@ func FuzzNodeOps(f *testing.F) {
 			key2[i] = strings.ToValidUTF8(key2[i], "a")
 		}
 
-		// Start with an empty inner node and set a couple of values (of different type) via SetAt
+		// Start with an empty inner node and set a couple of values (of different type) via setAt
 		root := newInnerNode(nil)
 		if root == nil {
 			return
 		}
-		t.Logf("key1: %+v, key2: %+v, value: %+v, n: %+v", key1, key2, valueStr, valueInt64)
-		_ = root.SetAt(key1, valueStr, model.SourceFile)
-		_ = root.SetAt(key2, valueInt64, model.SourceEnvVar)
+		_ = root.setAt(key1, valueStr, model.SourceFile)
+		_ = root.setAt(key2, valueInt64, model.SourceEnvVar)
 
 		// Exercise the tree manipulation methods
 		insKey := strings.Join(key1, ".")
@@ -59,9 +58,7 @@ func FuzzNodeOps(f *testing.F) {
 
 		// Clone and operate on the cloned node tree
 		cloned := root.Clone()
-		if cinner, ok := cloned.(InnerNode); ok {
-			_ = cinner.ChildrenKeys()
-		}
+		_ = cloned.ChildrenKeys()
 
 		_ = root.DumpSettings(func(_ model.Source) bool { return true })
 
@@ -78,31 +75,14 @@ func FuzzNodeOps(f *testing.F) {
 		for _, source := range model.Sources {
 			node, err := NewNodeTree(srcMap, source)
 			if err == nil {
-				if other, ok := node.(InnerNode); ok {
-					_, _ = root.Merge(other)
-				}
+				_, _ = root.Merge(node)
 			}
 			if leaf, err := NewNodeTree([]interface{}{valueStr, valueInt64}, source); err == nil {
-				if l, ok := leaf.(LeafNode); ok {
-					_ = l.Get()
-					_ = l.Source()
-					_ = l.SourceGreaterThan(model.SourceSchema)
-					_, _ = l.GetChild("a")
-				}
+				_ = leaf.Get()
+				_ = leaf.Source()
+				_ = leaf.SourceGreaterThan(model.SourceSchema)
+				_, _ = leaf.GetChild("a")
 			}
 		}
 	})
-}
-
-// TestNodeOps is a regression test for a panic in the DumpSettings method caused by a SetAt call with a key in upper case
-func TestNodeOps(_ *testing.T) {
-	root := newInnerNode(nil)
-	// Setting this to upper case will trigger a panic in the DumpSettings method
-	key1 := []string{"A"}
-	key2 := []string{"0"}
-	value := "0"
-	n := int64(42)
-	_ = root.SetAt(key1, value, model.SourceFile)
-	_ = root.SetAt(key2, n, model.SourceEnvVar)
-	_ = root.DumpSettings(func(_ model.Source) bool { return true }) // panic here
 }

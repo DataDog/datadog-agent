@@ -7,41 +7,27 @@ package nodetreemodel
 
 import (
 	"errors"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"golang.org/x/exp/maps"
 )
 
-// innerNode represents an non-leaf node of the config
-type innerNode struct {
-	children map[string]Node
-}
-
-func newInnerNode(children map[string]Node) *innerNode {
-	contents := make(map[string]Node, len(children))
-	for k, v := range children {
-		contents[strings.ToLower(k)] = v
+func newInnerNode(children map[string]*nodeImpl) *nodeImpl {
+	if children == nil {
+		children = map[string]*nodeImpl{}
 	}
-	node := &innerNode{children: contents}
-	return node
-}
-
-var _ Node = (*innerNode)(nil)
-
-// Clone clones a InnerNode and all its children
-func (n *innerNode) Clone() Node {
-	children := make(map[string]Node)
-	for k, node := range n.children {
-		children[k] = node.Clone()
-	}
-	return newInnerNode(children)
+	return &nodeImpl{children: children}
 }
 
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
-func (n *innerNode) GetChild(key string) (Node, error) {
+func (n *nodeImpl) GetChild(key string) (*nodeImpl, error) {
+	if n.IsLeafNode() {
+		return nil, fmt.Errorf("cannot GetChild of leaf node")
+	}
 	mkey := strings.ToLower(key)
 	child, found := n.children[mkey]
 	if !found {
@@ -51,14 +37,24 @@ func (n *innerNode) GetChild(key string) (Node, error) {
 }
 
 // HasChild returns true if the node has a child for that given key
-func (n *innerNode) HasChild(key string) bool {
+func (n *nodeImpl) HasChild(key string) bool {
+	if n.IsLeafNode() {
+		return false
+	}
 	_, ok := n.children[strings.ToLower(key)]
 	return ok
 }
 
 // Merge merges this node with that and returns the merged result
-func (n *innerNode) Merge(that InnerNode) (InnerNode, error) {
-	newChildren := map[string]Node{}
+func (n *nodeImpl) Merge(that *nodeImpl) (*nodeImpl, error) {
+	if n.IsLeafNode() {
+		return nil, errors.New("cannot Merge into a leaf node")
+	}
+	if that.IsLeafNode() {
+		return nil, errors.New("cannot Merge with a leaf node")
+	}
+
+	newChildren := map[string]*nodeImpl{}
 
 	// iterate our keys
 	for _, name := range n.ChildrenKeys() {
@@ -70,8 +66,8 @@ func (n *innerNode) Merge(that InnerNode) (InnerNode, error) {
 			continue
 		}
 		theirChild, _ := that.GetChild(name)
-		ourLeaf, ourIsLeaf := ourChild.(LeafNode)
-		theirLeaf, theirIsLeaf := theirChild.(LeafNode)
+		ourIsLeaf := ourChild.IsLeafNode()
+		theirIsLeaf := theirChild.IsLeafNode()
 
 		// If subtree shapes differ, take the longer branch
 		// TODO: Improve error handling in a follow-up PR. We should collect errors
@@ -86,7 +82,7 @@ func (n *innerNode) Merge(that InnerNode) (InnerNode, error) {
 
 		if ourIsLeaf && theirIsLeaf {
 			// both are leafs, check the priority by source
-			if ourLeaf.Source() == theirLeaf.Source() || theirLeaf.SourceGreaterThan(ourLeaf.Source()) {
+			if ourChild.Source() == theirChild.Source() || theirChild.SourceGreaterThan(ourChild.Source()) {
 				newChildren[name] = theirChild
 			} else {
 				newChildren[name] = ourChild
@@ -95,9 +91,7 @@ func (n *innerNode) Merge(that InnerNode) (InnerNode, error) {
 		}
 
 		// both are inner nodes, recursively merge
-		ourInner := ourChild.(InnerNode)
-		theirInner := theirChild.(InnerNode)
-		result, err := ourInner.Merge(theirInner)
+		result, err := ourChild.Merge(theirChild)
 		if err != nil {
 			log.Errorf("merging config tree: %v\n", err)
 			continue
@@ -116,27 +110,26 @@ func (n *innerNode) Merge(that InnerNode) (InnerNode, error) {
 }
 
 // ChildrenKeys returns the list of keys of the children of the given node, if it is a map
-func (n *innerNode) ChildrenKeys() []string {
-	mapkeys := maps.Keys(n.children)
+func (n *nodeImpl) ChildrenKeys() []string {
+	mapkeys := slices.Collect(maps.Keys(n.children))
 	// map keys are iterated non-deterministically, sort them
 	slices.Sort(mapkeys)
 	return mapkeys
 }
 
-// SetAt sets a value in the tree by either creating a leaf node or updating one if the priority is equal or higher than
+// setAt sets a value in the tree by either creating a leaf node or updating one if the priority is equal or higher than
 // the existing one. The function returns true if an update was done or false if nothing was changed.
 //
 // The key parts should already be lowercased.
 //
 // This method should only be called on the root of a tree, not on an inner node with parents.
-// TODO: Consider adding a RootNode type, move this method to that.
-func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) error {
+func (n *nodeImpl) setAt(key []string, value interface{}, source model.Source) error {
 	if len(key) == 0 {
 		return errors.New("empty key given to Set")
 	}
 	newNode, err := setNodeAtPath(n, key, value, source)
-	if inner, ok := newNode.(*innerNode); ok {
-		n.children = inner.children
+	if newNode != nil && newNode.IsInnerNode() {
+		n.children = newNode.children
 	}
 	return err
 }
@@ -144,22 +137,22 @@ func (n *innerNode) SetAt(key []string, value interface{}, source model.Source) 
 // setNodeAtPath allocates a new branch, ending in a leaf at the given path of fields, with the
 // given value, and returns the root of that branch. If a leaf already exists at that path,
 // instead it is modified and no branch is allocated and this returns nil
-func setNodeAtPath(n *innerNode, fields []string, value interface{}, source model.Source) (Node, error) {
+func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model.Source) (*nodeImpl, error) {
 	if len(fields) == 0 {
 		return newLeafNode(value, source), nil
 	}
 	f := fields[0]
 
 	// Locate the next node down in the tree (or nil if it doesn't exist)
-	var next *innerNode
+	var next *nodeImpl
 	if n != nil {
 		if child, _ := n.GetChild(f); child != nil {
-			if innerNode, ok := child.(*innerNode); ok {
-				next = innerNode
-			} else if leafNode, ok := child.(LeafNode); ok {
+			if child.IsInnerNode() {
+				next = child
+			} else {
 				// If we find a leaf, simply replace its value, and return nil for
 				// the first return value because no node was created
-				return nil, leafNode.ReplaceValue(value)
+				return nil, child.ReplaceValue(value)
 			}
 		}
 	}
@@ -171,43 +164,43 @@ func setNodeAtPath(n *innerNode, fields []string, value interface{}, source mode
 	}
 
 	// Create a new inner node using the modified list of child nodes
-	var copyChildren map[string]Node
+	var copyChildren map[string]*nodeImpl
 	if n != nil {
 		copyChildren = maps.Clone(n.children)
 	} else {
-		copyChildren = make(map[string]Node)
+		copyChildren = make(map[string]*nodeImpl)
 	}
 	copyChildren[f] = createdNode
 	return newInnerNode(copyChildren), nil
 }
 
 // InsertChildNode sets a node in the current node
-func (n *innerNode) InsertChildNode(name string, node Node) {
+func (n *nodeImpl) InsertChildNode(name string, node *nodeImpl) {
 	n.children[name] = node
 }
 
 // RemoveChild removes a node from the current node
-func (n *innerNode) RemoveChild(name string) {
+func (n *nodeImpl) RemoveChild(name string) {
 	delete(n.children, name)
 }
 
 // DumpSettings clone the entire tree starting from the node into a map based on the leaf source.
 //
 // The selector will be call with the source of each leaf to determine if it should be included in the dump.
-func (n *innerNode) DumpSettings(selector func(model.Source) bool) map[string]interface{} {
+func (n *nodeImpl) DumpSettings(selector func(model.Source) bool) map[string]interface{} {
 	res := map[string]interface{}{}
 
 	for _, k := range n.ChildrenKeys() {
 		child, _ := n.GetChild(k)
-		if leaf, ok := child.(LeafNode); ok {
-			if selector(leaf.Source()) {
-				res[k] = leaf.Get()
+		if child.IsLeafNode() {
+			if selector(child.Source()) {
+				res[k] = child.Get()
 			}
 			continue
 		}
 
-		if childInner, ok := child.(InnerNode); ok {
-			childDump := childInner.DumpSettings(selector)
+		if child.IsInnerNode() {
+			childDump := child.DumpSettings(selector)
 			if len(childDump) != 0 {
 				res[k] = childDump
 			}

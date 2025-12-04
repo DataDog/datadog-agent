@@ -6,21 +6,12 @@
 package nodetreemodel
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
-
-type leafNodeImpl struct {
-	// val must be a scalar kind
-	val    interface{}
-	source model.Source
-}
-
-var _ LeafNode = (*leafNodeImpl)(nil)
-var _ Node = (*leafNodeImpl)(nil)
 
 func isScalar(v interface{}) bool {
 	switch v.(type) {
@@ -40,38 +31,54 @@ func isSlice(v interface{}) bool {
 	return rval.Kind() == reflect.Slice
 }
 
-func newLeafNode(v interface{}, source model.Source) Node {
-	return &leafNodeImpl{val: v, source: source}
+func newLeafNode(v interface{}, source model.Source) *nodeImpl {
+	return &nodeImpl{val: v, source: source}
 }
 
 // Clone clones a LeafNode
-func (n *leafNodeImpl) Clone() Node {
-	return newLeafNode(n.val, n.source)
+func (n *nodeImpl) Clone() *nodeImpl {
+	if n.IsLeafNode() {
+		return newLeafNode(n.val, n.source)
+	}
+
+	children := make(map[string]*nodeImpl)
+	for k, node := range n.children {
+		children[k] = node.Clone()
+	}
+	return newInnerNode(children)
 }
 
 // SourceGreaterThan returns true if the source of the current node is greater than the one given as a
 // parameter
-func (n *leafNodeImpl) SourceGreaterThan(source model.Source) bool {
+func (n *nodeImpl) SourceGreaterThan(source model.Source) bool {
 	return n.source.IsGreaterThan(source)
 }
 
-// GetChild returns an error because a leaf has no children
-func (n *leafNodeImpl) GetChild(key string) (Node, error) {
-	return nil, fmt.Errorf("can't GetChild(%s) of a leaf node", key)
-}
-
 // Get returns the setting value stored by the leaf
-func (n *leafNodeImpl) Get() interface{} {
+func (n *nodeImpl) Get() interface{} {
 	return n.val
 }
 
+// IsLeafNode returns true if the node is a leaf
+func (n *nodeImpl) IsLeafNode() bool {
+	return n.children == nil
+}
+
+// IsInnerNode returns true if the node is an inner node
+func (n *nodeImpl) IsInnerNode() bool {
+	return n.children != nil
+}
+
 // ReplaceValue replaces the value in the leaf node
-func (n *leafNodeImpl) ReplaceValue(v interface{}) error {
+func (n *nodeImpl) ReplaceValue(v interface{}) error {
+	if n.IsInnerNode() {
+		return errors.New("cannot ReplaceValue of innerNode")
+	}
 	n.val = v
 	return nil
 }
 
 // Source returns the source for this leaf
-func (n *leafNodeImpl) Source() model.Source {
+func (n *nodeImpl) Source() model.Source {
 	return n.source
 }

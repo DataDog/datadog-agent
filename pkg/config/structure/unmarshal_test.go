@@ -1425,7 +1425,7 @@ func TestMapGetChildNotFound(t *testing.T) {
 
 	val, err := n.GetChild("a")
 	assert.NoError(t, err)
-	str, err := cast.ToStringE(val.(nodetreemodel.LeafNode).Get())
+	str, err := cast.ToStringE(val.Get())
 	assert.NoError(t, err)
 	assert.Equal(t, str, "apple")
 
@@ -1433,9 +1433,8 @@ func TestMapGetChildNotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, err.Error(), "not found")
 
-	inner, ok := n.(nodetreemodel.InnerNode)
-	assert.True(t, ok)
-	assert.Equal(t, inner.ChildrenKeys(), []string{"a", "b"})
+	assert.True(t, n.IsInnerNode())
+	assert.Equal(t, n.ChildrenKeys(), []string{"a", "b"})
 }
 
 func TestUnmarshalKeyWithPointerToBool(t *testing.T) {
