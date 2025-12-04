@@ -54,7 +54,7 @@ func TestWithEnvOverrides(t *testing.T) {
 			expectError:   false,
 			expectMutated: true,
 			containerAfterOverride: &corev1.Container{
-				Env: []corev1.EnvVar{{Name: "NewFoo", Value: "Bar"}, {Name: "Foo", Value: "Bar"}},
+				Env: []corev1.EnvVar{{Name: "Foo", Value: "Bar"}, {Name: "NewFoo", Value: "Bar"}},
 			},
 		},
 		{
