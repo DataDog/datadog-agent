@@ -203,7 +203,7 @@ func (v *VersaCheck) Run() error {
 		log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
 	}
 
-	
+
 	var topologyMetadata []devicemetadata.TopologyLinkMetadata
 	log.Infof("SendTopologyMetadata config value: %v", *v.config.SendTopologyMetadata)
 
@@ -211,18 +211,20 @@ func (v *VersaCheck) Run() error {
 	if *v.config.SendTopologyMetadata {
 		for _, device := range appliances {
 
-			neighbors, err := c.GetTopology(device.Name, device.OwnerOrg)
+			neighbors, err := c.GetTopology(device.Name)
+			if err != nil {
+				log.Errorf("error getting topology metadata for device %s from director", device.Name)
+				continue
+			}
+
 			deviceTopologyMetadata, err := payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, device, neighbors)
 			
 			if err != nil {
-				if len(deviceTopologyMetadata) == 0 {
-					log.Errorf("failed to parse all topology metadata: %v", err)
-				} else {
-					log.Errorf("partial failure in parsing topology metadata: %v", err)
-				}
-
-			topologyMetadata = append(topologyMetadata, deviceTopologyMetadata...)
-		}
+				log.Errorf("failed to parse all topology metadata for device %s", device.Name)
+				continue
+			} else {
+				topologyMetadata = append(topologyMetadata, deviceTopologyMetadata...)
+			}
 		}
 
 		log.Tracef("topology metadata is as follows:")
@@ -235,7 +237,6 @@ func (v *VersaCheck) Run() error {
 		}
 	}
 
-	// UPDATE HERE TO GET TOPOLOGY METADATA
 	// Send the metadata to the metrics sender
 	if len(deviceMetadata) > 0 || len(interfaceMetadata) > 0 {
 		v.metricsSender.SendMetadata(deviceMetadata, interfaceMetadata, nil, topologyMetadata)
