@@ -22,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const AuroraTagsDocumentationURL = "https://docs.datadoghq.com/database_monitoring/guide/aurora_autodiscovery/?tab=postgres#configure-aurora-tags"
+
 // DBMAuroraListener implements database-monitoring aurora discovery
 type DBMAuroraListener struct {
 	sync.RWMutex
@@ -115,9 +117,10 @@ func (l *DBMAuroraListener) discoverAuroraClusters() {
 		return
 	}
 	if len(ids) == 0 {
-		log.Debugf("no aurora clusters found with provided tags %v", l.config.Tags)
+		log.Debugf("no aurora clusters found with provided tags %v, visit to the following link to learn more about how we use Aurora Tags for cluster discovery: %s", l.config.Tags, AuroraTagsDocumentationURL)
 		return
 	}
+	log.Debugf("found %d aurora clusters with the provided tags %v", len(ids), l.config.Tags)
 	auroraCluster, err := l.awsRdsClient.GetAuroraClusterEndpoints(ctx, ids, l.config.DbmTag)
 	if err != nil {
 		_ = log.Error(err)
@@ -153,6 +156,7 @@ func (l *DBMAuroraListener) createService(entityID, clusterID string, instance *
 	}
 	l.services[entityID] = svc
 	l.newService <- svc
+	log.Debugf("creating check for '%s'", *aws.Instance.Endpoint)
 }
 
 func (l *DBMAuroraListener) deleteServices(entityIDs []string) {
