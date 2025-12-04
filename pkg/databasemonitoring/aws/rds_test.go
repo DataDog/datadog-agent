@@ -134,7 +134,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			}},
 		},
 		{
-			name: "single tag filter returns single result from API with matching tag with global DB viewq",
+			name: "single tag filter returns single result from API with matching tag with global DB view",
 			configureClient: func(k *MockrdsService) {
 				k.EXPECT().DescribeDBInstances(gomock.Any(), &rds.DescribeDBInstancesInput{
 					Filters: []types.Filter{
@@ -156,6 +156,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							DBInstanceStatus:                 aws.String("available"),
 							Engine:                           aws.String("postgres"),
 							TagList: []types.Tag{
+								{Key: aws.String("test"), Value: aws.String("tag")},
 								{Key: aws.String("datadoghq.com/global_db_view"), Value: aws.String("custom")},
 								{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")},
 							},
@@ -517,7 +518,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetRdsInstancesFromTags(context.Background(), tt.tags, defaultDbmTag)
+			clusters, err := client.GetRdsInstancesFromTags(context.Background(), Config{Tags: tt.tags, DbmTag: defaultDbmTag, GlobalDbViewTag: defaultGlobalDbViewTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

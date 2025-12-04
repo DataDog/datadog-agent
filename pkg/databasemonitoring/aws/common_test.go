@@ -16,6 +16,7 @@ import (
 type mockrdsServiceConfigurer func(k *MockrdsService)
 
 const defaultDbmTag = "datadoghq.com/dbm:true"
+const defaultGlobalDbViewTag = "datadoghq.com/global_db_view"
 
 func createDescribeDBInstancesRequest(clusterIDs []string) *rds.DescribeDBInstancesInput {
 	return &rds.DescribeDBInstancesInput{

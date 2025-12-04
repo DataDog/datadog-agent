@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/rds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,7 +28,7 @@ type DBMRdsListener struct {
 	delService   chan<- Service
 	stop         chan bool
 	services     map[string]Service
-	config       rds.Config
+	config       aws.Config
 	awsRdsClient aws.RdsClient
 	// ticks is used primarily for testing purposes so
 	// the frequency the discovers loop iterates can be controlled
@@ -50,7 +49,7 @@ type DBMRdsService struct {
 
 // NewDBMRdsListener returns a new DBMRdsListener
 func NewDBMRdsListener(ServiceListernerDeps) (ServiceListener, error) {
-	config, err := rds.NewRdsAutodiscoveryConfig()
+	config, err := aws.NewRdsAutodiscoveryConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +61,7 @@ func NewDBMRdsListener(ServiceListernerDeps) (ServiceListener, error) {
 	return newDBMRdsListener(config, client, nil), nil
 }
 
-func newDBMRdsListener(config rds.Config, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
+func newDBMRdsListener(config aws.Config, awsClient aws.RdsClient, ticks <-chan time.Time) ServiceListener {
 	l := &DBMRdsListener{
 		config:       config,
 		services:     make(map[string]Service),
@@ -108,7 +107,7 @@ func (l *DBMRdsListener) run() {
 func (l *DBMRdsListener) discoverRdsInstances() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(l.config.QueryTimeout)*time.Second)
 	defer cancel()
-	instances, err := l.awsRdsClient.GetRdsInstancesFromTags(ctx, l.config.Tags, l.config.DbmTag)
+	instances, err := l.awsRdsClient.GetRdsInstancesFromTags(ctx, l.config)
 	if err != nil {
 		_ = log.Error(err)
 		return

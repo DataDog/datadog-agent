@@ -509,7 +509,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			if tt.dbmTag != nil {
 				dbmTag = *tt.dbmTag
 			}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, dbmTag)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, Config{DbmTag: dbmTag, GlobalDbViewTag: defaultGlobalDbViewTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
@@ -685,7 +685,7 @@ func TestGetAuroraClusterEndpointsDbName(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, defaultDbmTag)
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, Config{DbmTag: defaultDbmTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

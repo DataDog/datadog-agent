@@ -22,7 +22,7 @@ instances:
 
     ## @param global_view_db - string - optional - default: postgres
     ## Set the global_view_db for database autodiscovery. The value of `%%global_view_db%%` is set by the value of the
-    ## `datadog.com/global_view_db` tag. For example, if the RDS instance has a tag `datadoghq.com/global_view_db:global`
+    ## global_view_db_tag, which defaults to `datadoghq.com/global_view_db`. For example, if the Aurora cluster has a tag `datadoghq.com/global_view_db:global`
     ## then the value of `global_view_db` will be `global`.
     ## To use database autodiscovery you must also set `enabled: true`.
     database_autodiscovery:

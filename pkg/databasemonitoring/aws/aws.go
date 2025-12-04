@@ -43,7 +43,7 @@ func dbNameFromEngine(engine string) (string, error) {
 	}
 }
 
-func makeInstance(db types.DBInstance, dbmTag string) (*Instance, error) {
+func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
 	if db.Endpoint == nil || db.Endpoint.Address == nil {
 		return nil, fmt.Errorf("DBInstance %v missing endpoint", db)
 	}
@@ -96,10 +96,10 @@ func makeInstance(db types.DBInstance, dbmTag string) (*Instance, error) {
 		if tag.Value != nil {
 			tagString += ":" + *tag.Value
 		}
-		if tag.Key != nil && *tag.Key == "datadoghq.com/global_db_view" {
+		if tag.Key != nil && *tag.Key == config.GlobalDbViewTag {
 			instance.GlobalDbView = *tag.Value
 		}
-		if tagString == dbmTag {
+		if tagString == config.DbmTag {
 			instance.DbmEnabled = true
 			break
 		}
