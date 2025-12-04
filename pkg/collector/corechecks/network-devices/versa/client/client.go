@@ -350,7 +350,6 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 
 // GetTopology retrieves topology data for for a specific appliance and tenant
 func (client *Client) GetTopology(applianceName string) ([]Neighbor, error) {
-	log.Tracef("Getting topology metadata for appliance: %s", applianceName)
 
 	if applianceName == "" {
 		return nil, fmt.Errorf("applianceName cannot be empty")
