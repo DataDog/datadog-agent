@@ -55,7 +55,7 @@ func NewDevicePluginClient(config config.Component) (DevicePluginClient, error) 
 
 	cachedClient, err := NewCachedDevicePluginClient(multiClient, cacheDuration)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating multi device client: %w", err)
+		return nil, fmt.Errorf("failed creating plugin client cache: %w", err)
 	}
 
 	return cachedClient, nil
@@ -128,7 +128,7 @@ func (c *SingleDevicePluginClient) ListDevices(ctx context.Context) ([]*devicepl
 // MultiDevicePluginClient is an orchestrator of multiple DevicePluginClients,
 // each specialized on the socket of one specific device plugin
 type MultiDevicePluginClient struct {
-	mu              sync.RWMutex
+	mu              sync.RWMutex // mutex to protect the socketToClients map
 	socketDir       string
 	socketToClients map[string]*SingleDevicePluginClient
 }
@@ -265,7 +265,7 @@ func (c *MultiDevicePluginClient) ListDevices(ctx context.Context) ([]*deviceplu
 
 // CachedDevicePluginClient caches the method invocations of another DevicePluginClient
 type CachedDevicePluginClient struct {
-	mu              sync.Mutex
+	mu              sync.Mutex // mutex to serialize access to the client and lastDevices map
 	client          DevicePluginClient
 	timeout         time.Duration
 	lastDevices     []*devicepluginv1beta1.Device
