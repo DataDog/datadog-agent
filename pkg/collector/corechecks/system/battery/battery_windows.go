@@ -8,6 +8,7 @@
 package battery
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
@@ -278,7 +279,7 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 
 	// If no battery info found, return an error
 	if !info.HasData {
-		return nil, fmt.Errorf("no battery info found")
+		return nil, errors.New("no battery info found")
 	}
 	return info, nil
 }
@@ -325,7 +326,7 @@ func queryBatteryDevice(devicePath string) (*BATTERY_INFORMATION, *BATTERY_STATU
 	}
 	if tag == 0 {
 		log.Errorf("Battery returned zero tag")
-		return nil, nil, fmt.Errorf("battery returned zero tag")
+		return nil, nil, errors.New("battery returned zero tag")
 	}
 
 	// Query BATTERY_INFORMATION
@@ -354,7 +355,7 @@ func queryBatteryDevice(devicePath string) (*BATTERY_INFORMATION, *BATTERY_STATU
 	// Check if this is a System Battery
 	log.Debugf("Checking battery capabilities: %x", bi.Capabilities)
 	if bi.Capabilities&BATTERY_SYSTEM_BATTERY == 0 {
-		return nil, nil, fmt.Errorf("battery is not a system battery")
+		return nil, nil, errors.New("battery is not a system battery")
 	}
 
 	bws := BATTERY_WAIT_STATUS{
