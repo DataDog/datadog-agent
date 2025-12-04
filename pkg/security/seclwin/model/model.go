@@ -86,7 +86,7 @@ func (r *Releasable) CallReleaseCallback() {
 
 // AppendReleaseCallback sets a callback to be called when the cache entry is released
 func (r *Releasable) AppendReleaseCallback(callback func()) {
-	if callback != nil {
+	if callback != nil && r != nil {
 		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 	}
 }
@@ -242,9 +242,15 @@ func initMember(member reflect.Value, deja map[string]bool) {
 	}
 }
 
+func (e *Event) initProcessEventTypes() {
+	e.Exec.Process = &e.BaseEvent.ProcessContext.Process
+	e.Exit.Process = &e.BaseEvent.ProcessContext.Process
+}
+
 // Init initialize the event
 func (e *Event) Init() {
 	initMember(reflect.ValueOf(e).Elem(), map[string]bool{})
+	e.initProcessEventTypes()
 }
 
 // IsSavedByActivityDumps return whether saved by AD

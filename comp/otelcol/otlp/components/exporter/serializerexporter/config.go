@@ -57,7 +57,7 @@ type ExporterConfig struct {
 func (c *ExporterConfig) Validate() error {
 	histCfg := c.Metrics.Metrics.HistConfig
 	if histCfg.Mode == datadogconfig.HistogramModeNoBuckets && !histCfg.SendAggregations {
-		return fmt.Errorf("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")
+		return errors.New("'nobuckets' mode and `send_aggregation_metrics` set to false will send no histogram metrics")
 	}
 
 	if c.HostMetadata.Enabled && c.HostMetadata.ReporterPeriod < 5*time.Minute {
@@ -89,7 +89,7 @@ func (c *ExporterConfig) Unmarshal(configMap *confmap.Conf) error {
 
 	// If an endpoint is not explicitly set, override it based on the site.
 	if !configMap.IsSet("metrics::endpoint") {
-		c.Metrics.Metrics.Endpoint = fmt.Sprintf("https://api.%s", c.API.Site)
+		c.Metrics.Metrics.Endpoint = "https://api." + c.API.Site
 	}
 
 	// Return an error if an endpoint is explicitly set to ""

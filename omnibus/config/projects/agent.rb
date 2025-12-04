@@ -372,7 +372,7 @@ if windows_target?
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
       "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
-      fips_mode? ? "#{python_3_embedded}\\bin\\openssl.exe" : nil,
+      "#{python_3_embedded}\\bin\\openssl.exe",
       fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
     ].compact
 

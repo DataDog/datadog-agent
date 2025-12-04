@@ -7,7 +7,7 @@ package syntheticstestschedulerimpl
 
 import (
 	"crypto/rand"
-	"fmt"
+	"errors"
 	"io"
 	"math"
 	"math/big"
@@ -350,7 +350,7 @@ func TestNetworkPathToTestResult(t *testing.T) {
 			name: "failure case",
 			worker: workerResult{
 				tracerouteResult: payload.NetworkPath{},
-				tracerouteError:  fmt.Errorf("connection timeout"),
+				tracerouteError:  errors.New("connection timeout"),
 				tracerouteCfg:    trCfg,
 				testCfg: SyntheticsTestCtx{
 					cfg: common.SyntheticsTestConfig{
@@ -406,6 +406,11 @@ func TestNetworkPathToTestResult(t *testing.T) {
 			require.Nil(t, got.Result.Config.Request.Port)
 			require.NotNil(t, got.Result.Netpath.Destination.Port)
 
+			require.Equal(t, payload.PathOriginSynthetics, got.Result.Netpath.Origin)
+			require.Equal(t, payload.TestRunTypeScheduled, got.Result.Netpath.TestRunType)
+			require.Equal(t, payload.SourceProductSynthetics, got.Result.Netpath.SourceProduct)
+			require.Equal(t, payload.CollectorTypeAgent, got.Result.Netpath.CollectorType)
+
 			if tt.expectFail {
 				require.Equal(t, "failed", got.Result.Status)
 				require.NotNil(t, got.Result.Failure)
@@ -429,7 +434,7 @@ func TestGenerateRandomStringUInt63(t *testing.T) {
 
 	t.Run("error path", func(t *testing.T) {
 		randIntFn := func(_ io.Reader, _ *big.Int) (*big.Int, error) {
-			return nil, fmt.Errorf("some errors")
+			return nil, errors.New("some errors")
 		}
 
 		got, err := generateRandomStringUInt63(randIntFn)
