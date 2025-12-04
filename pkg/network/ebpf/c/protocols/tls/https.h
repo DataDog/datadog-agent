@@ -90,7 +90,9 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
+#ifdef COMPILE_PREBUILT
     normalized_tuple.pid = 0;
+#endif // COMPILE_PREBUILT
     normalized_tuple.netns = 0;
 
     protocol_stack_t *stack = get_or_create_protocol_stack(&normalized_tuple);
@@ -195,7 +197,9 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
 
     conn_tuple_t normalized_tuple = args->tup;
     normalize_tuple(&normalized_tuple);
+#ifdef COMPILE_PREBUILT
     normalized_tuple.pid = 0;
+#endif // COMPILE_PREBUILT
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
@@ -217,7 +221,9 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
+#ifdef COMPILE_PREBUILT
     normalized_tuple.pid = 0;
+#endif // COMPILE_PREBUILT
     normalized_tuple.netns = 0;
 
     // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
