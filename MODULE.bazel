@@ -34,7 +34,7 @@ bazel_dep(name = "rules_shell", version = "0.6.1")
 # Temporary until a future rules_pkg release
 git_override(
     module_name = "rules_pkg",
-    commit = "46bd2689886984c2b77d6005595f351e404dfa57",
+    commit = "2fab459c805e3f171284856aebb0ceaca2c0ff08",
     remote = "https://github.com/bazelbuild/rules_pkg",
 )
 

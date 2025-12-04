@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testNilSliceWithOtherParams",
+      "method": "main.testSubstrings",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testNilSliceWithOtherParams",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 57
+            "function": "main.testSubstrings",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
+            "lineNumber": 54
           },
           {
-            "function": "main.executeSliceFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go",
-            "lineNumber": 98
+            "function": "main.executeStringFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
+            "lineNumber": 73
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 31
+            "lineNumber": 29
           },
           {
             "function": "runtime.main",
@@ -42,25 +42,27 @@
           }
         ],
         "probe": {
-          "id": "testNilSliceWithOtherParams",
+          "id": "testSubstrings",
           "location": {
-            "method": "main.testNilSliceWithOtherParams"
+            "method": "main.testSubstrings"
           }
         },
         "captures": {
           "entry": {
             "arguments": {
               "a": {
-                "type": "int8",
-                "value": "1"
+                "type": "string",
+                "value": "abcd"
               },
-              "s": {
-                "type": "[]bool",
-                "isNull": true
+              "b": {
+                "type": "string",
+                "value": "ab"
               },
-              "x": {
-                "type": "uint",
-                "value": "5"
+              "c": {
+                "type": "string",
+                "size": "6",
+                "truncated": true,
+                "value": "abcd"
               }
             }
           }
@@ -68,6 +70,6 @@
       }
     },
     "timestamp": "[ts]",
-    "message": "1, [], 5"
+    "message": "abcd, ab, abcd..."
   }
 ]

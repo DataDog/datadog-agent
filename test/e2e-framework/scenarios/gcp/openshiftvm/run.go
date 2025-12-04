@@ -6,6 +6,8 @@
 package openshiftvm
 
 import (
+	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
@@ -21,7 +23,6 @@ import (
 	resGcp "github.com/DataDog/datadog-agent/test/e2e-framework/resources/gcp"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/compute"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/fakeintake"
-	kubernetesNewProvider "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -78,10 +79,6 @@ func Run(ctx *pulumi.Context) error {
 		}
 		if gcpEnv.AgentUseDualShipping() {
 			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithoutDDDevForwarding())
-		}
-
-		if storeType := gcpEnv.AgentFakeintakeStoreType(); storeType != "" {
-			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithStoreType(storeType))
 		}
 
 		if retentionPeriod := gcpEnv.AgentFakeintakeRetentionPeriod(); retentionPeriod != "" {
