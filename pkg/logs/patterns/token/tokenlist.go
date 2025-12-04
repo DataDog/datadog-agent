@@ -11,6 +11,8 @@ import (
 )
 
 // TokenList represents a sequence of tokens
+//
+//nolint:revive
 type TokenList struct {
 	Tokens []Token
 }
