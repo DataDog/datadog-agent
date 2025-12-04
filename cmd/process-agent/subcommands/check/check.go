@@ -14,12 +14,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -39,6 +40,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 	return []fx.Option{
 		fx.Supply(cliParams, bundleParams),
 		core.Bundle(),
+		hostnameimpl.Module(),
 		secretsfx.Module(),
 
 		// Provide eventplatformimpl module
@@ -55,7 +57,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 			AgentType: workloadmeta.Remote,
 		}),
 		// Provide workloadfilter module
-		workloadfilterfx.Module(),
+		remoteWorkloadfilterfx.Module(),
 
 		// Tagger must be initialized after agent config has been setup
 		remoteTaggerfx.Module(tagger.NewRemoteParams()),
