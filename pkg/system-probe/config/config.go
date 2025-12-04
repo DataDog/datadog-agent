@@ -189,6 +189,21 @@ func load() (*types.Config, error) {
 		}
 	}
 
+	// Enable discovery by default if system-probe has any modules enabled.
+	// Discovery overhead is low compared to the base system-probe overhead.
+	// Users can still explicitly disable discovery via DD_DISCOVERY_ENABLED=false.
+	//
+	// Only enable if discovery is not already in EnabledModules and the user hasn't
+	// explicitly configured it.
+	if len(c.EnabledModules) > 0 && !c.ModuleIsEnabled(DiscoveryModule) {
+		// Only auto-enable if the user hasn't explicitly set the discovery config via env var
+		_, envVarSet := os.LookupEnv("DD_DISCOVERY_ENABLED")
+		if !envVarSet {
+			cfg.Set(discoveryNS("enabled"), true, pkgconfigmodel.SourceAgentRuntime)
+			c.EnabledModules[DiscoveryModule] = struct{}{}
+		}
+	}
+
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)

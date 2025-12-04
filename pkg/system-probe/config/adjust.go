@@ -50,10 +50,6 @@ func Adjust(cfg model.Config) {
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
 
-	if usmEnabled {
-		applyDefault(cfg, discoveryNS("enabled"), true)
-	}
-
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
 		!usmEnabled &&
 		!npmEnabled {
