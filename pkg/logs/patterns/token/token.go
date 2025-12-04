@@ -16,16 +16,20 @@ import (
 // Run: go generate ./pkg/logs/patterns/token to regenerate the stringer file if you make changes to the TokenType enum
 
 // TokenType represents the type of a token
+//
+//nolint:revive
 type TokenType int
 
 const (
 	// Basic token types
+	//nolint:revive
 	TokenUnknown    TokenType = iota // TokenUnknown is the unknown token type
 	TokenWord                        // TokenWord is the word token type
 	TokenNumeric                     // TokenNumeric is the numeric token type
 	TokenWhitespace                  // TokenWhitespace is the whitespace token type
 
 	// Network-related tokens
+	//nolint:revive
 	TokenIPv4         // TokenIPv4 is the IPv4 token type
 	TokenIPv6         // TokenIPv6 is the IPv6 token type
 	TokenEmail        // TokenEmail is the email token type
@@ -33,10 +37,12 @@ const (
 	TokenAbsolutePath // TokenAbsolutePath is the absolute path token type
 
 	// HTTP-related tokens
+	//nolint:revive
 	TokenHTTPMethod // TokenHTTPMethod is the HTTP method token type
 	TokenHTTPStatus // TokenHTTPStatus is the HTTP status token type
 
 	// Log-related tokens
+	//nolint:revive
 	TokenSeverityLevel // TokenSeverityLevel is the severity level token type
 	TokenDate          // TokenDate is the date token type
 )

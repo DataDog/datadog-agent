@@ -10,14 +10,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 )
 
-// MockEncoder is a no-op encoder for gRPC stateful streaming.
-// This is temporary scaffolding until the real State component is ready.
-// Encoding happens in StartMessageTranslator instead of the processor.
+// MockEncoder is a pass-through encoder for gRPC stateful streaming.
+// It stores the hostname in the message metadata for downstream use.
+// Actual encoding happens in MessageTranslator instead of the processor.
 var MockEncoder processor.Encoder = &mockEncoder{}
 
 type mockEncoder struct{}
 
-// Encode is a no-op implementation that satisfies the processor.Encoder interface
-func (g *mockEncoder) Encode(_ *message.Message, _ string) error {
+// Encode stores the hostname in the message metadata for downstream use by MessageTranslator.
+// The actual stateful encoding happens in MessageTranslator.processMessage.
+func (g *mockEncoder) Encode(msg *message.Message, hostname string) error {
+	// Store hostname in the message metadata so MessageTranslator can access it
+	msg.MessageMetadata.Hostname = hostname
 	return nil
 }
