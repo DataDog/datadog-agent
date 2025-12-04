@@ -217,11 +217,7 @@ pkg_files(
     name = "install_files",
     srcs = select({
         "@platforms//os:windows": [":python_win"],
-        "//conditions:default": [
-            ":install_libs_unix",
-            ":install_headers_unix",
-            ":install_bins_unix",
-        ]
+        "//conditions:default": [ ]
     })
 )
 
@@ -232,6 +228,10 @@ pkg_install(
         "@platforms//os:windows": [
             "@openssl//:openssl_exe_file",
         ],
-        "//conditions:default": [],
+        "//conditions:default": [
+            ":install_libs_unix",
+            ":install_headers_unix",
+            ":install_bins_unix",
+        ],
     }),
 )
