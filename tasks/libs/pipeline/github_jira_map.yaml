@@ -28,6 +28,7 @@
 '@datadog/agent-all': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
 '@datadog/cloud-network-monitoring': CNM
+'@datadog/network-path': NETPATH
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-products': WINA
 '@datadog/opentelemetry': OTAGENT
