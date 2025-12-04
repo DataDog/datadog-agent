@@ -118,7 +118,6 @@ func (t *DefaultTranslator) Mapper() Mapper {
 // Mapper defines the interface for mapping OTLP metric data points to Datadog format.
 // Consumer includes both sketch and raw histogram consumers - implementations can
 // use either based on configuration. Consumers can no-op methods they don't need.
-// Implement this interface to provide custom mapping behavior.
 type Mapper interface {
 	MapNumberMetrics(
 		ctx context.Context,
@@ -363,7 +362,7 @@ func formatFloat(f float64) string {
 
 // getQuantileTag returns the quantile tag for summary types.
 func getQuantileTag(quantile float64) string {
-	return fmt.Sprintf("quantile:%s", formatFloat(quantile))
+	return "quantile:" + formatFloat(quantile)
 }
 
 func (t *DefaultTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {

@@ -283,16 +283,16 @@ def _build_msi(ctx, env, outdir, name, allowlist):
     sign_file(ctx, out_file)
 
 
-def _build_msstoreapps(ctx, env, configuration, arch, vstudio_root):
-    msstoreapps_sln = os.path.join(os.getcwd(), "tools", "windows", "MSStoreApps", "MSStoreApps.sln")
+def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
+    datadog_interop_sln = os.path.join(os.getcwd(), "tools", "windows", "DatadogInterop", "DatadogInterop.sln")
     cmd = _get_vs_build_command(
-        f'msbuild "{msstoreapps_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
+        f'msbuild "{datadog_interop_sln}" /p:Configuration={configuration} /p:Platform="{arch}" /verbosity:minimal',
         vstudio_root,
     )
-    print(f"Building MSStoreApps: {cmd}")
+    print(f"Building DatadogInterop: {cmd}")
     succeeded = ctx.run(cmd, warn=True, env=env, err_stream=sys.stdout)
     if not succeeded:
-        raise Exit("Failed to build MSStoreApps.", code=1)
+        raise Exit("Failed to build DatadogInterop.", code=1)
 
 
 def _msi_output_name(env):
@@ -327,13 +327,13 @@ def build(
         vstudio_root=vstudio_root,
     )
 
-    # Build MSStoreApps.dll
-    _build_msstoreapps(ctx, env, configuration, arch, vstudio_root)
-    msstoreapps_output = os.path.join(
-        os.getcwd(), "tools", "windows", "MSStoreApps", arch, configuration, "MSStoreApps.dll"
+    # Build libdatadog-interop.dll
+    _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
+    datadog_interop_output = os.path.join(
+        os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
     )
-    shutil.copy2(msstoreapps_output, AGENT_BIN_SOURCE_DIR)
-    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'MSStoreApps.dll'))
+    shutil.copy2(datadog_interop_output, AGENT_BIN_SOURCE_DIR)
+    sign_file(ctx, os.path.join(AGENT_BIN_SOURCE_DIR, 'libdatadog-interop.dll'))
 
     # sign build output that will be included in the installer MSI
     sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))

@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -431,8 +432,8 @@ func (m *DefaultMapper) getSketchBuckets(
 		// otherwise in the case where p.MExplicitBounds() has a size of 1 (eg. [0]), the two buckets
 		// would have the same bucketTags (lower_bound:0 and upper_bound:0), resulting in a buggy behavior.
 		bucketDims := pointDims.AddTags(
-			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
-			fmt.Sprintf("upper_bound:%s", formatFloat(upperBound)),
+			"lower_bound:"+formatFloat(lowerBound),
+			"upper_bound:"+formatFloat(upperBound),
 		)
 
 		// InsertInterpolate doesn't work with an infinite bound; insert in to the bucket that contains the non-infinite bound
@@ -548,7 +549,7 @@ func (m *DefaultMapper) exponentialHistogramToDDSketch(
 	delta bool,
 ) (*ddsketch.DDSketch, error) {
 	if !delta {
-		return nil, fmt.Errorf("cumulative exponential histograms are not supported")
+		return nil, errors.New("cumulative exponential histograms are not supported")
 	}
 
 	// Create the DDSketch stores

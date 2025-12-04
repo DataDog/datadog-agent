@@ -8,8 +8,8 @@ package run
 
 import (
 	"context"
+	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -78,6 +78,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -321,7 +322,7 @@ func run(log log.Component,
 			stopCh <- nil
 		case <-signals.ErrorStopper:
 			_ = log.Critical("The Agent has encountered an error, shutting down...")
-			stopCh <- fmt.Errorf("shutting down because of an error")
+			stopCh <- errors.New("shutting down because of an error")
 		case sig := <-signalCh:
 			log.Infof("Received signal '%s', shutting down...", sig)
 			stopCh <- nil
@@ -397,6 +398,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.StreamlogsLogFile,
 		)),
 		core.Bundle(),
+		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
 			provider := &hostSbom.FlareProvider{

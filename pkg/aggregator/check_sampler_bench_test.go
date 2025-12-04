@@ -12,9 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -48,14 +49,16 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
 	mockConfig := configmock.New(b)
-	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
+	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle(), hostnameimpl.MockModule())
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	resolver, _ := resolver.NewSingleDomainResolvers(map[string][]utils.APIKeys{"hello": {utils.NewAPIKeys("", "world")}})
 	forwarderOpts := forwarder.NewOptionsWithResolvers(mockConfig, deps.Log, resolver)
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
+	secrets := secretsmock.New(b)
+	forwarderOpts.Secrets = secrets
 	sharedForwarder := forwarder.NewDefaultForwarder(mockConfig, deps.Log, forwarderOpts)
-	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	orchestratorForwarder := option.New[forwarder.Forwarder](forwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, "hostname")
