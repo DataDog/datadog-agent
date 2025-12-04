@@ -1,0 +1,72 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+
+package(default_visibility = ["//visibility:public"])
+
+ENABLE_FIPS = ["enable-fips"]
+
+filegroup(
+    name = "all",
+    srcs = glob(["**"], exclude = ["BUILD.bazel"]),
+)
+
+configure_make(
+    name = "openssl_fips",
+    # TODO(team:agent-build): Find a better way to utilize more than 1 core
+    args = [
+        "-j 16",
+    ],
+    configure_prefix = select({
+        "@platforms//os:windows": "perl",
+        "//conditions:default": "",
+    }),
+    configure_in_place = select({
+        "@platforms//os:windows": True,
+        "//conditions:default": False,
+    }),
+    configure_command = "Configure",
+    configure_options = select({
+        "@//:macos_arm64": [
+            "darwin64-arm64-cc",
+        ] + ENABLE_FIPS,
+        "@//:macos_x86_64": [
+            "darwin64-x86_64-cc",
+        ] + ENABLE_FIPS,
+        # We build openssl for Windows without zlib.
+        # Hence, excluding last DEFAULT_CONFIG entry.
+        "@platforms//os:windows": [
+            "mingw64",
+        ] + ENABLE_FIPS[:-1],
+        "//conditions:default": ENABLE_FIPS,
+    }),
+    env = select({
+        "@platforms//os:macos": {
+            # For some reason AR is set to libtool on macos
+            # and that breaks the build.
+            "AR": "ar",
+        },
+        "//conditions:default": {},
+    }),
+    lib_source = ":all",
+    out_include_dir = "include",
+    out_shared_libs = select({
+        "@platforms//os:linux": [
+            "ossl-modules/fips.so",
+        ],
+        "@platforms//os:macos": [
+            "ossl-modules/fips.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    # For whatever reason rules_foreign_cc does not respect
+    # out_dll_dir parameter and tries to find Windows DLLs in
+    # lib instead of bin. Technically, those are binaries,
+    # hence, we can treat them as such.
+    out_binaries = select({
+        "@platforms//os:windows": [
+            "fips.dll",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = ["-O2"],
+    targets = ["install_fips"],
+)

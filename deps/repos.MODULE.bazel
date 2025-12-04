@@ -393,3 +393,14 @@ http_archive(
         "https://kerberos.org/dist/krb5/1.21/krb5-1.21.3.tar.gz",
     ],
 )
+
+http_archive(
+    name = "openssl_fips",
+    build_file = "//deps:openssl_fips.BUILD.bazel",
+    sha256 = "eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a603cabbf1b00a1dc90",
+    strip_prefix = "openssl-3.0.9",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/openssl-3.0.9.tar.gz",
+        "https://www.openssl.org/source/openssl-3.0.9.tar.gz",
+    ],
+)
