@@ -75,12 +75,12 @@ func (tf *testFixture) sut() *softwareInventory {
 	noopSleep := func(time.Duration) {
 		// No-op: don't actually sleep in tests
 	}
-	
+
 	provides, err := newWithClient(tf.reqs, tf.sysProbeClient, noopSleep)
 	require.NoError(tf.t, err)
 
 	is := provides.Comp.(*softwareInventory)
-	
+
 	// Wait a tiny bit for the goroutine to start and complete collection
 	if is.enabled {
 		time.Sleep(10 * time.Millisecond)

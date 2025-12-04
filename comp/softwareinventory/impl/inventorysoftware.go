@@ -286,10 +286,10 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 func (is *softwareInventory) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	payload := is.getPayload()
 	if payload == nil {
-		httputils.SetJSONError(w, fmt.Errorf("software inventory data not yet available"), 503)
+		httputils.SetJSONError(w, errors.New("software inventory data not yet available"), 503)
 		return
 	}
-	
+
 	json, err := payload.MarshalJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
