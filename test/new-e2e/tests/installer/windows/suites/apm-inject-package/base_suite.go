@@ -26,11 +26,11 @@ func (s *baseSuite) SetupSuite() {
 
 	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
 	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
+		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.b0d6e40.glci1268607480.g798d11fa-1")
 	}
 	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
 	if s.previousAPMInjectVersion.PackageVersion() == "" {
-		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.beb48a5.glci1208433719.g08c01dc4-1")
+		s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.50.0-dev.ba30ecb.glci1208428525.g594e53fe-1")
 	}
 }
 func (s *baseSuite) assertSuccessfulPromoteExperiment() {
