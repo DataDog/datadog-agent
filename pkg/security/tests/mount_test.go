@@ -250,7 +250,7 @@ func TestMountPropagated(t *testing.T) {
 	})
 }
 
-func testMountSnapshot(t *testing.T, suffix string) {
+func testMountSnapshot(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	//      / testDrive
@@ -259,7 +259,7 @@ func testMountSnapshot(t *testing.T, suffix string) {
 	//                / test-bind-source
 	//          / test-bind-target (bind mount of test-bind-source)
 	//        / rootB
-	//      	... (same hierarchy as rootA)
+	//      ... (same hierarchy as rootA)
 	//    / test-bind-testdrive
 
 	testDrive, err := newTestDrive(t, "xfs", []string{}, "")
@@ -268,8 +268,8 @@ func testMountSnapshot(t *testing.T, suffix string) {
 	}
 	defer testDrive.Close()
 
-	rootA := testDrive.Path("rootA_" + suffix)
-	rootB := testDrive.Path("rootB_" + suffix)
+	rootA := testDrive.Path("rootA")
+	rootB := testDrive.Path("rootB")
 
 	createHierarchy := func(root string) (tmpfsMount, bindMount *testMount, err error) {
 		defer func() {
@@ -386,16 +386,16 @@ func testMountSnapshot(t *testing.T, suffix string) {
 
 	mntResolved := 0
 	for _, mntInfo := range mounts {
-		if strings.HasSuffix(mntInfo.Mountpoint, "rootA_"+suffix+"/tmpfs-mount") {
+		if strings.HasSuffix(mntInfo.Mountpoint, "rootA/tmpfs-mount") {
 			mntResolved |= 1
 			checkSnapshotAndModelMatch(mntInfo)
-		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootA_"+suffix+"/test-bind-target") {
+		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootA/test-bind-target") {
 			mntResolved |= 2
 			checkSnapshotAndModelMatch(mntInfo)
-		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootB_"+suffix+"/tmpfs-mount") {
+		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootB/tmpfs-mount") {
 			mntResolved |= 4
 			checkSnapshotAndModelMatch(mntInfo)
-		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootB_"+suffix+"/test-bind-target") {
+		} else if strings.HasSuffix(mntInfo.Mountpoint, "rootB/test-bind-target") {
 			mntResolved |= 8
 			checkSnapshotAndModelMatch(mntInfo)
 		}
@@ -406,14 +406,14 @@ func testMountSnapshot(t *testing.T, suffix string) {
 func TestMountSnapshotListmount(t *testing.T) {
 	SkipIfNotAvailable(t)
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "true")
-	testMountSnapshot(t, "listmount")
+	testMountSnapshot(t)
 }
 
 func TestMountSnapshotProcfs(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	t.Setenv("DD_EVENT_MONITORING_CONFIG_SNAPSHOT_USING_LISTMOUNT", "false")
-	testMountSnapshot(t, "procfs")
+	testMountSnapshot(t)
 }
 
 func TestMountEvent(t *testing.T) {

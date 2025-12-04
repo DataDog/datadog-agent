@@ -60,7 +60,7 @@ int hook_cleanup_mnt(ctx_t *ctx) {
 
     struct mount_released_event_t event = {};
     event.mount_id = get_mount_mount_id(mnt);
-    event.mount_id_unique = 0;
+    event.mount_id_unique = get_mount_mount_id_unique(mnt);
 
     bump_mount_discarder_revision(event.mount_id);
     bump_path_id(event.mount_id);
