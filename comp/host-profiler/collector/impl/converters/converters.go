@@ -19,10 +19,30 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
+func NewFactoryWithAgent() confmap.ConverterFactory {
+	return confmap.NewConverterFactory(newConverterWithAgent)
+}
+
 type converterWithoutAgent struct{}
 
 func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterWithoutAgent{}
+}
+
+type converterWithAgent struct{}
+
+func newConverterWithAgent (_ confmap.ConverterSettings) confmap.Converter {
+	return &converterWithAgent{}
+}
+
+func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
+	confStringMap := conf.ToStringMap()
+	if err := removeResourceDetectionProcessor(confStringMap); err != nil {
+		return err
+	}
+
+	*conf = *confmap.NewFromStringMap(confStringMap)
+	return nil
 }
 
 func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
