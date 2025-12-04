@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getTraceroute(ctx context.Context, client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
+func getTracerouteFromSysProbe(ctx context.Context, client *http.Client, clientID string, host string, port uint16, protocol payload.Protocol, tcpMethod payload.TCPMethod, tcpSynParisTracerouteMode bool, disableWindowsDriver bool, reverseDNS bool, maxTTL uint8, timeout time.Duration, tracerouteQueries int, e2eQueries int) ([]byte, error) {
 	httpTimeout := timeout*time.Duration(maxTTL) + 10*time.Second // allow extra time for the system probe communication overhead, calculate full timeout for TCP traceroute
 	log.Tracef("Network Path traceroute HTTP request timeout: %s", httpTimeout)
 	ctx, cancel := context.WithTimeout(ctx, httpTimeout)

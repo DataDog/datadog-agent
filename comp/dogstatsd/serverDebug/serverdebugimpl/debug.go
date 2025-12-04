@@ -162,6 +162,11 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	d.Lock()
 	defer d.Unlock()
 
+	if !d.enabled.Load() {
+		// the debug server might have been disabled since the previous check
+		return
+	}
+
 	if d.tagsAccumulator == nil {
 		d.tagsAccumulator = tagset.NewHashingTagsAccumulator()
 	}

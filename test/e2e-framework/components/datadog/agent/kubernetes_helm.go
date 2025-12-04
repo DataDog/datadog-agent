@@ -280,7 +280,11 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 				"deployments.apps": pulumi.Map{"x-team": pulumi.String("team")},
 				"pods":             pulumi.Map{"x-parent-type": pulumi.String("domain")},
 				"namespaces":       pulumi.Map{"related_org": pulumi.String("org")},
-				"nodes":            pulumi.Map{"kubernetes.io/os": pulumi.String("os"), "kubernetes.io/arch": pulumi.String("arch")},
+				"nodes": pulumi.Map{
+					"kubernetes.io/os":                  pulumi.String("os"),
+					"kubernetes.io/arch":                pulumi.String("arch"),
+					"eks.amazonaws.com/nodegroup-image": pulumi.String("nodegroup-image"),
+				},
 			},
 			"originDetectionUnified": pulumi.Map{
 				"enabled": pulumi.Bool(true),
