@@ -8,8 +8,8 @@ spec:
     kubelet:
       tlsVerify: false
     credentials:
-      apiKey: a00000001
-      appKey: a00000001
+      apiKey: '00000000000000000000000000000000'
+      appKey: '00000000000000000000000000000000'
   override:
     nodeAgent:
       image:
