@@ -1131,7 +1131,7 @@ func TestComputeInterfaceStatus(t *testing.T) {
 	}
 }
 
-func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 	indexes := []string{
 		// IPv4
 		"0.102.2.1.4.10.250.0.7",
@@ -1143,10 +1143,10 @@ func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
 		// Invalid
 		"0.102.2.1.4.10.250", // too short, ignored
 	}
-	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(indexes)
 	expectedResult := map[string]string{
-		"2":  "10.250.0.7",
-		"99": "10.250.0.8",
+		"102.2":  "10.250.0.7",
+		"102.99": "10.250.0.8",
 	}
 	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
 }
