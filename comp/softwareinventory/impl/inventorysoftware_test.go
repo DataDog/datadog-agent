@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -70,10 +71,22 @@ func newFixtureWithData(t *testing.T, enabled bool, mockData []software.Entry) *
 
 // gets system under test
 func (tf *testFixture) sut() *softwareInventory {
-	provides, err := newWithClient(tf.reqs, tf.sysProbeClient)
+	// Pass a no-op sleep function for tests
+	noopSleep := func(time.Duration) {
+		// No-op: don't actually sleep in tests
+	}
+	
+	provides, err := newWithClient(tf.reqs, tf.sysProbeClient, noopSleep)
 	require.NoError(tf.t, err)
 
-	return provides.Comp.(*softwareInventory)
+	is := provides.Comp.(*softwareInventory)
+	
+	// Wait a tiny bit for the goroutine to start and complete collection
+	if is.enabled {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return is
 }
 
 func TestFlareProviderOutputDisabled(t *testing.T) {

@@ -1380,6 +1380,7 @@ func agent(config pkgconfigmodel.Setup) {
 
 	// Software Inventory
 	config.BindEnvAndSetDefault("software_inventory.enabled", false)
+	config.BindEnvAndSetDefault("software_inventory.initial_delay", 5)
 	config.BindEnvAndSetDefault("software_inventory.jitter", 60)
 	config.BindEnvAndSetDefault("software_inventory.interval", 10)
 	bindEnvAndSetLogsConfigKeys(config, "software_inventory.forwarder.")

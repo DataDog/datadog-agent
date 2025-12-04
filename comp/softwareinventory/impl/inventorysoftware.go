@@ -86,10 +86,14 @@ type softwareInventory struct {
 	hostname string
 	// eventPlatform provides access to the event platform forwarder
 	eventPlatform eventplatform.Component
+	// initialDelay is the time to wait before performing the first collection to avoid race conditions with System Probe startup
+	initialDelay time.Duration
 	// jitter is the time to wait before sending the first payload, in seconds
 	jitter time.Duration
 	// interval is the time to wait between payloads, in minutes
 	interval time.Duration
+	// sleepFunc is the function used for sleeping, can be overridden in tests
+	sleepFunc func(time.Duration)
 }
 
 // Requires defines the dependencies required by the inventory software component.
@@ -132,11 +136,11 @@ func New(reqs Requires) (Provides, error) {
 		clientFn: func() *sysprobeclient.CheckClient {
 			return sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(reqs.SysprobeConfig.GetString("system_probe_config.sysprobe_socket")))
 		},
-	})
+	}, time.Sleep)
 }
 
-// newWithClient creates a new inventory software component with a custom sysprobeclient
-func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
+// newWithClient creates a new inventory software component with a custom sysprobeclient and sleep function
+func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Duration)) (Provides, error) {
 	hname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
 		return Provides{}, err
@@ -148,6 +152,7 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 		sysProbeClient: client,
 		hostname:       hname,
 		eventPlatform:  reqs.EventPlatform,
+		sleepFunc:      sleepFunc,
 	}
 
 	if !is.enabled {
@@ -161,11 +166,10 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 
 	is.jitter = time.Duration(localRand.Intn(max(reqs.Config.GetInt("software_inventory.jitter"), 60))) * time.Second
 	is.interval = time.Duration(max(reqs.Config.GetInt("software_inventory.interval"), 10)) * time.Minute
+	// Configure initial delay with default of 5 seconds to avoid race condition with System Probe startup
+	is.initialDelay = time.Duration(max(reqs.Config.GetInt("software_inventory.initial_delay"), 5)) * time.Second
 
 	is.log.Infof("Starting the inventory software component")
-
-	// Initialize with an empty collection to avoid nil dereference issues
-	is.cachedInventory = []software.Entry{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	reqs.Lc.Append(compdef.Hook{
@@ -185,8 +189,8 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 }
 
 func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
-	// HACK: Initial collection after 5s to avoid race-condition with System-Probe starting
-	time.Sleep(5 * time.Second)
+	// Initial delay to avoid race-condition with System-Probe starting
+	is.sleepFunc(is.initialDelay)
 	initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
 	if err != nil {
 		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
@@ -197,7 +201,7 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 
 	// Send the initial collection with a random jitter
 	is.log.Debugf("Sending initial software inventory collection with %v jitter", is.jitter)
-	time.Sleep(is.jitter)
+	is.sleepFunc(is.jitter)
 
 	// Always send the initial payload on start-up.
 	// We'll send the follow-up payloads only on change.
@@ -280,7 +284,13 @@ func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 // This method is used by the HTTP endpoint to serve software inventory data
 // in JSON format for external consumption.
 func (is *softwareInventory) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
-	json, err := is.getPayload().MarshalJSON()
+	payload := is.getPayload()
+	if payload == nil {
+		httputils.SetJSONError(w, fmt.Errorf("software inventory data not yet available"), 503)
+		return
+	}
+	
+	json, err := payload.MarshalJSON()
 	if err != nil {
 		httputils.SetJSONError(w, err, 500)
 		return
