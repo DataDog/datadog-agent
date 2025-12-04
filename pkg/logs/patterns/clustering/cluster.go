@@ -32,7 +32,7 @@ type Cluster struct {
 }
 
 // NewCluster creates a new cluster.
-func NewCluster(signature token.Signature, tokenList *token.TokenList) *Cluster {
+func NewCluster(signature token.Signature) *Cluster {
 	now := time.Now()
 	return &Cluster{
 		Signature: signature,

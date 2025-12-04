@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TrieNode represents a node in the classification trie
@@ -36,7 +37,9 @@ var globalTrie *Trie
 func init() {
 	globalTrie = NewTrie()
 	globalRuleManager = NewRuleManager()
-	globalRuleManager.LoadPredefinedRules()
+	if err := globalRuleManager.LoadPredefinedRules(); err != nil {
+		log.Error(err)
+	}
 	globalTrie.buildPredefinedPatterns()
 }
 

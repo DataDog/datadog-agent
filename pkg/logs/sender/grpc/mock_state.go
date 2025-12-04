@@ -6,13 +6,12 @@
 package grpc
 
 import (
-	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/tags"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
@@ -23,6 +22,7 @@ const nanoToMillis = 1000000
 // It manages pattern extraction, clustering, and stateful message creation
 type MessageTranslator struct {
 	clusterManager *clustering.ClusterManager
+	tagManager     *tags.TagManager
 }
 
 // NewMessageTranslator creates a new MessageTranslator instance
@@ -30,6 +30,7 @@ type MessageTranslator struct {
 func NewMessageTranslator() *MessageTranslator {
 	return &MessageTranslator{
 		clusterManager: clustering.NewClusterManager(),
+		tagManager:     tags.NewTagManager(),
 	}
 
 	// Would be shared cluster manager instead across pipelines when implemented.
@@ -91,11 +92,54 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Extract wildcard values from the pattern
 	wildcardValues := pattern.GetWildcardValues(tokenList)
 
-	// Handle pattern state changes (send PatternDefine/PatternDelete as needed)
+	// Handle sending PatternDefine or PatternDelete as needed
 	mt.handlePatternChange(pattern, changeType, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
 
+	// Build complete tag list including log-level fields
+	// These fields are sent as separate JSON fields in the HTTP pipeline,
+	// but as tags in the gRPC stateful pipeline (per proto spec)
+	tagStrings := mt.buildTagStrings(msg)
+
+	// Encode tags
+	encodedTags, newEntries := mt.tagManager.EncodeTagStrings(tagStrings)
+
+	// Send any new dictionary entries first
+	for id, value := range newEntries {
+		mt.sendDictEntryDefine(outputChan, msg, id, value)
+	}
+
 	// Send StructuredLog with pattern_id + dynamic values
-	mt.sendStructuredLog(outputChan, msg, pattern, wildcardValues, ts, patternDefineSent, patternDefineParamCount)
+	mt.sendStructuredLog(outputChan, msg, pattern, wildcardValues, ts, encodedTags)
+}
+
+// buildTagStrings constructs the complete tag list for a message.
+// This includes log-level fields (hostname, service, ddsource, status) as tags,
+// plus all other tags from the message metadata (container tags, source config tags, processing tags).
+func (mt *MessageTranslator) buildTagStrings(msg *message.Message) []string {
+	// Start with metadata tags (container tags, source config tags, processing tags)
+	tagStrings := msg.MessageMetadata.Tags()
+
+	// Add log-level fields as tags (these are separate JSON fields in HTTP pipeline)
+	// Required tags per proto: hostname, service
+	// Other tags per proto: status, source (ddsource)
+
+	if hostname := msg.MessageMetadata.Hostname; hostname != "" {
+		tagStrings = append(tagStrings, "hostname:"+hostname)
+	}
+
+	if service := msg.Origin.Service(); service != "" {
+		tagStrings = append(tagStrings, "service:"+service)
+	}
+
+	if source := msg.Origin.Source(); source != "" {
+		tagStrings = append(tagStrings, "ddsource:"+source)
+	}
+
+	if status := msg.MessageMetadata.GetStatus(); status != "" {
+		tagStrings = append(tagStrings, "status:"+status)
+	}
+
+	return tagStrings
 }
 
 // getMessageTimestamp returns the timestamp for the message, preferring ServerlessExtra.Timestamp
@@ -153,9 +197,19 @@ func (mt *MessageTranslator) sendPatternDelete(patternID uint64, msg *message.Me
 	}
 }
 
+// sendDictEntryDefine creates and sends a DictEntryDefine datum
+func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.StatefulMessage, msg *message.Message, id uint64, value string) {
+	dictDatum := buildDictEntryDefine(id, value)
+	outputChan <- &message.StatefulMessage{
+		Datum:    dictDatum,
+		Metadata: &msg.MessageMetadata,
+	}
+}
+
 // sendRawLog creates and sends a raw log datum
-func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time) {
-	logDatum := buildRawLog(contentStr, ts)
+// todo: AGNTLOG-414: Will be used for first log without a pattern
+func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tags []*statefulpb.Tag) {
+	logDatum := buildRawLog(contentStr, ts, tags)
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
 		Metadata: &msg.MessageMetadata,
@@ -163,8 +217,8 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, pattern *clustering.Pattern, wildcardValues []string, ts time.Time, patternDefineSent bool, patternDefineParamCount uint32) {
-	logDatum := buildStructuredLog(pattern.PatternID, wildcardValues, ts)
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, pattern *clustering.Pattern, wildcardValues []string, ts time.Time, tags []*statefulpb.Tag) {
+	logDatum := buildStructuredLog(pattern.PatternID, wildcardValues, ts, tags)
 	outputChan <- &message.StatefulMessage{
 		Datum:    logDatum,
 		Metadata: &msg.MessageMetadata,
@@ -202,8 +256,20 @@ func buildPatternDelete(patternID uint64) *statefulpb.Datum {
 	}
 }
 
+// buildDictEntryDefine creates a DictEntryDefine Datum
+func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_DictEntryDefine{
+			DictEntryDefine: &statefulpb.DictEntryDefine{
+				Id:    id,
+				Value: value,
+			},
+		},
+	}
+}
+
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(patternID uint64, wildcardValues []string, ts time.Time) *statefulpb.Datum {
+func buildStructuredLog(patternID uint64, wildcardValues []string, ts time.Time, tags []*statefulpb.Tag) *statefulpb.Datum {
 	// Convert wildcard values to DynamicValue format
 	dynamicValues := make([]*statefulpb.DynamicValue, len(wildcardValues))
 	for i, value := range wildcardValues {
@@ -224,13 +290,15 @@ func buildStructuredLog(patternID uint64, wildcardValues []string, ts time.Time)
 						DynamicValues: dynamicValues,
 					},
 				},
+				// tags are already fully encoded in the tag manager
+				Tags: tags,
 			},
 		},
 	}
 }
 
 // buildRawLog creates a Datum containing a raw log (no pattern)
-func buildRawLog(content string, ts time.Time) *statefulpb.Datum {
+func buildRawLog(content string, ts time.Time, tags []*statefulpb.Tag) *statefulpb.Datum {
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
 			Logs: &statefulpb.Log{
@@ -238,27 +306,8 @@ func buildRawLog(content string, ts time.Time) *statefulpb.Datum {
 				Content: &statefulpb.Log_Raw{
 					Raw: content,
 				},
+				Tags: tags,
 			},
 		},
 	}
-}
-
-// toValidUtf8 ensures all characters are UTF-8
-func toValidUtf8(data []byte) string {
-	if utf8.Valid(data) {
-		return string(data)
-	}
-
-	var str strings.Builder
-	str.Grow(len(data))
-
-	for len(data) > 0 {
-		r, size := utf8.DecodeRune(data)
-		// in case of invalid utf-8, DecodeRune returns (utf8.RuneError, 1)
-		// and since RuneError is the same as unicode.ReplacementChar
-		// no need to handle the error explicitly
-		str.WriteRune(r)
-		data = data[size:]
-	}
-	return str.String()
 }

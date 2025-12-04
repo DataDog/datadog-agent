@@ -51,6 +51,8 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 		return nil, PatternNoChange
 	}
 
+	// Lock the cluster manager to prevent concurrent access to the hash buckets. Current implementation is single-threaded on local pipeline, but we will eventually build a shared cluster manager across multiple pipelines.
+	// todo: implement a shared cluster manager across multiple pipelines
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -95,7 +97,7 @@ func (cm *ClusterManager) Add(tokenList *token.TokenList) (*Pattern, PatternChan
 	}
 
 	// If no matching pattern was found, create a new cluster and pattern.
-	newCluster := NewCluster(signature, tokenList)
+	newCluster := NewCluster(signature)
 	// Add the token list to create the first pattern
 	pattern := newCluster.AddTokenListToPatterns(tokenList)
 	cm.hashBuckets[hash] = append(clusters, newCluster)
