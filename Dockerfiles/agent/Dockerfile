@@ -136,8 +136,6 @@ ARG TARGETARCH
 ARG WITH_JMX
 
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Configuration:
@@ -156,8 +154,7 @@ COPY install_info etc/datadog-agent/
 #   - jmxfetch on nojmx build
 
 RUN --mount=from=artifacts,target=/artifacts \
- find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+ find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/embedded/bin/installer \

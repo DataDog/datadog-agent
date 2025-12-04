@@ -115,7 +115,7 @@ configure_make(
     }),
     deps = select({
         "//conditions:default": [
-            "@bzip2//:bz2",
+            "@bzip2//:libbz2",
             "@xz//:liblzma",
             "@zlib//:zlib",
         ],
