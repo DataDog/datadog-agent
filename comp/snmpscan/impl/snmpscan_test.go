@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -29,7 +28,7 @@ type deps struct {
 }
 
 func TestSnmpScanComp(t *testing.T) {
-	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), logscomp.MockModule(), core.MockBundle(), hostnameimpl.MockModule())
+	testDeps := fxutil.Test[deps](t, eventplatformimpl.MockModule(), logscomp.MockModule(), core.MockBundle())
 	deps := Requires{
 		Logger:        logmock.New(t),
 		EventPlatform: testDeps.EventPlatform,

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -105,6 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				metricscompression.Module(),
 				logscompression.Module(),
 				ipcfx.ModuleReadOnly(),
+				delegatedauthfx.Module(),
 			)
 			if err != nil {
 				var ue configErr
@@ -170,6 +172,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				metricscompression.Module(),
 				logscompression.Module(),
 				ipcfx.ModuleReadOnly(),
+				delegatedauthfx.Module(),
 			)
 			if err != nil {
 				var ue configErr

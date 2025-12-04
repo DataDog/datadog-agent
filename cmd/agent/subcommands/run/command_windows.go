@@ -46,6 +46,7 @@ import (
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -145,6 +146,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
+			delegatedAuthComp option.Option[delegatedauth.Component],
 			snmpScanManager snmpscanmanager.Component,
 		) error {
 			defer StopAgentWithDefaults()
@@ -169,6 +171,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agenttelemetryComponent,
 				hostname,
 				ipc,
+				delegatedAuthComp,
 				snmpScanManager,
 			)
 			if err != nil {

@@ -22,6 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -509,6 +510,10 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(kubehealthmock.NewProvides),
 		fx.Provide(func() option.Option[healthplatform.Component] {
 			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
+		}),
+		// Provide None for optional delegated auth component in tests
+		fx.Provide(func() option.Option[delegatedauth.Component] {
+			return option.None[delegatedauth.Component]()
 		}),
 	))
 }

@@ -55,7 +55,6 @@ func TestCommand(t *testing.T) {
 	fxutil.Test[ipc.Component](t,
 		ipcfx.ModuleReadWrite(),
 		core.MockBundle(),
-		hostnameimpl.MockModule(),
 	)
 
 	// closely mirrors what the agents would use, but with mock modules where possible

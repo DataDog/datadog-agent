@@ -15,6 +15,9 @@ use (
 	comp/core/agenttelemetry/impl
 	comp/core/config
 	comp/core/configsync
+	comp/core/delegatedauth/def
+	comp/core/delegatedauth/fx
+	comp/core/delegatedauth/impl
 	comp/core/flare/builder
 	comp/core/flare/types
 	comp/core/hostname/hostnameinterface
@@ -99,6 +102,7 @@ use (
 	pkg/config/teeconfig
 	pkg/config/utils
 	pkg/config/viperconfig
+	pkg/delegatedauth
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
@@ -143,6 +147,7 @@ use (
 	pkg/telemetry
 	pkg/template
 	pkg/trace
+	pkg/util/aws/creds
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache

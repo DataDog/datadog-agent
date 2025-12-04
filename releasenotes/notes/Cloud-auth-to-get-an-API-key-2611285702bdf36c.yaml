@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Allows the agent to get an API key in exchange for an AWS cloud auth proof.
+    This allows for the customer to use their AWS credentials against Datadog and removes the
+    need for them to manage an API key
