@@ -476,11 +476,6 @@ func (p *WindowsProbe) approve(field eval.Field, eventType string, value string)
 func (p *WindowsProbe) startAuditTracing(ecb etwCallback) error {
 	log.Info("Starting Audit tracing...")
 	err := p.auditSession.StartTracing(func(e *etw.DDEventRecord) {
-		// Signal that ETW is ready on the first event
-		p.etwReadyOnce.Do(func() {
-			close(p.etwReady)
-			log.Info("ETW Audit tracing is now ready (first event received)")
-		})
 
 		switch e.EventHeader.ProviderID {
 

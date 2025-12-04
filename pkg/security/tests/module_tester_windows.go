@@ -236,18 +236,23 @@ func (tm *testModule) Close() {
 	tm.eventMonitor.Close()
 }
 
+// etwReadyProvider is an interface for probes that support ETW ready signaling
+type etwReadyProvider interface {
+	ETWReady() <-chan struct{}
+}
+
 // WaitForETWReady waits for ETW to be ready (first event received) with a timeout.
 // Returns true if ETW is ready, false if timeout was reached.
 // This replaces the unreliable time.Sleep() approach for waiting on ETW startup.
 func (tm *testModule) WaitForETWReady(timeout time.Duration) bool {
-	wp, ok := tm.probe.PlatformProbe.(*sprobe.WindowsProbe)
-	if !ok || wp == nil {
-		// Not a Windows probe, nothing to wait for
+	provider, ok := tm.probe.PlatformProbe.(etwReadyProvider)
+	if !ok || provider == nil {
+		// Probe doesn't support ETW ready signaling, nothing to wait for
 		return true
 	}
 
 	select {
-	case <-wp.ETWReady():
+	case <-provider.ETWReady():
 		return true
 	case <-time.After(timeout):
 		log.Warnf("Timeout waiting for ETW to be ready after %v", timeout)
