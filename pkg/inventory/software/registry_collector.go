@@ -10,14 +10,15 @@ package software
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 // Registry value names from Windows Registry
@@ -60,7 +61,7 @@ type registryCollector struct{}
 func (rc *registryCollector) Collect() ([]*Entry, []*Warning, error) {
 	var results []*Entry
 	var warnings []*Warning
-	
+
 	// For HKLM, 32-bit software is in Wow6432Node
 	hklmPaths := []struct {
 		root   registry.Key
