@@ -54,10 +54,6 @@ type translatorConfig struct {
 	// customMapper allows overriding the default metric mapping behavior.
 	// If nil, the Translator uses itself as the mapper.
 	customMapper Mapper
-
-	// customTranslator allows providing a completely custom MetricsTranslator implementation.
-	// If set, NewTranslator returns this translator instead of creating a DefaultTranslator.
-	customTranslator MetricsTranslator
 }
 
 // TranslatorOption is a translator creation option.
@@ -256,16 +252,6 @@ func WithInferDeltaInterval() TranslatorOption {
 func WithMapper(mapper Mapper) TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.customMapper = mapper
-		return nil
-	}
-}
-
-// WithTranslator sets a custom MetricsTranslator implementation.
-// When provided, NewTranslator returns this translator instead of creating a DefaultTranslator.
-// This allows for complete customization of the metrics translation behavior.
-func WithTranslator(translator MetricsTranslator) TranslatorOption {
-	return func(t *translatorConfig) error {
-		t.customTranslator = translator
 		return nil
 	}
 }
