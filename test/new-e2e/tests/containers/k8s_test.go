@@ -1614,8 +1614,6 @@ datadog:
 						return
 					}
 
-					suite.T().Logf("Found SBOM IDs: %v", sbomIDs)
-
 					sbomIDs = lo.Filter(sbomIDs, func(id string, _ int) bool {
 						return strings.HasPrefix(id, appImage)
 					})
