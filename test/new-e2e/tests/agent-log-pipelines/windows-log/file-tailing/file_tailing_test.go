@@ -16,13 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	testos "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	testos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 // WindowsFakeintakeSuite defines a test suite for the log agent interacting with a virtual machine and fake intake.
@@ -43,10 +43,11 @@ func TestWindowsVMFileTailingSuite(t *testing.T) {
 	s := &WindowsFakeintakeSuite{}
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault)),
-			awshost.WithAgentOptions(
-				agentparams.WithLogs(),
-				agentparams.WithIntegration("custom_logs.d", logConfig)))),
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault)),
+				ec2.WithAgentOptions(
+					agentparams.WithLogs(),
+					agentparams.WithIntegration("custom_logs.d", logConfig))))),
 	}
 
 	e2e.Run(t, s, options...)
@@ -65,7 +66,7 @@ func (s *WindowsFakeintakeSuite) BeforeTest(suiteName, testName string) {
 		}
 		// If logs are found, print their content for debugging
 		if !assert.Empty(c, logs, "Logs were found when none were expected") {
-			cat, _ := s.Env().RemoteHost.Execute(fmt.Sprintf("type %s", logFilePath))
+			cat, _ := s.Env().RemoteHost.Execute("type " + logFilePath)
 			s.T().Logf("Logs detected when none were expected: %v", cat)
 		}
 	}, 2*time.Minute, 10*time.Second)
@@ -125,8 +126,8 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 
 	// Given expected tags
 	expectedTags := []string{
-		fmt.Sprintf("filename:%s", logFileName),
-		fmt.Sprintf("dirname:%s", utils.WindowsLogsFolderPath),
+		"filename:" + logFileName,
+		"dirname:" + utils.WindowsLogsFolderPath,
 	}
 	// Check intake for new logs
 	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)
@@ -155,7 +156,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	t := s.T()
 	utils.CheckLogFilePresence(s, logFileName)
 
-	// Verify the tailer is in an error state before granting permissions
+	// Verify the tailer is in OK state before generating logs
 	utils.AssertAgentTailerError(s, logFileName)
 
 	// Generate logs

@@ -90,7 +90,7 @@ func TestActionsController(t *testing.T) {
 
 	rcUpdate := map[string]state.RawConfig{
 		"config_1": {Config: []byte("invalid")},
-		"config_2": {Config: serializedConfig},
+		"config_2": {Config: serializedConfig, Metadata: state.Metadata{ID: "test_remote_config_id"}},
 	}
 
 	updateStatus := make(map[string]state.ApplyStatus)
@@ -130,8 +130,10 @@ func TestActionsController(t *testing.T) {
 	assert.Equal(t, "pass", instance["sasl_plain_password"])
 	assert.Equal(t, "SASL_SSL", instance["security_protocol"])
 
-	// Check that run_once was injected
 	assert.Equal(t, true, instance["run_once"])
+
+	// Check that remote_config_id was injected
+	assert.Equal(t, "test_remote_config_id", instance["remote_config_id"])
 
 	// Check that actions are present
 	assert.NotNil(t, instance["read_messages"])
@@ -167,7 +169,7 @@ func TestActionsControllerNoBootstrapServers(t *testing.T) {
 	require.NoError(t, err)
 
 	rcUpdate := map[string]state.RawConfig{
-		"config_1": {Config: serializedConfig},
+		"config_1": {Config: serializedConfig, Metadata: state.Metadata{ID: "no_bootstrap_test_id"}},
 	}
 
 	updateStatus := make(map[string]state.ApplyStatus)
@@ -204,7 +206,7 @@ func TestActionsControllerNoMatchingKafkaConsumer(t *testing.T) {
 	require.NoError(t, err)
 
 	rcUpdate := map[string]state.RawConfig{
-		"config_1": {Config: serializedConfig},
+		"config_1": {Config: serializedConfig, Metadata: state.Metadata{ID: "no_match_test_id"}},
 	}
 
 	updateStatus := make(map[string]state.ApplyStatus)

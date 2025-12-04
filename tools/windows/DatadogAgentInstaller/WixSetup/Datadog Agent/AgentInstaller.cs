@@ -634,7 +634,7 @@ namespace WixSetup.Datadog_Agent
                 },
                 agentBinDir,
                 new WixSharp.File(_agentBinaries.LibDatadogAgentThree),
-                new WixSharp.File(_agentBinaries.MSStoreApps),
+                new WixSharp.File(_agentBinaries.DatadogInterop),
                 new WixSharp.File(@"C:\opt\datadog-installer\datadog-installer.exe",
                     new ServiceInstaller
                     {

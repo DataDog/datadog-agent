@@ -12,6 +12,7 @@ package leaderelection
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -104,7 +105,7 @@ func (le *LeaderEngine) initialize() *retry.Error {
 // GetLeaderEngine returns an initialized leader engine.
 func GetLeaderEngine() (*LeaderEngine, error) {
 	if globalLeaderEngine == nil {
-		return nil, fmt.Errorf("Global Leader Engine was not created")
+		return nil, errors.New("Global Leader Engine was not created")
 	}
 	err := globalLeaderEngine.initialize()
 	if err != nil {
