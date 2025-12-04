@@ -77,7 +77,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "{a: {a: {pointer: not captured at 0x[addr]}}}"

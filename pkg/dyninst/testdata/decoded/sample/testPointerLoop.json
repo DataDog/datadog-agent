@@ -68,7 +68,8 @@
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "message": "{val: 1, b: {cycle}}"
