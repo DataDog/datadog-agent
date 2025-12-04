@@ -275,9 +275,9 @@ func (s *gpuK8sSuite) AfterTest(suiteName, testName string) {
 
 // runCudaDockerWorkload runs a CUDA workload in a Docker container and returns the container ID
 func (v *gpuBaseSuite[Env]) runCudaDockerWorkload() string {
-	// Configure some defaults
-	vectorSize := 200000
-	numLoops := 10000000  // Loop extra times to ensure the kernel runs for a bit
+	// Configure some defaults. Big vector size and number of loops to ensure the kernel runs for a bit
+	vectorSize := 2000000
+	numLoops := 10000000
 	waitTimeSeconds := 30 // Give enough time to our monitor to hook the probes and for workloadmeta to detect containers
 	binary := "/usr/local/bin/cuda-basic"
 	args := []string{binary, strconv.Itoa(vectorSize), strconv.Itoa(numLoops), strconv.Itoa(waitTimeSeconds)}
