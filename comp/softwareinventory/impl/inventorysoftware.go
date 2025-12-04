@@ -164,14 +164,8 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 
 	is.log.Infof("Starting the inventory software component")
 
-	// Perform initial collection
-	installedSoftware, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
-	if err != nil {
-		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
-	} else {
-		is.log.Debug("Initial software inventory collection completed")
-		is.cachedInventory = installedSoftware
-	}
+	// Initialize with an empty collection to avoid nil dereference issues
+	is.cachedInventory = []software.Entry{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	reqs.Lc.Append(compdef.Hook{
@@ -191,12 +185,23 @@ func newWithClient(reqs Requires, client sysProbeClient) (Provides, error) {
 }
 
 func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
-	is.log.Debugf("Initial software inventory collection with %v jitter", is.jitter)
+	// HACK: Initial collection after 5s to avoid race-condition with System-Probe starting
+	time.Sleep(5 * time.Second)
+	initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+	if err != nil {
+		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
+	} else {
+		is.log.Debug("Initial software inventory collection completed")
+		is.cachedInventory = initialInventory
+	}
+
+	// Send the initial collection with a random jitter
+	is.log.Debugf("Sending initial software inventory collection with %v jitter", is.jitter)
 	time.Sleep(is.jitter)
 
 	// Always send the initial payload on start-up.
 	// We'll send the follow-up payloads only on change.
-	err := is.sendPayload()
+	err = is.sendPayload()
 	if err != nil {
 		_ = is.log.Errorf("Failed to send software inventory: %v", err)
 	}
