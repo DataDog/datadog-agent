@@ -172,7 +172,13 @@ func (t *MinimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric
 		originProductDetail: originProductDetailFromScopeName(scopeName),
 	}
 	if isUnsupportedMetric(md) {
-		return ErrUnsupportedAggregation
+		// Skip unsupported metrics (cumulative monotonic sums, cumulative histograms)
+		// instead of returning an error that would stop the entire translation
+		t.logger.Debug("Skipping unsupported metric",
+			zap.String(metricName, md.Name()),
+			zap.String("type", md.Type().String()),
+		)
+		return nil
 	}
 	switch md.Type() {
 	case pmetric.MetricTypeGauge:
