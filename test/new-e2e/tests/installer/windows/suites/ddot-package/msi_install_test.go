@@ -7,7 +7,6 @@
 package ddottests
 
 import (
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -42,7 +41,7 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
+		installerwindows.WithMSIArg("APIKEY="+installer.GetAPIKey()),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
@@ -64,7 +63,7 @@ func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
+		installerwindows.WithMSIArg("APIKEY="+installer.GetAPIKey()),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
 		installerwindows.WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
@@ -88,7 +87,7 @@ func (s *testAgentMSIInstallsDDOT) installPreviousAgentVersion(opts ...installer
 	options := []installerwindows.MsiOption{
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.StableAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-previous-version.log"),
-		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", installer.GetAPIKey())),
+		installerwindows.WithMSIArg("APIKEY=" + installer.GetAPIKey()),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 	}
 	options = append(options, opts...)
