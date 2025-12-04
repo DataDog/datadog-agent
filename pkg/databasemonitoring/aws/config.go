@@ -22,7 +22,7 @@ type Config struct {
 	QueryTimeout      int
 	Tags              []string
 	DbmTag            string
-	GlobalDbViewTag   string
+	GlobalViewDbTag   string
 	Region            string // auto-discovered from instance metadata
 }
 
@@ -40,7 +40,7 @@ func NewAuroraAutodiscoveryConfig() (Config, error) {
 	discoveryConfigs.DiscoveryInterval = pkgconfigsetup.Datadog().GetInt(auroraAutoDiscoveryConfigKey + ".discovery_interval")
 	discoveryConfigs.Tags = pkgconfigsetup.Datadog().GetStringSlice(auroraAutoDiscoveryConfigKey + ".tags")
 	discoveryConfigs.DbmTag = pkgconfigsetup.Datadog().GetString(auroraAutoDiscoveryConfigKey + ".dbm_tag")
-	discoveryConfigs.GlobalDbViewTag = pkgconfigsetup.Datadog().GetString(auroraAutoDiscoveryConfigKey + ".global_db_view_tag")
+	discoveryConfigs.GlobalViewDbTag = pkgconfigsetup.Datadog().GetString(auroraAutoDiscoveryConfigKey + ".global_view_db_tag")
 	discoveryConfigs.Region = pkgconfigsetup.Datadog().GetString(auroraAutoDiscoveryConfigKey + ".region")
 	return discoveryConfigs, nil
 }
@@ -53,7 +53,7 @@ func NewRdsAutodiscoveryConfig() (Config, error) {
 	discoveryConfigs.DiscoveryInterval = pkgconfigsetup.Datadog().GetInt(rdsAutoDiscoveryConfigKey + ".discovery_interval")
 	discoveryConfigs.Tags = pkgconfigsetup.Datadog().GetStringSlice(rdsAutoDiscoveryConfigKey + ".tags")
 	discoveryConfigs.DbmTag = pkgconfigsetup.Datadog().GetString(rdsAutoDiscoveryConfigKey + ".dbm_tag")
-	discoveryConfigs.GlobalDbViewTag = pkgconfigsetup.Datadog().GetString(rdsAutoDiscoveryConfigKey + ".global_db_view_tag")
+	discoveryConfigs.GlobalViewDbTag = pkgconfigsetup.Datadog().GetString(rdsAutoDiscoveryConfigKey + ".global_view_db_tag")
 	discoveryConfigs.Region = pkgconfigsetup.Datadog().GetString(rdsAutoDiscoveryConfigKey + ".region")
 	return discoveryConfigs, nil
 }

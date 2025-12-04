@@ -243,8 +243,8 @@ func (d *DBMRdsService) GetExtraConfig(key string) (string, error) {
 		return d.instance.ClusterID, nil
 	case "dbname":
 		return d.instance.DbName, nil
-	case "global_db_view":
-		return d.instance.GlobalDbView, nil
+	case "global_view_db":
+		return d.instance.GlobalViewDb, nil
 	}
 
 	return "", ErrNotSupported

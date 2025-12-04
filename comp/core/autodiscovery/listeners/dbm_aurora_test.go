@@ -174,7 +174,7 @@ func TestDBMAuroraListener(t *testing.T) {
 				Region:            "us-east-1",
 				Tags:              []string{defaultADTag},
 				DbmTag:            defaultDbmTag,
-				GlobalDbViewTag:   "datadoghq.com/globalview",
+				GlobalViewDbTag:   "datadoghq.com/globalview",
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
@@ -184,7 +184,7 @@ func TestDBMAuroraListener(t *testing.T) {
 					Region:            "us-east-1",
 					Tags:              []string{defaultADTag},
 					DbmTag:            defaultDbmTag,
-					GlobalDbViewTag:   "datadoghq.com/globalview",
+					GlobalViewDbTag:   "datadoghq.com/globalview",
 				}).Return(
 					map[string]*aws.AuroraCluster{
 						"my-cluster-1": {
@@ -195,7 +195,7 @@ func TestDBMAuroraListener(t *testing.T) {
 									IamEnabled:   true,
 									Engine:       "aurora-postgresql",
 									DbmEnabled:   true,
-									GlobalDbView: "mydb",
+									GlobalViewDb: "mydb",
 								},
 							},
 						},
@@ -215,7 +215,7 @@ func TestDBMAuroraListener(t *testing.T) {
 						IamEnabled:   true,
 						Engine:       "aurora-postgresql",
 						DbmEnabled:   true,
-						GlobalDbView: "mydb",
+						GlobalViewDb: "mydb",
 					},
 				},
 			},
@@ -323,7 +323,7 @@ func TestDBMAuroraListener(t *testing.T) {
 				"region":             tc.config.Region,
 				"tags":               tc.config.Tags,
 				"dbm_tag":            tc.config.DbmTag,
-				"global_db_view_tag": tc.config.GlobalDbViewTag,
+				"global_view_db_tag": tc.config.GlobalViewDbTag,
 			})
 			mockAWSClient := aws.NewMockRdsClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)

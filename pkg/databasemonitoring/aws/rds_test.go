@@ -157,7 +157,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 							Engine:                           aws.String("postgres"),
 							TagList: []types.Tag{
 								{Key: aws.String("test"), Value: aws.String("tag")},
-								{Key: aws.String("datadoghq.com/global_db_view"), Value: aws.String("custom")},
+								{Key: aws.String("datadoghq.com/global_view_db"), Value: aws.String("custom")},
 								{Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true")},
 							},
 						},
@@ -173,7 +173,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 				Engine:       "postgres",
 				DbmEnabled:   true,
 				DbName:       "postgres",
-				GlobalDbView: "custom",
+				GlobalViewDb: "custom",
 			}},
 		},
 		{
@@ -518,7 +518,7 @@ func TestGetRdsInstancesFromTags(t *testing.T) {
 			mockClient := NewMockrdsService(ctrl)
 			tt.configureClient(mockClient)
 			client := &Client{client: mockClient}
-			clusters, err := client.GetRdsInstancesFromTags(context.Background(), Config{Tags: tt.tags, DbmTag: defaultDbmTag, GlobalDbViewTag: defaultGlobalDbViewTag})
+			clusters, err := client.GetRdsInstancesFromTags(context.Background(), Config{Tags: tt.tags, DbmTag: defaultDbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return

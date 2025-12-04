@@ -23,7 +23,7 @@ type Instance struct {
 	IamEnabled   bool
 	Engine       string
 	DbName       string
-	GlobalDbView string
+	GlobalViewDb string
 	DbmEnabled   bool
 }
 
@@ -96,8 +96,8 @@ func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
 		if tag.Value != nil {
 			tagString += ":" + *tag.Value
 		}
-		if tag.Key != nil && *tag.Key == config.GlobalDbViewTag && tag.Value != nil {
-			instance.GlobalDbView = *tag.Value
+		if tag.Key != nil && *tag.Key == config.GlobalViewDbTag && tag.Value != nil {
+			instance.GlobalViewDb = *tag.Value
 		}
 		if tagString == config.DbmTag {
 			instance.DbmEnabled = true

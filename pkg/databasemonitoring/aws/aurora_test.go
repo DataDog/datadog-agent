@@ -179,7 +179,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Engine:                           aws.String("aurora-postgresql"),
 							TagList: []types.Tag{
 								{
-									Key: aws.String("datadoghq.com/global_db_view"), Value: aws.String("custom"),
+									Key: aws.String("datadoghq.com/global_view_db"), Value: aws.String("custom"),
 								},
 								{
 									Key: aws.String("datadoghq.com/dbm"), Value: aws.String("true"),
@@ -201,7 +201,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 							Engine:       "aurora-postgresql",
 							DbName:       "postgres",
 							DbmEnabled:   true,
-							GlobalDbView: "custom",
+							GlobalViewDb: "custom",
 						},
 					},
 				},
@@ -509,7 +509,7 @@ func TestGetAuroraClusterEndpoints(t *testing.T) {
 			if tt.dbmTag != nil {
 				dbmTag = *tt.dbmTag
 			}
-			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, Config{DbmTag: dbmTag, GlobalDbViewTag: defaultGlobalDbViewTag})
+			clusters, err := client.GetAuroraClusterEndpoints(context.Background(), tt.clusterIDs, Config{DbmTag: dbmTag, GlobalViewDbTag: defaultGlobalViewDbTag})
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())
 				return
