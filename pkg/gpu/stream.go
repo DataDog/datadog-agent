@@ -364,6 +364,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	}
 
 	if span.numKernels == 0 {
+		memPools.kernelSpanPool.Put(span)
 		return nil
 	}
 
