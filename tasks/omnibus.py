@@ -743,17 +743,7 @@ def docker_build(
         f"Dockerfiles/agent"
     )
 
-    # Create empty placeholder to satisfy Dockerfile line 140's COPY instruction.
-    # The actual extraction uses --mount from artifacts context (line 158), so
-    # line 140's COPY is dead code - we just need the file to exist.
-    dockerfile_dir = os.path.join(os.getcwd(), "Dockerfiles", "agent")
-    temp_tarball_path = os.path.join(dockerfile_dir, artifact_name)
-    try:
-        open(temp_tarball_path, 'w').close()  # Create 0-byte file
-        ctx.run(docker_build_cmd)
-    finally:
-        if os.path.exists(temp_tarball_path):
-            os.unlink(temp_tarball_path)
+    ctx.run(docker_build_cmd)
 
     # Print clear usage instructions
     print("\n" + "=" * 60)
