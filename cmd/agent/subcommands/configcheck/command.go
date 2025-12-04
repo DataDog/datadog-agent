@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"io"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -46,7 +46,7 @@ type instance struct {
 	Config string `json:"config"`
 }
 
-type jsonConfig struct {
+type checkConfig struct {
 	Name         string     `json:"check_name"`
 	Provider     string     `json:"provider"`
 	Source       string     `json:"source"`
@@ -89,10 +89,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func run(cliParams *cliParams, log log.Component, client ipc.HTTPClient) error {
+	// no specific check was passed, print all check configs
 	if len(cliParams.args) < 1 {
 		return fullConfigCmd(cliParams, log, client)
 	}
 
+	// print only the config of the specified check
 	return singleCheckCmd(cliParams, log, client)
 }
 
@@ -106,25 +108,16 @@ func fullConfigCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient)
 	color.Output = &b
 
 	if cliParams.json || cliParams.prettyJSON {
-		jsonConfigs := make([]jsonConfig, len(cr.Configs))
+		checkConfigs := make([]checkConfig, len(cr.Configs))
 
 		// gather and filter every check config
 		for i, config := range cr.Configs {
-			jsonConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
+			checkConfigs[i] = convertCheckConfigToJSON(config.Config, config.InstanceIDs)
 		}
 
-		var jsonConfigsBytes []byte
-
-		if cliParams.prettyJSON {
-			jsonConfigsBytes, err = json.MarshalIndent(jsonConfigs, "", "  ")
-		} else {
-			jsonConfigsBytes, err = json.Marshal(jsonConfigs)
-		}
-		if err != nil {
+		if err := printJSON(color.Output, checkConfigs, cliParams.prettyJSON); err != nil {
 			return err
 		}
-
-		fmt.Fprintln(color.Output, strings.ReplaceAll(string(jsonConfigsBytes), "\\n", "\n"))
 
 	} else {
 		flare.PrintConfigCheck(color.Output, cr, cliParams.verbose)
@@ -151,20 +144,11 @@ func singleCheckCmd(cliParams *cliParams, _ log.Component, client ipc.HTTPClient
 			color.Output = &b
 
 			if cliParams.json || cliParams.prettyJSON {
-				jsonConfig := convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs)
+				checkConfig := convertCheckConfigToJSON(configResponse.Config, configResponse.InstanceIDs)
 
-				var jsonConfigBytes []byte
-
-				if cliParams.prettyJSON {
-					jsonConfigBytes, err = json.MarshalIndent(jsonConfig, "", "  ")
-				} else {
-					jsonConfigBytes, err = json.Marshal(jsonConfig)
-				}
-				if err != nil {
+				if err := printJSON(color.Output, checkConfig, cliParams.prettyJSON); err != nil {
 					return err
 				}
-
-				fmt.Fprintln(color.Output, strings.ReplaceAll(string(jsonConfigBytes), "\\n", "\n"))
 
 			} else {
 				// flare format print
@@ -201,8 +185,8 @@ func getConfigCheckResponse(client ipc.HTTPClient) (integration.ConfigCheckRespo
 	return cr, nil
 }
 
-func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) jsonConfig {
-	jsonConfig := jsonConfig{}
+func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) checkConfig {
+	jsonConfig := checkConfig{}
 
 	jsonConfig.Name = c.Name
 
@@ -233,4 +217,22 @@ func convertCheckConfigToJSON(c integration.Config, instanceIDs []string) jsonCo
 	jsonConfig.Logs = string(c.LogsConfig)
 
 	return jsonConfig
+}
+
+func printJSON(w io.Writer, rawJSON any, prettyPrintJSON bool) error {
+	var result []byte
+	var err error
+
+	// convert to bytes and indent
+	if prettyPrintJSON {
+		result, err = json.MarshalIndent(rawJSON, "", "  ")
+	} else {
+		result, err = json.Marshal(rawJSON)
+	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprint(w, string(result))
+	return nil
 }
