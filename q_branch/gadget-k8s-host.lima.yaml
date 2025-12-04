@@ -1,5 +1,12 @@
 minimumLimaVersion: "1.0.0"
 
+# Software versions - update these to keep tools current
+# Check latest: https://github.com/kubernetes-sigs/kind/releases
+#               https://kubernetes.io/releases/
+env:
+  KIND_VERSION: "v0.27.0"
+  KUBECTL_VERSION: "v1.32"
+
 images:
 - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
   arch: "aarch64"
@@ -45,13 +52,13 @@ provision:
       systemctl start docker
 
       # kubectl
-      curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-      echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+      curl -fsSL "https://pkgs.k8s.io/core:/stable:/${KUBECTL_VERSION}/deb/Release.key" | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/${KUBECTL_VERSION}/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
       apt-get update
       apt-get install -y kubectl
 
       # Kind
-      curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-$(dpkg --print-architecture)"
+      curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-$(dpkg --print-architecture)"
       chmod +x /usr/local/bin/kind
 
       # Helm
