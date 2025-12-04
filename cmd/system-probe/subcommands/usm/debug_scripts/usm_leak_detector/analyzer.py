@@ -6,6 +6,7 @@ import time
 from typing import Dict, List
 
 from .backends import EbpfBackend
+from .constants import CONN_TUPLE_OFFSET
 from .models import ConnTuple, ConnectionIndex, MapLeakInfo
 from .network import discover_namespaces, build_connection_index
 from .parser import hex_array_to_bytes, parse_conn_tuple
@@ -51,6 +52,9 @@ def analyze_map(
     total = len(entries)
     leaked: List[tuple] = []
 
+    # Look up ConnTuple offset for this map (default 0)
+    conn_tuple_offset = CONN_TUPLE_OFFSET.get(map_name, 0)
+
     for entry in entries:
         key = entry.get("key")
         if key is None:
@@ -63,7 +67,7 @@ def analyze_map(
         elif isinstance(key, list):
             # Hex array from bpftool
             key_bytes = hex_array_to_bytes(key)
-            conn = parse_conn_tuple(key_bytes)
+            conn = parse_conn_tuple(key_bytes, offset=conn_tuple_offset)
             if conn is None:
                 if verbose:
                     print(f"  Warning: Could not parse key of {len(key_bytes)} bytes")

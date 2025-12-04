@@ -13,12 +13,20 @@ CONN_TUPLE_MAPS = [
     "postgres_in_flig",  # Truncated: postgres_in_flight
     "http2_in_flight",  # Key is http2_stream_key_t (52B) but ConnTuple is at offset 0
     "http2_dynamic_c",  # Truncated: http2_dynamic_counter_table
+    "http2_dynamic_t",  # Truncated: http2_dynamic_table (ConnTuple at offset 8)
     "http2_incomplet",  # Truncated: http2_incomplete_frames
     "kafka_response",
+    "kafka_in_flight",  # Composite key (kafka_transaction_key_t), ConnTuple at offset 0
     "go_tls_conn_by_",  # Truncated: go_tls_conn_by_tuple
     "connection_proto",  # Truncated: connection_protocol
     "tls_enhanced_tag",  # Truncated: tls_enhanced_tags
 ]
+
+# ConnTuple byte offset within key (most maps have ConnTuple at offset 0)
+# Only maps with non-zero offsets need entries here
+CONN_TUPLE_OFFSET = {
+    "http2_dynamic_t": 8,  # dynamic_table_index_t: __u64 index (8B) + conn_tuple_t
+}
 
 # PID-keyed maps to validate (uint64 pid_tgid keys)
 # These maps store TLS/SSL call arguments keyed by pid_tgid.

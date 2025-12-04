@@ -13,8 +13,12 @@ def hex_array_to_bytes(hex_array: List[str]) -> bytes:
     return bytes(int(x, 16) for x in hex_array)
 
 
-def parse_conn_tuple(key_bytes: bytes) -> Optional[ConnTuple]:
+def parse_conn_tuple(key_bytes: bytes, offset: int = 0) -> Optional[ConnTuple]:
     """Parse bytes into ConnTuple structure.
+
+    Args:
+        key_bytes: Raw key bytes from BPF map
+        offset: Byte offset where ConnTuple starts (default 0)
 
     ConnTuple layout (48 bytes):
         0-7:   saddr_h (uint64)
@@ -27,13 +31,13 @@ def parse_conn_tuple(key_bytes: bytes) -> Optional[ConnTuple]:
         40-43: pid (uint32)
         44-47: metadata (uint32)
     """
-    if len(key_bytes) < 48:
+    if len(key_bytes) < offset + 48:
         return None
 
-    # Unpack using little-endian format
-    saddr_h, saddr_l, daddr_h, daddr_l = struct.unpack_from("<QQQQ", key_bytes, 0)
-    sport, dport = struct.unpack_from("<HH", key_bytes, 32)
-    netns, pid, metadata = struct.unpack_from("<III", key_bytes, 36)
+    # Unpack using little-endian format from specified offset
+    saddr_h, saddr_l, daddr_h, daddr_l = struct.unpack_from("<QQQQ", key_bytes, offset)
+    sport, dport = struct.unpack_from("<HH", key_bytes, offset + 32)
+    netns, pid, metadata = struct.unpack_from("<III", key_bytes, offset + 36)
 
     return ConnTuple(
         saddr_h=saddr_h,
