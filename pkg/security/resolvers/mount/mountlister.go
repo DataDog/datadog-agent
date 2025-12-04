@@ -203,7 +203,7 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 		}
 
 		ino, err := getInodeNumFromLink(linkTarget)
-		
+
 		if err != nil {
 			continue
 		}
