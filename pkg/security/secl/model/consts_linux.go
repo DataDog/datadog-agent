@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/bits"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -1432,7 +1433,7 @@ func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	}
 
 	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
+		strs = append(strs, strconv.Itoa(bitmask&^result))
 	}
 
 	sort.Strings(strs)
@@ -1459,7 +1460,7 @@ func bitmaskU64ToStringArray(bitmask uint64, intToStrMap map[uint64]string) []st
 	}
 
 	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
+		strs = append(strs, strconv.FormatUint(bitmask&^result, 10))
 	}
 
 	sort.Strings(strs)

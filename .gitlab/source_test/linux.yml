@@ -44,7 +44,6 @@
       junit: "**/junit-out-*.xml"
       annotations:
         - $EXTERNAL_LINKS_PATH
-  retry: !reference [.retry_only_infra_failure, retry]
 
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -184,7 +183,7 @@ go_mod_tidy_check:
 
 new-e2e-unit-tests:
   extends: .linux_tests
-  image: registry.ddbuild.io/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   needs:
     - go_e2e_deps
@@ -201,14 +200,13 @@ new-e2e-unit-tests:
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   script:
+    - dda inv -- -e install-tools
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-    - dda inv -- -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+    - dda inv -- -e new-e2e-tests.run --module-name test/e2e-framework --targets ./testing/utils --tags "e2eunit" --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
   after_script:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
-    # Not using the entrypoint script for the e2e runner image
-    FF_KUBERNETES_HONOR_ENTRYPOINT: false
   timeout: 20m  # Not less than 20m because job startup can take time.

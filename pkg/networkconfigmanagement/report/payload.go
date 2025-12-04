@@ -50,6 +50,12 @@ type NetworkDeviceConfig struct {
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
 func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
+	for i := range configs {
+		// if timestamp could not be extracted from the configurations / commands, use the agent timestamp
+		if configs[i].Timestamp == 0 {
+			configs[i].Timestamp = timestamp
+		}
+	}
 	return NCMPayload{
 		Namespace:        namespace,
 		Configs:          configs,

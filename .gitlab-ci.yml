@@ -9,7 +9,6 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/common/shared.yml
   - .gitlab/common/skip_ci_check.yml
-  - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
   - .gitlab/container_scan/container_scan.yml
   - .gitlab/deploy_packages/include.yml
@@ -165,25 +164,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v82436147-ae37cb6d
+  CI_IMAGE_BTF_GEN: v84348379-5989c48d
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v82436147-ae37cb6d
+  CI_IMAGE_DOCKER_X64: v84348379-5989c48d
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v82436147-ae37cb6d
+  CI_IMAGE_DOCKER_ARM64: v84348379-5989c48d
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v82436147-ae37cb6d
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v84348379-5989c48d
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v82436147-ae37cb6d
+  CI_IMAGE_LINUX: v84348379-5989c48d
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v82436147-ae37cb6d
+  CI_IMAGE_RPM_X64: v84348379-5989c48d
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v82436147-ae37cb6d
+  CI_IMAGE_RPM_ARM64: v84348379-5989c48d
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v82436147-ae37cb6d
+  CI_IMAGE_RPM_ARMHF: v84348379-5989c48d
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v81809683-27a1a12f
+  CI_IMAGE_WIN_LTSC2022_X64: v84348379-5989c48d
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v81809683-27a1a12f
+  CI_IMAGE_WIN_LTSC2025_X64: v84348379-5989c48d
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -242,7 +241,15 @@ variables:
   VIRUS_TOTAL: virus-total # windows-products
   # End vault variables
 
-  DD_PKG_VERSION: "latest"
+  # dda configuration variables
+  DDA_CLIENT_TOKEN: dda-feature-flags-client-token # agent-devx
+  DDA_FEATURE_FLAGS_CI_VAULT_KEY_MACOS: token
+  DDA_FEATURE_FLAGS_CI_VAULT_PATH_MACOS: aws/arn:aws:iam::486234852809:role/ci-datadog-agent/$DDA_CLIENT_TOKEN
+  DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS: ci.datadog-agent.dda-feature-flags-client-token
+  DDA_FEATURE_FLAGS_CI_VAULT_KEY: token
+  DDA_FEATURE_FLAGS_CI_VAULT_PATH: k8s/gitlab-runner-datadog-agent/datadog-agent/$DDA_CLIENT_TOKEN
+
+  DD_PKG_VERSION: "0.6.0-beta.4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Job cloning strategy
@@ -361,6 +368,12 @@ variables:
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
 
+.on_build_changes: &on_build_changes
+  changes:
+    paths: 
+      - omnibus/**/*
+    compare_to: $COMPARE_TO_BRANCH
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
@@ -422,13 +435,19 @@ workflow:
   - <<: *if_deploy
     when: on_failure
 
-# rule to trigger job for internal image deployment if deploy is set or
-# manually if not
-.on_deploy_internal_or_manual:
+# rule to trigger job for internal image deployment if deploy is set, or if there are changes to the internal image
+# deployment config file or manually if not
+.on_deploy_internal_or_internal_image_change_or_manual:
   - !reference [.except_mergequeue]
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
+  - changes:
+      paths:
+        - .gitlab/internal_image_deploy/internal_image_deploy.yml
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      RELEASE_PROD: "false"
   - when: manual
     allow_failure: true
     variables:
@@ -513,19 +532,23 @@ workflow:
     allow_failure: true
 
 .on_all_builds:
+  - !reference [.except_mergequeue]
   - <<: *if_run_all_builds
-
-.on_e2e_tests:
-  - <<: *if_installer_tests
+  - <<: *on_build_changes
 
 .on_all_install_script_tests:
+  - !reference [.except_mergequeue]
+  - <<: *if_disable_e2e_tests
+    when: never
   - <<: *if_installer_tests
+  - <<: *on_build_changes
 
 .on_default_new_e2e_tests:
   - !reference [.except_mergequeue]
   - <<: *if_disable_e2e_tests
     when: never
   - <<: *if_installer_tests
+  - <<: *on_build_changes
   - <<: *if_auto_e2e_tests
     variables:
       E2E_DESCRIPTORS: $E2E_BRANCH_DESCRIPTORS
@@ -540,8 +563,8 @@ workflow:
   - test/new-e2e/tests/cws/**/*
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/pkg/runner/**/*
-  - test/new-e2e/pkg/utils/**/*
+  - test/e2e-framework/testing/runner/**/*
+  - test/e2e-framework/testing/utils/**/*
   - test/new-e2e/go.mod
   - tasks/security_agent.py
   - tasks/kmt.py
@@ -593,8 +616,8 @@ workflow:
   - .gitlab/source_test/ebpf.yml
   - test/new-e2e/system-probe/**/*
   - test/new-e2e/scenarios/system-probe/**/*
-  - test/new-e2e/pkg/runner/**/*
-  - test/new-e2e/pkg/utils/**/*
+  - test/e2e-framework/testing/runner/**/*
+  - test/e2e-framework/testing/utils/**/*
   - test/new-e2e/go.mod
   - tasks/system_probe.py
   - tasks/kmt.py
@@ -627,7 +650,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/e2e/e2e.yml
-        - test/new-e2e/pkg/**/*
+        - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
@@ -648,7 +671,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/e2e/e2e.yml
-        - test/new-e2e/pkg/**/*
+        - test/e2e-framework/testing/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
@@ -1001,6 +1024,10 @@ workflow:
 .on_scheduled_main_on_success:
   - <<: *if_scheduled_main
     when: on_success
+
+.on_scheduled_main_or_release_branch:
+  - if: $DDR_WORKFLOW_ID != null && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/)
+    when: always
 
 .on_main_or_rc_and_no_skip_e2e:
   - <<: *if_disable_e2e_tests

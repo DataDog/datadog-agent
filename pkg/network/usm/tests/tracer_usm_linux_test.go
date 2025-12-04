@@ -163,7 +163,7 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.ServiceMonitoringEnabled = false
 	// Enabling all features, to ensure nothing is forcing USM enablement.
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -700,7 +700,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -2567,6 +2567,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 }
 
 func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
+	skipIfKernelIsNotSupported(t, redis.MinimumKernelVersion)
 	serverAddress := net.JoinHostPort(localhost, redisPort)
 	require.NoError(t, redis.RunServer(t, localhost, redisPort, false))
 
@@ -2647,7 +2648,7 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.RedisTrackResources = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)

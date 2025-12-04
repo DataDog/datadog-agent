@@ -308,6 +308,26 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			IsUserProfile: true,
 		},
 	}.withNames()
+	mockProfilesWithDifferentNameKeyAndNameDefinition := ProfileConfigMap{
+		"PROFILE1": ProfileConfig{
+			Definition: profiledefinition.ProfileDefinition{
+				Name: "profile1",
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+				},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+			IsUserProfile: true,
+		},
+		"profile2": ProfileConfig{
+			Definition: profiledefinition.ProfileDefinition{
+				Metrics: []profiledefinition.MetricsConfig{
+					{Symbol: profiledefinition.SymbolConfig{OID: "1.2.3.4.5", Name: "someMetric"}},
+				},
+				SysObjectIDs: profiledefinition.StringArray{"1.3.6.1.4.1.3375.2.1.3"},
+			},
+		},
+	}.withNames()
 	tests := []struct {
 		name                string
 		profiles            ProfileConfigMap
@@ -391,6 +411,13 @@ func Test_getProfileForSysObjectID(t *testing.T) {
 			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3",
 			expectedProfileName: "",
 			expectedError:       "has the same sysObjectID (1.3.6.1.4.1.3375.2.1.3) as",
+		},
+		{
+			name:                "different name key and name definition",
+			profiles:            mockProfilesWithDifferentNameKeyAndNameDefinition,
+			sysObjectID:         "1.3.6.1.4.1.3375.2.1.3",
+			expectedProfileName: "profile1",
+			expectedError:       "",
 		},
 	}
 	for _, tt := range tests {

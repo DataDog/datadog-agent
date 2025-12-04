@@ -17,6 +17,7 @@ import (
 	"math"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -308,7 +309,7 @@ func (v Variable) Serialize(w StringWriter, indent string) {
 	w.WriteString(": ")
 	w.WriteString(v.TypeName)
 	w.WriteString(" (declared at line ")
-	w.WriteString(fmt.Sprintf("%d", v.DeclLine))
+	w.WriteString(strconv.Itoa(v.DeclLine))
 	w.WriteString(", available: ")
 	for i, r := range v.AvailableLineRanges {
 		if i > 0 {

@@ -31,6 +31,10 @@ core,code.cloudfoundry.org/garden/routes,Apache-2.0,"Copyright (c) 2016-Present 
 core,code.cloudfoundry.org/garden/transport,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/lager,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
 core,code.cloudfoundry.org/tlsconfig,Apache-2.0,"Copyright (c) 2016-Present CloudFoundry.org Foundation, Inc. All Rights Reserved."
+core,cyphar.com/go-pathrs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
+core,cyphar.com/go-pathrs/internal/fdutils,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
+core,cyphar.com/go-pathrs/internal/libpathrs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
+core,cyphar.com/go-pathrs/procfs,MPL-2.0,"copyright doctrines of fair use, fair dealing, or other"
 core,dario.cat/mergo,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2013 Dario Castañé. All rights reserved
 core,filippo.io/edwards25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,filippo.io/edwards25519/field,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
@@ -121,12 +125,6 @@ core,github.com/DataDog/agent-payload/v5/gogen,BSD-3-Clause,"Copyright (c) 2017,
 core,github.com/DataDog/agent-payload/v5/pb,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/process,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/sbom,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
-core,github.com/DataDog/appsec-internal-go/apisec,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/appsec-internal-go/apisec/internal/config,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/appsec-internal-go/apisec/internal/timed,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/appsec-internal-go/appsec,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/appsec-internal-go/limiter,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/appsec-internal-go/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/aptly/aptly,MIT,"* Alexander Guy (https://github.com/alexanderguy) | * Alexander Zubarev (https://github.com/strike) | * Andre Roth (https://github.com/neolynx) | * Andrea Bernardo Ciddio (https://github.com/bcandrea) | * Andrey Smirnov (https://github.com/smira) | * Artem Smirnov (https://github.com/urpylka) | * Benj Fassbind (https://github.com/randombenj) | * Benoit Foucher (https://github.com/bentoi) | * Boxjan (https://github.com/boxjan) | * Charles Hsu (https://github.com/charz) | * Chris Read (https://github.com/cread) | * Chuan Liu (https://github.com/chuan) | * Clemens Rabe (https://github.com/seeraven) | * Dmitrii Kashin (https://github.com/freehck) | * Don Kuntz (https://github.com/dkuntz2) | * Geoffrey Thomas (https://github.com/geofft) | * Harald Sitter (https://github.com/apachelogger) | * Ivan Kurnosov (https://github.com/zerkms) | * Johannes Layher (https://github.com/jola5) | * Josh Bayfield (https://github.com/jbayfield) | * Joshua Colson (https://github.com/freakinhippie) | * Lorenzo Bolla (https://github.com/lbolla) | * Ludovico Cavedon (https://github.com/cavedon) | * Markus Muellner (https://github.com/mmianl) | * Matt Martyn (https://github.com/MMartyn) | * Mauro Regli (https://github.com/reglim) | * Maximilian Stein (https://github.com/steinymity) | * Michael Koval (https://github.com/mkoval) | * Nabil Bendafi (https://github.com/nabilbendafi) | * Oliver Sauder (https://github.com/sliverc) | * Paul Krohn (https://github.com/paul-krohn) | * Petr Jediny (https://github.com/pjediny) | * Phil Frost (https://github.com/bitglue) | * Raphael Medaer (https://github.com/rmedaer) | * Raul Benencia (https://github.com/rul) | * Rohan Garg (https://github.com/shadeslayer) | * Russ Allbery (https://github.com/rra) | * Russell Greene (https://github.com/russelltg) | * Ryan Uber (https://github.com/ryanuber) | * Samuel Mutel (https://github.com/smutel) | * Sebastien Badia (https://github.com/sbadia) | * Sebastien Binet (https://github.com/sbinet) | * Shengjing Zhu (https://github.com/zhsj) | * Simon Aquino (https://github.com/queeno) | * Steven Stone (https://github.com/smstone) | * Strajan Sebastian (https://github.com/strajansebastian) | * Sylvain Baubeau (https://github.com/lebauce) | * Szymon Sobik (https://github.com/sobczyk) | * TJ Merritt (https://github.com/tjmerritt) | * Vincent Batoufflet (https://github.com/vbatoufflet) | * Vincent Bernat (https://github.com/vincentbernat) | * Wade Simmons (https://github.com/wadey) | * William Manley (https://github.com/wmanley) | * x539 (https://github.com/x539) | Copyright 2013-2015 aptly authors. All rights reserved | List of contributors, in chronological order:"
 core,github.com/DataDog/aptly/database,MIT,"* Alexander Guy (https://github.com/alexanderguy) | * Alexander Zubarev (https://github.com/strike) | * Andre Roth (https://github.com/neolynx) | * Andrea Bernardo Ciddio (https://github.com/bcandrea) | * Andrey Smirnov (https://github.com/smira) | * Artem Smirnov (https://github.com/urpylka) | * Benj Fassbind (https://github.com/randombenj) | * Benoit Foucher (https://github.com/bentoi) | * Boxjan (https://github.com/boxjan) | * Charles Hsu (https://github.com/charz) | * Chris Read (https://github.com/cread) | * Chuan Liu (https://github.com/chuan) | * Clemens Rabe (https://github.com/seeraven) | * Dmitrii Kashin (https://github.com/freehck) | * Don Kuntz (https://github.com/dkuntz2) | * Geoffrey Thomas (https://github.com/geofft) | * Harald Sitter (https://github.com/apachelogger) | * Ivan Kurnosov (https://github.com/zerkms) | * Johannes Layher (https://github.com/jola5) | * Josh Bayfield (https://github.com/jbayfield) | * Joshua Colson (https://github.com/freakinhippie) | * Lorenzo Bolla (https://github.com/lbolla) | * Ludovico Cavedon (https://github.com/cavedon) | * Markus Muellner (https://github.com/mmianl) | * Matt Martyn (https://github.com/MMartyn) | * Mauro Regli (https://github.com/reglim) | * Maximilian Stein (https://github.com/steinymity) | * Michael Koval (https://github.com/mkoval) | * Nabil Bendafi (https://github.com/nabilbendafi) | * Oliver Sauder (https://github.com/sliverc) | * Paul Krohn (https://github.com/paul-krohn) | * Petr Jediny (https://github.com/pjediny) | * Phil Frost (https://github.com/bitglue) | * Raphael Medaer (https://github.com/rmedaer) | * Raul Benencia (https://github.com/rul) | * Rohan Garg (https://github.com/shadeslayer) | * Russ Allbery (https://github.com/rra) | * Russell Greene (https://github.com/russelltg) | * Ryan Uber (https://github.com/ryanuber) | * Samuel Mutel (https://github.com/smutel) | * Sebastien Badia (https://github.com/sbadia) | * Sebastien Binet (https://github.com/sbinet) | * Shengjing Zhu (https://github.com/zhsj) | * Simon Aquino (https://github.com/queeno) | * Steven Stone (https://github.com/smstone) | * Strajan Sebastian (https://github.com/strajansebastian) | * Sylvain Baubeau (https://github.com/lebauce) | * Szymon Sobik (https://github.com/sobczyk) | * TJ Merritt (https://github.com/tjmerritt) | * Vincent Batoufflet (https://github.com/vbatoufflet) | * Vincent Bernat (https://github.com/vincentbernat) | * Wade Simmons (https://github.com/wadey) | * William Manley (https://github.com/wmanley) | * x539 (https://github.com/x539) | Copyright 2013-2015 aptly authors. All rights reserved | List of contributors, in chronological order:"
 core,github.com/DataDog/aptly/deb,MIT,"* Alexander Guy (https://github.com/alexanderguy) | * Alexander Zubarev (https://github.com/strike) | * Andre Roth (https://github.com/neolynx) | * Andrea Bernardo Ciddio (https://github.com/bcandrea) | * Andrey Smirnov (https://github.com/smira) | * Artem Smirnov (https://github.com/urpylka) | * Benj Fassbind (https://github.com/randombenj) | * Benoit Foucher (https://github.com/bentoi) | * Boxjan (https://github.com/boxjan) | * Charles Hsu (https://github.com/charz) | * Chris Read (https://github.com/cread) | * Chuan Liu (https://github.com/chuan) | * Clemens Rabe (https://github.com/seeraven) | * Dmitrii Kashin (https://github.com/freehck) | * Don Kuntz (https://github.com/dkuntz2) | * Geoffrey Thomas (https://github.com/geofft) | * Harald Sitter (https://github.com/apachelogger) | * Ivan Kurnosov (https://github.com/zerkms) | * Johannes Layher (https://github.com/jola5) | * Josh Bayfield (https://github.com/jbayfield) | * Joshua Colson (https://github.com/freakinhippie) | * Lorenzo Bolla (https://github.com/lbolla) | * Ludovico Cavedon (https://github.com/cavedon) | * Markus Muellner (https://github.com/mmianl) | * Matt Martyn (https://github.com/MMartyn) | * Mauro Regli (https://github.com/reglim) | * Maximilian Stein (https://github.com/steinymity) | * Michael Koval (https://github.com/mkoval) | * Nabil Bendafi (https://github.com/nabilbendafi) | * Oliver Sauder (https://github.com/sliverc) | * Paul Krohn (https://github.com/paul-krohn) | * Petr Jediny (https://github.com/pjediny) | * Phil Frost (https://github.com/bitglue) | * Raphael Medaer (https://github.com/rmedaer) | * Raul Benencia (https://github.com/rul) | * Rohan Garg (https://github.com/shadeslayer) | * Russ Allbery (https://github.com/rra) | * Russell Greene (https://github.com/russelltg) | * Ryan Uber (https://github.com/ryanuber) | * Samuel Mutel (https://github.com/smutel) | * Sebastien Badia (https://github.com/sbadia) | * Sebastien Binet (https://github.com/sbinet) | * Shengjing Zhu (https://github.com/zhsj) | * Simon Aquino (https://github.com/queeno) | * Steven Stone (https://github.com/smstone) | * Strajan Sebastian (https://github.com/strajansebastian) | * Sylvain Baubeau (https://github.com/lebauce) | * Szymon Sobik (https://github.com/sobczyk) | * TJ Merritt (https://github.com/tjmerritt) | * Vincent Batoufflet (https://github.com/vbatoufflet) | * Vincent Bernat (https://github.com/vincentbernat) | * Wade Simmons (https://github.com/wadey) | * William Manley (https://github.com/wmanley) | * x539 (https://github.com/x539) | Copyright 2013-2015 aptly authors. All rights reserved | List of contributors, in chronological order:"
@@ -142,13 +140,14 @@ core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyri
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v2alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-traceroute/cache,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/icmp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/packets,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-traceroute/publicip,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/result,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/reversedns,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/datadog-traceroute/runner,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/sack,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/tcp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/traceroute,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -162,92 +161,10 @@ core,github.com/DataDog/dd-otel-host-profiler/reporter/pipeline,Apache-2.0,"Copy
 core,github.com/DataDog/dd-otel-host-profiler/reporter/pprof,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
 core,github.com/DataDog/dd-otel-host-profiler/reporter/samples,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
 core,github.com/DataDog/dd-otel-host-profiler/reporter/symbol,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-otel-host-profiler/runner,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
 core,github.com/DataDog/dd-otel-host-profiler/version,Apache-2.0,"Copyright 2017 Datadog, Inc | Copyright 2024 Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/appsec/events,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/datastreams/options,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/ddtrace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/ddtrace/ext,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/ddtrace/internal/tracerstats,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/ddtrace/tracer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/dyngo,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/graphqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/grpcsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/httpsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/ossec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/sqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/waf/actions,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/emitter/waf/addresses,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/appsec/trace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/errortrace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/instrumentation/options,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/config,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/emitter/usersec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/emitter/waf,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/graphqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/grpcsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/httpsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/ossec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/sqlsec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/trace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/usersec,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/appsec/listener/waf,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/constants,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/civisibility/utils/telemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/datastreams,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/globalconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/azure,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/cachedfetch,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/ec2,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/ecs,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/gce,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/httputils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/hostname/validate,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/log,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/namingschema,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/normalizer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/orchestrion,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/osinfo,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/processtags,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/remoteconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/samplernames,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/stableconfig,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/stacktrace,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/telemetry,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/knownmetrics,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/mapper,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/telemetry/internal/transport,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/telemetry/log,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/traceprof,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/urlsanitizer,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/internal/version,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/profiler,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/profiler/internal/fastdelta,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/profiler/internal/immutable,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/profiler/internal/pproflite,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
-core,github.com/DataDog/dd-trace-go/v2/profiler/internal/pprofutils,Apache-2.0,"Copyright (c) 2016-Present, Datadog <info@datadoghq.com> | Copyright 2016 Datadog, Inc | Copyright 2016-Present Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of Datadog
-core,github.com/DataDog/go-libddwaf/v4,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/bindings,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/pin,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/ruleset,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/support,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/internal/unsafe,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/json,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/timer,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-libddwaf/v4/waferrors,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/go-runtime-metrics-internal/pkg/runtimemetrics,Apache-2.0,"Copyright 2024-2024 Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/DataDog/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -664,6 +581,8 @@ core,github.com/aws/aws-sdk-go-v2/service/ssooidc/types,Apache-2.0,"Copyright 20
 core,github.com/aws/aws-sdk-go-v2/service/sts,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sts/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/karpenter-provider-aws/pkg/apis,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/aws/karpenter-provider-aws/pkg/apis/v1,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/auth,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/auth/bearer,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
@@ -689,6 +608,12 @@ core,github.com/aws/smithy-go/tracing,Apache-2.0,"Copyright Amazon.com, Inc. or 
 core,github.com/aws/smithy-go/transport/http,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/transport/http/internal/io,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/aws/smithy-go/waiter,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/operatorpkg/metrics,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/operatorpkg/object,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/operatorpkg/option,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/operatorpkg/serrors,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/operatorpkg/status,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
+core,github.com/awslabs/operatorpkg/unstructured,Apache-2.0,"Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved"
 core,github.com/bahlo/generic-list-go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved
 core,github.com/bboreham/go-loser,Apache-2.0,bboreham <bjboreham@gmail.com>
 core,github.com/beevik/ntp,BSD-2-Clause,Al Cutter (AlCutter) | Andrey Smirnov (smira) | Anton Tolchanov (knyar) | Ask Bjørn Hansen (abh) | Brett Vickers (beevik) | Christopher Batey (chbatey) | Copyright © 2015-2023 Brett Vickers. All rights reserved | Leonid Evdokimov (darkk) | Meng Zhuo (mengzhuo) | Mikhail Salosin (AlphaB) | Silves-Xiang (silves-xiang)
@@ -870,7 +795,18 @@ core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,"Copyright 2017 CoreOS, In
 core,github.com/coreos/go-systemd/v22/journal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
-core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved | Copyright (C) 2017-2024 SUSE LLC. All rights reserved
+core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,copyright header describing its
+core,github.com/cyphar/filepath-securejoin/internal/consts,BSD-3-Clause,copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/assert,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/fd,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/gocompat,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/gopathrs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/kernelversion,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/linux,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/internal/procfs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
+core,github.com/cyphar/filepath-securejoin/pathrs-lite/procfs,BSD-3-Clause,Copyright (C) 2024-2025 Aleksa Sarai <cyphar@cyphar.com> | Copyright (C) 2024-2025 SUSE LLC | copyright header describing its
 core,github.com/davecgh/go-spew/spew,ISC,Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
 core,github.com/dennwc/varint,MIT,Copyright (c) 2019 Denys Smirnov
 core,github.com/dgryski/go-jump,MIT,Copyright (c) 2014 Damian Gryski <damian@gryski.com>
@@ -915,7 +851,6 @@ core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 
 core,github.com/docker/go-events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-units,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
-core,github.com/eapache/queue/v2,MIT,Copyright (c) 2014 Evan Huus
 core,github.com/ebitengine/purego,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/cgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
 core,github.com/ebitengine/purego/internal/fakecgo,Apache-2.0,Copyright 2022 The Ebitengine Authors
@@ -950,6 +885,8 @@ core,github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3,Apache-2.0,Cop
 core,github.com/envoyproxy/go-control-plane/envoy/type/v3,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/envoyproxy/protoc-gen-validate/validate,Apache-2.0,Copyright 2020 Envoyproxy Authors
 core,github.com/evanphx/json-patch,BSD-3-Clause,"Copyright (c) 2014, Evan Phoenix"
+core,github.com/evanphx/json-patch/v5,BSD-3-Clause,"Copyright (c) 2014, Evan Phoenix"
+core,github.com/evanphx/json-patch/v5/internal/json,BSD-3-Clause,"Copyright (c) 2014, Evan Phoenix"
 core,github.com/expr-lang/expr,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/ast,MIT,Copyright (c) 2018 Anton Medvedev
 core,github.com/expr-lang/expr/builtin,MIT,Copyright (c) 2018 Anton Medvedev
@@ -989,6 +926,9 @@ core,github.com/go-delve/delve/pkg/dwarf/op,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/goversion,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-delve/delve/pkg/logflags,MIT,Copyright (c) 2014 Derek Parker
 core,github.com/go-ini/ini,Apache-2.0,Copyright 2014 Unknwon
+core,github.com/go-jose/go-jose/v4,Apache-2.0,Copyright 2014 Square Inc.
+core,github.com/go-jose/go-jose/v4/cipher,Apache-2.0,Copyright 2014 Square Inc.
+core,github.com/go-jose/go-jose/v4/json,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright 2014 Square Inc.
 core,github.com/go-json-experiment/json,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
 core,github.com/go-json-experiment/json/internal,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
 core,github.com/go-json-experiment/json/internal/jsonflags,BSD-3-Clause,Copyright (c) 2020 The Go Authors. All rights reserved
@@ -1081,7 +1021,7 @@ core,github.com/godror/godror/odpi/include,Apache-2.0,"Alberto Andria <alberto.a
 core,github.com/godror/godror/odpi/src,Apache-2.0,"Alberto Andria <alberto.andria@mercadolibre.com> | Andy Garfield <andyjgarfield@gmail.com> | Anthony Tuininga <anthony.tuininga@oracle.com> | Cemre MENGU <cemre.mengu@ttgint.com> | Chris Duncan <veqryn@hotmail.com> | Christopher Jones <christopher.jones@oracle.com> | Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2015 go-logfmt | Copyright (c) 2016, 2018 Oracle and/or its affiliates.  All rights reserved | Copyright (c) 2016, 2022 Oracle and/or its affiliates | Copyright (c) 2017 The Go Authors. All rights reserved | Copyright 2017, 2020 Tamás Gulácsi | David Garcia <david.garcia.alvarez@beeva.com> | Gerasimos (Makis) Maropoulos <kataras2006@hotmail.com> | Harris <mike.harris@cerner.com> | Ivan Markin <nogoegst@users.noreply.github.com> | Ivan Pedersen <ivan@alpe.se> | Kurt K <44790488+kurt-google@users.noreply.github.com> | Michael Kenney <mkenney@webbedlam.com> | Mislav Kasner <mislav.kasner@aduro.hr> | Noval Agung Prayogo <novalagung@users.noreply.github.com> | Ricardo Vegas <rvegas@users.noreply.github.com> | Robin van Duiven <robin@aqua-it.com> | Ryan Bastic <ryan@gooddoglabs.com> | Saimon <semyuon@gmail.com> | Sudarshan Soma <sudarshan.ss.s@oracle.com> | Tamás Gulácsi <T.Gulacsi@unosoft.hu> | Tomoya AMACHI <tomoya.amachi@gmail.com> | Walter Alves Wanderley <walter.wanderley@serpro.gov.br> | ricardojesus.vegas <ricardojesus.vegas@bbva.com> | ubinix-warun <warun@ubinix.com> | zhuqiuzhi <zhuqiuzhi91@gmail.com>"
 core,github.com/godror/knownpb/internal,Apache-2.0,"Copyright 2014, 2021 Tamás Gulácsi"
 core,github.com/godror/knownpb/timestamppb,Apache-2.0,"Copyright 2019, 2021 Tamás Gulácsi"
-core,github.com/gofrs/flock,BSD-3-Clause,"Copyright (c) 2015-2020, Tim Heckman | Copyright (c) 2018-2024, The Gofrs"
+core,github.com/gofrs/flock,BSD-3-Clause,"Copyright (c) 2015-2020, Tim Heckman | Copyright (c) 2018-2025, The Gofrs"
 core,github.com/gogo/googleapis/google/api,Apache-2.0,"Copyright 2015, Google Inc | Copyright 2018, GoGo Authors"
 core,github.com/gogo/protobuf/gogoproto,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/jsonpb,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
@@ -1133,7 +1073,6 @@ core,github.com/google/gnostic-models/jsonschema,Apache-2.0,"Copyright 2017-2022
 core,github.com/google/gnostic-models/openapiv2,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/gnostic-models/openapiv3,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/go-cmp/cmp,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
-core,github.com/google/go-cmp/cmp/cmpopts,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/diff,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/flags,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/function,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
@@ -1454,8 +1393,6 @@ core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/compiler,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/compiler/wasm,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/compiler/wasm/opa,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/debug,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/deepcopy,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/edittree,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1472,7 +1409,6 @@ core,github.com/open-policy-agent/opa/internal/jwx/jws,MIT,Copyright (c) 2015 le
 core,github.com/open-policy-agent/opa/internal/jwx/jws/sign,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/jwx/jws/verify,MIT,Copyright (c) 2015 lestrrat | Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/lcss,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/leb128,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/planner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/providers/aws,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1484,14 +1420,7 @@ core,github.com/open-policy-agent/opa/internal/semver,Apache-2.0,Copyright 2016 
 core,github.com/open-policy-agent/opa/internal/strings,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/uuid,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/version,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/constant,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/encoding,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/instruction,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/module,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/opcode,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/wasm/sdk/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/types,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
-core,github.com/open-policy-agent/opa/internal/wasm/util,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast/internal/scanner,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/v1/ast/internal/tokens,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
@@ -1551,8 +1480,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observe
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver/internal/errctx,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecstaskobserver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/endpointswatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1627,6 +1554,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersigna
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/agentcomponents,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/apmstats,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/hostmetadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1854,7 +1782,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerre
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/targetallocator,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/targetallocator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2471,11 +2399,14 @@ core,go.opentelemetry.io/ebpf-profiler/armhelpers,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/ebpf-profiler/asm/amd,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/asm/expression,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/collector/config,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/collector/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/host,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/internal/controller,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/internal/log,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/apmint,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/interpreter/beam,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/dotnet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/go,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/golabels,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2486,6 +2417,7 @@ core,go.opentelemetry.io/ebpf-profiler/interpreter/php,Apache-2.0,Copyright The 
 core,go.opentelemetry.io/ebpf-profiler/interpreter/python,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/interpreter/ruby,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/kallsyms,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/ebpf-profiler/libc,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/basehash,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/libpf/hash,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2518,7 +2450,6 @@ core,go.opentelemetry.io/ebpf-profiler/stringutil,Apache-2.0,Copyright The OpenT
 core,go.opentelemetry.io/ebpf-profiler/successfailurecounter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/support,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/times,Apache-2.0,Copyright The OpenTelemetry Authors
-core,go.opentelemetry.io/ebpf-profiler/tpbase,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/tracer/types,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/ebpf-profiler/traceutil,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2688,6 +2619,7 @@ core,golang.org/x/crypto/scrypt,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/sha3,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/crypto/ssh/internal/bcrypt_pbkdf,BSD-3-Clause,Copyright 2009 The Go Authors
+core,golang.org/x/crypto/ssh/knownhosts,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/constraints,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/maps,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/exp/mmap,BSD-3-Clause,Copyright 2009 The Go Authors
@@ -2781,6 +2713,7 @@ core,golang.org/x/text/unicode/norm,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/text/width,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang.org/x/time/rate,BSD-3-Clause,Copyright 2009 The Go Authors
 core,golang/go,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
+core,gomodules.xyz/jsonpatch/v2,Apache-2.0,Copyright (c) 2015 The Authors
 core,gonum.org/v1/gonum/blas,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gmail.com> | Andrei Blinnikov <goofinator@mail.ru> | Andrew Brampton <brampton@gmail.com> | Bailey Lissington <lissington4@gmail.com> | Bill Gray <wgray@gogray.com> | Bill Noon <noon.bill@gmail.com> | Brendan Tracey <tracey.brendan@gmail.com> | Brent Pedersen <bpederse@gmail.com> | Bulat Khasanov <afti@yandex.ru> | Chad Kunde <kunde21@gmail.com> | Chan Kwan Yin <sofe2038@gmail.com> | Chih-Wei Chang <bert.cwchang@gmail.com> | Chong-Yeol Nah <nahchongyeol@gmail.com> | Chris Tessum <ctessum@gmail.com> | Christophe Meessen <christophe.meessen@gmail.com> | Christopher Waldon <christopher.waldon.dev@gmail.com> | Clayton Northey <clayton.northey@gmail.com> | Coana ApS | Copyright ©2013 The Gonum Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> <dan@kortschak.io> | Dan Lorenc <lorenc.d@gmail.com> | Daniel Fireman <danielfireman@gmail.com> | Dario Heinisch <dario.heinisch@gmail.com> | David Kleiven <davidkleiven446@gmail.com> | David Samborski <bloggingarrow@gmail.com> | Davor Kapsa <davor.kapsa@gmail.com> | DeepMind Technologies | Delaney Gillilan <delaneygillilan@gmail.com> | Dezmond Goff <goff.dezmond@gmail.com> | Dirk Müller <dirk@dmllr.de> | Dong-hee Na <donghee.na92@gmail.com> | Dustin Spicuzza <dustin@virtualroadside.com> | Egon Elbre <egonelbre@gmail.com> | Ekaterina Efimova <katerina.efimova@gmail.com> | Eng Zer Jun <engzerjun@gmail.com> | Ethan Burns <burns.ethan@gmail.com> | Ethan Reesor <ethan.reesor@gmail.com> | Evert Lammerts <evert.lammerts@gmail.com> | Evgeny Savinov <notime.sea@gmail.com> | Fabian Wickborn <fabian@wickborn.net> | Facundo Gaich <facugaich@gmail.com> | Fazlul Shahriar <fshahriar@gmail.com> | Francesc Campoy <campoy@golang.org> | Google Inc | Gustaf Johansson <gustaf@pinon.se> | Hossein Zolfi <hossein.zolfi@gmail.com> | Huang Peng Fei <huangpengfei@outlook.com> | Iakov Davydov <iakov.davydov@unil.ch> | Igor Mikushkin <igor.mikushkin@gmail.com> | Iskander Sharipov <quasilyte@gmail.com> | Jack Tudbury | Jalem Raj Rohit <jrajrohit33@gmail.com> | James Bell <james@stellentus.com> | James Bowman <james.edward.bowman@gmail.com> | James Holmes <32bitkid@gmail.com> | Janne Snabb <snabb@epipe.com> | Jeremy Atkinson <jchatkinson@gmail.com> | Jes Cok <xigua67damn@gmail.com> | Jinesi Yelizati <i63888888@163.com> | Jon Richards <noj.richards@gmail.com> | Jonas Kahler <jonas@derkahler.de> | Jonas Schulze <jonas.schulze@ovgu.de> | Jonathan Bluett-Duncan <jbluettduncan@gmail.com> | Jonathan J Lawlor <jonathan.lawlor@gmail.com> | Jonathan Reiter <jonreiter@gmail.com> | Jonathan Schroeder <jd.schroeder@gmail.com> | Joost van Amersfoort <git@joo.st> | Jordan Stoker <jordan_stoker@hotmail.com> | Joseph Watson <jtwatson@linux-consulting.us> | Josh Wilson <josh.craig.wilson@gmail.com> | Julien Roland <juroland@gmail.com> | Kai Trukenmüller <ktye78@gmail.com> | Kendall Marcus <knowmost@outlook.com> | Kent English <kent.english@gmail.com> | Kevin C. Zimmerman <kevinczimmerman@gmail.com> | Kirill Motkov <motkov.kirill@gmail.com> | Konstantin Shaposhnikov <k.shaposhnikov@gmail.com> | Leonid Kneller <recondite.matter@gmail.com> | Lyron Winderbaum <lyron.winderbaum@student.adelaide.edu.au> <armadilloa16@gmail.com> <lyron.winderbaum@uwa.edu.au> | Marco Leogrande <dark.knight.ita@gmail.com> | Mark Canning <argusdusty@gmail.com> | Mark Skilbeck <markskilbeck@gmail.com> | Martin Diz <github@martindiz.com.ar> | Matthew Connelly <matthew.b.connelly@gmail.com> | Matthieu Di Mercurio <matthieu.dimercurio@gmail.com> | Max Halford <maxhalford25@gmail.com> | Maxim Sergeev <gudvinr@gmail.com> | Microsoft Corporation | MinJae Kwon <k239507@gmail.com> | Nathan Edwards <etaoinshrdluwho@gmail.com> | Nick Potts <nick@the-potts.com> | Nils Wogatzky <odog@netcologne.de> | Olivier Wulveryck <olivier.wulveryck@gmail.com> | Or Rikon <rikonor@gmail.com> | Oskar Haarklou Veileborg <ohv1020@hotmail.com> | Patricio Whittingslow <graded.sp@gmail.com> | Patrick DeVivo <patrick@tickgit.com> | Pontus Melke <pontusmelke@gmail.com> | Renee French | Rishi Desai <desai.rishi1@gmail.com> | Robert Kleffner <rob.kleffner@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Roger Welin <roger.welin@icloud.com> | Roman Werpachowski <roman.werpachowski@gmail.com> | Rondall Jones <rejones7@gmail.com> | Sam Zaydel <szaydel@gmail.com> | Samuel Kelemen <Samuel@Kelemen.us> | Saran Ahluwalia <ahlusar.ahluwalia@gmail.com> | Scott Holden <scott@sshconnection.com> | Scott Kiesel <kiesel.scott@gmail.com> | Sebastien Binet <seb.binet@gmail.com> | Shawn Smith <shawnpsmith@gmail.com> | Sintela Ltd | Spencer Lyon <spencerlyon2@gmail.com> | Steve McCoy <mccoyst@gmail.com> | Taesu Pyo <pyotaesu@gmail.com> | Takeshi Yoneda <cz.rk.t0415y.g@gmail.com> | Tamir Hyman <hyman.tamir@gmail.com> | The University of Adelaide | The University of Minnesota | The University of Washington | Thomas Berg <tomfuture@gmail.com> | Tobin Harding <me@tobin.cc> | Tom Payne <twpayne@gmail.com> | Tristan Nicholls <tvk.nicholls@gmail.com> | Valentin Deleplace <deleplace2015@gmail.com> | Vincent Thiery <vjmthiery@gmail.com> | Vladimír Chalupecký <vladimir.chalupecky@gmail.com> | Will Tekulve <tekulve.will@gmail.com> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Yevgeniy Vahlis <evahlis@gmail.com> | Yucheng Zhu <zyctc000@gmail.com> | Yunomi <ynmtywn@gmail.com> | Zhan Shan Mao <zhanshanmao@outlook.com> | Zoe Juozapaitis | antichris <chris@u-d13.com> | source{d} <hello@sourced.tech>
 core,gonum.org/v1/gonum/blas/blas64,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gmail.com> | Andrei Blinnikov <goofinator@mail.ru> | Andrew Brampton <brampton@gmail.com> | Bailey Lissington <lissington4@gmail.com> | Bill Gray <wgray@gogray.com> | Bill Noon <noon.bill@gmail.com> | Brendan Tracey <tracey.brendan@gmail.com> | Brent Pedersen <bpederse@gmail.com> | Bulat Khasanov <afti@yandex.ru> | Chad Kunde <kunde21@gmail.com> | Chan Kwan Yin <sofe2038@gmail.com> | Chih-Wei Chang <bert.cwchang@gmail.com> | Chong-Yeol Nah <nahchongyeol@gmail.com> | Chris Tessum <ctessum@gmail.com> | Christophe Meessen <christophe.meessen@gmail.com> | Christopher Waldon <christopher.waldon.dev@gmail.com> | Clayton Northey <clayton.northey@gmail.com> | Coana ApS | Copyright ©2013 The Gonum Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> <dan@kortschak.io> | Dan Lorenc <lorenc.d@gmail.com> | Daniel Fireman <danielfireman@gmail.com> | Dario Heinisch <dario.heinisch@gmail.com> | David Kleiven <davidkleiven446@gmail.com> | David Samborski <bloggingarrow@gmail.com> | Davor Kapsa <davor.kapsa@gmail.com> | DeepMind Technologies | Delaney Gillilan <delaneygillilan@gmail.com> | Dezmond Goff <goff.dezmond@gmail.com> | Dirk Müller <dirk@dmllr.de> | Dong-hee Na <donghee.na92@gmail.com> | Dustin Spicuzza <dustin@virtualroadside.com> | Egon Elbre <egonelbre@gmail.com> | Ekaterina Efimova <katerina.efimova@gmail.com> | Eng Zer Jun <engzerjun@gmail.com> | Ethan Burns <burns.ethan@gmail.com> | Ethan Reesor <ethan.reesor@gmail.com> | Evert Lammerts <evert.lammerts@gmail.com> | Evgeny Savinov <notime.sea@gmail.com> | Fabian Wickborn <fabian@wickborn.net> | Facundo Gaich <facugaich@gmail.com> | Fazlul Shahriar <fshahriar@gmail.com> | Francesc Campoy <campoy@golang.org> | Google Inc | Gustaf Johansson <gustaf@pinon.se> | Hossein Zolfi <hossein.zolfi@gmail.com> | Huang Peng Fei <huangpengfei@outlook.com> | Iakov Davydov <iakov.davydov@unil.ch> | Igor Mikushkin <igor.mikushkin@gmail.com> | Iskander Sharipov <quasilyte@gmail.com> | Jack Tudbury | Jalem Raj Rohit <jrajrohit33@gmail.com> | James Bell <james@stellentus.com> | James Bowman <james.edward.bowman@gmail.com> | James Holmes <32bitkid@gmail.com> | Janne Snabb <snabb@epipe.com> | Jeremy Atkinson <jchatkinson@gmail.com> | Jes Cok <xigua67damn@gmail.com> | Jinesi Yelizati <i63888888@163.com> | Jon Richards <noj.richards@gmail.com> | Jonas Kahler <jonas@derkahler.de> | Jonas Schulze <jonas.schulze@ovgu.de> | Jonathan Bluett-Duncan <jbluettduncan@gmail.com> | Jonathan J Lawlor <jonathan.lawlor@gmail.com> | Jonathan Reiter <jonreiter@gmail.com> | Jonathan Schroeder <jd.schroeder@gmail.com> | Joost van Amersfoort <git@joo.st> | Jordan Stoker <jordan_stoker@hotmail.com> | Joseph Watson <jtwatson@linux-consulting.us> | Josh Wilson <josh.craig.wilson@gmail.com> | Julien Roland <juroland@gmail.com> | Kai Trukenmüller <ktye78@gmail.com> | Kendall Marcus <knowmost@outlook.com> | Kent English <kent.english@gmail.com> | Kevin C. Zimmerman <kevinczimmerman@gmail.com> | Kirill Motkov <motkov.kirill@gmail.com> | Konstantin Shaposhnikov <k.shaposhnikov@gmail.com> | Leonid Kneller <recondite.matter@gmail.com> | Lyron Winderbaum <lyron.winderbaum@student.adelaide.edu.au> <armadilloa16@gmail.com> <lyron.winderbaum@uwa.edu.au> | Marco Leogrande <dark.knight.ita@gmail.com> | Mark Canning <argusdusty@gmail.com> | Mark Skilbeck <markskilbeck@gmail.com> | Martin Diz <github@martindiz.com.ar> | Matthew Connelly <matthew.b.connelly@gmail.com> | Matthieu Di Mercurio <matthieu.dimercurio@gmail.com> | Max Halford <maxhalford25@gmail.com> | Maxim Sergeev <gudvinr@gmail.com> | Microsoft Corporation | MinJae Kwon <k239507@gmail.com> | Nathan Edwards <etaoinshrdluwho@gmail.com> | Nick Potts <nick@the-potts.com> | Nils Wogatzky <odog@netcologne.de> | Olivier Wulveryck <olivier.wulveryck@gmail.com> | Or Rikon <rikonor@gmail.com> | Oskar Haarklou Veileborg <ohv1020@hotmail.com> | Patricio Whittingslow <graded.sp@gmail.com> | Patrick DeVivo <patrick@tickgit.com> | Pontus Melke <pontusmelke@gmail.com> | Renee French | Rishi Desai <desai.rishi1@gmail.com> | Robert Kleffner <rob.kleffner@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Roger Welin <roger.welin@icloud.com> | Roman Werpachowski <roman.werpachowski@gmail.com> | Rondall Jones <rejones7@gmail.com> | Sam Zaydel <szaydel@gmail.com> | Samuel Kelemen <Samuel@Kelemen.us> | Saran Ahluwalia <ahlusar.ahluwalia@gmail.com> | Scott Holden <scott@sshconnection.com> | Scott Kiesel <kiesel.scott@gmail.com> | Sebastien Binet <seb.binet@gmail.com> | Shawn Smith <shawnpsmith@gmail.com> | Sintela Ltd | Spencer Lyon <spencerlyon2@gmail.com> | Steve McCoy <mccoyst@gmail.com> | Taesu Pyo <pyotaesu@gmail.com> | Takeshi Yoneda <cz.rk.t0415y.g@gmail.com> | Tamir Hyman <hyman.tamir@gmail.com> | The University of Adelaide | The University of Minnesota | The University of Washington | Thomas Berg <tomfuture@gmail.com> | Tobin Harding <me@tobin.cc> | Tom Payne <twpayne@gmail.com> | Tristan Nicholls <tvk.nicholls@gmail.com> | Valentin Deleplace <deleplace2015@gmail.com> | Vincent Thiery <vjmthiery@gmail.com> | Vladimír Chalupecký <vladimir.chalupecky@gmail.com> | Will Tekulve <tekulve.will@gmail.com> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Yevgeniy Vahlis <evahlis@gmail.com> | Yucheng Zhu <zyctc000@gmail.com> | Yunomi <ynmtywn@gmail.com> | Zhan Shan Mao <zhanshanmao@outlook.com> | Zoe Juozapaitis | antichris <chris@u-d13.com> | source{d} <hello@sourced.tech>
 core,gonum.org/v1/gonum/blas/cblas128,BSD-3-Clause,Alexander Egurnov <alexander.egurnov@gmail.com> | Andrei Blinnikov <goofinator@mail.ru> | Andrew Brampton <brampton@gmail.com> | Bailey Lissington <lissington4@gmail.com> | Bill Gray <wgray@gogray.com> | Bill Noon <noon.bill@gmail.com> | Brendan Tracey <tracey.brendan@gmail.com> | Brent Pedersen <bpederse@gmail.com> | Bulat Khasanov <afti@yandex.ru> | Chad Kunde <kunde21@gmail.com> | Chan Kwan Yin <sofe2038@gmail.com> | Chih-Wei Chang <bert.cwchang@gmail.com> | Chong-Yeol Nah <nahchongyeol@gmail.com> | Chris Tessum <ctessum@gmail.com> | Christophe Meessen <christophe.meessen@gmail.com> | Christopher Waldon <christopher.waldon.dev@gmail.com> | Clayton Northey <clayton.northey@gmail.com> | Coana ApS | Copyright ©2013 The Gonum Authors. All rights reserved | Dan Kortschak <dan.kortschak@adelaide.edu.au> <dan@kortschak.io> | Dan Lorenc <lorenc.d@gmail.com> | Daniel Fireman <danielfireman@gmail.com> | Dario Heinisch <dario.heinisch@gmail.com> | David Kleiven <davidkleiven446@gmail.com> | David Samborski <bloggingarrow@gmail.com> | Davor Kapsa <davor.kapsa@gmail.com> | DeepMind Technologies | Delaney Gillilan <delaneygillilan@gmail.com> | Dezmond Goff <goff.dezmond@gmail.com> | Dirk Müller <dirk@dmllr.de> | Dong-hee Na <donghee.na92@gmail.com> | Dustin Spicuzza <dustin@virtualroadside.com> | Egon Elbre <egonelbre@gmail.com> | Ekaterina Efimova <katerina.efimova@gmail.com> | Eng Zer Jun <engzerjun@gmail.com> | Ethan Burns <burns.ethan@gmail.com> | Ethan Reesor <ethan.reesor@gmail.com> | Evert Lammerts <evert.lammerts@gmail.com> | Evgeny Savinov <notime.sea@gmail.com> | Fabian Wickborn <fabian@wickborn.net> | Facundo Gaich <facugaich@gmail.com> | Fazlul Shahriar <fshahriar@gmail.com> | Francesc Campoy <campoy@golang.org> | Google Inc | Gustaf Johansson <gustaf@pinon.se> | Hossein Zolfi <hossein.zolfi@gmail.com> | Huang Peng Fei <huangpengfei@outlook.com> | Iakov Davydov <iakov.davydov@unil.ch> | Igor Mikushkin <igor.mikushkin@gmail.com> | Iskander Sharipov <quasilyte@gmail.com> | Jack Tudbury | Jalem Raj Rohit <jrajrohit33@gmail.com> | James Bell <james@stellentus.com> | James Bowman <james.edward.bowman@gmail.com> | James Holmes <32bitkid@gmail.com> | Janne Snabb <snabb@epipe.com> | Jeremy Atkinson <jchatkinson@gmail.com> | Jes Cok <xigua67damn@gmail.com> | Jinesi Yelizati <i63888888@163.com> | Jon Richards <noj.richards@gmail.com> | Jonas Kahler <jonas@derkahler.de> | Jonas Schulze <jonas.schulze@ovgu.de> | Jonathan Bluett-Duncan <jbluettduncan@gmail.com> | Jonathan J Lawlor <jonathan.lawlor@gmail.com> | Jonathan Reiter <jonreiter@gmail.com> | Jonathan Schroeder <jd.schroeder@gmail.com> | Joost van Amersfoort <git@joo.st> | Jordan Stoker <jordan_stoker@hotmail.com> | Joseph Watson <jtwatson@linux-consulting.us> | Josh Wilson <josh.craig.wilson@gmail.com> | Julien Roland <juroland@gmail.com> | Kai Trukenmüller <ktye78@gmail.com> | Kendall Marcus <knowmost@outlook.com> | Kent English <kent.english@gmail.com> | Kevin C. Zimmerman <kevinczimmerman@gmail.com> | Kirill Motkov <motkov.kirill@gmail.com> | Konstantin Shaposhnikov <k.shaposhnikov@gmail.com> | Leonid Kneller <recondite.matter@gmail.com> | Lyron Winderbaum <lyron.winderbaum@student.adelaide.edu.au> <armadilloa16@gmail.com> <lyron.winderbaum@uwa.edu.au> | Marco Leogrande <dark.knight.ita@gmail.com> | Mark Canning <argusdusty@gmail.com> | Mark Skilbeck <markskilbeck@gmail.com> | Martin Diz <github@martindiz.com.ar> | Matthew Connelly <matthew.b.connelly@gmail.com> | Matthieu Di Mercurio <matthieu.dimercurio@gmail.com> | Max Halford <maxhalford25@gmail.com> | Maxim Sergeev <gudvinr@gmail.com> | Microsoft Corporation | MinJae Kwon <k239507@gmail.com> | Nathan Edwards <etaoinshrdluwho@gmail.com> | Nick Potts <nick@the-potts.com> | Nils Wogatzky <odog@netcologne.de> | Olivier Wulveryck <olivier.wulveryck@gmail.com> | Or Rikon <rikonor@gmail.com> | Oskar Haarklou Veileborg <ohv1020@hotmail.com> | Patricio Whittingslow <graded.sp@gmail.com> | Patrick DeVivo <patrick@tickgit.com> | Pontus Melke <pontusmelke@gmail.com> | Renee French | Rishi Desai <desai.rishi1@gmail.com> | Robert Kleffner <rob.kleffner@gmail.com> | Robin Eklind <r.eklind.87@gmail.com> | Roger Welin <roger.welin@icloud.com> | Roman Werpachowski <roman.werpachowski@gmail.com> | Rondall Jones <rejones7@gmail.com> | Sam Zaydel <szaydel@gmail.com> | Samuel Kelemen <Samuel@Kelemen.us> | Saran Ahluwalia <ahlusar.ahluwalia@gmail.com> | Scott Holden <scott@sshconnection.com> | Scott Kiesel <kiesel.scott@gmail.com> | Sebastien Binet <seb.binet@gmail.com> | Shawn Smith <shawnpsmith@gmail.com> | Sintela Ltd | Spencer Lyon <spencerlyon2@gmail.com> | Steve McCoy <mccoyst@gmail.com> | Taesu Pyo <pyotaesu@gmail.com> | Takeshi Yoneda <cz.rk.t0415y.g@gmail.com> | Tamir Hyman <hyman.tamir@gmail.com> | The University of Adelaide | The University of Minnesota | The University of Washington | Thomas Berg <tomfuture@gmail.com> | Tobin Harding <me@tobin.cc> | Tom Payne <twpayne@gmail.com> | Tristan Nicholls <tvk.nicholls@gmail.com> | Valentin Deleplace <deleplace2015@gmail.com> | Vincent Thiery <vjmthiery@gmail.com> | Vladimír Chalupecký <vladimir.chalupecky@gmail.com> | Will Tekulve <tekulve.will@gmail.com> | Yasuhiro Matsumoto <mattn.jp@gmail.com> | Yevgeniy Vahlis <evahlis@gmail.com> | Yucheng Zhu <zyctc000@gmail.com> | Yunomi <ynmtywn@gmail.com> | Zhan Shan Mao <zhanshanmao@outlook.com> | Zoe Juozapaitis | antichris <chris@u-d13.com> | source{d} <hello@sourced.tech>
@@ -2845,7 +2778,6 @@ core,google.golang.org/grpc/balancer/endpointsharding,Apache-2.0,Copyright 2014 
 core,google.golang.org/grpc/balancer/grpclb/state,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/pickfirst/internal,Apache-2.0,Copyright 2014 gRPC authors.
-core,google.golang.org/grpc/balancer/pickfirst/pickfirstleaf,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/balancer/roundrobin,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/binarylog/grpc_binarylog_v1,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/channelz,Apache-2.0,Copyright 2014 gRPC authors.
@@ -2855,6 +2787,7 @@ core,google.golang.org/grpc/credentials,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/credentials/insecure,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/gzip,Apache-2.0,Copyright 2014 gRPC authors.
+core,google.golang.org/grpc/encoding/internal,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/encoding/proto,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/helloworld/helloworld,Apache-2.0,Copyright 2014 gRPC authors.
 core,google.golang.org/grpc/examples/route_guide/routeguide,Apache-2.0,Copyright 2014 gRPC authors.
@@ -3870,6 +3803,7 @@ core,k8s.io/client-go/util/homedir,Apache-2.0,Copyright 2014 The Kubernetes Auth
 core,k8s.io/client-go/util/keyutil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/retry,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/util/workqueue,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/cloud-provider/api,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/cli/flag,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/compatibility,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/featuregate,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3893,8 +3827,11 @@ core,k8s.io/component-base/zpages/features,Apache-2.0,Copyright 2014 The Kuberne
 core,k8s.io/component-base/zpages/flagz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/zpages/httputil,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/component-base/zpages/statusz,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/component-helpers/resource,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-api/pkg/apis/runtime/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/cri-client/pkg/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/csi-translation-lib,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/csi-translation-lib/plugins,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/buffer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/klog/v2/internal/clock,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -3979,10 +3916,50 @@ core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client,Apache-2
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/common/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/builder,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/cache,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/cache/internal,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/certwatcher,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/certwatcher/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/client,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/client/apiutil,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/client/config,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/cluster,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/config,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/controller,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/controller/controllerutil,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/controller/priorityqueue,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/conversion,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/event,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/handler,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/healthz,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/controller,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/controller/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/field/selector,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/httpserver,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/internal/log,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/recorder,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/source,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/internal/syncs,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/leaderelection,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/log,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/manager,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/manager/signals,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/metrics/server,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/predicate,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/reconcile,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/recorder,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/controller-runtime/pkg/scheme,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/source,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/webhook,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/webhook/admission,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/webhook/admission/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/webhook/conversion,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/webhook/conversion/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/controller-runtime/pkg/webhook/internal/metrics,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver/endpoints/handlers,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/custom-metrics-apiserver/pkg/apiserver/installer,Apache-2.0,Copyright 2017 The Kubernetes Authors.
@@ -4003,6 +3980,15 @@ core,sigs.k8s.io/gateway-api/apis/v1alpha2,Apache-2.0,Copyright 2017 The Kuberne
 core,sigs.k8s.io/gateway-api/apis/v1beta1,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/json/internal/golang/encoding/json,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/apis,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/apis/v1,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/cloudprovider,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/operator/options,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/scheduling,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/utils/env,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/utils/pretty,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/utils/resources,Apache-2.0,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/karpenter/pkg/utils/volume,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/randfill,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/randfill/bytesource,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v6/fieldpath,Apache-2.0,Copyright 2017 The Kubernetes Authors.

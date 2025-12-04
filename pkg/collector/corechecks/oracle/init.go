@@ -9,8 +9,10 @@ package oracle
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,7 +32,7 @@ func (c *Check) init() error {
 	copy(tags, c.configTags)
 
 	if c.db == nil {
-		return fmt.Errorf("database connection not initialized")
+		return errors.New("database connection not initialized")
 	}
 
 	var i vInstance
@@ -61,9 +63,9 @@ func (c *Check) init() error {
 	}
 
 	if i.HostName.Valid {
-		tags = append(tags, fmt.Sprintf("real_hostname:%s", i.HostName.String))
+		tags = append(tags, "real_hostname:"+i.HostName.String)
 	}
-	tags = append(tags, fmt.Sprintf("oracle_version:%s", c.dbVersion))
+	tags = append(tags, "oracle_version:"+c.dbVersion)
 
 	var d vDatabase
 	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
@@ -76,7 +78,7 @@ func (c *Check) init() error {
 		return fmt.Errorf("%s failed to query v$database: %w", c.logPrompt, err)
 	}
 	c.cdbName = d.Name
-	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
+	tags = append(tags, "cdb:"+c.cdbName)
 
 	if c.config.ReportedHostname != "" {
 		c.dbResolvedHostname = c.config.ReportedHostname
@@ -92,7 +94,7 @@ func (c *Check) init() error {
 	c.dbInstanceIdentifier = c.createDatabaseIdentifier()
 	tags = append(tags, "database_instance:"+c.dbInstanceIdentifier)
 
-	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s", c.dbHostname))
+	tags = append(tags, "dd.internal.resource:database_instance:"+c.dbHostname)
 	isMultitenant := true
 	if d.Cdb == "NO" {
 		isMultitenant = false
@@ -198,7 +200,7 @@ func (c *Check) createDatabaseIdentifier() string {
 	}
 	tags["resolved_hostname"] = c.dbResolvedHostname
 	tags["server"] = c.config.Server
-	tags["port"] = fmt.Sprintf("%d", c.config.Port)
+	tags["port"] = strconv.Itoa(c.config.Port)
 	tags["cdb_name"] = c.cdbName
 	tags["service_name"] = c.config.ServiceName
 

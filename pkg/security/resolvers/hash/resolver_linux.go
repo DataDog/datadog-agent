@@ -37,7 +37,7 @@ import (
 
 var (
 	// ErrSizeLimitReached indicates that the size limit was reached
-	ErrSizeLimitReached = fmt.Errorf("size limit reached")
+	ErrSizeLimitReached = errors.New("size limit reached")
 )
 
 // SizeLimitedWriter implements io.Writer and returns an error if more than the configured amount of data is read
@@ -293,8 +293,14 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	)
 	for _, pidCandidate := range rootPIDs {
 		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
-		if mode, size, fkey, lastErr = getFileInfo(path); !mode.IsRegular() {
+		mode, size, fkey, lastErr = getFileInfo(path)
+		if lastErr != nil {
 			continue
+		}
+
+		if !mode.IsRegular() {
+			// the file is not regular, break out early and the error will be reported in the `if f == nil` check
+			break
 		}
 
 		if _, ok := failedCache[fkey]; ok {
@@ -303,10 +309,13 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 		}
 
 		f, lastErr = os.Open(path)
-		if lastErr == nil {
-			break
+		if lastErr != nil {
+			failedCache[fkey] = struct{}{}
+			continue
 		}
-		failedCache[fkey] = struct{}{}
+
+		// we manage to open the file
+		break
 	}
 	if lastErr != nil {
 		rateReservation.Cancel()

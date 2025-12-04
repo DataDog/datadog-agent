@@ -272,6 +272,7 @@ if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
+  extra_package_file "#{install_dir}/.install_root"
 end
 
 # all flavors use the same package scripts

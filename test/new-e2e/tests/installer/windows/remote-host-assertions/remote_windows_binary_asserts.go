@@ -8,10 +8,11 @@ package assertions
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
 // RemoteWindowsBinaryAssertions is a type that extends the RemoteWindowsHostAssertions to add assertions

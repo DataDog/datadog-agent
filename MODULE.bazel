@@ -2,6 +2,8 @@
 
 http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 
+visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
+
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
 bazel_dep(name = "package_metadata", version = "0.0.6")
@@ -32,7 +34,7 @@ bazel_dep(name = "rules_shell", version = "0.6.1")
 # Temporary until a future rules_pkg release
 git_override(
     module_name = "rules_pkg",
-    commit = "daa496412d12598d6b24619a9a6cd6fc137de384",
+    commit = "2fab459c805e3f171284856aebb0ceaca2c0ff08",
     remote = "https://github.com/bazelbuild/rules_pkg",
 )
 
@@ -50,7 +52,10 @@ http_archive(
     ],
     sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
     strip_prefix = "buildtools-8.2.1",
-    urls = ["https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz"],
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/buildtools-8.2.1.tar.gz",
+        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz",
+    ],
 )
 
 bazel_dep(name = "rules_multitool", version = "1.9.0")
@@ -74,6 +79,7 @@ git_override(
     commit = "e736410ced16744922c11762783b7c1fdddf620c",
     patch_args = ["-p1"],
     patches = [
+        "//bazel/patches:gcc-toolchain/0000-fix-no-repository-visible-as-@.patch",
         "//bazel/patches:gcc-toolchain/0001-Remove-fortran-related-actions-adapt-to-our-ctng-too.patch",
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
@@ -102,6 +108,13 @@ register_toolchains(
     "@gcc_toolchain_x86_64//:cc_toolchain",
     "@gcc_toolchain_aarch64//:cc_toolchain",
     "//bazel/toolchains/mingw:mingw_cc_toolchain",
+)
+
+# Visual Studio / MSBuild tooling, taken from the local installation
+visual_studio(
+    name = "visual_studio",
+    path_variable = "VSTUDIO_ROOT",
+    version = "17.14.36717.8",
 )
 
 # =========================================
@@ -140,7 +153,35 @@ register_toolchains("@pythons_hub//:all")
 #########################
 
 # Make our 3rd parties depencency repositories known
+# bazel mod tidy command adds a new line between includes.
+# buildifier eliminates them. If we treat mod tidy as a code formatter
+# for MODULE.bazel, we need to leave-alone the includes so that buildifier
+# doesn't fail nor re-format them.
+# buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
-include("//deps/openssl3:openssl3.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/compile_policy:compile_policy.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/openssl3:openssl3.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/libpcap:libpcap.MODULE.bazel")
+include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
+
+# This enables cross-compilation for macOS x86_64 on Apple Silicon.
+# Simply add --platforms=@apple_support//platforms:macos_x86_64
+# to the build command to enable it.
+bazel_dep(name = "apple_support", version = "1.23.1")
+
+use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")

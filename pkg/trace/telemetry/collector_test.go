@@ -7,6 +7,7 @@ package telemetry
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -115,7 +116,7 @@ func TestTelemetryDisabled(t *testing.T) {
 	server.assertReq = func(_ *http.Request) {
 		t.Fail()
 	}
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 	collector.SendStartupSuccess()
 }
 
@@ -134,7 +135,7 @@ func TestTelemetryPath(t *testing.T) {
 		path = req.URL.Path
 	}
 
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 	collector.SendStartupSuccess()
 
 	assert.Equal(t, 1, reqCount)
@@ -150,7 +151,7 @@ func TestNoSuccessAfterError(t *testing.T) {
 
 	receiver := newOnboardingEventReceiver(server, t)
 
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 	collector.SendStartupSuccess()
 
 	events := receiver.waitN(1, t)
@@ -167,7 +168,7 @@ func TestErrorAfterSuccess(t *testing.T) {
 	receiver := newOnboardingEventReceiver(server, t)
 
 	collector.SendStartupSuccess()
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 
 	events := receiver.waitN(2, t)
 	assert.Equal(t, "agent.startup.success", events[0].Payload.EventName)

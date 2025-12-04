@@ -86,7 +86,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -119,7 +119,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -143,7 +143,7 @@ func commonReloadPoliciesCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -161,7 +161,7 @@ func selfTestCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -192,7 +192,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot("SYS-PROBE", "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -228,7 +228,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -267,7 +267,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -294,7 +294,7 @@ func discardersCommands(_ *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(""),
-					LogParams:    log.ForOneShot("SYS-PROBE", "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
@@ -564,7 +564,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 
 	// Extract and merge rules from custom policies
-	var customRules string
+	var customRulesBuilder strings.Builder
 	for _, customPolicy := range customPolicies {
 		customPolicyLines := strings.Split(customPolicy, "\n")
 		rulesIndex := -1
@@ -575,9 +575,11 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 			}
 		}
 		if rulesIndex != -1 && rulesIndex+1 < len(customPolicyLines) {
-			customRules += "\n" + strings.Join(customPolicyLines[rulesIndex+1:], "\n")
+			customRulesBuilder.WriteString("\n")
+			customRulesBuilder.WriteString(strings.Join(customPolicyLines[rulesIndex+1:], "\n"))
 		}
 	}
+	customRules := customRulesBuilder.String()
 
 	// Output depending on user's specification
 	var outputContent string

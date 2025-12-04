@@ -21,9 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 )
 
 type baseSuite[Env any] struct {
@@ -105,7 +105,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testMetric %s", prettyMetricQuery)),
+				Title: pointer.Ptr("testMetric " + prettyMetricQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -234,7 +234,7 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testLog %s", prettyLogQuery)),
+				Title: pointer.Ptr("testLog " + prettyLogQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -363,7 +363,7 @@ func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testCheckRun %s", prettyCheckRunQuery)),
+				Title: pointer.Ptr("testCheckRun " + prettyCheckRunQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 
@@ -476,7 +476,7 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 			})
 
 			if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
-				Title: pointer.Ptr(fmt.Sprintf("testEvent %s", prettyEventQuery)),
+				Title: pointer.Ptr("testEvent " + prettyEventQuery),
 				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
 ### Result
 

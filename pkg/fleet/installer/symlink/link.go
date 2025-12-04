@@ -8,6 +8,7 @@ package symlink
 
 import (
 	"errors"
+	"fmt"
 	"os"
 )
 
@@ -18,11 +19,14 @@ func Read(linkPath string) (string, error) {
 
 // Exist checks if a link exists.
 func Exist(linkPath string) (bool, error) {
-	_, err := os.Stat(linkPath)
+	fileInfo, err := os.Lstat(linkPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
 		return false, err
+	}
+	if fileInfo.Mode()&os.ModeSymlink == 0 {
+		return false, fmt.Errorf("path %s is not a symlink, mode: %s", linkPath, fileInfo.Mode())
 	}
 	return true, nil
 }

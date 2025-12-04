@@ -8,7 +8,7 @@ package service
 import (
 	"encoding/base32"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
@@ -61,7 +61,7 @@ func getRemoteConfigAuthKeys(apiKey string, rcKey string, parJWT string) (remote
 		return remoteConfigAuthKeys{}, err
 	}
 	if key.AppKey == "" || key.Datacenter == "" || key.OrgID == 0 {
-		return remoteConfigAuthKeys{}, fmt.Errorf("invalid remote config key")
+		return remoteConfigAuthKeys{}, errors.New("invalid remote config key")
 	}
 	return remoteConfigAuthKeys{
 		apiKey:   apiKey,

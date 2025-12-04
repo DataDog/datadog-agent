@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -467,10 +468,10 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 
 			// Validate the output.
 			if test.expected == nil {
-				require.Nil(t, actual)
+				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			}
 		})
 	}
@@ -865,4 +866,12 @@ func newTestNamespace(name string, labels map[string]string) workloadmeta.Kubern
 			Labels: labels,
 		},
 	}
+}
+
+func languageSetOf(languages ...string) languagemodels.LanguageSet {
+	set := languagemodels.LanguageSet{}
+	for _, l := range languages {
+		_ = set.Add(languagemodels.LanguageName(l))
+	}
+	return set
 }

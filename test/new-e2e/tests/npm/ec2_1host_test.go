@@ -10,17 +10,16 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	"github.com/DataDog/test-infra-definitions/components/docker"
-	"github.com/DataDog/test-infra-definitions/resources/aws"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 )
 
 type hostHttpbinEnv struct {
@@ -32,20 +31,22 @@ type ec2VMSuite struct {
 	e2e.BaseSuite[hostHttpbinEnv]
 }
 
-func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
+func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRunFunc[hostHttpbinEnv] {
 	return func(ctx *pulumi.Context, env *hostHttpbinEnv) error {
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-		opts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+		opts := []ec2.Option{
+			ec2.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 		}
 		if len(opt) > 0 {
 			opts = append(opts, opt...)
 		}
-		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, awshost.RunParams{Environment: &awsEnv, ProvisionerParams: params})
+		params := ec2.GetParams(opts...)
+		if err := ec2.Run(ctx, awsEnv, &env.Host, params); err != nil {
+			return err
+		}
 
 		vmName := "httpbinvm"
 
