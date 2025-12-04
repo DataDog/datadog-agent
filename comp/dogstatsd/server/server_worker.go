@@ -78,7 +78,9 @@ func (w *worker) run() {
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
+			w.filterListMtx.RLock()
 			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.filterListMtx.RUnlock()
 		}
 
 	}
