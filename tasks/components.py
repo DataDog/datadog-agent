@@ -127,6 +127,7 @@ components_classic_style = [
     'comp/core/telemetry/noopsimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
+    'comp/dogstatsd/serverDebug/serverdebugimpltopk',
     'comp/dogstatsd/status/statusimpl',
     'comp/etw/impl',
     'comp/forwarder/eventplatform/eventplatformimpl',
