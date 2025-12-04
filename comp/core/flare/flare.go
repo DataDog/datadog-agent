@@ -137,7 +137,7 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID), false)
 	return true, err
 }
 
@@ -191,10 +191,31 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 }
 
 // Send sends a flare archive to Datadog
-func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource) (string, error) {
+func (f *flare) Send(flarePath string, caseID string, email string, source helpers.FlareSource, detectFalsePositive bool) (string, error) {
 	// For now this is a wrapper around helpers.SendFlare since some code hasn't migrated to FX yet.
 	// The `source` is the reason why the flare was created, for now it's either local or remote-config
-	return helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+
+	// Send flare to Datadog Support Endpoint
+	result, err := helpers.SendTo(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+	if err != nil {
+		return result, fmt.Errorf("failed to send flare to Datadog: %s", err)
+	}
+
+	// Send flare to Processes False Positive Analyze Endpoint if enabled
+	if detectFalsePositive {
+		analyzeResult, analyzeErr := helpers.SendToAnalyze(f.config, flarePath, caseID, email, f.config.GetString("api_key"), utils.GetInfraEndpoint(f.config), source)
+		if analyzeErr != nil {
+			// Log the error but don't fail the whole operation since the main flare succeeded
+			f.log.Warnf("Failed to send flare to analyze endpoint for false positive detection: %s", analyzeErr)
+			result = fmt.Sprintf("%s\nWarning: Failed to send to analyze endpoint: %s", result, analyzeErr)
+		} else {
+			// Combine both results to inform the user
+			f.log.Infof("Flare successfully sent to analyze endpoint for false positive detection")
+			result = fmt.Sprintf("%s\nAnalyze endpoint: %s", result, analyzeResult)
+		}
+	}
+
+	return result, nil
 }
 
 // Create creates a new flare and returns the path to the final archive file.

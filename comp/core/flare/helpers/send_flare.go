@@ -29,8 +29,9 @@ import (
 )
 
 var (
-	datadogSupportURL = "/support/flare"
-	httpTimeout       = time.Duration(60) * time.Second
+	datadogSupportURL        = "/support/flare"
+	datadogSupportAnalyzeURL = "/support/flare/analyze"
+	httpTimeout              = time.Duration(60) * time.Second
 )
 
 // any modification to this struct should also be applied to datadog-agent/test/fakeintake/server/body.go
@@ -38,6 +39,7 @@ type flareResponse struct {
 	CaseID      int    `json:"case_id,omitempty"`
 	Error       string `json:"error,omitempty"`
 	RequestUUID string `json:"request_uuid,omitempty"`
+	JiraTicket  string `json:"jira_ticket,omitempty"`
 }
 
 // FlareSource has metadata about why the flare was sent
@@ -206,7 +208,13 @@ func analyzeResponse(r *http.Response, apiKey string) (string, error) {
 		return response, errors.New(res.Error)
 	}
 
-	return fmt.Sprintf("Your logs were successfully uploaded. For future reference, your internal case id is %d", res.CaseID), nil
+	// If detecting false positives along with the flare, also link the jira ticket
+	response := fmt.Sprintf("Your logs were successfully uploaded. For future reference, your internal case id is %d", res.CaseID)
+	if res.JiraTicket != "" {
+		response += fmt.Sprintf("\nFollow this Jira Ticket for process false positive detection results: %s", res.JiraTicket)
+	}
+
+	return response, nil
 }
 
 // Resolve a flare URL to the URL at which a POST should be made.  This uses a HEAD request
@@ -295,6 +303,71 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		return analyzeResponse(r, apiKey)
 	}
 	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
+}
+
+// SendToAnalyze sends a flare file to the analyze endpoint for false positive detection.
+func SendToAnalyze(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url string, source FlareSource) (string, error) {
+	hostname, err := hostnameUtil.Get(context.TODO())
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	apiKey = configUtils.SanitizeAPIKey(apiKey)
+
+	// Check for analyze-specific URL override
+	// This is used to allow for overriding to local host so that we can test the analyze endpoint without having to deploy any services to Datadog.
+	analyzeBaseURL := url
+	if cfg.IsConfigured("flare_analyze_url") && cfg.GetString("flare_analyze_url") != "" {
+		analyzeBaseURL = cfg.GetString("flare_analyze_url")
+	}
+
+	baseURL, _ := configUtils.AddAgentVersionToDomain(analyzeBaseURL, "flare")
+
+	transport := httputils.CreateHTTPTransport(cfg)
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   httpTimeout,
+	}
+
+	// Use the analyze endpoint instead of the regular flare endpoint
+	analyzeURL := baseURL + datadogSupportAnalyzeURL
+	if caseID != "" {
+		analyzeURL += "/" + caseID
+	}
+
+	analyzeURL, err = resolveFlarePOSTURL(analyzeURL, client, apiKey)
+	if err != nil {
+		return "", err
+	}
+
+	// Retry logic for the actual flare file posting
+	var lastErr error
+	var baseDelay = 1 * time.Second
+
+	for attempt := 3; attempt > 0; attempt-- {
+		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, analyzeURL, source, client, apiKey)
+		if err != nil {
+			// Always close the response body if it exists
+			statusCode := 0
+			if r != nil {
+				statusCode = r.StatusCode
+				r.Body.Close()
+			}
+			lastErr = err
+
+			if !isRetryableFlareError(err, statusCode) {
+				return "", err
+			}
+			log.Warn("Failed to send flare to analyze endpoint, retrying in 1 second")
+			time.Sleep(baseDelay)
+			continue
+		}
+
+		// Success case - analyze the response
+		defer r.Body.Close()
+		return analyzeResponse(r, apiKey)
+	}
+	return "", fmt.Errorf("failed to send flare to analyze endpoint after 3 attempts: %w", lastErr)
 }
 
 func isRetryableFlareError(err error, statusCode int) bool {
