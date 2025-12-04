@@ -20,7 +20,7 @@ const (
 	defaultMinCollectionInterval = 300
 )
 
-// Check is the battery check for Windows
+// Check is the battery check
 type Check struct {
 	core.CheckBase
 }
