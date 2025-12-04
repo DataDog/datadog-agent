@@ -109,6 +109,7 @@ configure_make(
         "@platforms//os:windows": [
             WIN_LIBSSL,
             WIN_LIBCRYPTO,
+            "openssl.exe",
         ],
         "//conditions:default": [],
     }),
@@ -172,6 +173,20 @@ pkg_files(
 )
 
 filegroup(
+    name = "openssl_exe",
+    srcs = [":openssl"],
+    output_group = "openssl.exe",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+pkg_files(
+    name = "openssl_exe_file",
+    srcs = [":openssl_exe"],
+    prefix = "bin",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+filegroup(
     name = "pkgconfig_dir",
     srcs = [":openssl"],
     output_group = "pkgconfig",
@@ -181,12 +196,14 @@ filegroup(
     name = "libcrypto_dll_a",
     srcs = [":openssl"],
     output_group = "libcrypto.dll.a",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 filegroup(
     name = "libssl_dll_a",
     srcs = [":openssl"],
     output_group = "libssl.dll.a",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
@@ -196,6 +213,7 @@ pkg_files(
         ":libssl_dll_a",
     ],
     prefix = "lib",
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 pkg_files(
@@ -208,9 +226,15 @@ pkg_install(
     name = "install",
     srcs = [
         ":openssl_hdr_files",
-        ":openssl_pkgconfig",
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
-        ":dll_a",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            ":dll_a",
+            ":openssl_exe_file",
+        ],
+        "//conditions:default": [
+            ":openssl_pkgconfig",
+        ],
+    }),
 )
