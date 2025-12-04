@@ -500,7 +500,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DBM_TAG", "usedbm")
-				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_global_view_db_TAG", "dbtag")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_GLOBAL_VIEW_DB_TAG", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
