@@ -31,9 +31,6 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 func TestGetTraceroute(t *testing.T) {
-	// Setup config for hostname
-	pkgconfigsetup.Datadog().SetWithoutSource("hostname", "test-agent-hostname")
-
 	expectedDest := payload.NetworkPathDestination{
 		Hostname: "example.com",
 		Port:     80,
@@ -47,9 +44,6 @@ func TestGetTraceroute(t *testing.T) {
 
 	jsonBytes, err := json.Marshal(expectedPath)
 	require.NoError(t, err)
-
-	// Update expectedPath with the expected source hostname
-	expectedPath.Source.Hostname = "test-agent-hostname"
 
 	client := &http.Client{
 		Transport: &mockTransport{

@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 func getTraceroute(ctx context.Context, sysProbeClient *http.Client, clientID string, cfg config.Config) (payload.NetworkPath, error) {
@@ -27,11 +26,5 @@ func getTraceroute(ctx context.Context, sysProbeClient *http.Client, clientID st
 	if err = json.Unmarshal(resp, &path); err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("error unmarshalling response: %w", err)
 	}
-	agentHostname, err := hostname.Get(context.TODO())
-	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("error getting the hostname: %w", err)
-	}
-
-	path.Source.Hostname = agentHostname
 	return path, nil
 }
