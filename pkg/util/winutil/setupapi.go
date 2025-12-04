@@ -32,6 +32,15 @@ type SP_DEVICE_INTERFACE_DATA struct {
 	Reserved           uintptr
 }
 
+// SP_DEVICE_INTERFACE_DETAIL_DATA contains the path for a device interface.
+// The size of the structure is variable, and the cbSize field is used to determine the size of the structure.
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/setupapi/ns-setupapi-sp_device_interface_detail_data_w
+type SP_DEVICE_INTERFACE_DETAIL_DATA struct {
+	CbSize     uint32
+	DevicePath *uint16
+}
+
 //revive:enable:var-naming
 
 // SetupDiEnumDeviceInterfaces enumerates the device interfaces that are contained in a device information set.
@@ -57,7 +66,7 @@ func SetupDiEnumDeviceInterfaces(deviceInfoSet windows.DevInfo, interfaceClassGU
 // SetupDiGetDeviceInterfaceDetail returns details about a device interface.
 //
 // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdigetdeviceinterfacedetailw
-func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.DevInfo, deviceInterfaceData *SP_DEVICE_INTERFACE_DATA, deviceInterfaceDetailData *byte, deviceInterfaceDetailDataSize uint32, requiredSize *uint32) error {
+func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.DevInfo, deviceInterfaceData *SP_DEVICE_INTERFACE_DATA, deviceInterfaceDetailData *SP_DEVICE_INTERFACE_DETAIL_DATA, deviceInterfaceDetailDataSize uint32, requiredSize *uint32) error {
 	r0, _, e1 := procSetupDiGetDeviceInterfaceDetail.Call(
 		uintptr(deviceInfoSet),
 		uintptr(unsafe.Pointer(deviceInterfaceData)),

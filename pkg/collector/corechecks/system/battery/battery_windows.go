@@ -110,6 +110,7 @@ type BATTERY_WAIT_STATUS struct {
 type BatteryInfo struct {
 	DesignedCapacity    float64
 	FullChargedCapacity float64
+	MaximumCapacityPct  float64
 	CycleCount          float64
 	CurrentCharge       float64
 	Voltage             float64
@@ -158,6 +159,7 @@ func (c *Check) Run() error {
 
 	sender.Gauge("system.battery.designed_capacity", info.DesignedCapacity, "", nil)
 	sender.Gauge("system.battery.maximum_capacity", info.FullChargedCapacity, "", nil)
+	sender.Gauge("system.battery.maximum_capacity_pct", info.MaximumCapacityPct, "", nil)
 	sender.Gauge("system.battery.cycle_count", info.CycleCount, "", nil)
 	sender.Gauge("system.battery.current_charge", info.CurrentCharge, "", nil)
 	sender.Gauge("system.battery.voltage", info.Voltage, "", nil)
@@ -235,16 +237,34 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 
 		// Allocate buffer
 		buf := make([]byte, required)
-		*(*uint32)(unsafe.Pointer(&buf[0])) = 8 // sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) on x64
 
-		err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, &ifData, &buf[0], required, nil)
+		// Windows SP_DEVICE_INTERFACE_DETAIL_DATA structure:
+		//   DWORD cbSize (4 bytes)
+		//   WCHAR DevicePath[1] (2 bytes for first char)
+		// The structure size is: sizeof(uint32) + sizeof(uint16) = 6 bytes
+		// Windows aligns this to pointer size on 64-bit (8 bytes), but structure is still 6 bytes on 32-bit
+		// ref: https://stackoverflow.com/questions/10728644
+		cbSizeBase := unsafe.Sizeof(uint32(0)) + unsafe.Sizeof(uint16(0))
+		ptrSize := unsafe.Sizeof(uintptr(0))
+		cbSizeValue := uint32(cbSizeBase)
+		if ptrSize > cbSizeBase {
+			cbSizeValue = uint32(ptrSize)
+		}
+
+		// Write cbSize directly to the buffer (first 4 bytes)
+		*(*uint32)(unsafe.Pointer(&buf[0])) = cbSizeValue
+
+		// Cast buffer to structure pointer for the API call
+		interfaceDetailData := (*winutil.SP_DEVICE_INTERFACE_DETAIL_DATA)(unsafe.Pointer(&buf[0]))
+
+		err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, &ifData, interfaceDetailData, required, nil)
 		if err != nil {
 			log.Errorf("Error getting device interface detail: %v", err)
 			continue
 		}
 
 		// DevicePath is WCHAR* right after cbSize field.
-		devicePathPtr := unsafe.Pointer(&buf[4]) // cbSize is 4 bytes
+		devicePathPtr := (*uint16)(unsafe.Pointer(&buf[unsafe.Sizeof(interfaceDetailData.CbSize)]))
 		devicePath := windows.UTF16PtrToString((*uint16)(devicePathPtr))
 
 		log.Debugf("Querying battery device: %s", devicePath)
@@ -265,7 +285,8 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 		}
 
 		info.DesignedCapacity = float64(bi.DesignedCapacity)
-		info.FullChargedCapacity = (float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100
+		info.FullChargedCapacity = float64(bi.FullChargedCapacity)
+		info.MaximumCapacityPct = (float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100
 		info.CycleCount = float64(bi.CycleCount)
 		info.CurrentCharge = float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100
 		info.Voltage = float64(bs.Voltage)
