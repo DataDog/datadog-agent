@@ -265,6 +265,7 @@ def cmd(
     elif filter_by_changes:
         app.display_info(f"Detecting changes compared to {compare_branch}...")
         changed_files = get_changed_files(app, project_root, compare_branch)
+        app.display_info(f"Changed files: {changed_files}")
 
         if changed_files:
             app.display_info(f"Found {len(changed_files)} changed files:")

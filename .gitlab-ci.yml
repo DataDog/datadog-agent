@@ -10,7 +10,6 @@ generate-pipeline:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   script:
-    - curl -s https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata/$DDCI_REQUEST_ID | jq .event.results.changed_files.[].path
     - dda ci generate --filter-by-changes
   artifacts:
     paths:
