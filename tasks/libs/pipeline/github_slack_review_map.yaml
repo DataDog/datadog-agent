@@ -46,6 +46,7 @@
 '@datadog/ndm-core': '#ndm-core'
 '@datadog/ndm-integrations': '#ndm-integrations'
 '@datadog/network-device-monitoring': '#network-device-monitoring'
+'@datadog/network-path': '#network-path-dev'
 '@datadog/opentelemetry': '#opentelemetry-ops'
 '@datadog/opentelemetry-agent': '#opentelemetry-agent-ops'
 '@datadog/profiling-full-host': '#profiling-full-host-project'
