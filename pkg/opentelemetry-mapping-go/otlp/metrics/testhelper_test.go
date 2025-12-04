@@ -29,11 +29,9 @@ func NewTestTranslator(t testing.TB, options ...TranslatorOption) *DefaultTransl
 	set := componenttest.NewNopTelemetrySettings()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
-	mt, err := NewTranslator(set, attributesTranslator, options...)
+	mt, err := NewDefaultTranslator(set, attributesTranslator, options...)
 	require.NoError(t, err)
-	translator, ok := mt.(*DefaultTranslator)
-	require.True(t, ok, "expected *DefaultTranslator, got %T", mt)
-	return translator
+	return mt
 }
 
 // TestDatadog represents a test case for Datadog metrics.

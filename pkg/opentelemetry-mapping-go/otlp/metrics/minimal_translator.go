@@ -2,7 +2,7 @@ package metrics
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -50,7 +50,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 	}, nil
 }
 
-var ErrUnsupportedAggregation = fmt.Errorf("unsupported aggregation temporality")
+var ErrUnsupportedAggregation = errors.New("unsupported aggregation temporality")
 
 func (t *MinimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error) {
 	metadata := Metadata{
@@ -129,7 +129,7 @@ func (t *MinimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 func (t *MinimalTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
 	if !hasSource {
-		return source.Source{}, fmt.Errorf("no source found in resource")
+		return source.Source{}, errors.New("no source found in resource")
 	}
 	return src, nil
 }

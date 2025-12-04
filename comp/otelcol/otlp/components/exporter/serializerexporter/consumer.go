@@ -109,11 +109,11 @@ const (
 	agentOTLPIngest
 )
 
-func (c *serializerConsumer) ConsumeExplicitBoundHistogram(ctx context.Context, dimensions *otlpmetrics.Dimensions, pts pmetric.HistogramDataPointSlice) {
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.HistogramDataPointSlice) {
 	// TODO noop for now
 }
 
-func (c *serializerConsumer) ConsumeExponentialHistogram(ctx context.Context, dimensions *otlpmetrics.Dimensions, pts pmetric.ExponentialHistogramDataPointSlice) {
+func (c *serializerConsumer) ConsumeExponentialHistogram(_ context.Context, _ *otlpmetrics.Dimensions, _ pmetric.ExponentialHistogramDataPointSlice) {
 	// TODO noop for now
 }
 

@@ -530,8 +530,8 @@ func (m *DefaultMapper) getLegacyBuckets(
 	for idx := 0; idx < p.BucketCounts().Len(); idx++ {
 		lowerBound, upperBound := getBounds(p.ExplicitBounds(), idx)
 		bucketDims := baseBucketDims.AddTags(
-			fmt.Sprintf("lower_bound:%s", formatFloat(lowerBound)),
-			fmt.Sprintf("upper_bound:%s", formatFloat(upperBound)),
+			"lower_bound:"+formatFloat(lowerBound),
+			"upper_bound:"+formatFloat(upperBound),
 		)
 
 		count := float64(p.BucketCounts().At(idx))

@@ -29,11 +29,11 @@ func (m *SimpleMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer,
 	m.mapper.MapSummaryMetrics(ctx, consumer, dims, slice)
 }
 
-func (m *SimpleMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, delta bool) error {
+func (m *SimpleMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil
 }
 
-func (m *SimpleMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, delta bool) {
+func (m *SimpleMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
 	consumer.ConsumeExponentialHistogram(ctx, dims, slice)
 }

@@ -109,6 +109,57 @@ type DefaultTranslator struct {
 	mapper               Mapper
 }
 
+// NewDefaultTranslator creates a new translator with the given options.
+func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (*DefaultTranslator, error) {
+
+	cfg := translatorConfig{
+		HistMode:                             HistogramModeDistributions,
+		SendHistogramAggregations:            false,
+		Quantiles:                            false,
+		NumberMode:                           NumberModeCumulativeToDelta,
+		InitialCumulMonoValueMode:            InitialCumulMonoValueModeAuto,
+		InstrumentationLibraryMetadataAsTags: false,
+		sweepInterval:                        1800,
+		deltaTTL:                             3600,
+		fallbackSourceProvider:               &noSourceProvider{},
+		originProduct:                        OriginProductUnknown,
+	}
+
+	for _, opt := range options {
+		err := opt(&cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.HistMode == HistogramModeNoBuckets && !cfg.SendHistogramAggregations {
+		return nil, errors.New(errNoBucketsNoSumCount)
+	}
+
+	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
+	logger := set.Logger.With(zap.String("component", "metrics translator"))
+
+	t := &DefaultTranslator{
+		prevPts:              cache,
+		logger:               logger,
+		attributesTranslator: attributesTranslator,
+		cfg:                  cfg,
+	}
+	// Use custom mapper if provided, otherwise create a DefaultMapper
+	if cfg.customMapper != nil {
+		t.mapper = cfg.customMapper
+	} else {
+		t.mapper = NewDefaultMapper(cache, logger, cfg)
+	}
+	return t, nil
+}
+
+// NewTranslator creates a new translator with given options.
+// It returns *Translator (which is an alias for *DefaultTranslator) for backward compatibility.
+func NewTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (*Translator, error) {
+	return NewDefaultTranslator(set, attributesTranslator, options...)
+}
+
 // Mapper returns the underlying Mapper implementation.
 // This is useful for testing or for direct access to mapping methods.
 func (t *DefaultTranslator) Mapper() Mapper {
@@ -151,6 +202,10 @@ type Mapper interface {
 	)
 }
 
+// Translator is an alias for DefaultTranslator for backward compatibility.
+// External code using *metrics.Translator will continue to work.
+type Translator = DefaultTranslator
+
 // MetricsTranslator defines the interface for translating OTLP metrics to Datadog format.
 type MetricsTranslator interface {
 	MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error)
@@ -160,57 +215,6 @@ type MetricsTranslator interface {
 type Metadata struct {
 	// Languages specifies a list of languages for which runtime metrics were found.
 	Languages []string
-}
-
-// NewTranslator creates a new translator with given options.
-// If a custom translator is provided via WithTranslator, it is returned directly.
-// Otherwise, a DefaultTranslator is created with the provided options.
-func NewTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (MetricsTranslator, error) {
-	cfg := translatorConfig{
-		HistMode:                             HistogramModeDistributions,
-		SendHistogramAggregations:            false,
-		Quantiles:                            false,
-		NumberMode:                           NumberModeCumulativeToDelta,
-		InitialCumulMonoValueMode:            InitialCumulMonoValueModeAuto,
-		InstrumentationLibraryMetadataAsTags: false,
-		sweepInterval:                        1800,
-		deltaTTL:                             3600,
-		fallbackSourceProvider:               &noSourceProvider{},
-		originProduct:                        OriginProductUnknown,
-	}
-
-	for _, opt := range options {
-		err := opt(&cfg)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// If a custom translator is provided, return it directly
-	if cfg.customTranslator != nil {
-		return cfg.customTranslator, nil
-	}
-
-	if cfg.HistMode == HistogramModeNoBuckets && !cfg.SendHistogramAggregations {
-		return nil, errors.New(errNoBucketsNoSumCount)
-	}
-
-	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
-	logger := set.Logger.With(zap.String("component", "metrics translator"))
-
-	t := &DefaultTranslator{
-		prevPts:              cache,
-		logger:               logger,
-		attributesTranslator: attributesTranslator,
-		cfg:                  cfg,
-	}
-	// Use custom mapper if provided, otherwise create a DefaultMapper
-	if cfg.customMapper != nil {
-		t.mapper = cfg.customMapper
-	} else {
-		t.mapper = NewDefaultMapper(cache, logger, cfg)
-	}
-	return t, nil
 }
 
 // isCumulativeMonotonic checks if a metric is a cumulative monotonic metric
