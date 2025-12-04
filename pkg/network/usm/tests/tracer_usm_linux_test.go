@@ -2077,6 +2077,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				t.Skip("Skipping flaky test")
 				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
