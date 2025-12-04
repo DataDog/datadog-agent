@@ -95,6 +95,11 @@ func (m *mockLongRunningCheck) IsHASupported() bool {
 	return args.Bool(0)
 }
 
+func (m *mockLongRunningCheck) CronShouldRun(t time.Time) bool {
+	args := m.Called(t)
+	return args.Bool(0)
+}
+
 func (m *mockLongRunningCheck) GetSender() (sender.Sender, error) {
 	args := m.Called()
 	s := args.Get(0)

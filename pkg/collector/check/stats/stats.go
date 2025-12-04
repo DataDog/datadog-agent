@@ -149,6 +149,8 @@ type StatsCheck interface {
 	Loader() string
 	// IsHASupported returns if the check is HA enabled
 	IsHASupported() bool
+	// CronShouldRun returns true if check should run based on cron schedule
+	CronShouldRun(t time.Time) bool
 }
 
 // NewStats returns a new check stats instance

@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/collector/cronschedule"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -65,6 +66,7 @@ type PythonCheck struct {
 	instanceConfig string
 	haSupported    bool
 	cancelled      bool
+	cronSchedule   *cronschedule.CronSchedule
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -309,6 +311,16 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		}
 	}
 
+	// Set configured service for this check, overriding the one possibly defined globally
+	if len(commonOptions.CronSchedule) > 0 {
+		cronSchedule, err := cronschedule.NewCronSchedule(commonOptions.CronSchedule)
+		if err != nil {
+			log.Errorf("failed to create cron schedule: %s", err)
+			return err
+		}
+		c.cronSchedule = cronSchedule
+	}
+
 	cInitConfig := TrackedCString(string(initConfig))
 	cInstance := TrackedCString(string(data))
 	cCheckID := TrackedCString(string(c.id))
@@ -425,6 +437,15 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 // IsHASupported returns the HA_SUPPORTED class attribute defined at Python Check level
 func (c *PythonCheck) IsHASupported() bool {
 	return c.haSupported
+}
+
+// CronShouldRun returns true if check should run based on cron schedule
+func (c *PythonCheck) CronShouldRun(t time.Time) bool {
+	// TODO: TEST ME
+	if c.cronSchedule == nil {
+		return true
+	}
+	return c.cronSchedule.ShouldRun(t)
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
