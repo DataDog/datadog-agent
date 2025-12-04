@@ -348,32 +348,32 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 	return resp.List.Value, nil
 }
 
-// GetTopology retrieves topology data for for a specific appliance andtenant
-// func (client *Client) GetTopology(applianceName string, tenantName string) ([]Topology, error) {
-// 	if applianceName == "" {
-// 		return nil, fmt.Errorf("applianceName cannot be empty")
-// 	}
-// 	if tenantName == "" {
-// 		return nil, fmt.Errorf("tenantName cannot be empty")
-// 	}
+// GetTopology retrieves topology data for for a specific appliance and tenant
+func (client *Client) GetTopology(applianceName string, tenantName string) ([]Neighbor, error) {
+	if applianceName == "" {
+		return nil, fmt.Errorf("applianceName cannot be empty")
+	}
+	if tenantName == "" {
+		return nil, fmt.Errorf("tenantName cannot be empty")
+	}
 
-// 	params := map[string]string{
-// 		"tenantName": tenantName,
-// 	}
+	// params := map[string]string{
+	// 	"tenantName": tenantName,
+	// }
 
-// 	lldpPath := "command=lldp/neighbor/detail/interface-detail"
-// 	path := fmt.Sprintf("/vnms/dashboard/appliance/%s/live?uuid=%s&%s", applianceName, applianceUUID, lldpPath)
+	// command := 'lldp/neighbor/detail/interface-detail'
+	// path := fmt.Sprintf("/vnms/dashboard/appliance/%s/live?uuid=%s&command%s", applianceName, UUID, command)
 
-// 	resp, err := get[InterfaceListResponse](client, path, params, false)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to get interfaces: %v", err)
-// 	}
-// 	if resp == nil {
-// 		return nil, errors.New("failed to get interfaces: returned nil")
-// 	}
+	// resp, err := get[LldpNeighborInterfaceDetailResponse](client, path, params, false)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to get topology: %v", err)
+	// }
+	// if resp == nil {
+	// 	return nil, errors.New("failed to get topology: returned nil")
+	// }
 
-// 	return resp.List.Value, nil
-// }
+	return []Neighbor{}, nil
+}
 
 // GetInterfaceMetrics retrieves interface metrics for a specific appliance and tenant using pagination
 func (client *Client) GetInterfaceMetrics(applianceName string, tenantName string) ([]InterfaceMetrics, error) {

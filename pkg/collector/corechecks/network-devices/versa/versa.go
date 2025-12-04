@@ -203,20 +203,26 @@ func (v *VersaCheck) Run() error {
 		log.Tracef("interfaces are as follows: %+v", interfaceMetadata)
 	}
 
-	// UPDATE HERE TO GET TOPOLOGY METADATA
+	
 	var topologyMetadata []devicemetadata.TopologyLinkMetadata
 	log.Infof("SendTopologyMetadata config value: %v", *v.config.SendTopologyMetadata)
 
 	// Get topology link metadata
 	if *v.config.SendTopologyMetadata {
-		var err error
-		topologyMetadata, err = payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, appliances)
-		if err != nil {
-			if len(topologyMetadata) == 0 {
-				log.Errorf("failed to parse all topology metadata: %v", err)
-			} else {
-				log.Errorf("partial failure in parsing topology metadata: %v", err)
-			}
+		for _, device := range appliances {
+
+			neighbors, err := c.GetTopology(device.Name, device.OwnerOrg)
+			deviceTopologyMetadata, err := payload.GetTopologyMetadata(v.config.Namespace, deviceNameToIDMap, device, neighbors)
+			
+			if err != nil {
+				if len(deviceTopologyMetadata) == 0 {
+					log.Errorf("failed to parse all topology metadata: %v", err)
+				} else {
+					log.Errorf("partial failure in parsing topology metadata: %v", err)
+				}
+
+			topologyMetadata = append(topologyMetadata, deviceTopologyMetadata...)
+		}
 		}
 
 		log.Tracef("topology metadata is as follows:")

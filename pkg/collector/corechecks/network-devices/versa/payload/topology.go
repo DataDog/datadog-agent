@@ -9,13 +9,13 @@ import (
 
 )
 
-// GetDeviceMetadataFromAppliances process devices API payloads to build metadata
-func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, appliances []client.Appliance) ([]devicemetadata.TopologyLinkMetadata, error) {
+// GetTopologyMetadata process a list of device neighbors into topology links
+func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, device client.Appliance, neighbors []client.Neighbor) ([]devicemetadata.TopologyLinkMetadata, error) {
 
 	var links []devicemetadata.TopologyLinkMetadata
 
 	// Iterate over all appliances, build topology for each device
-	for _, device := range appliances {
+	for _, neighbor := range neighbors {
 
 		// Will have to iterate over/unpack all of the connections to the current device
 
@@ -24,19 +24,19 @@ func GetTopologyMetadata(namespace string, deviceNameToIPMap map[string]string, 
 		localPortId:=""
 		localPortIdType:=""
 		
-		remoteSystemName:=""
-		remoteSystemDescription:=""
-		remoteDeviceId:=""
-		remoteDeviceIdType:=""
-		remoteIpAddress:=""
-		remotePortId:=""
-		remotePortIdType:=""
-		remotePortDescription:=""
+		remoteSystemName:= neighbor.SystemName // Assuming this corresponds with device name
+		remoteSystemDescription:= neighbor.SystemDescription
+		remoteDeviceId:= neighbor.ChassisID
+		remoteDeviceIdType:= neighbor.DeviceIDType
+		remoteIpAddress:= neighbor.IPAddress
+		remotePortId:= neighbor.PortID
+		remotePortIdType:= neighbor.PortIDType
+		remotePortDescription:= neighbor.PortDescription
 
 		var remoteLink *devicemetadata.TopologyLinkSide
 
-		if datadogDevice(){ //if the remote device is monitored by Datadog, create remote structs with DDIDs
-			remoteDeviceDDID := generate_device_dd_id()
+		if datadogDevice(remoteSystemName, remoteIpAddress, deviceNameToIPMap){ //if the remote device is monitored by Datadog, create remote structs with DDIDs
+			remoteDeviceDDID := buildDeviceID(namespace, remoteIpAddress)
 			remoteInterfaceDDID := generate_interface_dd_id()
 
 			remoteLink = &devicemetadata.TopologyLinkSide{
@@ -101,14 +101,14 @@ func generate_topology_link_id(local_device_id string, local_port_id string, rem
     return fmt.Sprintf("%s:%s.%s", local_device_id, local_port_id, remote_port_id)
 }
 
-func datadogDevice() bool {
+func datadogDevice(deviceName string, deviceIP string, deviceNameToIDMap map[string]string) bool {
     //Check if the device is monitored by Datadog
-    return true
-}
-
-func generate_device_dd_id() string {
-    //Generate the device's interface ID if possible (Datadog monitored device and interface)
-    return ""
+	if mappedIP, ok := deviceNameToIDMap[deviceName]; ok {
+		if mappedIP == deviceIP {
+			return true
+		}
+	}
+    return false
 }
 
 func generate_interface_dd_id() string {
