@@ -24,7 +24,7 @@ func TestCluster_NewCluster(t *testing.T) {
 	tokenList := token.NewTokenListWithTokens(tokens)
 	signature := token.NewSignature(tokenList)
 
-	cluster := NewCluster(signature, tokenList)
+	cluster := NewCluster(signature)
 
 	assert.Equal(t, 0, clusterSize(cluster), "Expected cluster size 0 initially")
 	assert.True(t, cluster.Signature.Equals(signature), "Cluster signature doesn't match expected signature")
@@ -41,7 +41,7 @@ func TestCluster_AddTokenListToPatterns(t *testing.T) {
 	tokenList1 := token.NewTokenListWithTokens(tokens1)
 	signature1 := token.NewSignature(tokenList1)
 
-	cluster := NewCluster(signature1, tokenList1)
+	cluster := NewCluster(signature1)
 	cluster.AddTokenListToPatterns(tokenList1)
 
 	assert.Equal(t, 1, clusterSize(cluster), "Expected initial cluster size 1")
@@ -71,7 +71,7 @@ func TestCluster_SinglePattern_SingleLog(t *testing.T) {
 	tokenList := token.NewTokenListWithTokens(tokens)
 	signature := token.NewSignature(tokenList)
 
-	cluster := NewCluster(signature, tokenList)
+	cluster := NewCluster(signature)
 	cluster.AddTokenListToPatterns(tokenList)
 
 	// Should have exactly one pattern (which is also the primary)
@@ -102,7 +102,7 @@ func TestCluster_MultiplePatterns_SpecialCharVariation(t *testing.T) {
 		Hash:     1234,
 	}
 
-	cluster := NewCluster(signature, nil)
+	cluster := NewCluster(signature)
 
 	// Create TokenLists with different special characters (cannot merge - structural difference)
 	tokens1 := []token.Token{
@@ -161,7 +161,7 @@ func TestCluster_FindMatchingPattern(t *testing.T) {
 		Hash:     5678,
 	}
 
-	cluster := NewCluster(signature, nil)
+	cluster := NewCluster(signature)
 
 	tokens1 := []token.Token{
 		{Value: "Error", Type: token.TokenWord, Wildcard: token.NotWildcard},
@@ -200,7 +200,7 @@ func TestCluster_GetMostCommonPattern(t *testing.T) {
 		Hash:     9999,
 	}
 
-	cluster := NewCluster(signature, nil)
+	cluster := NewCluster(signature)
 
 	// Add multiple token lists that split into different patterns
 	// Pattern 1: 3 logs (should be most common)
@@ -235,7 +235,7 @@ func TestCluster_GetAllPatterns(t *testing.T) {
 		Hash:     1111,
 	}
 
-	cluster := NewCluster(signature, nil)
+	cluster := NewCluster(signature)
 
 	// Create 3 different patterns via whitespace variation
 	tokens1 := []token.Token{
@@ -269,7 +269,7 @@ func TestCluster_ExtractWildcardValues_MultiPattern(t *testing.T) {
 		Hash:     2222,
 	}
 
-	cluster := NewCluster(signature, nil)
+	cluster := NewCluster(signature)
 
 	tokens1 := []token.Token{
 		{Value: "Error", Type: token.TokenWord, Wildcard: token.NotWildcard},
@@ -308,7 +308,7 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 		Hash:     3333,
 	}
 
-	cluster := NewCluster(signature, nil)
+	cluster := NewCluster(signature)
 
 	// Add 2 token lists to pattern 1
 	for i := 0; i < 2; i++ {
@@ -332,42 +332,6 @@ func TestCluster_Size_MultiPattern(t *testing.T) {
 
 	// Total size should be 5 (2 + 3)
 	assert.Equal(t, 5, clusterSize(cluster), "Expected cluster size 5 (2 + 3)")
-}
-
-func TestCluster_BackwardCompatibility(t *testing.T) {
-	// Test that old API methods still work (GetPatternString, GetWildcardPositions, etc.)
-	signature := token.Signature{
-		Position: "Word|Whitespace|Word",
-		Length:   3,
-		Hash:     4444,
-	}
-
-	cluster := NewCluster(signature, nil)
-
-	tokens1 := []token.Token{
-		{Value: "Service", Type: token.TokenWord, Wildcard: token.NotWildcard},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "started", Type: token.TokenWord, Wildcard: token.PotentialWildcard},
-	}
-	tokens2 := []token.Token{
-		{Value: "Service", Type: token.TokenWord, Wildcard: token.NotWildcard},
-		{Value: " ", Type: token.TokenWhitespace},
-		{Value: "stopped", Type: token.TokenWord, Wildcard: token.PotentialWildcard},
-	}
-
-	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens1))
-	cluster.AddTokenListToPatterns(token.NewTokenListWithTokens(tokens2))
-
-	patternString := getPatternString(cluster)
-	assert.NotEmpty(t, patternString, "getPatternString should return a valid pattern string")
-
-	wildcards := hasWildcards(cluster)
-	assert.True(t, wildcards, "Should have wildcards")
-
-	wildcardPositions := getWildcardPositions(cluster)
-	assert.NotEmpty(t, wildcardPositions, "Should have wildcard positions")
-
-	t.Logf("✅ Backward compatibility: pattern='%s', wildcards=%v", patternString, wildcardPositions)
 }
 
 // =============================================================================
