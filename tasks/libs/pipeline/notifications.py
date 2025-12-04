@@ -52,7 +52,7 @@ def check_for_missing_owners_slack_and_jira(print_missing_teams=True, owners_fil
             if team not in gh_map:
                 error = True
                 if print_missing_teams:
-                    print(f"The team {team} is missing from theGithub {map_name} map. Please update!!")
+                    print(f"The team {team} is missing from the Github {map_name} map. Please update!!")
     return error
 
 
