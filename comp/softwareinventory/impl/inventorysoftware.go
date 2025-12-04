@@ -89,8 +89,6 @@ type softwareInventory struct {
 	hostname string
 	// eventPlatform provides access to the event platform forwarder
 	eventPlatform eventplatform.Component
-	// initialDelay is the time to wait before performing the first collection to avoid race conditions with System Probe startup
-	initialDelay time.Duration
 	// jitter is the time to wait before sending the first payload, in seconds
 	jitter time.Duration
 	// interval is the time to wait between payloads, in minutes
@@ -169,8 +167,6 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 
 	is.jitter = time.Duration(localRand.Intn(max(reqs.Config.GetInt("software_inventory.jitter"), 60))) * time.Second
 	is.interval = time.Duration(max(reqs.Config.GetInt("software_inventory.interval"), 10)) * time.Minute
-	// Configure initial delay with default of 5 seconds to avoid race condition with System Probe startup
-	is.initialDelay = time.Duration(max(reqs.Config.GetInt("software_inventory.initial_delay"), 5)) * time.Second
 
 	is.log.Infof("Starting the inventory software component")
 
@@ -192,16 +188,28 @@ func newWithClient(reqs Requires, client sysProbeClient, sleepFunc func(time.Dur
 }
 
 func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Context) {
-	// Initial delay to avoid race-condition with System-Probe starting
-	is.sleepFunc(is.initialDelay)
-	initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
-	if err != nil {
-		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
-	} else {
-		is.log.Debug("Initial software inventory collection completed")
-		is.cachedInventoryMu.Lock()
-		is.cachedInventory = initialInventory
-		is.cachedInventoryMu.Unlock()
+	// Wait for System Probe to be ready with simple retry loop
+	for {
+		initialInventory, err := is.sysProbeClient.GetCheck(sysconfig.SoftwareInventoryModule)
+		if err == nil {
+			is.log.Debug("Initial software inventory collection completed")
+			is.cachedInventoryMu.Lock()
+			is.cachedInventory = initialInventory
+			is.cachedInventoryMu.Unlock()
+			break
+		}
+		
+		is.log.Debugf("System Probe not ready yet, retrying in 1s: %v", err)
+		
+		// Use a timer that can be cancelled by context
+		timer := time.NewTimer(1 * time.Second)
+		select {
+		case <-timer.C:
+			continue
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		}
 	}
 
 	// Send the initial collection with a random jitter
