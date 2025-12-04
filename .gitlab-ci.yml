@@ -1,0 +1,36 @@
+workflow:
+  rules:
+    - when: always
+
+stages:
+  - trigger
+
+foo_pipeline:
+  stage: trigger
+  rules:
+    - changes:
+        - projects/foo/**/*
+  trigger:
+    include:
+      - local: 'projects/foo/.gitlab-ci.yml'
+    strategy: depend
+
+bar_pipeline:
+  stage: trigger
+  rules:
+    - changes:
+        - projects/bar/**/*
+  trigger:
+    include:
+      - local: 'projects/bar/.gitlab-ci.yml'
+    strategy: depend
+
+baz_pipeline:
+  stage: trigger
+  rules:
+    - changes:
+        - projects/baz/**/*
+  trigger:
+    include:
+      - local: 'projects/baz/.gitlab-ci.yml'
+    strategy: depend

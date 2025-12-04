@@ -1,0 +1,8 @@
+stages:
+  - echo
+
+foo_echo:
+  stage: echo
+  tags: ["arch:amd64", "specific:true"]
+  script:
+    - echo foo
