@@ -552,6 +552,9 @@ linters:
     - path: comp/dogstatsd/serverDebug/serverdebugimpl/debug.go
       linters:
         - pkgconfigusage
+    - path: comp/dogstatsd/serverDebug/serverdebugimpltopk/debug.go
+      linters:
+        - pkgconfigusage
     - path: comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go
       linters:
         - pkgconfigusage
