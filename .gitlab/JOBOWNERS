@@ -201,3 +201,5 @@ validate_experiment_systemd_units @DataDog/fleet
 
 # Fuzz testing
 test_fuzz                         @DataDog/chaos-engineering
+
+docs:lint                         @DataDog/agent-devx
