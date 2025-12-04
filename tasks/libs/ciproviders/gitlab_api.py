@@ -1247,10 +1247,17 @@ def compute_gitlab_ci_config_diff(ctx, before: str | None = None, after: str | N
     before = get_common_ancestor(ctx, before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
-    after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after)
+    if after:
+        ctx.run(f"dda ci generate --all --ref {after} --output after.gitlab-ci.yml --include-all-triggered-pipelines")
+    else:
+        ctx.run("dda ci generate --all --output after.gitlab-ci.yml --include-all-triggered-pipelines")
+    with open("after.gitlab-ci.yml") as f:
+        after_config = yaml.safe_load(f)
 
     print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
-    before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before)
+    ctx.run(f"dda ci generate --all --ref {before} --output before.gitlab-ci.yml --include-all-triggered-pipelines")
+    with open("before.gitlab-ci.yml") as f:
+        before_config = yaml.safe_load(f)
 
     diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 

@@ -145,6 +145,12 @@ def load_pipelines_config(
     default="main",
     help="Branch to compare against for change detection (default: main)",
 )
+@click.option(
+    "--include-all-triggered-pipelines",
+    is_flag=True,
+    default=False,
+    help="Include all triggered pipelines in the output (outputs multi-entry YAML)",
+)
 @pass_app
 def cmd(
     app: Application,
@@ -158,6 +164,7 @@ def cmd(
     show_pipelines: bool,
     filter_by_changes: bool,
     compare_branch: str,
+    include_all_triggered_pipelines: bool,
 ) -> None:
     """
     Generate GitLab CI pipeline configuration.
@@ -192,6 +199,10 @@ def cmd(
     \b
     # Show pipelines available at a specific ref
     dda ci generate --show-pipelines --ref main
+
+    \b
+    # Generate all pipelines including triggered sub-pipelines
+    dda ci generate --all --include-all-triggered-pipelines
     """
     # Find project root
     project_root = find_project_root(Path.cwd())
@@ -292,7 +303,43 @@ def cmd(
     if not content:
         app.abort("No content to generate - all pipeline configs are empty or missing")
 
-    dump_yaml(content, output_path, header=build_header(pipelines_to_generate, project_root, ref))
+    # Handle triggered pipelines if requested
+    if include_all_triggered_pipelines:
+        from ci_utils.triggers import get_all_triggered_configurations
 
-    app.display_info("")
-    app.display_success(f"Generated pipeline written to {output_path}")
+        app.display_info("")
+        app.display_info("Finding triggered pipelines...")
+
+        all_configs = get_all_triggered_configurations(
+            main_config=content,
+            file_reader=file_reader,
+            project_root=project_root,
+            app=app,
+        )
+
+        if len(all_configs) > 1:
+            app.display_info(f"Found {len(all_configs) - 1} triggered pipeline(s)")
+            app.display_info("")
+
+            # Write multi-entry YAML with all configurations
+            output_content = {}
+            for entry_point, config in all_configs.items():
+                output_content[entry_point] = config
+
+            dump_yaml(output_content, output_path, header=build_header(pipelines_to_generate, project_root, ref))
+
+            app.display_info("")
+            app.display_success(f"Generated {len(all_configs)} configurations written to {output_path}")
+            app.display_info("")
+            app.display_info("Entry points:")
+            for entry_point in all_configs:
+                app.display_info(f"  • {entry_point}")
+        else:
+            app.display_info("No triggered pipelines found")
+            dump_yaml({"main": content}, output_path, header=build_header(pipelines_to_generate, project_root, ref))
+            app.display_info("")
+            app.display_success(f"Generated pipeline written to {output_path}")
+    else:
+        dump_yaml(content, output_path, header=build_header(pipelines_to_generate, project_root, ref))
+        app.display_info("")
+        app.display_success(f"Generated pipeline written to {output_path}")

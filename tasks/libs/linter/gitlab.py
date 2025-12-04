@@ -14,7 +14,6 @@ from tasks.libs.ciproviders.ci_config import CILintersConfig
 from tasks.libs.ciproviders.gitlab_api import (
     MultiGitlabCIDiff,
     compute_gitlab_ci_config_diff,
-    get_all_gitlab_ci_configurations,
     get_preset_contexts,
     is_leaf_job,
     load_context,
@@ -535,7 +534,9 @@ def load_or_generate_gitlab_ci_configs(ctx, yaml_to_load: str | None = None, **k
         with open(yaml_to_load) as f:
             return yaml.safe_load(f)
 
-    return get_all_gitlab_ci_configurations(ctx, **kwargs)
+    ctx.run("dda ci generate --all --output full-gitlab-ci.yml --include-all-triggered-pipelines")
+    with open("full-gitlab-ci.yml") as f:
+        return yaml.safe_load(f)
 
 
 def load_or_generate_gitlab_ci_diff(
