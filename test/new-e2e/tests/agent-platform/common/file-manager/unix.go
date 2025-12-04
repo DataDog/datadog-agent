@@ -11,7 +11,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Unix implement filemanager interface for Unix distributions

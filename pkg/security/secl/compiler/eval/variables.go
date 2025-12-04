@@ -1059,6 +1059,11 @@ func (v *Variables) CleanupExpiredVariables() {
 	}
 }
 
+// GetScopedVariables returns nothing for global variables
+func (v *Variables) GetScopedVariables(_ string) map[string]Variable {
+	return nil
+}
+
 // MutableSECLVariable describes the interface implemented by mutable SECL variable
 type MutableSECLVariable interface {
 	Variable
@@ -1070,6 +1075,7 @@ type MutableSECLVariable interface {
 type ScopedVariables struct {
 	scoperName     string
 	scoper         Scoper
+	varsLock       sync.RWMutex
 	vars           map[string]map[string]MutableSECLVariable
 	expirablesLock sync.RWMutex
 	expirables     map[string][]expirableVariable
@@ -1077,12 +1083,16 @@ type ScopedVariables struct {
 
 // Len returns the length of the variable map
 func (v *ScopedVariables) Len() int {
+	v.varsLock.RLock()
+	defer v.varsLock.RUnlock()
 	return len(v.vars)
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
+		v.varsLock.RLock()
+		defer v.varsLock.RUnlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return nil
@@ -1102,6 +1112,8 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 	}
 
 	setVariable := func(ctx *Context, value any) error {
+		v.varsLock.Lock()
+		defer v.varsLock.Unlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
@@ -1218,10 +1230,27 @@ func (v *ScopedVariables) CleanupExpiredVariables() {
 
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key string) {
+	v.varsLock.Lock()
 	delete(v.vars, key)
+	v.varsLock.Unlock()
 	v.expirablesLock.Lock()
 	delete(v.expirables, key)
 	v.expirablesLock.Unlock()
+}
+
+// GetScopedVariables returns all scoped variables that match the given name
+func (v *ScopedVariables) GetScopedVariables(name string) map[string]Variable {
+	variables := make(map[string]Variable)
+	v.varsLock.RLock()
+	defer v.varsLock.RUnlock()
+	for key, vars := range v.vars {
+		for varName, variable := range vars {
+			if varName == name {
+				variables[key] = variable
+			}
+		}
+	}
+	return variables
 }
 
 // NewScopedVariables returns a new set of scope variables
