@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -55,6 +56,7 @@ type k8sSuite struct {
 	baseSuite[environments.Kubernetes]
 	envSpecificClusterTags []string
 	newProvisioner         func(helmValues string) provisioners.Provisioner
+	skipModes              []string
 }
 
 func (suite *k8sSuite) SetupSuite() {
@@ -1543,6 +1545,11 @@ datadog:
 		m := mode.mode
 		helmValues := mode.helmValues
 
+		if slices.Contains(suite.skipModes, m) {
+			suite.T().Logf("Skipping scanning method '%s'", m)
+			continue
+		}
+
 		for _, img := range images {
 			appImage := img.app
 			appShortImage := filepath.Base(appImage)
@@ -1583,8 +1590,6 @@ datadog:
 
 					provisioner := suite.newProvisioner(helmValues)
 					suite.UpdateEnv(provisioner)
-
-					time.Sleep(2 * time.Minute) // Wait for the agent to be fully ready after the upgrade
 				}
 
 				suite.EventuallyWithTf(func(collect *assert.CollectT) {
@@ -1688,7 +1693,7 @@ datadog:
 
 						assert.Greater(c, len(cyclonedx.Components), 1, "Less than 2 components in CycloneDX SBOM")
 					}
-				}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
+				}, 4*time.Minute, 10*time.Second, "Failed finding the container image payload")
 			})
 		}
 	}

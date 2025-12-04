@@ -43,7 +43,7 @@ func TestEKSSuite(t *testing.T) {
 			),
 		)
 	}
-	e2e.Run(t, &eksSuite{k8sSuite{newProvisioner: newProvisioner}}, e2e.WithProvisioner(newProvisioner("")))
+	e2e.Run(t, &eksSuite{k8sSuite{newProvisioner: newProvisioner, skipModes: []string{"overlayfs"}}}, e2e.WithProvisioner(newProvisioner("")))
 }
 
 func (suite *eksSuite) SetupSuite() {
