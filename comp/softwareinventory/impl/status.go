@@ -70,8 +70,13 @@ func formatYYYYMMDD(ts string) (string, error) {
 // by software ID for easy lookup.
 func (is *softwareInventory) populateStatus(status map[string]interface{}) {
 	data := map[string]interface{}{}
-	if is.cachedInventory != nil {
-		for _, inventory := range is.cachedInventory {
+	
+	is.cachedInventoryMu.RLock()
+	cachedInventory := is.cachedInventory
+	is.cachedInventoryMu.RUnlock()
+	
+	if cachedInventory != nil {
+		for _, inventory := range cachedInventory {
 			inventory.InstallDate, _ = formatYYYYMMDD(inventory.InstallDate)
 			data[inventory.GetID()] = inventory
 		}

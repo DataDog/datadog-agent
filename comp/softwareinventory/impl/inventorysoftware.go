@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -82,6 +83,8 @@ type softwareInventory struct {
 	sysProbeClient sysProbeClient
 	// cachedInventory stores the most recently collected software inventory data
 	cachedInventory []software.Entry
+	// cachedInventoryMu protects concurrent access to cachedInventory
+	cachedInventoryMu sync.RWMutex
 	// hostname identifies the system where the inventory was collected
 	hostname string
 	// eventPlatform provides access to the event platform forwarder
@@ -196,7 +199,9 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 		_ = is.log.Errorf("Initial software inventory collection failed: %v", err)
 	} else {
 		is.log.Debug("Initial software inventory collection completed")
+		is.cachedInventoryMu.Lock()
 		is.cachedInventory = initialInventory
+		is.cachedInventoryMu.Unlock()
 	}
 
 	// Send the initial collection with a random jitter
@@ -224,7 +229,9 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 
 			// TODO: Compare old and new inventory
 
+			is.cachedInventoryMu.Lock()
 			is.cachedInventory = newInventory
+			is.cachedInventoryMu.Unlock()
 
 			err = is.sendPayload()
 			if err != nil {
@@ -268,6 +275,9 @@ func (is *softwareInventory) sendPayload() error {
 // This method triggers a refresh of the cached data and returns a properly
 // formatted payload for transmission to the backend.
 func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
+	is.cachedInventoryMu.RLock()
+	defer is.cachedInventoryMu.RUnlock()
+	
 	if is.cachedInventory == nil {
 		return nil
 	}
