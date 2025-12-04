@@ -9,6 +9,7 @@ include:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.create_signature_and_lint_linux_packages]
+    - !reference [.upload_debug_symbols]
   after_script:
     - !reference [.static_quality_gate_package]
   artifacts:
@@ -140,6 +141,7 @@ installer_deb-arm64:
     - !reference [.cache_omnibus_ruby_deps, setup]
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
     - !reference [.create_signature_and_lint_linux_packages]
+    - !reference [.upload_debug_symbols]
   after_script:
     - !reference [.static_quality_gate_package]
   artifacts:
