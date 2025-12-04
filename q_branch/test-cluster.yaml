@@ -4,7 +4,7 @@ metadata:
   name: datadog
 spec:
   global:
-    clusterName: gadget-k8s-dev
+    clusterName: gadget-dev
     kubelet:
       tlsVerify: false
     credentials:
