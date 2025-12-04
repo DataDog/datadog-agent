@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-// Package aws contains configuration for RDS autodiscovery
+//go:build ec2
+
 package aws
 
 import (
