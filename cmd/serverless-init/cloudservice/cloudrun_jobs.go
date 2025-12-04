@@ -33,13 +33,15 @@ const (
 
 const (
 	cloudRunJobNamespace = "gcrj."
-	jobNameTag           = "job_name"
-	executionNameTag     = "execution_name"
-	taskIndexTag         = "task_index"
-	taskAttemptTag       = "task_attempt"
-	taskCountTag         = "task_count"
-	resourceNameTag      = "resource_name"
 	cloudRunJobsPrefix   = "gcp.run.job"
+	// Low cardinality (include with metrics)
+	jobNameTag      = "job_name"
+	resourceNameTag = "resource_name"
+	// High cardinality (avoid adding to metrics)
+	executionNameTag = "execution_name"
+	taskIndexTag     = "task_index"
+	taskAttemptTag   = "task_attempt"
+	taskCountTag     = "task_count" // not really high cardinality, but not necessary for metrics
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
