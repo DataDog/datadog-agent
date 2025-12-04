@@ -1,6 +1,6 @@
 name "python3"
 
-default_version "3.13.9"
+default_version "3.13.10"
 
 unless windows?
   dependency "libffi"
@@ -13,7 +13,7 @@ end
 dependency "openssl3"
 
 source :url => "https://python.org/ftp/python/#{version}/Python-#{version}.tgz",
-       :sha256 => "c4c066af19c98fb7835d473bebd7e23be84f6e9874d47db9e39a68ee5d0ce35c"
+       :sha256 => "de5930852e95ba8c17b56548e04648470356ac47f7506014664f8f510d7bd61b"
 
 relative_path "Python-#{version}"
 
@@ -21,7 +21,7 @@ build do
   # 2.0 is the license version here, not the python version
   license "Python-2.0"
 
-  unless windows_target?
+  if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
     python_configure_options = [
       "--without-readline",  # Disables readline support
@@ -66,7 +66,7 @@ build do
     block do
       FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
     end
-  else
+  elsif fips_mode?
     ###############################
     # Setup openssl dependency... #
     ###############################
@@ -77,7 +77,7 @@ build do
 
     # This is not necessarily the version we built, but the version
     # the Python build system expects.
-    openssl_version = "3.0.16.2"
+    openssl_version = "3.0.18"
     python_arch = "amd64"
 
     mkdir "externals\\openssl-bin-#{openssl_version}\\#{python_arch}\\include"
@@ -123,6 +123,8 @@ build do
 
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"
+  else
+    command_on_repo_root "bazelisk run -- @cpython//:install --destdir=#{python_3_embedded}"
   end
 end
 

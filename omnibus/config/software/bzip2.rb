@@ -32,7 +32,7 @@ version("1.0.8") { source sha256: "ab5a03176ee106d3f0fa90e381da478ddae405918153c
 source url: "https://fossies.org/linux/misc/#{name}-#{version}.tar.gz"
 
 build do
-  command_on_repo_root "bazelisk run -- @bzip2//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- @bzip2//:install --destdir='#{install_dir}'"
 
   # The version of bzip2 we use doesn't create a pkgconfig file,
   # we add it here manually (needed at least by the Python build)

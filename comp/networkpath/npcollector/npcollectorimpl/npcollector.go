@@ -408,6 +408,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	path.Source.ContainerID = ptest.Pathtest.SourceContainerID
 	path.Namespace = s.networkDevicesNamespace
 	path.Origin = payload.PathOriginNetworkTraffic
+	path.TestRunType = payload.TestRunTypeDynamic
+	path.SourceProduct = payload.SourceProductNetworkPath
+	path.CollectorType = payload.CollectorTypeAgent
 
 	// Perform reverse DNS lookup on destination and hop IPs
 	s.enrichPathWithRDNS(&path, ptest.Pathtest.Metadata.ReverseDNSHostname)

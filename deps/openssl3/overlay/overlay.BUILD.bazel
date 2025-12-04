@@ -11,8 +11,8 @@ load(
 )
 
 package(
-    default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
 )
 
 license(

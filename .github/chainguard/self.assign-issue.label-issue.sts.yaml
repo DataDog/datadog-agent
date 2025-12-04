@@ -12,3 +12,4 @@ claim_pattern:
 permissions:
   contents: read
   issues: write
+  members: read
