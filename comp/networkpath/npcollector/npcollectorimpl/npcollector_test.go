@@ -244,6 +244,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -321,6 +324,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
