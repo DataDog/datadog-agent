@@ -75,17 +75,22 @@ func parseFeatureGatesFromMetrics(metricsData []byte) (map[string]FeatureGate, e
 	return gates, nil
 }
 
-// ClusterFeatureGates queries the /metrics endpoint and returns feature gates
-func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface, _ time.Duration) (map[string]FeatureGate, error) {
+// ClusterFeatureGates returns a map of all feature gates enabled/disabled in the cluster.
+// It retries using exponential backoff until timeout is reached.
+// Results are cached for 1 hour.
+func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.DiscoveryInterface, timeout time.Duration) (map[string]FeatureGate, error) {
 	if featureGates, found := cache.Cache.Get(featureGatesCacheKey); found {
 		return featureGates.(map[string]FeatureGate), nil
 	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	var featureGates map[string]FeatureGate
 	err := retrier.SetupRetrier(&retry.Config{
 		Name: "featureGates",
 		AttemptMethod: func() error {
-			metricsData, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(ctx)
+			metricsData, err := discoveryClient.RESTClient().Get().AbsPath(apiServerMetricsPath).DoRaw(timeoutCtx)
 			if err != nil {
 				return fmt.Errorf("failed to query /metrics endpoint: %v", err)
 			}
@@ -99,7 +104,7 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 		},
 		Strategy:          retry.Backoff,
 		InitialRetryDelay: 1 * time.Second,
-		MaxRetryDelay:     2 * time.Second,
+		MaxRetryDelay:     timeout,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("couldnt setup retrier: %w", err)
@@ -117,8 +122,8 @@ func ClusterFeatureGates(ctx context.Context, discoveryClient discovery.Discover
 			sleepFor := retrier.NextRetry().UTC().Sub(time.Now().UTC()) + time.Second
 			log.Debugf("Waiting for APIServer, next retry: %v", sleepFor)
 			select {
-			case <-ctx.Done():
-				return nil, fmt.Errorf("context finished while waiting for Kubernetes feature gates")
+			case <-timeoutCtx.Done():
+				return nil, fmt.Errorf("timeout reached while waiting for Kubernetes feature gates")
 			case <-time.After(sleepFor):
 			}
 		}

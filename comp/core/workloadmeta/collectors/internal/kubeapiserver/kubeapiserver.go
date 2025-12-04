@@ -237,17 +237,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 	go runStartupCheck(ctx, objectStores)
 
-	// TODO: kube capability collection could be blocking or fail. Need to investigate how to handle
-	go func() {
-		kubeCapEvent := collectKubeCapabilities(ctx, apiserverClient)
-		wlmetaStore.Notify([]workloadmeta.CollectorEvent{
-			{
-				Type:   kubeCapEvent.Type,
-				Source: workloadmeta.SourceKubeAPIServer,
-				Entity: kubeCapEvent.Entity,
-			},
-		})
-	}()
+	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
 
 	return nil
 }
@@ -264,10 +254,10 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }
 
-func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient) workloadmeta.Event {
+func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient, wlmetaStore workloadmeta.Component) {
 	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 2*time.Second)
 	if err != nil {
-		log.Errorf("failed to get cluster feature gates: %v", err)
+		log.Warnf("failed to collect cluster feature gates: %v", err)
 		featureGates = make(map[string]common.FeatureGate)
 	}
 
@@ -282,23 +272,26 @@ func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.API
 
 	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 2*time.Second)
 	if err != nil {
-		log.Errorf("failed to get cluster version: %v", err)
+		log.Warnf("failed to collect cluster version: %v", err)
 	}
 
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.KubeCapabilities{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindKubeCapabilities,
-				ID:   workloadmeta.KubeCapabilitiesID,
+	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: &workloadmeta.KubeCapabilities{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubeCapabilities,
+					ID:   workloadmeta.KubeCapabilitiesID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: workloadmeta.KubeCapabilitiesName,
+				},
+				Version:      versionInfo,
+				FeatureGates: wlmFeatureGates,
 			},
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: workloadmeta.KubeCapabilitiesName,
-			},
-			Version:      versionInfo,
-			FeatureGates: wlmFeatureGates,
 		},
-	}
+	})
 }
 
 func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
