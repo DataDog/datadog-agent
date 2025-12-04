@@ -189,8 +189,8 @@ func TestApplyProfileOverrides(t *testing.T) {
 			baseContainer: &corev1.Container{},
 			expectedContainer: &corev1.Container{
 				Env: []corev1.EnvVar{
-					{Name: "ENV_VAR_1", Value: "value1"},
 					{Name: "ENV_VAR_2", Value: "value2"},
+					{Name: "ENV_VAR_1", Value: "value1"},
 				},
 				Resources: corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
@@ -273,10 +273,10 @@ func TestApplyProfileOverrides(t *testing.T) {
 			baseContainer: &corev1.Container{},
 			expectedContainer: &corev1.Container{
 				Env: []corev1.EnvVar{
+					{Name: "ENV_VAR_2", Value: "value2"},
 					{Name: "ENV_VAR_1", ValueFrom: &corev1.EnvVarSource{
 						SecretKeyRef: &corev1.SecretKeySelector{Key: "secret-key", LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
 					}},
-					{Name: "ENV_VAR_2", Value: "value2"},
 				},
 				Resources: corev1.ResourceRequirements{
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
@@ -318,11 +318,11 @@ func TestApplyProfileOverrides(t *testing.T) {
 
 			expectedContainer: &corev1.Container{
 				Env: []corev1.EnvVar{
+					{Name: "ENV_VAR_2", Value: "value2"},
 					{Name: "EXISTING_VAR", Value: "existing_value"},
 					{Name: "ENV_VAR_1", ValueFrom: &corev1.EnvVarSource{
 						SecretKeyRef: &corev1.SecretKeySelector{Key: "secret-key", LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"}},
 					}},
-					{Name: "ENV_VAR_2", Value: "value2"},
 				},
 				Resources: corev1.ResourceRequirements{
 					Limits:   corev1.ResourceList{"cpu": resource.MustParse("1"), "memory": resource.MustParse("512Mi")},
