@@ -62,8 +62,6 @@ const (
 type testContext struct {
 	// The address of the server to listen on.
 	serverAddress string
-	// The port to listen on.
-	serverPort string
 	// The address for the client to communicate with.
 	targetAddress string
 	// Clients that should be torn down at the end of the test
@@ -123,7 +121,7 @@ func (s *KafkaProtocolParsingSuite) getTopicName() string {
 func TestKafkaProtocolParsing(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 	serverHost := "127.0.0.1"
-	require.NoError(t, kafka.RunServer(t, serverHost, kafkaPort))
+	require.NoError(t, kafka.RunServer(t, serverHost))
 
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
 		suite.Run(t, new(KafkaProtocolParsingSuite))
@@ -206,7 +204,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		{
 			name: "Sanity - produce and fetch",
 			context: testContext{
-				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -257,7 +254,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		{
 			name: "TestProduceClientIdEmptyString",
 			context: testContext{
-				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -295,7 +291,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		{
 			name: "TestManyProduceRequests",
 			context: testContext{
-				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -336,7 +331,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		{
 			name: "Multiple records within the same produce requests",
 			context: testContext{
-				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -386,7 +380,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		{
 			name: "Multiple records with and without batching",
 			context: testContext{
-				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras: map[string]interface{}{
@@ -451,7 +444,6 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		{
 			name: "Kafka Kernel Telemetry - Topic name size buckets",
 			context: testContext{
-				serverPort:    kafkaPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        map[string]interface{}{},
