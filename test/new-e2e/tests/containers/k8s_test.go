@@ -1545,17 +1545,17 @@ datadog:
 		m := mode.mode
 		helmValues := mode.helmValues
 
-		if slices.Contains(suite.skipModes, m) {
-			suite.T().Logf("Skipping scanning method '%s'", m)
-			continue
-		}
-
 		for _, img := range images {
 			appImage := img.app
 			appShortImage := filepath.Base(appImage)
 			appVersion := img.version
 
 			suite.Run("sbom_mode="+m+",image="+appImage, func() {
+				if slices.Contains(suite.skipModes, m) {
+					suite.T().Skipf("Skipping scanning method '%s'", m)
+					return
+				}
+
 				sendEvent := func(alertType, text string) {
 					if _, err := suite.DatadogClient().PostEvent(&datadog.Event{
 						Title: pointer.Ptr(suite.T().Name()),
