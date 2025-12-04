@@ -7,14 +7,26 @@ It forms the root of the web of trust. From a reliability, and security
 point of view, it is best if our code uses a set that we have veted
 ourselves, rather than relying on what might happen to be on the
 customer's machine.
+
+Note: we need to bundle recent cacerts to make the Agent trust our backend.
+Not shipping the cacerts causes the following error in the Docker Agent:
+  Error while processing transaction: error while sending transaction, rescheduling it:
+  Post "https://7-31-0-app.agent.datadoghq.com/intake/?api_key=********************************":
+  x509: certificate signed by unknown authority
+because the Docker Agent image doesn't have other system SSL certificates.
+Even though these cacerts might become outdated in the future, some python
+dependencies we ship also bundle cacerts so we aren't making things worse by
+doing this.
 """
 
 load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//packages:__subpackages__"],
 )
 
 license(
@@ -54,4 +66,57 @@ sh_test(
     target_compatible_with = [
         "@platforms//os:linux",
     ],
+)
+
+pkg_files(
+    name = "real_certs_file",
+    srcs = [
+        ":cacert.pem",
+    ],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "embedded/ssl/cacerts",
+)
+
+# most systems can symlink to the real file
+pkg_mklink(
+    name = "certs_file_link",
+    link_name = "embedded/ssl/cacert.pem",
+    target = "cacerts/cacert.pem",
+)
+
+# but on windows we copy it out twice.
+pkg_files(
+    name = "certs_file_dup",
+    srcs = [
+        ":cacert.pem",
+    ],
+    # Must be writable or the signing step in finalize fails.
+    attributes = pkg_attributes(
+        mode = "0644",
+    ),
+    prefix = "embedded/ssl",
+)
+
+# TODO: add this to //packages/install_dir/embedded:everything
+# TODO: delete omnibus/config/software/cacerts.rb
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        "real_certs_file",
+    ] + select({
+        "@platforms//os:windows": ["certs_file_dup"],
+        "//conditions:default": ["certs_file_link"],
+    }),
+)
+
+# Only call this directly for testing. It should be called
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+    tags = ["manual"],
 )
