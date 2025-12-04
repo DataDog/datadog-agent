@@ -8,6 +8,7 @@ package eval
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -622,7 +623,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 						} else if b.Field == "event.title" {
 							titleEvaluator, errTitleEvaluator = StringEquals(titleStringEvaluator, a, state)
 						} else {
-							return nil, fmt.Errorf("at least one evaluator must be event.title")
+							return nil, errors.New("at least one evaluator must be event.title")
 						}
 						if errTitleEvaluator != nil {
 							return nil, errTitleEvaluator
@@ -653,7 +654,7 @@ func (m *testModel) GetEvaluator(field Field, regID RegisterID, offset int) (Eva
 						} else if b.Field == "event.title" {
 							upperEvaluator, errUpperEvaluator = StringEquals(upperCaseStringEvaluator, a, state)
 						} else {
-							return nil, fmt.Errorf("at least one evaluator must be event.title")
+							return nil, errors.New("at least one evaluator must be event.title")
 						}
 						if errUpperEvaluator != nil {
 							return nil, errUpperEvaluator

@@ -7,15 +7,10 @@
     - $ErrorActionPreference = 'Stop'
     - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
     - mkdir omnibus\pkg
-    - mkdir "$XDG_CACHE_HOME" -Force | Out-Null
     - >
-      docker run --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       -m 24576M
       -v "$(Get-Location):c:\mnt"
-      -v "${XDG_CACHE_HOME}:$XDG_CACHE_HOME"
-      -e XDG_CACHE_HOME
-      -e BAZELISK_HOME
-      -e CI
       -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
       -e CI_JOB_ID
       -e CI_PIPELINE_ID

@@ -72,7 +72,7 @@ func FromUnstructured(obj runtime.Object, structDest any) error {
 func ToUnstructured(structIn any) (*unstructured.Unstructured, error) {
 	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(structIn)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to convert DatadogMetric %v: %w", structIn, err)
+		return nil, fmt.Errorf("Unable to convert object %v: %w", structIn, err)
 	}
 
 	unstructOut := &unstructured.Unstructured{}

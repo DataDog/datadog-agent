@@ -236,7 +236,7 @@ def launch_stack(
         x86_ami_id=x86_ami,
         arm_ami_id=arm_ami,
         ssh_key_name=ssh_key_obj['aws_key_name'] if ssh_key_obj is not None else None,
-        infra_env="aws/sandbox",
+        infra_env="aws/agent-sandbox",
         vmconfig=vm_config,
         stack_name=stack,
         local=local,
@@ -269,7 +269,7 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
         prefix = f"aws-vault exec {AWS_ACCOUNT} -- "
 
     build_start_microvms_binary(ctx)
-    start_cmd = start_microvms_cmd(infra_env="aws/sandbox", stack_name=stack, destroy=True, local=True)
+    start_cmd = start_microvms_cmd(infra_env="aws/agent-sandbox", stack_name=stack, destroy=True, local=True)
     ctx.run(f"{prefix}{start_cmd}", env=env)
 
 

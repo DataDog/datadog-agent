@@ -629,7 +629,7 @@ func (b *baseType) formatValueFields(
 	kind, ok := b.GetGoKind()
 	if !ok {
 		if !writeBoundedFallback(
-			buf, limits, fmt.Sprintf("unknown kind for type %s", b.GetName()),
+			buf, limits, "unknown kind for type "+b.GetName(),
 		) {
 			return nil
 		}
@@ -712,7 +712,7 @@ func (h *goHMapHeaderType) encodeValueFields(
 ) error {
 	maxOffset := max(h.countOffset+8, h.bucketsOffset+8, h.oldBucketsOffset+8)
 	if maxOffset > uint32(len(data)) {
-		return fmt.Errorf("data is too short to contain all fields")
+		return errors.New("data is too short to contain all fields")
 	}
 	count := binary.NativeEndian.Uint64(data[h.countOffset : h.countOffset+8])
 	return encodeMapEntries(enc, count, func() (int, error) {
@@ -983,13 +983,13 @@ func (b *goHMapBucketType) irType() ir.Type { return (*ir.GoHMapBucketType)(b) }
 func (*goHMapBucketType) encodeValueFields(
 	*encodingContext, *jsontext.Encoder, []byte,
 ) error {
-	return fmt.Errorf("hmap bucket type is never directly encoded")
+	return errors.New("hmap bucket type is never directly encoded")
 }
 
 func (*goHMapBucketType) formatValueFields(
 	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
 ) error {
-	return fmt.Errorf("hmap bucket type is never directly formatted")
+	return errors.New("hmap bucket type is never directly formatted")
 }
 
 func (s *goSwissMapHeaderType) irType() ir.Type { return s.GoSwissMapHeaderType }
@@ -1875,7 +1875,7 @@ func (s *goStringDataType) encodeValueFields(
 func (s *goStringDataType) formatValueFields(
 	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
 ) error {
-	return fmt.Errorf("string data is not formatted")
+	return errors.New("string data is not formatted")
 }
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }
@@ -2097,7 +2097,7 @@ func (u *unresolvedPointeeType) encodeValueFields(
 func (u *unresolvedPointeeType) formatValueFields(
 	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
 ) error {
-	return fmt.Errorf("depth limit reached")
+	return errors.New("depth limit reached")
 }
 
 func getFieldByName(fields []ir.Field, name string) (*ir.Field, error) {
