@@ -136,8 +136,6 @@ ARG TARGETARCH
 ARG WITH_JMX
 
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Configuration:
