@@ -187,6 +187,12 @@ build do
       copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
     else
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+
+      # Build and install system-probe-discovery wrapper
+      if linux_target?
+        command "dda inv -- -e system-probe.build-discovery-wrapper", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+        copy "bin/system-probe-discovery/system-probe-discovery", "#{install_dir}/embedded/bin"
+      end
     end
 
     # Add SELinux policy for system-probe
