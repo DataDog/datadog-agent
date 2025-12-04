@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
@@ -107,6 +108,14 @@ const (
 	ddot
 	agentOTLPIngest
 )
+
+func (c *serializerConsumer) ConsumeExplicitBoundHistogram(ctx context.Context, dimensions *otlpmetrics.Dimensions, pts pmetric.HistogramDataPointSlice) {
+	// TODO noop for now
+}
+
+func (c *serializerConsumer) ConsumeExponentialHistogram(ctx context.Context, dimensions *otlpmetrics.Dimensions, pts pmetric.ExponentialHistogramDataPointSlice) {
+	// TODO noop for now
+}
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	log.Tracef("Serializing %d client stats buckets.", len(ss.Stats))
@@ -222,7 +231,8 @@ func (c *serializerConsumer) addRuntimeTelemetryMetric(hostname string, language
 }
 
 func (c *serializerConsumer) addGatewayUsage(hostname string, params exporter.Settings,
-	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge) {
+	gatewayUsage otel.GatewayUsage, coatUsageMetric telemetry.Gauge,
+) {
 	buildInfo := params.BuildInfo
 	value, enabled := gatewayUsage.Gauge()
 	if enabled {

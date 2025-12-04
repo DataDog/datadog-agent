@@ -1,0 +1,226 @@
+package metrics
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationlibrary"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics/internal/instrumentationscope"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/zap"
+)
+
+type MinimalTranslator struct {
+	logger               *zap.Logger
+	attributesTranslator *attributes.Translator
+	cfg                  translatorConfig
+	mapper               Mapper
+}
+
+// NewMinimalTranslator creates a new translator with the given options.
+func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.Translator, options ...TranslatorOption) (MetricsTranslator, error) {
+	cfg := translatorConfig{
+		HistMode:                             HistogramModeDistributions,
+		SendHistogramAggregations:            false,
+		Quantiles:                            false,
+		NumberMode:                           NumberModeCumulativeToDelta,
+		InitialCumulMonoValueMode:            InitialCumulMonoValueModeAuto,
+		InstrumentationLibraryMetadataAsTags: false,
+		sweepInterval:                        1800,
+		deltaTTL:                             3600,
+		fallbackSourceProvider:               &noSourceProvider{},
+		originProduct:                        OriginProductUnknown,
+	}
+
+	for _, opt := range options {
+		err := opt(&cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &MinimalTranslator{
+		logger:               logger,
+		attributesTranslator: attributesTranslator,
+		cfg:                  cfg,
+		mapper:               NewSimpleMapper(cfg, logger),
+	}, nil
+}
+
+var ErrUnsupportedAggregation = fmt.Errorf("unsupported aggregation temporality")
+
+func (t *MinimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error) {
+	metadata := Metadata{
+		Languages: []string{},
+	}
+	rms := md.ResourceMetrics()
+	for i := 0; i < rms.Len(); i++ {
+		rm := rms.At(i)
+		src, err := t.source(ctx, rm.Resource(), hostFromAttributesHandler)
+		if err != nil {
+			return metadata, err
+		}
+
+		var host string
+		if src.Kind == source.HostnameKind {
+			host = src.Identifier
+			// Don't consume the host yet, first check if we have any nonAPM metrics.
+		}
+
+		// seenNonAPMMetrics is used to determine if we have seen any non-APM metrics in this ResourceMetrics.
+		// If we have only seen APM metrics, we don't want to consume the host.
+		var seenNonAPMMetrics bool
+
+		// Fetch tags from attributes.
+		attributeTags := attributes.TagsFromAttributes(rm.Resource().Attributes())
+		ilms := rm.ScopeMetrics()
+		rattrs := rm.Resource().Attributes()
+		for j := 0; j < ilms.Len(); j++ {
+			ilm := ilms.At(j)
+			metricsArray := ilm.Metrics()
+
+			var additionalTags []string
+			if t.cfg.InstrumentationScopeMetadataAsTags {
+				additionalTags = append(attributeTags, instrumentationscope.TagsFromInstrumentationScopeMetadata(ilm.Scope())...)
+			} else if t.cfg.InstrumentationLibraryMetadataAsTags {
+				additionalTags = append(attributeTags, instrumentationlibrary.TagsFromInstrumentationLibraryMetadata(ilm.Scope())...)
+			} else {
+				additionalTags = attributeTags
+			}
+
+			scopeName := ilm.Scope().Name()
+
+			for k := 0; k < metricsArray.Len(); k++ {
+				md := metricsArray.At(k)
+
+				if _, ok := runtimeMetricsMappings[md.Name()]; ok {
+					metadata.Languages = extractLanguageTag(md.Name(), metadata.Languages)
+				} else {
+					seenNonAPMMetrics = true
+				}
+				err := t.mapToDDFormat(ctx, md, consumer, additionalTags, host, scopeName, rattrs)
+				if err != nil {
+					return metadata, err
+				}
+			}
+
+		}
+
+		// Only consume the source if we have seen non-APM metrics.
+		if seenNonAPMMetrics {
+			switch src.Kind {
+			case source.HostnameKind:
+				if c, ok := consumer.(HostConsumer); ok {
+					c.ConsumeHost(host)
+				}
+			case source.AWSECSFargateKind:
+				if c, ok := consumer.(TagsConsumer); ok {
+					c.ConsumeTag(src.Tag())
+				}
+			}
+		}
+	}
+	return metadata, nil
+}
+
+func (t *MinimalTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
+	src, hasSource := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
+	if !hasSource {
+		return source.Source{}, fmt.Errorf("no source found in resource")
+	}
+	return src, nil
+}
+
+// isUnsupportedMetric returns true if the input metric is not consumable by OTLP metrics intake endpoint.
+// Unsupported OTLP metrics include cumulative monotonic sum metrics, cumulative histogram and exponential histogram metrics,
+// metrics with an aggregation temporality other than delta or cumulative, and metrics with an empty metric type.
+func isUnsupportedMetric(m pmetric.Metric) bool {
+	aggr := pmetric.AggregationTemporalityUnspecified
+	switch m.Type() {
+	case pmetric.MetricTypeSum:
+		aggr = m.Sum().AggregationTemporality()
+		if aggr == pmetric.AggregationTemporalityCumulative && !m.Sum().IsMonotonic() {
+			// Cumulative non-monotonic sum metrics are consumable as Gauges.
+			return false
+		}
+	case pmetric.MetricTypeHistogram:
+		aggr = m.Histogram().AggregationTemporality()
+	case pmetric.MetricTypeExponentialHistogram:
+		aggr = m.ExponentialHistogram().AggregationTemporality()
+	case pmetric.MetricTypeSummary, pmetric.MetricTypeGauge:
+		return false
+	}
+	return aggr != pmetric.AggregationTemporalityDelta
+}
+
+func (t *MinimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
+	baseDims := &Dimensions{
+		name:                md.Name(),
+		tags:                additionalTags,
+		host:                host,
+		originID:            attributes.OriginIDFromAttributes(rattrs),
+		originProduct:       t.cfg.originProduct,
+		originSubProduct:    OriginSubProductOTLP,
+		originProductDetail: originProductDetailFromScopeName(scopeName),
+	}
+	if isUnsupportedMetric(md) {
+		return ErrUnsupportedAggregation
+	}
+	switch md.Type() {
+	case pmetric.MetricTypeGauge:
+		t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Gauge().DataPoints())
+	case pmetric.MetricTypeSum:
+		switch md.Sum().AggregationTemporality() {
+		case pmetric.AggregationTemporalityCumulative:
+			if isCumulativeMonotonic(md) {
+				switch t.cfg.NumberMode {
+				case NumberModeCumulativeToDelta:
+				// Not supported, use raw value
+				case NumberModeRawValue:
+					t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Sum().DataPoints())
+				}
+			} else { // delta and cumulative non-monotonic sums
+				t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Gauge, md.Sum().DataPoints())
+			}
+		case pmetric.AggregationTemporalityDelta:
+			t.mapper.MapNumberMetrics(ctx, consumer, baseDims, Count, md.Sum().DataPoints())
+		default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
+			t.logger.Debug("Unknown or unsupported aggregation temporality",
+				zap.String(metricName, md.Name()),
+				zap.Any("aggregation temporality", md.Sum().AggregationTemporality()),
+			)
+		}
+	case pmetric.MetricTypeHistogram:
+		switch md.Histogram().AggregationTemporality() {
+		case pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityDelta:
+			err := t.mapper.MapHistogramMetrics(ctx, consumer, baseDims, md.Histogram().DataPoints(), true)
+			if err != nil {
+				return err
+			}
+		default: // pmetric.AggregationTemporalityUnspecified or any other not supported type
+			t.logger.Debug("Unknown or unsupported aggregation temporality",
+				zap.String("metric name", md.Name()),
+				zap.Any("aggregation temporality", md.Histogram().AggregationTemporality()),
+			)
+		}
+	case pmetric.MetricTypeExponentialHistogram:
+		switch md.ExponentialHistogram().AggregationTemporality() {
+		case pmetric.AggregationTemporalityDelta:
+			delta := md.ExponentialHistogram().AggregationTemporality() == pmetric.AggregationTemporalityDelta
+			t.mapper.MapExponentialHistogramMetrics(ctx, consumer, baseDims, md.ExponentialHistogram().DataPoints(), delta)
+		default: // pmetric.AggregationTemporalityCumulative, pmetric.AggregationTemporalityUnspecified or any other not supported type
+			t.logger.Debug("Unknown or unsupported aggregation temporality",
+				zap.String("metric name", md.Name()),
+				zap.Any("aggregation temporality", md.ExponentialHistogram().AggregationTemporality()),
+			)
+		}
+	case pmetric.MetricTypeSummary:
+		t.mapper.MapSummaryMetrics(ctx, consumer, baseDims, md.Summary().DataPoints())
+	default: // pmetric.MetricDataTypeNone or any other not supported type
+		t.logger.Debug("Unknown or unsupported metric type", zap.String(metricName, md.Name()), zap.Any("data type", md.Type()))
+	}
+	return nil
+}

@@ -211,6 +211,24 @@ func (t *testConsumer) ConsumeHost(host string) {
 	t.data.Hosts[host] = struct{}{}
 }
 
+// ConsumeExplicitBoundHistogram is a no-op for test consumer
+func (t *testConsumer) ConsumeExplicitBoundHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.HistogramDataPointSlice,
+) {
+	// no-op: test consumer doesn't need raw histogram data
+}
+
+// ConsumeExponentialHistogram is a no-op for test consumer
+func (t *testConsumer) ConsumeExponentialHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.ExponentialHistogramDataPointSlice,
+) {
+	// no-op: test consumer doesn't need raw histogram data
+}
+
 // TestTestDimensions tests that TestDimensions fields match those of Dimensions.
 func TestTestDimensions(t *testing.T) {
 	testType := reflect.TypeOf(TestDimensions{})

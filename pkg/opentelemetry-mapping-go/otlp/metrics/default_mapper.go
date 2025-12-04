@@ -37,7 +37,8 @@ type DefaultMapper struct {
 }
 
 // NewDefaultMapper creates a new DefaultMapper with the given dependencies.
-func NewDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) *DefaultMapper {
+// DefaultMapper implements Mapper and uses Consumer which includes both sketch and histogram interfaces.
+func NewDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) Mapper {
 	return &DefaultMapper{
 		prevPts: prevPts,
 		logger:  logger,
@@ -58,7 +59,7 @@ func (m *DefaultMapper) isSkippable(name string, v float64) bool {
 // MapNumberMetrics maps double datapoints into Datadog metrics
 func (m *DefaultMapper) MapNumberMetrics(
 	ctx context.Context,
-	consumer TimeSeriesConsumer,
+	consumer Consumer,
 	dims *Dimensions,
 	dt DataType,
 	slice pmetric.NumberDataPointSlice,
@@ -194,7 +195,7 @@ func (m *DefaultMapper) MapHistogramMetrics(
 // MapSummaryMetrics maps summary datapoints into Datadog metrics
 func (m *DefaultMapper) MapSummaryMetrics(
 	ctx context.Context,
-	consumer TimeSeriesConsumer,
+	consumer Consumer,
 	dims *Dimensions,
 	slice pmetric.SummaryDataPointSlice,
 ) {
@@ -379,7 +380,7 @@ func (m *DefaultMapper) shouldConsumeInitialValue(startTs, ts uint64) bool {
 // getSketchBuckets converts histogram buckets to a sketch
 func (m *DefaultMapper) getSketchBuckets(
 	ctx context.Context,
-	consumer SketchConsumer,
+	consumer Consumer,
 	pointDims *Dimensions,
 	p pmetric.HistogramDataPoint,
 	histInfo histogramInfo,
@@ -515,7 +516,7 @@ func (m *DefaultMapper) getSketchBuckets(
 // getLegacyBuckets produces legacy bucket metrics
 func (m *DefaultMapper) getLegacyBuckets(
 	ctx context.Context,
-	consumer TimeSeriesConsumer,
+	consumer Consumer,
 	pointDims *Dimensions,
 	p pmetric.HistogramDataPoint,
 	delta bool,

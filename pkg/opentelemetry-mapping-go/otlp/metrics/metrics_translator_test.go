@@ -149,7 +149,7 @@ type sketch struct {
 	host      string
 }
 
-var _ TimeSeriesConsumer = (*mockTimeSeriesConsumer)(nil)
+var _ Consumer = (*mockTimeSeriesConsumer)(nil)
 
 type mockTimeSeriesConsumer struct {
 	metrics []metric
@@ -174,6 +174,32 @@ func (m *mockTimeSeriesConsumer) ConsumeTimeSeries(
 			host:      dimensions.Host(),
 		},
 	)
+}
+
+func (m *mockTimeSeriesConsumer) ConsumeSketch(
+	_ context.Context,
+	_ *Dimensions,
+	_ uint64,
+	_ int64,
+	_ *quantile.Sketch,
+) {
+	// no-op for time series only consumer
+}
+
+func (m *mockTimeSeriesConsumer) ConsumeExplicitBoundHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.HistogramDataPointSlice,
+) {
+	// no-op for time series only consumer
+}
+
+func (m *mockTimeSeriesConsumer) ConsumeExponentialHistogram(
+	_ context.Context,
+	_ *Dimensions,
+	_ pmetric.ExponentialHistogramDataPointSlice,
+) {
+	// no-op for time series only consumer
 }
 
 func newDims(name string) *Dimensions {
@@ -2058,7 +2084,7 @@ func TestMapDoubleMonotonicOutOfOrder(t *testing.T) {
 	)
 }
 
-var _ SketchConsumer = (*mockFullConsumer)(nil)
+var _ Consumer = (*mockFullConsumer)(nil)
 
 type mockFullConsumer struct {
 	mockTimeSeriesConsumer

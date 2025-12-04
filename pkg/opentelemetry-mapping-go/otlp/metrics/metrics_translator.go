@@ -100,6 +100,7 @@ func (*noSourceProvider) Source(context.Context) (source.Source, error) {
 }
 
 // DefaultTranslator is the default metrics translator implementation.
+// It uses Consumer which includes both sketch and raw histogram consumers.
 type DefaultTranslator struct {
 	prevPts              *ttlCache
 	logger               *zap.Logger
@@ -115,14 +116,22 @@ func (t *DefaultTranslator) Mapper() Mapper {
 }
 
 // Mapper defines the interface for mapping OTLP metric data points to Datadog format.
-// Implement this interface to provide custom mapping behavior.
+// Consumer includes both sketch and raw histogram consumers - implementations can
+// use either based on configuration. Consumers can no-op methods they don't need.
 type Mapper interface {
 	MapNumberMetrics(
 		ctx context.Context,
-		consumer TimeSeriesConsumer,
+		consumer Consumer,
 		dims *Dimensions,
 		dt DataType,
 		slice pmetric.NumberDataPointSlice,
+	)
+
+	MapSummaryMetrics(
+		ctx context.Context,
+		consumer Consumer,
+		dims *Dimensions,
+		slice pmetric.SummaryDataPointSlice,
 	)
 
 	MapHistogramMetrics(
@@ -132,13 +141,6 @@ type Mapper interface {
 		slice pmetric.HistogramDataPointSlice,
 		delta bool,
 	) error
-
-	MapSummaryMetrics(
-		ctx context.Context,
-		consumer TimeSeriesConsumer,
-		dims *Dimensions,
-		slice pmetric.SummaryDataPointSlice,
-	)
 
 	MapExponentialHistogramMetrics(
 		ctx context.Context,
