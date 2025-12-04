@@ -365,16 +365,24 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 
 // RegisterHealthCheck implements the Checker interface
 // It registers a periodic health check and starts monitoring immediately
+// If a check with the same checkID is already registered, it will be skipped (deduplication)
 func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
-	h.log.Infof("Registering health check: %s", checkName)
+	// Check if this check is already registered (deduplication)
+	h.checksMux.Lock()
+	if _, exists := h.periodicChecks[checkID]; exists {
+		h.checksMux.Unlock()
+		h.log.Infof("Health check %s (%s) already registered, skipping duplicate registration", checkName, checkID)
+		return
+	}
 
 	// Store the check for on-demand detection
-	h.checksMux.Lock()
 	h.periodicChecks[checkID] = &periodicCheck{
 		checkName: checkName,
 		checkFunc: checkFunc,
 	}
 	h.checksMux.Unlock()
+
+	h.log.Infof("Registering health check: %s", checkName)
 
 	// Get the check interval from config
 	interval := h.config.GetDuration("health_platform.forwarder.interval") * time.Minute
