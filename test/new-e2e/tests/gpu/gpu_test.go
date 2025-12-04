@@ -456,10 +456,15 @@ func (v *gpuBaseSuite[Env]) TestZZAgentDidNotRestart() {
 	}
 }
 
-func assertMetricsHaveExpectedTagKeys(c *assert.CollectT, metrics []*aggregator.MetricSeries, expectedTagKeys []string, metricName string) {
+func assertMetricsHaveExpectedTagKeys(c *assert.CollectT, metrics []*aggregator.MetricSeries, expectedTagKeys []string, metricName string) bool {
 	smallestMissingTagSet := expectedTagKeys
 
-	assert.Greater(c, len(metrics), 0, "no metrics found")
+	if !assert.Greater(c, len(metrics), 0, "no metric values found for metric %s", metricName) {
+		// Don't follow with the rest of the assertions in the function, but
+		// also don't use require so that the caller of the function can
+		// continue with other assertions.
+		return false
+	}
 
 	missingTags := make(map[string]bool)
 	for _, metric := range metrics {
@@ -490,5 +495,5 @@ func assertMetricsHaveExpectedTagKeys(c *assert.CollectT, metrics []*aggregator.
 		}
 	}
 
-	assert.Empty(c, smallestMissingTagSet, "no metric %s found with expected tag keys %v. The closest tagset we got had the following missing tag keys: %v", metricName, expectedTagKeys, smallestMissingTagSet)
+	return assert.Empty(c, smallestMissingTagSet, "no metric %s found with expected tag keys %v. The closest tagset we got had the following missing tag keys: %v", metricName, expectedTagKeys, smallestMissingTagSet)
 }
