@@ -216,6 +216,14 @@ func getRunningScrubber() *scrubber.Scrubber {
 
 var ncmDefaultProfilesPath = filepath.Join("..", "..", "..", "cmd", "agent", "dist", "conf.d", "network_config_management.d", "default_profiles")
 
+// DefaultProfile will parse the official default profile given the name of the profile file
+func DefaultProfile(profileName string) *NCMProfile {
+	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, fmt.Sprintf("%s.json", profileName)))
+	configFile := resolveNCMProfileDefinitionPath(file)
+	prof, _ := ParseNCMProfileFromFile(configFile)
+	return prof
+}
+
 // IOSProfile parses the test profile for IOS devices to test with
 func IOSProfile() *NCMProfile {
 	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "cisco-ios.json"))
