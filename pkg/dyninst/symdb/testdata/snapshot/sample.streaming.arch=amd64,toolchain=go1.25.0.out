@@ -88,15 +88,17 @@ Package: main
 		Var: &v: *main.firstBehavior (declared at line 383, available: [374-430])
 		Var: &fortyTwo: *int (declared at line 386, available: [387-387])
 		Var: .autotmp_8: [0]int (declared at line 429, available: [374-430])
-	Function: executeSliceFuncs (main.executeSliceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [72:97] injectible: [72-75], [77-84], [86-90], [92-92], [94-97]
-		Var: originalSlice: []int (declared at line 73, available: )
-		Var: s: []uint (declared at line 82, available: )
-		Scope: 83-86
-			Var: i: int (declared at line 83, available: [86-86])
+	Function: executeSliceFuncs (main.executeSliceFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [76:105] injectible: [76-79], [81-88], [90-94], [96-96], [98-100], [103-105]
+		Var: originalSlice: []int (declared at line 77, available: )
+		Var: s: []uint (declared at line 86, available: )
+		Var: s2: []uint (declared at line 103, available: )
+		Scope: 87-90
+			Var: i: int (declared at line 87, available: [90-90])
 	Function: executeStack (main.executeStack) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/stacktraces.go [29:30] injectible: [30-30]
-	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [53:66] injectible: [53-53], [55-60], [63-66]
-		Var: abc: string (declared at line 54, available: )
-		Var: uninitializedString: string (declared at line 62, available: )
+	Function: executeStringFuncs (main.executeStringFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [57:74] injectible: [57-57], [59-64], [67-69], [73-74]
+		Var: abc: string (declared at line 58, available: )
+		Var: uninitializedString: string (declared at line 66, available: )
+		Var: s: string (declared at line 72, available: )
 	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [135:236] injectible: [135-137], [140-140], [142-143], [145-146], [150-150], [152-160], [172-172], [174-174], [177-182], [190-192], [194-195], [198-198], [200-201], [203-206], [208-208], [210-213], [215-216], [219-220], [222-223], [225-226], [228-229], [231-232], [235-236]
 		Var: n: main.nStruct (declared at line 139, available: )
 		Var: ns: main.structWithNoStrings (declared at line 148, available: )
@@ -760,6 +762,14 @@ Package: main
 		Arg: b: main.swsp (declared at line 83, available: [83-83])
 	Function: testStructWithUnsupportedFields (main.testStructWithUnsupportedFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [48:48] injectible: [48-48]
 		Arg: a: main.hasUnsupportedFields (declared at line 48, available: [48-48])
+	Function: testSubslices (main.testSubslices) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [73:73] injectible: [73-73]
+		Arg: as: []uint (declared at line 73, available: [73-73])
+		Arg: bs: []uint (declared at line 73, available: [73-73])
+		Arg: cs: []uint (declared at line 73, available: [73-73])
+	Function: testSubstrings (main.testSubstrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [54:54] injectible: [54-54]
+		Arg: a: string (declared at line 54, available: [54-54])
+		Arg: b: string (declared at line 54, available: [54-54])
+		Arg: c: string (declared at line 54, available: [54-54])
 	Function: testTenStrings (main.testTenStrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [112:112] injectible: [112-112]
 		Arg: x: main.tenStrings (declared at line 112, available: [112-112])
 	Function: testThreeStrings (main.testThreeStrings) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [16:16] injectible: [16-16]
