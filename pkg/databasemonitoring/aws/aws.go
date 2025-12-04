@@ -96,7 +96,7 @@ func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
 		if tag.Value != nil {
 			tagString += ":" + *tag.Value
 		}
-		if tag.Key != nil && *tag.Key == config.GlobalDbViewTag {
+		if tag.Key != nil && *tag.Key == config.GlobalDbViewTag && tag.Value != nil {
 			instance.GlobalDbView = *tag.Value
 		}
 		if tagString == config.DbmTag {

@@ -20,7 +20,6 @@ instances:
     #
     dbm: "%%extra_dbm%%"
 
-
     ## This block defines the configuration for AWS RDS and Aurora instances.
     ##
     ## Complete this section if you have installed the Datadog AWS Integration

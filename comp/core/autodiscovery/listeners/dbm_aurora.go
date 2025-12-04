@@ -252,6 +252,8 @@ func (d *DBMAuroraService) GetExtraConfig(key string) (string, error) {
 		return d.clusterID, nil
 	case "dbname":
 		return d.instance.DbName, nil
+	case "global_db_view":
+		return d.instance.GlobalDbView, nil
 	}
 
 	return "", ErrNotSupported
