@@ -28,6 +28,11 @@ for f in "$@"; do
         echo "$f: file not found"
         exit 2
     fi
+    # We don't want to process symlinks but rather the actual file it's pointing to
+    # Otherwise `file $f` would return that it's a symlink, not an elf/mach-o file
+    if [ -L "$f" ]; then
+        f=$(realpath "$f")
+    fi
     case $f in
         *.pc)
             sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
