@@ -39,6 +39,7 @@ func TestProcessResults(t *testing.T) {
 		description      string
 		inputResults     *result.Results
 		protocol         payload.Protocol
+		hname            string
 		destinationHost  string
 		useGatewayLookup bool
 		expected         payload.NetworkPath
@@ -53,6 +54,7 @@ func TestProcessResults(t *testing.T) {
 			description:      "test all fields",
 			useGatewayLookup: false,
 			protocol:         payload.ProtocolUDP,
+			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
 				Source: result.Source{
@@ -118,7 +120,10 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
-					PublicIP: "1.2.3.4",
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+					PublicIP:    "1.2.3.4",
 				},
 				Destination: payload.NetworkPathDestination{
 					Hostname: "test-destination-hostname",
@@ -178,6 +183,7 @@ func TestProcessResults(t *testing.T) {
 			description:      "successful processing no gateway lookup, did not reach target",
 			useGatewayLookup: false,
 			protocol:         payload.ProtocolUDP,
+			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
 				Destination: result.Destination{
@@ -218,7 +224,11 @@ func TestProcessResults(t *testing.T) {
 			expected: payload.NetworkPath{
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
-				Source:       payload.NetworkPathSource{},
+				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
+				},
 				Destination: payload.NetworkPathDestination{
 					Hostname: "test-destination-hostname",
 					Port:     33434,
@@ -256,6 +266,7 @@ func TestProcessResults(t *testing.T) {
 			description:      "successful processing with gateway lookup, did not reach target",
 			useGatewayLookup: true,
 			protocol:         payload.ProtocolTCP,
+			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
 				Destination: result.Destination{
@@ -297,6 +308,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolTCP,
 				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "test-subnet",
@@ -340,6 +354,7 @@ func TestProcessResults(t *testing.T) {
 			description:      "successful processing with gateway lookup, reached target",
 			useGatewayLookup: true,
 			protocol:         payload.ProtocolUDP,
+			hname:            "test-hostname",
 			destinationHost:  "test-destination-hostname",
 			inputResults: &result.Results{
 				Destination: result.Destination{
@@ -386,6 +401,9 @@ func TestProcessResults(t *testing.T) {
 				AgentVersion: version.AgentVersion,
 				Protocol:     payload.ProtocolUDP,
 				Source: payload.NetworkPathSource{
+					Hostname:    "test-hostname",
+					Name:        "test-hostname",
+					DisplayName: "test-hostname",
 					Via: &network.Via{
 						Subnet: network.Subnet{
 							Alias: "test-subnet",
@@ -452,7 +470,7 @@ func TestProcessResults(t *testing.T) {
 			if test.inputResults != nil {
 				dstPort = uint16(test.inputResults.Destination.Port)
 			}
-			actual, err := runner.processResults(test.inputResults, test.protocol, test.destinationHost, dstPort)
+			actual, err := runner.processResults(test.inputResults, test.protocol, test.hname, test.destinationHost, dstPort)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errMsg)
