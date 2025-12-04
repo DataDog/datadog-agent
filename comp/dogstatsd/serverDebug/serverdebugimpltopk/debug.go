@@ -57,11 +57,21 @@ type metricStat struct {
 	key      ckey.ContextKey
 }
 
+// metricStatsShard holds a subset of metric stats with its own lock
+// to allow concurrent access to different shards
+type metricStatsShard struct {
+	sync.RWMutex
+	stats           map[ckey.ContextKey]metricStat
+	tagsAccumulator *tagset.HashingTagsAccumulator
+}
+
+const numShards = 32 // Power of 2 for efficient modulo operation
+
 type serverDebugImpl struct {
 	sync.RWMutex
 	log     log.Component
 	enabled *atomic.Bool
-	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
+	shards  [numShards]*metricStatsShard
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
 	// keyGen is used to generate hashes of the metrics received by dogstatsd
@@ -69,8 +79,7 @@ type serverDebugImpl struct {
 
 	// clock is used to keep a consistent time state within the debug server whether
 	// we use a real clock in production code or a mock clock for unit testing
-	clock           clock.Clock
-	tagsAccumulator *tagset.HashingTagsAccumulator
+	clock clock.Clock
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
 	dogstatsdDebugLogger pkglog.LoggerInterface
 }
@@ -89,7 +98,6 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 	sd := &serverDebugImpl{
 		log:     l,
 		enabled: atomic.NewBool(false),
-		Stats:   make(map[ckey.ContextKey]metricStat),
 		metricsCounts: metricsCountBuckets{
 			counts:     [5]uint64{0, 0, 0, 0, 0},
 			metricChan: make(chan struct{}),
@@ -98,6 +106,15 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 		keyGen: ckey.NewKeyGenerator(),
 		clock:  clock.New(),
 	}
+
+	// Initialize all shards
+	for i := 0; i < numShards; i++ {
+		sd.shards[i] = &metricStatsShard{
+			stats:           make(map[ckey.ContextKey]metricStat),
+			tagsAccumulator: tagset.NewHashingTagsAccumulator(),
+		}
+	}
+
 	sd.dogstatsdDebugLogger = sd.getDogstatsdDebug(cfg)
 
 	return sd
@@ -151,7 +168,7 @@ func FormatDebugStats(stats []byte) (string, error) {
 	return buf.String(), nil
 }
 
-// storeMetricStats stores stats on the given metric sample.
+// StoreMetricStats stores stats on the given metric sample.
 //
 // It can help troubleshooting clients with bad behaviors.
 func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
@@ -160,32 +177,62 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	}
 
 	now := d.clock.Now()
-	d.Lock()
-	defer d.Unlock()
 
-	if d.tagsAccumulator == nil {
-		d.tagsAccumulator = tagset.NewHashingTagsAccumulator()
+	// Determine which shard to use based on metric name hash
+	// Using a simple hash function for distribution
+	hash := hashString(sample.Name)
+	shardIdx := hash % numShards
+	shard := d.shards[shardIdx]
+
+	// Lock only the specific shard, not the entire structure
+	shard.Lock()
+	defer shard.Unlock()
+
+	// Reset and populate tags accumulator for this shard
+	shard.tagsAccumulator.Reset()
+	shard.tagsAccumulator.Append(sample.Tags...)
+
+	// Generate key for this metric
+	key := d.keyGen.Generate(sample.Name, "", shard.tagsAccumulator)
+
+	// Get or create metric stat
+	ms, exists := shard.stats[key]
+	if !exists {
+		ms = metricStat{
+			key:  key,
+			Name: sample.Name,
+			Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
+		}
 	}
 
-	// key
-	//defer d.tagsAccumulator.Reset()
-	//d.tagsAccumulator.Append(sample.Tags...)
-	key := d.keyGen.Generate(sample.Name, "", d.tagsAccumulator)
-
-	// store
-	ms := metricStat{key: key}
+	// Update stats
 	ms.Count++
 	ms.LastSeen = now
-	ms.Name = sample.Name
-	ms.Tags = strings.Join(d.tagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
-	//d.Stats[key] = ms
 
+	// Store back to shard
+	shard.stats[key] = ms
+
+	// Log if enabled
 	if d.dogstatsdDebugLogger != nil {
 		logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "
 		d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
 	}
 
-	//d.metricsCounts.metricChan <- struct{}{}
+	// Notify metrics count tracker
+	select {
+	case d.metricsCounts.metricChan <- struct{}{}:
+	default:
+		// Non-blocking send to avoid deadlock if channel is full
+	}
+}
+
+// hashString returns a hash value for a string
+func hashString(s string) uint32 {
+	h := uint32(0)
+	for i := 0; i < len(s); i++ {
+		h = h*31 + uint32(s[i])
+	}
+	return h
 }
 
 // SetMetricStatsEnabled enables or disables metric stats
@@ -258,9 +305,19 @@ func (d *serverDebugImpl) hasSpike() bool {
 
 // GetJSONDebugStats returns jsonified debug statistics.
 func (d *serverDebugImpl) GetJSONDebugStats() ([]byte, error) {
-	d.RLock()
-	defer d.RUnlock()
-	return json.Marshal(d.Stats)
+	// Aggregate stats from all shards
+	aggregatedStats := make(map[ckey.ContextKey]metricStat)
+
+	for i := 0; i < numShards; i++ {
+		shard := d.shards[i]
+		shard.RLock()
+		for key, stat := range shard.stats {
+			aggregatedStats[key] = stat
+		}
+		shard.RUnlock()
+	}
+
+	return json.Marshal(aggregatedStats)
 }
 
 func (d *serverDebugImpl) IsDebugEnabled() bool {
