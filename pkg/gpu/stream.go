@@ -450,6 +450,10 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
+		if alloc.Header.Ktime_ns >= now {
+			continue
+		}
+
 		span := memPools.memorySpanPool.Get()
 		span.startKtime = alloc.Header.Ktime_ns
 		span.endKtime = 0

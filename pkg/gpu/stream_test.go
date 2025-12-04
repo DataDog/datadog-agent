@@ -1148,6 +1148,38 @@ func TestKernelSpanPoolNoLeakWhenNoKernelsMatchTimeFilter(t *testing.T) {
 	require.Equal(t, stats.get, stats.put, "kernelSpan pool get/put should be balanced")
 }
 
+func TestMemorySpanPoolNoLeakWhenNoKernelsMatchTimeFilter(t *testing.T) {
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+	telemetryMock := testutil.GetTelemetryMock(t)
+	streamTelemetry := newStreamTelemetry(telemetryMock)
+	withTelemetryEnabledPools(t, telemetryMock)
+	cfg := config.StreamConfig{
+		MaxKernelLaunches:     10,
+		MaxMemAllocEvents:     10,
+		MaxPendingKernelSpans: 10,
+		MaxPendingMemorySpans: 10,
+	}
+
+	stream, err := newStreamHandler(streamMetadata{}, getTestSystemContext(t), cfg, streamTelemetry)
+	require.NoError(t, err)
+
+	allocTime := uint64(1000)
+	stream.handleMemEvent(&gpuebpf.CudaMemEvent{
+		Header: gpuebpf.CudaEventHeader{
+			Ktime_ns: allocTime,
+		},
+		Type: gpuebpf.CudaMemAlloc,
+		Addr: uint64(42),
+		Size: uint64(1024),
+	})
+
+	// Query for data before the allocation was made, so no allocations match the filter.
+	currData := stream.getCurrentData(allocTime - 1)
+	require.NotNil(t, currData)
+	require.Empty(t, currData.kernels)
+	require.Empty(t, currData.allocations)
+}
+
 func TestMemorySpanPool(t *testing.T) {
 	testPool(t, "memorySpan", func(stream *StreamHandler) {
 		stream.handleMemEvent(&gpuebpf.CudaMemEvent{
