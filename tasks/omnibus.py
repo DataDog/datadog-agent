@@ -523,7 +523,7 @@ def _packages_from_deb_metadata(lines: Iterator[str]) -> Iterator[DebPackageInfo
         'cache-dir': "Base directory for caches (default: ~/.omnibus-docker-cache)",
         'workers': "Number of parallel workers for compression and builds (default: 8)",
         'build-image': "Docker build image to use (default: uses version from .gitlab-ci.yml)",
-        'tag': "Tag for the built Docker image (default: datadog-agent:local)",
+        'tag': "Tag for the built Docker image (default: localhost/datadog-agent:local)",
     }
 )
 def docker_build(
@@ -532,7 +532,7 @@ def docker_build(
     cache_dir=None,
     workers=8,
     build_image=None,
-    tag="datadog-agent:local",
+    tag="localhost/datadog-agent:local",
 ):
     """
     Build the Agent inside a Docker container and create a runnable Docker image.
