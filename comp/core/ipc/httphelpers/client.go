@@ -33,6 +33,7 @@ type ipcClient struct {
 	innerClient http.Client
 	authToken   string
 	config      pkgconfigmodel.Reader
+	useVSock    bool
 }
 
 // NewClient creates a new secure client
@@ -41,7 +42,9 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 		TLSClientConfig: clientTLSConfig,
 	}
 
+	useVSock := false
 	if vsockAddr := config.GetString("vsock_addr"); vsockAddr != "" {
+		useVSock = true
 		tr.DialContext = func(_ context.Context, _ string, address string) (net.Conn, error) {
 			_, sPort, err := net.SplitHostPort(address)
 			if err != nil {
@@ -71,6 +74,7 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 		innerClient: http.Client{Transport: tr},
 		authToken:   authToken,
 		config:      config,
+		useVSock:    useVSock,
 	}
 }
 
@@ -138,6 +142,15 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 	client := s.innerClient
 	client.Timeout = params.Timeout
 
+	// if we are not using vsock, but the request is made to a unix socket url address we disable TLS and replace the dialer in the client copy for the request
+	if !s.useVSock && isUDSRequest(req) {
+		client.Transport = &http.Transport{
+			DialContext: func(_ context.Context, _, address string) (net.Conn, error) {
+				return net.Dial("unix", address)
+			},
+		}
+	}
+
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+s.authToken)
 
@@ -176,6 +189,14 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 		return body, fmt.Errorf("status code: %d, body: %s", r.StatusCode, string(body))
 	}
 	return body, nil
+}
+
+// determine if the request is to a socket Listener by checking the url
+func isUDSRequest(req *http.Request) bool {
+	if ipAddr := net.ParseIP(req.URL.Host); ipAddr != nil {
+		return false
+	}
+	return true
 }
 
 // IPCEndpoint section
