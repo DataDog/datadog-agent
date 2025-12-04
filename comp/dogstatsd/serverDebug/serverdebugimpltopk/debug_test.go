@@ -13,24 +13,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
-	return fxutil.Test[serverdebug.Component](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component {
-			return config.NewMockWithOverrides(t, overrides)
-		}),
-		Module(),
-	))
-}
+//func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
+//	return fxutil.Test[serverdebug.Component](t, fx.Options(
+//		fx.Provide(func() log.Component { return logmock.New(t) }),
+//		fx.Provide(func() config.Component {
+//			return config.NewMockWithOverrides(t, overrides)
+//		}),
+//		Module(),
+//	))
+//}
 
 //func TestDebugStatsSpike(t *testing.T) {
 //	cfg := make(map[string]interface{})
