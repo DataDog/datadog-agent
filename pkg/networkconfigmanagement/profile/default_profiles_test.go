@@ -46,6 +46,12 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			fixture:                   loadFixture("pan-os"),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
+		{
+			name:                      "AOSW",
+			profile:                   DefaultProfile("aosw"),
+			fixture:                   loadFixture("aosw"),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
