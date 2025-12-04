@@ -46,6 +46,8 @@ CORE_AGENT_WINDOWS_IT_CONF = IntegrationTestsConfig(
         IntegrationTest(
             dir=".", prefix="./comp/checks/windowseventlog/windowseventlogimpl/check", extra_args="-evtapi Windows"
         ),
+        # Run software inventory integration tests that compare against PowerShell Get-Package
+        IntegrationTest(dir=".", prefix="./pkg/inventory/software", extra_args=""),
     ],
 )
 
