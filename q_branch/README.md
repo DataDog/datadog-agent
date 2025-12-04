@@ -21,22 +21,20 @@ This creates:
 ## Dev Loop
 
 ```bash
-# 1. Build custom agent image
-dda inv omnibus.build-image
+# 1. Build and load image into Kind
+dda inv omnibus.docker-build && docker save localhost/datadog-agent:local | limactl shell gadget-k8s-host -- docker load && limactl shell gadget-k8s-host -- kind load docker-image localhost/datadog-agent:local --name gadget-dev
 
-# 2. Load image into Kind (macOS docker → Lima docker → Kind)
-docker tag datadog-agent:local localhost/datadog-agent:local
-docker save localhost/datadog-agent:local | limactl shell gadget-k8s-host -- docker load
-limactl shell gadget-k8s-host -- kind load docker-image localhost/datadog-agent:local --name gadget-dev
-
-# 3. Deploy agent with custom image
+# 2. Deploy agent (only necessary when test-cluster.yaml has changed)
 kubectl apply -f test-cluster.yaml --context kind-gadget-dev
+
+# 3. Restart agent to pick up new image
+kubectl delete pods -l app.kubernetes.io/name=datadog-agent -n default --context kind-gadget-dev
 
 # 4. Watch pods come up
 kubectl get pods -w --context kind-gadget-dev
 ```
 
-To redeploy after code changes, repeat steps 1-3.
+To redeploy after code changes, repeat steps 1 and 3.
 
 ## SSH into VM
 
