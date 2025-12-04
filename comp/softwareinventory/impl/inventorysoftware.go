@@ -277,7 +277,7 @@ func (is *softwareInventory) sendPayload() error {
 func (is *softwareInventory) getPayload() marshaler.JSONMarshaler {
 	is.cachedInventoryMu.RLock()
 	defer is.cachedInventoryMu.RUnlock()
-	
+
 	if is.cachedInventory == nil {
 		return nil
 	}
