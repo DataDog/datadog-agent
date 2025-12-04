@@ -101,3 +101,52 @@ value: 456`,
 	assert.True(t, isJSON(b.Bytes()))
 	assert.Equal(t, expected, b.String())
 }
+
+func TestPrettyPrintJSON(t *testing.T) {
+	c := checkConfig{
+		Name:     "check name",
+		Provider: "file",
+		Source:   "file:/path/to/config.yaml",
+		Instances: []instance{
+			{
+				ID:     "0",
+				Config: "",
+			},
+			{
+				ID: "123",
+				Config: `name: instance123
+value: 456`,
+			},
+		},
+		InitConfig:   "abc: def",
+		MetricConfig: "abc: def",
+		Logs:         "abc: def",
+	}
+
+	expected := `{
+  "check_name": "check name",
+  "provider": "file",
+  "source": "file:/path/to/config.yaml",
+  "instances": [
+    {
+      "id": "0",
+      "config": ""
+    },
+    {
+      "id": "123",
+      "config": "name: instance123\nvalue: 456"
+    }
+  ],
+  "init_config": "abc: def",
+  "metric_config": "abc: def",
+  "logs": "abc: def"
+}`
+
+	var b bytes.Buffer
+
+	err := printJSON(&b, c, true)
+	assert.NoError(t, err)
+
+	assert.True(t, isJSON(b.Bytes()))
+	assert.Equal(t, expected, b.String())
+}
