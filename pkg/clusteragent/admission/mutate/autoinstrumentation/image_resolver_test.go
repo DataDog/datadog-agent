@@ -118,7 +118,7 @@ func TestNewImageResolver(t *testing.T) {
 		mockConfig := config.NewMock(t)
 		resolver := NewImageResolver((*mockRCClient)(nil), mockConfig)
 
-		_, ok := resolver.(*noOpImageResolver)
+		_, ok := resolver.(*tagBasedImageResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
 	})
 
@@ -126,7 +126,7 @@ func TestNewImageResolver(t *testing.T) {
 		mockConfig := config.NewMock(t)
 		resolver := NewImageResolver(nil, mockConfig)
 
-		_, ok := resolver.(*noOpImageResolver)
+		_, ok := resolver.(*tagBasedImageResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
 	})
 }
