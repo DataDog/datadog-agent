@@ -6,6 +6,8 @@
 package fakeintake
 
 import (
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
@@ -14,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/azure"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/azure/compute"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
 func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintake, error) {
@@ -41,10 +42,6 @@ func NewVMInstance(e azure.Environment, option ...Option) (*fakeintake.Fakeintak
 
 		if params.RetentionPeriod != "" {
 			cmdArgs = append(cmdArgs, "-retention-period="+params.RetentionPeriod)
-		}
-
-		if params.StoreStype != "" {
-			cmdArgs = append(cmdArgs, "-store="+params.StoreStype)
 		}
 
 		_, err = vm.OS.Runner().Command("docker_run_fakeintake", &command.Args{

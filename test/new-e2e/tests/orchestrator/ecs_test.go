@@ -17,11 +17,11 @@ import (
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
 )
 
 type ecsSuite struct {
@@ -32,17 +32,18 @@ func TestECSSuite(t *testing.T) {
 	t.Parallel()
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awsecs.Provisioner(
-			awsecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
-				return cpustress.EcsAppDefinition(e, clusterArn)
-			}),
-			awsecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
-				return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
-			}),
-			awsecs.WithECSOptions(
-				ecs.WithFargateCapacityProvider(),
-				ecs.WithLinuxNodeGroup(),
-			),
-		)),
+			awsecs.WithRunOptions(
+				ecs.WithWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput) (*ecsComp.Workload, error) {
+					return cpustress.EcsAppDefinition(e, clusterArn)
+				}),
+				ecs.WithFargateWorkloadApp(func(e aws.Environment, clusterArn pulumi.StringInput, apiKeySSMParamName pulumi.StringInput, fakeIntake *fakeintakeComp.Fakeintake) (*ecsComp.Workload, error) {
+					return cpustress.FargateAppDefinition(e, clusterArn, apiKeySSMParamName, fakeIntake)
+				}),
+				ecs.WithECSOptions(
+					ecs.WithFargateCapacityProvider(),
+					ecs.WithLinuxNodeGroup(),
+				),
+			))),
 	}
 	e2e.Run(t, &ecsSuite{}, options...)
 }

@@ -8,9 +8,8 @@ package npm
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
@@ -27,7 +26,7 @@ func TestEC2VMSELinuxSuite(t *testing.T) {
 	s := &ec2VMSELinuxSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(
-		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(
+		provisioners.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(ec2.WithEC2InstanceOptions(
 			// RHEL9
 			ec2.WithAMI(
 				"ami-04e7f0e0bde783f77", // https://gitlab.ddbuild.io/DataDog/ami-builder/-/jobs/1232214462
