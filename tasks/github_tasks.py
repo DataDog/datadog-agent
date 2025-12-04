@@ -202,17 +202,13 @@ def assign_team_label(_, pr_id=-1):
 
     # Check for 'team/' labels
     labels = gh.get_pr_labels(pr_id)
-    has_triage = False
     has_team = False
     for label in labels:
         if label.startswith('team/'):
             if label != 'team/triage':
                 has_team = True
             else:
-                has_triage = True
-
-    if has_triage:
-        _remove_pr_label(gh, pr_id, 'team/triage')
+                _remove_pr_label(gh, pr_id, 'team/triage')
 
     if has_team:
         return
