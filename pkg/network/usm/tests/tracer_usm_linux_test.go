@@ -165,6 +165,7 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
+	cfg.EnableRedisMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableNodeJSMonitoring = true
