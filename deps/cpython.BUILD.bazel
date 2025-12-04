@@ -158,12 +158,12 @@ configure_make(
         # "@libyaml",
         # "@sqlite3",
         "@zlib//:zlib",
-        "@bzip2//:bz2",
+        "@bzip2//:libbz2",
         "@xz//:liblzma",
     ],
     dynamic_deps = [
         "@zlib//:z",
-        "@bzip2//:libbz2_so",
+        "@bzip2//:bz2",
     ]
 )
 
