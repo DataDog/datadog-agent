@@ -196,7 +196,14 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 			continue
 		}
 		p := filepath.Join(procfs, pid, "ns", "mnt")
-		ino, err := getInodeNumFromLink(p)
+
+		linkTarget, err := os.Readlink(p)
+		if err != nil {
+			continue
+		}
+
+		ino, err := getInodeNumFromLink(linkTarget)
+		
 		if err != nil {
 			continue
 		}
