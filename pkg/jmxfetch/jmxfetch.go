@@ -547,8 +547,8 @@ func isDsdEnabledViaDataPlane() bool {
 	// This is now split into two separate settings: `data_plane.enabled` and `data_plane.dogstatsd.enabled`, which
 	// indicate whether ADP is enabled at all and whether it's handling DogStatsD traffic, respectively.
 	adpDsdEnabledOldStyle := os.Getenv("DD_ADP_ENABLED") == "true"
-	adpEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.enabled")
-	adpDsdEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.dogstatsd.enabled")
+	dataPlaneEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.enabled")
+	dataPlaneDsdEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.dogstatsd.enabled")
 
-	return adpDsdEnabledOldStyle || (adpEnabled && adpDsdEnabled)
+	return adpDsdEnabledOldStyle || (dataPlaneEnabled && dataPlaneDsdEnabled)
 }

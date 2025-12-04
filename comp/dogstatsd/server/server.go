@@ -208,7 +208,10 @@ func initTelemetry() {
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
-	if deps.Config.GetBool("use_dogstatsd") {
+	// When the data plane is enabled, it takes precedence over the Core Agent-specific setting for DogStatsD.
+	coreAgentDsdEnabled := deps.Config.GetBool("use_dogstatsd")
+	dataPlaneDsdEnabled := deps.Config.GetBool("data_plane.enabled") && deps.Config.GetBool("data_plane.dogstatsd.enabled")
+	if coreAgentDsdEnabled && !dataPlaneDsdEnabled {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
