@@ -2320,3 +2320,27 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
 	})
 }
+
+func TestLoadConfigFile(t *testing.T) {
+	// Create the config component with wrong config
+	configComponent := configcomp.NewMockFromYAMLFile(t, "./testdata/wrong_config.yaml")
+
+	// Create the tagger component
+	taggerComponent := fxutil.Test[taggermock.Mock](t,
+		fx.Provide(func() configcomp.Component { return configComponent }),
+		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
+	)
+
+	// Create the IPC component
+	ipcComponent := ipcmock.New(t)
+
+	confFilePath := configComponent.ConfigFileUsed()
+
+	cfg, err := LoadConfigFile(confFilePath, configComponent, taggerComponent, ipcComponent)
+
+	require.Error(t, err)
+	require.Nil(t, cfg)
+}

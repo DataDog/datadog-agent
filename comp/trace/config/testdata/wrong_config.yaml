@@ -1,0 +1,13 @@
+dd_url: https://app.datadoghq.com
+api_key: api_key_test
+hostname: mymachine
+dogstatsd_port: 18125
+log_level: info
+apm_config:
+  apm_dd_url: https://datadog.unittests
+  env: test
+
+  replace_tags:
+    - name: ""
+      pattern: "\\?.*$"
+      repl: "GET"
