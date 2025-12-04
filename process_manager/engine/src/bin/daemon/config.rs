@@ -2,14 +2,32 @@
 //!
 //! All configuration is read from environment variables with sensible defaults.
 //! This eliminates the need for command-line argument parsing (clap dependency).
+//!
+//! Platform-specific defaults:
+//! - Linux/macOS: Unix sockets as default transport
+//! - Windows: TCP as default transport (Unix sockets not available)
 
 use std::env;
 
 // Default configuration values
 const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_REST_PORT: u16 = 3000;
+
+#[cfg(unix)]
 const DEFAULT_GRPC_SOCKET: &str = "/var/run/datadog/process-manager.sock";
+#[cfg(unix)]
 const DEFAULT_REST_SOCKET: &str = "/var/run/datadog/process-manager-api.sock";
+
+#[cfg(windows)]
+const DEFAULT_GRPC_SOCKET: &str = ""; // Not used on Windows
+#[cfg(windows)]
+const DEFAULT_REST_SOCKET: &str = ""; // Not used on Windows
+
+#[cfg(not(any(unix, windows)))]
+const DEFAULT_GRPC_SOCKET: &str = "";
+#[cfg(not(any(unix, windows)))]
+const DEFAULT_REST_SOCKET: &str = "";
+
 const DEFAULT_ENABLE_REST: bool = false;
 const DEFAULT_LOG_LEVEL: &str = "info";
 
@@ -41,11 +59,26 @@ pub struct DaemonConfig {
     pub log_level: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+/// Transport mode for IPC
+#[derive(Debug, Clone, PartialEq)]
 pub enum TransportMode {
-    #[default]
+    /// Unix domain sockets (Linux/macOS only)
     Unix,
+    /// TCP sockets (all platforms)
     Tcp,
+}
+
+impl Default for TransportMode {
+    fn default() -> Self {
+        #[cfg(unix)]
+        {
+            TransportMode::Unix
+        }
+        #[cfg(not(unix))]
+        {
+            TransportMode::Tcp
+        }
+    }
 }
 
 impl DaemonConfig {

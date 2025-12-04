@@ -22,49 +22,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let cmd = args[1].as_str();
 
-    // Determine connection type: Unix socket (default) or TCP
-    let socket_path = env::var("DD_PM_GRPC_SOCKET")
-        .or_else(|_| env::var("DD_PM_SOCKET")) // Backward compat
-        .unwrap_or_else(|_| "/var/run/datadog/process-manager.sock".to_string());
-    let use_tcp = env::var("DD_PM_USE_TCP").is_ok();
-
-    let channel = if use_tcp {
-        // TCP connection
-        let port = env::var("DD_PM_DAEMON_PORT")
-            .ok()
-            .and_then(|p| p.parse::<u16>().ok())
-            .unwrap_or(50051);
-        let addr = format!("http://127.0.0.1:{}", port);
-
-        Channel::from_shared(addr)?
-            .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
-            .tcp_nodelay(true)
-            .timeout(std::time::Duration::from_secs(30))
-            .connect()
-            .await?
-    } else {
-        // Unix socket connection
-        #[cfg(unix)]
-        {
-            use tokio::net::UnixStream;
-
-            Endpoint::try_from("http://[::]:50051")?
-                .connect_with_connector(service_fn(move |_: Uri| {
-                    let socket_path = socket_path.clone();
-                    async move { UnixStream::connect(socket_path).await }
-                }))
-                .await?
-        }
-
-        #[cfg(not(unix))]
-        {
-            return Err(
-                "Unix sockets are not supported on this platform. Set DD_PM_USE_TCP=1 to use TCP."
-                    .into(),
-            );
-        }
-    };
-
+    // Determine connection type based on platform and environment
+    let channel = create_channel().await?;
     let mut client = ProcessManagerClient::new(channel);
 
     // Dispatch to command handlers
@@ -89,10 +48,63 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Create gRPC channel with platform-appropriate transport
+async fn create_channel() -> Result<Channel, Box<dyn std::error::Error>> {
+    // Check if TCP mode is explicitly requested
+    let use_tcp = env::var("DD_PM_USE_TCP").is_ok();
+
+    // On Windows, always use TCP (Unix sockets not available)
+    #[cfg(windows)]
+    let use_tcp = true;
+
+    if use_tcp {
+        // TCP connection
+        let port = env::var("DD_PM_DAEMON_PORT")
+            .ok()
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(50051);
+        let addr = format!("http://127.0.0.1:{}", port);
+
+        let channel = Channel::from_shared(addr)?
+            .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
+            .tcp_nodelay(true)
+            .timeout(std::time::Duration::from_secs(30))
+            .connect()
+            .await?;
+
+        Ok(channel)
+    } else {
+        // Unix socket connection (Unix-only)
+        #[cfg(unix)]
+        {
+            use tokio::net::UnixStream;
+
+            let socket_path = env::var("DD_PM_GRPC_SOCKET")
+                .or_else(|_| env::var("DD_PM_SOCKET")) // Backward compat
+                .unwrap_or_else(|_| "/var/run/datadog/process-manager.sock".to_string());
+
+            let channel = Endpoint::try_from("http://[::]:50051")?
+                .connect_with_connector(service_fn(move |_: Uri| {
+                    let socket_path = socket_path.clone();
+                    async move { UnixStream::connect(socket_path).await }
+                }))
+                .await?;
+
+            Ok(channel)
+        }
+
+        #[cfg(not(unix))]
+        {
+            Err("Unix sockets are not supported on this platform. Set DD_PM_USE_TCP=1 to use TCP."
+                .into())
+        }
+    }
+}
+
 fn print_usage() {
     eprintln!("Process Manager CLI");
     eprintln!();
-    eprintln!("Usage: cli <command> [args...]");
+    eprintln!("Usage: dd-procmgr <command> [args...]");
     eprintln!();
     eprintln!("Commands:");
     eprintln!("  create <name> <command> [args...]  Create a new process");
@@ -108,9 +120,20 @@ fn print_usage() {
     eprintln!("  status                             Show detailed daemon status");
     eprintln!();
     eprintln!("Environment Variables:");
-    eprintln!(
-        "  DD_PM_SOCKET        Unix socket path (default: /var/run/datadog/process-manager.sock)"
-    );
-    eprintln!("  DD_PM_USE_TCP       Set to use TCP instead of Unix socket");
+
+    #[cfg(unix)]
+    {
+        eprintln!(
+            "  DD_PM_GRPC_SOCKET   Unix socket path (default: /var/run/datadog/process-manager.sock)"
+        );
+        eprintln!("  DD_PM_SOCKET        Alias for DD_PM_GRPC_SOCKET (backward compatibility)");
+        eprintln!("  DD_PM_USE_TCP       Set to use TCP instead of Unix socket");
+    }
+
+    #[cfg(windows)]
+    {
+        eprintln!("  (Windows uses TCP by default - Unix sockets not available)");
+    }
+
     eprintln!("  DD_PM_DAEMON_PORT   TCP port when using TCP (default: 50051)");
 }

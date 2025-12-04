@@ -1,22 +1,47 @@
+//! Runtime Directory Management
+//!
+//! Provides cross-platform runtime directory creation:
+//! - Linux/macOS: Creates directories under /run/ with proper permissions
+//! - Windows: Creates directories under %PROGRAMDATA% or %TEMP%
+
 use crate::domain::DomainError;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use tracing::{debug, warn};
 
-/// Create runtime directories under /run/ with proper permissions
+/// Get the platform-specific runtime base directory
+fn get_runtime_base() -> PathBuf {
+    #[cfg(unix)]
+    {
+        PathBuf::from("/run")
+    }
+
+    #[cfg(windows)]
+    {
+        // On Windows, use ProgramData for service data or TEMP for user processes
+        std::env::var("PROGRAMDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| std::env::temp_dir())
+            .join("datadog")
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    {
+        std::env::temp_dir()
+    }
+}
+
+/// Create runtime directories with proper permissions
 ///
-/// This matches systemd's RuntimeDirectory= behavior:
-/// - Creates directories under /run/ (e.g., /run/datadog)
-/// - Sets permissions to 0755
-/// - Sets ownership if user/group specified (best effort)
-/// - Cleans up on failure
+/// Platform-specific behavior:
+/// - Unix: Creates under /run/ with 0755 permissions and optional chown
+/// - Windows: Creates under %PROGRAMDATA%\datadog or %TEMP%
 ///
 /// # Arguments
 ///
-/// * `directories` - List of directory names to create under /run/
-/// * `user` - Optional user name for ownership
-/// * `group` - Optional group name for ownership
+/// * `directories` - List of directory names to create under the runtime base
+/// * `user` - Optional user name for ownership (Unix only)
+/// * `group` - Optional group name for ownership (Unix only)
 ///
 /// # Returns
 ///
@@ -26,15 +51,28 @@ pub fn create_runtime_directories(
     user: Option<&str>,
     group: Option<&str>,
 ) -> Result<Vec<PathBuf>, DomainError> {
-    let runtime_base = Path::new("/run");
+    let runtime_base = get_runtime_base();
     let mut created_paths = Vec::new();
+
+    // Ensure base directory exists on Windows
+    #[cfg(windows)]
+    {
+        if !runtime_base.exists() {
+            if let Err(e) = fs::create_dir_all(&runtime_base) {
+                warn!(
+                    path = ?runtime_base,
+                    error = %e,
+                    "Failed to create runtime base directory"
+                );
+            }
+        }
+    }
 
     for dir_name in directories {
         let full_path = runtime_base.join(dir_name);
 
         // Create the directory with parents
         if let Err(e) = fs::create_dir_all(&full_path) {
-            // Clean up any already created directories
             cleanup_directories(&created_paths);
             return Err(DomainError::InvalidCommand(format!(
                 "Failed to create runtime directory {:?}: {}",
@@ -42,29 +80,44 @@ pub fn create_runtime_directories(
             )));
         }
 
-        // Set permissions to 0755
-        if let Err(e) = fs::set_permissions(&full_path, fs::Permissions::from_mode(0o755)) {
-            // Clean up on permission error
-            cleanup_directories(&created_paths);
-            let _ = fs::remove_dir_all(&full_path);
-            return Err(DomainError::InvalidCommand(format!(
-                "Failed to set permissions on {:?}: {}",
-                full_path, e
-            )));
+        // Set platform-specific permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = fs::set_permissions(&full_path, fs::Permissions::from_mode(0o755)) {
+                cleanup_directories(&created_paths);
+                let _ = fs::remove_dir_all(&full_path);
+                return Err(DomainError::InvalidCommand(format!(
+                    "Failed to set permissions on {:?}: {}",
+                    full_path, e
+                )));
+            }
         }
 
-        // Set ownership if user/group specified (best effort - don't fail if it doesn't work)
-        if user.is_some() || group.is_some() {
-            if let Err(e) = set_directory_ownership(&full_path, user, group) {
-                warn!(
+        // Set ownership if specified (Unix only, best effort)
+        #[cfg(unix)]
+        {
+            if user.is_some() || group.is_some() {
+                if let Err(e) = set_directory_ownership(&full_path, user, group) {
+                    warn!(
+                        path = ?full_path,
+                        user = ?user,
+                        group = ?group,
+                        error = %e,
+                        "Failed to set ownership on runtime directory (continuing anyway)"
+                    );
+                }
+            }
+        }
+
+        // On Windows, log if user/group are specified (not supported)
+        #[cfg(windows)]
+        {
+            if user.is_some() || group.is_some() {
+                debug!(
                     path = ?full_path,
-                    user = ?user,
-                    group = ?group,
-                    error = %e,
-                    "Failed to set ownership on runtime directory (continuing anyway)"
+                    "User/group ownership not supported on Windows, using current user permissions"
                 );
-                // Don't fail the process start if ownership change fails
-                // This allows non-root daemon to still work
             }
         }
 
@@ -101,9 +154,9 @@ fn cleanup_directories(paths: &[PathBuf]) {
 ///
 /// # Arguments
 ///
-/// * `directories` - List of directory names under /run/ to remove
+/// * `directories` - List of directory names under the runtime base to remove
 pub fn cleanup_runtime_directories(directories: &[String]) {
-    let runtime_base = Path::new("/run");
+    let runtime_base = get_runtime_base();
 
     for dir_name in directories {
         let full_path = runtime_base.join(dir_name);
@@ -123,7 +176,7 @@ pub fn cleanup_runtime_directories(directories: &[String]) {
     }
 }
 
-/// Set directory ownership (requires appropriate privileges)
+/// Set directory ownership (Unix only, requires appropriate privileges)
 #[cfg(unix)]
 fn set_directory_ownership(
     path: &Path,
@@ -166,7 +219,7 @@ fn set_directory_ownership(
     Ok(())
 }
 
-/// Resolve username to UID
+/// Resolve username to UID (Unix only)
 #[cfg(unix)]
 fn resolve_user_to_uid(username: &str) -> Result<Option<u32>, String> {
     use std::ffi::CString;
@@ -188,7 +241,7 @@ fn resolve_user_to_uid(username: &str) -> Result<Option<u32>, String> {
     }
 }
 
-/// Resolve group name to GID
+/// Resolve group name to GID (Unix only)
 #[cfg(unix)]
 fn resolve_group_to_gid(groupname: &str) -> Result<Option<u32>, String> {
     use std::ffi::CString;
@@ -216,11 +269,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_runtime_directories_validation() {
-        // Test that function exists and has correct signature
+    fn test_create_runtime_directories_empty() {
         let empty_dirs: Vec<String> = vec![];
         let result = create_runtime_directories(&empty_dirs, None, None);
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_get_runtime_base() {
+        let base = get_runtime_base();
+        
+        #[cfg(unix)]
+        {
+            assert_eq!(base, PathBuf::from("/run"));
+        }
+
+        #[cfg(windows)]
+        {
+            // On Windows, should be under PROGRAMDATA or TEMP
+            assert!(base.to_string_lossy().contains("datadog") || 
+                    base.to_string_lossy().contains("Temp"));
+        }
+    }
+
+    #[test]
+    fn test_cleanup_nonexistent_directory() {
+        // Should not panic or error when cleaning up non-existent directories
+        cleanup_runtime_directories(&["nonexistent_test_dir_12345".to_string()]);
     }
 }

@@ -1,7 +1,10 @@
 //! Process Manager Daemon
 //!
 //! This daemon provides gRPC and REST APIs for managing system processes.
-//! Supports both Unix socket (default) and TCP transports.
+//!
+//! Platform support:
+//! - Linux/macOS: Unix socket (default) or TCP transports
+//! - Windows: TCP transport (default, Unix sockets not available)
 //!
 //! Configuration is loaded from environment variables (no CLI arguments).
 
@@ -30,16 +33,19 @@ use pm_engine::{
 };
 use std::sync::Arc;
 use std::time::SystemTime;
-#[cfg(unix)]
-use tokio::signal::unix::{signal as unix_signal, SignalKind};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Server as TonicServer;
 use tonic_health::server::health_reporter;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 
-/// Wait for shutdown signal (SIGINT or SIGTERM)
-/// Returns the signal name that triggered shutdown
+// Platform-specific signal handling imports
+#[cfg(unix)]
+use tokio::signal::unix::{signal as unix_signal, SignalKind};
+
+/// Wait for shutdown signal
+/// - Unix: SIGINT or SIGTERM
+/// - Windows: Ctrl+C
 #[cfg(unix)]
 async fn wait_for_shutdown_signal() -> &'static str {
     let mut sigterm =
@@ -53,12 +59,19 @@ async fn wait_for_shutdown_signal() -> &'static str {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
 async fn wait_for_shutdown_signal() -> &'static str {
-    signal::ctrl_c()
+    tokio::signal::ctrl_c()
         .await
         .expect("Failed to install Ctrl+C handler");
     "Ctrl+C"
+}
+
+#[cfg(not(any(unix, windows)))]
+async fn wait_for_shutdown_signal() -> &'static str {
+    // Fallback: just wait forever (would need platform-specific implementation)
+    std::future::pending::<()>().await;
+    "Unknown"
 }
 
 /// Graceful shutdown: stop all managed processes
@@ -226,17 +239,83 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. Setup Driving Adapters
     if config.transport_mode == TransportMode::Tcp {
-        // Dual mode: TCP + Unix socket
-        info!("Starting in dual mode (TCP + Unix socket)");
+        // TCP mode: Use TCP for primary transport
+        info!("Starting in TCP mode");
 
-        #[cfg(not(unix))]
+        // On Windows, this is the only supported mode
+        #[cfg(windows)]
         {
-            error!(
-                "Dual mode requires Unix socket support. Platform does not support Unix sockets."
-            );
-            return Err("Platform does not support Unix sockets".into());
+            let grpc_addr: std::net::SocketAddr =
+                format!("127.0.0.1:{}", config.grpc_port).parse()?;
+            let grpc_service = ProcessManagerService::new(registry.clone());
+
+            // Setup health checking
+            let (mut health_reporter, health_service) = health_reporter();
+            health_reporter
+                .set_serving::<ProcessManagerServer<ProcessManagerService>>()
+                .await;
+
+            info!("gRPC server listening on TCP {}", grpc_addr);
+            info!("Health check service enabled");
+
+            if config.enable_rest {
+                let rest_addr: std::net::SocketAddr =
+                    format!("127.0.0.1:{}", config.rest_port).parse()?;
+                let rest_app = build_router(registry.clone());
+                let rest_server =
+                    axum::Server::bind(&rest_addr).serve(rest_app.into_make_service());
+
+                info!("REST server listening on http://{}", rest_addr);
+                info!("Daemon ready. All services started");
+
+                let grpc_tcp_server = TonicServer::builder()
+                    .add_service(health_service)
+                    .add_service(ProcessManagerServer::new(grpc_service))
+                    .serve(grpc_addr);
+
+                tokio::select! {
+                    result = grpc_tcp_server => {
+                        if let Err(e) = result {
+                            error!("gRPC TCP server error: {}", e);
+                        }
+                    }
+                    result = rest_server => {
+                        if let Err(e) = result {
+                            error!("REST server error: {}", e);
+                        }
+                    }
+                    signal_name = wait_for_shutdown_signal() => {
+                        info!(signal = signal_name, "Received shutdown signal");
+                    }
+                }
+            } else {
+                info!("Daemon ready. All services started");
+
+                let grpc_tcp_server = TonicServer::builder()
+                    .add_service(health_service)
+                    .add_service(ProcessManagerServer::new(grpc_service))
+                    .serve(grpc_addr);
+
+                tokio::select! {
+                    result = grpc_tcp_server => {
+                        if let Err(e) = result {
+                            error!("gRPC TCP server error: {}", e);
+                        }
+                    }
+                    signal_name = wait_for_shutdown_signal() => {
+                        info!(signal = signal_name, "Received shutdown signal");
+                    }
+                }
+            }
+
+            // Cancel supervisor
+            cancellation_token.cancel();
+
+            // Graceful shutdown
+            graceful_shutdown(&registry).await;
         }
 
+        // On Unix, TCP mode also includes Unix socket for backward compatibility
         #[cfg(unix)]
         {
             let grpc_addr = format!("0.0.0.0:{}", config.grpc_port).parse()?;
@@ -344,11 +423,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     } else {
-        // Unix socket mode (default)
-        #[cfg(not(unix))]
+        // Unix socket mode (default on Unix)
+        // On Windows, this branch should not be reached due to default TransportMode::Tcp
+
+        #[cfg(windows)]
         {
-            error!("Unix sockets are not supported on this platform. Use --tcp flag.");
-            return Err("Platform does not support Unix sockets".into());
+            // On Windows, Unix socket mode is not available
+            // The config should default to TCP mode, but if somehow we get here, error out
+            error!(
+                "Unix socket mode is not supported on Windows. \
+                Set DD_PM_TRANSPORT_MODE=tcp or use the default configuration."
+            );
+            return Err("Unix sockets not supported on Windows".into());
         }
 
         #[cfg(unix)]
@@ -417,11 +503,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Graceful shutdown: stop all managed processes
             graceful_shutdown(&registry).await;
 
-            // Cleanup sockets
+            // Cleanup sockets (Unix only)
             let _ = std::fs::remove_file(&config.grpc_socket);
             if config.enable_rest {
                 let _ = std::fs::remove_file(&config.rest_socket);
             }
+        }
+
+        #[cfg(not(any(unix, windows)))]
+        {
+            error!("This platform is not supported");
+            return Err("Platform not supported".into());
         }
     }
 

@@ -99,7 +99,7 @@ impl HealthMonitoringService {
                             start_period = health_check.start_period,
                             "In start period, skipping health check"
                         );
-                        
+
                         // Set health status to Starting during start_period
                         if process.health_status() != HealthStatus::Starting {
                             let mut updated_process = process.clone();

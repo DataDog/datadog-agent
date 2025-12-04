@@ -24,10 +24,10 @@ pub struct Process {
     restart_policy: RestartPolicy,
 
     // Restart timing configuration
-    restart_sec: u64,            // Delay before restart (seconds)
-    restart_max_delay_sec: u64,  // Maximum delay for exponential backoff (seconds)
-    runtime_success_sec: u64,    // Runtime threshold to consider "successful" and reset failures
-    consecutive_failures: u32,   // Count of consecutive failed restarts
+    restart_sec: u64,           // Delay before restart (seconds)
+    restart_max_delay_sec: u64, // Maximum delay for exponential backoff (seconds)
+    runtime_success_sec: u64,   // Runtime threshold to consider "successful" and reset failures
+    consecutive_failures: u32,  // Count of consecutive failed restarts
 
     // Start limit protection (prevent restart thrashing)
     start_limit_burst: u32,        // Max starts within interval
