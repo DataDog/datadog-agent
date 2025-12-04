@@ -19,8 +19,8 @@ pkg_files(
         "//conditions:default": "etc/datadog-agent/conf.d/snmp.d/traps_db",
     }),
     # This is subtle.  http_file does not preserve the original name.
-    # It always uses the target @repo//file, and the name it gives it
-    # is "downloaded".
+    # It always uses the target `@repo//file`, and the name of the file
+    # you get is "downloaded".
     renames = {
         "@snmp_traps//file": "dd_traps_db.json.gz",
     },
