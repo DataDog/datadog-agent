@@ -763,27 +763,28 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	}
 	if p.TracerPayload.Tags[tagAPMMode] == "" {
 		if mode, ok := root.Meta[tagAPMMode]; ok {
-			warnIfInvalidAPMModeSpanTag(mode)
-			if p.TracerPayload.Tags == nil {
-				p.TracerPayload.Tags = make(map[string]string)
+			if v := normalizeInvalidAPMModeSpanTag(mode); v != "" {
+				if p.TracerPayload.Tags == nil {
+					p.TracerPayload.Tags = make(map[string]string)
+				}
+				p.TracerPayload.Tags[tagAPMMode] = mode
 			}
-			p.TracerPayload.Tags[tagAPMMode] = mode
 		}
 	}
 }
 
-// warnIfInvalidAPMModeSpanTag logs when apmMode is empty or an unknown value. We keep empty and unknown values in order to still see them on the spans in the Datadog UI (to aid troubleshooting).
-func warnIfInvalidAPMModeSpanTag(apmMode string) {
-	normalized := strings.ToLower(apmMode)
-	if normalized == "edge" {
-		return // Valid
-	}
+// normalizeInvalidAPMModeSpanTag makes apmMode lowercase and logs when it is empty or an unknown value. We keep unknown values in order to still see them on the spans in the Datadog UI (to aid troubleshooting).
+func normalizeInvalidAPMModeSpanTag(apmMode string) string {
 	if apmMode == "" {
 		log.Warnf("empty value for '_dd.apm_mode' span tag")
-	} else {
+		return ""
+	}
+	normalized := strings.ToLower(apmMode)
+	if normalized != "edge" {
 		// It's possible we may support other modes in the future, so we log the invalid value in debug mode only.
 		log.Debugf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
 	}
+	return normalized
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.

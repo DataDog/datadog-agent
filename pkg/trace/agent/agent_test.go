@@ -701,8 +701,8 @@ func TestProcess(t *testing.T) {
 		assert.NotEmpty(t, payloads, "no payloads were written")
 		tp = payloads[0].TracerPayload
 		v, ok := tp.Tags[tagAPMMode]
-		assert.True(t, ok)
-		assert.Equal(t, "", v)
+		assert.False(t, ok)
+		assert.Empty(t, v)
 		assert.Contains(t, b.String(), "[WARN] empty value for '_dd.apm_mode' span tag")
 	})
 
