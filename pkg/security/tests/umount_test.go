@@ -62,7 +62,7 @@ func TestUmount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	time.Sleep(1 * time.Second)
 
 	// Resolve the mount after detaching, without using redemption or reloading. Should return nil
