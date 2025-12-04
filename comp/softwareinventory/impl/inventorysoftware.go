@@ -199,6 +199,12 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 			break
 		}
 		
+		// Only retry if System Probe hasn't started yet
+		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
+			is.log.Warnf("Initial software inventory collection failed, will retry on next interval: %v", err)
+			break
+		}
+		
 		is.log.Debugf("System Probe not ready yet, retrying in 1s: %v", err)
 		
 		// Use a timer that can be cancelled by context
@@ -218,7 +224,7 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 
 	// Always send the initial payload on start-up.
 	// We'll send the follow-up payloads only on change.
-	err = is.sendPayload()
+	err := is.sendPayload()
 	if err != nil {
 		_ = is.log.Errorf("Failed to send software inventory: %v", err)
 	}
