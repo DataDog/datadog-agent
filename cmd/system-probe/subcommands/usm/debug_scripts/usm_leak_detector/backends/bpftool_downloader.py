@@ -11,6 +11,8 @@ import tempfile
 import urllib.request
 from typing import Optional
 
+from ..subprocess_utils import safe_subprocess_run
+
 BPFTOOL_VERSION = "v7.5.0"
 BPFTOOL_BASE_URL = "https://github.com/libbpf/bpftool/releases/download"
 
@@ -41,7 +43,7 @@ def _download_with_curl(url: str, dest: str, verbose: bool = False) -> bool:
     """Try downloading using curl."""
     try:
         cmd = ["curl", "-fsSL", "-o", dest, url]
-        result = subprocess.run(cmd, capture_output=True, timeout=60)
+        result = safe_subprocess_run(cmd, capture_output=True, timeout=60)
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
@@ -51,7 +53,7 @@ def _download_with_wget(url: str, dest: str, verbose: bool = False) -> bool:
     """Try downloading using wget."""
     try:
         cmd = ["wget", "-q", "-O", dest, url]
-        result = subprocess.run(cmd, capture_output=True, timeout=60)
+        result = safe_subprocess_run(cmd, capture_output=True, timeout=60)
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
@@ -105,7 +107,7 @@ def download_bpftool(install_dir: str = "/tmp", verbose: bool = False) -> Option
     # Skip download if already exists and works
     if os.path.exists(bpftool_path):
         try:
-            result = subprocess.run([bpftool_path, "version"], capture_output=True, timeout=5)
+            result = safe_subprocess_run([bpftool_path, "version"], capture_output=True, timeout=5)
             if result.returncode == 0:
                 if verbose:
                     print(f"Using existing bpftool at {bpftool_path}")
@@ -147,7 +149,7 @@ def download_bpftool(install_dir: str = "/tmp", verbose: bool = False) -> Option
         os.chmod(bpftool_path, 0o755)
 
         # Verify it works
-        result = subprocess.run([bpftool_path, "version"], capture_output=True, timeout=5)
+        result = safe_subprocess_run([bpftool_path, "version"], capture_output=True, timeout=5)
         if result.returncode != 0:
             if verbose:
                 print("Error: Downloaded bpftool doesn't work", file=sys.stderr)

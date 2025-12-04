@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from .ebpf_backend import EbpfBackend
 from .bpftool_downloader import download_bpftool
+from ..subprocess_utils import safe_subprocess_run
 
 
 class BpftoolBackend(EbpfBackend):
@@ -27,7 +28,7 @@ class BpftoolBackend(EbpfBackend):
         """Check if bpftool is available, optionally downloading it."""
         # First try system bpftool
         try:
-            result = subprocess.run(
+            result = safe_subprocess_run(
                 ["bpftool", "version"],
                 capture_output=True,
                 timeout=5
@@ -50,7 +51,7 @@ class BpftoolBackend(EbpfBackend):
         """Get a BpftoolBackend instance, downloading bpftool if needed."""
         # Try system bpftool first
         try:
-            result = subprocess.run(
+            result = safe_subprocess_run(
                 ["bpftool", "version"],
                 capture_output=True,
                 timeout=5
@@ -72,7 +73,7 @@ class BpftoolBackend(EbpfBackend):
         """Run bpftool command and return stdout, or None on error."""
         cmd = [self._bpftool_path] + args
         try:
-            result = subprocess.run(
+            result = safe_subprocess_run(
                 cmd,
                 capture_output=True,
                 text=True,

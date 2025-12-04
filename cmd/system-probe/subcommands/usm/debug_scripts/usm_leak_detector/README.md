@@ -50,6 +50,20 @@ unzip usm_leak_detector.zip
 sudo python3 -m usm_leak_detector -v
 ```
 
+### Minimal Container Environments (no unzip)
+
+In minimal containers (e.g., Datadog Agent system-probe), `unzip` may not be available.
+Use Python's built-in zipfile module instead:
+
+```bash
+# Copy zip to container
+kubectl cp usm_leak_detector.zip <namespace>/<pod>:/tmp/ -c system-probe
+
+# Extract using Python and run
+kubectl exec -n <namespace> <pod> -c system-probe -- /bin/bash -c \
+  "cd /tmp && rm -rf usm_leak_detector && python3 -m zipfile -e usm_leak_detector.zip . && python3 -m usm_leak_detector -v"
+```
+
 ## Backend Selection
 
 The script automatically selects the best available backend:
@@ -75,8 +89,9 @@ For maps keyed by connection tuples (48-byte ConnTuple structures):
 3. Reports entries that don't correspond to active connections
 
 Maps checked: `connection_states`, `pid_fd_by_tuple`, `ssl_ctx_by_tuple`, `http_in_flight`,
-`redis_in_flight`, `postgres_in_flight`, `http2_in_flight`, `connection_protocol_by_tuple`,
-`tls_enhanced_tags`
+`redis_in_flight`, `redis_key_in_flight`, `postgres_in_flight`, `http2_in_flight`,
+`http2_dynamic_counter_table`, `http2_incomplete_frames`, `kafka_response`,
+`go_tls_conn_by_tuple`, `connection_protocol`, `tls_enhanced_tags`
 
 ### PID-Keyed Maps
 For maps keyed by pid_tgid (8-byte uint64):

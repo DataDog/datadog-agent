@@ -10,6 +10,7 @@ from typing import Dict, List, Optional
 
 from .ebpf_backend import EbpfBackend
 from ..models import ConnTuple
+from ..subprocess_utils import safe_subprocess_run
 
 
 class SystemProbeBackend(EbpfBackend):
@@ -37,7 +38,7 @@ class SystemProbeBackend(EbpfBackend):
                 return path
         # Try PATH
         try:
-            result = subprocess.run(
+            result = safe_subprocess_run(
                 ["which", "system-probe"],
                 capture_output=True,
                 text=True,
@@ -63,7 +64,7 @@ class SystemProbeBackend(EbpfBackend):
 
         cmd = [self.binary_path] + args
         try:
-            result = subprocess.run(
+            result = safe_subprocess_run(
                 cmd,
                 capture_output=True,
                 text=True,

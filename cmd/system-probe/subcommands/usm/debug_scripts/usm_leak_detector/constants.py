@@ -9,11 +9,15 @@ CONN_TUPLE_MAPS = [
     "ssl_ctx_by_tuple",
     "http_in_flight",
     "redis_in_flight",
-    "redis_key_in_fli",  # Truncated to 15 chars by kernel
-    "postgres_in_flig",  # Truncated to 15 chars by kernel
-    "http2_in_flight",
-    "connection_proto",  # Truncated to 15 chars by kernel
-    "tls_enhanced_tag",  # Truncated to 15 chars by kernel
+    "redis_key_in_fli",  # Truncated: redis_key_in_flight
+    "postgres_in_flig",  # Truncated: postgres_in_flight
+    "http2_in_flight",  # Key is http2_stream_key_t (52B) but ConnTuple is at offset 0
+    "http2_dynamic_c",  # Truncated: http2_dynamic_counter_table
+    "http2_incomplet",  # Truncated: http2_incomplete_frames
+    "kafka_response",
+    "go_tls_conn_by_",  # Truncated: go_tls_conn_by_tuple
+    "connection_proto",  # Truncated: connection_protocol
+    "tls_enhanced_tag",  # Truncated: tls_enhanced_tags
 ]
 
 # PID-keyed maps to validate (uint64 pid_tgid keys)
