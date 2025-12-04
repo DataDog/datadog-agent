@@ -7,6 +7,7 @@
 package agent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -169,7 +170,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 
 		// Not all pipelines include the pipeline ID in the artifact name, but if it is there then match against it
 		if strings.Contains(artifact, "pipeline.") &&
-			!strings.Contains(artifact, fmt.Sprintf("pipeline.%s", pipelineID)) {
+			!strings.Contains(artifact, "pipeline."+pipelineID) {
 			return false
 		}
 		if !strings.Contains(artifact, fmt.Sprintf("-%s.msi", arch)) {
@@ -410,10 +411,10 @@ func GetLastStablePackageFromEnv() (*Package, error) {
 	flavor, _ := LookupFlavorFromEnv()
 	ver := os.Getenv("LAST_STABLE_VERSION")
 	if ver == "" {
-		return nil, fmt.Errorf("LAST_STABLE_VERSION is not set")
+		return nil, errors.New("LAST_STABLE_VERSION is not set")
 	}
 	// TODO: Append -1, should we update release.json to include it?
-	ver = fmt.Sprintf("%s-1", ver)
+	ver = ver + "-1"
 
 	var err error
 
@@ -476,7 +477,7 @@ func GetUpgradeTestPackageFromEnv() (*Package, error) {
 	}
 
 	// if not in pipeline or provided in env, then fail
-	return nil, fmt.Errorf("no upgradable package found")
+	return nil, errors.New("no upgradable package found")
 }
 
 // PackageOption defines a function type for modifying a Package
@@ -593,10 +594,10 @@ func WithURLFromPipeline(pipelineID string) PackageOption {
 func WithURLFromInstallersJSON(jsonURL, version string) PackageOption {
 	return func(p *Package) error {
 		if p.Product == "" {
-			return fmt.Errorf("product must be set before calling WithURLFromInstallersJSON")
+			return errors.New("product must be set before calling WithURLFromInstallersJSON")
 		}
 		if p.Arch == "" {
-			return fmt.Errorf("arch must be set before calling WithURLFromInstallersJSON")
+			return errors.New("arch must be set before calling WithURLFromInstallersJSON")
 		}
 		url, err := installers.GetProductURL(jsonURL, p.Product, version, p.Arch)
 		if err != nil {
@@ -636,27 +637,27 @@ func WithURLFromInstallersJSON(jsonURL, version string) PackageOption {
 //	export CURRENT_AGENT_MSI_URL="https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.64.0-rc.9.msi"
 func WithDevEnvOverrides(devenvPrefix string) PackageOption {
 	return func(p *Package) error {
-		if flavor, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_FLAVOR", devenvPrefix)); ok {
+		if flavor, ok := os.LookupEnv(devenvPrefix + "_MSI_FLAVOR"); ok {
 			if err := WithFlavor(flavor)(p); err != nil {
 				return err
 			}
 		}
-		if product, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PRODUCT", devenvPrefix)); ok {
+		if product, ok := os.LookupEnv(devenvPrefix + "_MSI_PRODUCT"); ok {
 			if err := WithProduct(product)(p); err != nil {
 				return err
 			}
 		}
-		if arch, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_ARCH", devenvPrefix)); ok {
+		if arch, ok := os.LookupEnv(devenvPrefix + "_MSI_ARCH"); ok {
 			if err := WithArch(arch)(p); err != nil {
 				return err
 			}
 		}
-		if channel, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_CHANNEL", devenvPrefix)); ok {
+		if channel, ok := os.LookupEnv(devenvPrefix + "_MSI_CHANNEL"); ok {
 			if err := WithChannel(channel)(p); err != nil {
 				return err
 			}
 		}
-		if version, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_VERSION", devenvPrefix)); ok {
+		if version, ok := os.LookupEnv(devenvPrefix + "_MSI_VERSION"); ok {
 			if p.Channel == "" {
 				channel := stableChannel
 				// if channel is not provided, check if we can infer it from the version,
@@ -672,19 +673,19 @@ func WithDevEnvOverrides(devenvPrefix string) PackageOption {
 			if err != nil {
 				return err
 			}
-			if customJSONURL, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_JSON_URL", devenvPrefix)); ok {
+			if customJSONURL, ok := os.LookupEnv(devenvPrefix + "_MSI_JSON_URL"); ok {
 				jsonURL = customJSONURL
 			}
 			if err := WithURLFromInstallersJSON(jsonURL, version)(p); err != nil {
 				return err
 			}
 		}
-		if url, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_URL", devenvPrefix)); ok {
+		if url, ok := os.LookupEnv(devenvPrefix + "_MSI_URL"); ok {
 			if err := WithURL(url)(p); err != nil {
 				return err
 			}
 		}
-		if pipelineID, ok := os.LookupEnv(fmt.Sprintf("%s_MSI_PIPELINE", devenvPrefix)); ok {
+		if pipelineID, ok := os.LookupEnv(devenvPrefix + "_MSI_PIPELINE"); ok {
 			if err := WithURLFromPipeline(pipelineID)(p); err != nil {
 				return err
 			}

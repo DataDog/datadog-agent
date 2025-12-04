@@ -271,7 +271,7 @@ func exitOnUnsupportedEnvVars(envVars ...string) error {
 
 func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	for _, envVar := range envVars {
-		s.Span.SetTag(fmt.Sprintf("env_var.%s", envVar), os.Getenv(envVar))
+		s.Span.SetTag("env_var."+envVar, os.Getenv(envVar))
 	}
 }
 

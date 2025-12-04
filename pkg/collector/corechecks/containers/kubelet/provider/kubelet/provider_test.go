@@ -8,7 +8,7 @@
 package kubelet
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"testing"
 
@@ -412,7 +412,7 @@ func (suite *ProviderTestSuite) TestSendAlwaysCounterSubsequentRuns() {
 
 func (suite *ProviderTestSuite) TestFirstRunRemainsOnError() {
 	// Create a mock that returns an error
-	testError := fmt.Errorf("kubelet connection failed")
+	testError := errors.New("kubelet connection failed")
 	errorResponse := commontesting.NewEndpointResponse(
 		"", 500, testError)
 

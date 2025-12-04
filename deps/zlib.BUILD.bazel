@@ -45,7 +45,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["@@//packages:__subpackages__"],
 )
 
 license(
@@ -132,20 +132,13 @@ so_symlink(
     src = ":z",
     libname = "libz",
     version = "1.3.1",
+    prefix = "embedded",
 )
 
 pkg_files(
     name = "hdr_files",
     srcs = _ZLIB_PUBLIC_HEADERS,
-    prefix = "include",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":hdr_files",
-        ":lib_files",
-    ],
+    prefix = "embedded/include",
 )
 
 copy_file(
@@ -159,11 +152,14 @@ pkg_files(
     srcs = [
         ":renamed_license",
     ],
+    prefix = "LICENSES",
 )
 
 pkg_install(
-    name = "install_license",
+    name = "install",
     srcs = [
+        ":hdr_files",
+        ":lib_files",
         ":license_files",
     ],
 )

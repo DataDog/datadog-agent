@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -100,6 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfigsetup.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle(),
+				hostnameimpl.Module(),
 				statsd.Module(),
 				secretsfx.Module(),
 				// workloadmeta setup
@@ -388,5 +390,5 @@ func setupInternalProfiling(config config.Component) error {
 }
 
 func secAgentKey(sub string) string {
-	return fmt.Sprintf("security_agent.%s", sub)
+	return "security_agent." + sub
 }

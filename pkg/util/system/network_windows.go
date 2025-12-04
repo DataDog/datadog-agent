@@ -10,7 +10,7 @@ package system
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"net"
 	"os/exec"
 	"strings"
@@ -110,5 +110,5 @@ func defaultGatewayFields() ([]string, error) {
 			return fields, nil
 		}
 	}
-	return nil, fmt.Errorf("couldn't retrieve default gateway information")
+	return nil, errors.New("couldn't retrieve default gateway information")
 }

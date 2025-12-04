@@ -33,6 +33,10 @@ from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
 
+# Patch python-gitlab to retry 409 errors because the "fix" (https://github.com/python-gitlab/python-gitlab/pull/2326)
+# checks `result.reason` but GitLab sends `Conflict` (HTTP standard) while `Resource lock` is in the response... body!
+gitlab.const.RETRYABLE_TRANSIENT_ERROR_CODES.append(409)
+
 BASE_URL = "https://gitlab.ddbuild.io"
 CONFIG_SPECIAL_OBJECTS = {
     "default",

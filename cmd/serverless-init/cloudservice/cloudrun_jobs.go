@@ -8,6 +8,7 @@ package cloudservice
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
@@ -116,20 +117,24 @@ func (c *CloudRunJobs) Init(traceAgent interface{}) error {
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error) {
-	durationMetricName := fmt.Sprintf("%s.enhanced.task.duration", cloudRunJobsPrefix)
+	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
 	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
 
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
-	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, fmt.Sprintf("exit_code:%d", exitCode))
+	succeededTag := "succeeded:true"
+	if exitCode != 0 {
+		succeededTag = "succeeded:false"
+	}
+	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, succeededTag)
 
 	c.completeAndSubmitJobSpan(traceAgent, runErr)
 }
 
 // GetStartMetricName returns the metric name for container start events
 func (c *CloudRunJobs) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.task.started", cloudRunJobsPrefix)
+	return cloudRunJobsPrefix + ".enhanced.task.started"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is true for cloud run jobs.
@@ -196,7 +201,7 @@ func (c *CloudRunJobs) completeAndSubmitJobSpan(traceAgent interface{}, runErr e
 		c.jobSpan.Error = 1
 		c.jobSpan.Meta["error.msg"] = runErr.Error()
 		exitCode := exitcode.From(runErr)
-		c.jobSpan.Meta["exit_code"] = fmt.Sprintf("%d", exitCode)
+		c.jobSpan.Meta["exit_code"] = strconv.Itoa(exitCode)
 	}
 
 	serverlessInitTrace.SubmitSpan(c.jobSpan, CloudRunJobsOrigin, traceAgent)

@@ -8,6 +8,7 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -31,7 +32,7 @@ type SystemProbeCache struct {
 
 // NewSystemProbeCache creates a new stats cache that connects to system-probe using sysprobeclient.
 func NewSystemProbeCache() *SystemProbeCache {
-	timeout := pkgconfigsetup.SystemProbe().GetDuration("gpu.sp_process_metrics_request_timeout")
+	timeout := pkgconfigsetup.Datadog().GetDuration("gpu.sp_process_metrics_request_timeout")
 	client := sysprobeclient.GetCheckClient(
 		sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")),
 		sysprobeclient.WithCheckTimeout(timeout),
@@ -49,7 +50,7 @@ func NewSystemProbeCache() *SystemProbeCache {
 // Returns error if the refresh fails, nil on success.
 func (c *SystemProbeCache) Refresh() error {
 	if c.client == nil {
-		return fmt.Errorf("system-probe client is nil")
+		return errors.New("system-probe client is nil")
 	}
 
 	stats, err := sysprobeclient.GetCheck[model.GPUStats](c.client, sysconfig.GPUMonitoringModule)
@@ -93,7 +94,7 @@ type ebpfCollector struct {
 // newEbpfCollector creates a new eBPF-based collector for the given device.
 func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfCollector, error) {
 	if cache == nil {
-		return nil, fmt.Errorf("system-probe cache cannot be nil")
+		return nil, errors.New("system-probe cache cannot be nil")
 	}
 
 	return &ebpfCollector{

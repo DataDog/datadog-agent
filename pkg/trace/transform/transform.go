@@ -182,7 +182,7 @@ func GetDDKeyForOTLPAttribute(k string) string {
 	case found:
 		break
 	case strings.HasPrefix(k, "http.request.header."):
-		mappedKey = fmt.Sprintf("http.request.headers.%s", strings.TrimPrefix(k, "http.request.header."))
+		mappedKey = "http.request.headers." + strings.TrimPrefix(k, "http.request.header.")
 	case !isDatadogAPMConventionKey(k):
 		mappedKey = k
 	default:
