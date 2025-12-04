@@ -40,14 +40,14 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 	// Arrange: install previous Agent MSI (mirror other suites)
 	s.installPreviousAgentVersion()
 
-	// Act: install current Agent MSI; opt-in to DDOT via DD_OTEL_OCI_INSTALL
+	// Act: install current Agent MSI; opt-in to DDOT via DD_OTELCOLLECTOR_ENABLED
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg("DD_OTEL_OCI_INSTALL=oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package"),
+		installerwindows.WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
 	))
 
 	// Assert: DDOT package stable directory exists and contains otel-agent.exe
@@ -62,14 +62,14 @@ func (s *testAgentMSIInstallsDDOT) TestInstallDDOTFromMSI() {
 func (s *testAgentMSIInstallsDDOT) TestUninstallDDOTFromMSI() {
 	// Arrange: install previous Agent MSI (baseline)
 	s.installPreviousAgentVersion()
-	// Install current Agent MSI with DDOT enabled via DD_OTEL_OCI_INSTALL
+	// Install current Agent MSI with DDOT enabled via DD_OTELCOLLECTOR_ENABLED
 	s.Require().NoError(s.Installer().Install(
 		installerwindows.WithOption(installerwindows.WithInstallerURL(s.CurrentAgentVersion().MSIPackage().URL)),
 		installerwindows.WithMSILogFile("install-ddot.log"),
 		installerwindows.WithMSIArg(fmt.Sprintf("APIKEY=%s", s.getAPIKey())),
 		installerwindows.WithMSIArg("SITE=datadoghq.com"),
 		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=installtesting.datad0g.com.internal.dda-testing.com"),
-		installerwindows.WithMSIArg("DD_OTEL_OCI_INSTALL=oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package"),
+		installerwindows.WithMSIArg("DD_OTELCOLLECTOR_ENABLED=true"),
 	))
 
 	stableDir := consts.GetStableDirFor("datadog-agent-ddot")

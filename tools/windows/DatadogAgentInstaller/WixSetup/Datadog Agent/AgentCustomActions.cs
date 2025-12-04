@@ -501,7 +501,7 @@ namespace WixSetup.Datadog_Agent
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]," +
                            "ORIGINALDATABASE=[OriginalDatabase]," +
-                           "DD_OTEL_OCI_INSTALL=[DD_OTEL_OCI_INSTALL]");
+                           "DD_OTELCOLLECTOR_ENABLED=[DD_OTELCOLLECTOR_ENABLED]");
 
             RollbackOciPackages = new CustomAction<CustomActions>(
                     new Id(nameof(RollbackOciPackages)),

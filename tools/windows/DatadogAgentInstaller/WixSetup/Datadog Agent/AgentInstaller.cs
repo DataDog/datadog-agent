@@ -145,7 +145,7 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
-                new Property("DD_OTEL_OCI_INSTALL")
+                new Property("DD_OTELCOLLECTOR_ENABLED")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
