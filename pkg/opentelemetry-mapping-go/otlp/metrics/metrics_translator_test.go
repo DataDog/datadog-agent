@@ -114,14 +114,14 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
-	mt, err := NewDefaultTranslator(
+	tr, err := NewDefaultTranslator(
 		set,
 		attributesTranslator,
 		options...,
 	)
 
 	require.NoError(t, err)
-	return mt
+	return tr
 }
 
 func newTranslator(t *testing.T, logger *zap.Logger) *DefaultTranslator {
