@@ -347,12 +347,6 @@ func TestSSHUserSession(t *testing.T) {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 
-	isLogFileExist, _, _ := getLogFile()
-	// We skip test when we don't have a log file because we don't use journalctl for now
-	if !isLogFileExist {
-		t.Skip("Skip test if log file does not exist")
-	}
-
 	testUser, err := createTestUser()
 	if err != nil {
 		t.Fatalf("failed to create test user: %v", err)

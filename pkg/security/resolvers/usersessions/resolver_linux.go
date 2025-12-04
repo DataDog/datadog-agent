@@ -9,15 +9,12 @@
 package usersessions
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -58,18 +55,6 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// incrementalFileReader is used to read a file incrementally
-type incrementalFileReader struct {
-	path               string
-	f                  *os.File
-	offset             int64
-	mu                 sync.Mutex
-	ino                uint64
-	readFromJournalctl bool
-	// chan to stop journalctl
-	stopReading chan struct{} // make(chan struct{}, 1)
-}
-
 // SSHSessionKey describes the key to a ssh session in the LRU
 type SSHSessionKey struct {
 	IP   string // net.IP.String()
@@ -95,6 +80,7 @@ type Resolver struct {
 	userSessionsMap *ebpf.Map
 
 	sshLogReader     *incrementalFileReader
+	sshJournalReader *sshJournalReader
 	SSHSessionParsed sshSessionParsed
 }
 
@@ -181,51 +167,45 @@ func (r *Resolver) ResolveK8SUserSession(id uint64) *model.K8SSessionContext {
 	return ctx
 }
 
-// Init opens the file and sets the initial offset
-func (ifr *incrementalFileReader) Init(f *os.File) error {
-	if ifr.f != nil {
-		return nil
-	}
-
-	st, err := f.Stat()
-	if err != nil {
-		_ = f.Close()
-		seclog.Warnf("Fail to stat log file: %v", err)
-		return err
-	}
-
-	ifr.offset = st.Size()
-
-	ifr.f = f
-	ifr.ino = inodeOf(st)
-	_, err = ifr.f.Seek(ifr.offset, io.SeekStart)
-	if err != nil {
-		// Comment: already in an error path
-		_ = ifr.close(false)
-		ifr.f = nil
-	}
-	return err
-}
-
 // startReading start to parse the potential ssh session and store them in the LRU
+// This function is executed in a goroutine
 func (r *Resolver) startReading() {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
-	if !r.sshLogReader.readFromJournalctl {
-		// For now we only read from the ssh log file
+	if r.sshLogReader != nil {
 		for {
 			select {
 			case <-r.sshLogReader.stopReading:
+				_ = r.sshLogReader.close()
 				return
 			case <-ticker.C:
-				r.sshLogReader.mu.Lock()
-				err := r.sshLogReader.resolveFromLogFile(&r.SSHSessionParsed)
-				if err != nil {
-					seclog.Errorf("failed to read ssh log lines: %v", err)
+				if r.sshLogReader != nil {
+					r.sshLogReader.mu.Lock()
+					err := r.sshLogReader.resolveFromLogFile(&r.SSHSessionParsed)
+					if err != nil {
+						seclog.Errorf("failed to read ssh log lines: %v", err)
+					}
+					r.sshLogReader.mu.Unlock()
 				}
-				r.sshLogReader.mu.Unlock()
-
+			}
+		}
+	}
+	if r.sshJournalReader != nil {
+		for {
+			select {
+			case <-r.sshJournalReader.stopReading:
+				r.sshJournalReader.Stop()
+				return
+			case <-ticker.C:
+				if r.sshJournalReader != nil {
+					r.sshJournalReader.mu.Lock()
+					err := r.sshJournalReader.ReadEntries(&r.SSHSessionParsed)
+					if err != nil {
+						seclog.Errorf("failed to read journalctl: %v", err)
+					}
+					r.sshJournalReader.mu.Unlock()
+				}
 			}
 		}
 	}
@@ -234,6 +214,7 @@ func (r *Resolver) startReading() {
 // parseSSHLogLine parse the ssh log line
 // Does not return any error and just automatically updates the LRU when a new session is found
 func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) {
+	fmt.Printf("line: %s\n", line)
 	type SSHLogLine struct {
 		Date      string
 		Hostname  string
@@ -328,100 +309,6 @@ func parseSSHLogLine(line string, sshSessionParsed *sshSessionParsed) {
 	}
 }
 
-// resolveFromLogFile read all the lines that have been added since the last call without reopening the file.
-// Return new lines, the byte offsets at the end of each line, and an error.
-func (ifr *incrementalFileReader) resolveFromLogFile(sshSessionParsed *sshSessionParsed) error {
-	if err := ifr.reloadIfRotated(); err != nil {
-		return err
-	}
-
-	st, err := ifr.f.Stat()
-	if err != nil {
-		return err
-	}
-
-	if st.Size() == ifr.offset {
-		return nil
-	}
-	// If the file is truncated, we restart from the beginning
-	if st.Size() < ifr.offset {
-		ifr.offset = 0
-		if _, err := ifr.f.Seek(0, io.SeekStart); err != nil {
-			return err
-		}
-	} else {
-		// If the file is not truncated, we seek to the offset
-		if _, err := ifr.f.Seek(ifr.offset, io.SeekStart); err != nil {
-			return err
-		}
-	}
-
-	sc := bufio.NewScanner(ifr.f)
-	for sc.Scan() {
-		line := sc.Text()
-		parseSSHLogLine(line, sshSessionParsed)
-	}
-	newOffset, err := ifr.f.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return err
-	}
-
-	ifr.offset = newOffset
-	return err
-}
-
-// close closes the file.
-// The lock of IncrementalFileReader must be held
-func (ifr *incrementalFileReader) close(closeReader bool) error {
-	var err error
-	if ifr.f != nil {
-		err = ifr.f.Close()
-		ifr.f = nil
-	}
-	if closeReader {
-		// Stop the reader
-		ifr.stopReading <- struct{}{}
-	}
-
-	return err
-}
-
-// inodeOf get the inode of the file.
-func inodeOf(fi os.FileInfo) uint64 {
-	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
-		return st.Ino
-	}
-	return 0
-}
-
-// reloadIfRotated reopens the file if the inode has changed.
-func (ifr *incrementalFileReader) reloadIfRotated() error {
-	curSt, err := os.Stat(ifr.path)
-	if err != nil {
-		return err
-	}
-	curIno := inodeOf(curSt)
-	if curIno != 0 && ifr.ino != 0 && curIno != ifr.ino {
-		// The file has been rotated
-		if ifr.f != nil {
-			_ = ifr.close(false)
-			ifr.f = nil
-		}
-		f, err := os.Open(ifr.path)
-		if err != nil {
-			_ = ifr.close(false)
-			ifr.f = nil
-			return err
-		}
-		ifr.f = f
-		ifr.ino = curIno
-
-		// We restart from the beginning because it's a new file
-		ifr.offset = 0
-	}
-	return nil
-}
-
 // StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
 // Lock must be held
 func (r *Resolver) StartSSHUserSessionResolver() error {
@@ -448,11 +335,24 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 			break
 		}
 	}
-	// If there is no log file, we use journalctl (atm we do nothing)
+	// If there is no log file, we use journalctl
 	if path == "" {
-		// // Don't want to continue in case there is no log file
-		// TODO : use journalctl instead
-		seclog.Warnf("no ssh log file found")
+		journal, err := NewSDJournalAdapter()
+		if err != nil {
+			return fmt.Errorf("impossible de créer le journal adapter: %w", err)
+		}
+
+		r.sshJournalReader = &sshJournalReader{
+			journal:     journal,
+			stopReading: make(chan struct{}, 1),
+			parser:      parseSSHLogLine,
+		}
+
+		if err := r.sshJournalReader.Start(""); err != nil {
+			return fmt.Errorf("impossible de démarrer le journal reader: %w", err)
+		}
+
+		go r.startReading()
 		return nil
 	}
 	// Initialize the SSH log reader
@@ -461,7 +361,12 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 		stopReading: make(chan struct{}, 1),
 	}
 
-	r.sshLogReader.readFromJournalctl = false
+	// Initialize the SSH log reader
+	r.sshLogReader = &incrementalFileReader{
+		path:        path,
+		parser:      parseSSHLogLine,
+		stopReading: make(chan struct{}, 1),
+	}
 	// Now we can open the file if there is one
 	f, err := os.OpenFile(path, os.O_RDONLY, 0644)
 	if err != nil {
@@ -483,12 +388,15 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 // Close closes the resolver
 func (r *Resolver) Close() {
 	r.Lock()
-
-	defer r.Unlock()
-
 	if r.sshLogReader != nil {
 		r.sshLogReader.mu.Lock()
 		defer r.sshLogReader.mu.Unlock()
-		_ = r.sshLogReader.close(true)
+		r.sshLogReader.stopReading <- struct{}{}
 	}
+	if r.sshJournalReader != nil {
+		r.sshJournalReader.mu.Lock()
+		defer r.sshJournalReader.mu.Unlock()
+		r.sshJournalReader.stopReading <- struct{}{}
+	}
+	r.Unlock()
 }
