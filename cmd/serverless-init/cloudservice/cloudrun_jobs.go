@@ -63,7 +63,6 @@ func (c *CloudRunJobs) GetTags() map[string]string {
 	taskAttemptVal := os.Getenv(cloudRunTaskAttemptEnvVar)
 	taskCountVal := os.Getenv(cloudRunTaskCountEnvVar)
 
-	// TODO: remove high cardinality tags and include them only in logs/traces.
 	if jobNameVal != "" {
 		tags[cloudRunJobNamespace+jobNameTag] = jobNameVal
 		tags[jobNameTag] = jobNameVal
