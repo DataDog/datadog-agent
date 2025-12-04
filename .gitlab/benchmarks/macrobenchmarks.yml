@@ -7,9 +7,7 @@ variables:
   timeout: 1h
   rules:
     - !reference [.except_coverage_pipeline]
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: always
-    - !reference [.on_scheduled_main]
+    - !reference [.on_scheduled_main_or_release_branch]
     - !reference [.manual]
   # If you have a problem with Gitlab cache, see Troubleshooting section in Benchmarking Platform docs
   image: $BENCHMARKS_CI_IMAGE
