@@ -370,7 +370,7 @@ variables:
 
 .on_build_changes: &on_build_changes
   changes:
-    paths: 
+    paths:
       - omnibus/**/*
     compare_to: $COMPARE_TO_BRANCH
 
@@ -650,7 +650,7 @@ workflow:
   - changes:
       paths:
         - .gitlab/e2e/e2e.yml
-        - test/e2e-framework/testing/**/*
+        - test/e2e-framework/**/*
         - test/new-e2e/go.mod
         - flakes.yaml
         - release.json
@@ -728,7 +728,6 @@ workflow:
         - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-        - test/e2e-framework/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
