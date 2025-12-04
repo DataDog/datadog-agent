@@ -24,6 +24,24 @@ var (
 	tlmSendWaitTime    = telemetry.NewCounter("logs_sender", "send_wait", []string{}, "Time spent waiting for all sends to finish")
 )
 
+// retrierInterface defines the interface for disk retry functionality
+type retrierInterface interface {
+	WritePayloadToDisk(payload *message.Payload) (bool, error)
+	Stop()
+	ReplayFromDisk(payloadChan chan *message.Payload, done chan struct{})
+}
+
+// noopRetrier is a no-op implementation used when disk retry is not configured.
+// When backpressure occurs, payloads are dropped instead of being written to disk.
+type noopRetrier struct{}
+
+func (n *noopRetrier) WritePayloadToDisk(_ *message.Payload) (bool, error) { return false, nil }
+func (n *noopRetrier) Stop()                                               {}
+func (n *noopRetrier) ReplayFromDisk(_ chan *message.Payload, done chan struct{}) {
+	// Block until done signal to match the real retrier's behavior
+	<-done
+}
+
 // worker sends logs to different destinations. Destinations can be either
 // reliable or unreliable. The worker ensures that logs are sent to at least
 // one reliable destination and will block the pipeline if they are in an
@@ -34,6 +52,7 @@ var (
 type worker struct {
 	config         pkgconfigmodel.Reader
 	inputChan      chan *message.Payload
+	payloadChan    chan *message.Payload
 	outputChan     chan *message.Payload
 	destinations   *client.Destinations
 	done           chan struct{}
@@ -43,6 +62,7 @@ type worker struct {
 	flushWg        *sync.WaitGroup
 	sink           Sink
 	workerID       string
+	retrier        retrierInterface
 
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -57,6 +77,7 @@ func newWorker(
 	serverlessMeta ServerlessMeta,
 	pipelineMonitor metrics.PipelineMonitor,
 	workerID string,
+	retrier retrierInterface,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
 	var flushWg *sync.WaitGroup
@@ -65,9 +86,26 @@ func newWorker(
 		senderDoneChan = serverlessMeta.SenderDoneChan()
 		flushWg = serverlessMeta.WaitGroup()
 	}
+
+	// Use no-op retrier if disk retry is not configured
+	// This eliminates nil checks in the hot path
+	var retrierImpl retrierInterface
+	if retrier != nil {
+		retrierImpl = retrier
+	} else {
+		retrierImpl = &noopRetrier{}
+	}
+
+	// Ensure payloadChan has at least buffer of 1 for non-blocking send in routePayloads()
+	payloadChanSize := bufferSize
+	if payloadChanSize == 0 {
+		payloadChanSize = 1
+	}
+
 	return &worker{
 		config:         config,
 		inputChan:      inputChan,
+		payloadChan:    make(chan *message.Payload, payloadChanSize),
 		sink:           sink,
 		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
@@ -76,6 +114,7 @@ func newWorker(
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
+		retrier:        retrierImpl,
 
 		// Telemetry
 		pipelineMonitor: pipelineMonitor,
@@ -88,13 +127,38 @@ func (s *worker) start() {
 	s.outputChan = s.sink.Channel()
 
 	go s.run()
+	go s.retrier.ReplayFromDisk(s.payloadChan, s.done)
+	go s.routePayloads()
 }
 
 // Stop stops the worker,
 // this call blocks until inputChan is flushed
 func (s *worker) stop() {
-	s.done <- struct{}{}
+	close(s.done)
 	<-s.finished
+}
+
+// routPayloads takes all incoming payloads and routes them to one of two places:
+// 1. Further in the pipeline if the pipeline is healthy
+// 2. To disk if the pipeline is blocking (retrier will write to disk or no-op)
+func (s *worker) routePayloads() {
+	for {
+		select {
+		case payload := <-s.inputChan:
+			// Try non-blocking send to run(), fallback to disk on backpressure
+			select {
+			case s.payloadChan <- payload:
+				// Successfully sent to run()
+			default:
+				// Backpressure: write to disk (or drop if no retrier configured)
+				if _, err := s.retrier.WritePayloadToDisk(payload); err != nil {
+					log.Warnf("Failed to write payload to disk: %v", err)
+				}
+			}
+		case <-s.done:
+			return
+		}
+	}
 }
 
 func (s *worker) run() {
@@ -109,7 +173,11 @@ func (s *worker) run() {
 	continueLoop := true
 	for continueLoop {
 		select {
-		case payload := <-s.inputChan:
+		case payload, ok := <-s.payloadChan:
+			if !ok {
+				continueLoop = false
+				continue
+			}
 			s.pipelineMonitor.ReportComponentEgress(payload, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
 			s.pipelineMonitor.ReportComponentIngress(payload, metrics.WorkerTlmName, s.workerID)
 			s.utilization.Start()
