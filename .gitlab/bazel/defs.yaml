@@ -72,7 +72,8 @@
   variables:
     ARCH: x64
     GIT_DEPTH: 2
-  script:
+  image: "$WINBUILDIMAGE"
+  before_script:
     - |-
       $FailFast = @'
       $ErrorActionPreference = 'Stop'
@@ -80,11 +81,5 @@
       Set-StrictMode -Version 3.0
       '@
       Invoke-Expression $FailFast
-      $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($POWERSHELL_SCRIPT))
-      $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
-    - >-
-      .\tools\ci\docker-run-with-bazel-cache.ps1
-      --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
-      --workdir="$CI_PROJECT_DIR"
-      "$WINBUILDIMAGE"
-      powershell -NonInteractive -NoLogo -NoProfile -InputFormat Text -OutputFormat Text -EncodedCommand $EncodedCommand
+      mkdir "$env:XDG_CACHE_HOME" -Force | Out-Null
+      go install github.com/bazelbuild/bazelisk@v1.27.0
