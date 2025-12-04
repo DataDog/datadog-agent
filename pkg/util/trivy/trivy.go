@@ -158,6 +158,7 @@ func getDefaultArtifactOption(opts sbom.ScanOptions) artifact.Option {
 			"/var/lib/containers/**",
 			"/var/lib/docker/**",
 			"/var/lib/kubelet/pods/**",
+			"/var/lib/kubelet/plugins/**/globalmount/**",
 			"/var/lib/libvirt/**",
 			"/var/lib/snapd/**",
 			"/var/log/**",

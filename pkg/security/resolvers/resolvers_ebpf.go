@@ -267,6 +267,7 @@ func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (*model.CGro
 	}
 
 	cgroupContext := &model.CGroupContext{
+		Releasable: &model.Releasable{},
 		CGroupID:   containerutils.CGroupID(cgroup),
 		CGroupFile: pathKey,
 	}
