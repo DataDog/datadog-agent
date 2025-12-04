@@ -82,15 +82,9 @@
       Invoke-Expression $FailFast
       $Utf8Script = [Text.Encoding]::UTF8.GetString([Text.Encoding]::GetEncoding([Console]::OutputEncoding.CodePage).GetBytes($POWERSHELL_SCRIPT))
       $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes("$FailFast`n$Utf8Script"))
-      mkdir "$XDG_CACHE_HOME" -Force | Out-Null
     - >-
-      docker run
-      --env=BAZELISK_HOME
-      --env=CI
-      --env=XDG_CACHE_HOME
-      --rm
+      .\tools\ci\docker-run-with-bazel-cache.ps1
       --volume="${CI_PROJECT_DIR}:$CI_PROJECT_DIR"
-      --volume="${XDG_CACHE_HOME}:$XDG_CACHE_HOME"
       --workdir="$CI_PROJECT_DIR"
       "$WINBUILDIMAGE"
       powershell -NonInteractive -NoLogo -NoProfile -InputFormat Text -OutputFormat Text -EncodedCommand $EncodedCommand

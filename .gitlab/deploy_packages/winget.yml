@@ -20,6 +20,7 @@ publish_winget_7_x64:
     - >
       docker run --rm
       -v "$(Get-Location):c:\mnt"
+      -e CI
       -e WINGET_GITHUB_ACCESS_TOKEN=${wingetPat}
       -e GENERAL_ARTIFACTS_CACHE_BUCKET_URL
       ${WINBUILDIMAGE}
