@@ -9,12 +9,12 @@
 package selinux
 
 import (
-	"os/exec"
 	"strings"
 
 	"github.com/cilium/ebpf"
 
 	sebpf "github.com/DataDog/datadog-agent/pkg/security/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/tracefssafeexec"
 )
 
 const (
@@ -27,7 +27,7 @@ const (
 // SnapshotSELinux snapshots SELinux
 func SnapshotSELinux(selinuxStatusMap *ebpf.Map) error {
 	currentStatus := func() string {
-		output, err := exec.Command("getenforce").Output()
+		output, err := tracefssafeexec.Command("getenforce").Output()
 		if err != nil {
 			return ""
 		}
