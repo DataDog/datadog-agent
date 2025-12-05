@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -99,6 +100,7 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	customConfig              string
 	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
@@ -226,6 +228,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	cmd.Flags().StringVarP(&cliParams.customConfig, "custom-config", "C", "", "pass custom check config")
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -306,11 +309,7 @@ func run(
 	// AutoDiscovery.
 	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-	cancelTimeout()
+	allConfigs, err := getAllCheckConfigs(ac, *cliParams)
 	if err != nil {
 		return err
 	}
@@ -759,6 +758,29 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	}
 
 	return nil
+}
+
+func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]integration.Config, error) {
+	// get configs from auto discovery
+	if cliParams.customConfig == "" {
+		waitCtx, cancelTimeout := context.WithTimeout(
+			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
+
+		allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+		cancelTimeout()
+
+		return allConfigs, err
+	}
+
+	// get config from custom config file
+	fmt.Printf("Loading custom check config from %q\n", cliParams.customConfig)
+
+	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.customConfig)
+	if err != nil {
+		return nil, fmt.Errorf("fail to load custom config: %v", err)
+	}
+
+	return []integration.Config{customConf}, nil
 }
 
 // disableCmdPort overrrides the `cmd_port` configuration so that when the
