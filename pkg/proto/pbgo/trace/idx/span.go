@@ -1031,7 +1031,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 			if msgp.IsNil(bts) {
 				bts, err = msgp.ReadNilBytes(bts)
 				if convertedFields.TraceIDLower != 0 {
-					err = fmt.Errorf("already found lower 64 bits of trace ID but found a 0 traceID")
+					err = errors.New("already found lower 64 bits of trace ID but found a 0 traceID")
 					break
 				}
 				break

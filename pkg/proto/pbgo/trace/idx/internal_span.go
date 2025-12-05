@@ -661,39 +661,40 @@ func (s *InternalSpan) Clone() *InternalSpan {
 
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
-	str := "Span {"
-	str += fmt.Sprintf("Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
-	str += fmt.Sprintf("Name: (%s, at %d), ", s.Name(), s.span.NameRef)
-	str += fmt.Sprintf("Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
-	str += fmt.Sprintf("SpanID: %d, ", s.span.SpanID)
-	str += fmt.Sprintf("ParentID: %d, ", s.span.ParentID)
-	str += fmt.Sprintf("Start: %d, ", s.span.Start)
-	str += fmt.Sprintf("Duration: %d, ", s.span.Duration)
-	str += fmt.Sprintf("Error: %t, ", s.span.Error)
+	var sb strings.Builder
+	sb.WriteString("Span {")
+	fmt.Fprintf(&sb, "Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
+	fmt.Fprintf(&sb, "Name: (%s, at %d), ", s.Name(), s.span.NameRef)
+	fmt.Fprintf(&sb, "Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
+	fmt.Fprintf(&sb, "SpanID: %d, ", s.span.SpanID)
+	fmt.Fprintf(&sb, "ParentID: %d, ", s.span.ParentID)
+	fmt.Fprintf(&sb, "Start: %d, ", s.span.Start)
+	fmt.Fprintf(&sb, "Duration: %d, ", s.span.Duration)
+	fmt.Fprintf(&sb, "Error: %t, ", s.span.Error)
 
 	// Build attributes string with resolved keys and values
-	str += "Attributes: {"
+	sb.WriteString("Attributes: {")
 	first := true
 	for keyRef, value := range s.span.Attributes {
 		if !first {
-			str += ", "
+			sb.WriteString(", ")
 		}
 		first = false
 		keyStr := s.Strings.Get(keyRef)
 		valueStr := value.AsString(s.Strings)
-		str += fmt.Sprintf("%s: %s", keyStr, valueStr)
+		fmt.Fprintf(&sb, "%s: %s", keyStr, valueStr)
 	}
-	str += "}, "
+	sb.WriteString("}, ")
 
-	str += fmt.Sprintf("Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
-	str += fmt.Sprintf("Links: %v, ", s.Links())
-	str += fmt.Sprintf("Events: %v, ", s.Events())
-	str += fmt.Sprintf("Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
-	str += fmt.Sprintf("Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
-	str += fmt.Sprintf("Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
-	str += fmt.Sprintf("Kind: %s, ", s.SpanKind())
-	str += "}"
-	return str
+	fmt.Fprintf(&sb, "Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
+	fmt.Fprintf(&sb, "Links: %v, ", s.Links())
+	fmt.Fprintf(&sb, "Events: %v, ", s.Events())
+	fmt.Fprintf(&sb, "Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
+	fmt.Fprintf(&sb, "Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
+	fmt.Fprintf(&sb, "Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
+	fmt.Fprintf(&sb, "Kind: %s, ", s.SpanKind())
+	sb.WriteString("}")
+	return sb.String()
 }
 
 // Events returns the spans events in the InternalSpanEvent format
