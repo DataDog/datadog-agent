@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -34,7 +35,11 @@ type Requires struct {
 
 // Provides defines the output of the health-platform component
 type Provides struct {
-	Comp healthplatform.Component
+	compdef.Out
+
+	Comp                 healthplatform.Component
+	HealthIssuesEndpoint api.AgentEndpointProvider
+	HealthDetectEndpoint api.AgentEndpointProvider
 }
 
 // healthPlatformImpl implements the health platform component
@@ -50,6 +55,10 @@ type healthPlatformImpl struct {
 	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
 	issuesMux sync.RWMutex                     // Mutex for thread-safe access to issues
 
+	// Health check tracking
+	periodicChecks map[string]*periodicCheck // Registered periodic health checks by check ID
+	checksMux      sync.RWMutex              // Mutex for thread-safe access to checks
+
 	// Remediation management
 	remediationRegistry *remediations.Registry // Registry of remediation templates
 
@@ -62,6 +71,12 @@ type healthPlatformImpl struct {
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
+}
+
+// periodicCheck stores information about a registered health check
+type periodicCheck struct {
+	checkName string
+	checkFunc health.HealthCheckFunc
 }
 
 type telemetryMetrics struct {
@@ -78,7 +93,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Check if health platform is enabled
 	if !reqs.Config.GetBool("health_platform.enabled") {
 		reqs.Log.Info("Health platform component is disabled")
-		return Provides{Comp: &noopHealthPlatform{}}, nil
+		noop := &noopHealthPlatform{}
+		return Provides{
+			Comp:                 noop,
+			HealthIssuesEndpoint: api.NewAgentEndpointProvider(noop.handleHealthIssues, "/health-issues", "GET"),
+			HealthDetectEndpoint: api.NewAgentEndpointProvider(noop.handleHealthDetect, "/health-detect", "GET"),
+		}, nil
 	}
 
 	reqs.Log.Info("Creating health platform component")
@@ -99,6 +119,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Issue tracking
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+
+		// Health check tracking
+		periodicChecks: make(map[string]*periodicCheck), // Initialize periodic checks map
+		checksMux:      sync.RWMutex{},                  // Initialize checks mutex
 
 		// Lifecycle
 		ctx:    ctx,
@@ -138,9 +162,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// This will flush any health checks that were registered before the component was created
 	health.SetCollector(comp)
 
-	// Return the component wrapped in Provides
-	provides := Provides{Comp: comp}
-	return provides, nil
+	// Return the component wrapped in Provides with endpoints
+	return Provides{
+		Comp:                 comp,
+		HealthIssuesEndpoint: api.NewAgentEndpointProvider(comp.handleHealthIssues, "/health-issues", "GET"),
+		HealthDetectEndpoint: api.NewAgentEndpointProvider(comp.handleHealthDetect, "/health-detect", "GET"),
+	}, nil
 }
 
 // ============================================================================
@@ -338,7 +365,23 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 
 // RegisterHealthCheck implements the Checker interface
 // It registers a periodic health check and starts monitoring immediately
+// If a check with the same checkID is already registered, it will be skipped (deduplication)
 func (h *healthPlatformImpl) RegisterHealthCheck(checkID, checkName string, checkFunc health.HealthCheckFunc) {
+	// Check if this check is already registered (deduplication)
+	h.checksMux.Lock()
+	if _, exists := h.periodicChecks[checkID]; exists {
+		h.checksMux.Unlock()
+		h.log.Infof("Health check %s (%s) already registered, skipping duplicate registration", checkName, checkID)
+		return
+	}
+
+	// Store the check for on-demand detection
+	h.periodicChecks[checkID] = &periodicCheck{
+		checkName: checkName,
+		checkFunc: checkFunc,
+	}
+	h.checksMux.Unlock()
+
 	h.log.Infof("Registering health check: %s", checkName)
 
 	// Get the check interval from config
