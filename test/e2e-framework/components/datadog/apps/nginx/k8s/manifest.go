@@ -167,6 +167,8 @@ func NewNginxQueryDeploymentManifest(namespace string, mods ...DeploymentModifie
 							Name:  pulumi.String("query"),
 							Image: pulumi.String("ghcr.io/datadog/apps-http-client:" + apps.Version),
 							Args: pulumi.StringArray{
+								pulumi.String("-url"),
+								pulumi.String("http://nginx"),
 								pulumi.String("-min-tps"),
 								pulumi.String("1"),
 								pulumi.String("-max-tps"),
