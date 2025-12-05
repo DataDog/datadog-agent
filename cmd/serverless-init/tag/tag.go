@@ -85,7 +85,7 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 // Some traces are sampled out in the agent and don't get sent to the backend.
 // If "_dd.compute_stats" is enabled, we make sure to count the unsampled traces when computing trace stat metrics.
 // If "_dd.compute_stats" is disabled, the result is known incorrect data.
-func AddTraceStatsTags(tagsMap map[string]string) map[string]string {
+func MakeTraceAgentTags(tagsMap map[string]string) map[string]string {
 	if enabled, _ := strconv.ParseBool(os.Getenv(enableBackendTraceStatsEnvVar)); enabled {
 		// Use of clone instead of copy creates a new map to avoid polluting other agent components.
 		newTags := maps.Clone(tagsMap)
@@ -95,10 +95,10 @@ func AddTraceStatsTags(tagsMap map[string]string) map[string]string {
 	return tagsMap
 }
 
-// WithoutHighCardinalityTags creates a new tag map without high cardinality tags we use on traces
+// MakeMetricAgentTags creates a new tag map without high cardinality tags we use on traces
 //
-// We avoid these tags for metrics by default due to cost.
-func WithoutHighCardinalityTags(tags map[string]string) map[string]string {
+// We avoid these tags for metrics by default due to cost, as we store and bill by cardinality.
+func MakeMetricAgentTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
 	for k, v := range tags {
 		if _, isHighCardinality := highCardinalityTags[k]; !isHighCardinality {

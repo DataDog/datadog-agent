@@ -123,10 +123,11 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 
+	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
 	tags := serverlessInitTag.GetBaseTagsMapWithMetadata(
 		serverlessTag.MergeWithOverwrite(
 			serverlessTag.ArrayToMap(
-				configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false),
+				configuredTags,
 			),
 			cloudService.GetTags()),
 		modeConf.TagVersionMode)
@@ -146,15 +147,17 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	pkgconfigsetup.Datadog().Set("apm_config.receiver_socket", "", model.SourceAgentRuntime)
 
 	origin := cloudService.GetOrigin()
+	// Note: we do not modify tags for the LogsAgent.
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
-	functionTags := serverlessTag.GetFunctionTags(pkgconfigsetup.Datadog())
-	traceAgent := setupTraceAgent(tags, functionTags, tagger)
+	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
+	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger)
 
 	// TODO check for errors and exit
 	_ = cloudService.Init(traceAgent)
 
-	metricAgent := setupMetricAgent(tags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
+	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
+	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
 
 	metric.Add(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
 
@@ -178,13 +181,15 @@ var azureServerlessTags = []string{
 	"aas.resource.id",
 }
 
-func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.Component) trace.ServerlessTraceAgent {
+func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component) trace.ServerlessTraceAgent {
 	var azureTags strings.Builder
 	for _, azureServerlessTag := range azureServerlessTags {
 		if value, ok := tags[azureServerlessTag]; ok {
 			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
 		}
 	}
+	// The functionTags key:value comma-separated string is derived from DD_TAGS and DD_EXTRA_TAGS and DD_DOGSTATSD_TAGS.
+	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
@@ -192,7 +197,7 @@ func setupTraceAgent(tags map[string]string, functionTags string, tagger tagger.
 		FunctionTags:        functionTags,
 	})
 	// if compute_stats is enabled, we add the tag needed for accurate metric trace counts after sampling
-	traceTags := serverlessInitTag.AddTraceStatsTags(tags)
+	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
 	traceAgent.SetTags(traceTags)
 	go func() {
 		for range time.Tick(3 * time.Second) {
@@ -210,8 +215,6 @@ func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldFor
 		SketchesBucketOffset: time.Second * 0,
 		Tagger:               tagger,
 	}
-	// we don't want to add certain tags to metrics for cardinality reasons
-	tags = serverlessInitTag.WithoutHighCardinalityTags(tags)
 	metricAgent.Start(5*time.Second, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{}, shouldForceFlushAllOnForceFlushToSerializer)
 	metricAgent.SetExtraTags(serverlessTag.MapToArray(tags))
 	return metricAgent
