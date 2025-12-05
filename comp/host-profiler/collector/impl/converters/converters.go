@@ -31,7 +31,7 @@ func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
 
 type converterWithAgent struct{}
 
-func newConverterWithAgent (_ confmap.ConverterSettings) confmap.Converter {
+func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterWithAgent{}
 }
 
