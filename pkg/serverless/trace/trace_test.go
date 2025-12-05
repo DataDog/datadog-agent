@@ -8,7 +8,7 @@
 package trace
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"strconv"
 	"testing"
@@ -53,7 +53,7 @@ type LoadConfigMocked struct {
 }
 
 func (l *LoadConfigMocked) Load() (*config.AgentConfig, error) {
-	return nil, fmt.Errorf("error")
+	return nil, errors.New("error")
 }
 
 func TestStartEnabledTrueInvalidConfig(t *testing.T) {

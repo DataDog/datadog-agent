@@ -6,7 +6,7 @@ visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio"
 
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
-bazel_dep(name = "package_metadata", version = "0.0.6")
+bazel_dep(name = "package_metadata", version = "0.0.7")
 
 # Instead of the canonical rules_license, we use the version from supply-chain.
 # This allows mixing both old and new license rules during the multi-year
@@ -31,11 +31,11 @@ bazel_dep(name = "bazel_lib", version = "3.0.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 
-# Temporary until a future rules_pkg release
-git_override(
+# Temporary until rules_pkg 1.2.0 is in BCR
+archive_override(
     module_name = "rules_pkg",
-    commit = "daa496412d12598d6b24619a9a6cd6fc137de384",
-    remote = "https://github.com/bazelbuild/rules_pkg",
+    sha256 = "b5c9184a23bb0bcff241981fd9d9e2a97638a1374c9953bb1808836ce711f990",
+    urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/1.2.0/rules_pkg-1.2.0.tar.gz"],
 )
 
 #########################
@@ -52,7 +52,10 @@ http_archive(
     ],
     sha256 = "53119397bbce1cd7e4c590e117dcda343c2086199de62932106c80733526c261",
     strip_prefix = "buildtools-8.2.1",
-    urls = ["https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz"],
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/buildtools-8.2.1.tar.gz",
+        "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.2.1.tar.gz",
+    ],
 )
 
 bazel_dep(name = "rules_multitool", version = "1.9.0")
@@ -150,13 +153,35 @@ register_toolchains("@pythons_hub//:all")
 #########################
 
 # Make our 3rd parties depencency repositories known
+# bazel mod tidy command adds a new line between includes.
+# buildifier eliminates them. If we treat mod tidy as a code formatter
+# for MODULE.bazel, we need to leave-alone the includes so that buildifier
+# doesn't fail nor re-format them.
+# buildifier: leave-alone
 include("//deps:repos.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/acl:acl.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/compile_policy:compile_policy.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/cpython:cpython.MODULE.bazel")
+
+# buildifier: leave-alone
+include("//deps/gstatus:gstatus.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/openssl3:openssl3.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
+include("//deps/snmp_traps:snmp_traps.MODULE.bazel")
 
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
 bazel_dep(name = "apple_support", version = "1.23.1")
+
+use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")

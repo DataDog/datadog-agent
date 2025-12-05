@@ -7,7 +7,6 @@ package trace
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -239,7 +238,7 @@ func filterSpan(span *idx.InternalSpan) bool {
 	// Filters out TCP spans to internal infrastructure
 	if tcpHost, ok := span.GetAttributeAsString(tcpRemoteHostMetaKey); ok {
 		if tcpPort, ok := span.GetAttributeAsString(tcpRemotePortMetaKey); ok {
-			tcpURLPrefix := fmt.Sprint("http://" + tcpHost + ":" + tcpPort)
+			tcpURLPrefix := "http://" + tcpHost + ":" + tcpPort
 			if strings.HasPrefix(tcpURLPrefix, agentURLPrefix) {
 				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
 				return true

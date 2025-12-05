@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 )
 
 // OTelDockerTestSuite is an interface for the OTel e2e test suite.

@@ -10,7 +10,6 @@ package selftests
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"time"
 
@@ -26,7 +25,7 @@ type EBPFLessSelfTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *EBPFLessSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_exec", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_exec"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,

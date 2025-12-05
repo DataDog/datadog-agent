@@ -646,7 +646,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	shouldObfuscate := obfuscationVersion == ""
 	if !shouldObfuscate {
 		if versionInt, err := strconv.Atoi(obfuscationVersion); err != nil && versionInt < obfuscate.Version {
-			log.Debug("Tracer is using older version of obfuscation %d", versionInt)
+			log.Debugf("Tracer is using older version of obfuscation %d", versionInt)
 		}
 	}
 	for i, group := range in.Stats {

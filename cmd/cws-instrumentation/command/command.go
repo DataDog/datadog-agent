@@ -7,7 +7,6 @@
 package command
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -20,7 +19,7 @@ type SubcommandFactory func() []*cobra.Command
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 	// cwsInjectorCmd is the root command
 	cwsInjectorCmd := &cobra.Command{
-		Use:   fmt.Sprintf("%s [command]", os.Args[0]),
+		Use:   os.Args[0] + " [command]",
 		Short: "Datadog Agent CWS Injector",
 		Long: `
 The Datadog Agent CWS Injector is used for multiple purposes:
