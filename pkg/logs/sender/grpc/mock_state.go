@@ -71,9 +71,6 @@ func StartMessageTranslator(inputChan chan *message.Message, bufferSize int) cha
 
 // processMessage handles a single message: tokenizes, creates patterns, and sends appropriate datums
 func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan chan *message.StatefulMessage) {
-	var patternDefineSent bool
-	var patternDefineParamCount uint32
-
 	ts := getMessageTimestamp(msg)
 
 	// Get message content
@@ -89,12 +86,6 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Process tokenized log through cluster manager to get/create pattern
 	pattern, changeType := mt.clusterManager.Add(tokenList)
 
-	// Extract wildcard values from the pattern
-	wildcardValues := pattern.GetWildcardValues(tokenList)
-
-	// Handle sending PatternDefine or PatternDelete as needed
-	mt.handlePatternChange(pattern, changeType, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
-
 	// Build complete tag list including log-level fields
 	// These fields are sent as separate JSON fields in the HTTP pipeline,
 	// but as tags in the gRPC stateful pipeline (per proto spec)
@@ -107,6 +98,19 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	for id, value := range newEntries {
 		mt.sendDictEntryDefine(outputChan, msg, id, value)
 	}
+
+	// For the first occurrence of a pattern, send RawLog instead of PatternDefine + StructuredLog to save bandwidth
+	if changeType == clustering.PatternNew {
+		mt.sendRawLog(outputChan, msg, contentStr, ts, encodedTags)
+		return
+	}
+
+	// For existing patterns (2+ occurrences), send pattern + structured log
+	// Extract wildcard values from the pattern
+	wildcardValues := pattern.GetWildcardValues(tokenList)
+
+	// Handle sending PatternDefine or PatternDelete as needed
+	mt.handlePatternChange(pattern, changeType, msg, outputChan)
 
 	// Send StructuredLog with pattern_id + dynamic values
 	mt.sendStructuredLog(outputChan, msg, pattern, wildcardValues, ts, encodedTags)
@@ -160,32 +164,24 @@ func tokenizeMessage(contentStr string) *token.TokenList {
 // handlePatternChange handles pattern changes based on PatternChangeType from cluster manager
 // Uses the change type to determine if we need to send PatternDefine/PatternDelete
 // The snapshot mechanism in inflight.go tracks what's been sent for stream recovery
-func (mt *MessageTranslator) handlePatternChange(pattern *clustering.Pattern, changeType clustering.PatternChangeType, msg *message.Message, outputChan chan *message.StatefulMessage, patternDefineSent *bool, patternDefineParamCount *uint32) {
-	switch changeType {
-	case clustering.PatternNew:
-		// New pattern - send PatternDefine (may have 0 wildcards initially)
-		mt.sendPatternDefine(pattern, msg, outputChan, patternDefineSent, patternDefineParamCount)
-
-	case clustering.PatternUpdated:
-		// Pattern structure changed (e.g., 0→N wildcards, or N→M wildcards)
-		mt.sendPatternDelete(pattern.PatternID, msg, outputChan)
-		mt.sendPatternDefine(pattern, msg, outputChan, patternDefineSent, patternDefineParamCount)
-
-	case clustering.PatternNoChange:
+func (mt *MessageTranslator) handlePatternChange(pattern *clustering.Pattern, changeType clustering.PatternChangeType, msg *message.Message, outputChan chan *message.StatefulMessage) {
+	if changeType != clustering.PatternUpdated {
+		return // PatternNoChange - noop
 	}
+
+	if pattern.LogCount > 2 {
+		mt.sendPatternDelete(pattern.PatternID, msg, outputChan)
+	}
+	mt.sendPatternDefine(pattern, msg, outputChan)
 }
 
 // sendPatternDefine creates and sends a PatternDefine datum
-func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg *message.Message, outputChan chan *message.StatefulMessage, patternDefineSent *bool, patternDefineParamCount *uint32) {
+func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg *message.Message, outputChan chan *message.StatefulMessage) {
 	patternDatum := buildPatternDefine(pattern)
-	if pd := patternDatum.GetPatternDefine(); pd != nil {
-		*patternDefineParamCount = pd.ParamCount
-	}
 	outputChan <- &message.StatefulMessage{
 		Datum:    patternDatum,
 		Metadata: &msg.MessageMetadata,
 	}
-	*patternDefineSent = true
 }
 
 // sendPatternDelete creates and sends a PatternDelete datum
@@ -207,7 +203,6 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 }
 
 // sendRawLog creates and sends a raw log datum
-// todo: AGNTLOG-414: Will be used for first log without a pattern
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tags []*statefulpb.Tag) {
 	logDatum := buildRawLog(contentStr, ts, tags)
 	outputChan <- &message.StatefulMessage{
