@@ -162,11 +162,14 @@ process_manager_unit_tests_windows:
     - $ErrorActionPreference = "Stop"
     - |
       # Install MinGW-w64 toolchain (required for GNU target)
-      if (-not (Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue)) {
-        Write-Host "Installing MinGW-w64..."
-        choco install mingw -y --no-progress
-        $env:PATH = "C:\ProgramData\mingw64\mingw64\bin;$env:PATH"
+      if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) {
+        Write-Host "Downloading MinGW-w64..."
+        $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
+        Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z
+        Write-Host "Extracting MinGW-w64..."
+        7z x mingw64.7z -oC:\ -y
       }
+      $env:PATH = "C:\mingw64\bin;$env:PATH"
     - |
       # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
@@ -177,6 +180,7 @@ process_manager_unit_tests_windows:
       }
     - rustc --version
     - cargo --version
+    - gcc --version
     - cd process_manager
     - echo "Running process manager unit tests on Windows..."
     - cargo test --lib --workspace --verbose --target x86_64-pc-windows-gnu
@@ -190,11 +194,14 @@ process_manager_build_windows:
     - $ErrorActionPreference = "Stop"
     - |
       # Install MinGW-w64 toolchain (required for GNU target)
-      if (-not (Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue)) {
-        Write-Host "Installing MinGW-w64..."
-        choco install mingw -y --no-progress
-        $env:PATH = "C:\ProgramData\mingw64\mingw64\bin;$env:PATH"
+      if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) {
+        Write-Host "Downloading MinGW-w64..."
+        $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
+        Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z
+        Write-Host "Extracting MinGW-w64..."
+        7z x mingw64.7z -oC:\ -y
       }
+      $env:PATH = "C:\mingw64\bin;$env:PATH"
     - |
       # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
@@ -205,6 +212,7 @@ process_manager_build_windows:
       }
     - rustc --version
     - cargo --version
+    - gcc --version
     - cd process_manager
     - echo "Building process manager binaries for Windows (GNU toolchain)..."
     - cargo build --release --bins --target x86_64-pc-windows-gnu
