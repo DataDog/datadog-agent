@@ -47,9 +47,9 @@ use tokio::signal::unix::{signal as unix_signal, SignalKind};
 #[cfg(windows)]
 use std::ffi::OsString;
 #[cfg(windows)]
-use std::sync::mpsc;
-#[cfg(windows)]
 use std::time::Duration;
+#[cfg(windows)]
+use tokio::sync::mpsc as tokio_mpsc;
 #[cfg(windows)]
 use windows_service::{
     define_windows_service,
@@ -86,28 +86,35 @@ async fn wait_for_shutdown_signal() -> &'static str {
     }
 }
 
-/// Shutdown signal channel for Windows Service mode
+/// Shutdown signal receiver for Windows Service mode
+/// Using a thread-safe static to pass the receiver from run_service to wait_for_shutdown_signal
 #[cfg(windows)]
-static SHUTDOWN_TX: std::sync::OnceLock<mpsc::Sender<()>> = std::sync::OnceLock::new();
+static SHUTDOWN_RX: std::sync::OnceLock<std::sync::Mutex<Option<tokio_mpsc::Receiver<()>>>> =
+    std::sync::OnceLock::new();
 
 #[cfg(windows)]
 async fn wait_for_shutdown_signal() -> &'static str {
-    // Check if we're running as a service (shutdown channel exists)
-    if let Some(_) = SHUTDOWN_TX.get() {
-        // Running as service - wait for service stop signal via channel
-        // The channel receiver is in run_service()
-        // We poll ctrl_c as fallback but service stop is handled by SCM
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
-        "ServiceStop"
-    } else {
-        // Running standalone - wait for Ctrl+C
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
-        "Ctrl+C"
+    // Check if we're running as a service (shutdown receiver exists)
+    if let Some(rx_mutex) = SHUTDOWN_RX.get() {
+        // Take the receiver from the mutex (we can only use it once)
+        let mut rx_opt = rx_mutex.lock().unwrap();
+        if let Some(mut rx) = rx_opt.take() {
+            // Running as service - wait for either service stop signal OR Ctrl+C
+            tokio::select! {
+                _ = rx.recv() => {
+                    return "ServiceStop";
+                }
+                _ = tokio::signal::ctrl_c() => {
+                    return "Ctrl+C";
+                }
+            }
+        }
     }
+    // Running standalone or receiver already taken - wait for Ctrl+C
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to install Ctrl+C handler");
+    "Ctrl+C"
 }
 
 // Define the Windows Service entry point
@@ -126,18 +133,35 @@ fn service_main(_arguments: Vec<OsString>) {
 /// Run the daemon as a Windows Service
 #[cfg(windows)]
 fn run_service() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a channel to receive shutdown signal from SCM
-    let (shutdown_tx, shutdown_rx) = mpsc::channel();
-    
-    // Store the sender for use in wait_for_shutdown_signal
-    let _ = SHUTDOWN_TX.set(shutdown_tx.clone());
+    // Create tokio runtime first - we need it to create the async channel
+    let runtime = tokio::runtime::Runtime::new()?;
+
+    // Create an async channel to receive shutdown signal from SCM
+    // Using std::sync::mpsc sender in the event handler (sync context)
+    // and tokio::sync::mpsc receiver in the daemon (async context)
+    let (std_tx, std_rx) = std::sync::mpsc::channel::<()>();
+
+    // Create a tokio channel that will be used by wait_for_shutdown_signal
+    let (tokio_tx, tokio_rx) = runtime.block_on(async { tokio_mpsc::channel::<()>(1) });
+
+    // Store the tokio receiver in the static for wait_for_shutdown_signal to use
+    let _ = SHUTDOWN_RX.set(std::sync::Mutex::new(Some(tokio_rx)));
+
+    // Spawn a thread to bridge from std channel to tokio channel
+    let bridge_handle = std::thread::spawn(move || {
+        // Wait for the stop signal from SCM (via std channel)
+        if std_rx.recv().is_ok() {
+            // Forward to the tokio channel (blocking send is fine here)
+            let _ = tokio_tx.blocking_send(());
+        }
+    });
 
     // Register service control handler
     let event_handler = move |control_event| -> ServiceControlHandlerResult {
         match control_event {
             ServiceControl::Stop => {
-                // Signal the daemon to stop
-                let _ = shutdown_tx.send(());
+                // Signal the daemon to stop via std channel
+                let _ = std_tx.send(());
                 ServiceControlHandlerResult::NoError
             }
             ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
@@ -158,27 +182,27 @@ fn run_service() -> Result<(), Box<dyn std::error::Error>> {
         process_id: None,
     })?;
 
-    // Create tokio runtime and run the daemon
-    let runtime = tokio::runtime::Runtime::new()?;
-    
     // Run the daemon in the runtime
     let result = runtime.block_on(async {
         // Report that service is running
-        status_handle.set_service_status(ServiceStatus {
-            service_type: SERVICE_TYPE,
-            current_state: ServiceState::Running,
-            controls_accepted: ServiceControlAccept::STOP,
-            exit_code: ServiceExitCode::Win32(0),
-            checkpoint: 0,
-            wait_hint: Duration::default(),
-            process_id: None,
-        }).ok();
+        status_handle
+            .set_service_status(ServiceStatus {
+                service_type: SERVICE_TYPE,
+                current_state: ServiceState::Running,
+                controls_accepted: ServiceControlAccept::STOP,
+                exit_code: ServiceExitCode::Win32(0),
+                checkpoint: 0,
+                wait_hint: Duration::default(),
+                process_id: None,
+            })
+            .ok();
 
         // Run the actual daemon logic
-        let daemon_result = run_daemon_async(Some(shutdown_rx)).await;
-        
-        daemon_result
+        run_daemon_async(None).await
     });
+
+    // Wait for the bridge thread to complete
+    let _ = bridge_handle.join();
 
     // Report that service is stopped
     status_handle.set_service_status(ServiceStatus {
@@ -268,10 +292,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Core daemon logic - can be called from service mode or standalone mode
-/// `service_shutdown_rx`: Optional channel to receive service stop signal (Windows Service mode)
 #[cfg(windows)]
 async fn run_daemon_async(
-    service_shutdown_rx: Option<mpsc::Receiver<()>>,
+    _unused: Option<()>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration from environment variables
     let config = DaemonConfig::from_env();
@@ -284,15 +307,13 @@ async fn run_daemon_async(
         .with_target(false)
         .init();
 
-    // Store the service shutdown receiver in a thread-safe way
-    let shutdown_rx = service_shutdown_rx.map(|rx| Arc::new(std::sync::Mutex::new(Some(rx))));
-    run_daemon_core(config, shutdown_rx).await
+    run_daemon_core(config).await
 }
 
 /// Core daemon logic for non-Windows platforms
 #[cfg(not(windows))]
 async fn run_daemon_async(
-    _service_shutdown_rx: Option<()>,
+    _unused: Option<()>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration from environment variables
     let config = DaemonConfig::from_env();
@@ -305,15 +326,11 @@ async fn run_daemon_async(
         .with_target(false)
         .init();
 
-    run_daemon_core(config, None).await
+    run_daemon_core(config).await
 }
 
 /// Shared core daemon logic for all platforms
-async fn run_daemon_core(
-    config: DaemonConfig,
-    #[cfg(windows)] _service_shutdown_rx: Option<Arc<std::sync::Mutex<Option<mpsc::Receiver<()>>>>>,
-    #[cfg(not(windows))] _service_shutdown_rx: Option<()>,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_daemon_core(config: DaemonConfig) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting Process Manager Daemon");
     info!(
         transport = ?config.transport_mode,
