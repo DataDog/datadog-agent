@@ -1,6 +1,6 @@
 # Global build settings
 
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -56,15 +56,20 @@ string_flag(
     make_variable = "INSTALL_DIR",
 )
 
+# Whether the build is for FIPS mode. Default is false.
 bool_flag(
     name = "fips_mode",
     build_setting_default = False,
-    doc = "Whether the build is for FIPS mode",
 )
 
+# There is no difference how we build openssl on Linux for FIPS.
+# There is, however, on Windows.
 config_setting(
     name = "fips_mode_enabled",
-    values = {
+    constraint_values = [
+        "@platforms//os:windows",
+    ],
+    flag_values = {
         ":fips_mode": "true",
     },
 )
