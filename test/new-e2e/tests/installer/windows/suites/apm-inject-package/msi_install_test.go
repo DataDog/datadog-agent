@@ -6,6 +6,8 @@
 package injecttests
 
 import (
+	_ "embed"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
@@ -13,6 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	"testing"
+)
+
+var (
+	//go:embed resources/web.config
+	webConfigFile []byte
+	//go:embed resources/index.aspx
+	aspxFile []byte
 )
 
 type testAgentMSIInstallsAPMInject struct {
@@ -75,6 +84,35 @@ func (s *testAgentMSIInstallsAPMInject) TestEnableDisable() {
 	s.Require().NoErrorf(err, "failed to run enable script: %s", output)
 
 	s.assertDriverInjections(true)
+}
+
+// TestInstallFromMSIWithIIS tests the Agent MSI can install the APM inject package with IIS instrumentation
+func (s *testAgentMSIInstallsAPMInject) TestInstallFromMSIWithIIS() {
+	// Setup IIS
+	iisHelper := installerwindows.NewIISHelper(s)
+	iisHelper.SetupIIS()
+
+	// Install with IIS instrumentation
+	s.installCurrentAgentVersion(
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_ENABLED=host"),
+		// TODO: remove override once image is published in prod
+		installerwindows.WithMSIArg("DD_INSTALLER_REGISTRY_URL=install.datad0g.com"),
+		installerwindows.WithMSIArg("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT="+s.currentAPMInjectVersion.PackageVersion()),
+		installerwindows.WithMSIArg("DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:3"),
+		installerwindows.WithMSILogFile("install.log"),
+	)
+
+	// Verify the package is installed
+	s.assertSuccessfulPromoteExperiment()
+
+	// Start the IIS app to load the library
+	defer iisHelper.StopIISApp()
+	iisHelper.StartIISApp(webConfigFile, aspxFile)
+
+	// Check that the .NET tracer is loaded
+	libraryPath := iisHelper.GetLibraryPathFromInstrumentedIIS()
+	s.Require().NotEmpty(libraryPath, "DD_DOTNET_TRACER_HOME should be set when instrumentation is enabled")
+	s.Require().Contains(libraryPath, "datadog")
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
