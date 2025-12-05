@@ -81,11 +81,12 @@ func (tf *testFixture) sut() *softwareInventory {
 
 	is := provides.Comp.(*softwareInventory)
 
-	// Wait a tiny bit for the goroutine to start and complete collection
+	// Wait for the goroutine to call GetCheck on the mock
 	if is.enabled {
-		time.Sleep(10 * time.Millisecond)
+		require.Eventually(tf.t, func() bool {
+			return len(tf.sysProbeClient.Calls) > 0
+		}, time.Second, 10*time.Millisecond, "Expected GetCheck to be called")
 	}
-
 	return is
 }
 
