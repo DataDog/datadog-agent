@@ -93,6 +93,10 @@ func newKFilterWithUInt32Flags(tableName string, flags ...uint32) (kFilter, erro
 }
 
 func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, error) {
+	return newKFilterWithUInt64FlagsAndIndex(tableName, uint32(0), flags...)
+}
+
+func newKFilterWithUInt64FlagsAndIndex(tableName string, index uint32, flags ...uint64) (kFilter, error) {
 	var bitmask uint64
 	for _, flag := range flags {
 		bitmask |= flag
@@ -101,7 +105,7 @@ func newKFilterWithUInt64Flags(tableName string, flags ...uint64) (kFilter, erro
 	return &arrayKFilter{
 		approverType: FlagApproverType,
 		tableName:    tableName,
-		index:        uint32(0),
+		index:        index,
 		value:        ebpf.NewUint64FlagsMapItem(bitmask),
 		zeroValue:    ebpf.Uint64FlagsZeroMapItem,
 	}, nil
@@ -117,6 +121,14 @@ func getEnumsKFilters(tableName string, enums ...uint64) (kFilter, error) {
 		flags = append(flags, 1<<(enum%64))
 	}
 	return newKFilterWithUInt64Flags(tableName, flags...)
+}
+
+func getEnumsKFiltersWithIndex(tableName string, index uint32, enums ...uint64) (kFilter, error) {
+	var flags []uint64
+	for _, enum := range enums {
+		flags = append(flags, 1<<enum)
+	}
+	return newKFilterWithUInt64FlagsAndIndex(tableName, index, flags...)
 }
 
 func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
@@ -206,4 +218,5 @@ func init() {
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 	KFilterGetters["connect"] = connectKFiltersGetter
 	KFilterGetters["prctl"] = prctlKFiltersGetter
+	KFilterGetters["setsockopt"] = setsockoptKFiltersGetter
 }
