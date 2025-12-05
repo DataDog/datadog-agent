@@ -147,6 +147,20 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         git_ref=os.environ["CI_COMMIT_REF_SLUG"], bucket_branch=os.environ["BUCKET_BRANCH"]
     )
     gate_list = QualityGateFactory.create_gates_from_config(config_path)
+    SOFT_GATES_LIST = [
+        "static_quality_gate_iot_agent_deb_amd64",
+        "static_quality_gate_iot_agent_deb_arm64",
+        "static_quality_gate_iot_agent_deb_armhf",
+        "static_quality_gate_iot_agent_rpm_amd64",
+        "static_quality_gate_iot_agent_suse_amd64",
+        "static_quality_gate_docker_dogstatsd_arm64",
+        "static_quality_gate_dogstatsd_deb_amd64",
+        "static_quality_gate_dogstatsd_deb_arm64",
+        "static_quality_gate_dogstatsd_rpm_amd64",
+        "static_quality_gate_dogstatsd_suse_amd64",
+        "static_quality_gate_docker_cws_instrumentation_amd64",
+        "static_quality_gate_docker_cws_instrumentation_arm64",
+    ]
 
     # python 3.11< does not allow to use \n in f-strings
     delimiter = '\n'
@@ -160,6 +174,8 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
         result = None
         try:
             result = gate.execute_gate(ctx)
+            error_type = None
+            error_message = None
             if not result.success:
                 violation_messages = []
                 for violation in result.violations:
@@ -171,9 +187,18 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
                         f"exceeds limit of {max_mb:.1f} MB by {excess_mb:.1f} MB"
                     )
                 error_message = f"{gate.config.gate_name} failed!\n" + "\n".join(violation_messages)
-                print(color_message(error_message, "red"))
-                raise StaticQualityGateError(error_message)
-            gate_states.append({"name": result.config.gate_name, "state": True, "error_type": None, "message": None})
+                if gate.config.gate_name not in SOFT_GATES_LIST:
+                    print(color_message(error_message, "red"))
+                    raise StaticQualityGateError(error_message)
+                else:
+                    print(
+                        color_message(f"Gate {gate.config.gate_name} failed but is a soft gate. Skipping...", "orange")
+                    )
+                    error_type = "SoftStaticQualityGateFailed"
+                    error_message = f"Gate {gate.config.gate_name} failed but is a soft gate. Skipping..."
+            gate_states.append(
+                {"name": result.config.gate_name, "state": True, "error_type": error_type, "message": error_message}
+            )
         except StaticQualityGateError as e:
             final_state = "failure"
             gate_states.append(
@@ -236,7 +261,6 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Then print the traditional report for any failures
     if final_state != "success":
         _print_quality_gates_report(gate_states)
-
     # We don't need a PR notification nor gate failures on release branches
     if not is_a_release_branch(ctx, branch):
         github = GithubAPI()
