@@ -1,0 +1,8 @@
+.job-no-clone:
+  variables:
+    GIT_STRATEGY: none
+
+.job-skip-unit:
+  stage: .pre
+  extends: .job-no-clone
+  script: echo "This unit does not need to run"
