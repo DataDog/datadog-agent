@@ -225,12 +225,12 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 		d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
 	}
 
-	// Notify metrics count tracker
-	select {
-	case d.metricsCounts.metricChan <- struct{}{}:
-	default:
-		// Non-blocking send to avoid deadlock if channel is full
-	}
+	//// Notify metrics count tracker
+	//select {
+	//case d.metricsCounts.metricChan <- struct{}{}:
+	//default:
+	//	// Non-blocking send to avoid deadlock if channel is full
+	//}
 }
 
 // hashString returns a hash value for a string
