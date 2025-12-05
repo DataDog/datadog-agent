@@ -16,7 +16,7 @@ import (
 
 func makeContext(str string, label Label) *messageContext {
 	tokenizer := NewTokenizer(0)
-	ts, _ := tokenizer.tokenize([]byte(str))
+	ts, _ := tokenizer.Tokenize([]byte(str))
 
 	return &messageContext{
 		rawMessage: []byte(str),

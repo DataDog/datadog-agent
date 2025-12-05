@@ -49,20 +49,20 @@ func TestTokenizer(t *testing.T) {
 
 	tokenizer := NewTokenizer(0)
 	for _, tc := range testCases {
-		tokens, _ := tokenizer.tokenize([]byte(tc.input))
+		tokens, _ := tokenizer.Tokenize([]byte(tc.input))
 		actualToken := tokensToString(tokens)
 		assert.Equal(t, tc.expectedToken, actualToken)
 	}
 }
 
 func TestTokenizerMaxCharRun(t *testing.T) {
-	tokens, indicies := NewTokenizer(0).tokenize([]byte("ABCDEFGHIJKLMNOP"))
+	tokens, indicies := NewTokenizer(0).Tokenize([]byte("ABCDEFGHIJKLMNOP"))
 	assert.Equal(t, "CCCCCCCCCC", tokensToString(tokens))
 	assert.Equal(t, []int{0}, indicies)
 }
 
 func TestTokenizerMaxDigitRun(t *testing.T) {
-	tokens, indicies := NewTokenizer(0).tokenize([]byte("0123456789012345"))
+	tokens, indicies := NewTokenizer(0).Tokenize([]byte("0123456789012345"))
 	assert.Equal(t, "DDDDDDDDDD", tokensToString(tokens))
 	assert.Equal(t, []int{0}, indicies)
 }
@@ -105,32 +105,32 @@ func TestTokenizerHeuristic(t *testing.T) {
 func TestIsMatch(t *testing.T) {
 	tokenizer := NewTokenizer(0)
 	// A string of 10 tokens to make math easier.
-	ta, _ := tokenizer.tokenize([]byte("! @ # $ %"))
-	tb, _ := tokenizer.tokenize([]byte("! @ # $ %"))
+	ta, _ := tokenizer.Tokenize([]byte("! @ # $ %"))
+	tb, _ := tokenizer.Tokenize([]byte("! @ # $ %"))
 
 	assert.True(t, isMatch(ta, tb, 1))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte("! @ #1a1a1"))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte("! @ #1a1a1"))
 
 	assert.True(t, isMatch(ta, tb, 0.5))
 	assert.False(t, isMatch(ta, tb, 0.55))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte("#1a1a1$ $ "))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte("#1a1a1$ $ "))
 
 	assert.False(t, isMatch(ta, tb, 0.5))
 	assert.True(t, isMatch(ta, tb, 0.3))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte(""))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte(""))
 
 	assert.False(t, isMatch(ta, tb, 0.5))
 	assert.False(t, isMatch(ta, tb, 0))
 	assert.False(t, isMatch(ta, tb, 1))
 
-	ta, _ = tokenizer.tokenize([]byte("! @ # $ % "))
-	tb, _ = tokenizer.tokenize([]byte("!"))
+	ta, _ = tokenizer.Tokenize([]byte("! @ # $ % "))
+	tb, _ = tokenizer.Tokenize([]byte("!"))
 
 	assert.True(t, isMatch(ta, tb, 1))
 	assert.True(t, isMatch(ta, tb, 0.01))

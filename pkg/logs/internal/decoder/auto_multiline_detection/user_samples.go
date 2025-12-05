@@ -63,7 +63,7 @@ func NewUserSamples(cfgRdr model.Reader, sourceSamples []*config.AutoMultilineSa
 	for _, configSample := range configSamples {
 		parsedSample := &UserSample{}
 		if configSample.Sample != "" {
-			parsedSample.tokens, _ = tokenizer.tokenize([]byte(configSample.Sample))
+			parsedSample.tokens, _ = tokenizer.Tokenize([]byte(configSample.Sample))
 
 			if configSample.MatchThreshold != nil {
 				if *configSample.MatchThreshold <= 0 || *configSample.MatchThreshold > 1 {

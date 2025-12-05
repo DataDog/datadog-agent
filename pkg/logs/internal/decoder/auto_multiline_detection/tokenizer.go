@@ -41,15 +41,15 @@ func NewTokenizer(maxEvalBytes int) *Tokenizer {
 // This implements the Heuristic interface - this heuristic does not stop processing.
 func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 	maxBytes := min(len(context.rawMessage), t.maxEvalBytes)
-	tokens, indicies := t.tokenize(context.rawMessage[:maxBytes])
+	tokens, indicies := t.Tokenize(context.rawMessage[:maxBytes])
 	context.tokens = tokens
 	context.tokenIndicies = indicies
 	return true
 }
 
-// tokenize converts a byte slice to a list of tokens.
+// Tokenize converts a byte slice to a list of tokens.
 // This function return the slice of tokens, and a slice of indices where each token starts.
-func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
+func (t *Tokenizer) Tokenize(input []byte) ([]tokens.Token, []int) {
 	// len(ts) will always be <= len(input)
 	ts := make([]tokens.Token, 0, len(input))
 	indicies := make([]int, 0, len(input))

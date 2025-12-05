@@ -88,7 +88,7 @@ func makeStaticTokenGraph() *TokenGraph {
 	tokenizer := NewTokenizer(100) // 100 is arbitrary, anything larger than the longest knownTimestampFormat is fine.
 	inputData := make([][]tokens.Token, len(knownTimestampFormats))
 	for i, format := range knownTimestampFormats {
-		tokens, _ := tokenizer.tokenize([]byte(format))
+		tokens, _ := tokenizer.Tokenize([]byte(format))
 		inputData[i] = tokens
 	}
 	return NewTokenGraph(minimumTokenLength, inputData)
