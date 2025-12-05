@@ -152,7 +152,7 @@ process_manager_smoke_test:
     expire_in: 2 weeks
     when: always
     paths:
-      - process_manager/target/release/*.exe
+      - process_manager/target/x86_64-pc-windows-gnu/release/*.exe
 
 # Windows unit tests for process manager
 process_manager_unit_tests_windows:
@@ -161,18 +161,18 @@ process_manager_unit_tests_windows:
   script:
     - $ErrorActionPreference = "Stop"
     - |
-      # Install Rust toolchain if not present
+      # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
         Write-Host "Installing Rust toolchain..."
         Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-        .\rustup-init.exe -y --default-toolchain stable
+        .\rustup-init.exe -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
         $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
       }
     - rustc --version
     - cargo --version
     - cd process_manager
     - echo "Running process manager unit tests on Windows..."
-    - cargo test --lib --workspace --verbose
+    - cargo test --lib --workspace --verbose --target x86_64-pc-windows-gnu
   timeout: 30m
 
 # Windows build verification (ensure binaries compile for Windows)
@@ -182,20 +182,20 @@ process_manager_build_windows:
   script:
     - $ErrorActionPreference = "Stop"
     - |
-      # Install Rust toolchain if not present
+      # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
         Write-Host "Installing Rust toolchain..."
         Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
-        .\rustup-init.exe -y --default-toolchain stable
+        .\rustup-init.exe -y --default-toolchain stable --default-host x86_64-pc-windows-gnu
         $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
       }
     - rustc --version
     - cargo --version
     - cd process_manager
-    - echo "Building process manager binaries for Windows..."
-    - cargo build --release --bins
+    - echo "Building process manager binaries for Windows (GNU toolchain)..."
+    - cargo build --release --bins --target x86_64-pc-windows-gnu
     - echo "Verifying binaries exist..."
-    - Test-Path target/release/dd-procmgrd.exe
-    - Test-Path target/release/dd-procmgr.exe
+    - Test-Path target/x86_64-pc-windows-gnu/release/dd-procmgrd.exe
+    - Test-Path target/x86_64-pc-windows-gnu/release/dd-procmgr.exe
   timeout: 30m
 
