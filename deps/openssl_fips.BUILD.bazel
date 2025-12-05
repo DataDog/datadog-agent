@@ -13,7 +13,6 @@ filegroup(
 
 FIPS_WIN = "fips.dll"
 FIPS_LINUX = "fips.so"
-FIPS_MACOS = "fips.dylib"
 
 configure_make(
     name = "openssl_fips",
@@ -31,36 +30,17 @@ configure_make(
     }),
     configure_command = "Configure",
     configure_options = select({
-        "@//:macos_arm64": [
-            "darwin64-arm64-cc",
-        ] + ENABLE_FIPS,
-        "@//:macos_x86_64": [
-            "darwin64-x86_64-cc",
-        ] + ENABLE_FIPS,
-        # We build openssl for Windows without zlib.
-        # Hence, excluding last DEFAULT_CONFIG entry.
         "@platforms//os:windows": [
             "mingw64",
         ] + ENABLE_FIPS[:-1],
         # Setting libdir to lib as linux x86 will use lib64 by default.
         "//conditions:default": ENABLE_FIPS + ["--libdir=lib"],
     }),
-    env = select({
-        "@platforms//os:macos": {
-            # For some reason AR is set to libtool on macos
-            # and that breaks the build.
-            "AR": "ar",
-        },
-        "//conditions:default": {},
-    }),
     lib_source = ":all",
     out_include_dir = "include",
     out_shared_libs = select({
         "@platforms//os:linux": [
             "ossl-modules/" + FIPS_LINUX,
-        ],
-        "@platforms//os:macos": [
-            "ossl-modules/" + FIPS_MACOS,
         ],
         "//conditions:default": [],
     }),
@@ -76,6 +56,11 @@ configure_make(
     }),
     copts = ["-O2"],
     targets = ["install_fips"],
+    # We don't build FIPS for macOS, therefore, incompatible.
+    target_compatible_with = select({
+        "@platforms//os:macos": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
 
 filegroup(
@@ -84,7 +69,6 @@ filegroup(
     output_group = select({
         "@platforms//os:windows": FIPS_WIN,
         "@platforms//os:linux": FIPS_LINUX,
-        "@platforms//os:macos": FIPS_MACOS,
         "//conditions:default": "",
     }),
 )
@@ -117,7 +101,7 @@ pkg_files(
 pkg_files(
     name = "fipsinstall_sh",
     srcs = ["fipsinstall.sh"],
-    prefix = "bin",
+    prefix = "embedded/bin",
     attributes = pkg_attributes(
         group = "root",
         mode = "0755",
@@ -146,6 +130,7 @@ pkg_install(
     }),
 )
 
+# This is a helper to set the correct paths in openssl.cnf and fipsinstall.sh.
 sh_binary(
     name = "configure_fips",
     srcs = ["configure_fips.sh"],
