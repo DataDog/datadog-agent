@@ -1,0 +1,43 @@
+---
+variables:
+  TRIGGER_UNITS:
+    description: A comma-separated list of units to run, or `all` to run all units
+    value: agent
+
+stages:
+- unit-generate
+- unit-trigger
+
+include:
+- local: .ci/units/*.yml
+- local: ci/templates/jobs/runner.yml
+- local: ci/templates/vars/global.yml
+
+validate-units:
+  stage: .pre
+  extends: .runner-linux-amd64
+  script:
+  - dda check ci units
+
+.unit:dynamic:generate:
+  stage: unit-generate
+  needs:
+  - job: validate-units
+  extends: .runner-linux-amd64
+  script:
+  - $UNIT_GENERATOR_COMMAND > pipeline.yml
+  artifacts:
+    paths:
+    - pipeline.yml
+
+.unit:dynamic:trigger:
+  stage: unit-trigger
+  trigger:
+    strategy: depend
+
+.unit:static:trigger:
+  stage: unit-trigger
+  needs:
+  - job: validate-units
+  trigger:
+    strategy: depend

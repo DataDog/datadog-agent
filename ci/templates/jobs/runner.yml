@@ -1,0 +1,19 @@
+.runner-linux-amd64:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+
+.runner-linux-arm64:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
+
+.runner-linux-arm64-image-rpm_armhf:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
+  tags: ["arch:arm64", "specific:true"]
+
+.runner-linux-amd64-image-docker_x64:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["docker-in-docker:amd64"]
+
+.runner-linux-amd64-image-btf-gen:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
+  tags: ["arch:amd64", "specific:true"]
