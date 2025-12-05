@@ -456,9 +456,15 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						}
 					}
 				} else if actionDef.Set.Field != "" {
-					_, kind, goType, _, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
 					if err != nil {
 						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+						continue
+					}
+
+					// Check if the field is an array and append is not set
+					if isArray && !actionDef.Set.Append {
+						errs = multierror.Append(errs, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
 						continue
 					}
 
