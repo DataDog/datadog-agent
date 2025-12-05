@@ -7,13 +7,15 @@ import platform
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from time import sleep
 from pathlib import Path
+from time import sleep
 from typing import cast
 
-from invoke.context import Context
+from invoke.context import Context, MockContext
+from invoke.exceptions import Exit
 from invoke.runners import Local, Result
 
+from tasks.libs.common.retry import run_command_with_retry
 from tasks.libs.common.utils import timed
 
 
@@ -24,27 +26,46 @@ def download_go_dependencies(
     Download and tidy Go dependencies for all modules in parallel.
 
     Args:
-        ctx: Invoke context (unused, kept for API compatibility)
+        ctx: Invoke context
         paths: List of paths to Go modules
         verbose: Enable verbose output
         max_retry: Maximum retries per module (uses exponential backoff: 10s, 100s, 1000s)
         max_workers: Maximum parallel workers (default: 8)
     """
-    print(f"downloading dependencies for {len(paths)} modules (max {max_workers} parallel workers)")
+    if not paths:
+        return
+
+    if max_retry < 1:
+        max_retry = 1
+
     verbosity = ' -x' if verbose else ''
-    cmd_template = f"go mod download{verbosity} && go mod tidy{verbosity}"
+    cmd = f"go mod download{verbosity} && go mod tidy{verbosity}"
+
+    # Sequential path for MockContext (tests) - ctx.run() isn't thread-safe
+    if isinstance(ctx, MockContext) or max_workers == 1:
+        for path in paths:
+            with ctx.cd(path):
+                run_command_with_retry(ctx, cmd, max_retry=max_retry)
+        return
+
+    # Parallel path for production - uses subprocess
+    print(f"downloading dependencies for {len(paths)} modules (max {max_workers} parallel workers)")
 
     def process_module(path: str):
-        """Process a single module. Raises RuntimeError on failure after retries."""
+        """Process a single module. Raises Exit on failure after retries."""
+        result = None
         for attempt in range(max_retry):
-            result = subprocess.run(cmd_template, shell=True, cwd=path, capture_output=True, text=True)
+            result = subprocess.run(cmd, shell=True, cwd=path, capture_output=True, text=True)
             if result.returncode == 0:
+                if verbose:
+                    print(f"  [ok] {path}")
                 return
             if attempt < max_retry - 1:
                 wait = 10 ** (attempt + 1)
-                print(f"  Retry {attempt + 1}/{max_retry} for {path} in {wait}s")
+                print(f"  [{attempt + 1}/{max_retry}] Failed `{cmd}` in {path}, retrying in {wait}s")
                 sleep(wait)
-        raise RuntimeError(f"go mod failed for {path}: {result.stderr or result.stdout}")
+        error_output = result.stderr or result.stdout if result else "unknown error"
+        raise Exit(f"go mod failed for {path}: {error_output}", code=1)
 
     with timed("go mod download && go mod tidy"):
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
