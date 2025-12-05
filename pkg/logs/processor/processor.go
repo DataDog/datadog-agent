@@ -13,8 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/faceair/drain"
-
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -53,13 +51,12 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
-	drainProcessor            *drain.Drain
-	drainDumpTicker           *time.Ticker
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
+	nLogs           int64
 }
 
 // New returns an initialized Processor with config support for failover notifications.
@@ -67,9 +64,14 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
-	// TODO: This is initialized ~1/cpu core, we should init only once the drain processor?
-	drainProcessor := drain.New(drain.DefaultConfig())
-	log.Info("Drain processor initialized")
+	// TODO: How to use one drain processor on multiple CPUs?
+	// var drainProcessor *drain.Drain = nil
+	// Enable drain only on one cpu
+	// TODO: Some CPUs do not receive logs
+	// if instanceID == "0" {
+	// drainProcessor = drain.New(drain.DefaultConfig())
+	// log.Info("Drain processor initialized")
+	// }
 
 	p := &Processor{
 		config:                    config,
@@ -84,8 +86,8 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		drainProcessor:            drainProcessor,
-		drainDumpTicker:           time.NewTicker(time.Minute),
+		// drainProcessor:            drainProcessor,
+		nLogs: 0,
 	}
 
 	// Initialize cached failover config
@@ -99,19 +101,37 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	return p
 }
 
-func (p *Processor) dumpDrainLogs() {
-	log.Infof("drain: %d clusters", len(p.drainProcessor.Clusters()))
-	log.Info("drain: Displaying the top 10 clusters")
-	clusters := p.drainProcessor.Clusters()
-	// Sort by size
-	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
-		return a.Size() - b.Size()
-	})
-	nClusters := len(clusters)
-	for i, cluster := range clusters[:min(10, nClusters)] {
-		log.Infof("drain: Cluster #%d: %s", i+1, cluster.String())
-	}
-}
+// // Reports metrics and display logs for drain clusters
+// func (p *Processor) reportDrainInfo() {
+// 	if p.drainProcessor == nil || p.nLogs == 0 {
+// 		return
+// 	}
+
+// 	log.Infof("drain(%s): %d clusters", p.instanceID, len(p.drainProcessor.Clusters()))
+// 	log.Infof("drain(%s): Displaying the top 10 clusters", p.instanceID)
+// 	clusters := p.drainProcessor.Clusters()
+// 	// Sort by size
+// 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
+// 		return a.Size() - b.Size()
+// 	})
+// 	nClusters := len(clusters)
+// 	for i, cluster := range clusters[:min(10, nClusters)] {
+// 		log.Infof("drain: Cluster #%d: %s", i+1, cluster.String())
+// 	}
+
+// 	maxSize := 0
+// 	for _, cluster := range clusters {
+// 		if cluster.Size() > maxSize {
+// 			maxSize = cluster.Size()
+// 		}
+// 	}
+// 	for _, cluster := range clusters {
+// 		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size())/float64(maxSize), "instance_id", p.instanceID)
+// 	}
+// 	metrics.TlmDrainClusters.Set(float64(len(clusters)), "instance_id", p.instanceID)
+// 	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize), "instance_id", p.instanceID)
+// 	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize)/float64(p.nLogs), "instance_id", p.instanceID)
+// }
 
 // onLogsFailoverSettingChanged is called when any config value changes
 func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
@@ -180,7 +200,6 @@ func (p *Processor) Flush(ctx context.Context) {
 // run starts the processing of the inputChan
 func (p *Processor) run() {
 	defer func() {
-		p.drainDumpTicker.Stop()
 		p.done <- struct{}{}
 	}()
 
@@ -194,8 +213,6 @@ func (p *Processor) run() {
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
-		case <-p.drainDumpTicker.C:
-			p.dumpDrainLogs()
 		case conf := <-p.configChan:
 			p.failoverConfig = conf
 		}
@@ -203,6 +220,11 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	useDrain := UseDrain()
+	if useDrain {
+		defer ReleaseDrain()
+	}
+	logStart := time.Now()
 	p.utilization.Start()
 	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
@@ -235,10 +257,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// TODO: process bytes and not string for drain processor
 		renderedString := string(rendered)
 		start := time.Now()
-		p.drainProcessor.Match(renderedString)
-		p.drainProcessor.Train(renderedString)
+		// TODO: Clean code
+		if useDrain {
+			drainProcessor := GetDrainProcessor()
+			drainProcessor.Match(renderedString)
+			drainProcessor.Train(renderedString)
+		}
 		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
 		nDrainProcessed++
+		p.nLogs++
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
@@ -258,19 +285,16 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
 
-	// TODO: Dump drain logs sometimes
+	if useDrain {
+		CountLogs(int64(nDrainProcessed))
+	}
 
 	// Drain metrics
-	drainClusters := p.drainProcessor.Clusters()
-	maxSize := 0
-	for _, cluster := range drainClusters {
-		if cluster.Size() > maxSize {
-			maxSize = cluster.Size()
-		}
+	processTime := time.Since(logStart)
+	if useDrain {
+		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()) / float64(nDrainProcessed))
+		metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing) / float64(nDrainProcessed))
 	}
-	metrics.TlmDrainClusters.Set(float64(len(drainClusters)))
-	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
-	metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing) / float64(nDrainProcessed))
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF
