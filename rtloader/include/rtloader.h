@@ -462,6 +462,14 @@ public:
     */
     virtual void setObfuscateSqlCb(cb_obfuscate_sql_t) = 0;
 
+    //! setBatchObfuscateSqlCb member.
+    /*!
+      \param A cb_batch_obfuscate_sql_t function pointer to the CGO callback.
+
+      This allows us to set the relevant CGO callback that will allow batch obfuscating SQL queries.
+    */
+    virtual void setBatchObfuscateSqlCb(cb_batch_obfuscate_sql_t) = 0;
+
     //! setObfuscateSqlExecPlanCb member.
     /*!
       \param A cb_obfuscate_sql_exec_plan_t function pointer to the CGO callback.
