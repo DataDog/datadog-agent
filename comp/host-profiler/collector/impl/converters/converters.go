@@ -19,6 +19,7 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
+// NewFactoryWithAgent returns a new converterWithAgent factory.
 func NewFactoryWithAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithAgent)
 }
