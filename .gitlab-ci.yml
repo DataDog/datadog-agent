@@ -1,0 +1,37 @@
+stages:
+- validate-ci
+- unit-gen
+- units
+
+include:
+- local: "ci/registry/*.yml"
+
+# validate-units:
+#   stage: validate-ci
+#   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+#   tags: ["arch:amd64", "specific:true"]
+#   script:
+#   - dda validate ci
+
+.unit:dynamic:generate:
+  stage: unit-gen
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux:v84348379-5989c48d
+  tags: ["arch:amd64", "specific:true"]
+  script:
+  - $UNIT_GENERATOR_COMMAND > "pipeline-$UNIT_ID.yml"
+  artifacts:
+    paths:
+    - "pipeline-$UNIT_ID.yml"
+
+.unit:dynamic:trigger:
+  stage: units
+  needs:
+  - job: "unit:$UNIT_ID:generate"
+  trigger:
+    include:
+    - artifact: "pipeline-$UNIT_ID.yml"
+      job: "unit:$UNIT_ID:generate"
+    strategy: depend
+
+.unit:static:trigger:
+  stage: units
