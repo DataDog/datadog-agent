@@ -2039,11 +2039,15 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 
-	defaultPodresourcesSocket := "/var/lib/kubelet/pod-resources/kubelet.sock"
 	if runtime.GOOS == "windows" {
-		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
+		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", `\\.\pipe\kubelet-pod-resources`)
+		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", `\\.\pipe\kubelet-device-plugins`)
+	} else {
+		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", "/var/lib/kubelet/pod-resources/kubelet.sock")
+		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", "/var/lib/kubelet/device-plugins")
 	}
-	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_cache_duration", 5*time.Second)
 }
 
 func podman(config pkgconfigmodel.Setup) {
