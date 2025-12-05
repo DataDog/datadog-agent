@@ -54,12 +54,22 @@ build do
       command "7z x #{mingw_archive} -oC:\\ -y", :live_stream => Omnibus.logger.live_stream(:info)
     end
 
+    # Install protoc if not present (required for prost-build)
+    protoc_path = "C:\\protoc\\bin"
+    protoc_archive = "C:\\protoc.zip"
+    protoc_url = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protoc-25.1-win64.zip"
+
+    unless File.exist?("#{protoc_path}\\protoc.exe")
+      command "powershell -Command \"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '#{protoc_url}' -OutFile '#{protoc_archive}' -UseBasicParsing\"", :live_stream => Omnibus.logger.live_stream(:info)
+      command "powershell -Command \"Expand-Archive -Path '#{protoc_archive}' -DestinationPath 'C:\\protoc' -Force\"", :live_stream => Omnibus.logger.live_stream(:info)
+    end
+
     # Add Rust GNU target
     command "rustup target add x86_64-pc-windows-gnu", :live_stream => Omnibus.logger.live_stream(:info)
 
     # Build the Rust binaries (daemon + CLI) for Windows using GNU toolchain
     env = {
-      'PATH' => "#{mingw_path};#{ENV['USERPROFILE']}\\.cargo\\bin;#{ENV['PATH']}",
+      'PATH' => "#{protoc_path};#{mingw_path};#{ENV['USERPROFILE']}\\.cargo\\bin;#{ENV['PATH']}",
     }
 
     # Build with GNU target
