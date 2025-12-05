@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/procfs"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -96,6 +97,14 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 
 			sender.EventPlatformEvent(encoded, eventplatform.EventTypeContainerSBOM)
 			log.Debugf("SBOM event sent with %d entities", len(entities))
+			perTypeSent := make(map[model.SBOMSourceType]int)
+			for _, entity := range entities {
+				perTypeSent[entity.GetType()]++
+			}
+
+			for sourceType, count := range perTypeSent {
+				telemetry.SBOMSent.Add(float64(count), sourceType.String())
+			}
 		}),
 		workloadmetaStore:     workloadmetaStore,
 		containerFilter:       filterStore.GetContainerSBOMFilters(),
