@@ -9,13 +9,16 @@ import (
 	"encoding/json"
 	"net/http"
 
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 	s.log.Info("Got a request for the Dogstatsd stats.")
 
-	if !s.config.GetBool("use_dogstatsd") {
+	dsdConfig := dsdconfig.NewConfig(s.config)
+
+	if dsdConfig.EnabledInternal() {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{
 			"error":      "Dogstatsd not enabled in the Agent configuration",

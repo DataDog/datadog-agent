@@ -25,6 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -207,8 +208,11 @@ func initTelemetry() {
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	dsdConfig := dsdconfig.NewConfig(deps.Config)
 
-	if deps.Config.GetBool("use_dogstatsd") {
+	// EnabledInternal is what we care about because we need to know if _we_ should be handling
+	// DSD specifically in the Core Agent.
+	if dsdConfig.EnabledInternal() {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
