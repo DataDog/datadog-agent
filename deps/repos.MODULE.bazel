@@ -295,7 +295,12 @@ http_archive(
 
 http_archive(
     name = "openssl_fips",
-    build_file = "//deps:openssl_fips.BUILD.bazel",
+    files = {
+        "openssl.cnf": "//deps:openssl_fips/openssl.cnf",
+        "fipsinstall.sh": "//deps:openssl_fips/fipsinstall.sh",
+        "configure_fips.sh": "//deps:openssl_fips/configure_fips.sh",
+        "BUILD.bazel": "//deps:openssl_fips.BUILD.bazel",
+    },
     sha256 = "eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a603cabbf1b00a1dc90",
     strip_prefix = "openssl-3.0.9",
     urls = [
