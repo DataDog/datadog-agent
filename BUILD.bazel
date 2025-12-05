@@ -55,3 +55,16 @@ string_flag(
     build_setting_default = "/tmp/opt/datadog-agent",
     make_variable = "INSTALL_DIR",
 )
+
+bool_flag(
+    name = "fips_mode",
+    build_setting_default = False,
+    doc = "Whether the build is for FIPS mode",
+)
+
+config_setting(
+    name = "fips_mode_enabled",
+    values = {
+        ":fips_mode": "true",
+    },
+)

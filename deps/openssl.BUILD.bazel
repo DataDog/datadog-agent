@@ -69,7 +69,13 @@ configure_make(
             "mingw64",
             "no-zlib",
             "no-uplink",
-        ] + DEFAULT_CONFIG[:-1],
+        ] + DEFAULT_CONFIG[:-1] + select({
+            "//:fips_mode_enabled": [
+                "-DOSSL_WINCTX=datadog-fips-agent",
+                "--openssldir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
+            ],
+            "//conditions:default": [],
+        }),
         "//conditions:default": DEFAULT_CONFIG,
     }),
     env = select({
