@@ -4,7 +4,7 @@
 //!
 //! Platform support:
 //! - Linux/macOS: Unix socket (default) or TCP transports
-//! - Windows: TCP transport (default, Unix sockets not available)
+//! - Windows: TCP transport (default, Unix sockets not available), runs as Windows Service
 //!
 //! Configuration is loaded from environment variables (no CLI arguments).
 
@@ -43,6 +43,33 @@ use tracing_subscriber::EnvFilter;
 #[cfg(unix)]
 use tokio::signal::unix::{signal as unix_signal, SignalKind};
 
+// Windows Service support
+#[cfg(windows)]
+use std::ffi::OsString;
+#[cfg(windows)]
+use std::sync::mpsc;
+#[cfg(windows)]
+use std::time::Duration;
+#[cfg(windows)]
+use windows_service::{
+    define_windows_service,
+    service::{
+        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        ServiceType,
+    },
+    service_control_handler::{self, ServiceControlHandlerResult},
+    service_dispatcher,
+};
+
+/// Windows Service name (must match the name registered during installation)
+/// The process manager replaces the main datadogagent service and manages all sub-agents
+#[cfg(windows)]
+const SERVICE_NAME: &str = "datadogagent";
+
+/// Windows Service type
+#[cfg(windows)]
+const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
+
 /// Wait for shutdown signal
 /// - Unix: SIGINT or SIGTERM
 /// - Windows: Ctrl+C
@@ -59,12 +86,112 @@ async fn wait_for_shutdown_signal() -> &'static str {
     }
 }
 
+/// Shutdown signal channel for Windows Service mode
+#[cfg(windows)]
+static SHUTDOWN_TX: std::sync::OnceLock<mpsc::Sender<()>> = std::sync::OnceLock::new();
+
 #[cfg(windows)]
 async fn wait_for_shutdown_signal() -> &'static str {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to install Ctrl+C handler");
-    "Ctrl+C"
+    // Check if we're running as a service (shutdown channel exists)
+    if let Some(_) = SHUTDOWN_TX.get() {
+        // Running as service - wait for service stop signal via channel
+        // The channel receiver is in run_service()
+        // We poll ctrl_c as fallback but service stop is handled by SCM
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+        "ServiceStop"
+    } else {
+        // Running standalone - wait for Ctrl+C
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+        "Ctrl+C"
+    }
+}
+
+// Define the Windows Service entry point
+#[cfg(windows)]
+define_windows_service!(ffi_service_main, service_main);
+
+/// Windows Service main entry point (called by SCM)
+#[cfg(windows)]
+fn service_main(_arguments: Vec<OsString>) {
+    if let Err(e) = run_service() {
+        // Log to Windows Event Log would be ideal here
+        eprintln!("Service error: {}", e);
+    }
+}
+
+/// Run the daemon as a Windows Service
+#[cfg(windows)]
+fn run_service() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a channel to receive shutdown signal from SCM
+    let (shutdown_tx, shutdown_rx) = mpsc::channel();
+    
+    // Store the sender for use in wait_for_shutdown_signal
+    let _ = SHUTDOWN_TX.set(shutdown_tx.clone());
+
+    // Register service control handler
+    let event_handler = move |control_event| -> ServiceControlHandlerResult {
+        match control_event {
+            ServiceControl::Stop => {
+                // Signal the daemon to stop
+                let _ = shutdown_tx.send(());
+                ServiceControlHandlerResult::NoError
+            }
+            ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+            _ => ServiceControlHandlerResult::NotImplemented,
+        }
+    };
+
+    let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
+
+    // Report that service is starting
+    status_handle.set_service_status(ServiceStatus {
+        service_type: SERVICE_TYPE,
+        current_state: ServiceState::StartPending,
+        controls_accepted: ServiceControlAccept::empty(),
+        exit_code: ServiceExitCode::Win32(0),
+        checkpoint: 0,
+        wait_hint: Duration::from_secs(10),
+        process_id: None,
+    })?;
+
+    // Create tokio runtime and run the daemon
+    let runtime = tokio::runtime::Runtime::new()?;
+    
+    // Run the daemon in the runtime
+    let result = runtime.block_on(async {
+        // Report that service is running
+        status_handle.set_service_status(ServiceStatus {
+            service_type: SERVICE_TYPE,
+            current_state: ServiceState::Running,
+            controls_accepted: ServiceControlAccept::STOP,
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        }).ok();
+
+        // Run the actual daemon logic
+        let daemon_result = run_daemon_async(Some(shutdown_rx)).await;
+        
+        daemon_result
+    });
+
+    // Report that service is stopped
+    status_handle.set_service_status(ServiceStatus {
+        service_type: SERVICE_TYPE,
+        current_state: ServiceState::Stopped,
+        controls_accepted: ServiceControlAccept::empty(),
+        exit_code: ServiceExitCode::Win32(0),
+        checkpoint: 0,
+        wait_hint: Duration::default(),
+        process_id: None,
+    })?;
+
+    result
 }
 
 #[cfg(not(any(unix, windows)))]
@@ -106,8 +233,46 @@ async fn graceful_shutdown(registry: &Application) {
     info!("Graceful shutdown complete");
 }
 
+/// Main entry point
+/// On Windows: tries to run as a service first, falls back to standalone mode
+/// On other platforms: runs directly in standalone mode
+#[cfg(windows)]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Try to start as a Windows Service
+    // This will fail if not running as a service (e.g., from command line)
+    match service_dispatcher::start(SERVICE_NAME, ffi_service_main) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            // Check if the error is because we're not running as a service
+            // In that case, run in standalone mode
+            let error_str = format!("{:?}", e);
+            if error_str.contains("StartServiceCtrlDispatcher")
+                || error_str.contains("1063")  // ERROR_FAILED_SERVICE_CONTROLLER_CONNECT
+            {
+                // Not running as a service, run standalone
+                eprintln!("Not running as a service, starting in standalone mode...");
+                let runtime = tokio::runtime::Runtime::new()?;
+                runtime.block_on(run_daemon_async(None))
+            } else {
+                Err(Box::new(e) as Box<dyn std::error::Error>)
+            }
+        }
+    }
+}
+
+/// Main entry point for non-Windows platforms
+#[cfg(not(windows))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    run_daemon_async(None).await
+}
+
+/// Core daemon logic - can be called from service mode or standalone mode
+/// `service_shutdown_rx`: Optional channel to receive service stop signal (Windows Service mode)
+#[cfg(windows)]
+async fn run_daemon_async(
+    service_shutdown_rx: Option<mpsc::Receiver<()>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration from environment variables
     let config = DaemonConfig::from_env();
     config.validate()?;
@@ -119,6 +284,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_target(false)
         .init();
 
+    // Store the service shutdown receiver in a thread-safe way
+    let shutdown_rx = service_shutdown_rx.map(|rx| Arc::new(std::sync::Mutex::new(Some(rx))));
+    run_daemon_core(config, shutdown_rx).await
+}
+
+/// Core daemon logic for non-Windows platforms
+#[cfg(not(windows))]
+async fn run_daemon_async(
+    _service_shutdown_rx: Option<()>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // Load configuration from environment variables
+    let config = DaemonConfig::from_env();
+    config.validate()?;
+
+    // Initialize logging with configured level
+    let env_filter = EnvFilter::new(&config.log_level);
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .init();
+
+    run_daemon_core(config, None).await
+}
+
+/// Shared core daemon logic for all platforms
+async fn run_daemon_core(
+    config: DaemonConfig,
+    #[cfg(windows)] _service_shutdown_rx: Option<Arc<std::sync::Mutex<Option<mpsc::Receiver<()>>>>>,
+    #[cfg(not(windows))] _service_shutdown_rx: Option<()>,
+) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting Process Manager Daemon");
     info!(
         transport = ?config.transport_mode,

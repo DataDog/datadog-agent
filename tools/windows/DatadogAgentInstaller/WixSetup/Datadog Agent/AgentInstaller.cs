@@ -538,103 +538,42 @@ namespace WixSetup.Datadog_Agent
 
         private Dir CreateBinFolder()
         {
+            // Main service: Process Manager (dd-procmgrd.exe) manages all sub-agents
+            // Sub-agents (trace-agent, process-agent, etc.) are spawned by process manager
+            // via YAML configuration files, not as separate Windows Services
             var agentService =
-                GenerateServiceInstaller(Constants.AgentServiceName, "Datadog Agent", "Send metrics to Datadog");
-            var processAgentService = GenerateDependentServiceInstaller(
-                new Id("ddagentprocessservice"),
-                Constants.ProcessAgentServiceName,
-                "Datadog Process Agent",
-                "Send process metrics to Datadog",
-                "LocalSystem",
-                null,
-                "--cfgpath=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
-            var traceAgentService = GenerateDependentServiceInstaller(
-                new Id("ddagenttraceservice"),
-                Constants.TraceAgentServiceName,
-                "Datadog Trace Agent",
-                "Send tracing metrics to Datadog",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                "[DDAGENTUSER_PROCESSED_PASSWORD]",
-                "--config=\"[APPLICATIONDATADIRECTORY]\\datadog.yaml\"");
-            var systemProbeService = GenerateDependentServiceInstaller(
-                new Id("ddagentsysprobeservice"),
-                Constants.SystemProbeServiceName,
-                "Datadog System Probe",
-                "Send network metrics to Datadog",
-                "LocalSystem");
+                GenerateServiceInstaller(Constants.AgentServiceName, "Datadog Agent", "Datadog Agent Process Manager - manages all agent processes");
+
+            // Sub-agent binaries are included but NOT registered as Windows Services
+            // They are managed by the process manager via YAML configs in:
+            // C:\ProgramData\Datadog\process-manager\processes.d\
 
             var agentBinDir = new Dir(new Id("AGENT"), "agent",
                     new Dir("dist",
                         new Files($@"{InstallerSource}\bin\agent\dist\*")
                     ),
                     new WixSharp.File(_agentBinaries.TrayId, _agentBinaries.Tray),
-                    new WixSharp.File(_agentBinaries.ProcessAgent, processAgentService),
-                    new EventSource
-                    {
-                        Name = Constants.ProcessAgentServiceName,
-                        Log = "Application",
-                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessAgent)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    },
-                    new WixSharp.File(_agentBinaries.SystemProbe, systemProbeService),
-                    new EventSource
-                    {
-                        Name = Constants.SystemProbeServiceName,
-                        Log = "Application",
-                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SystemProbe)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    },
-                    new WixSharp.File(_agentBinaries.TraceAgent, traceAgentService),
-                    new EventSource
-                    {
-                        Name = Constants.TraceAgentServiceName,
-                        Log = "Application",
-                        EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
-                        AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    },
+                    // Sub-agent binaries (no service registration - managed by process manager)
+                    new WixSharp.File(_agentBinaries.ProcessAgent),
+                    new WixSharp.File(_agentBinaries.SystemProbe),
+                    new WixSharp.File(_agentBinaries.TraceAgent),
                     new WixSharp.File(_agentBinaries.DatadogInterop)
             );
             var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
                  new Files($@"{InstallerSource}\bin\scripts\*")
             );
-            var securityAgentService = GenerateDependentServiceInstaller(
-                new Id("ddagentsecurityservice"),
-                Constants.SecurityAgentServiceName,
-                "Datadog Security Agent",
-                "Send Security events to Datadog",
-                "[DDAGENTUSER_PROCESSED_FQ_NAME]",
-                "[DDAGENTUSER_PROCESSED_PASSWORD]");
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.SecurityAgent, securityAgentService));
+            // Security agent binary (no service registration - managed by process manager)
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.SecurityAgent));
 
-            agentBinDir.Add(new EventSource
-            {
-                Name = Constants.SecurityAgentServiceName,
-                Log = "Application",
-                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.SecurityAgent)}",
-                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-            }
-            );
-
-            // Process Manager daemon service
-            var processManagerService = GenerateDependentServiceInstaller(
-                new Id("ddagentprocessmanagerservice"),
-                Constants.ProcessManagerServiceName,
-                "Datadog Process Manager",
-                "Manages Datadog Agent processes lifecycle",
-                "LocalSystem");
-            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcessManagerDaemon, processManagerService));
-            agentBinDir.Add(new EventSource
-            {
-                Name = Constants.ProcessManagerServiceName,
-                Log = "Application",
-                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessManagerDaemon)}",
-                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-            });
-            // Process Manager CLI (not a service, just a binary)
+            // Process Manager CLI (not a service, just a binary for manual control)
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcessManagerCli));
 
+            // Main service binary: Process Manager daemon
+            // This is registered as the main "datadogagent" Windows Service
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
-                new WixSharp.File(_agentBinaries.Agent, agentService),
+                new WixSharp.File(_agentBinaries.ProcessManagerDaemon, agentService),
+                // Agent binary is included but not the main service anymore
+                new WixSharp.File(_agentBinaries.Agent),
                 // Temporary binary for extracting the embedded Python - will be deleted
                 // by the CustomAction
                 new WixSharp.File(new Id("sevenzipr"), Path.Combine(BinSource, "7zr.exe")),
@@ -645,7 +584,7 @@ namespace WixSetup.Datadog_Agent
                 {
                     Name = Constants.AgentServiceName,
                     Log = "Application",
-                    EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.Agent)}",
+                    EventMessageFile = $"[BIN]{Path.GetFileName(_agentBinaries.ProcessManagerDaemon)}",
                     AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
                 },
                 agentBinDir,
