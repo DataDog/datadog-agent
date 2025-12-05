@@ -161,6 +161,13 @@ process_manager_unit_tests_windows:
   script:
     - $ErrorActionPreference = "Stop"
     - |
+      # Install MinGW-w64 toolchain (required for GNU target)
+      if (-not (Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing MinGW-w64..."
+        choco install mingw -y --no-progress
+        $env:PATH = "C:\ProgramData\mingw64\mingw64\bin;$env:PATH"
+      }
+    - |
       # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
         Write-Host "Installing Rust toolchain..."
@@ -173,7 +180,7 @@ process_manager_unit_tests_windows:
     - cd process_manager
     - echo "Running process manager unit tests on Windows..."
     - cargo test --lib --workspace --verbose --target x86_64-pc-windows-gnu
-  timeout: 30m
+  timeout: 45m
 
 # Windows build verification (ensure binaries compile for Windows)
 process_manager_build_windows:
@@ -181,6 +188,13 @@ process_manager_build_windows:
     - .process_manager_windows_base
   script:
     - $ErrorActionPreference = "Stop"
+    - |
+      # Install MinGW-w64 toolchain (required for GNU target)
+      if (-not (Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing MinGW-w64..."
+        choco install mingw -y --no-progress
+        $env:PATH = "C:\ProgramData\mingw64\mingw64\bin;$env:PATH"
+      }
     - |
       # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
@@ -197,5 +211,5 @@ process_manager_build_windows:
     - echo "Verifying binaries exist..."
     - Test-Path target/x86_64-pc-windows-gnu/release/dd-procmgrd.exe
     - Test-Path target/x86_64-pc-windows-gnu/release/dd-procmgr.exe
-  timeout: 30m
+  timeout: 45m
 
