@@ -171,6 +171,16 @@ process_manager_unit_tests_windows:
       }
       $env:PATH = "C:\mingw64\bin;$env:PATH"
     - |
+      # Install protoc (required for prost-build)
+      if (-not (Test-Path "C:\protoc\bin\protoc.exe")) {
+        Write-Host "Downloading protoc..."
+        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-win64.zip"
+        Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip
+        Write-Host "Extracting protoc..."
+        Expand-Archive -Path protoc.zip -DestinationPath C:\protoc -Force
+      }
+      $env:PATH = "C:\protoc\bin;$env:PATH"
+    - |
       # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
         Write-Host "Installing Rust toolchain..."
@@ -181,6 +191,7 @@ process_manager_unit_tests_windows:
     - rustc --version
     - cargo --version
     - gcc --version
+    - protoc --version
     - cd process_manager
     - echo "Running process manager unit tests on Windows..."
     - cargo test --lib --workspace --verbose --target x86_64-pc-windows-gnu
@@ -203,6 +214,16 @@ process_manager_build_windows:
       }
       $env:PATH = "C:\mingw64\bin;$env:PATH"
     - |
+      # Install protoc (required for prost-build)
+      if (-not (Test-Path "C:\protoc\bin\protoc.exe")) {
+        Write-Host "Downloading protoc..."
+        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-win64.zip"
+        Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip
+        Write-Host "Extracting protoc..."
+        Expand-Archive -Path protoc.zip -DestinationPath C:\protoc -Force
+      }
+      $env:PATH = "C:\protoc\bin;$env:PATH"
+    - |
       # Install Rust toolchain with GNU target
       if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
         Write-Host "Installing Rust toolchain..."
@@ -213,6 +234,7 @@ process_manager_build_windows:
     - rustc --version
     - cargo --version
     - gcc --version
+    - protoc --version
     - cd process_manager
     - echo "Building process manager binaries for Windows (GNU toolchain)..."
     - cargo build --release --bins --target x86_64-pc-windows-gnu
