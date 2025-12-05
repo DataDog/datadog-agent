@@ -23,9 +23,9 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	dockerspec "github.com/moby/docker-image-spec/specs-go/v1"
-	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var mu sync.Mutex
@@ -99,16 +99,7 @@ func (img *image) ConfigName() (v1.Hash, error) {
 func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	if len(img.inspect.RootFS.Layers) == 0 {
 		// Podman doesn't return RootFS...
-		return img.configFile()
-	}
-
-	nonEmptyLayerCount := lo.CountBy(img.history, func(history v1.History) bool {
-		return !history.EmptyLayer
-	})
-
-	if len(img.inspect.RootFS.Layers) != nonEmptyLayerCount {
-		// In cases where empty layers are not correctly determined from the history API.
-		// There are some edge cases where we cannot guess empty layers well.
+		log.Errorf("image %s has no RootFS layers, falling back to expensive configFile()", img.name)
 		return img.configFile()
 	}
 
@@ -117,9 +108,13 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		return nil, fmt.Errorf("unable to get diff IDs: %w", err)
 	}
 
-	created, err := time.Parse(time.RFC3339Nano, img.inspect.Created)
-	if err != nil {
-		return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+	var created time.Time
+	if img.inspect.Created != "" {
+		parsed, err := time.Parse(time.RFC3339Nano, img.inspect.Created)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing created %s: %w", img.inspect.Created, err)
+		}
+		created = parsed
 	}
 
 	return &v1.ConfigFile{
