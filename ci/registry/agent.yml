@@ -1,0 +1,12 @@
+unit:agent:
+  extends: .unit:static:trigger
+  variables:
+    UNIT_ID: agent
+    UNIT_DISPLAY_NAME: Agent CI
+  trigger:
+    include:
+    - local: .gitlab/pipeline.yml
+    strategy: depend
+  rules:
+  - changes:
+    - .gitlab/pipeline.yml

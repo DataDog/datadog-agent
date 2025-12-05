@@ -16,7 +16,7 @@ runs:
   - name: Set version
     id: set-version
     run: |-
-      buildimages_version="$(yq '.variables.CI_IMAGE_LINUX' .gitlab-ci.yml)"
+      buildimages_version="$(yq '.variables.CI_IMAGE_LINUX' .gitlab/pipeline.yml)"
       buildimages_commit="${buildimages_version#*-}"
       version="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${buildimages_commit}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
       echo "version=${version}" >> $GITHUB_OUTPUT
