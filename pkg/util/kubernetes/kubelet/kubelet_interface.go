@@ -26,4 +26,5 @@ type KubeUtilInterface interface {
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
 	GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error)
+	GetDevicesList(ctx context.Context) ([]*Device, error)
 }

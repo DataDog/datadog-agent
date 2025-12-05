@@ -3889,6 +3889,7 @@ core,k8s.io/kube-state-metrics/v2/pkg/watch,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/kubectl/pkg/cmd/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubectl/pkg/cmd/util/podcmd,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubectl/pkg/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubelet/pkg/apis/podresources/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubelet/pkg/apis/stats/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/metrics/pkg/apis/custom_metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.

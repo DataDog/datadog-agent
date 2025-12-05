@@ -60,6 +60,7 @@ func Start(settings Settings) error {
 		profiler.WithDeltaProfiles(settings.WithDeltaProfiles),
 		profiler.WithTags(settings.Tags...),
 		profiler.WithAPIKey(""), // to silence the error log about `DD_API_KEY`
+		profiler.WithLogStartup(false),
 	}
 
 	if settings.Socket != "" {
