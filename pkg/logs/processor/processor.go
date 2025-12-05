@@ -54,6 +54,7 @@ type Processor struct {
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
 	drainProcessor            *drain.Drain
+	drainDumpTicker           *time.Ticker
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -66,8 +67,9 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
 
-	// TODO
+	// TODO: This is initialized ~1/cpu core, we should init only once the drain processor?
 	drainProcessor := drain.New(drain.DefaultConfig())
+	log.Info("Drain processor initialized")
 
 	p := &Processor{
 		config:                    config,
@@ -83,6 +85,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
 		drainProcessor:            drainProcessor,
+		drainDumpTicker:           time.NewTicker(time.Minute),
 	}
 
 	// Initialize cached failover config
@@ -94,6 +97,20 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	}
 
 	return p
+}
+
+func (p *Processor) dumpDrainLogs() {
+	log.Infof("drain: %d clusters", len(p.drainProcessor.Clusters()))
+	log.Info("drain: Displaying the top 10 clusters")
+	clusters := p.drainProcessor.Clusters()
+	// Sort by size
+	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
+		return a.Size() - b.Size()
+	})
+	nClusters := len(clusters)
+	for i, cluster := range clusters[:min(10, nClusters)] {
+		log.Infof("drain: Cluster #%d: %s", i+1, cluster.String())
+	}
 }
 
 // onLogsFailoverSettingChanged is called when any config value changes
@@ -163,6 +180,7 @@ func (p *Processor) Flush(ctx context.Context) {
 // run starts the processing of the inputChan
 func (p *Processor) run() {
 	defer func() {
+		p.drainDumpTicker.Stop()
 		p.done <- struct{}{}
 	}()
 
@@ -176,6 +194,8 @@ func (p *Processor) run() {
 			p.mu.Lock() // block here if we're trying to flush synchronously
 			//nolint:staticcheck
 			p.mu.Unlock()
+		case <-p.drainDumpTicker.C:
+			p.dumpDrainLogs()
 		case conf := <-p.configChan:
 			p.failoverConfig = conf
 		}
