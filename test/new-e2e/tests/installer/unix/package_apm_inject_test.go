@@ -34,6 +34,9 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method Ins
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
+	s.dumpFileMutatorState("TestInstall - START")
+	defer s.dumpFileMutatorState("TestInstall - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
@@ -75,6 +78,9 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
+	s.dumpFileMutatorState("TestUninstall - START")
+	defer s.dumpFileMutatorState("TestUninstall - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	s.Purge()
@@ -89,6 +95,9 @@ func (s *packageApmInjectSuite) TestUninstall() {
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
+	s.dumpFileMutatorState("TestDockerAdditionalFields - START")
+	defer s.dumpFileMutatorState("TestDockerAdditionalFields - END")
+
 	s.host.InstallDocker()
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
@@ -101,6 +110,9 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
+	s.dumpFileMutatorState("TestDockerBrokenJSON - START")
+	defer s.dumpFileMutatorState("TestDockerBrokenJSON - END")
+
 	s.host.InstallDocker()
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
@@ -113,6 +125,9 @@ func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDocker() {
+	s.dumpFileMutatorState("TestInstrumentDocker - START")
+	defer s.dumpFileMutatorState("TestInstrumentDocker - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=docker", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
@@ -122,6 +137,9 @@ func (s *packageApmInjectSuite) TestInstrumentDocker() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentHost() {
+	s.dumpFileMutatorState("TestInstrumentHost - START")
+	defer s.dumpFileMutatorState("TestInstrumentHost - END")
+
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
 
@@ -130,6 +148,9 @@ func (s *packageApmInjectSuite) TestInstrumentHost() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
+	s.dumpFileMutatorState("TestInstrumentProfilingEnabled - START")
+	defer s.dumpFileMutatorState("TestInstrumentProfilingEnabled - END")
+
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python", "DD_PROFILING_ENABLED=auto", "DD_DATA_STREAMS_ENABLED=true")
 	defer s.Purge()
 	s.assertStableConfig(map[string]interface{}{
@@ -139,6 +160,9 @@ func (s *packageApmInjectSuite) TestInstrumentProfilingEnabled() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDefault() {
+	s.dumpFileMutatorState("TestInstrumentDefault - START")
+	defer s.dumpFileMutatorState("TestInstrumentDefault - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
 	defer s.Purge()
@@ -148,6 +172,9 @@ func (s *packageApmInjectSuite) TestInstrumentDefault() {
 }
 
 func (s *packageApmInjectSuite) TestSystemdReload() {
+	s.dumpFileMutatorState("TestSystemdReload - START")
+	defer s.dumpFileMutatorState("TestSystemdReload - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript()
 	defer s.Purge()
@@ -162,6 +189,9 @@ func (s *packageApmInjectSuite) TestSystemdReload() {
 // TestUpgrade_InjectorDeb_To_InjectorOCI tests the upgrade from the DEB injector to the OCI injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
+	s.dumpFileMutatorState("TestUpgrade_InjectorDeb_To_InjectorOCI - START")
+	defer s.dumpFileMutatorState("TestUpgrade_InjectorDeb_To_InjectorOCI - END")
+
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
 	}
@@ -202,6 +232,9 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 // TestUpgrade_InjectorOCI_To_InjectorDeb tests the upgrade from the OCI injector to the DEB injector.
 // Library package is OCI.
 func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
+	s.dumpFileMutatorState("TestUpgrade_InjectorOCI_To_InjectorDeb - START")
+	defer s.dumpFileMutatorState("TestUpgrade_InjectorOCI_To_InjectorDeb - END")
+
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
 	}
@@ -237,6 +270,9 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 }
 
 func (s *packageApmInjectSuite) TestVersionBump() {
+	s.dumpFileMutatorState("TestVersionBump - START")
+	defer s.dumpFileMutatorState("TestVersionBump - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
@@ -291,6 +327,9 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 }
 
 func (s *packageApmInjectSuite) TestInstrument() {
+	s.dumpFileMutatorState("TestInstrument - START")
+	defer s.dumpFileMutatorState("TestInstrument - END")
+
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -311,6 +350,9 @@ func (s *packageApmInjectSuite) TestInstrument() {
 }
 
 func (s *packageApmInjectSuite) TestPackagePinning() {
+	s.dumpFileMutatorState("TestPackagePinning - START")
+	defer s.dumpFileMutatorState("TestPackagePinning - END")
+
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
@@ -330,6 +372,9 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 }
 
 func (s *packageApmInjectSuite) TestUninstrument() {
+	s.dumpFileMutatorState("TestUninstrument - START")
+	defer s.dumpFileMutatorState("TestUninstrument - END")
+
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
@@ -354,6 +399,9 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
+	s.dumpFileMutatorState("TestInstrumentScripts - START")
+	defer s.dumpFileMutatorState("TestInstrumentScripts - END")
+
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
 	}
@@ -398,6 +446,9 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 }
 
 func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
+	s.dumpFileMutatorState("TestInstrumentDockerInactive - START")
+	defer s.dumpFileMutatorState("TestInstrumentDockerInactive - END")
+
 	s.host.InstallDocker()
 	s.Env().RemoteHost.MustExecute("sudo systemctl stop docker")
 
@@ -412,6 +463,9 @@ func (s *packageApmInjectSuite) TestInstrumentDockerInactive() {
 }
 
 func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
+	s.dumpFileMutatorState("TestDefaultPackageVersion - START")
+	defer s.dumpFileMutatorState("TestDefaultPackageVersion - END")
+
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
@@ -421,12 +475,18 @@ func (s *packageApmInjectSuite) TestDefaultPackageVersion() {
 }
 
 func (s *packageApmInjectSuite) TestInstallWithUmask() {
+	s.dumpFileMutatorState("TestInstallWithUmask - START")
+	defer s.dumpFileMutatorState("TestInstallWithUmask - END")
+
 	oldmask := s.host.SetUmask("0027")
 	defer s.host.SetUmask(oldmask)
 	s.TestInstall()
 }
 
 func (s *packageApmInjectSuite) TestAppArmor() {
+	s.dumpFileMutatorState("TestAppArmor - START")
+	defer s.dumpFileMutatorState("TestAppArmor - END")
+
 	if s.os != e2eos.Ubuntu2404 && s.os != e2eos.Debian12 {
 		s.T().Skip("AppArmor not installed by default")
 	}
@@ -554,4 +614,24 @@ func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
 		"datadog-apm-library-python",
 	}
 	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo apt-get remove -y --purge %[1]s || sudo yum remove -y %[1]s", strings.Join(packageList, " ")))
+}
+
+func (s *packageApmInjectSuite) dumpFileMutatorState(testName string) {
+	s.T().Logf("[%s] Dumping fileMutator state:", testName)
+
+	for _, file := range []string{
+		"/etc/ld.so.preload",
+		"/etc/ld.so.preload.datadog.backup",
+		"/etc/ld.so.preload.datadog.prep",
+		"/etc/docker/daemon.json",
+		"/etc/docker/daemon.json.datadog.backup",
+		"/etc/docker/daemon.json.datadog.prep",
+	} {
+		output, err := s.Env().RemoteHost.Execute(fmt.Sprintf("sudo ls -la %s 2>&1 && sudo cat %s 2>&1 || echo 'File does not exist'", file, file))
+		if err == nil {
+			s.T().Logf("[%s] %s:\n%s", testName, file, output)
+		} else {
+			s.T().Logf("[%s] %s: not found", testName, file)
+		}
+	}
 }
