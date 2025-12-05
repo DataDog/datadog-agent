@@ -1,0 +1,35 @@
+# Restart policies example
+# Demonstrates: Different restart behaviors
+
+processes:
+  # Never restart (default)
+  oneshot-task:
+    command: echo
+    args: ["Task completed"]
+    restart: never
+
+  # Always restart, even on success
+  always-running:
+    command: sleep
+    args: ["10"]
+    restart: always
+    restart_sec: 2
+    restart_max_delay: 60
+
+  # Restart only on failure
+  resilient-service:
+    command: bash
+    args: ["-c", "sleep 5; exit 1"]
+    restart: on-failure
+    restart_sec: 1
+    restart_max_delay: 30
+    start_limit_burst: 5
+    start_limit_interval: 300
+
+  # Restart only on success (periodic job)
+  periodic-worker:
+    command: bash
+    args: ["-c", "echo 'Work done'; sleep 2"]
+    restart: on-success
+    restart_sec: 5
+

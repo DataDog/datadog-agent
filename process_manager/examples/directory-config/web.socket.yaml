@@ -1,0 +1,20 @@
+# Socket for Web Server
+# Filename: web.socket.yaml
+# Socket name will be "web" (from filename, without .socket.yaml)
+
+# Which service to activate when connection arrives
+service: web
+
+# Listen on TCP port 8080
+listen_stream: "0.0.0.0:8080"
+
+# Accept mode:
+# - false (default): Single service instance, reuse for all connections
+# - true: Spawn new service instance per connection (like systemd Accept=yes)
+accept: false
+
+# Socket permissions (for Unix sockets)
+# socket_mode: "660"
+# socket_user: "www-data"
+# socket_group: "www-data"
+
