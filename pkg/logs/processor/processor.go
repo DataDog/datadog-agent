@@ -56,22 +56,12 @@ type Processor struct {
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
 	instanceID      string
-	nLogs           int64
 }
 
 // New returns an initialized Processor with config support for failover notifications.
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
-
-	// TODO: How to use one drain processor on multiple CPUs?
-	// var drainProcessor *drain.Drain = nil
-	// Enable drain only on one cpu
-	// TODO: Some CPUs do not receive logs
-	// if instanceID == "0" {
-	// drainProcessor = drain.New(drain.DefaultConfig())
-	// log.Info("Drain processor initialized")
-	// }
 
 	p := &Processor{
 		config:                    config,
@@ -86,8 +76,6 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		// drainProcessor:            drainProcessor,
-		nLogs: 0,
 	}
 
 	// Initialize cached failover config
@@ -100,38 +88,6 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 
 	return p
 }
-
-// // Reports metrics and display logs for drain clusters
-// func (p *Processor) reportDrainInfo() {
-// 	if p.drainProcessor == nil || p.nLogs == 0 {
-// 		return
-// 	}
-
-// 	log.Infof("drain(%s): %d clusters", p.instanceID, len(p.drainProcessor.Clusters()))
-// 	log.Infof("drain(%s): Displaying the top 10 clusters", p.instanceID)
-// 	clusters := p.drainProcessor.Clusters()
-// 	// Sort by size
-// 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
-// 		return a.Size() - b.Size()
-// 	})
-// 	nClusters := len(clusters)
-// 	for i, cluster := range clusters[:min(10, nClusters)] {
-// 		log.Infof("drain: Cluster #%d: %s", i+1, cluster.String())
-// 	}
-
-// 	maxSize := 0
-// 	for _, cluster := range clusters {
-// 		if cluster.Size() > maxSize {
-// 			maxSize = cluster.Size()
-// 		}
-// 	}
-// 	for _, cluster := range clusters {
-// 		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size())/float64(maxSize), "instance_id", p.instanceID)
-// 	}
-// 	metrics.TlmDrainClusters.Set(float64(len(clusters)), "instance_id", p.instanceID)
-// 	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize), "instance_id", p.instanceID)
-// 	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize)/float64(p.nLogs), "instance_id", p.instanceID)
-// }
 
 // onLogsFailoverSettingChanged is called when any config value changes
 func (p *Processor) onLogsFailoverSettingChanged(setting string, _ pkgconfigmodel.Source, _, _ any, _ uint64) {
@@ -265,7 +221,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
 		nDrainProcessed++
-		p.nLogs++
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
