@@ -44,20 +44,20 @@ build do
 
     # Note: extra_package_file is registered at project level in agent.rb
   elsif windows_target?
-    # Build the Rust binaries (daemon + CLI) for Windows
+    # Build the Rust binaries (daemon + CLI) for Windows using GNU toolchain
     env = {
       'PATH' => "#{ENV['USERPROFILE']}\\.cargo\\bin;#{ENV['PATH']}",
     }
 
-    # Build both the daemon and CLI binaries using cargo workspace
-    command "cd process_manager && cargo build --release --bins", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # Build with GNU target to avoid MSVC dependency
+    command "cd process_manager && cargo build --release --bins --target x86_64-pc-windows-gnu", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
     # Create necessary directories
     mkdir "#{install_dir}/bin/agent"
 
     # Copy both binaries to the install directory (Windows uses .exe extension)
-    copy 'process_manager/target/release/dd-procmgrd.exe', "#{install_dir}/bin/agent/dd-procmgrd.exe"
-    copy 'process_manager/target/release/dd-procmgr.exe', "#{install_dir}/bin/agent/dd-procmgr.exe"
+    copy 'process_manager/target/x86_64-pc-windows-gnu/release/dd-procmgrd.exe', "#{install_dir}/bin/agent/dd-procmgrd.exe"
+    copy 'process_manager/target/x86_64-pc-windows-gnu/release/dd-procmgr.exe', "#{install_dir}/bin/agent/dd-procmgr.exe"
 
     # Note: Windows config files are handled by the MSI installer
   end
