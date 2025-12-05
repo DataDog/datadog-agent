@@ -553,10 +553,13 @@ async fn handle_socket_activation_events(
             .map(|v| vec![v.clone()])
             .unwrap_or_default();
 
+        // Convert platform-specific FD type to i32
+        let fd_as_i32 = event.fd as i32;
+
         if event.accept {
             // Accept=yes: Spawn a new instance from the template for each connection
             match spawn_service
-                .spawn_from_template(&event.service_name, vec![event.fd], None)
+                .spawn_from_template(&event.service_name, vec![fd_as_i32], None)
                 .await
             {
                 Ok(instance) => {
@@ -606,7 +609,7 @@ async fn handle_socket_activation_events(
             // Process is not running, start it with FD passing and custom env var names
             let start_cmd = StartProcessCommand::from_name_with_fds_and_env_vars(
                 event.service_name.clone(),
-                vec![event.fd],
+                vec![fd_as_i32],
                 fd_env_var_names,
             );
 
