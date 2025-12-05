@@ -22,9 +22,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
-	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
 type myEKSSuite struct {

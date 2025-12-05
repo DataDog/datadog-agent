@@ -38,7 +38,7 @@ func TestMyKindSuite(t *testing.T) {
 			provkindvm.WithRunOptions(
 				scenariokindvm.WithoutFakeIntake(),
 				scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-					return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
+					return nginx.K8sAppDefinition(e, kubeProvider, "nginx", 80, "", false, nil)
 				}),
 				scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 					return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket")
