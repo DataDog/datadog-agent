@@ -1,0 +1,15 @@
+unit:agent-dynamic:generate:
+  extends: .unit:dynamic:generate
+  variables:
+    UNIT_ID: agent-dynamic
+    UNIT_DISPLAY_NAME: Agent Dynamic CI
+    UNIT_GENERATOR_COMMAND: cat .gitlab/pipeline.yml
+  rules:
+  - changes:
+    - .gitlab/pipeline.yml
+
+unit:agent-dynamic:
+  extends: .unit:dynamic:trigger
+  variables:
+    UNIT_ID: agent-dynamic
+    UNIT_DISPLAY_NAME: Agent Dynamic CI
