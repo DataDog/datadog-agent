@@ -820,5 +820,7 @@
 /pkg/fleet/installer/go.mod              @DataDog/fleet
 /pkg/fleet/installer/go.sum              @DataDog/fleet
 
+/pkg/ssi/**/*                            @DataDog/injection-platform
+
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
