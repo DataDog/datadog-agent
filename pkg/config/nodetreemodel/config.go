@@ -491,7 +491,7 @@ func (c *ntmConfig) mergeAllLayers() error {
 		c.cli,
 	}
 
-	var merged *nodeImpl = newInnerNode(nil)
+	merged := newInnerNode(nil)
 	for _, tree := range treeList {
 		next, err := merged.Merge(tree)
 		if err != nil {

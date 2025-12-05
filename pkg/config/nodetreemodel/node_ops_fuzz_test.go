@@ -19,7 +19,7 @@ func FuzzNodeOps(f *testing.F) {
 	f.Add("network|devices", "snmp_traps", "true", int64(42))
 	f.Add("alpha", "beta.gamma", "", int64(0))
 
-	f.Fuzz(func(t *testing.T, path1 string, path2 string, valueStr string, valueInt64 int64) {
+	f.Fuzz(func(_ *testing.T, path1 string, path2 string, valueStr string, valueInt64 int64) {
 		// We split on "x" to allow for arbitrary nesting of keys any kind of special character allowed in the keys
 		key1 := strings.Split(path1, "x")
 		key2 := strings.Split(path2, "x")
@@ -62,7 +62,7 @@ func FuzzNodeOps(f *testing.F) {
 
 		_ = root.DumpSettings(func(_ model.Source) bool { return true })
 
-		// Build a secondary tree using NewNodeTree from a map and merge it
+		// Build a secondary tree using newNodeTree from a map and merge it
 		srcMap := map[string]interface{}{
 			strings.Join(key1, "."): valueStr,
 			"num":                   valueInt64,
@@ -73,11 +73,11 @@ func FuzzNodeOps(f *testing.F) {
 
 		// Test leaf methods on all type of tree sources.
 		for _, source := range model.Sources {
-			node, err := NewNodeTree(srcMap, source)
+			node, err := newNodeTree(srcMap, source)
 			if err == nil {
 				_, _ = root.Merge(node)
 			}
-			if leaf, err := NewNodeTree([]interface{}{valueStr, valueInt64}, source); err == nil {
+			if leaf, err := newNodeTree([]interface{}{valueStr, valueInt64}, source); err == nil {
 				_ = leaf.Get()
 				_ = leaf.Source()
 				_ = leaf.SourceGreaterThan(model.SourceSchema)

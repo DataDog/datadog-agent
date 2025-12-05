@@ -7,7 +7,6 @@ package nodetreemodel
 
 import (
 	"errors"
-	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -52,7 +51,7 @@ func newLeafNode(v interface{}, source model.Source) *nodeImpl {
 // GetChild returns the child node at the given case-insensitive key, or an error if not found
 func (n *nodeImpl) GetChild(key string) (*nodeImpl, error) {
 	if n.IsLeafNode() {
-		return nil, fmt.Errorf("cannot GetChild of leaf node")
+		return nil, errors.New("cannot GetChild of leaf node")
 	}
 	mkey := strings.ToLower(key)
 	child, found := n.children[mkey]

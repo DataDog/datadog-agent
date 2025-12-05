@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1416,25 +1415,6 @@ service:
 
 	assert.Equal(t, svc["enabled"], true)
 	assert.Equal(t, svc["disabled"], false)
-}
-
-func TestMapGetChildNotFound(t *testing.T) {
-	m := map[string]interface{}{"a": "apple", "b": "banana"}
-	n, err := nodetreemodel.NewNodeTree(m, model.SourceDefault)
-	assert.NoError(t, err)
-
-	val, err := n.GetChild("a")
-	assert.NoError(t, err)
-	str, err := cast.ToStringE(val.Get())
-	assert.NoError(t, err)
-	assert.Equal(t, str, "apple")
-
-	_, err = n.GetChild("c")
-	require.Error(t, err)
-	assert.Equal(t, err.Error(), "not found")
-
-	assert.True(t, n.IsInnerNode())
-	assert.Equal(t, n.ChildrenKeys(), []string{"a", "b"})
 }
 
 func TestUnmarshalKeyWithPointerToBool(t *testing.T) {

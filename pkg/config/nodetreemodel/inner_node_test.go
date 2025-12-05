@@ -25,7 +25,7 @@ func TestMergeToEmpty(t *testing.T) {
 		},
 	}
 
-	src, err := NewNodeTree(obj, model.SourceFile)
+	src, err := newNodeTree(obj, model.SourceFile)
 	require.NoError(t, err)
 	require.True(t, src.IsInnerNode())
 
@@ -36,14 +36,14 @@ func TestMergeToEmpty(t *testing.T) {
 
 	expected := &nodeImpl{
 		children: map[string]*nodeImpl{
-			"a": &nodeImpl{val: "apple", source: model.SourceFile},
-			"b": &nodeImpl{val: 123, source: model.SourceFile},
-			"c": &nodeImpl{
+			"a": {val: "apple", source: model.SourceFile},
+			"b": {val: 123, source: model.SourceFile},
+			"c": {
 				children: map[string]*nodeImpl{
-					"d": &nodeImpl{val: true, source: model.SourceFile},
-					"e": &nodeImpl{
+					"d": {val: true, source: model.SourceFile},
+					"e": {
 						children: map[string]*nodeImpl{
-							"f": &nodeImpl{val: 456, source: model.SourceFile},
+							"f": {val: 456, source: model.SourceFile},
 						},
 					},
 				},
@@ -77,11 +77,11 @@ func TestMergeTwoTree(t *testing.T) {
 		},
 	}
 
-	base, err := NewNodeTree(obj, model.SourceFile)
+	base, err := newNodeTree(obj, model.SourceFile)
 	require.NoError(t, err)
 	require.True(t, base.IsInnerNode())
 
-	overwrite, err := NewNodeTree(obj2, model.SourceEnvVar)
+	overwrite, err := newNodeTree(obj2, model.SourceEnvVar)
 	require.NoError(t, err)
 	require.True(t, overwrite.IsInnerNode())
 
@@ -90,16 +90,16 @@ func TestMergeTwoTree(t *testing.T) {
 
 	expected := &nodeImpl{
 		children: map[string]*nodeImpl{
-			"a": &nodeImpl{val: "orange", source: model.SourceEnvVar},
-			"b": &nodeImpl{val: 123, source: model.SourceFile},
-			"z": &nodeImpl{val: 987, source: model.SourceEnvVar},
-			"c": &nodeImpl{
+			"a": {val: "orange", source: model.SourceEnvVar},
+			"b": {val: 123, source: model.SourceFile},
+			"z": {val: 987, source: model.SourceEnvVar},
+			"c": {
 				children: map[string]*nodeImpl{
-					"d": &nodeImpl{val: false, source: model.SourceEnvVar},
-					"e": &nodeImpl{
+					"d": {val: false, source: model.SourceEnvVar},
+					"e": {
 						children: map[string]*nodeImpl{
-							"f": &nodeImpl{val: 456, source: model.SourceEnvVar},
-							"g": &nodeImpl{val: "kiwi", source: model.SourceEnvVar},
+							"f": {val: 456, source: model.SourceEnvVar},
+							"g": {val: "kiwi", source: model.SourceEnvVar},
 						},
 					},
 				},
@@ -118,11 +118,11 @@ func TestMergeErrorLeafToNode(t *testing.T) {
 		"a": map[string]interface{}{},
 	}
 
-	base, err := NewNodeTree(obj, model.SourceFile)
+	base, err := newNodeTree(obj, model.SourceFile)
 	require.NoError(t, err)
 	require.True(t, base.IsInnerNode())
 
-	overwrite, err := NewNodeTree(obj2, model.SourceEnvVar)
+	overwrite, err := newNodeTree(obj2, model.SourceEnvVar)
 	require.NoError(t, err)
 	require.True(t, overwrite.IsInnerNode())
 

@@ -120,8 +120,8 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 	return res
 }
 
-// NewNodeTree will recursively create nodes from the input value to construct a tree
-func NewNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
+// newNodeTree will recursively create nodes from the input value to construct a tree
+func newNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
 	if helper.IsNilValue(v) {
 		// nil as a value acts as the zero value, and the cast library will correctly
 		// convert it to zero values for the types we handle
@@ -156,7 +156,7 @@ func NewNodeTree(v interface{}, source model.Source) (*nodeImpl, error) {
 func makeChildNodeTrees(input map[string]interface{}, source model.Source) (map[string]*nodeImpl, error) {
 	children := make(map[string]*nodeImpl)
 	for k, v := range input {
-		node, err := NewNodeTree(v, source)
+		node, err := newNodeTree(v, source)
 		if err != nil {
 			return nil, err
 		}

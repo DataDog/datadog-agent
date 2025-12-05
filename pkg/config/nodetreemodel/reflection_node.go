@@ -30,7 +30,7 @@ func asReflectionNode(v interface{}) (*nodeImpl, error) {
 	}
 	rv := reflect.ValueOf(v)
 	if rv.Kind() == reflect.Struct {
-		return nil, fmt.Errorf("cannot create node from Struct")
+		return nil, errors.New("cannot create node from Struct")
 	} else if rv.Kind() == reflect.Slice {
 		elems := make([]interface{}, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {
