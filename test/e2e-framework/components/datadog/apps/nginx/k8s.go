@@ -86,7 +86,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
 	// openshift requires a non-default service account tighted to the privileged scc
-	sa, err := corev1.NewServiceAccount(e.Ctx(), "nginx-sa", &corev1.ServiceAccountArgs{
+	sa, err := corev1.NewServiceAccount(e.Ctx(), namespace+"/nginx-sa", &corev1.ServiceAccountArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.StringPtr("nginx-sa"),
 			Namespace: pulumi.StringPtr(namespace),
@@ -97,7 +97,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 	}
 
 	// create a clusterRoleBinding to bind the new service account with the existing privileged scc
-	if _, err := rbacv1.NewRoleBinding(e.Ctx(), "nginx-scc-binding", &rbacv1.RoleBindingArgs{
+	if _, err := rbacv1.NewRoleBinding(e.Ctx(), namespace+"/nginx-scc-binding", &rbacv1.RoleBindingArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx-scc-binding"),
 			Namespace: pulumi.StringPtr(namespace),
@@ -118,7 +118,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	cm, err := corev1.NewConfigMap(e.Ctx(), "nginx", &corev1.ConfigMapArgs{
+	cm, err := corev1.NewConfigMap(e.Ctx(), namespace+"/nginx", &corev1.ConfigMapArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("nginx"),
 			Namespace: pulumi.String(namespace),
