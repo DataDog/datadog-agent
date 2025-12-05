@@ -81,7 +81,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 	s.Installer().SetBinaryPath(altInstallPath + `\bin\` + consts.BinaryName)
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	// Ensure daemon and subprocesses use alt dirs via machine env before any installer actions
-	s.setMachineAltDirEnv(altConfigRoot, altInstallPath)
+	// s.setMachineAltDirEnv(altConfigRoot, altInstallPath)
 	s.installPreviousAgentVersion(
 		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
 		installerwindows.WithMSIArg("APPLICATIONDATADIRECTORY="+altConfigRoot),
@@ -348,7 +348,7 @@ func (s *testAgentUpgradeSuite) TestExperimentMSIRollbackMaintainsCustomUserAndA
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	// Ensure daemon and subprocesses use alt dirs via machine env before any installer actions
-	s.setMachineAltDirEnv(altConfigRoot, altInstallPath)
+	// s.setMachineAltDirEnv(altConfigRoot, altInstallPath)
 	s.installPreviousAgentVersion(
 		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
 		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
@@ -675,12 +675,12 @@ log_level: debug
 
 // setMachineAltDirEnv sets machine-level environment variables so that the
 // installer daemon and its subprocesses resolve paths to the alt directories.
-func (s *testAgentUpgradeSuite) setMachineAltDirEnv(altConfigRoot, altInstallPath string) {
-	const envRegKey = `Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
-	_ = windowscommon.SetTypedRegistryValue(s.Env().RemoteHost, envRegKey, "DD_APPLICATIONDATADIRECTORY", altConfigRoot, "ExpandString")
-	_ = windowscommon.SetTypedRegistryValue(s.Env().RemoteHost, envRegKey, "DD_PROJECTLOCATION", altInstallPath, "ExpandString")
-	_ = windowscommon.RestartService(s.Env().RemoteHost, consts.ServiceName)
-}
+// func (s *testAgentUpgradeSuite) setMachineAltDirEnv(altConfigRoot, altInstallPath string) {
+// 	const envRegKey = `Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+// 	_ = windowscommon.SetTypedRegistryValue(s.Env().RemoteHost, envRegKey, "DD_APPLICATIONDATADIRECTORY", altConfigRoot, "ExpandString")
+// 	_ = windowscommon.SetTypedRegistryValue(s.Env().RemoteHost, envRegKey, "DD_PROJECTLOCATION", altInstallPath, "ExpandString")
+// 	_ = windowscommon.RestartService(s.Env().RemoteHost, consts.ServiceName)
+// }
 
 func (s *testAgentUpgradeSuite) assertSuccessfulAgentStopExperiment(version string) {
 	// conditions are same as promote, except the stable version should be unchanged.
