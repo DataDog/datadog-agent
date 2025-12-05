@@ -90,6 +90,7 @@ AGENT_CORECHECKS = [
     "discovery",
     "versa",
     "network_config_management",
+    "battery",
 ]
 
 WINDOWS_CORECHECKS = [
