@@ -1635,10 +1635,28 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 		// Choose the oldest pod.
 		// If we choose a pod that is too recent, there is a risk that we delete a pod that hasn’t been seen by the agent yet.
 		// So that no pod lifecycle event is sent.
-		nginxPod = lo.MinBy(pods.Items, func(item corev1.Pod, min corev1.Pod) bool {
+		candidatePod := lo.MinBy(pods.Items, func(item corev1.Pod, min corev1.Pod) bool {
 			return item.Status.StartTime.Before(min.Status.StartTime)
 		})
-	}, 1*time.Minute, 10*time.Second, "Failed to find an nginx pod")
+
+		// Verify the agent has reported metrics for this pod, as a proxy for confirming that the agent has seen the pod
+		metrics, err := suite.Fakeintake.FilterMetrics(
+			"container.cpu.usage",
+			fakeintake.WithTags[*aggregator.MetricSeries]([]string{
+				"pod_name:" + candidatePod.Name,
+			}),
+		)
+		if !assert.NoErrorf(c, err, "Failed to query metrics for pod %s", candidatePod.Name) {
+			return
+		}
+		if !assert.NotEmptyf(c, metrics,
+			"Agent hasn't reported metrics for pod %s yet. Pod age: %v",
+			candidatePod.Name, time.Since(candidatePod.Status.StartTime.Time)) {
+			return
+		}
+
+		nginxPod = candidatePod
+	}, 5*time.Minute, 10*time.Second, "Failed to find a nginx pod that the agent has discovered")
 
 	err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
 	suite.Require().NoError(err)
