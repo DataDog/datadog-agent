@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -253,6 +254,8 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 	go runStartupCheck(ctx, objectStores)
 
+	go collectKubeCapabilities(ctx, apiserverClient, wlmetaStore)
+
 	return nil
 }
 
@@ -266,6 +269,46 @@ func (c *collector) GetID() string {
 
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
+}
+
+func collectKubeCapabilities(ctx context.Context, apiserverClient *apiserver.APIClient, wlmetaStore workloadmeta.Component) {
+	featureGates, err := common.ClusterFeatureGates(ctx, apiserverClient.Cl.Discovery(), 2*time.Second)
+	if err != nil {
+		log.Warnf("failed to collect cluster feature gates: %v", err)
+		featureGates = make(map[string]common.FeatureGate)
+	}
+
+	wlmFeatureGates := make(map[string]workloadmeta.FeatureGate)
+	for name, featureGate := range featureGates {
+		wlmFeatureGates[name] = workloadmeta.FeatureGate{
+			Name:    featureGate.Name,
+			Stage:   workloadmeta.FeatureGateStage(featureGate.Stage),
+			Enabled: featureGate.Enabled,
+		}
+	}
+
+	versionInfo, err := common.KubeServerVersion(apiserverClient.Cl.Discovery(), 2*time.Second)
+	if err != nil {
+		log.Warnf("failed to collect cluster version: %v", err)
+	}
+
+	wlmetaStore.Notify([]workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceKubeAPIServer,
+			Entity: &workloadmeta.KubeCapabilities{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubeCapabilities,
+					ID:   workloadmeta.KubeCapabilitiesID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: workloadmeta.KubeCapabilitiesName,
+				},
+				Version:      versionInfo,
+				FeatureGates: wlmFeatureGates,
+			},
+		},
+	})
 }
 
 func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
