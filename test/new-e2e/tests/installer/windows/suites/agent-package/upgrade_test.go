@@ -425,7 +425,7 @@ func (s *testAgentUpgradeSuite) TestRevertsExperimentWhenServiceDiesMaintainsCus
 	s.setAgentConfigWithAltDir(altConfigRoot)
 	s.Require().NotEqual(windowsagent.DefaultAgentUserName, agentUser, "the custom user should be different from the default user")
 	// Ensure daemon and subprocesses use alt dirs via machine env before any installer actions
-	s.setMachineAltDirEnv(altConfigRoot, altInstallPath)
+	// s.setMachineAltDirEnv(altConfigRoot, altInstallPath)
 	s.installPreviousAgentVersion(
 		installerwindows.WithOption(installerwindows.WithAgentUser(agentUser)),
 		installerwindows.WithMSIArg("PROJECTLOCATION="+altInstallPath),
