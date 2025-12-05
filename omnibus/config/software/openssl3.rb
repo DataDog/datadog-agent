@@ -40,7 +40,7 @@ build do
       # We could set here //:fips_mode=false, but it's not necessary because the default is false.
       fips_flag = ""
     end
-    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded #{fips_flag}"
+    command_on_repo_root "bazelisk run #{fips_flag} -- @openssl//:install --destdir=#{install_dir}/embedded"
     lib_extension = if linux_target? then ".so" else ".dylib" end
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
