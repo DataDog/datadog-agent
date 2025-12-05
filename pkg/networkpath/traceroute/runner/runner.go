@@ -122,12 +122,6 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		timeout = cfg.Timeout
 	}
 
-	hname, err := r.hostnameService.Get(ctx)
-	if err != nil {
-		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return payload.NetworkPath{}, err
-	}
-
 	params := traceroute.TracerouteParams{
 		Hostname:              cfg.DestHostname,
 		Port:                  int(cfg.DestPort),
@@ -151,7 +145,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(results, cfg.Protocol, hname, cfg.DestHostname, cfg.DestPort)
+	pathResult, err := r.processResults(results, cfg.Protocol, cfg.DestHostname, cfg.DestPort)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
@@ -160,7 +154,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	return pathResult, nil
 }
 
-func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
 	if res == nil {
 		return payload.NetworkPath{}, nil
 	}
@@ -171,11 +165,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
-			Name:        hname,
-			DisplayName: hname,
-			Hostname:    hname,
-			NetworkID:   r.networkID,
-			PublicIP:    res.Source.PublicIP,
+			NetworkID: r.networkID,
+			PublicIP:  res.Source.PublicIP,
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname: destinationHost,

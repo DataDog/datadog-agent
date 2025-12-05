@@ -84,9 +84,6 @@ func ParamsFromEnvironment(e aws.Environment) *RunParams {
 		if e.AgentUseDualShipping() {
 			fi = append(fi, fakeintake.WithoutDDDevForwarding())
 		}
-		if store := e.AgentFakeintakeStoreType(); store != "" {
-			fi = append(fi, fakeintake.WithStoreType(store))
-		}
 		if retention := e.AgentFakeintakeRetentionPeriod(); retention != "" {
 			fi = append(fi, fakeintake.WithRetentionPeriod(retention))
 		}

@@ -56,6 +56,7 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	watchdogWarningTimeout  time.Duration
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
@@ -67,6 +68,7 @@ func NewWorker(
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
@@ -90,6 +92,7 @@ func NewWorker(
 		senderManager.GetDefaultSender,
 		haAgent,
 		pollingInterval,
+		watchdogWarningTimeout,
 	)
 }
 
@@ -105,6 +108,7 @@ func newWorkerWithOptions(
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
 	utilizationTickInterval time.Duration,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
@@ -123,6 +127,7 @@ func newWorkerWithOptions(
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
 		utilizationTickInterval: utilizationTickInterval,
+		watchdogWarningTimeout:  watchdogWarningTimeout,
 	}, nil
 }
 
@@ -151,6 +156,13 @@ func (w *Worker) Run() {
 		if !w.checksTracker.AddCheck(check) {
 			checkLogger.Debug("Check is already running, skipping execution...")
 			continue
+		}
+
+		var watchdogTimer *time.Timer
+		if w.watchdogWarningTimeout > 0 {
+			watchdogTimer = time.AfterFunc(w.watchdogWarningTimeout, func() {
+				log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
+			})
 		}
 
 		checkStartTime := time.Now()
@@ -219,6 +231,10 @@ func (w *Worker) Run() {
 		}
 
 		checkLogger.CheckFinished()
+
+		if watchdogTimer != nil {
+			watchdogTimer.Stop()
+		}
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)

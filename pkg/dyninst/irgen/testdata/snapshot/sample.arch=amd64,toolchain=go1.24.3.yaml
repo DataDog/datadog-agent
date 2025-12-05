@@ -8,15 +8,15 @@ Probes:
       template: stackC
       segments: [stackC]
       captureSnapshot: true
-      subprogram: {subprogram: 139}
+      subprogram: {subprogram: 140}
       events:
         - Kind: Entry
-          Type: 1502 EventRootType Probe[main.stackC]
-          InjectionPoints: [{PC: "0xcdb8aa", Frameless: false}]
+          Type: 1503 EventRootType Probe[main.stackC]
+          InjectionPoints: [{PC: "0xcdb92a", Frameless: false}]
           Condition: null
         - Kind: Return
-          Type: 1503 EventRootType Probe[main.stackC]Return
-          InjectionPoints: [{PC: "0xcdb8e5", Frameless: false}]
+          Type: 1504 EventRootType Probe[main.stackC]Return
+          InjectionPoints: [{PC: "0xcdb965", Frameless: false}]
           Condition: null
       probeTemplate: {TemplateString: stackC, Segments: [stackC]}
     - id: testAny
@@ -553,11 +553,11 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 147}
+      subprogram: {subprogram: 148}
       events:
         - Kind: Entry
-          Type: 1516 EventRootType Probe[main.testEmptyString]
-          InjectionPoints: [{PC: "0xcdb9e0", Frameless: true}]
+          Type: 1517 EventRootType Probe[main.testEmptyString]
+          InjectionPoints: [{PC: "0xcdba60", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -574,11 +574,11 @@ Probes:
       template: '{e}'
       segments: [{json: {ref: e}, dsl: e}]
       captureSnapshot: true
-      subprogram: {subprogram: 152}
+      subprogram: {subprogram: 154}
       events:
         - Kind: Entry
-          Type: 1526 EventRootType Probe[main.testEmptyStruct]
-          InjectionPoints: [{PC: "0xcdbe20", Frameless: true}]
+          Type: 1528 EventRootType Probe[main.testEmptyStruct]
+          InjectionPoints: [{PC: "0xcdbee0", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{e}'
@@ -594,11 +594,11 @@ Probes:
       template: '{e}'
       segments: [{json: {ref: e}, dsl: e}]
       captureSnapshot: true
-      subprogram: {subprogram: 153}
+      subprogram: {subprogram: 155}
       events:
         - Kind: Entry
-          Type: 1527 EventRootType Probe[main.testEmptyStructPointer]
-          InjectionPoints: [{PC: "0xcdbe40", Frameless: true}]
+          Type: 1529 EventRootType Probe[main.testEmptyStructPointer]
+          InjectionPoints: [{PC: "0xcdbf00", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{e}'
@@ -845,10 +845,10 @@ Probes:
       template: testInlinedBBB
       segments: [testInlinedBBB]
       captureSnapshot: true
-      subprogram: {subprogram: 155}
+      subprogram: {subprogram: 157}
       events:
         - Kind: Entry
-          Type: 1531 EventRootType Probe[main.testInlinedBBB]
+          Type: 1533 EventRootType Probe[main.testInlinedBBB]
           InjectionPoints: [{PC: "0xcd5bc6", Frameless: false}]
           Condition: null
       probeTemplate:
@@ -883,10 +883,10 @@ Probes:
       template: testInlinedBCA
       segments: [testInlinedBCA]
       captureSnapshot: true
-      subprogram: {subprogram: 156}
+      subprogram: {subprogram: 158}
       events:
         - Kind: Entry
-          Type: 1532 EventRootType Probe[main.testInlinedBCA]
+          Type: 1534 EventRootType Probe[main.testInlinedBCA]
           InjectionPoints: [{PC: "0xcd5cd3", Frameless: false}]
           Condition: null
       probeTemplate:
@@ -903,10 +903,10 @@ Probes:
       template: testInlinedBCA
       segments: [testInlinedBCA]
       captureSnapshot: true
-      subprogram: {subprogram: 156}
+      subprogram: {subprogram: 158}
       events:
         - Kind: Line
-          Type: 1533 EventRootType Probe[main.testInlinedBCA]Line
+          Type: 1535 EventRootType Probe[main.testInlinedBCA]Line
           InjectionPoints: [{PC: "0xcd5cd3", Frameless: false}]
           Condition: null
       probeTemplate:
@@ -920,10 +920,10 @@ Probes:
       template: testInlinedBCB
       segments: [testInlinedBCB]
       captureSnapshot: true
-      subprogram: {subprogram: 157}
+      subprogram: {subprogram: 159}
       events:
         - Kind: Entry
-          Type: 1534 EventRootType Probe[main.testInlinedBCB]
+          Type: 1536 EventRootType Probe[main.testInlinedBCB]
           InjectionPoints: [{PC: "0xcd5d86", Frameless: false}]
           Condition: null
       probeTemplate:
@@ -940,10 +940,10 @@ Probes:
       template: testInlinedBCB
       segments: [testInlinedBCB]
       captureSnapshot: true
-      subprogram: {subprogram: 157}
+      subprogram: {subprogram: 159}
       events:
         - Kind: Line
-          Type: 1535 EventRootType Probe[main.testInlinedBCB]Line
+          Type: 1537 EventRootType Probe[main.testInlinedBCB]Line
           InjectionPoints: [{PC: "0xcd5d86", Frameless: false}]
           Condition: null
       probeTemplate:
@@ -958,10 +958,10 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 154}
+      subprogram: {subprogram: 156}
       events:
         - Kind: Entry
-          Type: 1528 EventRootType Probe[main.testInlinedPrint]
+          Type: 1530 EventRootType Probe[main.testInlinedPrint]
           InjectionPoints:
             - PC: "0xcd592a"
               Frameless: false
@@ -975,7 +975,7 @@ Probes:
               Frameless: false
           Condition: null
         - Kind: Return
-          Type: 1529 EventRootType Probe[main.testInlinedPrint]Return
+          Type: 1531 EventRootType Probe[main.testInlinedPrint]Return
           InjectionPoints: [{PC: "0xcd596a", Frameless: false}]
           Condition: null
       probeTemplate:
@@ -996,10 +996,10 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 154}
+      subprogram: {subprogram: 156}
       events:
         - Kind: Line
-          Type: 1530 EventRootType Probe[main.testInlinedPrint]Line
+          Type: 1532 EventRootType Probe[main.testInlinedPrint]Line
           InjectionPoints:
             - PC: "0xcd592e"
               Frameless: false
@@ -1027,10 +1027,10 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 158}
+      subprogram: {subprogram: 160}
       events:
         - Kind: Entry
-          Type: 1536 EventRootType Probe[main.testInlinedSq]
+          Type: 1538 EventRootType Probe[main.testInlinedSq]
           InjectionPoints: [{PC: "0xcd5de1", Frameless: true}]
           Condition: null
       probeTemplate:
@@ -1051,10 +1051,10 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 158}
+      subprogram: {subprogram: 160}
       events:
         - Kind: Line
-          Type: 1537 EventRootType Probe[main.testInlinedSq]Line
+          Type: 1539 EventRootType Probe[main.testInlinedSq]Line
           InjectionPoints: [{PC: "0xcd5de1", Frameless: true}]
           Condition: null
       probeTemplate:
@@ -1073,10 +1073,10 @@ Probes:
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
-      subprogram: {subprogram: 159}
+      subprogram: {subprogram: 161}
       events:
         - Kind: Entry
-          Type: 1538 EventRootType Probe[main.testInlinedSumArray]
+          Type: 1540 EventRootType Probe[main.testInlinedSumArray]
           InjectionPoints:
             - PC: "0xcd5e25"
               Frameless: false
@@ -1859,11 +1859,11 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 145}
+      subprogram: {subprogram: 146}
       events:
         - Kind: Entry
-          Type: 1513 EventRootType Probe[main.testMassiveString]
-          InjectionPoints: [{PC: "0xcdb9a0", Frameless: true}]
+          Type: 1514 EventRootType Probe[main.testMassiveString]
+          InjectionPoints: [{PC: "0xcdba20", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -1881,11 +1881,11 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 145}
+      subprogram: {subprogram: 146}
       events:
         - Kind: Entry
-          Type: 1514 EventRootType Probe[main.testMassiveString]
-          InjectionPoints: [{PC: "0xcdb9a0", Frameless: true}]
+          Type: 1515 EventRootType Probe[main.testMassiveString]
+          InjectionPoints: [{PC: "0xcdba20", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -2199,11 +2199,11 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 151}
+      subprogram: {subprogram: 153}
       events:
         - Kind: Entry
-          Type: 1522 EventRootType Probe[main.testNestedPointer]
-          InjectionPoints: [{PC: "0xcdbda0", Frameless: true}]
+          Type: 1524 EventRootType Probe[main.testNestedPointer]
+          InjectionPoints: [{PC: "0xcdbe60", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -2223,11 +2223,11 @@ Probes:
             getmember: [{getmember: [{ref: x}, nested]}, anotherString]
           dsl: x.nested.anotherString
       captureSnapshot: false
-      subprogram: {subprogram: 151}
+      subprogram: {subprogram: 153}
       events:
         - Kind: Entry
-          Type: 1523 EventRootType Probe[main.testNestedPointer]
-          InjectionPoints: [{PC: "0xcdbda0", Frameless: true}]
+          Type: 1525 EventRootType Probe[main.testNestedPointer]
+          InjectionPoints: [{PC: "0xcdbe60", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x.nested.anotherString}'
@@ -2253,11 +2253,11 @@ Probes:
         - json: {getmember: [{ref: x}, notAMember]}
           dsl: x.notAMember
       captureSnapshot: false
-      subprogram: {subprogram: 151}
+      subprogram: {subprogram: 153}
       events:
         - Kind: Entry
-          Type: 1524 EventRootType Probe[main.testNestedPointer]
-          InjectionPoints: [{PC: "0xcdbda0", Frameless: true}]
+          Type: 1526 EventRootType Probe[main.testNestedPointer]
+          InjectionPoints: [{PC: "0xcdbe60", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x.nested.anotherString.anotherInt} {x.notAMember}'
@@ -2277,11 +2277,11 @@ Probes:
         - json: {getmember: [{ref: x}, nested]}
           dsl: x.nested
       captureSnapshot: false
-      subprogram: {subprogram: 151}
+      subprogram: {subprogram: 153}
       events:
         - Kind: Entry
-          Type: 1525 EventRootType Probe[main.testNestedPointer]
-          InjectionPoints: [{PC: "0xcdbda0", Frameless: true}]
+          Type: 1527 EventRootType Probe[main.testNestedPointer]
+          InjectionPoints: [{PC: "0xcdbe60", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x.nested}'
@@ -2420,11 +2420,11 @@ Probes:
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
-      subprogram: {subprogram: 144}
+      subprogram: {subprogram: 145}
       events:
         - Kind: Entry
-          Type: 1512 EventRootType Probe[main.testOneStringInStructPointer]
-          InjectionPoints: [{PC: "0xcdb980", Frameless: true}]
+          Type: 1513 EventRootType Probe[main.testOneStringInStructPointer]
+          InjectionPoints: [{PC: "0xcdba00", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a}'
@@ -3320,11 +3320,11 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 140}
+      subprogram: {subprogram: 141}
       events:
         - Kind: Entry
-          Type: 1504 EventRootType Probe[main.testSingleString]
-          InjectionPoints: [{PC: "0xcdb900", Frameless: true}]
+          Type: 1505 EventRootType Probe[main.testSingleString]
+          InjectionPoints: [{PC: "0xcdb980", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -3662,15 +3662,15 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 150}
+      subprogram: {subprogram: 152}
       events:
         - Kind: Entry
-          Type: 1520 EventRootType Probe[main.testStruct]
-          InjectionPoints: [{PC: "0xcdbca0", Frameless: true}]
+          Type: 1522 EventRootType Probe[main.testStruct]
+          InjectionPoints: [{PC: "0xcdbd60", Frameless: true}]
           Condition: null
         - Kind: Return
-          Type: 1521 EventRootType Probe[main.testStruct]Return
-          InjectionPoints: [{PC: "0xcdbcc2", Frameless: true}]
+          Type: 1523 EventRootType Probe[main.testStruct]Return
+          InjectionPoints: [{PC: "0xcdbd82", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -3762,15 +3762,15 @@ Probes:
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
-      subprogram: {subprogram: 149}
+      subprogram: {subprogram: 151}
       events:
         - Kind: Entry
-          Type: 1518 EventRootType Probe[main.testStructWithCyclicMaps]
-          InjectionPoints: [{PC: "0xcdbb60", Frameless: true}]
+          Type: 1520 EventRootType Probe[main.testStructWithCyclicMaps]
+          InjectionPoints: [{PC: "0xcdbc20", Frameless: true}]
           Condition: null
         - Kind: Return
-          Type: 1519 EventRootType Probe[main.testStructWithCyclicMaps]Return
-          InjectionPoints: [{PC: "0xcdbb7e", Frameless: true}]
+          Type: 1521 EventRootType Probe[main.testStructWithCyclicMaps]Return
+          InjectionPoints: [{PC: "0xcdbc3e", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a}'
@@ -3786,11 +3786,11 @@ Probes:
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
-      subprogram: {subprogram: 148}
+      subprogram: {subprogram: 150}
       events:
         - Kind: Entry
-          Type: 1517 EventRootType Probe[main.testStructWithCyclicSlices]
-          InjectionPoints: [{PC: "0xcdbb40", Frameless: true}]
+          Type: 1519 EventRootType Probe[main.testStructWithCyclicSlices]
+          InjectionPoints: [{PC: "0xcdbc00", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a}'
@@ -3820,6 +3820,84 @@ Probes:
               DSL: s
               EventKind: Entry
               EventExpressionIndex: 1
+    - id: testSubslices
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testSubslices}
+      tags: ['foo:bar']
+      template: '{as}, {bs}, {cs}'
+      segments:
+        - json: {ref: as}
+          dsl: as
+        - ', '
+        - json: {ref: bs}
+          dsl: bs
+        - ', '
+        - json: {ref: cs}
+          dsl: cs
+      captureSnapshot: true
+      subprogram: {subprogram: 139}
+      events:
+        - Kind: Entry
+          Type: 1502 EventRootType Probe[main.testSubslices]
+          InjectionPoints: [{PC: "0xcdb580", Frameless: true}]
+          Condition: null
+      probeTemplate:
+        TemplateString: '{as}, {bs}, {cs}'
+        Segments:
+            - JSON: {Ref: as}
+              DSL: as
+              EventKind: Entry
+              EventExpressionIndex: 1
+            - ', '
+            - JSON: {Ref: bs}
+              DSL: bs
+              EventKind: Entry
+              EventExpressionIndex: 3
+            - ', '
+            - JSON: {Ref: cs}
+              DSL: cs
+              EventKind: Entry
+              EventExpressionIndex: 5
+    - id: testSubstrings
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.testSubstrings}
+      tags: ['foo:bar']
+      template: '{a}, {b}, {c}'
+      segments:
+        - json: {ref: a}
+          dsl: a
+        - ', '
+        - json: {ref: b}
+          dsl: b
+        - ', '
+        - json: {ref: c}
+          dsl: c
+      captureSnapshot: true
+      subprogram: {subprogram: 149}
+      events:
+        - Kind: Entry
+          Type: 1518 EventRootType Probe[main.testSubstrings]
+          InjectionPoints: [{PC: "0xcdba80", Frameless: true}]
+          Condition: null
+      probeTemplate:
+        TemplateString: '{a}, {b}, {c}'
+        Segments:
+            - JSON: {Ref: a}
+              DSL: a
+              EventKind: Entry
+              EventExpressionIndex: 1
+            - ', '
+            - JSON: {Ref: b}
+              DSL: b
+              EventKind: Entry
+              EventExpressionIndex: 3
+            - ', '
+            - JSON: {Ref: c}
+              DSL: c
+              EventKind: Entry
+              EventExpressionIndex: 5
     - id: testTemplateWithNonexistantVariableName
       version: 0
       type: LOG_PROBE
@@ -3911,11 +3989,11 @@ Probes:
         - json: {ref: z}
           dsl: z
       captureSnapshot: true
-      subprogram: {subprogram: 141}
+      subprogram: {subprogram: 142}
       events:
         - Kind: Entry
-          Type: 1505 EventRootType Probe[main.testThreeStrings]
-          InjectionPoints: [{PC: "0xcdb920", Frameless: true}]
+          Type: 1506 EventRootType Probe[main.testThreeStrings]
+          InjectionPoints: [{PC: "0xcdb9a0", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}, {y}, {z}'
@@ -3942,15 +4020,15 @@ Probes:
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
-      subprogram: {subprogram: 142}
+      subprogram: {subprogram: 143}
       events:
         - Kind: Entry
-          Type: 1506 EventRootType Probe[main.testThreeStringsInStruct]
-          InjectionPoints: [{PC: "0xcdb940", Frameless: true}]
+          Type: 1507 EventRootType Probe[main.testThreeStringsInStruct]
+          InjectionPoints: [{PC: "0xcdb9c0", Frameless: true}]
           Condition: null
         - Kind: Return
-          Type: 1507 EventRootType Probe[main.testThreeStringsInStruct]Return
-          InjectionPoints: [{PC: "0xcdb95e", Frameless: true}]
+          Type: 1508 EventRootType Probe[main.testThreeStringsInStruct]Return
+          InjectionPoints: [{PC: "0xcdb9de", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a}'
@@ -3967,11 +4045,11 @@ Probes:
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
-      subprogram: {subprogram: 143}
+      subprogram: {subprogram: 144}
       events:
         - Kind: Entry
-          Type: 1510 EventRootType Probe[main.testThreeStringsInStructPointer]
-          InjectionPoints: [{PC: "0xcdb960", Frameless: true}]
+          Type: 1511 EventRootType Probe[main.testThreeStringsInStructPointer]
+          InjectionPoints: [{PC: "0xcdb9e0", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a}'
@@ -3996,11 +4074,11 @@ Probes:
         - json: {getmember: [{ref: a}, c]}
           dsl: a.c
       captureSnapshot: false
-      subprogram: {subprogram: 143}
+      subprogram: {subprogram: 144}
       events:
         - Kind: Entry
-          Type: 1511 EventRootType Probe[main.testThreeStringsInStructPointer]
-          InjectionPoints: [{PC: "0xcdb960", Frameless: true}]
+          Type: 1512 EventRootType Probe[main.testThreeStringsInStructPointer]
+          InjectionPoints: [{PC: "0xcdb9e0", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a.a} {a.b} {a.c}'
@@ -4035,15 +4113,15 @@ Probes:
         - json: {getmember: [{ref: a}, c]}
           dsl: t.c
       captureSnapshot: false
-      subprogram: {subprogram: 142}
+      subprogram: {subprogram: 143}
       events:
         - Kind: Entry
-          Type: 1508 EventRootType Probe[main.testThreeStringsInStruct]
-          InjectionPoints: [{PC: "0xcdb940", Frameless: true}]
+          Type: 1509 EventRootType Probe[main.testThreeStringsInStruct]
+          InjectionPoints: [{PC: "0xcdb9c0", Frameless: true}]
           Condition: null
         - Kind: Return
-          Type: 1509 EventRootType Probe[main.testThreeStringsInStruct]Return
-          InjectionPoints: [{PC: "0xcdb95e", Frameless: true}]
+          Type: 1510 EventRootType Probe[main.testThreeStringsInStruct]Return
+          InjectionPoints: [{PC: "0xcdb9de", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{a.a} {a.b} {a.c}'
@@ -4238,11 +4316,11 @@ Probes:
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
-      subprogram: {subprogram: 146}
+      subprogram: {subprogram: 147}
       events:
         - Kind: Entry
-          Type: 1515 EventRootType Probe[main.testUnitializedString]
-          InjectionPoints: [{PC: "0xcdb9c0", Frameless: true}]
+          Type: 1516 EventRootType Probe[main.testUnitializedString]
+          InjectionPoints: [{PC: "0xcdba40", Frameless: true}]
           Condition: null
       probeTemplate:
         TemplateString: '{x}'
@@ -7267,121 +7345,82 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
     - ID: 139
+      Name: main.testSubslices
+      OutOfLinePCRanges: [0xcdb580..0xcdb581]
+      InlinePCRanges: []
+      Variables:
+        - Name: as
+          Type: 255 GoSliceHeaderType []uint
+          Locations:
+            - Range: 0xcdb580..0xcdb581
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+          Role: Parameter
+        - Name: bs
+          Type: 255 GoSliceHeaderType []uint
+          Locations:
+            - Range: 0xcdb580..0xcdb581
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 5, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 4, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 8, Shift: 0}
+          Role: Parameter
+        - Name: cs
+          Type: 255 GoSliceHeaderType []uint
+          Locations:
+            - Range: 0xcdb580..0xcdb581
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 9, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 10, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 11, Shift: 0}
+          Role: Parameter
+    - ID: 140
       Name: main.stackC
-      OutOfLinePCRanges: [0xcdb8a0..0xcdb8f2]
+      OutOfLinePCRanges: [0xcdb920..0xcdb972]
       InlinePCRanges: []
       Variables:
         - Name: ~r0
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcdb8a0..0xcdb8e5
+            - Range: 0xcdb920..0xcdb965
               Pieces: []
-            - Range: 0xcdb8e5..0xcdb8e6
+            - Range: 0xcdb965..0xcdb966
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-            - Range: 0xcdb8e6..0xcdb8f2
+            - Range: 0xcdb966..0xcdb972
               Pieces: []
           Role: Return
-    - ID: 140
-      Name: main.testSingleString
-      OutOfLinePCRanges: [0xcdb900..0xcdb901]
-      InlinePCRanges: []
-      Variables:
-        - Name: x
-          Type: 9 GoStringHeaderType string
-          Locations:
-            - Range: 0xcdb900..0xcdb901
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-          Role: Parameter
     - ID: 141
-      Name: main.testThreeStrings
-      OutOfLinePCRanges: [0xcdb920..0xcdb921]
-      InlinePCRanges: []
-      Variables:
-        - Name: x
-          Type: 9 GoStringHeaderType string
-          Locations:
-            - Range: 0xcdb920..0xcdb921
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-          Role: Parameter
-        - Name: y
-          Type: 9 GoStringHeaderType string
-          Locations:
-            - Range: 0xcdb920..0xcdb921
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 5, Shift: 0}
-          Role: Parameter
-        - Name: z
-          Type: 9 GoStringHeaderType string
-          Locations:
-            - Range: 0xcdb920..0xcdb921
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 4, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 8, Shift: 0}
-          Role: Parameter
-    - ID: 142
-      Name: main.testThreeStringsInStruct
-      OutOfLinePCRanges: [0xcdb940..0xcdb95f]
-      InlinePCRanges: []
-      Variables:
-        - Name: a
-          Type: 266 StructureType main.threeStringStruct
-          Locations:
-            - Range: 0xcdb940..0xcdb95f
-              Pieces:
-                - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 2, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 5, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 4, Shift: 0}
-                - Size: 8
-                  Op: {RegNo: 8, Shift: 0}
-          Role: Parameter
-    - ID: 143
-      Name: main.testThreeStringsInStructPointer
-      OutOfLinePCRanges: [0xcdb960..0xcdb961]
-      InlinePCRanges: []
-      Variables:
-        - Name: a
-          Type: 267 PointerType *main.threeStringStruct
-          Locations:
-            - Range: 0xcdb960..0xcdb961
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          Role: Parameter
-    - ID: 144
-      Name: main.testOneStringInStructPointer
+      Name: main.testSingleString
       OutOfLinePCRanges: [0xcdb980..0xcdb981]
       InlinePCRanges: []
       Variables:
-        - Name: a
-          Type: 268 PointerType *main.oneStringStruct
+        - Name: x
+          Type: 9 GoStringHeaderType string
           Locations:
             - Range: 0xcdb980..0xcdb981
-              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
           Role: Parameter
-    - ID: 145
-      Name: main.testMassiveString
+    - ID: 142
+      Name: main.testThreeStrings
       OutOfLinePCRanges: [0xcdb9a0..0xcdb9a1]
       InlinePCRanges: []
       Variables:
@@ -7395,56 +7434,35 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
-    - ID: 146
-      Name: main.testUnitializedString
-      OutOfLinePCRanges: [0xcdb9c0..0xcdb9c1]
-      InlinePCRanges: []
-      Variables:
-        - Name: x
+        - Name: y
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcdb9c0..0xcdb9c1
+            - Range: 0xcdb9a0..0xcdb9a1
               Pieces:
                 - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
+                  Op: {RegNo: 2, Shift: 0}
                 - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
+                  Op: {RegNo: 5, Shift: 0}
           Role: Parameter
-    - ID: 147
-      Name: main.testEmptyString
-      OutOfLinePCRanges: [0xcdb9e0..0xcdb9e1]
-      InlinePCRanges: []
-      Variables:
-        - Name: x
+        - Name: z
           Type: 9 GoStringHeaderType string
           Locations:
-            - Range: 0xcdb9e0..0xcdb9e1
+            - Range: 0xcdb9a0..0xcdb9a1
               Pieces:
                 - Size: 8
-                  Op: {RegNo: 0, Shift: 0}
+                  Op: {RegNo: 4, Shift: 0}
                 - Size: 8
-                  Op: {RegNo: 3, Shift: 0}
+                  Op: {RegNo: 8, Shift: 0}
           Role: Parameter
-    - ID: 148
-      Name: main.testStructWithCyclicSlices
-      OutOfLinePCRanges: [0xcdbb40..0xcdbb41]
+    - ID: 143
+      Name: main.testThreeStringsInStruct
+      OutOfLinePCRanges: [0xcdb9c0..0xcdb9df]
       InlinePCRanges: []
       Variables:
         - Name: a
-          Type: 270 StructureType main.structWithCyclicSlices
+          Type: 266 StructureType main.threeStringStruct
           Locations:
-            - Range: 0xcdbb40..0xcdbb41
-              Pieces: [{Size: 144, Op: {CfaOffset: 0}}]
-          Role: Parameter
-    - ID: 149
-      Name: main.testStructWithCyclicMaps
-      OutOfLinePCRanges: [0xcdbb60..0xcdbb7f]
-      InlinePCRanges: []
-      Variables:
-        - Name: a
-          Type: 283 StructureType main.structWithCyclicMaps
-          Locations:
-            - Range: 0xcdbb60..0xcdbb7f
+            - Range: 0xcdb9c0..0xcdb9df
               Pieces:
                 - Size: 8
                   Op: {RegNo: 0, Shift: 0}
@@ -7459,15 +7477,151 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 8, Shift: 0}
           Role: Parameter
+    - ID: 144
+      Name: main.testThreeStringsInStructPointer
+      OutOfLinePCRanges: [0xcdb9e0..0xcdb9e1]
+      InlinePCRanges: []
+      Variables:
+        - Name: a
+          Type: 267 PointerType *main.threeStringStruct
+          Locations:
+            - Range: 0xcdb9e0..0xcdb9e1
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+    - ID: 145
+      Name: main.testOneStringInStructPointer
+      OutOfLinePCRanges: [0xcdba00..0xcdba01]
+      InlinePCRanges: []
+      Variables:
+        - Name: a
+          Type: 268 PointerType *main.oneStringStruct
+          Locations:
+            - Range: 0xcdba00..0xcdba01
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Parameter
+    - ID: 146
+      Name: main.testMassiveString
+      OutOfLinePCRanges: [0xcdba20..0xcdba21]
+      InlinePCRanges: []
+      Variables:
+        - Name: x
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xcdba20..0xcdba21
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+          Role: Parameter
+    - ID: 147
+      Name: main.testUnitializedString
+      OutOfLinePCRanges: [0xcdba40..0xcdba41]
+      InlinePCRanges: []
+      Variables:
+        - Name: x
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xcdba40..0xcdba41
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+          Role: Parameter
+    - ID: 148
+      Name: main.testEmptyString
+      OutOfLinePCRanges: [0xcdba60..0xcdba61]
+      InlinePCRanges: []
+      Variables:
+        - Name: x
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xcdba60..0xcdba61
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+          Role: Parameter
+    - ID: 149
+      Name: main.testSubstrings
+      OutOfLinePCRanges: [0xcdba80..0xcdba81]
+      InlinePCRanges: []
+      Variables:
+        - Name: a
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xcdba80..0xcdba81
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+          Role: Parameter
+        - Name: b
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xcdba80..0xcdba81
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 5, Shift: 0}
+          Role: Parameter
+        - Name: c
+          Type: 9 GoStringHeaderType string
+          Locations:
+            - Range: 0xcdba80..0xcdba81
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 4, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 8, Shift: 0}
+          Role: Parameter
     - ID: 150
+      Name: main.testStructWithCyclicSlices
+      OutOfLinePCRanges: [0xcdbc00..0xcdbc01]
+      InlinePCRanges: []
+      Variables:
+        - Name: a
+          Type: 270 StructureType main.structWithCyclicSlices
+          Locations:
+            - Range: 0xcdbc00..0xcdbc01
+              Pieces: [{Size: 144, Op: {CfaOffset: 0}}]
+          Role: Parameter
+    - ID: 151
+      Name: main.testStructWithCyclicMaps
+      OutOfLinePCRanges: [0xcdbc20..0xcdbc3f]
+      InlinePCRanges: []
+      Variables:
+        - Name: a
+          Type: 283 StructureType main.structWithCyclicMaps
+          Locations:
+            - Range: 0xcdbc20..0xcdbc3f
+              Pieces:
+                - Size: 8
+                  Op: {RegNo: 0, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 3, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 2, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 5, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 4, Shift: 0}
+                - Size: 8
+                  Op: {RegNo: 8, Shift: 0}
+          Role: Parameter
+    - ID: 152
       Name: main.testStruct
-      OutOfLinePCRanges: [0xcdbca0..0xcdbcc3]
+      OutOfLinePCRanges: [0xcdbd60..0xcdbd83]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 314 StructureType main.aStruct
           Locations:
-            - Range: 0xcdbca0..0xcdbcc3
+            - Range: 0xcdbd60..0xcdbd83
               Pieces:
                 - Size: 1
                   Op: {RegNo: 0, Shift: 0}
@@ -7484,38 +7638,38 @@ Subprograms:
                 - Size: 8
                   Op: {RegNo: 9, Shift: 0}
           Role: Parameter
-    - ID: 151
+    - ID: 153
       Name: main.testNestedPointer
-      OutOfLinePCRanges: [0xcdbda0..0xcdbda1]
+      OutOfLinePCRanges: [0xcdbe60..0xcdbe61]
       InlinePCRanges: []
       Variables:
         - Name: x
           Type: 315 PointerType *main.anotherStruct
           Locations:
-            - Range: 0xcdbda0..0xcdbda1
+            - Range: 0xcdbe60..0xcdbe61
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
-    - ID: 152
+    - ID: 154
       Name: main.testEmptyStruct
-      OutOfLinePCRanges: [0xcdbe20..0xcdbe21]
+      OutOfLinePCRanges: [0xcdbee0..0xcdbee1]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 317 StructureType main.emptyStruct
-          Locations: [{Range: 0xcdbe20..0xcdbe21, Pieces: []}]
+          Locations: [{Range: 0xcdbee0..0xcdbee1, Pieces: []}]
           Role: Parameter
-    - ID: 153
+    - ID: 155
       Name: main.testEmptyStructPointer
-      OutOfLinePCRanges: [0xcdbe40..0xcdbe41]
+      OutOfLinePCRanges: [0xcdbf00..0xcdbf01]
       InlinePCRanges: []
       Variables:
         - Name: e
           Type: 318 PointerType *main.emptyStruct
           Locations:
-            - Range: 0xcdbe40..0xcdbe41
+            - Range: 0xcdbf00..0xcdbf01
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
-    - ID: 154
+    - ID: 156
       Name: main.testInlinedPrint
       OutOfLinePCRanges: [0xcd5920..0xcd5982]
       InlinePCRanges:
@@ -7544,28 +7698,28 @@ Subprograms:
             - Range: 0xcd5c40..0xcd5c5a
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
-    - ID: 155
+    - ID: 157
       Name: main.testInlinedBBB
       OutOfLinePCRanges: []
       InlinePCRanges:
         - Ranges: [0xcd5bc6..0xcd5bfe]
           RootRanges: [0xcd5b60..0xcd5c25]
       Variables: []
-    - ID: 156
+    - ID: 158
       Name: main.testInlinedBCA
       OutOfLinePCRanges: []
       InlinePCRanges:
         - Ranges: [0xcd5cd3..0xcd5d11]
           RootRanges: [0xcd5cc0..0xcd5dce]
       Variables: []
-    - ID: 157
+    - ID: 159
       Name: main.testInlinedBCB
       OutOfLinePCRanges: []
       InlinePCRanges:
         - Ranges: [0xcd5d86..0xcd5dbe]
           RootRanges: [0xcd5cc0..0xcd5dce]
       Variables: []
-    - ID: 158
+    - ID: 160
       Name: main.testInlinedSq
       OutOfLinePCRanges: []
       InlinePCRanges:
@@ -7578,7 +7732,7 @@ Subprograms:
             - Range: 0xcd5de0..0xcd5de5
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
-    - ID: 159
+    - ID: 161
       Name: main.testInlinedSumArray
       OutOfLinePCRanges: []
       InlinePCRanges:
@@ -10853,10 +11007,10 @@ Types:
       GoKind: 22
       Pointee: 810 BaseType vendor/golang.org/x/net/idna.runeError
     - __kind: EventRootType
-      ID: 1502
+      ID: 1503
       Name: Probe[main.stackC]
     - __kind: EventRootType
-      ID: 1503
+      ID: 1504
       Name: Probe[main.stackC]Return
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -10868,7 +11022,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 139, index: 0, name: ~r0}
+                  Variable: {subprogram: 140, index: 0, name: ~r0}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
@@ -11581,7 +11735,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1516
+      ID: 1517
       Name: Probe[main.testEmptyString]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -11593,7 +11747,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 147, index: 0, name: x}
+                  Variable: {subprogram: 148, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
         - Name: x
@@ -11603,11 +11757,11 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 147, index: 0, name: x}
+                  Variable: {subprogram: 148, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1527
+      ID: 1529
       Name: Probe[main.testEmptyStructPointer]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -11619,7 +11773,7 @@ Types:
             Type: 318 PointerType *main.emptyStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 153, index: 0, name: e}
+                  Variable: {subprogram: 155, index: 0, name: e}
                   Offset: 0
                   ByteSize: 8
         - Name: e
@@ -11629,11 +11783,11 @@ Types:
             Type: 318 PointerType *main.emptyStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 153, index: 0, name: e}
+                  Variable: {subprogram: 155, index: 0, name: e}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1526
+      ID: 1528
       Name: Probe[main.testEmptyStruct]
       ByteSize: 1
       PresenceBitsetSize: 1
@@ -11645,7 +11799,7 @@ Types:
             Type: 317 StructureType main.emptyStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 152, index: 0, name: e}
+                  Variable: {subprogram: 154, index: 0, name: e}
                   Offset: 0
                   ByteSize: 0
         - Name: e
@@ -11655,7 +11809,7 @@ Types:
             Type: 317 StructureType main.emptyStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 152, index: 0, name: e}
+                  Variable: {subprogram: 154, index: 0, name: e}
                   Offset: 0
                   ByteSize: 0
     - __kind: EventRootType
@@ -11921,7 +12075,7 @@ Types:
       ID: 1362
       Name: Probe[main.testInlinedBBA]Return
     - __kind: EventRootType
-      ID: 1531
+      ID: 1533
       Name: Probe[main.testInlinedBBB]
     - __kind: EventRootType
       ID: 1359
@@ -11973,16 +12127,16 @@ Types:
       ID: 1360
       Name: Probe[main.testInlinedBB]Return
     - __kind: EventRootType
-      ID: 1532
+      ID: 1534
       Name: Probe[main.testInlinedBCA]
     - __kind: EventRootType
-      ID: 1533
+      ID: 1535
       Name: Probe[main.testInlinedBCA]Line
     - __kind: EventRootType
-      ID: 1534
+      ID: 1536
       Name: Probe[main.testInlinedBCB]
     - __kind: EventRootType
-      ID: 1535
+      ID: 1537
       Name: Probe[main.testInlinedBCB]Line
     - __kind: EventRootType
       ID: 1363
@@ -11991,7 +12145,7 @@ Types:
       ID: 1364
       Name: Probe[main.testInlinedBC]Return
     - __kind: EventRootType
-      ID: 1528
+      ID: 1530
       Name: Probe[main.testInlinedPrint]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -12003,7 +12157,7 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
+                  Variable: {subprogram: 156, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
         - Name: x
@@ -12013,11 +12167,11 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
+                  Variable: {subprogram: 156, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1530
+      ID: 1532
       Name: Probe[main.testInlinedPrint]Line
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -12029,7 +12183,7 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
+                  Variable: {subprogram: 156, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
         - Name: x
@@ -12039,14 +12193,14 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 154, index: 0, name: x}
+                  Variable: {subprogram: 156, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1529
+      ID: 1531
       Name: Probe[main.testInlinedPrint]Return
     - __kind: EventRootType
-      ID: 1536
+      ID: 1538
       Name: Probe[main.testInlinedSq]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -12058,7 +12212,7 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 158, index: 0, name: x}
+                  Variable: {subprogram: 160, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
         - Name: x
@@ -12068,11 +12222,11 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 158, index: 0, name: x}
+                  Variable: {subprogram: 160, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1537
+      ID: 1539
       Name: Probe[main.testInlinedSq]Line
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -12084,7 +12238,7 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 158, index: 0, name: x}
+                  Variable: {subprogram: 160, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
         - Name: x
@@ -12094,11 +12248,11 @@ Types:
             Type: 7 BaseType int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 158, index: 0, name: x}
+                  Variable: {subprogram: 160, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1538
+      ID: 1540
       Name: Probe[main.testInlinedSumArray]
       ByteSize: 81
       PresenceBitsetSize: 1
@@ -12110,7 +12264,7 @@ Types:
             Type: 159 ArrayType [5]int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 159, index: 0, name: a}
+                  Variable: {subprogram: 161, index: 0, name: a}
                   Offset: 0
                   ByteSize: 40
         - Name: a
@@ -12120,7 +12274,7 @@ Types:
             Type: 159 ArrayType [5]int
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 159, index: 0, name: a}
+                  Variable: {subprogram: 161, index: 0, name: a}
                   Offset: 0
                   ByteSize: 40
     - __kind: EventRootType
@@ -13145,32 +13299,6 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1513
-      Name: Probe[main.testMassiveString]
-      ByteSize: 33
-      PresenceBitsetSize: 1
-      Expressions:
-        - Name: x
-          Offset: 1
-          Kind: argument
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 145, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 16
-        - Name: x
-          Offset: 17
-          Kind: template_segment
-          Expression:
-            Type: 9 GoStringHeaderType string
-            Operations:
-                - __kind: LocationOp
-                  Variable: {subprogram: 145, index: 0, name: x}
-                  Offset: 0
-                  ByteSize: 16
-    - __kind: EventRootType
       ID: 1514
       Name: Probe[main.testMassiveString]
       ByteSize: 33
@@ -13183,7 +13311,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 145, index: 0, name: x}
+                  Variable: {subprogram: 146, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
         - Name: x
@@ -13193,7 +13321,33 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 145, index: 0, name: x}
+                  Variable: {subprogram: 146, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 16
+    - __kind: EventRootType
+      ID: 1515
+      Name: Probe[main.testMassiveString]
+      ByteSize: 33
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: x
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 146, index: 0, name: x}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: x
+          Offset: 17
+          Kind: template_segment
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 146, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
@@ -14023,7 +14177,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1522
+      ID: 1524
       Name: Probe[main.testNestedPointer]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -14035,7 +14189,7 @@ Types:
             Type: 315 PointerType *main.anotherStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 151, index: 0, name: x}
+                  Variable: {subprogram: 153, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
         - Name: x
@@ -14045,11 +14199,11 @@ Types:
             Type: 315 PointerType *main.anotherStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 151, index: 0, name: x}
+                  Variable: {subprogram: 153, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1523
+      ID: 1525
       Name: Probe[main.testNestedPointer]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -14061,7 +14215,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 151, index: 0, name: x}
+                  Variable: {subprogram: 153, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
                 - __kind: DereferenceOp
@@ -14071,10 +14225,10 @@ Types:
                   Bias: 8
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1524
+      ID: 1526
       Name: Probe[main.testNestedPointer]
     - __kind: EventRootType
-      ID: 1525
+      ID: 1527
       Name: Probe[main.testNestedPointer]
       ByteSize: 25
       PresenceBitsetSize: 1
@@ -14086,7 +14240,7 @@ Types:
             Type: 121 StructureType main.nestedStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 151, index: 0, name: x}
+                  Variable: {subprogram: 153, index: 0, name: x}
                   Offset: 0
                   ByteSize: 8
                 - __kind: DereferenceOp
@@ -14280,7 +14434,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1512
+      ID: 1513
       Name: Probe[main.testOneStringInStructPointer]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -14292,7 +14446,7 @@ Types:
             Type: 268 PointerType *main.oneStringStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 144, index: 0, name: a}
+                  Variable: {subprogram: 145, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
         - Name: a
@@ -14302,7 +14456,7 @@ Types:
             Type: 268 PointerType *main.oneStringStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 144, index: 0, name: a}
+                  Variable: {subprogram: 145, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
@@ -15689,7 +15843,7 @@ Types:
                   Offset: 0
                   ByteSize: 4
     - __kind: EventRootType
-      ID: 1504
+      ID: 1505
       Name: Probe[main.testSingleString]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -15701,7 +15855,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 140, index: 0, name: x}
+                  Variable: {subprogram: 141, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
         - Name: x
@@ -15711,7 +15865,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 140, index: 0, name: x}
+                  Variable: {subprogram: 141, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
@@ -16301,7 +16455,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1518
+      ID: 1520
       Name: Probe[main.testStructWithCyclicMaps]
       ByteSize: 97
       PresenceBitsetSize: 1
@@ -16313,7 +16467,7 @@ Types:
             Type: 283 StructureType main.structWithCyclicMaps
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 149, index: 0, name: a}
+                  Variable: {subprogram: 151, index: 0, name: a}
                   Offset: 0
                   ByteSize: 48
         - Name: a
@@ -16323,14 +16477,14 @@ Types:
             Type: 283 StructureType main.structWithCyclicMaps
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 149, index: 0, name: a}
+                  Variable: {subprogram: 151, index: 0, name: a}
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 1519
+      ID: 1521
       Name: Probe[main.testStructWithCyclicMaps]Return
     - __kind: EventRootType
-      ID: 1517
+      ID: 1519
       Name: Probe[main.testStructWithCyclicSlices]
       ByteSize: 289
       PresenceBitsetSize: 1
@@ -16342,7 +16496,7 @@ Types:
             Type: 270 StructureType main.structWithCyclicSlices
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 148, index: 0, name: a}
+                  Variable: {subprogram: 150, index: 0, name: a}
                   Offset: 0
                   ByteSize: 144
         - Name: a
@@ -16352,7 +16506,7 @@ Types:
             Type: 270 StructureType main.structWithCyclicSlices
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 148, index: 0, name: a}
+                  Variable: {subprogram: 150, index: 0, name: a}
                   Offset: 0
                   ByteSize: 144
     - __kind: EventRootType
@@ -16382,7 +16536,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1520
+      ID: 1522
       Name: Probe[main.testStruct]
       ByteSize: 113
       PresenceBitsetSize: 1
@@ -16394,7 +16548,7 @@ Types:
             Type: 314 StructureType main.aStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 150, index: 0, name: x}
+                  Variable: {subprogram: 152, index: 0, name: x}
                   Offset: 0
                   ByteSize: 56
         - Name: x
@@ -16404,14 +16558,146 @@ Types:
             Type: 314 StructureType main.aStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 150, index: 0, name: x}
+                  Variable: {subprogram: 152, index: 0, name: x}
                   Offset: 0
                   ByteSize: 56
     - __kind: EventRootType
-      ID: 1521
+      ID: 1523
       Name: Probe[main.testStruct]Return
     - __kind: EventRootType
-      ID: 1510
+      ID: 1502
+      Name: Probe[main.testSubslices]
+      ByteSize: 145
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: as
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 255 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 139, index: 0, name: as}
+                  Offset: 0
+                  ByteSize: 24
+        - Name: as
+          Offset: 25
+          Kind: template_segment
+          Expression:
+            Type: 255 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 139, index: 0, name: as}
+                  Offset: 0
+                  ByteSize: 24
+        - Name: bs
+          Offset: 49
+          Kind: argument
+          Expression:
+            Type: 255 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 139, index: 1, name: bs}
+                  Offset: 0
+                  ByteSize: 24
+        - Name: bs
+          Offset: 73
+          Kind: template_segment
+          Expression:
+            Type: 255 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 139, index: 1, name: bs}
+                  Offset: 0
+                  ByteSize: 24
+        - Name: cs
+          Offset: 97
+          Kind: argument
+          Expression:
+            Type: 255 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 139, index: 2, name: cs}
+                  Offset: 0
+                  ByteSize: 24
+        - Name: cs
+          Offset: 121
+          Kind: template_segment
+          Expression:
+            Type: 255 GoSliceHeaderType []uint
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 139, index: 2, name: cs}
+                  Offset: 0
+                  ByteSize: 24
+    - __kind: EventRootType
+      ID: 1518
+      Name: Probe[main.testSubstrings]
+      ByteSize: 97
+      PresenceBitsetSize: 1
+      Expressions:
+        - Name: a
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 149, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: a
+          Offset: 17
+          Kind: template_segment
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 149, index: 0, name: a}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: b
+          Offset: 33
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 149, index: 1, name: b}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: b
+          Offset: 49
+          Kind: template_segment
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 149, index: 1, name: b}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: c
+          Offset: 65
+          Kind: argument
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 149, index: 2, name: c}
+                  Offset: 0
+                  ByteSize: 16
+        - Name: c
+          Offset: 81
+          Kind: template_segment
+          Expression:
+            Type: 9 GoStringHeaderType string
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 149, index: 2, name: c}
+                  Offset: 0
+                  ByteSize: 16
+    - __kind: EventRootType
+      ID: 1511
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 17
       PresenceBitsetSize: 1
@@ -16423,7 +16709,7 @@ Types:
             Type: 267 PointerType *main.threeStringStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 143, index: 0, name: a}
+                  Variable: {subprogram: 144, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
         - Name: a
@@ -16433,11 +16719,11 @@ Types:
             Type: 267 PointerType *main.threeStringStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 143, index: 0, name: a}
+                  Variable: {subprogram: 144, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
     - __kind: EventRootType
-      ID: 1511
+      ID: 1512
       Name: Probe[main.testThreeStringsInStructPointer]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -16449,7 +16735,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 143, index: 0, name: a}
+                  Variable: {subprogram: 144, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
                 - __kind: DereferenceOp
@@ -16462,7 +16748,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 143, index: 0, name: a}
+                  Variable: {subprogram: 144, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
                 - __kind: DereferenceOp
@@ -16475,14 +16761,14 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 143, index: 0, name: a}
+                  Variable: {subprogram: 144, index: 0, name: a}
                   Offset: 0
                   ByteSize: 8
                 - __kind: DereferenceOp
                   Bias: 32
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1506
+      ID: 1507
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 97
       PresenceBitsetSize: 1
@@ -16494,7 +16780,7 @@ Types:
             Type: 266 StructureType main.threeStringStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 0, name: a}
+                  Variable: {subprogram: 143, index: 0, name: a}
                   Offset: 0
                   ByteSize: 48
         - Name: a
@@ -16504,11 +16790,11 @@ Types:
             Type: 266 StructureType main.threeStringStruct
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 0, name: a}
+                  Variable: {subprogram: 143, index: 0, name: a}
                   Offset: 0
                   ByteSize: 48
     - __kind: EventRootType
-      ID: 1508
+      ID: 1509
       Name: Probe[main.testThreeStringsInStruct]
       ByteSize: 49
       PresenceBitsetSize: 1
@@ -16520,7 +16806,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 0, name: a}
+                  Variable: {subprogram: 143, index: 0, name: a}
                   Offset: 0
                   ByteSize: 16
         - Name: t.b
@@ -16530,7 +16816,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 0, name: a}
+                  Variable: {subprogram: 143, index: 0, name: a}
                   Offset: 16
                   ByteSize: 16
         - Name: t.c
@@ -16540,17 +16826,17 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 142, index: 0, name: a}
+                  Variable: {subprogram: 143, index: 0, name: a}
                   Offset: 32
                   ByteSize: 16
     - __kind: EventRootType
-      ID: 1507
+      ID: 1508
       Name: Probe[main.testThreeStringsInStruct]Return
     - __kind: EventRootType
-      ID: 1509
+      ID: 1510
       Name: Probe[main.testThreeStringsInStruct]Return
     - __kind: EventRootType
-      ID: 1505
+      ID: 1506
       Name: Probe[main.testThreeStrings]
       ByteSize: 97
       PresenceBitsetSize: 1
@@ -16562,7 +16848,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 141, index: 0, name: x}
+                  Variable: {subprogram: 142, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
         - Name: x
@@ -16572,7 +16858,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 141, index: 0, name: x}
+                  Variable: {subprogram: 142, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
         - Name: y
@@ -16582,7 +16868,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 141, index: 1, name: y}
+                  Variable: {subprogram: 142, index: 1, name: y}
                   Offset: 0
                   ByteSize: 16
         - Name: y
@@ -16592,7 +16878,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 141, index: 1, name: y}
+                  Variable: {subprogram: 142, index: 1, name: y}
                   Offset: 0
                   ByteSize: 16
         - Name: z
@@ -16602,7 +16888,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 141, index: 2, name: z}
+                  Variable: {subprogram: 142, index: 2, name: z}
                   Offset: 0
                   ByteSize: 16
         - Name: z
@@ -16612,7 +16898,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 141, index: 2, name: z}
+                  Variable: {subprogram: 142, index: 2, name: z}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
@@ -16824,7 +17110,7 @@ Types:
                   Offset: 0
                   ByteSize: 24
     - __kind: EventRootType
-      ID: 1515
+      ID: 1516
       Name: Probe[main.testUnitializedString]
       ByteSize: 33
       PresenceBitsetSize: 1
@@ -16836,7 +17122,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 146, index: 0, name: x}
+                  Variable: {subprogram: 147, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
         - Name: x
@@ -16846,7 +17132,7 @@ Types:
             Type: 9 GoStringHeaderType string
             Operations:
                 - __kind: LocationOp
-                  Variable: {subprogram: 146, index: 0, name: x}
+                  Variable: {subprogram: 147, index: 0, name: x}
                   Offset: 0
                   ByteSize: 16
     - __kind: EventRootType
@@ -25530,9 +25816,9 @@ Types:
       ByteSize: 4
       GoRuntimeType: 990432
       GoKind: 5
-MaxTypeID: 1538
+MaxTypeID: 1540
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x18003a0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x18013a0", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m

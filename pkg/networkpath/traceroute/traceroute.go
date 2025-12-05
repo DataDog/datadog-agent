@@ -5,3 +5,33 @@
 
 // Package traceroute adds traceroute functionality to the agent
 package traceroute
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+)
+
+func getTraceroute(ctx context.Context, sysProbeClient *http.Client, clientID string, cfg config.Config) (payload.NetworkPath, error) {
+	resp, err := getTracerouteFromSysProbe(ctx, sysProbeClient, clientID, cfg.DestHostname, cfg.DestPort, cfg.Protocol, cfg.TCPMethod, cfg.TCPSynParisTracerouteMode, cfg.DisableWindowsDriver, cfg.ReverseDNS, cfg.MaxTTL, cfg.Timeout, cfg.TracerouteQueries, cfg.E2eQueries)
+	if err != nil {
+		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %v", err)
+	}
+
+	var path payload.NetworkPath
+	if err = json.Unmarshal(resp, &path); err != nil {
+		return payload.NetworkPath{}, fmt.Errorf("error unmarshalling response: %w", err)
+	}
+	agentHostname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return payload.NetworkPath{}, fmt.Errorf("error getting the hostname: %w", err)
+	}
+
+	path.Source.Hostname = agentHostname
+	return path, nil
+}

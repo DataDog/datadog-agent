@@ -310,3 +310,9 @@ type ConfigSpec struct {
 type ConfigDocument struct {
 	KubeletConfig ConfigSpec `json:"kubeletconfig"`
 }
+
+// Device is the wrapper struct that holds info about a node device registered in the kubelet
+type Device struct {
+	ID      string `json:"id"`
+	Healthy bool   `json:"healthy"`
+}
