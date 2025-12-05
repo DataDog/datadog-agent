@@ -1,3 +1,7 @@
+# Global build settings
+
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
@@ -43,4 +47,11 @@ config_setting(
         "@platforms//os:windows",
         "@platforms//cpu:x86_64",
     ],
+)
+
+# The location base dir to install packages in while building.
+string_flag(
+    name = "install_dir",
+    build_setting_default = "/tmp/opt/datadog-agent",
+    make_variable = "INSTALL_DIR",
 )
