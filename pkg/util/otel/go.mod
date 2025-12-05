@@ -11,7 +11,7 @@ require (
 )
 
 require (
-	github.com/hashicorp/go-version v1.7.0 // indirect
+	github.com/hashicorp/go-version v1.8.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.46.0 // indirect
 )
 
