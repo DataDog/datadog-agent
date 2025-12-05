@@ -6,7 +6,7 @@
 package trace
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 )
 
@@ -30,13 +30,13 @@ func NewCloudRunJobsSpanModifier(traceID, spanID uint64) *CloudRunJobsSpanModifi
 }
 
 // ModifySpan reparents user spans under the Cloud Run Job span
-func (m *CloudRunJobsSpanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
+func (m *CloudRunJobsSpanModifier) ModifySpan(chunk *idx.InternalTraceChunk, span *idx.InternalSpan) {
 	// Only modify tracer-generated spans, not our own job span
-	if span.Name == "gcp.run.job.task" {
+	if span.Name() == "gcp.run.job.task" {
 		return
 	}
 
 	// Reparent the span under the job span
-	span.TraceID = m.jobTraceID
-	span.ParentID = m.jobSpanID
+	chunk.SetLegacyTraceID(m.jobTraceID)
+	span.SetParentID(m.jobSpanID)
 }

@@ -474,6 +474,13 @@ func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	return binary.BigEndian.Uint64(c.TraceID[8:])
 }
 
+// SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0
+// Warning: This method does not remove any attributes from the chunk or contained spans which might be referring to the upper 8 bytes of the trace ID.
+func (c *InternalTraceChunk) SetLegacyTraceID(legacyTraceID uint64) {
+	binary.BigEndian.PutUint64(c.TraceID[:8], 0)
+	binary.BigEndian.PutUint64(c.TraceID[8:], legacyTraceID)
+}
+
 // Origin returns the origin from the trace chunk.
 func (c *InternalTraceChunk) Origin() string {
 	return c.Strings.Get(c.originRef)
