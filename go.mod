@@ -975,7 +975,15 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
-require github.com/go-jose/go-jose/v4 v4.1.3
+require (
+	github.com/go-jose/go-jose/v4 v4.1.3
+	github.com/modelcontextprotocol/go-sdk v1.1.0
+)
+
+require (
+	github.com/google/jsonschema-go v0.3.0 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
+)
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
 replace (
