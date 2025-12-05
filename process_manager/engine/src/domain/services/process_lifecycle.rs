@@ -52,6 +52,7 @@ impl ProcessLifecycleService {
     /// # Arguments
     /// * `process_id` - ID of the process to spawn
     /// * `listen_fds` - Optional socket FDs for socket activation
+    /// * `fd_env_var_names` - Custom env var names for each FD (e.g., DD_APM_NET_RECEIVER_FD)
     /// * `timeout_sec` - Optional timeout in seconds (0 = no timeout)
     ///
     /// After successful completion, the process entity will be updated with the PID.
@@ -60,6 +61,7 @@ impl ProcessLifecycleService {
         &self,
         process_id: &ProcessId,
         listen_fds: Vec<i32>,
+        fd_env_var_names: Vec<String>,
         timeout_sec: u64,
     ) -> Result<(), DomainError> {
         // 1. Load process from repository
@@ -98,9 +100,11 @@ impl ProcessLifecycleService {
             debug!(
                 process = %process.name(),
                 num_fds = listen_fds.len(),
+                fd_env_vars = ?fd_env_var_names,
                 "Starting process with socket activation FDs"
             );
             spawn_config.listen_fds = listen_fds;
+            spawn_config.fd_env_var_names = fd_env_var_names;
         }
 
         // 4. Spawn the system process (with timeout if configured)
@@ -180,9 +184,9 @@ mod tests {
         let process_id = process.id();
         repository.save(process).await.unwrap();
 
-        // Spawn and register (no socket FDs, no timeout)
+        // Spawn and register (no socket FDs, no fd env vars, no timeout)
         service
-            .spawn_and_register(&process_id, vec![], 0)
+            .spawn_and_register(&process_id, vec![], vec![], 0)
             .await
             .unwrap();
 

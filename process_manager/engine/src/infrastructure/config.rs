@@ -20,6 +20,12 @@ pub struct Config {
 /// Socket configuration from YAML (systemd-compatible)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SocketConfig {
+    /// Configuration source - where to read socket settings from
+    /// Default: "explicit" (use values from this config file)
+    /// Options: "explicit", "datadog-apm", "datadog-otlp", "datadog-dogstatsd"
+    #[serde(default)]
+    pub config_source: Option<String>,
+
     #[serde(default)]
     pub listen_stream: Option<String>, // TCP: "0.0.0.0:8080"
 
@@ -42,6 +48,11 @@ pub struct SocketConfig {
 
     #[serde(default)]
     pub socket_group: Option<String>, // Unix socket group
+
+    /// Custom environment variable name for passing socket FD
+    /// Default: uses LISTEN_FDS (systemd-compatible)
+    #[serde(default)]
+    pub fd_env_var: Option<String>,
 }
 
 /// Process configuration from YAML

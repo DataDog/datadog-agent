@@ -54,6 +54,9 @@ pub struct SocketActivationEvent {
     pub fd: i32,
     /// Accept mode (false = single service, true = per-connection)
     pub accept: bool,
+    /// Custom environment variable name for the FD (e.g., DD_APM_NET_RECEIVER_FD)
+    /// If None, uses LISTEN_FDS (systemd-compatible)
+    pub fd_env_var: Option<String>,
 }
 
 /// Socket activation manager
@@ -244,13 +247,15 @@ impl SocketActivationService {
         fd: RawFd,
         service_name: String,
         event_tx: mpsc::UnboundedSender<SocketActivationEvent>,
-        _config: SocketConfig,
+        config: SocketConfig,
     ) {
         debug!(
             socket = %socket_name,
             service = %service_name,
             "Waiting for connection to trigger service activation (Accept=no)"
         );
+
+        let fd_env_var = config.fd_env_var.clone();
 
         std::thread::spawn(move || {
             use std::mem::MaybeUninit;
@@ -281,6 +286,7 @@ impl SocketActivationService {
                             service_name: service_name.clone(),
                             fd,
                             accept: false,
+                            fd_env_var: fd_env_var.clone(),
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                             break;
@@ -397,6 +403,8 @@ impl SocketActivationService {
             "Accepting connections, will spawn service per connection (Accept=yes)"
         );
 
+        let fd_env_var = config.fd_env_var.clone();
+
         std::thread::spawn(move || {
             // Only TCP is supported for Accept=yes mode currently
             if config.listen_stream.is_none() {
@@ -425,6 +433,7 @@ impl SocketActivationService {
                             service_name: service_name.clone(),
                             fd: accepted_fd,
                             accept: true,
+                            fd_env_var: fd_env_var.clone(),
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                         }

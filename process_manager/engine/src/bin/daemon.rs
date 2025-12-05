@@ -542,8 +542,16 @@ async fn handle_socket_activation_events(
             service = %event.service_name,
             fd = event.fd,
             accept = event.accept,
+            fd_env_var = ?event.fd_env_var,
             "Socket activation event received"
         );
+
+        // Build the fd_env_var_names list
+        let fd_env_var_names: Vec<String> = event
+            .fd_env_var
+            .as_ref()
+            .map(|v| vec![v.clone()])
+            .unwrap_or_default();
 
         if event.accept {
             // Accept=yes: Spawn a new instance from the template for each connection
@@ -595,9 +603,12 @@ async fn handle_socket_activation_events(
                 }
             }
 
-            // Process is not running, start it with FD passing
-            let start_cmd =
-                StartProcessCommand::from_name_with_fds(event.service_name.clone(), vec![event.fd]);
+            // Process is not running, start it with FD passing and custom env var names
+            let start_cmd = StartProcessCommand::from_name_with_fds_and_env_vars(
+                event.service_name.clone(),
+                vec![event.fd],
+                fd_env_var_names,
+            );
 
             match start_use_case.execute(start_cmd).await {
                 Ok(response) => {
@@ -606,6 +617,7 @@ async fn handle_socket_activation_events(
                         pid = response.pid,
                         socket = %event.socket_name,
                         fd = event.fd,
+                        fd_env = ?event.fd_env_var,
                         "Process started via socket activation with FD passing"
                     );
                 }
@@ -627,7 +639,12 @@ async fn handle_socket_activation_events(
 /// Load sockets from configuration directory
 ///
 /// Loads .socket.yaml files from the directory (systemd-style naming convention).
+/// Supports both explicit socket configuration and Datadog config sources
+/// (datadog-apm, datadog-otlp, datadog-dogstatsd) for backward compatibility
+/// with the trace-loader.
 async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketActivationService>) {
+    use pm_engine::domain::services::DatadogConfigReader;
+    use pm_engine::domain::value_objects::ConfigSource;
     use pm_engine::infrastructure::config::load_sockets_from_path;
     use std::path::PathBuf;
 
@@ -649,48 +666,163 @@ async fn load_sockets_from_config(config_path: &str, socket_manager: Arc<SocketA
 
     info!(count = sockets.len(), "Found socket definitions");
 
+    // Create DatadogConfigReader for resolving Datadog config sources
+    let mut dd_config_reader = DatadogConfigReader::new();
+
     // Create each socket
     for (socket_name, socket_cfg) in sockets {
         info!(socket = %socket_name, service = %socket_cfg.service, "Creating socket");
 
-        // Build domain socket config
-        let mut domain_cfg =
-            DomainSocketConfig::new(socket_name.clone(), socket_cfg.service.clone());
+        // Check if this socket uses a Datadog config source
+        let config_source = socket_cfg
+            .config_source
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("explicit");
 
-        if let Some(ref addr) = socket_cfg.listen_stream {
-            domain_cfg = domain_cfg.with_tcp(addr.clone());
-        }
-        if let Some(ref addr) = socket_cfg.listen_datagram {
-            domain_cfg = domain_cfg.with_udp(addr.clone());
-        }
-        if let Some(ref path) = socket_cfg.listen_unix {
-            domain_cfg = domain_cfg.with_unix(PathBuf::from(path));
-        }
+        match config_source {
+            "datadog-apm" | "datadog-otlp" | "datadog-dogstatsd" => {
+                // Use DatadogConfigReader to resolve socket config
+                let source = match config_source {
+                    "datadog-apm" => ConfigSource::DatadogApm,
+                    "datadog-otlp" => ConfigSource::DatadogOtlp,
+                    "datadog-dogstatsd" => ConfigSource::DatadogDogstatsd,
+                    _ => unreachable!(),
+                };
 
-        domain_cfg = domain_cfg.with_accept(socket_cfg.accept);
+                // Create a temporary domain socket config for resolution
+                let temp_config = DomainSocketConfig {
+                    name: socket_name.clone(),
+                    config_source: source,
+                    listen_stream: None,
+                    listen_datagram: None,
+                    listen_unix: None,
+                    service: socket_cfg.service.clone(),
+                    accept: socket_cfg.accept,
+                    socket_mode: None,
+                    socket_user: None,
+                    socket_group: None,
+                    fd_env_var: None,
+                };
 
-        if let Some(ref mode_str) = socket_cfg.socket_mode {
-            // Parse octal string (e.g., "660" -> 0o660)
-            if let Ok(mode) = u32::from_str_radix(mode_str, 8) {
-                domain_cfg = domain_cfg.with_socket_mode(mode);
+                match dd_config_reader.resolve_socket_config(&temp_config) {
+                    Ok(resolved_configs) => {
+                        for resolved in resolved_configs {
+                            // Create TCP socket if configured
+                            if let Some(ref addr) = resolved.listen_stream {
+                                let mut tcp_cfg = DomainSocketConfig::new(
+                                    format!("{}-tcp", socket_name),
+                                    socket_cfg.service.clone(),
+                                )
+                                .with_tcp(addr.clone())
+                                .with_accept(socket_cfg.accept);
+
+                                if let Some(ref env_var) = resolved.tcp_fd_env_var {
+                                    tcp_cfg = tcp_cfg.with_fd_env_var(env_var.clone());
+                                }
+
+                                match socket_manager.create_socket(tcp_cfg).await {
+                                    Ok(name) => {
+                                        info!(
+                                            socket = %name,
+                                            addr = %addr,
+                                            fd_env = resolved.tcp_fd_env_var.as_deref().unwrap_or("LISTEN_FDS"),
+                                            "TCP socket created from Datadog config"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!(socket = %socket_name, error = %e, "Failed to create TCP socket");
+                                    }
+                                }
+                            }
+
+                            // Create Unix socket if configured (Linux/macOS only)
+                            #[cfg(unix)]
+                            if let Some(ref path) = resolved.listen_unix {
+                                let mut unix_cfg = DomainSocketConfig::new(
+                                    format!("{}-unix", socket_name),
+                                    socket_cfg.service.clone(),
+                                )
+                                .with_unix(path.clone())
+                                .with_accept(socket_cfg.accept);
+
+                                if let Some(ref env_var) = resolved.unix_fd_env_var {
+                                    unix_cfg = unix_cfg.with_fd_env_var(env_var.clone());
+                                }
+
+                                match socket_manager.create_socket(unix_cfg).await {
+                                    Ok(name) => {
+                                        info!(
+                                            socket = %name,
+                                            path = %path.display(),
+                                            fd_env = resolved.unix_fd_env_var.as_deref().unwrap_or("LISTEN_FDS"),
+                                            "Unix socket created from Datadog config"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!(socket = %socket_name, error = %e, "Failed to create Unix socket");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!(
+                            socket = %socket_name,
+                            config_source = %config_source,
+                            error = %e,
+                            "Failed to resolve Datadog config, skipping socket"
+                        );
+                    }
+                }
             }
-        }
 
-        if let Some(ref user) = socket_cfg.socket_user {
-            domain_cfg = domain_cfg.with_socket_user(user.clone());
-        }
+            // Explicit configuration (default)
+            _ => {
+                // Build domain socket config from explicit values
+                let mut domain_cfg =
+                    DomainSocketConfig::new(socket_name.clone(), socket_cfg.service.clone());
 
-        if let Some(ref group) = socket_cfg.socket_group {
-            domain_cfg = domain_cfg.with_socket_group(group.clone());
-        }
+                if let Some(ref addr) = socket_cfg.listen_stream {
+                    domain_cfg = domain_cfg.with_tcp(addr.clone());
+                }
+                if let Some(ref addr) = socket_cfg.listen_datagram {
+                    domain_cfg = domain_cfg.with_udp(addr.clone());
+                }
+                if let Some(ref path) = socket_cfg.listen_unix {
+                    domain_cfg = domain_cfg.with_unix(PathBuf::from(path));
+                }
 
-        // Create the socket
-        match socket_manager.create_socket(domain_cfg).await {
-            Ok(name) => {
-                info!(socket = %name, "Socket created successfully");
-            }
-            Err(e) => {
-                error!(socket = %socket_name, error = %e, "Failed to create socket");
+                domain_cfg = domain_cfg.with_accept(socket_cfg.accept);
+
+                if let Some(ref mode_str) = socket_cfg.socket_mode {
+                    // Parse octal string (e.g., "660" -> 0o660)
+                    if let Ok(mode) = u32::from_str_radix(mode_str, 8) {
+                        domain_cfg = domain_cfg.with_socket_mode(mode);
+                    }
+                }
+
+                if let Some(ref user) = socket_cfg.socket_user {
+                    domain_cfg = domain_cfg.with_socket_user(user.clone());
+                }
+
+                if let Some(ref group) = socket_cfg.socket_group {
+                    domain_cfg = domain_cfg.with_socket_group(group.clone());
+                }
+
+                if let Some(ref fd_env) = socket_cfg.fd_env_var {
+                    domain_cfg = domain_cfg.with_fd_env_var(fd_env.clone());
+                }
+
+                // Create the socket
+                match socket_manager.create_socket(domain_cfg).await {
+                    Ok(name) => {
+                        info!(socket = %name, "Socket created successfully");
+                    }
+                    Err(e) => {
+                        error!(socket = %socket_name, error = %e, "Failed to create socket");
+                    }
+                }
             }
         }
     }

@@ -203,6 +203,7 @@ impl StartProcess for StartProcessUseCase {
             .spawn_and_register(
                 &process.id(),
                 command.listen_fds,
+                command.fd_env_var_names,
                 process.timeout_start_sec(),
             )
             .await?;

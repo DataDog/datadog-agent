@@ -115,9 +115,10 @@ impl ProcessSpawningService {
         );
 
         // 5. Start the instance with socket FDs using lifecycle service
+        // Note: fd_env_var_names is empty for Accept=yes mode (uses LISTEN_FDS)
         let instance_id = instance.id();
         self.lifecycle_service
-            .spawn_and_register(&instance_id, socket_fds, 0)
+            .spawn_and_register(&instance_id, socket_fds, vec![], 0)
             .await?;
 
         // 6. Reload to get updated state (now running with PID)
