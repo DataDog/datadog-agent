@@ -167,7 +167,7 @@ configure_make(
     ],
     targets = [
         "-j 16", # Build in parallel
-        "intall" # Install without parallel execution
+        "install" # Install without parallel execution
     ],
 )
 
