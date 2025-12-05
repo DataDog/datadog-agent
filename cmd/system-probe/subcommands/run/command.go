@@ -99,7 +99,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(run,
-				fx.Supply(config.NewAgentParams("")),
+				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
 				// Force FX to load Datadog configuration before System Probe config.
 				// This is necessary because the 'software_inventory.enabled' setting is defined in the Datadog configuration.
 				// Without this explicit dependency, FX might initialize System Probe's config first, causing pkgconfigsetup.Datadog().GetBool()
