@@ -3,7 +3,7 @@ load("@rules_license//rules:license.bzl", "license")
 
 package(
     default_applicable_licenses = [":license"],
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//visibility:public"],
 )
 
 license(
@@ -14,9 +14,7 @@ license(
     visibility = ["//visibility:public"],
 )
 
-exports_files([
-    "COPYING",
-])
+SO_VERSION = 14
 
 # This builds only the nghttp2 C library, not the C++ application code.
 # Following the omnibus build configuration which uses:
@@ -47,4 +45,10 @@ cc_library(
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
+)
+
+cc_shared_library(
+    name = "nghttp2_shared",
+    shared_lib_name = "nghttp2.so.%s" % SO_VERSION,
+    deps = ["nghttp2"],
 )

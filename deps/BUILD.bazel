@@ -21,6 +21,7 @@ filegroup(
         "@platforms//os:linux": [
             "@acl",
             "@attr",
+            "@curl",
             "@gcrypt",
             "@gpg-error",
             "@libpcap//:pcap",
@@ -37,6 +38,9 @@ filegroup(
         ],
         "@platforms//os:windows": [
             "@cpython//:python_win",
+        ],
+        "@platforms//os:macos": [
+            "@curl",
         ],
         "//conditions:default": [],
     }),
