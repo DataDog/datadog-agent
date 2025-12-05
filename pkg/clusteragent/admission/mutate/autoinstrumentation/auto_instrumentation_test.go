@@ -2252,7 +2252,8 @@ func TestAutoinstrumentation(t *testing.T) {
 				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
 				apmMutator,
 			)
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator)
+			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
+			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2408,7 +2409,8 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
 				apmMutator,
 			)
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator)
+			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
+			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2610,7 +2612,8 @@ func TestSkippedDueToResources(t *testing.T) {
 				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
 				apmMutator,
 			)
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator)
+			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
+			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
 			require.NoError(t, err)
 
 			// Mutate pod.
