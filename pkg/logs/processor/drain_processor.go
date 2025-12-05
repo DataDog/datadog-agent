@@ -54,9 +54,10 @@ func CountLogs(n int64) {
 
 // Reports metrics and display logs for drain clusters
 func reportDrainInfo() {
-	log.Infof("drain: %d clusters from %d logs (%f%%)", len(drainProcessor.Clusters()), drainNLogs, float64(len(drainProcessor.Clusters()))/float64(drainNLogs)*100)
-	log.Infof("drain: Displaying the top 10 clusters")
 	clusters := drainProcessor.Clusters()
+	drainClustersRatio := float64(len(clusters)) / float64(drainNLogs)
+	log.Infof("drain: %d clusters from %d logs (%f%%)", len(clusters), drainNLogs, drainClustersRatio*100)
+	log.Infof("drain: Displaying the top 10 clusters")
 	// Sort by size
 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
 		return a.Size() - b.Size()
@@ -76,6 +77,7 @@ func reportDrainInfo() {
 		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size()) / float64(maxSize))
 	}
 	metrics.TlmDrainClusters.Set(float64(len(clusters)))
+	metrics.TlmDrainClustersRatio.Set(drainClustersRatio)
 	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
 	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize) / float64(drainNLogs))
 }

@@ -16,6 +16,9 @@ var (
 	// TlmDrainClusters is the total number of drain clusters
 	TlmDrainClusters = telemetry.NewGauge("logs", "drain_clusters",
 		nil, "Total number of drain clusters")
+	// TlmDrainClustersRatio is the total number of drain clusters relative to the total number of logs
+	TlmDrainClustersRatio = telemetry.NewGauge("logs", "drain_clusters_ratio",
+		nil, "Total number of drain clusters relative to the total number of logs")
 	// TlmDrainMaxClusterSize is the max cluster size for drain clusters
 	TlmDrainMaxClusterSize = telemetry.NewGauge("logs", "drain_clusters_max_size",
 		nil, "Max cluster size for drain clusters")
