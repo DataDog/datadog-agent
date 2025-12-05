@@ -174,6 +174,7 @@ type InjectTracerConfigEnvVar struct {
 type SystemProbeConfig struct {
 	RuntimeSecurityConfig RuntimeSecurityConfig `yaml:"runtime_security_config,omitempty"`
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
+	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
 }
 
 // RuntimeSecurityConfig represents the configuration for the runtime security
@@ -201,6 +202,11 @@ type SBOMHostConfig struct {
 
 // GPUMonitoringConfig represents the configuration for GPU monitoring
 type GPUMonitoringConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
+}
+
+// PrivilegedLogsConfig represents the configuration for privileged logs
+type PrivilegedLogsConfig struct {
 	Enabled *bool `yaml:"enabled,omitempty"`
 }
 

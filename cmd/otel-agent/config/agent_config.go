@@ -203,7 +203,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		pkgconfig.Set("remote_configuration.enabled", false, pkgconfigmodel.SourceFile)
 	}
 
-	if pkgconfig.Get("apm_config.features") == nil {
+	if !pkgconfig.IsConfigured("apm_config.features") {
 		apmConfigFeatures := []string{}
 		if !ddfg.OperationAndResourceNameV2FeatureGate.IsEnabled() {
 			apmConfigFeatures = append(apmConfigFeatures, "disable_operation_and_resource_name_logic_v2")

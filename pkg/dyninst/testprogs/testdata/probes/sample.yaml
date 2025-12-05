@@ -305,15 +305,15 @@ probes:
     template: "{a.a} {a.b} {a.c}"
     segments:
       - json:
-          getmember: [{ref: "a"}, "a"]
+          getmember: [{ ref: "a" }, "a"]
         dsl: "a.a"
       - str: " "
       - json:
-          getmember: [{ref: "a"}, "b"]
+          getmember: [{ ref: "a" }, "b"]
         dsl: "t.b"
       - str: " "
       - json:
-          getmember: [{ref: "a"}, "c"]
+          getmember: [{ ref: "a" }, "c"]
         dsl: "t.c"
     captureSnapshot: false
   - id: testUnsafePointer
@@ -349,15 +349,15 @@ probes:
     template: "{a.a} {a.b} {a.c}"
     segments:
       - json:
-          getmember: [{ref: "a"}, "a"]
+          getmember: [{ ref: "a" }, "a"]
         dsl: "a.a"
       - str: " "
       - json:
-          getmember: [{ref: "a"}, "b"]
+          getmember: [{ ref: "a" }, "b"]
         dsl: "a.b"
       - str: " "
       - json:
-          getmember: [{ref: "a"}, "c"]
+          getmember: [{ ref: "a" }, "c"]
         dsl: "a.c"
     captureSnapshot: false
   - id: testOneStringInStructPointer
@@ -371,6 +371,26 @@ probes:
       - json:
           ref: "a"
         dsl: "a"
+    captureSnapshot: true
+  - id: testSubstrings
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testSubstrings
+    template: "{a}, {b}, {c}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+      - str: ", "
+      - json:
+          ref: "c"
+        dsl: "c"
     captureSnapshot: true
   - id: testNestedPointer
     type: LOG_PROBE
@@ -393,7 +413,7 @@ probes:
     template: "{x.nested.anotherString}"
     segments:
       - json:
-          getmember: [{getmember: [{ref: "x"}, "nested"]}, "anotherString"]
+          getmember: [{ getmember: [{ ref: "x" }, "nested"] }, "anotherString"]
         dsl: "x.nested.anotherString"
     captureSnapshot: false
   - id: testNestedPointer_expression_with_dots_low_limit
@@ -405,7 +425,7 @@ probes:
     template: "{x.nested}"
     segments:
       - json:
-          getmember: [{ref: "x"}, "nested"]
+          getmember: [{ ref: "x" }, "nested"]
         dsl: "x.nested"
     captureSnapshot: false
     capture:
@@ -418,12 +438,15 @@ probes:
     segments:
       - json:
           getmember:
-          - {getmember: [{getmember: [{ref: "x"}, "nested"]}, "anotherString"]}
-          - "anotherInt"
+            - {
+                getmember:
+                  [{ getmember: [{ ref: "x" }, "nested"] }, "anotherString"],
+              }
+            - "anotherInt"
         dsl: "x.nested.anotherString.anotherInt"
       - str: " "
       - json:
-          getmember: [{ref: "x"}, "notAMember"]
+          getmember: [{ ref: "x" }, "notAMember"]
         dsl: "x.notAMember"
     captureSnapshot: false
     capture:
@@ -831,6 +854,26 @@ probes:
       - json:
           ref: "xs"
         dsl: "xs"
+    captureSnapshot: true
+  - id: testSubslices
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testSubslices
+    template: "{as}, {bs}, {cs}"
+    segments:
+      - json:
+          ref: "as"
+        dsl: "as"
+      - str: ", "
+      - json:
+          ref: "bs"
+        dsl: "bs"
+      - str: ", "
+      - json:
+          ref: "cs"
+        dsl: "cs"
     captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE

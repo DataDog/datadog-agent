@@ -42,6 +42,24 @@
         # Doing this first build separately lets us avoid uploading heavy artifacts (such as Agent packages),
         # that can't be usefully cached, to the remote cache.
         echo "Building ${CACHE_TARGET} for cache"
+        # We accept failures on this build, because the build can still succeed, and the only consequence of
+        # failure is that the cache doesn't get updated, which is not critical.
+        # We do send an event to DD to be able to monitor it.
+
+        send_docker_export_failure_event() {
+          DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) && \
+          curl -X POST "https://api.datadoghq.com/api/v1/events" \
+               -H "Content-Type: application/json" \
+               -H "DD-API-KEY: ${DD_API_KEY}" \
+               -d '{
+                "title": "docker cache export failure",
+                "text": "An Agent docker build failed to export the cache to the remote registry",
+                "alert_type": "error",
+                "date_happened": '"$(date +%s)"',
+                "tags": ["team:agent-build", "pipeline:'${CI_PIPELINE_ID}'", "job:'${CI_JOB_NAME}'", "job-id:'${CI_JOB_ID}'"]
+              }'
+        }
+
         docker buildx build --pull --platform linux/$ARCH \
           ${CACHE_SOURCE} \
           ${CACHE_TO} \
@@ -55,7 +73,10 @@
           ${EXTRA_BUILD_CONTEXT} \
           --file $BUILD_CONTEXT/Dockerfile \
           --target ${CACHE_TARGET} \
-          $BUILD_CONTEXT
+          $BUILD_CONTEXT \
+          || send_docker_export_failure_event \
+          || true
+
         # On non-deploy pipelines we're fine with relying on the cache from this point on
         DOCKER_NO_CACHE=""
       fi

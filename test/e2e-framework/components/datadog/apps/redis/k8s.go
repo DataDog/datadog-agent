@@ -32,7 +32,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		return nil, err
 	}
 
-	kubeVersion, err := semver.NewVersion(e.KubernetesVersion())
+	kubeVersion, err := semver.NewVersion(utils.ParseKubernetesVersion(e.KubernetesVersion()))
 	if err != nil {
 		return nil, err
 	}

@@ -123,7 +123,11 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
-	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, fmt.Sprintf("exit_code:%d", exitCode))
+	succeededTag := "succeeded:true"
+	if exitCode != 0 {
+		succeededTag = "succeeded:false"
+	}
+	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, succeededTag)
 
 	c.completeAndSubmitJobSpan(traceAgent, runErr)
 }
