@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +28,72 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
+
+var (
+	arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
+)
+
+// parseArrayFieldAccess parses a field like "open.file.hashes[0]" and returns the base field and index
+func parseArrayFieldAccess(field string) (baseField string, index int, isArray bool) {
+	matches := arrayIndexRE.FindStringSubmatch(field)
+	if len(matches) == 3 {
+		baseField = matches[1]
+		index, _ = strconv.Atoi(matches[2])
+		return baseField, index, true
+	}
+	return field, 0, false
+}
+
+// createArrayIndexEvaluator creates an evaluator that accesses a specific index of an array field
+func (rs *RuleSet) createArrayIndexEvaluator(baseField string, index int, eventType eval.EventType) (eval.Evaluator, error) {
+	// Get the base field evaluator (which returns the full array)
+	arrayEvaluator, err := rs.model.GetEvaluator(baseField, "", 0)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check the type of evaluator and create a wrapper that accesses the specific index
+	switch arrayEval := arrayEvaluator.(type) {
+	case *eval.StringArrayEvaluator:
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				array := arrayEval.Eval(ctx).([]string)
+				if index < 0 || index >= len(array) {
+					return ""
+				}
+				return array[index]
+			},
+			Field:  baseField,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *eval.IntArrayEvaluator:
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				array := arrayEval.Eval(ctx).([]int)
+				if index < 0 || index >= len(array) {
+					return 0
+				}
+				return array[index]
+			},
+			Field:  baseField,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *eval.BoolArrayEvaluator:
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				array := arrayEval.Eval(ctx).([]bool)
+				if index < 0 || index >= len(array) {
+					return false
+				}
+				return array[index]
+			},
+			Field:  baseField,
+			Weight: arrayEval.Weight,
+		}, nil
+	default:
+		return nil, fmt.Errorf("field '%s' is not an array type or array type is not supported for index access", baseField)
+	}
+}
 
 // Rule presents a rule in a ruleset
 type Rule struct {
@@ -433,10 +500,22 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 
 					if actionDef.Set.Field != "" {
-						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+						// Check if this is an array access like "field[index]"
+						baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+						fieldToValidate := actionDef.Set.Field
+						if isArrayAccess {
+							fieldToValidate = baseField
+						}
+
+						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 						if err != nil {
-							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 							continue
+						}
+
+						// If accessing array by index, the field is not an array from the variable's perspective
+						if isArrayAccess {
+							fieldIsArray = false
 						}
 
 						var valueIsArray bool
@@ -456,10 +535,33 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						}
 					}
 				} else if actionDef.Set.Field != "" {
-					_, kind, goType, _, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					// Check if this is an array access like "field[index]"
+					baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+					fieldToValidate := actionDef.Set.Field
+					if isArrayAccess {
+						fieldToValidate = baseField
+					}
+
+					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 					if err != nil {
-						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 						continue
+					}
+
+					// If accessing array by index, validate that the base field is actually an array
+					if isArrayAccess {
+						if !isArray {
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is not an array, cannot use index access", baseField))
+							continue
+						}
+						// When accessing by index, treat it as a scalar value, not an array
+						isArray = false
+					} else {
+						// Check if the field is an array and append is not set
+						if isArray && !actionDef.Set.Append {
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
+							continue
+						}
 					}
 
 					switch kind {
@@ -674,9 +776,18 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				fieldEventType, _, _, _, err := ev.GetFieldMetadata(field)
+				// Check if this is an array access like "field[index]"
+				baseField, arrayIndex, isArrayAccess := parseArrayFieldAccess(field)
+
+				// Validate using the base field if this is an array access
+				fieldToValidate := field
+				if isArrayAccess {
+					fieldToValidate = baseField
+				}
+
+				fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldToValidate)
 				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", field, err)
+					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", fieldToValidate, err)
 				}
 				if fieldEventType != "" && fieldEventType != ruleEventType {
 					return model.UnknownCategory, fmt.Errorf("field '%s' with event type `%s` is not compatible with '%s' rules", field, fieldEventType, ruleEventType)
@@ -685,15 +796,30 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 				// Map legacy field before calling GetEvaluator
 				mappedField := field
 				if rs.evalOpts.LegacyFields != nil {
-					if newField, found := rs.evalOpts.LegacyFields[field]; found {
+					if isArrayAccess {
+						if newField, found := rs.evalOpts.LegacyFields[baseField]; found {
+							mappedField = newField + "[" + strconv.Itoa(arrayIndex) + "]"
+						}
+					} else if newField, found := rs.evalOpts.LegacyFields[field]; found {
 						mappedField = newField
 					}
 				}
 
 				if _, found := rs.fieldEvaluators[field]; !found {
-					evaluator, err := rs.model.GetEvaluator(mappedField, "", 0)
-					if err != nil {
-						return model.UnknownCategory, err
+					var evaluator eval.Evaluator
+
+					if isArrayAccess {
+						// Create an evaluator for array element access
+						// For array access, we need the base field (without the index)
+						evaluator, err = rs.createArrayIndexEvaluator(baseField, arrayIndex, ruleEventType)
+						if err != nil {
+							return model.UnknownCategory, fmt.Errorf("failed to create array index evaluator for field '%s': %w", field, err)
+						}
+					} else {
+						evaluator, err = rs.model.GetEvaluator(mappedField, "", 0)
+						if err != nil {
+							return model.UnknownCategory, err
+						}
 					}
 					rs.fieldEvaluators[field] = evaluator
 				}

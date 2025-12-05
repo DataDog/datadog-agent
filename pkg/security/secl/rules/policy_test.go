@@ -2314,6 +2314,145 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Errorf("failed to load policy: %s", err)
 		}
 	})
+
+	t.Run("array-field-without-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.hashes",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load because open.file.hashes is an array field without append: true")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("array-field-with-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "open.file.hashes",
+						Scope:  "container",
+						Append: true,
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to load successfully with append: true, got: %v", err)
+		}
+	})
+
+	t.Run("array-field-with-index-access", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.hashes[0]",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to load successfully with array index access, got: %v", err)
+		}
+	})
+
+	t.Run("non-array-field-with-index-access", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.path[0]",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load because open.file.path is not an array")
+		} else {
+			t.Log(err)
+		}
+	})
+}
+
+func TestActionSetVariableArrayIndex(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{{
+				Set: &SetDefinition{
+					Name:  "first_hash",
+					Field: "open.file.hashes[0]",
+					Scope: "container",
+				},
+			}, {
+				Set: &SetDefinition{
+					Name:  "second_hash",
+					Field: "open.file.hashes[1]",
+					Scope: "container",
+				},
+			}},
+		}, {
+			ID: "test_rule2",
+			Expression: `open.file.path == "/tmp/test2" && ` +
+				`"${container.first_hash}" != "" && ` +
+				`"${container.second_hash}" != ""`,
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	rule := rs.GetRuleByID("test_rule")
+	if rule == nil {
+		t.Fatal("failed to find test_rule")
+	}
+
+	rule2 := rs.GetRuleByID("test_rule2")
+	if rule2 == nil {
+		t.Fatal("failed to find test_rule2")
+	}
 }
 
 func TestActionSetVariableLength(t *testing.T) {
