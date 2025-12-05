@@ -360,7 +360,6 @@
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
 /comp/metadata/packagesigning @DataDog/agent-delivery
-/comp/networkpath/traceroute @DataDog/cloud-network-monitoring
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
 /comp/trace-telemetry @DataDog/agent-runtimes
