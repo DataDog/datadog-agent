@@ -135,6 +135,24 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoint.Host)
 }
 
+func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidGRPCConfig() {
+	var endpoints *Endpoints
+	var endpoint Endpoint
+	var err error
+
+	suite.config.SetWithoutSource("logs_config.use_grpc", true)
+
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.True(endpoints.UseGRPC)
+	suite.False(endpoints.UseHTTP)
+	suite.Equal(endpoints.BatchWait, 5*time.Second)
+
+	endpoint = endpoints.Main
+	suite.True(endpoint.UseSSL())
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoint.Host)
+}
+
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompression() {
 	var endpoints *Endpoints
 	var endpoint Endpoint
@@ -259,6 +277,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		suite.config.SetWithoutSource("logs_config.force_use_tcp", "false")
 		suite.config.SetWithoutSource("logs_config.use_http", "false")
 		suite.config.SetWithoutSource("logs_config.force_use_http", "false")
+		suite.config.SetWithoutSource("logs_config.use_grpc", "false")
 		suite.config.SetWithoutSource("logs_config.socks5_proxy_address", "")
 		suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{})
 	}
@@ -327,6 +346,19 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldTakeIntoAccountHTTPConn
 		suite.Nil(err)
 		suite.False(endpoints.UseHTTP)
 		suite.config.SetWithoutSource("logs_config.socks5_proxy_address", "")
+	})
+
+	suite.Run("When use_grpc is true always create gRPC endpoints", func() {
+		defer resetHTTPConfigValuesToFalse()
+		suite.config.SetWithoutSource("logs_config.use_grpc", "true")
+		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivitySuccess, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseGRPC)
+		suite.False(endpoints.UseHTTP)
+		endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+		suite.Nil(err)
+		suite.True(endpoints.UseGRPC)
+		suite.False(endpoints.UseHTTP)
 	})
 
 	suite.Run("When additional_endpoints is not empty always create TCP endpoints", func() {
