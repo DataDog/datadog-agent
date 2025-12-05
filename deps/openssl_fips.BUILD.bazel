@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
@@ -137,5 +138,17 @@ sh_binary(
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
+    }),
+)
+
+# Windows version of configure_fips using PowerShell.
+# Usage: bazel run @openssl_fips//:configure_fips_win -- --destdir <directory> [--embedded_ssl_dir <directory>]
+native_binary(
+    name = "configure_fips_win",
+    src = "configure_fips.bat",
+    data = ["configure_fips.ps1"],
+    target_compatible_with = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
     }),
 )

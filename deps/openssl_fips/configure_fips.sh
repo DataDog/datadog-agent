@@ -34,7 +34,7 @@ FIPSINSTALL_SH="${DESTDIR}/embedded/bin/fipsinstall.sh"
 
 # Replace {{install_dir}} with DESTDIR in openssl.cnf
 if [[ -f "$OPENSSL_CNF" ]]; then
-    sed -i.bak "s|{{install_dir}}|${DESTDIR}|g" "$OPENSSL_CNF"
+    sed -i.bak "s|{{embedded_ssl_dir}}|${DESTDIR}/embedded/ssl|g" "$OPENSSL_CNF"
     rm -f "${OPENSSL_CNF}.bak"
     echo "Updated: $OPENSSL_CNF"
 else
