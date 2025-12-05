@@ -21,6 +21,10 @@ This creates:
 ## Dev Loop
 
 ```bash
+
+# 0. Ensure docker desktop is running and the lima VM is started
+limactl start gadget-k8s-host
+
 # 1. Build and load image into Kind
 dda inv omnibus.docker-build && docker save localhost/datadog-agent:local | limactl shell gadget-k8s-host -- docker load && limactl shell gadget-k8s-host -- kind load docker-image localhost/datadog-agent:local --name gadget-dev
 
