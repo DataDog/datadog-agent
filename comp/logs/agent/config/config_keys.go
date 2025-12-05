@@ -117,6 +117,10 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
+func (l *LogsConfigKeys) httpConnectivityRetryIntervalMax() int {
+	return l.getConfig().GetInt(l.getConfigKey("http_connectivity_retry_interval_max"))
+}
+
 func (l *LogsConfigKeys) compressionKind() string {
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
@@ -160,6 +164,12 @@ func (l *LogsConfigKeys) useCompression() bool {
 func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 	endpoints, _ := l.getAdditionalEndpoints()
 	return len(endpoints) > 0
+}
+
+// isTCPRequired returns true if the configuration explicitly requires TCP usage.
+// This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
+func (l *LogsConfigKeys) isTCPRequired() bool {
+	return l.isForceTCPUse() || l.isSocks5ProxySet() || l.hasAdditionalEndpoints()
 }
 
 // getMainAPIKey return the global API key for the current config with the path used to get it. Main api key means the
