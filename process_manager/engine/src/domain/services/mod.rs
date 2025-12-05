@@ -1,5 +1,6 @@
 pub mod config_parsing_service;
 pub mod conflict_resolution_service;
+pub mod datadog_config_reader;
 pub mod dependency_resolution_service;
 pub mod environment_file_parsing_service;
 pub mod health_monitoring_service;
@@ -14,6 +15,7 @@ pub mod socket_activation_service;
 
 pub use config_parsing_service::ConfigParsingService;
 pub use conflict_resolution_service::ConflictResolutionService;
+pub use datadog_config_reader::{DatadogConfigReader, ResolvedSocketConfig};
 pub use dependency_resolution_service::DependencyResolutionService;
 pub use environment_file_parsing_service::EnvironmentFileParsingService;
 pub use health_monitoring_service::HealthMonitoringService;

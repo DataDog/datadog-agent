@@ -4,10 +4,61 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Configuration source for socket settings
+///
+/// Determines where socket configuration values (port, path, etc.) are read from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConfigSource {
+    /// Use explicit values from this socket config file (default)
+    #[default]
+    Explicit,
+
+    /// Read from Datadog APM config (datadog.yaml + DD_APM_* env vars)
+    ///
+    /// Reads:
+    /// - DD_APM_SOCKET_ACTIVATION_ENABLED (must be true)
+    /// - DD_APM_RECEIVER_PORT / DD_RECEIVER_PORT (default: 8126)
+    /// - DD_APM_RECEIVER_SOCKET (default: /var/run/datadog/apm.socket on Linux)
+    /// - DD_BIND_HOST / bind_host (default: localhost)
+    /// - DD_APM_NON_LOCAL_TRAFFIC (overrides to 0.0.0.0)
+    ///
+    /// Sets env vars for child process:
+    /// - DD_APM_NET_RECEIVER_FD for TCP socket
+    /// - DD_APM_UNIX_RECEIVER_FD for Unix socket
+    DatadogApm,
+
+    /// Read from Datadog OTLP config
+    ///
+    /// Reads:
+    /// - otlp_config.traces.internal_port (default: 5003)
+    ///
+    /// Sets env var: DD_OTLP_CONFIG_GRPC_FD
+    DatadogOtlp,
+
+    /// Read from Datadog DogStatsD config
+    ///
+    /// Reads:
+    /// - DD_DOGSTATSD_PORT (default: 8125)
+    /// - DD_DOGSTATSD_SOCKET (default: /var/run/datadog/dsd.socket)
+    DatadogDogstatsd,
+}
+
 /// Socket configuration for process activation
 ///
 /// Systemd-compatible socket activation allows processes to be started
 /// on-demand when a connection arrives on a socket.
+///
+/// ## Config Source
+///
+/// By default, socket addresses are read from explicit fields in this config.
+/// Set `config_source` to read from Datadog configuration instead:
+///
+/// ```yaml
+/// # Use Datadog APM config (datadog.yaml + DD_APM_* env vars)
+/// config_source: datadog-apm
+/// service: trace-agent
+/// ```
 ///
 /// ## Accept Modes
 ///
@@ -29,13 +80,20 @@ pub struct SocketConfig {
     /// Unique name for this socket
     pub name: String,
 
+    /// Configuration source - where to read socket settings from
+    /// Default: explicit (use values from this config file)
+    #[serde(default)]
+    pub config_source: ConfigSource,
+
     /// TCP stream socket address (e.g., "0.0.0.0:8080", "[::]:8080")
+    /// Ignored if config_source is set to a Datadog source
     pub listen_stream: Option<String>,
 
     /// UDP datagram socket address
     pub listen_datagram: Option<String>,
 
     /// Unix domain socket path
+    /// Ignored if config_source is set to a Datadog source
     pub listen_unix: Option<PathBuf>,
 
     /// Process name to activate when connection arrives
@@ -54,13 +112,23 @@ pub struct SocketConfig {
 
     /// Unix socket file group
     pub socket_group: Option<String>,
+
+    /// Custom environment variable name for passing the socket FD to the child process
+    /// Default: LISTEN_FDS (systemd-compatible)
+    ///
+    /// For Datadog components, this is auto-set based on config_source:
+    /// - datadog-apm TCP: DD_APM_NET_RECEIVER_FD
+    /// - datadog-apm Unix: DD_APM_UNIX_RECEIVER_FD
+    /// - datadog-otlp: DD_OTLP_CONFIG_GRPC_FD
+    pub fd_env_var: Option<String>,
 }
 
 impl SocketConfig {
-    /// Create a new socket configuration
+    /// Create a new socket configuration with explicit values
     pub fn new(name: String, service: String) -> Self {
         Self {
             name,
+            config_source: ConfigSource::Explicit,
             listen_stream: None,
             listen_datagram: None,
             listen_unix: None,
@@ -69,6 +137,41 @@ impl SocketConfig {
             socket_mode: None,
             socket_user: None,
             socket_group: None,
+            fd_env_var: None,
+        }
+    }
+
+    /// Create a socket configuration that reads from Datadog APM config
+    pub fn from_datadog_apm(name: String, service: String) -> Self {
+        Self {
+            name,
+            config_source: ConfigSource::DatadogApm,
+            listen_stream: None,
+            listen_datagram: None,
+            listen_unix: None,
+            service,
+            accept: false,
+            socket_mode: None,
+            socket_user: None,
+            socket_group: None,
+            fd_env_var: None, // Will be set during resolution
+        }
+    }
+
+    /// Create a socket configuration that reads from Datadog OTLP config
+    pub fn from_datadog_otlp(name: String, service: String) -> Self {
+        Self {
+            name,
+            config_source: ConfigSource::DatadogOtlp,
+            listen_stream: None,
+            listen_datagram: None,
+            listen_unix: None,
+            service,
+            accept: false,
+            socket_mode: None,
+            socket_user: None,
+            socket_group: None,
+            fd_env_var: None,
         }
     }
 
@@ -114,8 +217,25 @@ impl SocketConfig {
         self
     }
 
+    /// Set custom FD environment variable name
+    pub fn with_fd_env_var(mut self, var_name: String) -> Self {
+        self.fd_env_var = Some(var_name);
+        self
+    }
+
+    /// Check if this config uses a Datadog config source
+    pub fn uses_datadog_config(&self) -> bool {
+        !matches!(self.config_source, ConfigSource::Explicit)
+    }
+
     /// Validate that at least one socket type is configured
+    /// For Datadog config sources, validation is deferred to resolution time
     pub fn validate(&self) -> Result<(), String> {
+        // Datadog config sources are validated during resolution
+        if self.uses_datadog_config() {
+            return Ok(());
+        }
+
         if self.listen_stream.is_none()
             && self.listen_datagram.is_none()
             && self.listen_unix.is_none()

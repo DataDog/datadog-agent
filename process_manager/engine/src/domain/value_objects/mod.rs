@@ -18,4 +18,4 @@ pub use process_type::ProcessType;
 pub use resource_limits::ResourceLimits;
 pub use resource_usage::ResourceUsage;
 pub use restart_policy::RestartPolicy;
-pub use socket_config::SocketConfig;
+pub use socket_config::{ConfigSource, SocketConfig};

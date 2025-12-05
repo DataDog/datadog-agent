@@ -27,6 +27,12 @@ pub struct SpawnConfig {
     /// For systemd socket activation: FDs will be passed starting at FD 3
     /// LISTEN_FDS environment variable will be set automatically
     pub listen_fds: Vec<i32>,
+
+    /// Custom environment variable names for each FD
+    /// If empty, uses LISTEN_FDS (systemd-compatible)
+    /// Example: vec!["DD_APM_NET_RECEIVER_FD", "DD_APM_UNIX_RECEIVER_FD"]
+    /// Each entry corresponds to the FD at the same index in listen_fds
+    pub fd_env_var_names: Vec<String>,
 }
 
 /// Handle for monitoring process exit
@@ -105,7 +111,15 @@ impl SpawnConfig {
             ambient_capabilities: process.ambient_capabilities().to_vec(),
             resource_limits: process.resource_limits().clone(),
             listen_fds: Vec::new(), // No socket activation by default
+            fd_env_var_names: Vec::new(), // Use LISTEN_FDS by default
         }
+    }
+
+    /// Add a socket FD with a custom environment variable name
+    pub fn add_socket_fd(&mut self, fd: i32, env_var_name: Option<String>) {
+        self.listen_fds.push(fd);
+        self.fd_env_var_names
+            .push(env_var_name.unwrap_or_default());
     }
 }
 

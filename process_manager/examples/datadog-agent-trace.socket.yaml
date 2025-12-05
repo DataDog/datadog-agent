@@ -6,20 +6,42 @@
 # Place this file at: /etc/datadog-agent/process-manager/processes.d/datadog-agent-trace.socket.yaml
 #
 # How it works:
-# 1. Process Manager creates listening socket on port 8126
-# 2. Socket waits for APM trace connections
-# 3. When first trace arrives -> trace-agent is started
-# 4. trace-agent receives socket FD via LISTEN_FDS=1
-# 5. If trace-agent crashes -> socket remains open, re-starts on next connection
+# 1. Process Manager reads APM config from datadog.yaml and DD_APM_* env vars
+# 2. Creates listening socket(s) based on config (TCP + Unix socket on Linux)
+# 3. Waits for APM trace connections
+# 4. When first trace arrives -> trace-agent is started
+# 5. trace-agent receives socket FD via DD_APM_NET_RECEIVER_FD / DD_APM_UNIX_RECEIVER_FD
+# 6. If trace-agent crashes -> socket remains open, re-starts on next connection
 
 # Service to activate when connection arrives
 service: datadog-agent-trace
 
-# APM receiver port (standard Datadog APM port)
-listen_stream: "0.0.0.0:8126"
+# Configuration source - reads from Datadog APM configuration
+# This is backward-compatible with trace-loader behavior.
+#
+# Reads these settings:
+#   DD_APM_SOCKET_ACTIVATION_ENABLED (must be true)
+#   DD_APM_RECEIVER_PORT / DD_RECEIVER_PORT (default: 8126)
+#   DD_APM_RECEIVER_SOCKET (default: /var/run/datadog/apm.socket on Linux)
+#   DD_BIND_HOST / DD_APM_NON_LOCAL_TRAFFIC
+#
+# Passes FDs to trace-agent via:
+#   DD_APM_NET_RECEIVER_FD (TCP)
+#   DD_APM_UNIX_RECEIVER_FD (Unix socket)
+config_source: datadog-apm
 
 # Accept mode:
 # - false (default): Single service instance handles all connections (Accept=no)
 # - true: Spawn new service instance per connection (Accept=yes, like inetd)
 accept: false
+
+# =============================================================================
+# ALTERNATIVE: Explicit configuration (use instead of config_source)
+# =============================================================================
+# If you prefer explicit socket configuration instead of reading from
+# datadog.yaml, remove 'config_source' and uncomment these:
+#
+# listen_stream: "0.0.0.0:8126"
+# listen_unix: /var/run/datadog/apm.socket  # Linux only
+# fd_env_var: DD_APM_NET_RECEIVER_FD
 

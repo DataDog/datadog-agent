@@ -12,9 +12,8 @@ use crate::domain::{
 };
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader};
-use std::path::Path;
 use std::process::{Command, Stdio};
 use tracing::{debug, error, info, warn};
 
@@ -819,21 +818,36 @@ impl TokioProcessExecutor {
         #[cfg(target_os = "linux")]
         let capabilities = config.ambient_capabilities.clone();
         let socket_fds = config.listen_fds.clone();
+        let fd_env_var_names = config.fd_env_var_names.clone();
         let has_socket_fds = !socket_fds.is_empty();
 
         // Socket activation environment
         if has_socket_fds {
             let num_fds = socket_fds.len();
             debug!(num_fds = num_fds, "Setting up socket activation");
-            cmd.env("LISTEN_FDS", num_fds.to_string());
 
-            let fd_list: Vec<String> = (3..3 + num_fds).map(|n| n.to_string()).collect();
-            cmd.env("DD_APM_NET_RECEIVER_FD", fd_list.join(","));
+            // Always set LISTEN_FDS for systemd compatibility
+            cmd.env("LISTEN_FDS", num_fds.to_string());
+            cmd.env("LISTEN_PID", std::process::id().to_string());
+
+            // Set custom env vars for each FD (Datadog-style)
+            for (i, fd_env_name) in fd_env_var_names.iter().enumerate() {
+                if !fd_env_name.is_empty() {
+                    let target_fd = 3 + i;
+                    cmd.env(fd_env_name, target_fd.to_string());
+                    info!(
+                        env_var = %fd_env_name,
+                        fd = target_fd,
+                        "Socket activation: setting {} = {}",
+                        fd_env_name,
+                        target_fd
+                    );
+                }
+            }
 
             info!(
                 num_fds = num_fds,
-                dd_fds = %fd_list.join(","),
-                "Socket activation: passing {} file descriptor(s)",
+                "Socket activation: passing {} file descriptor(s) starting at FD 3",
                 num_fds
             );
         }
@@ -1433,6 +1447,7 @@ mod tests {
             ambient_capabilities: vec![],
             resource_limits: crate::domain::ResourceLimits::default(),
             listen_fds: Vec::new(),
+            fd_env_var_names: Vec::new(),
         };
 
         let result = executor.spawn(config).await;
@@ -1460,6 +1475,7 @@ mod tests {
             ambient_capabilities: vec![],
             resource_limits: crate::domain::ResourceLimits::default(),
             listen_fds: Vec::new(),
+            fd_env_var_names: Vec::new(),
         };
 
         let result = executor.spawn(config).await;
@@ -1486,6 +1502,7 @@ mod tests {
             ambient_capabilities: vec![],
             resource_limits: crate::domain::ResourceLimits::default(),
             listen_fds: Vec::new(),
+            fd_env_var_names: Vec::new(),
         };
 
         let result = executor.spawn(config).await.unwrap();
@@ -1532,6 +1549,7 @@ mod tests {
             ambient_capabilities: vec![],
             resource_limits: crate::domain::ResourceLimits::default(),
             listen_fds: Vec::new(),
+            fd_env_var_names: Vec::new(),
         };
 
         let result = executor.spawn(config).await;
