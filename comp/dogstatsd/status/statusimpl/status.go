@@ -11,11 +11,13 @@ import (
 	"encoding/json"
 	"expvar"
 	"io"
+	"os"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -80,7 +82,7 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 }
 
 func (s statusProvider) populateStatus(stats map[string]interface{}) {
-	if expvar.Get("dogstatsd") != nil {
+	if expvar.Get("dogstatsd") != nil && !isDsdEnabledViaDataPlane() {
 		dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
 		dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
 		dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
@@ -98,4 +100,17 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		}
 		stats["dogstatsdStats"] = dogstatsdStats
 	}
+}
+
+func isDsdEnabledViaDataPlane() bool {
+	// `DD_ADP_ENABLED` is a deprecated environment variable for signaling that Agent Data Plane is running _and_ that
+	// it's handling DogStatsD traffic.
+	//
+	// This is now split into two separate settings: `data_plane.enabled` and `data_plane.dogstatsd.enabled`, which
+	// indicate whether ADP is enabled at all and whether it's handling DogStatsD traffic, respectively.
+	adpDsdEnabledOldStyle := os.Getenv("DD_ADP_ENABLED") == "true"
+	adpEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.enabled")
+	adpDsdEnabled := pkgconfigsetup.Datadog().GetBool("data_plane.dogstatsd.enabled")
+
+	return adpDsdEnabledOldStyle || (adpEnabled && adpDsdEnabled)
 }
