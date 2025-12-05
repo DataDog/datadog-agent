@@ -32,15 +32,15 @@ func NewStringTable() *StringTable {
 	}
 }
 
-// StringTableFromArray creates a new string table from an array of already de-duplicated strings
+// StringTableFromArray creates a new string table from an array of already de-duplicated strings, the first string must always be the empty string
 func StringTableFromArray(strings []string) *StringTable {
 	st := &StringTable{
 		strings: make([]string, len(strings)),
 		lookup:  make(map[string]uint32, len(strings)),
 	}
 	for i, str := range strings {
-		st.strings[i+1] = str
-		st.lookup[str] = uint32(i + 1)
+		st.strings[i] = str
+		st.lookup[str] = uint32(i)
 	}
 	return st
 }
@@ -178,6 +178,54 @@ func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 	}
 }
 
+// FromProto creates an InternalTracerPayload from a proto TracerPayload
+func FromProto(tp *TracerPayload) *InternalTracerPayload {
+	strings := StringTableFromArray(tp.Strings)
+	chunks := make([]*InternalTraceChunk, len(tp.Chunks))
+	for i, chunk := range tp.Chunks {
+		chunks[i] = fromProtoChunk(strings, chunk)
+	}
+	return &InternalTracerPayload{
+		Strings:            strings,
+		containerIDRef:     tp.ContainerIDRef,
+		languageNameRef:    tp.LanguageNameRef,
+		languageVersionRef: tp.LanguageVersionRef,
+		tracerVersionRef:   tp.TracerVersionRef,
+		runtimeIDRef:       tp.RuntimeIDRef,
+		envRef:             tp.EnvRef,
+		hostnameRef:        tp.HostnameRef,
+		appVersionRef:      tp.AppVersionRef,
+		Attributes:         tp.Attributes,
+		Chunks:             chunks,
+	}
+}
+
+// fromProtoChunk creates an InternalTraceChunk from a proto TraceChunk
+func fromProtoChunk(strings *StringTable, chunk *TraceChunk) *InternalTraceChunk {
+	spans := make([]*InternalSpan, len(chunk.Spans))
+	for i, span := range chunk.Spans {
+		spans[i] = fromProtoSpan(strings, span)
+	}
+	return &InternalTraceChunk{
+		Strings:           strings,
+		Priority:          chunk.Priority,
+		originRef:         chunk.OriginRef,
+		Attributes:        chunk.Attributes,
+		DroppedTrace:      chunk.DroppedTrace,
+		TraceID:           chunk.TraceID,
+		samplingMechanism: chunk.SamplingMechanism,
+		Spans:             spans,
+	}
+}
+
+// fromProtoSpan creates an InternalSpan from a proto Span
+func fromProtoSpan(strings *StringTable, span *Span) *InternalSpan {
+	return &InternalSpan{
+		Strings: strings,
+		span:    span,
+	}
+}
+
 // ToProto converts an InternalTracerPayload to a proto TracerPayload
 // This returns the structure _AS IS_, so even strings that are no longer referenced
 // may be included in the resulting proto. To ensure that only used strings are included,
@@ -307,6 +355,15 @@ func (tp *InternalTracerPayload) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, tp.Strings, tp.Attributes)
 }
 
+// setStringRefAttribute sets a string attribute for the tracer payload from a known pre-existing string ref.
+func (tp *InternalTracerPayload) setStringRefAttribute(key string, valueRef uint32) {
+	setAttribute(key, &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: valueRef,
+		},
+	}, tp.Strings, tp.Attributes)
+}
+
 // GetAttributeAsString gets a string attribute from the tracer payload.
 func (tp *InternalTracerPayload) GetAttributeAsString(key string) (string, bool) {
 	return getAttributeAsString(key, tp.Strings, tp.Attributes)
@@ -415,6 +472,13 @@ func (c *InternalTraceChunk) Msgsize() int {
 // LegacyTraceID returns the trace ID of the trace chunk as a uint64, the lowest order 8 bytes of the trace ID are the legacy trace ID
 func (c *InternalTraceChunk) LegacyTraceID() uint64 {
 	return binary.BigEndian.Uint64(c.TraceID[8:])
+}
+
+// SetLegacyTraceID sets the trace ID of the chunk from a legacy uint64 trace ID, additional bits are set to 0
+// Warning: This method does not remove any attributes from the chunk or contained spans which might be referring to the upper 8 bytes of the trace ID.
+func (c *InternalTraceChunk) SetLegacyTraceID(legacyTraceID uint64) {
+	binary.BigEndian.PutUint64(c.TraceID[:8], 0)
+	binary.BigEndian.PutUint64(c.TraceID[8:], legacyTraceID)
 }
 
 // Origin returns the origin from the trace chunk.
@@ -553,27 +617,84 @@ func (s *Span) ShallowCopy() *Span {
 	}
 }
 
+// Clone creates a deep copy of the span so it can be used and modified independently of the original span
+func (s *Span) Clone() *Span {
+	// Deep copy the attributes map
+	newAttributes := make(map[uint32]*AnyValue, len(s.Attributes))
+	maps.Copy(newAttributes, s.Attributes)
+
+	// Deep copy the links slice
+	newLinks := make([]*SpanLink, len(s.Links))
+	copy(newLinks, s.Links)
+
+	// Deep copy the events slice
+	newEvents := make([]*SpanEvent, len(s.Events))
+	copy(newEvents, s.Events)
+
+	return &Span{
+		ServiceRef:   s.ServiceRef,
+		NameRef:      s.NameRef,
+		ResourceRef:  s.ResourceRef,
+		SpanID:       s.SpanID,
+		ParentID:     s.ParentID,
+		Start:        s.Start,
+		Duration:     s.Duration,
+		Error:        s.Error,
+		Attributes:   newAttributes,
+		TypeRef:      s.TypeRef,
+		Links:        newLinks,
+		Events:       newEvents,
+		EnvRef:       s.EnvRef,
+		VersionRef:   s.VersionRef,
+		ComponentRef: s.ComponentRef,
+		Kind:         s.Kind,
+	}
+}
+
+// Clone creates a deep copy of the span and string table so it can be used and modified independently of the original span
+func (s *InternalSpan) Clone() *InternalSpan {
+	return &InternalSpan{
+		Strings: s.Strings.Clone(),
+		span:    s.span.Clone(),
+	}
+}
+
 // DebugString returns a human readable string representation of the span
 func (s *InternalSpan) DebugString() string {
-	str := "Span {"
-	str += fmt.Sprintf("Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
-	str += fmt.Sprintf("Name: (%s, at %d), ", s.Name(), s.span.NameRef)
-	str += fmt.Sprintf("Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
-	str += fmt.Sprintf("SpanID: %d, ", s.span.SpanID)
-	str += fmt.Sprintf("ParentID: %d, ", s.span.ParentID)
-	str += fmt.Sprintf("Start: %d, ", s.span.Start)
-	str += fmt.Sprintf("Duration: %d, ", s.span.Duration)
-	str += fmt.Sprintf("Error: %t, ", s.span.Error)
-	str += fmt.Sprintf("Attributes: %v, ", s.span.Attributes)
-	str += fmt.Sprintf("Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
-	str += fmt.Sprintf("Links: %v, ", s.Links())
-	str += fmt.Sprintf("Events: %v, ", s.Events())
-	str += fmt.Sprintf("Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
-	str += fmt.Sprintf("Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
-	str += fmt.Sprintf("Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
-	str += fmt.Sprintf("Kind: %s, ", s.SpanKind())
-	str += "}"
-	return str
+	var sb strings.Builder
+	sb.WriteString("Span {")
+	fmt.Fprintf(&sb, "Service: (%s, at %d), ", s.Service(), s.span.ServiceRef)
+	fmt.Fprintf(&sb, "Name: (%s, at %d), ", s.Name(), s.span.NameRef)
+	fmt.Fprintf(&sb, "Resource: (%s, at %d), ", s.Resource(), s.span.ResourceRef)
+	fmt.Fprintf(&sb, "SpanID: %d, ", s.span.SpanID)
+	fmt.Fprintf(&sb, "ParentID: %d, ", s.span.ParentID)
+	fmt.Fprintf(&sb, "Start: %d, ", s.span.Start)
+	fmt.Fprintf(&sb, "Duration: %d, ", s.span.Duration)
+	fmt.Fprintf(&sb, "Error: %t, ", s.span.Error)
+
+	// Build attributes string with resolved keys and values
+	sb.WriteString("Attributes: {")
+	first := true
+	for keyRef, value := range s.span.Attributes {
+		if !first {
+			sb.WriteString(", ")
+		}
+		first = false
+		keyStr := s.Strings.Get(keyRef)
+		valueStr := value.AsString(s.Strings)
+		fmt.Fprintf(&sb, "%s: %s", keyStr, valueStr)
+	}
+	sb.WriteString("}, ")
+
+	fmt.Fprintf(&sb, "Type: (%s, at %d), ", s.Type(), s.span.TypeRef)
+	fmt.Fprintf(&sb, "Links: %v, ", s.Links())
+	fmt.Fprintf(&sb, "Events: %v, ", s.Events())
+	fmt.Fprintf(&sb, "Env: (%s, at %d), ", s.Env(), s.span.EnvRef)
+	fmt.Fprintf(&sb, "Version: (%s, at %d), ", s.Version(), s.span.VersionRef)
+	fmt.Fprintf(&sb, "Component: (%s, at %d), ", s.Component(), s.span.ComponentRef)
+	fmt.Fprintf(&sb, "Kind: %s, ", s.SpanKind())
+	sb.WriteString("}")
+	return sb.String()
 }
 
 // Events returns the spans events in the InternalSpanEvent format
@@ -823,6 +944,15 @@ func (s *InternalSpan) GetAttributeAsFloat64(key string) (float64, bool) {
 	return 0, false
 }
 
+// GetAttribute returns the attribute as the underlying AnyValue
+func (s *InternalSpan) GetAttribute(key string) (*AnyValue, bool) {
+	keyIdx := s.Strings.Lookup(key)
+	if keyIdx == 0 {
+		return nil, false
+	}
+	return s.span.Attributes[keyIdx], true
+}
+
 // SetStringAttribute sets the attribute with key and value
 // For backwards compatibility, env, version, component, and span.kind will be set as fields instead of attributes
 func (s *InternalSpan) SetStringAttribute(key, value string) {
@@ -1026,14 +1156,19 @@ func (se *InternalSpanEvent) Attributes() map[uint32]*AnyValue {
 	return se.event.Attributes
 }
 
+// Time returns the time from the span event.
+func (se *InternalSpanEvent) Time() uint64 {
+	return se.event.Time
+}
+
 // Msgsize returns the size of the message when serialized.
-func (se *SpanEvent) Msgsize() int {
+func (x *SpanEvent) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                   // Map
 	size += msgp.Uint32Size + msgp.Uint64Size    // Time
 	size += msgp.Uint32Size + msgp.Uint32Size    // NameRef
 	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
-	for _, attr := range se.Attributes {
+	for _, attr := range x.Attributes {
 		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
 	}
 	return size
@@ -1050,9 +1185,18 @@ func (se *InternalSpanEvent) SetAttributeFromString(key, value string) {
 	setAttribute(key, FromString(se.Strings, value), se.Strings, se.event.Attributes)
 }
 
+// GetAttribute gets the attribute as the underlying AnyValue
+func (se *InternalSpanEvent) GetAttribute(key string) (*AnyValue, bool) {
+	keyIdx := se.Strings.Lookup(key)
+	if keyIdx == 0 {
+		return nil, false
+	}
+	return se.event.Attributes[keyIdx], true
+}
+
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior
-func (attr *AnyValue) AsString(strTable *StringTable) string {
-	switch v := attr.Value.(type) {
+func (x *AnyValue) AsString(strTable *StringTable) string {
+	switch v := x.Value.(type) {
 	case *AnyValue_StringValueRef:
 		return strTable.Get(v.StringValueRef)
 	case *AnyValue_BoolValue:
@@ -1083,8 +1227,8 @@ func (attr *AnyValue) AsString(strTable *StringTable) string {
 }
 
 // AsDoubleValue returns the attribute in float64 format, returning an error if the attribute is not a float64 or can't be converted to a float64
-func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
-	switch v := attr.Value.(type) {
+func (x *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
+	switch v := x.Value.(type) {
 	case *AnyValue_StringValueRef:
 		doubleVal, err := strconv.ParseFloat(strTable.Get(v.StringValueRef), 64)
 		if err != nil {

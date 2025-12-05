@@ -29,8 +29,8 @@ import (
 )
 
 type mockTraceWriter struct {
-	mu       sync.Mutex
-	payloads []*writer.SampledChunks
+	mu         sync.Mutex
+	payloadsV1 []*writer.SampledChunksV1
 }
 
 func (m *mockTraceWriter) Stop() {
@@ -38,10 +38,10 @@ func (m *mockTraceWriter) Stop() {
 	panic("not implemented")
 }
 
-func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
+func (m *mockTraceWriter) WriteChunksV1(pkg *writer.SampledChunksV1) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.payloads = append(m.payloads, pkg)
+	m.payloadsV1 = append(m.payloadsV1, pkg)
 }
 
 func (m *mockTraceWriter) FlushSync() error {
@@ -62,7 +62,7 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 		if withModifier {
 			agnt.SpanModifier = &spanModifier{ddOrigin: getDDOrigin()}
 		}
-		agnt.TraceWriter = &mockTraceWriter{}
+		agnt.TraceWriterV1 = &mockTraceWriter{}
 		tc := testutil.RandomTraceChunk(2, 1)
 		tc.Priority = 1 // ensure trace is never sampled out
 		tp := testutil.TracerPayloadWithChunk(tc)
@@ -72,20 +72,19 @@ func TestSpanModifierDetectsCloudService(t *testing.T) {
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
 
-		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		payloads := agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1
 		assert.NotEmpty(t, payloads, "no payloads were written")
-		tp = payloads[0].TracerPayload
+		actualTracerPayload := payloads[0].TracerPayload
 
-		for _, chunk := range tp.Chunks {
-			if chunk.Origin != expectedOrigin {
-				t.Errorf("chunk should have Origin=%s but has %#v", expectedOrigin, chunk.Origin)
+		for _, chunk := range actualTracerPayload.Chunks {
+			if chunk.Origin() != expectedOrigin {
+				t.Errorf("chunk should have Origin=%s but has %s", expectedOrigin, chunk.Origin())
 			}
 			for _, span := range chunk.Spans {
-				tags := span.GetMeta()
-				originVal, ok := tags["_dd.origin"]
+				originVal, ok := span.GetAttributeAsString("_dd.origin")
 				if withModifier != ok {
-					t.Errorf("unexpected span tags, should have _dd.origin tag %#v: tags=%#v",
-						withModifier, tags)
+					t.Errorf("unexpected span tags, should have _dd.origin tag %#v: span=%s",
+						withModifier, span.DebugString())
 				}
 				if withModifier && originVal != expectedOrigin {
 					t.Errorf("got the wrong origin tag value: %#v", originVal)
