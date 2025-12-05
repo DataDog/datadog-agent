@@ -25,38 +25,11 @@ build do
     dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
     command_on_repo_root "bazelisk run -- @openssl_fips//:install_fips --destdir=#{dest}"
 
-    if !windows?
-      lib_extension = if linux_target? then ".so" else ".dylib" end
+    if windows?
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips_win --destdir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'"
+    else
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{dest}"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
-        " #{dest}/lib/ossl-modules/fips#{lib_extension}" \
-    end
-
-    mkdir "#{dest}/ssl"
-    mkdir "#{dest}/lib/ossl-modules"
-    mkdir "#{dest}/bin"
-    if linux_target?
-      copy "/usr/local/lib*/ossl-modules/fips.so", "#{dest}/lib/ossl-modules/fips.so"
-    elsif windows_target?
-      copy "providers/fips.dll", "#{dest}/lib/ossl-modules/fips.dll"
-    end
-    if linux_target?
-      embedded_ssl_dir = "#{install_dir}/embedded/ssl"
-    elsif windows_target?
-      # Use the default installation directory instead of install_dir which is just a build path.
-      # This simpifies container setup because we don't need to modify the config file.
-      # The MSI contains logic to replace the path at install time.
-      # Note: We intentionally use forward slashes here
-      embedded_ssl_dir = "C:/Program Files/Datadog/Datadog Agent/embedded3/ssl"
-    end
-
-    erb source: "openssl.cnf.erb",
-        dest: "#{dest}/ssl/openssl.cnf.tmp",
-        mode: 0644,
-        vars: { embedded_ssl_dir: embedded_ssl_dir }
-    unless windows_target?
-      erb source: "fipsinstall.sh.erb",
-          dest: "#{dest}/bin/fipsinstall.sh",
-          mode: 0755,
-          vars: { install_dir: install_dir }
+        " #{dest}/lib/ossl-modules/fips.so" \
     end
 end
