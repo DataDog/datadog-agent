@@ -17,10 +17,10 @@ func TestDatadogConfPath(t *testing.T) {
 		expected string
 	}{
 		{GlobalParams{}, ""},
-		{GlobalParams{ConfFilePath: "/some/other/dir"}, "/some/other/dir"},
-		{GlobalParams{ConfFilePath: "/some/other/dir/system-probe.yaml"}, "/some/other/dir"},
-		{GlobalParams{ConfFilePath: "/some/other/dir", datadogConfFilePath: "/another/dir"}, "/another/dir"},
-		{GlobalParams{ConfFilePath: "/some/other/dir", datadogConfFilePath: "/another/dir/datadog.yaml"}, "/another/dir/datadog.yaml"},
+		{GlobalParams{ConfFilePath: "C:\\some\\other\\dir"}, "C:\\some\\other\\dir"},
+		{GlobalParams{ConfFilePath: "C:\\some\\other\\dir\\system-probe.yaml"}, "C:\\some\\other\\dir"},
+		{GlobalParams{ConfFilePath: "C:\\some\\other\\dir", datadogConfFilePath: "C:\\another\\dir"}, "C:\\another\\dir"},
+		{GlobalParams{ConfFilePath: "C:\\some\\other\\dir", datadogConfFilePath: "C:\\another\\dir\\datadog.yaml"}, "C:\\another\\dir\\datadog.yaml"},
 	}
 
 	for _, c := range cases {
