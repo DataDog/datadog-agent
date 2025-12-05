@@ -64,6 +64,7 @@ func (s *EbpfProgramSuite) TestExpectedLibrariesAreDetected() {
 		LibsetGPU: {
 			"libcudart.so",
 			"libnd4jcuda.so",
+			"libcuda.so",
 		},
 	}
 
