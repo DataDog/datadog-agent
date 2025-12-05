@@ -80,6 +80,9 @@ func (c *Check) Run() error {
 
 	path.Namespace = c.config.Namespace
 	path.Origin = payload.PathOriginNetworkPathIntegration
+	path.TestRunType = payload.TestRunTypeScheduled
+	path.SourceProduct = payload.SourceProductNetworkPath
+	path.CollectorType = payload.CollectorTypeAgent
 
 	// Add tags to path
 	path.Source.Service = c.config.SourceService
