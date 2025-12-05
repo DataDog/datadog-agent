@@ -249,6 +249,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn test_exec_check_success() {
         let config = HealthCheck::exec("true".to_string(), vec![]);
 
@@ -258,8 +259,31 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn test_exec_check_failure() {
         let config = HealthCheck::exec("false".to_string(), vec![]);
+
+        let executor = StandardHealthCheckExecutor::new();
+        let status = executor.check(&config).await.unwrap();
+        assert_eq!(status, HealthStatus::Unhealthy);
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
+    async fn test_exec_check_success() {
+        // On Windows, use cmd /c exit 0 to simulate 'true'
+        let config = HealthCheck::exec("cmd".to_string(), vec!["/c".to_string(), "exit".to_string(), "0".to_string()]);
+
+        let executor = StandardHealthCheckExecutor::new();
+        let status = executor.check(&config).await.unwrap();
+        assert_eq!(status, HealthStatus::Healthy);
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
+    async fn test_exec_check_failure() {
+        // On Windows, use cmd /c exit 1 to simulate 'false'
+        let config = HealthCheck::exec("cmd".to_string(), vec!["/c".to_string(), "exit".to_string(), "1".to_string()]);
 
         let executor = StandardHealthCheckExecutor::new();
         let status = executor.check(&config).await.unwrap();

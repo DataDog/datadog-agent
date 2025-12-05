@@ -171,6 +171,7 @@ mod tests {
     use crate::infrastructure::{InMemoryProcessRepository, TokioProcessExecutor};
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn test_spawn_and_register_without_supervisor() {
         let repository = Arc::new(InMemoryProcessRepository::new());
         let executor = Arc::new(TokioProcessExecutor::new());
@@ -179,6 +180,33 @@ mod tests {
         // Create a test process
         let process = Process::builder("test".to_string(), "/bin/sleep".to_string())
             .args(vec!["1".to_string()])
+            .build()
+            .unwrap();
+        let process_id = process.id();
+        repository.save(process).await.unwrap();
+
+        // Spawn and register (no socket FDs, no fd env vars, no timeout)
+        service
+            .spawn_and_register(&process_id, vec![], vec![], 0)
+            .await
+            .unwrap();
+
+        // Verify process is running with PID
+        let process = repository.find_by_id(&process_id).await.unwrap().unwrap();
+        assert!(process.is_running());
+        assert!(process.pid().is_some());
+    }
+
+    #[tokio::test]
+    #[cfg(windows)]
+    async fn test_spawn_and_register_without_supervisor() {
+        let repository = Arc::new(InMemoryProcessRepository::new());
+        let executor = Arc::new(TokioProcessExecutor::new());
+        let service = ProcessLifecycleService::new(repository.clone(), executor);
+
+        // Create a test process using Windows ping (runs for ~1 second with -n 2)
+        let process = Process::builder("test".to_string(), "ping".to_string())
+            .args(vec!["-n".to_string(), "2".to_string(), "127.0.0.1".to_string()])
             .build()
             .unwrap();
         let process_id = process.id();
