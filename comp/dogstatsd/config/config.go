@@ -14,6 +14,9 @@ import (
 
 // team: agent-metric-pipelines
 
+// TODO: Port over more shared configuration settings, specifically listener addresses. Anything that we use in
+// `comp/dogstatsd` _and_ other components/packages in the codebase.
+
 // Config implements the configuration for DogStatsD
 type Config struct {
 	config config.Component
