@@ -23,8 +23,9 @@ relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
     dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
-    command_on_repo_root "bazelisk run -- @openssl_fips//:install_fips --destdir=#{dest}"
-
+    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{dest}"
+    
+    # Calling helpers to set the correct paths in openssl.cnf and fipsinstall.sh.
     if windows?
       command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips_win --embedded_ssl_dir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'"
     else
