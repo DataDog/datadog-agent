@@ -9,6 +9,7 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ type DevicePluginClient interface {
 func NewDevicePluginClient(config config.Component) (DevicePluginClient, error) {
 	socketDir := config.GetString("kubernetes_kubelet_deviceplugins_socketdir")
 	if socketDir == "" {
-		return nil, fmt.Errorf("kubernetes_kubelet_deviceplugins_socketdir is not set")
+		return nil, errors.New("kubernetes_kubelet_deviceplugins_socketdir is not set")
 	}
 
 	multiClient, err := NewMultiDevicePluginClientWithSocketDir(socketDir, true)
