@@ -29,11 +29,6 @@ func disableProtocolIfUnsupported(cfg model.Config, configKey string, isSupporte
 }
 
 func adjustUSM(cfg model.Config) {
-	if cfg.GetBool(smNS("enabled")) {
-		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
-		applyDefault(cfg, spNS("enable_kernel_header_download"), true)
-	}
-
 	// HTTP configuration migration to tree structure with backward compatibility
 	// Each tree structure key is paired with its deprecated flat versions
 	deprecateBool(cfg, smNS("enable_http_monitoring"), smNS("http", "enabled"))
