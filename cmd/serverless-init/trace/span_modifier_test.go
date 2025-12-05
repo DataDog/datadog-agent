@@ -7,8 +7,8 @@ package trace
 
 import (
 	"testing"
-	"time"
 
+	idx "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,18 +19,26 @@ func TestCloudRunJobsSpanModifier(t *testing.T) {
 	modifier := NewCloudRunJobsSpanModifier(jobTraceID, jobSpanID)
 
 	// Create a user span
-	userSpan := InitSpan("user-service", "user.operation", "user-resource", "web", time.Now().UnixNano(), map[string]string{})
-	originalTraceID := userSpan.TraceID
-	originalSpanID := userSpan.SpanID
+	st := idx.NewStringTable()
+	userSpan := idx.NewInternalSpan(st, &idx.Span{
+		ServiceRef:  st.Add("user-service"),
+		NameRef:     st.Add("user.operation"),
+		ResourceRef: st.Add("user-resource"),
+		SpanID:      123,
+		Attributes:  map[uint32]*idx.AnyValue{},
+	})
+	userChunk := idx.NewInternalTraceChunk(st, 1, "user-origin", map[uint32]*idx.AnyValue{}, []*idx.InternalSpan{userSpan}, false, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, 4)
+	originalTraceID := userChunk.LegacyTraceID()
+	originalSpanID := userSpan.SpanID()
 
 	// Modify the span
-	modifier.ModifySpan(nil, userSpan)
+	modifier.ModifySpan(userChunk, userSpan)
 
 	// Verify the span was reparented
-	assert.Equal(t, jobTraceID, userSpan.TraceID)
-	assert.Equal(t, jobSpanID, userSpan.ParentID)
-	assert.Equal(t, originalSpanID, userSpan.SpanID)      // SpanID should not change
-	assert.NotEqual(t, originalTraceID, userSpan.TraceID) // TraceID should change
+	assert.Equal(t, jobTraceID, userChunk.LegacyTraceID())
+	assert.Equal(t, jobSpanID, userSpan.ParentID())
+	assert.Equal(t, originalSpanID, userSpan.SpanID())             // SpanID should not change
+	assert.NotEqual(t, originalTraceID, userChunk.LegacyTraceID()) // TraceID should change
 }
 
 func TestCloudRunJobsSpanModifierDoesNotModifyJobSpan(t *testing.T) {
@@ -40,14 +48,22 @@ func TestCloudRunJobsSpanModifierDoesNotModifyJobSpan(t *testing.T) {
 	modifier := NewCloudRunJobsSpanModifier(jobTraceID, jobSpanID)
 
 	// Create the job span itself
-	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
-	originalTraceID := jobSpan.TraceID
-	originalParentID := jobSpan.ParentID
+	st := idx.NewStringTable()
+	jobSpan := idx.NewInternalSpan(st, &idx.Span{
+		ServiceRef:  st.Add("gcp.run.job"),
+		NameRef:     st.Add("gcp.run.job.task"),
+		ResourceRef: st.Add("my-job"),
+		SpanID:      123,
+		Attributes:  map[uint32]*idx.AnyValue{},
+	})
+	userChunk := idx.NewInternalTraceChunk(st, 1, "user-origin", map[uint32]*idx.AnyValue{}, []*idx.InternalSpan{jobSpan}, false, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, 4)
+	originalTraceID := userChunk.LegacyTraceID()
+	originalParentID := jobSpan.ParentID()
 
 	// Modify should not affect the job span
-	modifier.ModifySpan(nil, jobSpan)
+	modifier.ModifySpan(userChunk, jobSpan)
 
 	// Verify the job span was not modified
-	assert.Equal(t, originalTraceID, jobSpan.TraceID)
-	assert.Equal(t, originalParentID, jobSpan.ParentID)
+	assert.Equal(t, originalTraceID, userChunk.LegacyTraceID())
+	assert.Equal(t, originalParentID, jobSpan.ParentID())
 }
