@@ -35,7 +35,7 @@ func TestFhCheckFreeBSD(t *testing.T) {
 	mocksender.SetSender(mock, fileHandleCheck.ID())
 
 	mock.On("Gauge", "system.fs.file_handles.used", float64(65534), "", []string(nil)).Return().Times(1)
-	mock.On("Gauge", "system.fs.file_handles.max", float64(65534), "", []string(nil)).Return().Times(1)
+	mock.On("Gauge", "system.fs.file_handles.maxx", float64(65534), "", []string(nil)).Return().Times(1)
 	mock.On("Commit").Return().Times(1)
 	fileHandleCheck.Run()
 
