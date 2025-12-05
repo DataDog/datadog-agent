@@ -54,7 +54,6 @@ type metricStat struct {
 	Count    uint64    `json:"count"`
 	LastSeen time.Time `json:"last_seen"`
 	Tags     string    `json:"tags"`
-	key      ckey.ContextKey
 }
 
 // metricStatsShard holds a subset of metric stats with its own lock
@@ -65,13 +64,14 @@ type metricStatsShard struct {
 	tagsAccumulator *tagset.HashingTagsAccumulator
 }
 
-const numShards = 32 // Power of 2 for efficient modulo operation
+const defaultNumShards = uint32(16) // Power of 2 for efficient modulo operation
 
 type serverDebugImpl struct {
 	sync.RWMutex
-	log     log.Component
-	enabled *atomic.Bool
-	shards  [numShards]*metricStatsShard
+	log       log.Component
+	enabled   *atomic.Bool
+	shards    []*metricStatsShard
+	numShards uint32
 	// counting number of metrics processed last X seconds
 	metricsCounts metricsCountBuckets
 	// keyGen is used to generate hashes of the metrics received by dogstatsd
@@ -95,6 +95,7 @@ func newServerDebug(deps dependencies) serverdebug.Component {
 }
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
+	numShards := defaultNumShards
 	sd := &serverDebugImpl{
 		log:     l,
 		enabled: atomic.NewBool(false),
@@ -103,12 +104,13 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 			metricChan: make(chan struct{}),
 			closeChan:  make(chan struct{}),
 		},
-		keyGen: ckey.NewKeyGenerator(),
-		clock:  clock.New(),
+		keyGen:    ckey.NewKeyGenerator(),
+		clock:     clock.New(),
+		shards:    make([]*metricStatsShard, numShards),
+		numShards: numShards,
 	}
-
 	// Initialize all shards
-	for i := 0; i < numShards; i++ {
+	for i := uint32(0); i < sd.numShards; i++ {
 		sd.shards[i] = &metricStatsShard{
 			stats:           make(map[ckey.ContextKey]metricStat),
 			tagsAccumulator: tagset.NewHashingTagsAccumulator(),
@@ -181,7 +183,7 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	// Determine which shard to use based on metric name hash
 	// Using a simple hash function for distribution
 	hash := hashString(sample.Name)
-	shardIdx := hash % numShards
+	shardIdx := hash % d.numShards
 	shard := d.shards[shardIdx]
 
 	// Lock only the specific shard, not the entire structure
@@ -199,7 +201,6 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	ms, exists := shard.stats[key]
 	if !exists {
 		ms = metricStat{
-			key:  key,
 			Name: sample.Name,
 			Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
 		}
@@ -308,7 +309,7 @@ func (d *serverDebugImpl) GetJSONDebugStats() ([]byte, error) {
 	// Aggregate stats from all shards
 	aggregatedStats := make(map[ckey.ContextKey]metricStat)
 
-	for i := 0; i < numShards; i++ {
+	for i := uint32(0); i < d.numShards; i++ {
 		shard := d.shards[i]
 		shard.RLock()
 		for key, stat := range shard.stats {
