@@ -29,7 +29,7 @@ if [[ -z "$DESTDIR" ]]; then
     exit 1
 fi
 
-OPENSSL_CNF="${DESTDIR}/ssl/openssl.cnf"
+OPENSSL_CNF="${DESTDIR}/embedded/ssl/openssl.cnf"
 FIPSINSTALL_SH="${DESTDIR}/embedded/bin/fipsinstall.sh"
 
 # Replace {{install_dir}} with DESTDIR in openssl.cnf
