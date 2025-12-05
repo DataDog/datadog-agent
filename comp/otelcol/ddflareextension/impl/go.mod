@@ -56,6 +56,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.266.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.49.1 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/faceair/drain v0.0.0-20220227014011-bcc52881b814 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
