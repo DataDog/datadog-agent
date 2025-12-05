@@ -207,16 +207,37 @@ namespace Datadog.CustomActions
             {
                 ddAgentUserName = "NetworkService";
             }
+
+            // Configure the main agent service (process manager)
             _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
 
-            // SYSTEM
-            // LocalSystem is a SCM specific shorthand that doesn't need to be localized
-            _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
+            // Configure the Datadog Installer service (runs as SYSTEM)
+            TrySetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
-            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            // Note: Sub-agent services (trace-agent, process-agent, system-probe, security-agent)
+            // are no longer registered as Windows Services in new installations.
+            // They are now managed by the process manager (dd-procmgrd.exe).
+            // We still try to configure them for upgrade scenarios where they might exist.
+            TrySetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            TrySetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
+            TrySetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+            TrySetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+        }
+
+        /// <summary>
+        /// Try to set credentials on a service, ignoring errors if the service does not exist.
+        /// This is useful for upgrade scenarios where legacy services may or may not exist.
+        /// </summary>
+        private void TrySetCredentials(string serviceName, string userName, string password)
+        {
+            try
+            {
+                _serviceController.SetCredentials(serviceName, userName, password);
+            }
+            catch (Exception e) when (IsServiceDoesNotExistError(e))
+            {
+                _session.Log($"Service {serviceName} not found, skipping credential configuration");
+            }
         }
 
         private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
@@ -240,49 +261,75 @@ namespace Datadog.CustomActions
         {
             var previousDdAgentUserSid = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
 
-            var services = new List<string>
+            // Services that are always installed
+            var requiredServices = new List<string>
             {
+                Constants.AgentServiceName,
+            };
+
+            // Services that may or may not exist (optional or legacy)
+            // Sub-agent services are no longer registered as Windows Services in new installations,
+            // but may exist in upgrade scenarios from older versions.
+            var optionalServices = new List<string>
+            {
+                Constants.InstallerServiceName,
                 Constants.ProcessAgentServiceName,
                 Constants.SystemProbeServiceName,
                 Constants.TraceAgentServiceName,
-                Constants.AgentServiceName,
-                Constants.InstallerServiceName,
+                Constants.SecurityAgentServiceName,
             };
 
-            services.Add(Constants.SecurityAgentServiceName);
-
-            foreach (var serviceName in services)
+            // Configure required services (fail if they don't exist)
+            foreach (var serviceName in requiredServices)
             {
-                var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
-
-                // remove previous user
-                if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSID)
-                {
-                    // unless that user is LocalSystem
-                    if (!previousDdAgentUserSid.IsWellKnown(WellKnownSidType.LocalSystemSid))
-                    {
-                        securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow,
-                            previousDdAgentUserSid,
-                            (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
-                    }
-                }
-
-                // Remove Everyone
-                // [7.47 - 7.50) added an ACE for Everyone, so make sure to remove it
-                securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, new SecurityIdentifier("WD"),
-                    (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
-
-                // add current user
-                // Unless the user is LocalSystem since it already has access
-                if (!ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
-                {
-                    securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
-                        (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP | ServiceAccess.GENERIC_READ),
-                        InheritanceFlags.None, PropagationFlags.None);
-                }
-
-                UpdateAndLogAccessControl(serviceName, securityDescriptor);
+                ConfigureServicePermissionsForService(serviceName, ddAgentUserSID, previousDdAgentUserSid);
             }
+
+            // Configure optional services (skip if they don't exist)
+            foreach (var serviceName in optionalServices)
+            {
+                try
+                {
+                    ConfigureServicePermissionsForService(serviceName, ddAgentUserSID, previousDdAgentUserSid);
+                }
+                catch (Exception e) when (IsServiceDoesNotExistError(e))
+                {
+                    _session.Log($"Service {serviceName} not found, skipping permission configuration");
+                }
+            }
+        }
+
+        private void ConfigureServicePermissionsForService(string serviceName, SecurityIdentifier ddAgentUserSID, SecurityIdentifier previousDdAgentUserSid)
+        {
+            var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
+
+            // remove previous user
+            if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSID)
+            {
+                // unless that user is LocalSystem
+                if (!previousDdAgentUserSid.IsWellKnown(WellKnownSidType.LocalSystemSid))
+                {
+                    securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow,
+                        previousDdAgentUserSid,
+                        (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+                }
+            }
+
+            // Remove Everyone
+            // [7.47 - 7.50) added an ACE for Everyone, so make sure to remove it
+            securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, new SecurityIdentifier("WD"),
+                (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+
+            // add current user
+            // Unless the user is LocalSystem since it already has access
+            if (!ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
+            {
+                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
+                    (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP | ServiceAccess.GENERIC_READ),
+                    InheritanceFlags.None, PropagationFlags.None);
+            }
+
+            UpdateAndLogAccessControl(serviceName, securityDescriptor);
         }
 
         public static ActionResult ConfigureServices(Session session)
