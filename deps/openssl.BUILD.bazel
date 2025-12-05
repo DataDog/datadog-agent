@@ -71,6 +71,12 @@ configure_make(
             "no-uplink",
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
+    }) + select({
+        "@//:fips_mode_enabled": [
+            "-DOSSL_WINCTX=datadog-fips-agent",
+            "--openssldir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
+        ],
+        "//conditions:default": [],
     }),
     env = select({
         "@platforms//os:macos": {
