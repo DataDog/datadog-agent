@@ -108,22 +108,6 @@ func (fc *FilterConfig) GetCELRulesForProduct(product workloadfilter.Product, re
 	return ""
 }
 
-// GetLegacyContainerInclude returns the appropriate container include list with fallback to AC include
-func (fc *FilterConfig) GetLegacyContainerInclude() []string {
-	if len(fc.ContainerInclude) > 0 {
-		return fc.ContainerInclude
-	}
-	return fc.ACInclude
-}
-
-// GetLegacyContainerExclude returns the appropriate container exclude list with fallback to AC exclude
-func (fc *FilterConfig) GetLegacyContainerExclude() []string {
-	if len(fc.ContainerExclude) > 0 {
-		return fc.ContainerExclude
-	}
-	return fc.ACExclude
-}
-
 // loadCELConfig loads CEL workload exclude configuration
 func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
@@ -137,7 +121,7 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	return nil, err
 }
 
-// String returns a simple string representation of the FilterConfig
+// String returns a string representation of the FilterConfig
 func (fc *FilterConfig) String() (string, error) {
 	filterConfigJSON, err := json.Marshal(fc)
 	if err != nil {

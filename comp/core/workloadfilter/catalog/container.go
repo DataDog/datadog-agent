@@ -15,33 +15,29 @@ import (
 
 // ContainerPausedProgram creates a program for filtering paused containers
 func ContainerPausedProgram(_ *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("ContainerPausedProgram", nil, containers.GetPauseContainerExcludeList(), logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerPaused), nil, containers.GetPauseContainerExcludeList(), logger)
 }
 
 // ContainerCELMetricsProgram creates a program for filtering container metrics via CEL rules
 func ContainerCELMetricsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ContainerCELMetricsProgram"
 	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ContainerType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ContainerType, logger)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELMetrics), rule, workloadfilter.ContainerType, logger)
 }
 
 // ContainerCELLogsProgram creates a program for filtering container logs via CEL rules
 func ContainerCELLogsProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ContainerCELLogsProgram"
 	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductLogs, workloadfilter.ContainerType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ContainerType, logger)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELLogs), rule, workloadfilter.ContainerType, logger)
 }
 
 // ContainerCELSBOMProgram creates a program for filtering container SBOMs via CEL rules
 func ContainerCELSBOMProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ContainerCELSBOMProgram"
 	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductSBOM, workloadfilter.ContainerType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ContainerType, logger)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELSBOM), rule, workloadfilter.ContainerType, logger)
 }
 
 // ContainerCELGlobalProgram creates a program for filtering containers globally via CEL rules
 func ContainerCELGlobalProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "ContainerCELGlobalProgram"
 	rule := filterConfig.GetCELRulesForProduct(workloadfilter.ProductGlobal, workloadfilter.ContainerType)
-	return createCELExcludeProgram(programName, rule, workloadfilter.ContainerType, logger)
+	return createCELExcludeProgram(string(workloadfilter.ContainerCELGlobal), rule, workloadfilter.ContainerType, logger)
 }

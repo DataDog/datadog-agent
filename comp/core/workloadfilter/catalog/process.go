@@ -17,7 +17,7 @@ import (
 
 // LegacyProcessExcludeProgram creates a regex-based program for filtering processes based on legacy disallowlist patterns
 func LegacyProcessExcludeProgram(filterConfig *FilterConfig, logger log.Component) program.FilterProgram {
-	programName := "LegacyProcessExcludeProgram"
+	programName := string(workloadfilter.ProcessLegacyExclude)
 	var initErrors []error
 
 	extractFieldFunc := func(entity workloadfilter.Filterable) string {
