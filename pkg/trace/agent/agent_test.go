@@ -703,7 +703,7 @@ func TestProcess(t *testing.T) {
 		v, ok := tp.Tags[tagAPMMode]
 		assert.False(t, ok)
 		assert.Empty(t, v)
-		assert.Contains(t, b.String(), "[WARN] empty value for '_dd.apm_mode' span tag")
+		assert.Contains(t, b.String(), "[DEBUG] empty value for '_dd.apm_mode' span tag")
 	})
 
 	t.Run("APMMode-invalid value", func(t *testing.T) {
@@ -728,7 +728,9 @@ func TestProcess(t *testing.T) {
 		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
 		assert.NotEmpty(t, payloads, "no payloads were written")
 		tp = payloads[0].TracerPayload
-		assert.Equal(t, "invalid", tp.Tags[tagAPMMode])
+		v, ok := tp.Tags[tagAPMMode]
+		assert.False(t, ok)
+		assert.Empty(t, v)
 		assert.Contains(t, b.String(), "[DEBUG] invalid value for '_dd.apm_mode' span tag: 'invalid'")
 	})
 
