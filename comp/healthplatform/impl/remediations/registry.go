@@ -41,8 +41,10 @@ func NewRegistry() *Registry {
 
 // registerBuiltInTemplates registers all built-in issue templates
 func (r *Registry) registerBuiltInTemplates() {
-	// Docker log permissions
-	r.Register("docker-file-tailing-disabled", dockerpermissions.NewDockerPermissionIssue())
+	// Docker permissions (handles both socket and log file access)
+	dockerTemplate := dockerpermissions.NewDockerPermissionIssue()
+	r.Register(dockerpermissions.IssueIDSocket, dockerTemplate)
+	r.Register(dockerpermissions.IssueIDLogFiles, dockerTemplate)
 }
 
 // Register adds an issue template for a specific issue ID
