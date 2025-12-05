@@ -208,8 +208,6 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in.
 func (o *OTLPReceiver) processRequest(ctx context.Context, header http.Header, in ptraceotlp.ExportRequest) {
-	OTLPIngestAgentTracesRequests.Inc()
-	OTLPIngestAgentTracesEvents.Add(float64(in.Traces().SpanCount()))
 	for i := 0; i < in.Traces().ResourceSpans().Len(); i++ {
 		rspans := in.Traces().ResourceSpans().At(i)
 		_, err := o.ReceiveResourceSpans(ctx, rspans, header, nil)
