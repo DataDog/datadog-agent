@@ -9,7 +9,7 @@
 package mock
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -155,7 +155,7 @@ func (mp *Collector) GetContainerStats(_, containerID string, _ time.Duration) (
 		return entry.ContainerStats, entry.Error
 	}
 
-	return nil, fmt.Errorf("container not found")
+	return nil, errors.New("container not found")
 }
 
 // GetContainerOpenFilesCount returns stats from MockContainerEntry
@@ -164,7 +164,7 @@ func (mp *Collector) GetContainerOpenFilesCount(_, containerID string, _ time.Du
 		return entry.OpenFiles, entry.Error
 	}
 
-	return nil, fmt.Errorf("container not found")
+	return nil, errors.New("container not found")
 }
 
 // GetContainerNetworkStats returns stats from MockContainerEntry
@@ -173,7 +173,7 @@ func (mp *Collector) GetContainerNetworkStats(_, containerID string, _ time.Dura
 		return entry.NetworkStats, entry.Error
 	}
 
-	return nil, fmt.Errorf("container not found")
+	return nil, errors.New("container not found")
 }
 
 // GetPIDs returns pids from MockContainerEntry
@@ -182,7 +182,7 @@ func (mp *Collector) GetPIDs(_, containerID string, _ time.Duration) ([]int, err
 		return entry.PIDs, entry.Error
 	}
 
-	return nil, fmt.Errorf("container not found")
+	return nil, errors.New("container not found")
 }
 
 // GetContainerIDForPID returns a container ID for given PID.

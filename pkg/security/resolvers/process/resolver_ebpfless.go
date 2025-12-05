@@ -329,7 +329,7 @@ func (p *EBPFLessResolver) Dump(_ bool) (string, error) {
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array
 func (p *EBPFLessResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil || pr.ScrubbedArgvResolved {
+	if pr.ArgsEntry == nil || pr.ArgsEntry.ScrubbedResolved {
 		return pr.Argv, pr.ArgsTruncated
 	}
 
@@ -339,7 +339,7 @@ func (p *EBPFLessResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, 
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
-	pr.ScrubbedArgvResolved = true
+	pr.ArgsEntry.ScrubbedResolved = true
 
 	return GetProcessArgv(pr)
 }

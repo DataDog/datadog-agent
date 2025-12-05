@@ -90,11 +90,11 @@ var (
 func Start(ctx context.Context, store workloadmeta.Component, logger log.Component, datadogConfig config.Component) error {
 
 	if patcher != nil {
-		return fmt.Errorf("can't start language detection patcher twice")
+		return errors.New("can't start language detection patcher twice")
 	}
 
 	if store == nil {
-		return fmt.Errorf("cannot initialize patcher with a nil workloadmeta store")
+		return errors.New("cannot initialize patcher with a nil workloadmeta store")
 	}
 
 	apiCl, err := apiserver.GetAPIClient()

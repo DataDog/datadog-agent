@@ -5,4 +5,4 @@
 
 package apps
 
-const Version = "v0.0.5"
+const Version = "v0.0.6"

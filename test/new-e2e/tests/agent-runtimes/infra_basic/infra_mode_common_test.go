@@ -19,11 +19,11 @@ import (
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
-	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
+	agentclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 //go:embed fixtures/custom_mycheck.py
@@ -137,8 +137,10 @@ instances:
 	suiteOptions := []e2e.SuiteOption{}
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
-			awshost.WithAgentOptions(agentOptions...),
+			awshost.WithRunOptions(
+				ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
+				ec2.WithAgentOptions(agentOptions...),
+			),
 		),
 	))
 
@@ -326,12 +328,14 @@ allowed_additional_checks:
 
 	// Update the environment with the new agent config and check integrations
 	s.UpdateEnv(awshost.Provisioner(
-		awshost.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
-		awshost.WithAgentOptions(
-			agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
-			agentparams.WithIntegration("http_check.d", httpCheckConfig),
-			agentparams.WithIntegration("custom_mycheck.d", customCheckConfig),
-			agentparams.WithFile(customCheckPath, string(customCheckPython), true),
+		awshost.WithRunOptions(
+			ec2.WithEC2InstanceOptions(ec2.WithOS(s.descriptor), ec2.WithInstanceType("t3.micro")),
+			ec2.WithAgentOptions(
+				agentparams.WithAgentConfig(agentConfigWithAdditionalCheck),
+				agentparams.WithIntegration("http_check.d", httpCheckConfig),
+				agentparams.WithIntegration("custom_mycheck.d", customCheckConfig),
+				agentparams.WithFile(customCheckPath, string(customCheckPython), true),
+			),
 		),
 	))
 

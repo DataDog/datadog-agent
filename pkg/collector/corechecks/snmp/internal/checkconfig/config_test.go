@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -2164,7 +2165,7 @@ func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string
 		return
 	}
 	if m.subscribed {
-		m.err = fmt.Errorf("double subscription to ProductNDMDeviceProfilesCustom")
+		m.err = errors.New("double subscription to ProductNDMDeviceProfilesCustom")
 		return
 	}
 	m.subscribed = true

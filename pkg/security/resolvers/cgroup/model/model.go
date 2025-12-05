@@ -33,6 +33,9 @@ func NewCacheEntry(containerID containerutils.ContainerID, cgroupContext *model.
 		ContainerContext: model.ContainerContext{
 			ContainerID: containerID,
 		},
+		CGroupContext: model.CGroupContext{
+			Releasable: &model.Releasable{},
+		},
 		PIDs: make(map[uint32]bool, 10),
 	}
 

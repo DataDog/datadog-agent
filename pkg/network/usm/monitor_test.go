@@ -72,7 +72,7 @@ var (
 
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func() error {
-		return fmt.Errorf("mock error")
+		return errors.New("mock error")
 	}
 
 	testCases := []struct {
@@ -127,7 +127,7 @@ func (s *HTTPTestSuite) TestHTTPStats() {
 
 	monitor := setupUSMTLSMonitor(t, getHTTPCfg(), useExistingConsumer)
 
-	resp, err := nethttp.Get(fmt.Sprintf("http://%s/%d/test", serverAddr, nethttp.StatusNoContent))
+	resp, err := nethttp.Get("http://" + serverAddr + "/" + strconv.Itoa(nethttp.StatusNoContent) + "/test")
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 	srvDoneFn()
@@ -165,7 +165,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	abortedRequestFn := requestGenerator(t, slowServerAddr+"/ignore", emptyBody)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -670,7 +670,7 @@ func cleanProtocolMaps(t *testing.T, protocolName string, manager *manager.Manag
 
 func cleanMaps(t *testing.T, protocolName string, maps map[string]*ebpf.Map) {
 	for name, m := range maps {
-		if !strings.Contains(name, protocolName) || strings.Contains(name, fmt.Sprintf("%s_batch", protocolName)) {
+		if !strings.Contains(name, protocolName) || strings.Contains(name, protocolName+"_batch") {
 			continue
 		}
 		cleanMapEntries(t, m)
@@ -750,7 +750,7 @@ func isPercpu(mapType ebpf.MapType) bool {
 }
 
 func generateMockMap(t *testing.T, mapType ebpf.MapType) (string, *ebpf.Map) {
-	name := fmt.Sprintf("test_%s", mapType.String())
+	name := "test_" + mapType.String()
 	m, err := ebpf.NewMap(&ebpf.MapSpec{
 		Name:       name,
 		Type:       mapType,

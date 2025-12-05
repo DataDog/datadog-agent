@@ -24,7 +24,7 @@ end
 
 source path: '..',
        options: {
-         exclude: ["**/testdata/**/*"],
+         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 

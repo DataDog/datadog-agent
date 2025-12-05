@@ -215,7 +215,7 @@ const (
 func TestFailedRegistration(t *testing.T) {
 	// Create a callback recorder that returns an error on purpose
 	registerRecorder := new(CallbackRecorder)
-	registerRecorder.ReturnError = fmt.Errorf("failed registration")
+	registerRecorder.ReturnError = errors.New("failed registration")
 	registerCallback := registerRecorder.Callback()
 
 	unregisterRecorder := new(CallbackRecorder)
@@ -256,7 +256,7 @@ func TestFailedRegistration(t *testing.T) {
 func TestShortLivedProcess(t *testing.T) {
 	// Create a callback recorder that returns an error on purpose
 	registerRecorder := new(CallbackRecorder)
-	registerRecorder.ReturnError = fmt.Errorf("failed registration")
+	registerRecorder.ReturnError = errors.New("failed registration")
 	recorderCallback := registerRecorder.Callback()
 
 	unregisterRecorder := new(CallbackRecorder)

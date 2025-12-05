@@ -312,7 +312,7 @@ func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 
 		family, socketPath := socket.GetSocketAddress(socketPath)
 		if family == "unix" && runtime.GOOS == "windows" {
-			return fmt.Errorf("unix sockets are not supported on Windows")
+			return errors.New("unix sockets are not supported on Windows")
 		}
 
 		rsa.eventGPRCServer = grpcutils.NewServer(family, socketPath)

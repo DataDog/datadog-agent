@@ -7,6 +7,7 @@ package idx
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"maps"
 	"strconv"
@@ -1100,13 +1101,13 @@ func (attr *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
 	case *AnyValue_IntValue:
 		return float64(v.IntValue), nil
 	case *AnyValue_BytesValue:
-		return 0, fmt.Errorf("bytes value not a float64")
+		return 0, errors.New("bytes value not a float64")
 	case *AnyValue_ArrayValue:
-		return 0, fmt.Errorf("array value not a float64")
+		return 0, errors.New("array value not a float64")
 	case *AnyValue_KeyValueList:
-		return 0, fmt.Errorf("key-value list value not a float64")
+		return 0, errors.New("key-value list value not a float64")
 	default:
-		return 0, fmt.Errorf("unknown value type not a float64")
+		return 0, errors.New("unknown value type not a float64")
 	}
 }
 

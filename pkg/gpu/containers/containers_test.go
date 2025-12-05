@@ -8,12 +8,15 @@
 package containers
 
 import (
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
@@ -509,4 +512,167 @@ func TestMatchContainerDevicesWithErrors(t *testing.T) {
 		assert.Equal(t, devices[2], filteredDevices[1])
 		require.ErrorIs(t, err, ErrCannotMatchDevice)
 	})
+}
+
+func TestIsDatadogAgentContainer(t *testing.T) {
+	currentPID := os.Getpid()
+	currentPIDStr := strconv.Itoa(currentPID)
+
+	// Helper function to create a container
+	makeContainer := func(id string, podID string) *workloadmeta.Container {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   id,
+			},
+		}
+		if podID != "" {
+			container.Owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesPod,
+				ID:   podID,
+			}
+		}
+		return container
+	}
+
+	// Helper function to set up a process
+	setupProcess := func(wmetaMock workloadmetamock.Mock, pidStr string, pid int32, containerOwnerID string) {
+		var owner *workloadmeta.EntityID
+		if containerOwnerID != "" {
+			owner = &workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   containerOwnerID,
+			}
+		}
+		wmetaMock.Set(&workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   pidStr,
+			},
+			Pid:   pid,
+			Owner: owner,
+		})
+	}
+
+	tests := []struct {
+		name             string
+		setup            func(wmetaMock workloadmetamock.Mock)
+		container        *workloadmeta.Container
+		expectedResult   bool
+		expectedErrorMsg string
+	}{
+		{
+			name: "ProcessNotFound",
+			setup: func(_ workloadmetamock.Mock) {
+				// No process set up
+			},
+			container:      makeContainer("test-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "ProcessHasNoOwner",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), "")
+			},
+			container:      makeContainer("test-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "ContainerEntityIDMatches",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				containerID := "test-container"
+				wmetaMock.Set(makeContainer(containerID, ""))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), containerID)
+			},
+			container:      makeContainer("test-container", ""),
+			expectedResult: true,
+		},
+		{
+			name: "SamePodDifferentContainers",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				podID := "test-pod"
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, podID))
+				wmetaMock.Set(makeContainer(otherContainerID, podID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", "test-pod"),
+			expectedResult: true,
+		},
+		{
+			name: "DifferentPods",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				runningPodID := "running-pod"
+				otherPodID := "other-pod"
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, runningPodID))
+				wmetaMock.Set(makeContainer(otherContainerID, otherPodID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", "other-pod"),
+			expectedResult: false,
+		},
+		{
+			name: "RunningContainerOwnerNil",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				podID := "test-pod"
+				wmetaMock.Set(makeContainer(runningContainerID, ""))
+				wmetaMock.Set(makeContainer(otherContainerID, podID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", "test-pod"),
+			expectedResult: false,
+		},
+		{
+			name: "ContainerOwnerNil",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				podID := "test-pod"
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, podID))
+				wmetaMock.Set(makeContainer(otherContainerID, ""))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "BothOwnersNil",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				runningContainerID := "running-container"
+				otherContainerID := "other-container"
+				wmetaMock.Set(makeContainer(runningContainerID, ""))
+				wmetaMock.Set(makeContainer(otherContainerID, ""))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("other-container", ""),
+			expectedResult: false,
+		},
+		{
+			name: "ContainerEntityIDDifferentButSamePod",
+			setup: func(wmetaMock workloadmetamock.Mock) {
+				podID := "test-pod"
+				runningContainerID := "agent-container"
+				otherContainerID := "system-probe-container"
+				wmetaMock.Set(makeContainer(runningContainerID, podID))
+				wmetaMock.Set(makeContainer(otherContainerID, podID))
+				setupProcess(wmetaMock, currentPIDStr, int32(currentPID), runningContainerID)
+			},
+			container:      makeContainer("system-probe-container", "test-pod"),
+			expectedResult: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wmetaMock := testutil.GetWorkloadMetaMock(t)
+			tt.setup(wmetaMock)
+			result := IsDatadogAgentContainer(wmetaMock, tt.container)
+			assert.Equal(t, tt.expectedResult, result, tt.expectedErrorMsg)
+		})
+	}
 }

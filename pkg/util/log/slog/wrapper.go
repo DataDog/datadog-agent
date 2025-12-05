@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
@@ -39,16 +38,11 @@ type Wrapper struct {
 
 // NewWrapper returns a new Wrapper implementing the LoggerInterface interface.
 func NewWrapper(handler slog.Handler) types.LoggerInterface {
-	return newWrapperWithCloseAndFlush(handler, nil, nil)
+	return NewWrapperWithCloseAndFlush(handler, nil, nil)
 }
 
-// NewAsyncWrapper returns a LoggerInterface, wrapping the given slog.Handler in an async handler.
-func NewAsyncWrapper(handler slog.Handler) types.LoggerInterface {
-	asyncHandler := handlers.NewAsync(handler)
-	return newWrapperWithCloseAndFlush(asyncHandler, asyncHandler.Flush, asyncHandler.Close)
-}
-
-func newWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func()) types.LoggerInterface {
+// NewWrapperWithCloseAndFlush returns a new Wrapper implementing the LoggerInterface interface, with a flush and close function.
+func NewWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func()) types.LoggerInterface {
 	return &Wrapper{
 		handler: handler,
 		flush:   flush,
@@ -81,7 +75,7 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 	var pc [1]uintptr
 	runtime.Callers(baseStackDepth+w.extraStackDepth, pc[:])
 	r := slog.NewRecord(
-		time.Now().UTC(),
+		time.Now(),
 		types.ToSlogLevel(level),
 		message,
 		pc[0],

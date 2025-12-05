@@ -6,11 +6,11 @@
 package checks
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/platform"
-
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -39,7 +39,7 @@ func CollectSystemInfo() (*model.SystemInfo, error) {
 	// shouldn't be possible, as `cpuInfo.CPUPkgs.Value()` should return an error in this case
 	// but double check before risking a divide by zero
 	if physCount == 0 {
-		return nil, fmt.Errorf("Returned zero physical processors")
+		return nil, errors.New("Returned zero physical processors")
 	}
 	cpus := make([]*model.CPUInfo, 0)
 	logicalCountPerPhys := logicalCount / physCount

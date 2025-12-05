@@ -97,7 +97,7 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 }
 
 func setSSHUserSession(parent *ProcessCacheEntry, child *ProcessCacheEntry) {
-	if parent.ProcessContext.UserSession.ID != 0 && parent.ProcessContext.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
+	if parent.ProcessContext.UserSession.SSHSessionID != 0 && parent.ProcessContext.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
 		child.UserSession = parent.UserSession
 	}
 }

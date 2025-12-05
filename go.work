@@ -62,7 +62,6 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
-	comp/otelcol/otlp/components/connector/datadogconnector
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -90,6 +89,7 @@ use (
 	pkg/collector/check/defaults
 	pkg/config/create
 	pkg/config/env
+	pkg/config/helper
 	pkg/config/mock
 	pkg/config/model
 	pkg/config/nodetreemodel

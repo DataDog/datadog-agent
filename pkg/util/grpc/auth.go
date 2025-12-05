@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
-	"fmt"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"google.golang.org/grpc/codes"
@@ -60,7 +59,7 @@ type bearerTokenAuth struct {
 
 func (b bearerTokenAuth) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
 	return map[string]string{
-		"authorization": fmt.Sprintf("Bearer %s", b.token),
+		"authorization": "Bearer " + b.token,
 	}, nil
 }
 

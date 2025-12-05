@@ -136,27 +136,32 @@ if [ "$SIGN" = true ]; then
 
     # Send package for notarization; retrieve REQUEST_UUID
     echo "Sending notarization request."
-    export NOTARIZATION_TIMEOUT
-    export LATEST_DMG
-    # shellcheck disable=SC2016
-    ./tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" bash -c '
+    submit_for_notarization() {
         set -euo pipefail
-        EXIT_CODE=0
-        RESULT=$(xcrun notarytool submit --timeout "$NOTARIZATION_TIMEOUT" --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$LATEST_DMG" --wait) || EXIT_CODE=$?
-        echo "Results: $RESULT"
-        SUBMISSION_ID="$(echo "$RESULT" | awk "\$1 == \"id:\"{print \$2; exit}")"
-        echo "Submission ID: $SUBMISSION_ID"
-        # Wait for logs to be available
-        sleep 1
-        echo "Submission logs:"
-        # Always show logs even if notarization fails to have more context
-        STATUS=$(xcrun notarytool log --apple-id "$APPLE_ACCOUNT" --team-id "$TEAM_ID" --password "$NOTARIZATION_PWD" "$SUBMISSION_ID" | tee /dev/stderr | jq --raw-output .status)
-        if [ "$STATUS" != Accepted ]; then
-            echo "Submission was not accepted, got: ${STATUS}"
-            exit 1
-        fi
-        exit "$EXIT_CODE"
-    '
+        local dmg_file="$1"
+        xcrun notarytool submit \
+            --apple-id "$APPLE_ACCOUNT" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$TEAM_ID" \
+            --timeout "$NOTARIZATION_TIMEOUT" \
+            --wait \
+            "$dmg_file" | tee /dev/stderr | awk '$1 == "id:" {id=$2} END{if (id) print id; else exit 2}'
+    }
+    export -f submit_for_notarization
+    SUBMISSION_ID=$(tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" submit_for_notarization "$LATEST_DMG")
+    echo "Submission ID: $SUBMISSION_ID"
+
+    check_notarization_status() {
+        set -euo pipefail
+        local submission_id="$1"
+        xcrun notarytool log \
+            --apple-id "$APPLE_ACCOUNT" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$TEAM_ID" \
+            "$submission_id" | tee /dev/stderr | jq --exit-status '.status == "Accepted"'
+    }
+    export -f check_notarization_status
+    tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" check_notarization_status "$SUBMISSION_ID"
     echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
 fi
 

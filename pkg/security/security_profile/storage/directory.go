@@ -11,6 +11,7 @@ package storage
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -211,11 +212,11 @@ func (d *Directory) Persist(request config.StorageRequest, p *profile.Profile, r
 // Load loads the profile for the provided selector if it exists
 func (d *Directory) Load(wls *cgroupModel.WorkloadSelector, p *profile.Profile) (bool, error) {
 	if wls == nil {
-		return false, fmt.Errorf("no selector was provided")
+		return false, errors.New("no selector was provided")
 	}
 
 	if p == nil {
-		return false, fmt.Errorf("no profile was provided")
+		return false, errors.New("no profile was provided")
 	}
 
 	d.profilesLock.RLock()

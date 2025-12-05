@@ -12,6 +12,7 @@ name 'datadog-otel-agent'
 source path: '..',
        options: {
          exclude: [
+           "**/.cache/**/*",
            "**/testdata/**/*",
          ],
        }

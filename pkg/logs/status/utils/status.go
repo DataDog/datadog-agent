@@ -46,7 +46,7 @@ func (s *LogStatus) Error(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.status = isError
-	s.err = fmt.Sprintf("Error: %s", err.Error())
+	s.err = "Error: " + err.Error()
 }
 
 // IsPending returns whether the current status is not yet determined.

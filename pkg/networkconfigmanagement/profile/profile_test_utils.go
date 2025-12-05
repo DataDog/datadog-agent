@@ -209,7 +209,7 @@ func getRunningScrubber() *scrubber.Scrubber {
 	sc := scrubber.New()
 	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-		Repl:  []byte(fmt.Sprintf(`$1 %s`, "<redacted secret>")),
+		Repl:  []byte("$1 " + "<redacted secret>"),
 	})
 	return sc
 }

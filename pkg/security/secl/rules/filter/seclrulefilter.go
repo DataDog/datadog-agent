@@ -8,6 +8,7 @@ package filter
 
 import (
 	"runtime"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -28,14 +29,16 @@ func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 }
 
 func mergeFilterExpressions(filters []string) string {
-	var expression string
+	var builder strings.Builder
 	for i, filter := range filters {
 		if i != 0 {
-			expression += " || "
+			builder.WriteString(" || ")
 		}
-		expression += "(" + filter + ")"
+		builder.WriteString("(")
+		builder.WriteString(filter)
+		builder.WriteString(")")
 	}
-	return expression
+	return builder.String()
 }
 
 func (r *SECLRuleFilter) newEvalContext() eval.Context {

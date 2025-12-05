@@ -41,11 +41,7 @@ type Store interface {
 }
 
 // NewStore returns a new store
-func NewStore(driver, sqliteDbPath string) Store {
-	if driver == "sql" {
-		log.Printf("💾 use SQLite store")
-		return newSQLStore(sqliteDbPath)
-	}
+func NewStore() Store {
 	log.Printf("💾 use memory store")
 	return newInMemoryStore()
 }

@@ -46,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -130,6 +131,9 @@ type logAgent struct {
 
 	// started is true if the logs agent is running
 	started *atomic.Uint32
+
+	// make restart thread safe
+	restartMutex sync.Mutex
 }
 
 func newLogsAgent(deps dependencies) provides {
@@ -183,7 +187,10 @@ func newLogsAgent(deps dependencies) provides {
 	}
 }
 
-func (a *logAgent) start(_ context.Context) error {
+func (a *logAgent) start(context.Context) error {
+	a.restartMutex.Lock()
+	defer a.restartMutex.Unlock()
+
 	a.log.Info("Starting logs-agent...")
 
 	// setup the server config
@@ -208,12 +215,26 @@ func (a *logAgent) start(_ context.Context) error {
 	return nil
 }
 
+// This is used to switch between transport protocols (TCP to HTTP)
+// without disrupting the entire agent.
 func (a *logAgent) setupAgent() error {
+	processingRules, fingerprintConfig, err := a.configureAgent()
+	if err != nil {
+		return err
+	}
+
+	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
+	return nil
+}
+
+// configureAgent validates and retrieves configuration settings needed for agent operation.
+func (a *logAgent) configureAgent() ([]*config.ProcessingRule, *types.FingerprintConfig, error) {
 	if a.endpoints.UseHTTP {
 		status.SetCurrentTransport(status.TransportHTTP)
 	} else {
 		status.SetCurrentTransport(status.TransportTCP)
 	}
+
 	// The severless agent doesn't use FX for now. This means that the logs agent will not have 'inventoryAgent'
 	// initialized for serverless. This is ok since metadata is not enabled for serverless.
 	// TODO: (components) - This condition should be removed once the serverless agent use FX.
@@ -226,7 +247,7 @@ func (a *logAgent) setupAgent() error {
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		status.AddGlobalError(invalidProcessingRules, message)
-		return errors.New(message)
+		return nil, nil, errors.New(message)
 	}
 
 	if config.HasMultiLineRule(processingRules) {
@@ -238,11 +259,10 @@ func (a *logAgent) setupAgent() error {
 	if err != nil {
 		message := fmt.Sprintf("Invalid fingerprint_config setting: %v", err)
 		status.AddGlobalError(invalidFingerprintConfig, message)
-		return errors.New(message)
+		return nil, nil, errors.New(message)
 	}
 
-	a.SetupPipeline(processingRules, a.wmeta, a.integrationsLogs, *fingerprintConfig)
-	return nil
+	return processingRules, fingerprintConfig, nil
 }
 
 // Start starts all the elements of the data pipeline
@@ -277,18 +297,36 @@ func (a *logAgent) startSchedulers() {
 }
 
 func (a *logAgent) stop(context.Context) error {
+	a.restartMutex.Lock()
+	defer a.restartMutex.Unlock()
+
 	a.log.Info("Stopping logs-agent")
 
 	status.Clear()
 
-	stopper := startstop.NewSerialStopper(
+	toStop := []startstop.Stoppable{
 		a.schedulers,
 		a.launchers,
 		a.pipelineProvider,
 		a.auditor,
 		a.destinationsCtx,
 		a.diagnosticMessageReceiver,
-	)
+	}
+
+	a.stopComponents(toStop, func() {
+		a.destinationsCtx.Stop()
+	})
+
+	return nil
+}
+
+// stopComponents stops the provided components using SerialStopper with a grace period timeout.
+//
+// Attempts graceful shutdown within the configured stop_grace_period
+// If timeout expires, calls forceClose to force-flush pending data
+// 3. Waits 5 seconds for cleanup, then dumps goroutines for debugging and exits
+func (a *logAgent) stopComponents(components []startstop.Stoppable, forceClose func()) {
+	stopper := startstop.NewSerialStopper(components...)
 
 	// This will try to stop everything in order, including the potentially blocking
 	// parts like the sender. After StopTimeout it will just stop the last part of the
@@ -301,13 +339,17 @@ func (a *logAgent) stop(context.Context) error {
 		close(c)
 	}()
 	timeout := time.Duration(a.config.GetInt("logs_config.stop_grace_period")) * time.Second
+
 	select {
 	case <-c:
+		a.log.Debug("Components stopped gracefully")
 	case <-time.After(timeout):
 		a.log.Info("Timed out when stopping logs-agent, forcing it to stop now")
 		// We force all destinations to read/flush all the messages they get without
 		// trying to write to the network.
-		a.destinationsCtx.Stop()
+		if forceClose != nil {
+			forceClose()
+		}
 		// Wait again for the stopper to complete.
 		// In some situation, the stopper unfortunately never succeed to complete,
 		// we've already reached the grace period, give it some more seconds and
@@ -325,7 +367,6 @@ func (a *logAgent) stop(context.Context) error {
 		}
 	}
 	a.log.Info("logs-agent stopped")
-	return nil
 }
 
 // AddScheduler adds the given scheduler to the agent.

@@ -306,13 +306,13 @@ func (t onDiskRetryQueueTelemetry) addDeserializeTransactionsCount(count int) {
 
 func toCamelCase(s string) string {
 	parts := strings.Split(s, "_")
-	var camelCase string
+	var builder strings.Builder
 	for _, p := range parts {
 		if p == "" {
 			continue
 		}
-		camelCase += strings.ToUpper(string(p[0]))
-		camelCase += string(p[1:])
+		builder.WriteString(strings.ToUpper(string(p[0])))
+		builder.WriteString(p[1:])
 	}
-	return camelCase
+	return builder.String()
 }

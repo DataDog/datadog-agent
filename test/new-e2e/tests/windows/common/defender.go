@@ -6,11 +6,13 @@
 package common
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/powershell"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // DisableDefender disables Windows Defender.
@@ -27,7 +29,7 @@ func DisableDefender(host *components.RemoteHost) error {
 		return err
 	}
 	if protected {
-		return fmt.Errorf("Windows Defender is tamper protected, unable to modify settings")
+		return errors.New("Windows Defender is tamper protected, unable to modify settings")
 	}
 
 	_, err = powershell.PsHost().DisableWindowsDefender().Execute(host)

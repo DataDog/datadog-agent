@@ -9,6 +9,7 @@
 package wlan
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -416,7 +417,7 @@ func strToGUID(guidStr string) (*windows.GUID, error) {
 	var guid windows.GUID
 	ret, _, _ := clsidFromString.Call(uintptr(unsafe.Pointer(guidWStr)), uintptr(unsafe.Pointer(&guid)))
 	if ret != 0 {
-		return nil, fmt.Errorf("clsidFromString failed")
+		return nil, errors.New("clsidFromString failed")
 	}
 
 	return &guid, nil

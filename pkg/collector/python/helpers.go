@@ -8,6 +8,7 @@
 package python
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"unsafe"
@@ -95,7 +96,7 @@ func newStickyLock() (*stickyLock, error) {
 
 	// Ensure that rtloader isn't destroyed while we are trying to acquire GIL
 	if rtloader == nil {
-		return nil, fmt.Errorf("error acquiring the GIL: rtloader is not initialized")
+		return nil, errors.New("error acquiring the GIL: rtloader is not initialized")
 	}
 
 	state := C.ensure_gil(rtloader)

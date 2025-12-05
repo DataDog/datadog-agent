@@ -7,8 +7,10 @@
 package datastreams
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -145,17 +147,20 @@ func (c *actionsController) update(updates map[string]state.RawConfig, applyStat
 		}
 
 		var actionsMap map[string]any
-		if err := json.Unmarshal(parsed.actionsJSON, &actionsMap); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(parsed.actionsJSON))
+		decoder.UseNumber()
+		if err := decoder.Decode(&actionsMap); err != nil {
 			log.Errorf("Failed to unmarshal actions JSON for config %s: %v", parsed.path, err)
 			applyStateCallback(parsed.path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
 			continue
 		}
 
-		actionsMap["run_once"] = true
-		actionsMap["remote_config_id"] = parsed.remoteConfigID
+		// Copy auth fields first
 		for k, v := range auth {
 			actionsMap[k] = v
 		}
+		actionsMap["run_once"] = true
+		actionsMap["remote_config_id"] = parsed.remoteConfigID
 
 		payload, err := yaml.Marshal(actionsMap)
 		if err != nil {
@@ -251,7 +256,7 @@ func extractKafkaAuthFromInstance(cfgs []integration.Config, bootstrapServers st
 	}
 
 	if bootstrapServers == "" {
-		return out, nil, fmt.Errorf("kafka_consumer integration not found on this node")
+		return out, nil, errors.New("kafka_consumer integration not found on this node")
 	}
 	return out, nil, fmt.Errorf("kafka_consumer integration with bootstrap_servers=%s not found", bootstrapServers)
 }

@@ -127,6 +127,10 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
+	configID := config.GetString("config_id")
+	if configID == "" {
+		configID = "empty"
+	}
 	env := &env.Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
@@ -143,6 +147,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
+		ConfigID:             configID,
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env, taskDB), nil
@@ -753,6 +758,12 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if err != nil {
 		log.Errorf("could not get tasks state: %v", err)
 	}
+	runningVersions := map[string]string{
+		"datadog-agent": version.AgentPackageVersion,
+	}
+	runningConfigVersions := map[string]string{
+		"datadog-agent": d.env.ConfigID,
+	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
@@ -761,6 +772,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentVersion:       s.Experiment,
 			StableConfigVersion:     configState[pkg].Stable,
 			ExperimentConfigVersion: configState[pkg].Experiment,
+			RunningVersion:          runningVersions[pkg],
+			RunningConfigVersion:    runningConfigVersions[pkg],
 		}
 
 		requestState, ok := tasksState[pkg]

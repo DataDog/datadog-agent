@@ -18,6 +18,12 @@
   script:
     - !reference [.setup_dd_pkg]
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
+    # Set DD_PKG_GITLAB_URL for nightly builds to use staging artifact gateway
+    - |
+      if [ "$BUCKET_BRANCH" = "nightly" ] || [ "$BUCKET_BRANCH" = "oldnightly" ]; then
+        export DD_PKG_GITLAB_URL="https://artifact-gateway.us1.staging.dog/internal/artifact-gateway/api/v4"
+        echo "Using staging artifact gateway: $DD_PKG_GITLAB_URL"
+      fi
     - |-
       dd-pkg promote \
         --build-pipeline-id $PARENT_PIPELINE_ID \

@@ -9,6 +9,7 @@ package uploader
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -89,7 +90,7 @@ func (s *batcherState) handleEnqueueEvent(data json.RawMessage, now time.Time, e
 // modified in this case -- but it does imply an invariant violation.
 func (s *batcherState) handleTimerFiredEvent(eff effects) error {
 	if !s.timerSet {
-		return fmt.Errorf("timer fired event received but timer is not set")
+		return errors.New("timer fired event received but timer is not set")
 	}
 	s.flush(eff)
 	return nil

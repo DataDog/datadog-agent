@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -102,7 +103,7 @@ func GetToken(ctx context.Context) (string, time.Time, error) {
 	res, err := httputils.Put(ctx,
 		TokenURL,
 		map[string]string{
-			"X-aws-ec2-metadata-token-ttl-seconds": fmt.Sprintf("%d", int(tokenLifetime.Seconds())),
+			"X-aws-ec2-metadata-token-ttl-seconds": strconv.Itoa(int(tokenLifetime.Seconds())),
 		},
 		nil,
 		pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond, pkgconfigsetup.Datadog())

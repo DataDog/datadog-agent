@@ -185,7 +185,7 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 		return nil
 	}
 
-	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
+	openmetricsEndpoint := c.instance.OpenmetricsEndpoint + "/v1/metrics"
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
 		return err

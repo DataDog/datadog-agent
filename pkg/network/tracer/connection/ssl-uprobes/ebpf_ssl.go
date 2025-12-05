@@ -9,6 +9,7 @@
 package ssluprobes
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -32,18 +33,18 @@ import (
 // ValidateSupported returns an error if TLS cert collection can't be supported
 func ValidateSupported() error {
 	if features.HaveBoundedLoops() != nil {
-		return fmt.Errorf("TLS cert collection requires bounded loops (linux 5.4+)")
+		return errors.New("TLS cert collection requires bounded loops (linux 5.4+)")
 	}
 
 	if features.HaveProgramType(ebpf.RawTracepoint) != nil {
-		return fmt.Errorf("TLS cert collection requires raw tracepoints (linux 4.17+)")
+		return errors.New("TLS cert collection requires raw tracepoints (linux 4.17+)")
 	}
 
 	// pass in EnableCORE: true so we're only checking kernel features. This is because
 	// ConfigureOptions is called before we even know what tracer loaded successfully.
 	// newEbpfTracer properly disables TLS cert collection on prebuilt
 	if !sharedlibraries.IsSupported(&ddebpf.Config{EnableCORE: true}) {
-		return fmt.Errorf("TLS cert collection requires shared library monitoring (kernel 4.14 on x86, 5.5 on arm64)")
+		return errors.New("TLS cert collection requires shared library monitoring (kernel 4.14 on x86, 5.5 on arm64)")
 	}
 
 	hasUretprobeBug, err := kernelbugs.HasUretprobeSyscallSeccompBug()
@@ -51,7 +52,7 @@ func ValidateSupported() error {
 		return fmt.Errorf("disabling TLS cert collection due to failure to check for uretprobe syscall seccomp bug: %v", err)
 	}
 	if hasUretprobeBug {
-		return fmt.Errorf("disabling TLS cert collection due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
+		return errors.New("disabling TLS cert collection due to kernel bug that causes segmentation faults with uretprobes and seccomp filters")
 	}
 	return nil
 }

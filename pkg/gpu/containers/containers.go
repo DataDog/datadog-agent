@@ -12,6 +12,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"slices"
 	"strconv"
@@ -149,7 +150,7 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
 		_, isMigDevice := device.(*ddnvml.MIGDevice)
 		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
-			return nil, fmt.Errorf("MIG devices are not supported for GKE device plugin")
+			return nil, errors.New("MIG devices are not supported for GKE device plugin")
 		}
 	}
 
@@ -190,4 +191,24 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 	}
 
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
+}
+
+// IsDatadogAgentContainer checks if a container belong to the Datadog Agent (might be the agent, but also system-probe or other components)
+func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
+	currentPID := os.Getpid()
+	runningContainer, err := wmeta.GetContainerForProcess(strconv.Itoa(currentPID))
+	if err != nil {
+		return false // errors might happen if the process is not running in a container, or if the process is not accounted for by workloadmeta
+	}
+
+	// If the container is the same as the running container, it is a Datadog container
+	if runningContainer.EntityID == container.EntityID {
+		return true
+	}
+
+	// However, we might have multiple containers as part of the same pod (e.g., agent and system-probe)
+	// In this case, we need to check if the container is part of the same pod as the running container
+	// Compare the struct as a value, not as a pointer, because the pointers might be different if they're created
+	// in different places
+	return runningContainer.Owner != nil && container.Owner != nil && *runningContainer.Owner == *container.Owner
 }

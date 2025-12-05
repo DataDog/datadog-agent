@@ -82,7 +82,7 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		tags := make([]string, 0, 2)
 
 		if c.cfg.tagByFilesystem {
-			tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
+			tags = append(tags, partition.Fstype, "filesystem:"+partition.Fstype)
 		}
 		var deviceName string
 		if c.cfg.useMount {
@@ -90,8 +90,8 @@ func (c *Check) collectPartitionMetrics(sender sender.Sender) error {
 		} else {
 			deviceName = partition.Device
 		}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-		tags = append(tags, fmt.Sprintf("device_name:%s", filepath.Base(partition.Device)))
+		tags = append(tags, "device:"+deviceName)
+		tags = append(tags, "device_name:"+filepath.Base(partition.Device))
 
 		tags = c.applyDeviceTags(partition.Device, partition.Mountpoint, tags)
 
@@ -109,8 +109,8 @@ func (c *Check) collectDiskMetrics(sender sender.Sender) error {
 	for deviceName, ioCounter := range iomap {
 
 		tags := []string{}
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
-		tags = append(tags, fmt.Sprintf("device_name:%s", deviceName))
+		tags = append(tags, "device:"+deviceName)
+		tags = append(tags, "device_name:"+deviceName)
 
 		tags = c.applyDeviceTags(deviceName, "", tags)
 

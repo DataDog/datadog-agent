@@ -1,0 +1,38 @@
+# Policy compiler
+
+http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "0.1.0"
+
+# Define URLs for each architecture. This is used for the Linux build only; Windows and Darwin are not supported yet.
+# When we do those, we can make this parameterized.
+http_archive(
+    name = "compile_policy_x86_64",
+    files = {
+        "BUILD.bazel": "//deps/compile_policy:overlay.BUILD.bazel",
+        # These should really be in the release tarball.
+        "LICENSE": "//deps/compile_policy:LICENSE",
+        "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
+    },
+    sha256 = "ce7ada4e91d3b57849cc602fbb541f6b48988735a6d95ac4044dfab28272dd56",
+    urls = [
+        "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-linux-amd64.tar.gz".format(
+            version = VERSION,
+        ),
+    ],
+)
+
+http_archive(
+    name = "compile_policy_arm64",
+    files = {
+        "BUILD.bazel": "//deps/compile_policy:overlay.BUILD.bazel",
+        "LICENSE": "//deps/compile_policy:LICENSE",
+        "LICENSE-3rdparty.csv": "//deps/compile_policy:LICENSE-3rdparty.csv",
+    },
+    sha256 = "fe3c4470ca33030c4aa002dfb283aef672a8eff37b1660f9bcff67917e2fc64f",
+    urls = [
+        "https://github.com/DataDog/dd-policy-engine/releases/download/v{version}/dd-compile-policy-linux-arm64.tar.gz".format(
+            version = VERSION,
+        ),
+    ],
+)

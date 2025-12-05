@@ -115,7 +115,7 @@ func extractLogsTemplatesFromMap(configs []integration.Config, key string, input
 // ParseCheckNames returns a slice of check names parsed from a JSON array
 func ParseCheckNames(names string) (res []string, err error) {
 	if names == "" {
-		return nil, fmt.Errorf("check_names is empty")
+		return nil, errors.New("check_names is empty")
 	}
 
 	if err = json.Unmarshal([]byte(names), &res); err != nil {
@@ -129,7 +129,7 @@ func ParseCheckNames(names string) (res []string, err error) {
 // contained in the `value` parameter
 func ParseJSONValue(value string) ([][]integration.Data, error) {
 	if value == "" {
-		return nil, fmt.Errorf("value is empty")
+		return nil, errors.New("value is empty")
 	}
 
 	var rawRes []interface{}

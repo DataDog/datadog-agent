@@ -299,8 +299,8 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 		}
 	}
 
-	// on fargate, append global tags on custom events
-	if fargate.IsFargateInstance() {
+	// in sidecar, append global tags on custom events
+	if fargate.IsSidecar() {
 		appendTagsIfNotPresent(a.getGlobalTags())
 	}
 
@@ -567,7 +567,7 @@ func (a *APIServer) getStats() map[string]int64 {
 func (a *APIServer) SendStats() error {
 	// statistics about the number of dropped events
 	for ruleID, val := range a.getStats() {
-		tags := []string{fmt.Sprintf("rule_id:%s", ruleID)}
+		tags := []string{"rule_id:" + ruleID}
 		if val > 0 {
 			if err := a.statsdClient.Count(metrics.MetricEventServerExpired, val, tags, 1.0); err != nil {
 				return err
@@ -603,7 +603,7 @@ func (a *APIServer) GetRuleSetReport(_ context.Context, _ *api.GetRuleSetReportP
 
 	ruleSet := a.cwsConsumer.ruleEngine.GetRuleSet()
 	if ruleSet == nil {
-		return nil, fmt.Errorf("failed to get loaded rule set")
+		return nil, errors.New("failed to get loaded rule set")
 	}
 
 	cfg := &pconfig.Config{

@@ -8,7 +8,7 @@
 package ecs
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,29 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
-
-func TestGetRegionAndAWSAccountID(t *testing.T) {
-	region, id := getRegionAndAWSAccountID("arn:aws:ecs:us-east-1:123427279990:container-instance/ecs-my-cluster/123412345abcdefgh34999999")
-	require.Equal(t, "us-east-1", region)
-	require.Equal(t, "123427279990", id)
-}
-
-func TestInitClusterID(t *testing.T) {
-	id1 := initClusterID("123456789012", "us-east-1", "ecs-cluster-1")
-	require.Equal(t, "34616234-6562-3536-3733-656534636532", id1)
-
-	// same account, same region, different cluster name
-	id2 := initClusterID("123456789012", "us-east-1", "ecs-cluster-2")
-	require.Equal(t, "31643131-3131-3263-3331-383136383336", id2)
-
-	// same account, different region, same cluster name
-	id3 := initClusterID("123456789012", "us-east-2", "ecs-cluster-1")
-	require.Equal(t, "64663464-6662-3232-3635-646166613230", id3)
-
-	// different account, same region, same cluster name
-	id4 := initClusterID("123456789013", "us-east-1", "ecs-cluster-1")
-	require.Equal(t, "61623431-6137-6231-3136-366464643761", id4)
-}
 
 type fakeWorkloadmetaStore struct {
 	workloadmeta.Component
@@ -71,7 +48,7 @@ func (store *fakeWorkloadmetaStore) GetContainer(id string) (*workloadmeta.Conta
 	if id == "938f6d263c464aa5985dc67ab7f38a7e-1714341084" {
 		return container2(store.EnableV4), nil
 	}
-	return nil, fmt.Errorf("container not found")
+	return nil, errors.New("container not found")
 }
 
 type fakeSender struct {
@@ -176,6 +153,10 @@ func prepareTest(t *testing.T, v4 bool, env string) (*Check, *fakeWorkloadmetaSt
 		config:            orchConfig,
 		groupID:           atomic.NewInt32(0),
 		systemInfo:        systemInfo,
+		clusterName:       "ecs-cluster",
+		clusterID:         "63306530-3932-3664-3664-376566306132",
+		awsAccountID:      "123456789012",
+		region:            "us-east-1",
 	}
 
 	c.isECSCollectionEnabledFunc = func() bool { return false }
@@ -190,10 +171,10 @@ func task(v4 bool, id string) *workloadmeta.ECSTask {
 	ecsTask := &workloadmeta.ECSTask{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindECSTask,
-			ID:   fmt.Sprintf("arn:aws:ecs:us-east-1:123456789012:task/%s", id),
+			ID:   "arn:aws:ecs:us-east-1:123456789012:task/" + id,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: fmt.Sprintf("12345678-1234-1234-1234-123456789%s", id),
+			Name: "12345678-1234-1234-1234-123456789" + id,
 		},
 		ClusterName: "ecs-cluster",
 		LaunchType:  workloadmeta.ECSLaunchTypeEC2,
@@ -310,7 +291,7 @@ func expected(v4 bool, groupID int32, ids ...string) *process.CollectorECSTask {
 		}
 
 		newTask := &process.ECSTask{
-			Arn:        fmt.Sprintf("arn:aws:ecs:us-east-1:123456789012:task/%s", id),
+			Arn:        "arn:aws:ecs:us-east-1:123456789012:task/" + id,
 			LaunchType: "ec2",
 			Family:     "redis",
 			Version:    "1",

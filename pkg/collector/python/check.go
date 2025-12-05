@@ -65,7 +65,6 @@ type PythonCheck struct {
 	instanceConfig string
 	haSupported    bool
 	cancelled      bool
-	runOnce        bool
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -272,17 +271,21 @@ func (c *PythonCheck) Configure(_senderManager sender.SenderManager, integration
 		return err
 	}
 
+	var runOnce bool
 	var rawInst integration.RawMap
 	if err := yaml.Unmarshal(data, &rawInst); err == nil {
 		if v, ok := rawInst["run_once"]; ok {
 			if b, okb := v.(bool); okb && b {
-				c.runOnce = true
+				runOnce = true
 			}
 		}
 	}
 
 	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
+	if runOnce {
+		// Set interval to 0 for immediate one-shot execution
+		c.interval = 0
+	} else if commonOptions.MinCollectionInterval > 0 {
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 
@@ -385,11 +388,6 @@ func (c *PythonCheck) Interval() time.Duration {
 // ID returns the ID of the check
 func (c *PythonCheck) ID() checkid.ID {
 	return c.id
-}
-
-// RunOnce returns true if this check should run only once
-func (c *PythonCheck) RunOnce() bool {
-	return c.runOnce
 }
 
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly

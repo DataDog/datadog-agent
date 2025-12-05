@@ -9,7 +9,7 @@
 package testutil
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
 	"regexp"
 	"sync"
@@ -61,7 +61,7 @@ func OpenFromProcess(t *testing.T, programExecutable string, paths ...string) (*
 		case <-time.After(time.Second * 5):
 			patternScanner.PrintLogs(t)
 			// please don't use t.Fatalf() here as we could test if it failed later
-			return nil, fmt.Errorf("couldn't launch process in time")
+			return nil, errors.New("couldn't launch process in time")
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -72,7 +73,7 @@ func (p *patcher) patchDeployment(req Request) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode object: %v", err)
 	}
-	revision := fmt.Sprint(req.Revision)
+	revision := strconv.FormatInt(req.Revision, 10)
 	if deploy.Annotations == nil {
 		deploy.Annotations = make(map[string]string)
 	}
@@ -131,7 +132,7 @@ func enableConfig(deploy *corev1.Deployment, req Request) error {
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	deploy.Spec.Template.Annotations[configAnnotKey] = string(conf)
 	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = strconv.FormatInt(req.Revision, 10)
 	return nil
 }
 
@@ -152,5 +153,5 @@ func disableConfig(deploy *corev1.Deployment, req Request) {
 	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, configAnnotKey)
 	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
+	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = strconv.FormatInt(req.Revision, 10)
 }

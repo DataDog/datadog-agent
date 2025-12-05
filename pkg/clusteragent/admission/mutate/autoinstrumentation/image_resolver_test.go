@@ -228,7 +228,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	mockRCClient := newMockRCClient("image_resolver_multi_repo.json")
-	datadoghqRegistries := config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
+	datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 	resolver := newRemoteConfigImageResolver(mockRCClient, datadoghqRegistries)
 
 	testCases := []struct {
@@ -414,7 +414,7 @@ func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
-	datadoghqRegistries := config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
+	datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 	resolver := newRemoteConfigImageResolver(newMockRCClient("image_resolver_multi_repo.json"), datadoghqRegistries).(*remoteConfigImageResolver)
 
 	t.Run("concurrent_read_write", func(_ *testing.T) {
@@ -484,7 +484,8 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			mockConfig := config.NewMock(t)
-			result := isDatadoghqRegistry(tc.registry, mockConfig.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"))
+			datadogRegistries := newDatadoghqRegistries(mockConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
+			result := isDatadoghqRegistry(tc.registry, datadogRegistries)
 			assert.Equal(t, tc.expected, result, "isDatadoghqRegistry(%s) should return %v", tc.registry, tc.expected)
 		})
 	}
@@ -494,14 +495,9 @@ func TestAsyncInitialization(t *testing.T) {
 	t.Run("noop_during_initialization", func(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockClient.setBlocking(true) // Block initialization
-		config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
+		datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 
-		resolver := newRemoteConfigImageResolverWithRetryConfig(
-			mockClient,
-			2,
-			10*time.Millisecond,
-			config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
-		)
+		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond, datadoghqRegistries)
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Should not complete image resolution during initialization")
@@ -512,12 +508,8 @@ func TestAsyncInitialization(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockClient.setBlocking(true)
 
-		resolver := newRemoteConfigImageResolverWithRetryConfig(
-			mockClient,
-			2,
-			10*time.Millisecond,
-			config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
-		)
+		datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
+		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond, datadoghqRegistries)
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")
 		assert.False(t, ok, "Should not complete image resolution during initialization")
@@ -541,12 +533,8 @@ func TestAsyncInitialization(t *testing.T) {
 		}
 		close(mockClient.configsReady)
 
-		resolver := newRemoteConfigImageResolverWithRetryConfig(
-			mockClient,
-			2,
-			10*time.Millisecond,
-			config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
-		)
+		datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
+		resolver := newRemoteConfigImageResolverWithRetryConfig(mockClient, 2, 10*time.Millisecond, datadoghqRegistries)
 		time.Sleep(50 * time.Millisecond)
 
 		resolved, ok := resolver.Resolve("gcr.io/datadoghq", "dd-lib-python-init", "latest")

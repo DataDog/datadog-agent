@@ -138,7 +138,7 @@ func autoInstrumentTracer(fs afero.Fs) {
 			tracer.InitFn()
 			return
 		} else if err != nil {
-			log.Debug("Error checking if directory exists: %v", err)
+			log.Debugf("Error checking if directory exists: %v", err)
 		}
 	}
 }

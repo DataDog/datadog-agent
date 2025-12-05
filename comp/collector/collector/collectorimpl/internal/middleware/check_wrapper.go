@@ -7,7 +7,6 @@
 package middleware
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -54,7 +53,7 @@ func (c *CheckWrapper) Run() (err error) {
 
 	// Start telemetry span if telemetry is enabled
 	if telemetry, isSet := c.agentTelemetry.Get(); isSet {
-		span, _ := telemetry.StartStartupSpan(fmt.Sprintf("check.%s", c.inner.String()))
+		span, _ := telemetry.StartStartupSpan("check." + c.inner.String())
 		defer span.Finish(err)
 	}
 
@@ -159,9 +158,4 @@ func (c *CheckWrapper) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 // IsHASupported implements Check#IsHASupported
 func (c *CheckWrapper) IsHASupported() bool {
 	return c.inner.IsHASupported()
-}
-
-// RunOnce returns true if the inner check should run only once
-func (c *CheckWrapper) RunOnce() bool {
-	return c.inner.RunOnce()
 }

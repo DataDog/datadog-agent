@@ -162,7 +162,7 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	r.RLock()
 	defer r.RUnlock()
 
-	load := func(policyType rules.PolicyType, id string, cfg []byte) error {
+	load := func(internalType rules.InternalPolicyType, id string, cfg []byte) error {
 		if r.dumpPolicies {
 			name, err := writePolicy(id, cfg)
 			if err != nil {
@@ -173,9 +173,9 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 		}
 
 		pInfo := &rules.PolicyInfo{
-			Name:   normalizePolicyName(id),
-			Source: rules.PolicyProviderTypeRC,
-			Type:   policyType,
+			Name:         normalizePolicyName(id),
+			Source:       rules.PolicyProviderTypeRC,
+			InternalType: internalType,
 		}
 		reader := bytes.NewReader(cfg)
 		policy, err := rules.LoadPolicy(pInfo, reader, macroFilters, ruleFilters)

@@ -105,7 +105,7 @@ func sliceMatchesExpression(slice []regexp.Regexp, expression string) bool {
 
 func compileRegExp(expr string, ignoreCase bool) (*regexp.Regexp, error) {
 	if ignoreCase {
-		expr = fmt.Sprintf("(?i)%s", expr)
+		expr = "(?i)" + expr
 	}
 	re, err := regexp.Compile(expr)
 	if err != nil {
@@ -565,7 +565,7 @@ func (c *Check) getPartitionUsage(partition gopsutil_disk.PartitionStat) *gopsut
 func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string {
 	tags := []string{}
 	if c.instanceConfig.TagByFilesystem {
-		tags = append(tags, partition.Fstype, fmt.Sprintf("filesystem:%s", partition.Fstype))
+		tags = append(tags, partition.Fstype, "filesystem:"+partition.Fstype)
 	}
 	var deviceName string
 	if c.instanceConfig.UseMount {
@@ -574,15 +574,15 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 		deviceName = partition.Device
 	}
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+		tags = append(tags, "device:"+strings.ToLower(deviceName))
 	} else {
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, "device:"+deviceName)
 	}
-	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(partition.Device)))
+	tags = append(tags, "device_name:"+baseDeviceName(partition.Device))
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[partition.Device]
 	if ok {
-		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+		tags = append(tags, "label:"+label, "device_label:"+label)
 	}
 	return tags
 }
@@ -590,15 +590,15 @@ func (c *Check) getPartitionTags(partition gopsutil_disk.PartitionStat) []string
 func (c *Check) getDeviceNameTags(deviceName string) []string {
 	tags := []string{}
 	if c.instanceConfig.LowercaseDeviceTag {
-		tags = append(tags, fmt.Sprintf("device:%s", strings.ToLower(deviceName)))
+		tags = append(tags, "device:"+strings.ToLower(deviceName))
 	} else {
-		tags = append(tags, fmt.Sprintf("device:%s", deviceName))
+		tags = append(tags, "device:"+deviceName)
 	}
-	tags = append(tags, fmt.Sprintf("device_name:%s", baseDeviceName(deviceName)))
+	tags = append(tags, "device_name:"+baseDeviceName(deviceName))
 	tags = append(tags, c.getDeviceTags(deviceName)...)
 	label, ok := c.deviceLabels[deviceName]
 	if ok {
-		tags = append(tags, fmt.Sprintf("label:%s", label), fmt.Sprintf("device_label:%s", label))
+		tags = append(tags, "label:"+label, "device_label:"+label)
 	}
 	return tags
 }

@@ -87,7 +87,7 @@ func ParseV4Task(task v3or4.Task, seen map[workloadmeta.EntityID]struct{}) []wor
 		entity.LaunchType = workloadmeta.ECSLaunchTypeFargate
 		source = workloadmeta.SourceRuntime
 	}
-	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsFargateInstance() {
+	if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
 		source = workloadmeta.SourceRuntime
 		entity.LaunchType = workloadmeta.ECSLaunchTypeManagedInstances
 	}
@@ -237,7 +237,7 @@ func ParseV4TaskContainers(
 			// the logs agent does not collect logs in ECS Fargate.
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSFargate
 		}
-		if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsFargateInstance() {
+		if strings.ToUpper(task.LaunchType) == "MANAGED_INSTANCES" && fargate.IsSidecar() {
 			source = workloadmeta.SourceRuntime
 			containerEvent.Runtime = workloadmeta.ContainerRuntimeECSManagedInstances
 		}

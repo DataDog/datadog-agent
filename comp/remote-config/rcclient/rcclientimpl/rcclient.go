@@ -88,7 +88,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
-		return nil, fmt.Errorf("Remote config client is missing agent name or version parameter")
+		return nil, errors.New("Remote config client is missing agent name or version parameter")
 	}
 
 	// Append client options

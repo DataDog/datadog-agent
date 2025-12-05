@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/gcp/openshiftvm"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/installer"
@@ -30,7 +31,7 @@ type ScenarioRegistry map[string]pulumi.RunFunc
 func Scenarios() ScenarioRegistry {
 	return ScenarioRegistry{
 		"aws/vm":          ec2.VMRun,
-		"aws/dockervm":    ec2.VMRunWithDocker,
+		"aws/dockervm":    ec2docker.DockerRun,
 		"aws/ecs":         ecs.Run,
 		"aws/eks":         eks.Run,
 		"aws/installer":   installer.Run,

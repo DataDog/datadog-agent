@@ -135,7 +135,7 @@ func (sl *streamlogsimpl) exportStreamLogsIfEnabled(logsAgent logsAgent.Componen
 
 	slDuration := fb.GetFlareArgs().StreamLogsDuration
 	if slDuration <= 0 {
-		return fmt.Errorf("remote streamlogs has been disabled via an unset duration, exiting streamlogs flare filler")
+		return errors.New("remote streamlogs has been disabled via an unset duration, exiting streamlogs flare filler")
 	}
 	streamLogParams := LogParams{
 		FilePath: streamlogsLogFilePath,

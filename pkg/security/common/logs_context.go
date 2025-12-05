@@ -12,7 +12,6 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -46,14 +45,6 @@ func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *clie
 // NewLogContext returns the context fields to send events to the intake
 func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
-	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
-			endpoints, err = logsconfig.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid endpoints: %w", err)
 	}

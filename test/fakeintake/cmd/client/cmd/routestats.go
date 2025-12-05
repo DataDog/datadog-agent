@@ -6,9 +6,9 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -30,7 +30,7 @@ func NewRouteStatsCommand(cl **client.Client) (cmd *cobra.Command) {
 			table := tablewriter.NewWriter(os.Stdout)
 			table.SetHeader([]string{"Route", "Count"})
 			for route, count := range stats {
-				table.Append([]string{route, fmt.Sprintf("%d", count)})
+				table.Append([]string{route, strconv.Itoa(count)})
 			}
 			table.Render()
 		},

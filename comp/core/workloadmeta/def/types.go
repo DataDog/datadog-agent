@@ -2006,6 +2006,9 @@ type GPU struct {
 
 	// VirtualizationMode contains the virtualization mode of the device
 	VirtualizationMode string
+
+	// Healthy indicates whether or not the GPU device is healthy
+	Healthy bool
 }
 
 var _ Entity = &GPU{}

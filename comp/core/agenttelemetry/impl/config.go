@@ -389,9 +389,8 @@ var defaultProfiles = `
       exclude:
         zero_metric: true
       metrics:
-        - name: trace.running
-          aggregate_tags:
-            - state
+        - name: trace.enabled
+        - name: trace.working
     schedule:
       start_after: 60
       iterations: 0

@@ -11,8 +11,6 @@ import (
 	"io"
 	"strings"
 	"time"
-
-	mapstructure "github.com/go-viper/mapstructure/v2"
 )
 
 // ErrConfigFileNotFound is an error for when the config file is not found
@@ -170,13 +168,12 @@ type Reader interface {
 	//
 	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
 	IsSet(key string) bool
-	// IsConfigured returns true if a setting exists, has a value and doesn't come from the defaults (ie: was
-	// configured by the user). If a setting is configured by the user with the same value than the defaults this
-	// method will still return true as it tests the source of a setting not its value.
+	// IsConfigured returns true if a setting is configured by the user. This means that either:
+	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
+	//  2. The key is for an inner node, and one of its children IsConfigured
 	IsConfigured(key string) bool
-
-	// UnmarshalKey Unmarshal a configuration key into a struct
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
+	// HasSection returns true if the key is for a non-leaf setting that is defined by the user
+	HasSection(key string) bool
 
 	// IsKnown returns whether this key is known
 	IsKnown(key string) bool
@@ -260,8 +257,6 @@ type Setup interface {
 // Compound is an interface for retrieving compound elements from the config, plus
 // some misc functions, that should likely be split into another interface
 type Compound interface {
-	UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error
-
 	ReadInConfig() error
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error

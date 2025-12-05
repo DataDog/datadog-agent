@@ -2115,7 +2115,7 @@ func getExpectedOutcomeForPathWithRepeatedChars() map[usmhttp.Key]captureRange {
 	for i := 1; i < 100; i++ {
 		expected[usmhttp.Key{
 			Path: usmhttp.Path{
-				Content: usmhttp.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
+				Content: usmhttp.Interner.GetString("/" + strings.Repeat("a", i)),
 			},
 			Method: usmhttp.MethodPost,
 		}] = captureRange{

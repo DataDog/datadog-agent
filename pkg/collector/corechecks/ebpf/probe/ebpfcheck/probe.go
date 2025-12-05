@@ -1061,7 +1061,7 @@ func hashMapNumberOfEntriesWithBatch(mp *ebpf.Map, buffers *entryCountBuffers, m
 			// We got a batch and it's the first one, and we didn't reach the end of the map, so we need to store the keys we got here
 			// so that later on we can check against them to see if we got an iteration restart
 			if enoughSpaceForFullBatch { // A sanity check
-				return -1, fmt.Errorf("Unexpected batch lookup result: we should have enough space to get the full map in one batch, but BatchLookup returned a partial result")
+				return -1, errors.New("Unexpected batch lookup result: we should have enough space to get the full map in one batch, but BatchLookup returned a partial result")
 			}
 
 			// Keep track the keys of the first batch so we can look them up later to see if we got restarted

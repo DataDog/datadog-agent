@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -53,7 +54,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 type InvalidMetricConfigMocked struct{}
 
 func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (utils.EndpointDescriptorSet, error) {
-	return nil, fmt.Errorf("error")
+	return nil, errors.New("error")
 }
 
 func TestStartInvalidConfig(t *testing.T) {
@@ -71,7 +72,7 @@ type MetricDogStatsDMocked struct{}
 
 //nolint:revive // TODO(SERV) Fix revive linter
 func (m *MetricDogStatsDMocked) NewServer(_ aggregator.Demultiplexer) (dogstatsdServer.ServerlessDogstatsd, error) {
-	return nil, fmt.Errorf("error")
+	return nil, errors.New("error")
 }
 
 func TestStartInvalidDogStatsD(t *testing.T) {

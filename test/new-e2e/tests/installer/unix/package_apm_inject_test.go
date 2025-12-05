@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,9 +66,9 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.assertStableConfig(map[string]interface{}{})
 
 	traceID := rand.Uint64()
-	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
+	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
 	traceIDDocker := rand.Uint64()
-	s.host.CallExamplePythonAppInDocker(fmt.Sprint(traceIDDocker))
+	s.host.CallExamplePythonAppInDocker(strconv.FormatUint(traceIDDocker, 10))
 
 	s.assertTraceReceived(traceID)
 	s.assertTraceReceived(traceIDDocker)
@@ -256,7 +257,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	defer s.host.StopExamplePythonApp()
 
 	traceID := rand.Uint64()
-	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
+	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
 	s.assertTraceReceived(traceID)
 
 	// Re-run the install script with the latest tracer version
@@ -281,9 +282,9 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 	defer s.host.StopExamplePythonAppInDocker()
 
 	traceID = rand.Uint64()
-	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
+	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
 	traceIDDocker := rand.Uint64()
-	s.host.CallExamplePythonAppInDocker(fmt.Sprint(traceIDDocker))
+	s.host.CallExamplePythonAppInDocker(strconv.FormatUint(traceIDDocker, 10))
 
 	s.assertTraceReceived(traceID)
 	s.assertTraceReceived(traceIDDocker)

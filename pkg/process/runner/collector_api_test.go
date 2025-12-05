@@ -7,7 +7,6 @@
 package runner
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -508,7 +507,7 @@ func (m *mockEndpoint) start() *url.URL {
 
 	close(addrC)
 
-	collectorEndpoint, err := url.Parse(fmt.Sprintf("http://%s", collectorAddr.String()))
+	collectorEndpoint, err := url.Parse("http://" + collectorAddr.String())
 	require.NoError(m.t, err)
 
 	return collectorEndpoint

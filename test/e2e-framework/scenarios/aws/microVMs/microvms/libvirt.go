@@ -163,7 +163,7 @@ func (vm *VMCollection) SetupCollectionDomainConfigurations(depends []pulumi.Res
 		}
 
 		// Setup individual Nvram disk for arm64 distro images
-		if set.Hypervisor() != "hvf" && resources.GetLocalArchRecipe(set.Recipe) == vmconfig.RecipeDistroARM64 {
+		if resources.GetLocalArchRecipe(set.Recipe) == vmconfig.RecipeDistroARM64 {
 			for _, domain := range domains {
 				varstorePath := filepath.Join(GetWorkingDirectory(domain.vmset.Arch), fmt.Sprintf("varstore.%s", domain.DomainName))
 				varstoreArgs := command.Args{

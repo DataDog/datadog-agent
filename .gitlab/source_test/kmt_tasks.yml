@@ -36,7 +36,15 @@ test_kmt_local_setup_linux:
 test_kmt_local_setup_macos:
   extends: .test_kmt_local_setup
   before_script:
-    - !reference [.macos_gitlab, before_script]
+    - !reference [.vault_login]
+    - !reference [.aws_retry_config]
+    # Selecting the current Go version
+    - |
+      eval $(gimme $(cat .go-version))
+      export GOPATH=$GOROOT
+    - !reference [.install_python_dependencies]
+    # See there is no virtualization, we need to clean the environment regularly
+    - !reference [.macos_runner_maintenance]
   tags: ["macos:sonoma-amd64", "specific:true"]
   variables:
      # Some requirements cannot be tested in the CI yet:

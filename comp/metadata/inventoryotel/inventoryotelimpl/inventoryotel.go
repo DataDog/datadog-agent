@@ -150,7 +150,7 @@ func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error)
 func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) {
 	body, err := i.client.Get(u.String(), ipchttp.WithTimeout(httpTO))
 	if err != nil {
-		return nil, i.log.Error("error fetching remote otel config: %w", err)
+		return nil, i.log.Errorf("error fetching remote otel config: %v", err)
 	}
 
 	return i.parseResponseFromJSON(body)

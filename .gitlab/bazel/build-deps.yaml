@@ -1,5 +1,4 @@
 .bazel:build-deps:
-  extends: .bazel:defs
   rules:
     - !reference [ .except_mergequeue ]
     - when: on_success
@@ -30,5 +29,5 @@ bazel:build-deps:windows-amd64:
   variables:
     POWERSHELL_SCRIPT: |-
       [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
-      bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' --platforms=//bazel/platforms:windows_x86_64
+      bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' '@openssl//...' --platforms=//bazel/platforms:windows_x86_64
       # bazel build @bzip2//...

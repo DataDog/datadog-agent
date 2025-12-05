@@ -34,6 +34,12 @@ type Provides struct {
 
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
+	// Check if the remoteAgentRegistry is enabled
+	if !reqs.Config.GetBool("remote_agent_registry.enabled") {
+		return Provides{}, nil
+	}
+
+	// Get the registry address
 	registryAddress := net.JoinHostPort(reqs.Config.GetString("cmd_host"), reqs.Config.GetString("cmd_port"))
 
 	remoteAgentServer, err := helper.NewUnimplementedRemoteAgentServer(reqs.IPC, reqs.Log, reqs.Config, reqs.Lifecycle, registryAddress, flavor.GetFlavor(), flavor.GetHumanReadableFlavor())

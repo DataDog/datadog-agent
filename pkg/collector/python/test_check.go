@@ -8,7 +8,7 @@
 package python
 
 import (
-	"fmt"
+	"errors"
 	"runtime"
 	"testing"
 	"time"
@@ -230,7 +230,7 @@ func testRunCheck(t *testing.T) {
 	assert.Equal(t, C.int(1), C.get_checks_warnings_calls)
 
 	assert.Equal(t, check.instance, C.run_check_instance)
-	assert.Equal(t, check.lastWarnings, []error{fmt.Errorf("warn1"), fmt.Errorf("warn2")})
+	assert.Equal(t, check.lastWarnings, []error{errors.New("warn1"), errors.New("warn2")})
 }
 
 func testRunCheckWithRuntimeNotInitializedError(t *testing.T) {
@@ -443,7 +443,7 @@ func testRunErrorNil(t *testing.T) {
 
 	errStr := check.runCheck(false)
 	assert.NotNil(t, errStr)
-	assert.NotNil(t, fmt.Errorf("some error"), errStr)
+	assert.NotNil(t, errors.New("some error"), errStr)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
@@ -468,7 +468,7 @@ func testRunErrorReturn(t *testing.T) {
 
 	errStr := check.runCheck(false)
 	assert.NotNil(t, errStr)
-	assert.NotNil(t, fmt.Errorf("not OK"), errStr)
+	assert.NotNil(t, errors.New("not OK"), errStr)
 
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)

@@ -8,7 +8,9 @@ package handlers
 import (
 	"container/list"
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
 	"sync"
 )
 
@@ -57,8 +59,10 @@ func NewAsync(innerHandler slog.Handler) *Async {
 func (h *Async) writeList(queue list.List) {
 	for e := queue.Front(); e != nil; e = e.Next() {
 		msg := e.Value.(msg)
-		//TODO: should we print an error which happens when failing to log ?
-		_ = h.innerHandler.Handle(msg.ctx, msg.record)
+		err := h.innerHandler.Handle(msg.ctx, msg.record)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
+		}
 	}
 }
 

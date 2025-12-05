@@ -33,7 +33,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	c.sbomScanner = scanner.GetGlobalScanner()
 	if c.sbomScanner == nil {
-		return fmt.Errorf("error retrieving global SBOM scanner")
+		return errors.New("error retrieving global SBOM scanner")
 	}
 
 	filter := workloadmeta.NewFilterBuilder().
@@ -48,7 +48,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	)
 	scanner := collectors.GetContainerdScanner()
 	if scanner == nil {
-		return fmt.Errorf("error retrieving global containerd scanner")
+		return errors.New("error retrieving global containerd scanner")
 	}
 
 	errs := c.filterSBOMContainers.GetErrors()
@@ -58,7 +58,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	resultChan := scanner.Channel()
 	if resultChan == nil {
-		return fmt.Errorf("error retrieving global containerd scanner channel")
+		return errors.New("error retrieving global containerd scanner channel")
 	}
 	go func() {
 		for {

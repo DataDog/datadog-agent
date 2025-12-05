@@ -10,6 +10,7 @@ package softwareinventoryimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -231,7 +232,7 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 func (is *softwareInventory) sendPayload() error {
 	forwarder, ok := is.eventPlatform.Get()
 	if !ok {
-		return fmt.Errorf("event platform forwarder not available")
+		return errors.New("event platform forwarder not available")
 	}
 
 	payload := is.getPayload()

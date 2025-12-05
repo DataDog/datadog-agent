@@ -7,7 +7,6 @@ package http
 
 import (
 	"crypto/tls"
-	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -261,7 +260,7 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(
-			fmt.Sprintf("min_tls_version=%s", test.minTLSVersion),
+			"min_tls_version="+test.minTLSVersion,
 			func(t *testing.T) {
 				cfg := configmock.New(t)
 				if test.minTLSVersion != "" {

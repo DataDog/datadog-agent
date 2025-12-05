@@ -7,6 +7,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -51,7 +52,6 @@ type testCheck struct {
 func (c *testCheck) ID() checkid.ID { return checkid.ID(c.id) }
 func (c *testCheck) String() string { return checkid.IDToCheckName(c.ID()) }
 func (c *testCheck) RunCount() int  { return int(c.runCount.Load()) }
-func (c *testCheck) RunOnce() bool  { return false }
 func (c *testCheck) Stop() {
 	c.StopLock.Lock()
 	defer c.StopLock.Unlock()
@@ -72,7 +72,7 @@ func (c *testCheck) StartedChan() chan struct{} {
 
 func (c *testCheck) GetWarnings() []error {
 	if c.doWarn {
-		return []error{fmt.Errorf("Warning")}
+		return []error{errors.New("Warning")}
 	}
 
 	return []error{}
@@ -92,7 +92,7 @@ func (c *testCheck) Run() error {
 	c.runCount.Inc()
 
 	if c.doErr {
-		return fmt.Errorf("myerror")
+		return errors.New("myerror")
 	}
 
 	return nil

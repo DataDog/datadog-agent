@@ -7,7 +7,6 @@ package connectivity
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -162,7 +161,7 @@ func TestSendHTTPRequestHeaders(t *testing.T) {
 		assert.Equal(t, "api_key1", r.Header.Get("DD-API-KEY"))
 		assert.Equal(t, "application/x-protobuf", r.Header.Get("Content-Type"))
 		assert.Equal(t, version.AgentVersion, r.Header.Get("DD-Agent-Version"))
-		assert.Equal(t, fmt.Sprintf("datadog-agent/%s", version.AgentVersion), r.Header.Get("User-Agent"))
+		assert.Equal(t, "datadog-agent/"+version.AgentVersion, r.Header.Get("User-Agent"))
 		assert.Equal(t, requestWithHeader, r.Header.Get("X-Requested-With"))
 		w.Write([]byte("Received Protobuf"))
 	}))

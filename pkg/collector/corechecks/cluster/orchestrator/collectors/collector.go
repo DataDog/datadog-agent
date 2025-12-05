@@ -65,7 +65,7 @@ func (cm CollectorMetadata) CollectorTags() []string {
 	if cm.Version == "" {
 		return nil
 	}
-	return []string{fmt.Sprintf("kube_api_version:%s", cm.Version)}
+	return []string{"kube_api_version:" + cm.Version}
 }
 
 // FullName returns a string that contains the collector name and version.

@@ -35,8 +35,8 @@ func TestChoose(t *testing.T) {
 
 			chsr := chooser{
 				choice:       make(chan LogWhat, 1),
-				kubeletReady: func() (bool, time.Duration) { return 0 != ready&kubernetesReadyBit, 0 },
-				dockerReady:  func() (bool, time.Duration) { return 0 != ready&dockerReadyBit, 0 },
+				kubeletReady: func() (bool, time.Duration) { return ready&kubernetesReadyBit != 0, 0 },
+				dockerReady:  func() (bool, time.Duration) { return ready&dockerReadyBit != 0, 0 },
 			}
 			chsr.choose(false)
 
