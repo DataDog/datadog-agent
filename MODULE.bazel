@@ -31,11 +31,11 @@ bazel_dep(name = "bazel_lib", version = "3.0.0")
 bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 
-# Temporary until a future rules_pkg release
-git_override(
+# Temporary until rules_pkg 1.2.0 is in BCR
+archive_override(
     module_name = "rules_pkg",
-    commit = "2fab459c805e3f171284856aebb0ceaca2c0ff08",
-    remote = "https://github.com/bazelbuild/rules_pkg",
+    sha256 = "b5c9184a23bb0bcff241981fd9d9e2a97638a1374c9953bb1808836ce711f990",
+    urls = ["https://github.com/bazelbuild/rules_pkg/releases/download/1.2.0/rules_pkg-1.2.0.tar.gz"],
 )
 
 #########################
