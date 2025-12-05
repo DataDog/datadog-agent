@@ -320,7 +320,7 @@ func getRealPath(dir string) (string, error) {
 }
 
 func buildTestConfiguration() (*testConfig, error) {
-	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
+	retryPtr := flag.Int("retry", 0, "number of times to retry testing pass")
 	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
 	verbose := flag.Bool("verbose", false, "if set to true verbosity level is 'standard-verbose', otherwise it is 'testname'")
 	runCount := flag.Int("run-count", 1, "number of times to run the test")

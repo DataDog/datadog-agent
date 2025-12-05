@@ -23,6 +23,16 @@ func SetGoTLSExcludeSelf(value bool) error {
 	return nil
 }
 
+// SetGoTLSPerformInitialScan enables or disables the initial /proc scan for GoTLS attacher.
+// This must be called before the monitor is created.
+func SetGoTLSPerformInitialScan(tb testing.TB, value bool) {
+	originalValue := performInitialScan
+	tb.Cleanup(func() {
+		performInitialScan = originalValue
+	})
+	performInitialScan = value
+}
+
 // SetGoTLSPeriodicTerminatedProcessesScanInterval sets the interval for the periodic scan of terminated processes in GoTLS.
 func SetGoTLSPeriodicTerminatedProcessesScanInterval(tb testing.TB, interval time.Duration) {
 	originalValue := scanTerminatedProcessesInterval
