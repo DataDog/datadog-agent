@@ -16,6 +16,7 @@ PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 KillMode=control-group
 EnvironmentFile=-/etc/datadog-agent-exp/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent-exp/managed/datadog-agent/stable"
+Environment="DD_PM_CONFIG_DIR=/etc/datadog-agent-exp/process-manager/processes.d"
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 Environment="EXPERIMENT_TIMEOUT=3000s"
 RuntimeDirectory=datadog

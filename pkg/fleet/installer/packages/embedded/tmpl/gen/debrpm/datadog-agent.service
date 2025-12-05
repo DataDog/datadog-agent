@@ -14,6 +14,7 @@ PIDFile=/opt/datadog-agent/run/agent.pid
 KillMode=control-group
 EnvironmentFile=-/etc/datadog-agent/environment
 Environment="DD_FLEET_POLICIES_DIR=/etc/datadog-agent/managed/datadog-agent/stable"
+Environment="DD_PM_CONFIG_DIR=/etc/datadog-agent/process-manager/processes.d"
 RuntimeDirectory=datadog
 StartLimitInterval=10
 StartLimitBurst=5
