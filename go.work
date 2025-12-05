@@ -6,6 +6,7 @@ go 1.24.10
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
