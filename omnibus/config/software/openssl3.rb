@@ -37,6 +37,7 @@ build do
     if ENV["AGENT_FLAVOR"] == "fips"
       fips_flag = "--//:fips_mode=true"
     else
+      # We could set here //:fips_mode=false, but it's not necessary because the default is false.
       fips_flag = ""
     end
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded #{fips_flag}"
