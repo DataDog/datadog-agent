@@ -54,6 +54,7 @@ type metricStat struct {
 	Count    uint64    `json:"count"`
 	LastSeen time.Time `json:"last_seen"`
 	Tags     string    `json:"tags"`
+	key      ckey.ContextKey
 }
 
 // metricStatsShard holds a subset of metric stats with its own lock
@@ -112,7 +113,7 @@ func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Compone
 	// Initialize all shards
 	for i := uint32(0); i < sd.numShards; i++ {
 		sd.shards[i] = &metricStatsShard{
-			stats:           make(map[ckey.ContextKey]metricStat),
+			stats:           make(map[ckey.ContextKey]metricStat, 1),
 			tagsAccumulator: tagset.NewHashingTagsAccumulator(),
 		}
 	}
@@ -159,8 +160,8 @@ func FormatDebugStats(stats []byte) (string, error) {
 	buf.Write([]byte(strings.Repeat("-", 40) + "-|-" + strings.Repeat("-", 20) + "-|-" + strings.Repeat("-", 10) + "-|-" + strings.Repeat("-", 20) + "\n"))
 
 	for _, key := range order {
-		stats := dogStats[key]
-		buf.Write([]byte(fmt.Sprintf("%-40s | %-20s | %-10d | %-20v\n", stats.Name, stats.Tags, stats.Count, stats.LastSeen)))
+		dStats := dogStats[key]
+		buf.Write([]byte(fmt.Sprintf("%-40s | %-20s | %-10d | %-20v\n", dStats.Name, dStats.Tags, dStats.Count, dStats.LastSeen)))
 	}
 
 	if len(dogStats) == 0 {
@@ -197,21 +198,26 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	// Generate key for this metric
 	key := d.keyGen.Generate(sample.Name, "", shard.tagsAccumulator)
 
-	// Get or create metric stat
-	ms, exists := shard.stats[key]
-	if !exists {
-		ms = metricStat{
-			Name: sample.Name,
-			Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
-		}
+	ms := metricStat{
+		key:  key,
+		Name: sample.Name,
+		Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
 	}
+	// Get or create metric stat
+	//ms, exists := shard.stats[key]
+	//if !exists {
+	//	ms = metricStat{
+	//		Name: sample.Name,
+	//		Tags: strings.Join(shard.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
+	//	}
+	//}
 
 	// Update stats
 	ms.Count++
 	ms.LastSeen = now
 
 	// Store back to shard
-	shard.stats[key] = ms
+	//shard.stats[key] = ms
 
 	// Log if enabled
 	if d.dogstatsdDebugLogger != nil {
@@ -219,12 +225,12 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 		d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
 	}
 
-	// Notify metrics count tracker
-	select {
-	case d.metricsCounts.metricChan <- struct{}{}:
-	default:
-		// Non-blocking send to avoid deadlock if channel is full
-	}
+	//// Notify metrics count tracker
+	//select {
+	//case d.metricsCounts.metricChan <- struct{}{}:
+	//default:
+	//	// Non-blocking send to avoid deadlock if channel is full
+	//}
 }
 
 // hashString returns a hash value for a string
