@@ -144,7 +144,6 @@ configure_make(
             },
             "//conditions:default": {},
     }),
-    install_prefix = "py_install",
     lib_source = ":all",
     out_binaries = UNIX_BINS,
     out_data_dirs = [
