@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -105,6 +104,13 @@ func (c *WLANCheck) isChannelSwap(wi *wifiInfo) bool {
 	return c.lastChannel != wi.channel
 }
 
+// Status metric values (replacing deprecated service checks)
+const (
+	statusOK       float64 = 0 // WiFi operational
+	statusWarning  float64 = 1 // WiFi interface inactive
+	statusCritical float64 = 2 // WiFi collection failed
+)
+
 // Run runs the check
 func (c *WLANCheck) Run() error {
 	sender, err := c.GetSender()
@@ -115,17 +121,19 @@ func (c *WLANCheck) Run() error {
 	// Attempt to get WiFi info from GUI via IPC
 	wi, err := getWiFiInfo()
 	if err != nil {
-		// Failed to get WiFi info - emit CRITICAL service check
+		// Failed to get WiFi info - emit CRITICAL status
 		log.Errorf("WLAN check failed: %v", err)
 		log.Error("Ensure the Datadog Agent GUI is running for WiFi metrics collection on macOS 15+")
 
-		sender.ServiceCheck(
-			"system.wlan.can_connect",
-			servicecheck.ServiceCheckCritical,
-			"",
-			nil,
-			err.Error(),
-		)
+		// Emit status metric: CRITICAL (replaces deprecated service check)
+		sender.Gauge("system.wlan.status", statusCritical, "", []string{
+			"status:critical",
+			"reason:ipc_failure",
+		})
+		// Track error count for monitoring
+		sender.Count("system.wlan.check.errors", 1, "", []string{
+			"error_type:ipc_failure",
+		})
 		sender.Commit()
 		return err
 	}
@@ -134,25 +142,14 @@ func (c *WLANCheck) Run() error {
 	if wi.phyMode == "None" {
 		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
 
-		sender.ServiceCheck(
-			"system.wlan.can_connect",
-			servicecheck.ServiceCheckWarning,
-			"",
-			nil,
-			"WiFi interface not active",
-		)
+		// Emit status metric: WARNING (replaces deprecated service check)
+		sender.Gauge("system.wlan.status", statusWarning, "", []string{
+			"status:warning",
+			"reason:interface_inactive",
+		})
 		sender.Commit()
 		return nil
 	}
-
-	// WiFi data collected successfully - emit OK service check
-	sender.ServiceCheck(
-		"system.wlan.can_connect",
-		servicecheck.ServiceCheckOK,
-		"",
-		nil,
-		"",
-	)
 
 	// Prepare tags
 	ssid := wi.ssid
@@ -175,7 +172,11 @@ func (c *WLANCheck) Run() error {
 		"ssid:" + ssid,
 		"bssid:" + bssid,
 		"mac_address:" + macAddress,
+		"status:ok",
 	}
+
+	// WiFi data collected successfully - emit OK status (replaces deprecated service check)
+	sender.Gauge("system.wlan.status", statusOK, "", tags)
 
 	// Emit metrics
 	sender.Gauge("system.wlan.rssi", float64(wi.rssi), "", tags)
