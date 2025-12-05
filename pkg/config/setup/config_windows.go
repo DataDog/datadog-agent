@@ -63,8 +63,8 @@ func osinit() {
 
 	// Agent binary
 	if _here, err := executable.Folder(); err == nil {
-		InstallPath = filepath.Join(_here, "..", "..")
-		agentFilePath := filepath.Join(InstallPath, "embedded", "agent.exe")
+		InstallPath = filepath.Join(_here, "..")
+		agentFilePath := filepath.Join(InstallPath, "bin", "agent.exe")
 		if _, err := os.Stat(agentFilePath); err == nil {
 			DefaultDDAgentBin = agentFilePath
 		}
