@@ -115,6 +115,7 @@ configure_make(
         # https://github.com/bazelbuild/rules_foreign_cc/issues/239#issuecomment-478167267
         "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
+        "--with-openssl-rpath=yes",
         "--enable-optimizations",
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
