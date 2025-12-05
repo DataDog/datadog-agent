@@ -22,33 +22,15 @@ source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
-    env = with_standard_compiler_flags()
-    env["MAKEFLAGS"] = "-j#{workers}"
-    # Exact build steps from security policy:
-    # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
-    #
-    # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-    unless windows_target?
-      # Exact build steps from security policy:
-      # https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp4282.pdf
-      #
-      # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-      command "./Configure enable-fips", env: env
+    dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
+    command_on_repo_root "bazelisk run -- @openssl_fips//:install_fips --destdir=#{dest}"
 
-      command "make", env: env
-      command "make install", env: env
-    # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
-    else
-      # ---------------- DO NOT MODIFY LINES BELOW HERE ----------------
-      command "perl.exe ./Configure enable-fips", env: env
-
-      command "make", env: env
-      command "make install_fips", env: env
-      # ---------------- DO NOT MODIFY LINES ABOVE HERE ----------------
+    if !windows?
+      lib_extension = if linux_target? then ".so" else ".dylib" end
+      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+        " #{dest}/lib/ossl-modules/fips#{lib_extension}" \
     end
 
-
-    dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
     mkdir "#{dest}/ssl"
     mkdir "#{dest}/lib/ossl-modules"
     mkdir "#{dest}/bin"

@@ -1,4 +1,6 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -8,6 +10,10 @@ filegroup(
     name = "all",
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
+
+FIPS_WIN = "fips.dll"
+FIPS_LINUX = "fips.so"
+FIPS_MACOS = "fips.dylib"
 
 configure_make(
     name = "openssl_fips",
@@ -36,7 +42,8 @@ configure_make(
         "@platforms//os:windows": [
             "mingw64",
         ] + ENABLE_FIPS[:-1],
-        "//conditions:default": ENABLE_FIPS,
+        # Setting libdir to lib as linux x86 will use lib64 by default.
+        "//conditions:default": ENABLE_FIPS + ["--libdir=lib"],
     }),
     env = select({
         "@platforms//os:macos": {
@@ -50,10 +57,10 @@ configure_make(
     out_include_dir = "include",
     out_shared_libs = select({
         "@platforms//os:linux": [
-            "ossl-modules/fips.so",
+            "ossl-modules/" + FIPS_LINUX,
         ],
         "@platforms//os:macos": [
-            "ossl-modules/fips.dylib",
+            "ossl-modules/" + FIPS_MACOS,
         ],
         "//conditions:default": [],
     }),
@@ -63,10 +70,87 @@ configure_make(
     # hence, we can treat them as such.
     out_binaries = select({
         "@platforms//os:windows": [
-            "fips.dll",
+            "providers/" + FIPS_WIN,
         ],
         "//conditions:default": [],
     }),
     copts = ["-O2"],
     targets = ["install_fips"],
+)
+
+filegroup(
+    name = "fips_provider",
+    srcs = [":openssl_fips"],
+    output_group = select({
+        "@platforms//os:windows": FIPS_WIN,
+        "@platforms//os:linux": FIPS_LINUX,
+        "@platforms//os:macos": FIPS_MACOS,
+        "//conditions:default": "",
+    }),
+)
+
+filegroup(
+    name = "gendir",
+    srcs = [":openssl_fips"],
+    output_group = "gen_dir",
+)
+
+genrule(
+    name = "copy_fipsmodule_cnf",
+    srcs = [":gendir"],
+    outs = ["fipsmodule.cnf"],
+    cmd = "cp $(location :gendir)/ssl/fipsmodule.cnf $@",
+)
+
+pkg_files(
+    name = "fipsmodule_cnf",
+    srcs = [":copy_fipsmodule_cnf"],
+    prefix = "embedded/ssl",
+)
+
+pkg_files(
+    name = "openssl_fips_provider",
+    srcs = [":fips_provider"],
+    prefix = "embedded/lib/ossl-modules",
+)
+
+pkg_files(
+    name = "fipsinstall_sh",
+    srcs = ["fipsinstall.sh"],
+    prefix = "bin",
+    attributes = pkg_attributes(
+        group = "root",
+        mode = "0755",
+        owner = "root",
+    ),
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+)
+
+pkg_files(
+    name = "openssl_cnf",
+    srcs = [":openssl.cnf"],
+    prefix = "embedded/ssl",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":openssl_fips_provider",
+        ":openssl_cnf",
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [":fipsinstall_sh"],
+    }),
+)
+
+sh_binary(
+    name = "configure_fips",
+    srcs = ["configure_fips.sh"],
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
