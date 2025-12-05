@@ -148,7 +148,7 @@ func (u *verticalController) syncDeploymentKind(
 	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
 
 	// Generate the patch request which adds the scaling hash annotation to the pod template
-	gvr := targetGVK.GroupVersion().WithResource(fmt.Sprintf("%ss", strings.ToLower(targetGVK.Kind)))
+	gvr := targetGVK.GroupVersion().WithResource(strings.ToLower(targetGVK.Kind) + "s")
 	patchTime := u.clock.Now()
 	patchData, err := json.Marshal(map[string]interface{}{
 		"spec": map[string]interface{}{

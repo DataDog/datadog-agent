@@ -1,4 +1,6 @@
-load("//compliance:license_csv.bzl", "license_csv")
+# Top level of dependencies originating outside this source repository.
+
+package(default_visibility = ["//visibility:private"])
 
 # Do not depend on this.
 # This is a temporary target to make it easy to force build dependencies
@@ -22,6 +24,8 @@ filegroup(
             "@gcrypt",
             "@gpg-error",
             "@libsepol//:sepol",
+            "@libxml2",
+            "@libxslt",
             "@nghttp2",
             "@pcre2",
             "@popt",
@@ -35,13 +39,5 @@ filegroup(
         ],
         "//conditions:default": [],
     }),
-    visibility = ["//visibility:private"],
-)
-
-# Gather the licenses for dependencies that not built by omnibus any more.
-license_csv(
-    name = "licenses",
-    out = "licenses.csv",
-    tags = ["manual"],
-    target = ":all_deps",
+    visibility = ["//compliance:__pkg__"],
 )

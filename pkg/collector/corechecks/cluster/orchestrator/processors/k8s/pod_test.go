@@ -385,6 +385,7 @@ func TestPodProcessor_Process(t *testing.T) {
 	assert.Equal(t, int32(1), manifest1.Type) // K8sPod
 	assert.Equal(t, "v1", manifest1.Version)
 	assert.Equal(t, "json", manifest1.ContentType)
+	assert.Equal(t, "test-node", manifest1.NodeName)
 
 	// Parse the actual manifest content
 	var actualManifestPod corev1.Pod

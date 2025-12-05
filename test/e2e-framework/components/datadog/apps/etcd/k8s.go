@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
@@ -24,8 +25,6 @@ import (
 // the check was discovered.
 const storeCheckConfigScript = `
 set -e
-
-apk add --no-cache curl netcat-openbsd
 
 echo "[init] Waiting for etcd to respond on TCP port 2379..."
 until nc -z localhost 2379; do
@@ -146,10 +145,16 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 								InitialDelaySeconds: pulumi.Int(10),
 								TimeoutSeconds:      pulumi.Int(5),
 							},
+							VolumeMounts: &corev1.VolumeMountArray{
+								&corev1.VolumeMountArgs{
+									Name:      pulumi.String("etcd-data"),
+									MountPath: pulumi.String("/var/lib/etcd"),
+								},
+							},
 						},
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("etcd-config"),
-							Image: pulumi.String("public.ecr.aws/docker/library/alpine:3.21.3"),
+							Image: pulumi.String("ghcr.io/datadog/apps-alpine:" + apps.Version),
 							Command: pulumi.StringArray{
 								pulumi.String("/bin/sh"),
 								pulumi.String("-c"),
@@ -157,6 +162,12 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 							Args: pulumi.StringArray{
 								pulumi.String(storeCheckConfigScript),
 							},
+						},
+					},
+					Volumes: corev1.VolumeArray{
+						&corev1.VolumeArgs{
+							Name:     pulumi.String("etcd-data"),
+							EmptyDir: &corev1.EmptyDirVolumeSourceArgs{},
 						},
 					},
 				},

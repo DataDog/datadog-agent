@@ -139,9 +139,9 @@ func (d *Dimensions) String() string {
 	dimensions := make([]string, len(d.tags))
 	copy(dimensions, d.tags)
 
-	dimensions = append(dimensions, fmt.Sprintf("name:%s", d.name))
-	dimensions = append(dimensions, fmt.Sprintf("host:%s", d.host))
-	dimensions = append(dimensions, fmt.Sprintf("originID:%s", d.originID))
+	dimensions = append(dimensions, "name:"+d.name)
+	dimensions = append(dimensions, "host:"+d.host)
+	dimensions = append(dimensions, "originID:"+d.originID)
 	sort.Strings(dimensions)
 
 	for _, dim := range dimensions {
