@@ -2315,6 +2315,49 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Errorf("failed to load policy: %s", err)
 		}
 	})
+
+	t.Run("array-field-without-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.hashes",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load because open.file.hashes is an array field without append: true")
+		} else {
+			t.Log(err)
+		}
+	})
+
+	t.Run("array-field-with-append", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:   "var1",
+						Field:  "open.file.hashes",
+						Scope:  "container",
+						Append: true,
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to load successfully with append: true, got: %v", err)
+		}
+	})
 }
 
 func TestActionSetVariableLength(t *testing.T) {
