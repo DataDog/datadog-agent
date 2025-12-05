@@ -94,7 +94,7 @@ func (t *Translator) mapExponentialHistogramMetrics(
 		p := slice.At(i)
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), t.cfg.EncodeSliceMetadataAsTags)
 
 		histInfo := histogramInfo{ok: true}
 

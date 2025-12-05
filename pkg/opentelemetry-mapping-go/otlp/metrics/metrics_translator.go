@@ -186,7 +186,7 @@ func (t *Translator) mapNumberMetrics(
 			continue
 		}
 
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), t.cfg.EncodeSliceMetadataAsTags)
 		var val float64
 		switch p.ValueType() {
 		case pmetric.NumberDataPointValueTypeDouble:
@@ -256,7 +256,7 @@ func (t *Translator) mapNumberMonotonicMetrics(
 
 		ts := uint64(p.Timestamp())
 		startTs := uint64(p.StartTimestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), t.cfg.EncodeSliceMetadataAsTags)
 
 		var val float64
 		switch p.ValueType() {
@@ -506,7 +506,7 @@ func (t *Translator) mapHistogramMetrics(
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), t.cfg.EncodeSliceMetadataAsTags)
 
 		histInfo := histogramInfo{ok: true}
 
@@ -619,7 +619,7 @@ func (t *Translator) mapSummaryMetrics(
 
 		startTs := uint64(p.StartTimestamp())
 		ts := uint64(p.Timestamp())
-		pointDims := dims.WithAttributeMap(p.Attributes())
+		pointDims := dims.WithAttributeMap(p.Attributes(), t.cfg.EncodeSliceMetadataAsTags)
 
 		// treat count as a cumulative monotonic metric
 		// and sum as a non-monotonic metric
