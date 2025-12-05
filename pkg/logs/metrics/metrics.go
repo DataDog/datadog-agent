@@ -13,6 +13,15 @@ import (
 )
 
 var (
+	// TlmDrainClusters is the total number of drain clusters
+	TlmDrainClusters = telemetry.NewGauge("logs", "drain_clusters",
+		nil, "Total number of drain clusters")
+	// TlmDrainMaxClusterSize is the max cluster size for drain clusters
+	TlmDrainMaxClusterSize = telemetry.NewGauge("logs", "drain_clusters_max_size",
+		nil, "Max cluster size for drain clusters")
+	// TlmDrainProcessTime is the average drain process time for each log
+	TlmDrainProcessTime = telemetry.NewGauge("logs", "drain_process_time",
+		nil, "Drain process time for each log (average)")
 	// LogsExpvars contains metrics for the logs agent.
 	LogsExpvars *expvar.Map
 	// LogsDecoded is the total number of decoded logs

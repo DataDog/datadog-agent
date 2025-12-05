@@ -11,6 +11,9 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
+
+	"github.com/faceair/drain"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -50,6 +53,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+	drainProcessor            *drain.Drain
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -61,6 +65,9 @@ type Processor struct {
 func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule,
 	encoder Encoder, diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component,
 	pipelineMonitor metrics.PipelineMonitor, instanceID string) *Processor {
+
+	// TODO
+	drainProcessor := drain.New(drain.DefaultConfig())
 
 	p := &Processor{
 		config:                    config,
@@ -75,6 +82,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		drainProcessor:            drainProcessor,
 	}
 
 	// Initialize cached failover config
@@ -189,6 +197,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
+	nDrainProcessed := 0
+	totalTimeDrainProcessing := int64(0)
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
@@ -200,6 +210,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 		msg.SetRendered(rendered)
+
+		// Drain sampling
+		// TODO: process bytes and not string for drain processor
+		renderedString := string(rendered)
+		start := time.Now()
+		p.drainProcessor.Match(renderedString)
+		p.drainProcessor.Train(renderedString)
+		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
+		nDrainProcessed++
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
@@ -218,6 +237,20 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
+
+	// TODO: Dump drain logs sometimes
+
+	// Drain metrics
+	drainClusters := p.drainProcessor.Clusters()
+	maxSize := 0
+	for _, cluster := range drainClusters {
+		if cluster.Size() > maxSize {
+			maxSize = cluster.Size()
+		}
+	}
+	metrics.TlmDrainClusters.Set(float64(len(drainClusters)))
+	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
+	metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing) / float64(nDrainProcessed))
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF
