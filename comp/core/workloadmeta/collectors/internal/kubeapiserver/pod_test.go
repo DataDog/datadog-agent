@@ -10,13 +10,21 @@ package kubeapiserver
 import (
 	"context"
 	"testing"
+	"time"
 
-	corev1 "k8s.io/api/core/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func Test_PodsFakeKubernetesClient(t *testing.T) {
@@ -27,28 +35,80 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 		UID:    types.UID("test-pod-uid"),
 	}
 
-	createResource := func(cl *fake.Clientset) error {
-		_, err := cl.CoreV1().Pods(metav1.NamespaceAll).Create(context.TODO(), &corev1.Pod{ObjectMeta: objectMeta}, metav1.CreateOptions{})
-		return err
+	overrides := map[string]interface{}{
+		"cluster_agent.collect_kubernetes_tags": true,
 	}
+
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, overrides)
+		}),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	store := newPodReflectorStore(wmeta, wmeta.GetConfig())
+
+	ch := wmeta.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+	defer wmeta.Unsubscribe(ch)
+
+	bundleCh := make(chan workloadmeta.EventBundle, 1)
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	go func() {
+		for {
+			select {
+			case bundle := <-ch:
+				bundle.Acknowledge()
+				if len(bundle.Events) > 0 {
+					bundleCh <- bundle
+					return
+				}
+			case <-doneCh:
+				return
+			}
+		}
+	}()
+
+	pod := &MinimalPod{
+		ObjectMeta: objectMeta,
+		Spec:       MinimalPodSpec{Containers: []MinimalContainer{}},
+	}
+	err := store.Add(pod)
+	require.NoError(t, err)
+
+	var bundle workloadmeta.EventBundle
+	select {
+	case bundle = <-bundleCh:
+		// Received bundle. Continue.
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
 	expected := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
 			{
 				Type: workloadmeta.EventTypeSet,
 				Entity: &workloadmeta.KubernetesPod{
-					Containers: ([]workloadmeta.OrchestratorContainer{}),
+					Containers: []workloadmeta.OrchestratorContainer{},
 					EntityID: workloadmeta.EntityID{
 						ID:   string(objectMeta.UID),
 						Kind: workloadmeta.KindKubernetesPod,
 					},
 					EntityMeta: workloadmeta.EntityMeta{
-						Name:   objectMeta.Name,
-						Labels: objectMeta.Labels,
+						Name:      objectMeta.Name,
+						Namespace: objectMeta.Namespace,
+						Labels:    objectMeta.Labels,
 					},
 					Owners: []workloadmeta.KubernetesPodOwner{},
 				},
 			},
 		},
 	}
-	testCollectEvent(t, createResource, newPodStore, expected)
+
+	bundle.Ch = nil // to avoid comparing the channel
+	assert.Equal(t, expected, bundle)
+
 }

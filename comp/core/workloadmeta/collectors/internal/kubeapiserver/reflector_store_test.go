@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -72,7 +71,7 @@ func Test_AddDelete_Pod(t *testing.T) {
 
 	podStore := newPodReflectorStore(workloadmetaComponent, workloadmetaComponent.GetConfig())
 
-	pod := corev1.Pod{
+	pod := MinimalPod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-pod",
 			Namespace: "test-namespace",

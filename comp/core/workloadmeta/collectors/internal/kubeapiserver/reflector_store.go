@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -146,7 +145,7 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	switch v := obj.(type) {
 	// All the supported objects need to be in this switch statement to be able
 	// to be deleted.
-	case *corev1.Pod:
+	case *MinimalPod:
 		uid = v.UID
 	case *appsv1.Deployment:
 		uid = v.UID
