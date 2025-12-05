@@ -3,6 +3,7 @@ Process Manager tasks
 """
 
 import os
+import shutil
 import sys
 
 from invoke import task
@@ -13,15 +14,16 @@ PROCMGR_BIN_PATH = os.path.join(".", "bin", "process-manager")
 PROCMGR_DAEMON_PATH = os.path.join(".", "process_manager", "daemon")
 
 
+def _get_binary_extension():
+    """Return the appropriate binary extension for the current platform."""
+    return ".exe" if sys.platform == 'win32' else ""
+
+
 @task
 def build(ctx, release=True):
     """
     Build the Process Manager daemon (dd-procmgrd) using Cargo
     """
-    if sys.platform == 'win32':
-        print("Process Manager is not supported on Windows")
-        raise Exit(code=1)
-
     # Check if cargo is available
     result = ctx.run("cargo --version", warn=True, hide=True)
     if result.exited != 0:
@@ -41,11 +43,12 @@ def build(ctx, release=True):
 
     # Copy the binary to the bin directory
     build_dir = "release" if release else "debug"
-    source_bin = os.path.join(PROCMGR_DAEMON_PATH, "target", build_dir, "dd-procmgrd")
-    dest_bin = os.path.join(PROCMGR_BIN_PATH, "dd-procmgrd")
+    ext = _get_binary_extension()
+    source_bin = os.path.join(PROCMGR_DAEMON_PATH, "target", build_dir, f"dd-procmgrd{ext}")
+    dest_bin = os.path.join(PROCMGR_BIN_PATH, f"dd-procmgrd{ext}")
 
     if os.path.exists(source_bin):
-        ctx.run(f"cp {source_bin} {dest_bin}")
+        shutil.copy2(source_bin, dest_bin)
         print(f"Binary copied to: {dest_bin}")
     else:
         print(f"Error: Built binary not found at {source_bin}")
@@ -61,7 +64,8 @@ def clean(ctx):
     ctx.run(f"cargo clean --manifest-path={PROCMGR_DAEMON_PATH}/Cargo.toml", warn=True)
 
     # Remove copied binary
-    dest_bin = os.path.join(PROCMGR_BIN_PATH, "dd-procmgrd")
+    ext = _get_binary_extension()
+    dest_bin = os.path.join(PROCMGR_BIN_PATH, f"dd-procmgrd{ext}")
     if os.path.exists(dest_bin):
         os.remove(dest_bin)
         print(f"Removed: {dest_bin}")
@@ -73,6 +77,7 @@ def run(ctx):
     Build and run the Process Manager daemon
     """
     build(ctx)
-    binary_path = os.path.join(PROCMGR_BIN_PATH, "dd-procmgrd")
+    ext = _get_binary_extension()
+    binary_path = os.path.join(PROCMGR_BIN_PATH, f"dd-procmgrd{ext}")
     print(f"Running process manager: {binary_path}")
     ctx.run(binary_path)

@@ -132,3 +132,70 @@ process_manager_smoke_test:
     - cargo test --test e2e_startup --test e2e_basic --verbose
   timeout: 5m
 
+# Windows build and test job
+.process_manager_windows_base:
+  stage: source_test
+  needs: ["go_deps"]
+  rules:
+    - !reference [.except_disable_unit_tests]
+    - !reference [.fast_on_dev_branch_only]
+    - changes:
+        - process_manager/**/*
+        - .gitlab/source_test/process_manager.yml
+  extends:
+    - .windows_docker_default
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
+  artifacts:
+    expire_in: 2 weeks
+    when: always
+    paths:
+      - process_manager/target/release/*.exe
+
+# Windows unit tests for process manager
+process_manager_unit_tests_windows:
+  extends:
+    - .process_manager_windows_base
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      # Install Rust toolchain if not present
+      if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Rust toolchain..."
+        Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+        .\rustup-init.exe -y --default-toolchain stable
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+      }
+    - rustc --version
+    - cargo --version
+    - cd process_manager
+    - echo "Running process manager unit tests on Windows..."
+    - cargo test --lib --workspace --verbose
+  timeout: 30m
+
+# Windows build verification (ensure binaries compile for Windows)
+process_manager_build_windows:
+  extends:
+    - .process_manager_windows_base
+  script:
+    - $ErrorActionPreference = "Stop"
+    - |
+      # Install Rust toolchain if not present
+      if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+        Write-Host "Installing Rust toolchain..."
+        Invoke-WebRequest -Uri https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+        .\rustup-init.exe -y --default-toolchain stable
+        $env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
+      }
+    - rustc --version
+    - cargo --version
+    - cd process_manager
+    - echo "Building process manager binaries for Windows..."
+    - cargo build --release --bins
+    - echo "Verifying binaries exist..."
+    - Test-Path target/release/dd-procmgrd.exe
+    - Test-Path target/release/dd-procmgr.exe
+  timeout: 30m
+

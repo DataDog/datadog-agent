@@ -15,7 +15,7 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   license :project_license
 
-  # Process manager is only available on Linux
+  # Process manager is available on Linux and Windows
   if linux_target?
     # Build the Rust binaries (daemon + CLI)
     env = {
@@ -43,6 +43,23 @@ build do
     copy 'process_manager/examples/datadog-agent-sysprobe.yaml', "#{etc_dir}/processes.d/datadog-agent-sysprobe.yaml"
 
     # Note: extra_package_file is registered at project level in agent.rb
+  elsif windows_target?
+    # Build the Rust binaries (daemon + CLI) for Windows
+    env = {
+      'PATH' => "#{ENV['USERPROFILE']}\\.cargo\\bin;#{ENV['PATH']}",
+    }
+
+    # Build both the daemon and CLI binaries using cargo workspace
+    command "cd process_manager && cargo build --release --bins", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+
+    # Create necessary directories
+    mkdir "#{install_dir}/bin/agent"
+
+    # Copy both binaries to the install directory (Windows uses .exe extension)
+    copy 'process_manager/target/release/dd-procmgrd.exe', "#{install_dir}/bin/agent/dd-procmgrd.exe"
+    copy 'process_manager/target/release/dd-procmgr.exe', "#{install_dir}/bin/agent/dd-procmgr.exe"
+
+    # Note: Windows config files are handled by the MSI installer
   end
 end
 

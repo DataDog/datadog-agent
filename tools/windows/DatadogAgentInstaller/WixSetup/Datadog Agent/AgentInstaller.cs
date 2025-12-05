@@ -614,6 +614,25 @@ namespace WixSetup.Datadog_Agent
                 AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
             }
             );
+
+            // Process Manager daemon service
+            var processManagerService = GenerateDependentServiceInstaller(
+                new Id("ddagentprocessmanagerservice"),
+                Constants.ProcessManagerServiceName,
+                "Datadog Process Manager",
+                "Manages Datadog Agent processes lifecycle",
+                "LocalSystem");
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcessManagerDaemon, processManagerService));
+            agentBinDir.Add(new EventSource
+            {
+                Name = Constants.ProcessManagerServiceName,
+                Log = "Application",
+                EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.ProcessManagerDaemon)}",
+                AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
+            });
+            // Process Manager CLI (not a service, just a binary)
+            agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcessManagerCli));
+
             var targetBinFolder = new Dir(new Id("BIN"), "bin",
                 new WixSharp.File(_agentBinaries.Agent, agentService),
                 // Temporary binary for extracting the embedded Python - will be deleted

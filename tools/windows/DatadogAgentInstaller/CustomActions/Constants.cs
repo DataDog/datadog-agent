@@ -9,6 +9,7 @@ namespace Datadog.CustomActions
         public const string SystemProbeServiceName = "datadog-system-probe";
         public const string SecurityAgentServiceName = "datadog-security-agent";
         public const string InstallerServiceName = "Datadog Installer";
+        public const string ProcessManagerServiceName = "datadog-process-manager";
         public const string NpmServiceName = "ddnpm";
         public const string ProcmonServiceName = "ddprocmon";
 

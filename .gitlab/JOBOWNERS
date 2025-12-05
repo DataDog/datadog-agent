@@ -31,6 +31,8 @@ process_manager_unit_tests              @DataDog/agent-runtimes
 process_manager_e2e_tests               @DataDog/agent-runtimes
 process_manager_e2e_tests_linux         @DataDog/agent-runtimes
 process_manager_smoke_test              @DataDog/agent-runtimes
+process_manager_unit_tests_windows      @DataDog/agent-runtimes
+process_manager_build_windows           @DataDog/agent-runtimes
 
 # Send count metrics about Golang dependencies
 golang_deps_send_count_metrics       @DataDog/agent-runtimes
