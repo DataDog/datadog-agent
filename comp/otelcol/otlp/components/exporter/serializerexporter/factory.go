@@ -251,7 +251,7 @@ func (f *factory) createMetricExporter(ctx context.Context, params exp.Settings,
 		usageMetric = f.store.DDOTMetrics
 	}
 
-	newExp, err := NewExporter(f.s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage, f.ipath)
+	newExp, err := NewExporter(f.s, cfg, hostGetter, f.createConsumer, tr, params, reporter, f.gatewayUsage, usageMetric, f.store.DDOTGWUsage)
 	if err != nil {
 		return nil, err
 	}
