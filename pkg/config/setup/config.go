@@ -2769,9 +2769,9 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 
 	if infraMode == "end_user_device" {
 		// Enable features for end_user_device mode
-		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
-		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceAgentRuntime)
-		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)
+		config.Set("notable_events.enabled", true, pkgconfigmodel.SourceInfraMode)
 	}
 }
 
