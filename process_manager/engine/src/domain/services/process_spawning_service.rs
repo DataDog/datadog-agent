@@ -7,7 +7,6 @@
 use crate::domain::ports::ProcessRepository;
 use crate::domain::services::{ProcessLifecycleService, ProcessSupervisionService};
 use crate::domain::{DomainError, ProcessId};
-use std::os::unix::io::RawFd;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -68,7 +67,7 @@ impl ProcessSpawningService {
     pub async fn spawn_from_template(
         &self,
         template_name: &str,
-        socket_fds: Vec<RawFd>,
+        socket_fds: Vec<i32>,
         name_suffix: Option<String>,
     ) -> Result<SpawnedInstance, DomainError> {
         debug!(

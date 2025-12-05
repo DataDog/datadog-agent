@@ -310,13 +310,15 @@ impl SocketActivationService {
         handle: RawSocket,
         service_name: String,
         event_tx: mpsc::UnboundedSender<SocketActivationEvent>,
-        _config: SocketConfig,
+        config: SocketConfig,
     ) {
         debug!(
             socket = %socket_name,
             service = %service_name,
             "Waiting for connection to trigger service activation (Accept=no) - Windows"
         );
+
+        let fd_env_var = config.fd_env_var.clone();
 
         std::thread::spawn(move || {
             use std::net::TcpListener;
@@ -348,6 +350,7 @@ impl SocketActivationService {
                             service_name: service_name.clone(),
                             fd: handle,
                             accept: false,
+                            fd_env_var: fd_env_var.clone(),
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                             break;
@@ -465,6 +468,8 @@ impl SocketActivationService {
             "Accepting connections, will spawn service per connection (Accept=yes) - Windows"
         );
 
+        let fd_env_var = config.fd_env_var.clone();
+
         std::thread::spawn(move || {
             use std::net::TcpListener;
             use std::os::windows::io::FromRawSocket;
@@ -493,6 +498,7 @@ impl SocketActivationService {
                             service_name: service_name.clone(),
                             fd: accepted_handle,
                             accept: true,
+                            fd_env_var: fd_env_var.clone(),
                         }) {
                             error!(socket = %socket_name, error = %e, "Failed to send activation event");
                         }

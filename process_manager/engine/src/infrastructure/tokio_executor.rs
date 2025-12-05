@@ -524,7 +524,7 @@ impl TokioProcessExecutor {
                 std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
             );
 
-            if !result.as_bool() {
+            if result.is_err() {
                 let _ = CloseHandle(job);
                 warn!(pid = pid, "Failed to set job object limits");
                 return Ok(());
@@ -537,7 +537,7 @@ impl TokioProcessExecutor {
                     let assign_result = AssignProcessToJobObject(job, handle);
                     let _ = CloseHandle(handle);
 
-                    if !assign_result.as_bool() {
+                    if assign_result.is_err() {
                         let _ = CloseHandle(job);
                         warn!(pid = pid, "Failed to assign process to job object");
                         return Ok(());
@@ -1134,7 +1134,7 @@ impl TokioProcessExecutor {
             let result = TerminateProcess(process, 1);
             let _ = CloseHandle(process);
 
-            if !result.as_bool() {
+            if result.is_err() {
                 return Err(DomainError::InvalidCommand(format!(
                     "Failed to terminate process {}",
                     pid
@@ -1196,7 +1196,7 @@ impl TokioProcessExecutor {
             let code_result = GetExitCodeProcess(process, &mut exit_code);
             let _ = CloseHandle(process);
 
-            if !code_result.as_bool() {
+            if code_result.is_err() {
                 return Err(DomainError::InvalidCommand(format!(
                     "Failed to get exit code for process {}",
                     pid_copy
@@ -1314,7 +1314,7 @@ impl TokioProcessExecutor {
 
             let _ = CloseHandle(process);
 
-            if !result.as_bool() {
+            if result.is_err() {
                 return None;
             }
 
