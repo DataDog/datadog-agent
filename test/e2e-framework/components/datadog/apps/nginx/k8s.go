@@ -6,12 +6,8 @@
 package nginx
 
 import (
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx/k8s"
-	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
+	"strconv"
+
 	"github.com/Masterminds/semver"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apiextensions"
@@ -22,12 +18,40 @@ import (
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	policyv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/policy/v1"
 	policyv1beta1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/policy/v1beta1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx/k8s"
+	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 )
+
+func nginxConfFromPort(port int) string {
+	return `
+worker_processes  auto;
+events {
+    worker_connections  4096;
+}
+http {
+    server {
+        listen [::]:` + strconv.Itoa(port) + ` ipv6only=off reuseport fastopen=32 default_server;
+
+        location /nginx_status {
+          stub_status on;
+          access_log  /dev/stdout;
+          allow all;
+        }
+    }
+}
+`
+}
 
 // K8sAppDefinition defines a Kubernetes application, with a deployment, a service, a pod disruption budget and an HPA.
 // It also creates a DatadogMetric and an HPA if dependsOnCrd is not nil.
-func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, runtimeClass string, withDatadogAutoscaling bool, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, nginxPort int, runtimeClass string, withDatadogAutoscaling bool, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
 
 	k8sComponent := &componentskube.Workload{}
@@ -61,12 +85,61 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, k8s.WithRuntimeClass(runtimeClass))
+	// openshift requires a non-default service account tighted to the privileged scc
+	sa, err := corev1.NewServiceAccount(e.Ctx(), namespace+"/nginx-sa", &corev1.ServiceAccountArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.StringPtr("nginx-sa"),
+			Namespace: pulumi.StringPtr(namespace),
+		},
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/nginx", nginxManifest, opts...); err != nil {
+	// create a clusterRoleBinding to bind the new service account with the existing privileged scc
+	if _, err := rbacv1.NewRoleBinding(e.Ctx(), namespace+"/nginx-scc-binding", &rbacv1.RoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("nginx-scc-binding"),
+			Namespace: pulumi.StringPtr(namespace),
+		},
+		RoleRef: &rbacv1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("system:openshift:scc:restricted-v2"),
+		},
+		Subjects: rbacv1.SubjectArray{
+			rbacv1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      sa.Metadata.Name().Elem(),
+				Namespace: pulumi.String(namespace),
+			},
+		},
+	}, opts...); err != nil {
+		return nil, err
+	}
+
+	cm, err := corev1.NewConfigMap(e.Ctx(), namespace+"/nginx", &corev1.ConfigMapArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("nginx"),
+			Namespace: pulumi.String(namespace),
+			Labels: pulumi.StringMap{
+				"app": pulumi.String("nginx"),
+			},
+		},
+		Data: pulumi.StringMap{
+			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort)),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa))
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := appsv1.NewDeployment(e.Ctx(), namespace+"/nginx", nginxManifest, append(opts, utils.PulumiDependsOn(cm))...); err != nil {
 		return nil, err
 	}
 
