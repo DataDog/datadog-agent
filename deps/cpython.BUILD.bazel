@@ -102,9 +102,9 @@ UNIX_BINS = [
 
 configure_make(
     name = "python_unix",
-    args = [
-        "-j 16",
-    ],
+    # args = [
+    #     "-j 16",
+    # ],
     configure_options = [
         "--enable-ipv6",
         "--with-ensurepip=yes",
@@ -219,7 +219,6 @@ pkg_files(
         "//conditions:default": [ ]
     })
 )
-
 
 pkg_install(
     name = "install",
