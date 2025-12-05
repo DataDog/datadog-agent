@@ -110,7 +110,6 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -439,7 +438,6 @@ func getSharedFxOption() fx.Option {
 		otelagentStatusfx.Module(),
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
-		dogstatsdStatusimpl.Module(),
 		statsd.Module(),
 		statusimpl.Module(),
 		apiimpl.Module(),
