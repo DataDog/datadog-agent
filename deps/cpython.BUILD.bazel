@@ -163,7 +163,11 @@ configure_make(
     dynamic_deps = [
         "@zlib//:z",
         "@bzip2//:bz2",
-    ]
+    ],
+    targets = [
+        "-j 16", # Build in parallel
+        "intall" # Install without parallel execution
+    ],
 )
 
 pkg_files(
