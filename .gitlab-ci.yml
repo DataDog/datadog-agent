@@ -678,6 +678,17 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: never
 
+
+.dynamic_tests:
+  - changes:
+      paths:
+        - pkg/**/*
+        - cmd/**/*
+        - comp/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
+
 .on_e2e_or_windows_installer_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - <<: *if_windows_installer_changes
