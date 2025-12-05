@@ -112,6 +112,10 @@ nav:
     - Builders: reference/images/builders.md
   - Agent buildables:
     - Agent components: reference/builds/components.md
+  - CI:
+    - Units: reference/ci/units.md
+    - Config:
+      - Unit: reference/ci/config/unit.md
 
 watch:
 - .go-version
