@@ -76,7 +76,7 @@ func (v *PodValidator) RequireInitResourceRequirements(t *testing.T, expected *c
 	}
 }
 
-// RequireInjection is a high level function that ensures inejction has occurred for the pod and expected containers.
+// RequireInjection is a high level function that ensures injection has occurred for the pod and expected containers.
 // This can and should change when the definition of injection changes.
 func (v *PodValidator) RequireInjection(t *testing.T, expectedContainers []string) {
 	// Validate the containers are injected that are expected to be.
