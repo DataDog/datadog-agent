@@ -707,6 +707,129 @@ func TestActionSetEmptyScope(t *testing.T) {
 	assert.False(t, set)
 }
 
+func TestVariableFieldConflictProtection(t *testing.T) {
+	// Test that variables cannot have the same name as existing fields
+
+	t.Run("conflict-with-scoped-field", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "pid", // Conflicts with process.pid
+						Value: 12345,
+						Scope: "process",
+					},
+				}},
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err == nil {
+			t.Error("expected policy to fail to load due to process.pid conflict")
+		} else {
+			t.Logf("Expected error: %v", err)
+		}
+	})
+
+	t.Run("no-conflict-different-scope", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "custom_data", // No conflict, custom name
+						Value: "test_value",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully, got: %v", err)
+		}
+	})
+
+	t.Run("variable-priority-over-field-when-no-conflict", func(t *testing.T) {
+		// This test shows that when a variable exists, it takes priority
+		// But this can only happen if the variable doesn't conflict with a field
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				{
+					ID:         "set_custom_var",
+					Expression: `open.file.path == "/tmp/test1"`,
+					Actions: []*ActionDefinition{{
+						Set: &SetDefinition{
+							Name:  "my_custom_value",
+							Value: "from_variable",
+						},
+					}},
+				},
+				{
+					ID: "use_custom_var",
+					// Use the variable - it should work since no field named "my_custom_value" exists
+					Expression: `open.file.path == "/tmp/test2" && "${my_custom_value}" == "from_variable"`,
+				},
+			},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully, got: %v", err)
+		}
+	})
+
+	t.Run("fallback-to-field-when-variable-not-found", func(t *testing.T) {
+		// When a variable doesn't exist, SECL falls back to checking if it's a field
+		// This is the backup behavior in evaluatorFromVariable()
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID: "use_field_as_variable_syntax",
+				// Using ${process.pid} without creating a variable
+				// Should fallback to the field process.pid
+				Expression: `open.file.path == "/tmp/test" && ${process.pid} > 0`,
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully (fallback to field), got: %v", err)
+		}
+	})
+
+	t.Run("array-index-with-field-no-conflict", func(t *testing.T) {
+		// Test that array index access on fields works and doesn't create conflicts
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "first_hash",
+						Field: "open.file.hashes[0]", // Array index access
+						Scope: "container",
+					},
+				}},
+			}, {
+				ID: "use_var_and_field",
+				// Both the variable and the base field can coexist
+				Expression: `open.file.path == "/tmp/test2" && ` +
+					`"${container.first_hash}" != "" && ` +
+					`open.file.hashes[0] != ""`, // Direct field access also works
+			}},
+		}
+
+		_, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{})
+		if err != nil {
+			t.Errorf("expected policy to load successfully, got: %v", err)
+		}
+	})
+}
+
 func TestActionSetVariableConflict(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -2358,6 +2481,164 @@ func TestActionSetVariableValidation(t *testing.T) {
 			t.Errorf("expected policy to load successfully with append: true, got: %v", err)
 		}
 	})
+
+	t.Run("array-field-with-index-access", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.hashes[0]",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err != nil {
+			t.Errorf("expected policy to load successfully with array index access, got: %v", err)
+		}
+	})
+
+	t.Run("non-array-field-with-index-access", func(t *testing.T) {
+		testPolicy := &PolicyDef{
+			Rules: []*RuleDefinition{{
+				ID:         "test_rule",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{{
+					Set: &SetDefinition{
+						Name:  "var1",
+						Field: "open.file.path[0]",
+						Scope: "container",
+					},
+				}},
+			}},
+		}
+
+		if _, err := loadPolicy(t, testPolicy, PolicyLoaderOpts{}); err == nil {
+			t.Error("expected policy to fail to load because open.file.path is not an array")
+		} else {
+			t.Log(err)
+		}
+	})
+}
+
+func TestActionSetVariableArrayIndex(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{{
+				Set: &SetDefinition{
+					Name:  "first_hash",
+					Field: "open.file.hashes[0]",
+					Scope: "container",
+				},
+			}, {
+				Set: &SetDefinition{
+					Name:  "second_hash",
+					Field: "open.file.hashes[1]",
+					Scope: "container",
+				},
+			}},
+		}, {
+			ID: "test_rule2",
+			Expression: `open.file.path == "/tmp/test2" && ` +
+				`"${container.first_hash}" != "" && ` +
+				`"${container.second_hash}" != ""`,
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	rule := rs.GetRuleByID("test_rule")
+	if rule == nil {
+		t.Fatal("failed to find test_rule")
+	}
+
+	rule2 := rs.GetRuleByID("test_rule2")
+	if rule2 == nil {
+		t.Fatal("failed to find test_rule2")
+	}
+}
+
+func TestArrayIndexAccessInExpressions(t *testing.T) {
+	// Test that array index access works in rule expressions, not just in set actions
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{
+			{
+				ID:         "test_init",
+				Expression: `open.file.path == "/tmp/test"`,
+				Actions: []*ActionDefinition{
+					{
+						Set: &SetDefinition{
+							Name:  "test_array",
+							Value: []string{"first", "second", "third"},
+						},
+					},
+				},
+			},
+			{
+				ID: "test_array_index_in_expression",
+				// Use array index access directly in the expression
+				Expression: `open.file.path == "/tmp/check" && "${test_array}[0]" == "first"`,
+			},
+			{
+				ID: "test_field_array_index_in_expression",
+				// Test with actual field arrays - this should work for any array field
+				Expression: `open.file.name == "test" && open.file.hashes[0] =~ "^sha256:.*"`,
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	rs := newRuleSet()
+	if _, err := rs.LoadPolicies(loader, PolicyLoaderOpts{}); err != nil {
+		t.Error(err)
+	}
+
+	rule := rs.GetRuleByID("test_init")
+	if rule == nil {
+		t.Fatal("failed to find test_init")
+	}
+
+	rule2 := rs.GetRuleByID("test_array_index_in_expression")
+	if rule2 == nil {
+		t.Fatal("failed to find test_array_index_in_expression")
+	}
+
+	rule3 := rs.GetRuleByID("test_field_array_index_in_expression")
+	if rule3 == nil {
+		t.Fatal("failed to find test_field_array_index_in_expression")
+	}
 }
 
 func TestActionSetVariableLength(t *testing.T) {

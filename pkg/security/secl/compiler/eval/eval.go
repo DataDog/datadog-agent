@@ -39,25 +39,121 @@ type BoolEvalFnc = func(ctx *Context) bool
 var (
 	arraySubscriptFindRE    = regexp.MustCompile(`\[([^\]]*)\]`)
 	arraySubscriptReplaceRE = regexp.MustCompile(`(.+)\[[^\]]+\](.*)`)
+	arrayIndexRE            = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
 )
 
-func extractField(field string) (Field, Field, RegisterID, error) {
+// extractField extracts field information and handles different subscript notations
+// Returns:
+//   - resField: the resolved field name (base field without subscript)
+//   - itField: the iterator field name (for iterator syntax only)
+//   - regID: the register ID for iterator syntax (e.g., "x" in field[x])
+//   - arrayIndex: the numeric index for array access (e.g., 0 in field[0])
+//   - isArrayAccess: true if this is a numeric array index access (field[0])
+//   - error: any parsing error
+//
+// Supported syntaxes:
+//   - field[0], field[1], etc. → numeric array index access
+//   - field[x], field[y], etc. → iterator with register variable
+//   - field → plain field access
+func extractField(field string) (Field, Field, RegisterID, int, bool, error) {
+	// First check if this is a numeric array index access like field[0]
+	if matches := arrayIndexRE.FindStringSubmatch(field); len(matches) == 3 {
+		baseField := matches[1]
+		index, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return "", "", "", 0, false, fmt.Errorf("invalid array index in field: %s", field)
+		}
+		// Return base field with index information
+		return baseField, baseField, "", index, true, nil
+	}
+
+	// Otherwise, check for iterator register syntax like field[x]
 	var regID RegisterID
 	ids := arraySubscriptFindRE.FindStringSubmatch(field)
 
 	switch len(ids) {
 	case 0:
-		return field, "", "", nil
+		return field, "", "", 0, false, nil
 	case 2:
 		regID = ids[1]
 	default:
-		return "", "", "", fmt.Errorf("wrong register format for fields: %s", field)
+		return "", "", "", 0, false, fmt.Errorf("wrong register format for fields: %s", field)
 	}
 
 	resField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1$2`)
 	itField := arraySubscriptReplaceRE.ReplaceAllString(field, `$1`)
 
-	return resField, itField, regID, nil
+	return resField, itField, regID, 0, false, nil
+}
+
+// ExtractArrayIndexAccess extracts array index information from a field like "field[0]"
+// Returns: baseField, index, isArrayAccess, error
+func ExtractArrayIndexAccess(field string) (string, int, bool, error) {
+	if matches := arrayIndexRE.FindStringSubmatch(field); len(matches) == 3 {
+		baseField := matches[1]
+		index, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return "", 0, false, fmt.Errorf("invalid array index in field: %s", field)
+		}
+		return baseField, index, true, nil
+	}
+	return field, 0, false, nil
+}
+
+// WrapEvaluatorWithArrayIndex wraps an array evaluator to return a specific index
+func WrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) (Evaluator, error) {
+	switch arrayEval := evaluator.(type) {
+	case *StringArrayEvaluator:
+		return &StringEvaluator{
+			EvalFnc: func(ctx *Context) string {
+				array := arrayEval.Eval(ctx).([]string)
+				if index < 0 || index >= len(array) {
+					return ""
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *IntArrayEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				array := arrayEval.Eval(ctx).([]int)
+				if index < 0 || index >= len(array) {
+					return 0
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *BoolArrayEvaluator:
+		return &BoolEvaluator{
+			EvalFnc: func(ctx *Context) bool {
+				array := arrayEval.Eval(ctx).([]bool)
+				if index < 0 || index >= len(array) {
+					return false
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	case *CIDRArrayEvaluator:
+		return &CIDREvaluator{
+			EvalFnc: func(ctx *Context) net.IPNet {
+				array := arrayEval.Eval(ctx).([]net.IPNet)
+				if index < 0 || index >= len(array) {
+					return net.IPNet{}
+				}
+				return array[index]
+			},
+			Field:  field,
+			Weight: arrayEval.Weight,
+		}, nil
+	default:
+		return nil, fmt.Errorf("field '%s' is not an array type or array type is not supported for index access", field)
+	}
 }
 
 type ident struct {
@@ -76,7 +172,7 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 		}
 	}
 
-	field, itField, regID, err := extractField(*obj.Ident)
+	field, itField, regID, arrayIndex, isArrayAccess, err := extractField(*obj.Ident)
 	if err != nil {
 		return nil, obj.Pos, err
 	}
@@ -94,6 +190,15 @@ func identToEvaluator(obj *ident, opts *Opts, state *State) (interface{}, lexer.
 	}
 
 	state.UpdateFields(field)
+
+	// Handle numeric array index access (e.g., field[0])
+	if isArrayAccess {
+		wrappedEvaluator, err := WrapEvaluatorWithArrayIndex(evaluator, arrayIndex, field)
+		if err != nil {
+			return nil, obj.Pos, NewError(obj.Pos, "failed to create array index accessor: %v", err)
+		}
+		return wrappedEvaluator, obj.Pos, nil
+	}
 
 	if regID != "" {
 		// avoid wildcard register for the moment
