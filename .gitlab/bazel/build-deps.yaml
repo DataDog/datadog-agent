@@ -36,6 +36,9 @@ bazel:debug-macos-x64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
   script:
     - bazel build @openssl//:openssl --subcommands --platforms=//bazel/platforms:macos_x86_64
+    - bazel run -- @openssl//:install --destdir=/tmp/openssl-prefix
+    - otool -LD /tmp/openssl-prefix/lib/*.dylib
+    - rm -fr /tmp/openssl-prefix
     - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_x86_64
 
 bazel:debug-arm64:
