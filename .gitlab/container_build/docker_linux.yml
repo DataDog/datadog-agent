@@ -172,7 +172,7 @@ docker_build_agent7:
 #   Notes: this defines a child pipline of the datadog-agent repository.
 #   Therefore:
 #   - Only blocks defined in this file or the included files below can be used.
-#   - In particular, blocks defined in the main .gitlab-ci.yml are unavailable.
+#   - In particular, blocks defined in the main .gitlab/pipeline.yml are unavailable.
 #   - Dependencies / needs on jobs not defined in this file or the included
 #     files cannot be made.
 single_machine_performance-full-amd64-a7:

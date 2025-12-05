@@ -1,0 +1,32 @@
+stages:
+- validate-ci
+- unit-gen
+- units
+
+include:
+- local: .ci/units/*.yml
+- local: ci/templates/jobs/runner.yml
+- local: ci/templates/vars/global.yml
+
+validate-units:
+  stage: validate-ci
+  extends: .runner-linux-amd64
+  script:
+  - dda check ci units
+
+.unit:dynamic:generate:
+  stage: unit-gen
+  extends: .runner-linux-amd64
+  script:
+  - $UNIT_GENERATOR_COMMAND > pipeline.yml
+  artifacts:
+    paths:
+    - pipeline.yml
+
+.unit:dynamic:trigger:
+  stage: units
+
+.unit:static:trigger:
+  stage: units
+  needs:
+  - job: validate-units
