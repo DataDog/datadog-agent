@@ -161,11 +161,24 @@ process_manager_unit_tests_windows:
   script:
     - $ErrorActionPreference = "Stop"
     - |
+      # Enable TLS 1.2 for HTTPS connections
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    - |
       # Install MinGW-w64 toolchain (required for GNU target)
       if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) {
         Write-Host "Downloading MinGW-w64..."
         $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
-        Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
         Write-Host "Extracting MinGW-w64..."
         7z x mingw64.7z -oC:\ -y
       }
@@ -215,11 +228,24 @@ process_manager_build_windows:
   script:
     - $ErrorActionPreference = "Stop"
     - |
+      # Enable TLS 1.2 for HTTPS connections
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    - |
       # Install MinGW-w64 toolchain (required for GNU target)
       if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) {
         Write-Host "Downloading MinGW-w64..."
         $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
-        Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $mingwUrl -OutFile mingw64.7z -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
         Write-Host "Extracting MinGW-w64..."
         7z x mingw64.7z -oC:\ -y
       }
