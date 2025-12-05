@@ -41,8 +41,12 @@ bazel:debug-macos-x64:
     - rm -fr /tmp/openssl-prefix
     - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_x86_64
 
-bazel:debug-arm64:
+bazel:debug-macos-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
   script:
     - bazel build @openssl//:openssl --subcommands --platforms=//bazel/platforms:macos_arm64
-    - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_arm64
+    - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_arm64 --sandbox_debug || echo failed
+    - cp bazel-out/darwin_arm64-fastbuild/bin/external/+_repo_rules+cpython/python_unix_foreign_cc/Configure.log $CI_PROJECT_DIR
+  artifacts:
+    paths:
+      - Configure.log
