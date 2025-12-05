@@ -52,7 +52,7 @@ bazel:debug-macos-arm64:
     - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_arm64 --sandbox_debug || echo failed
     - cp bazel-out/darwin_arm64-fastbuild/bin/external/+_repo_rules+cpython/python_unix_foreign_cc/Configure.log $CI_PROJECT_DIR
     - DEPS_DIR=$(grep "EXT_BUILD_DEPS=" bazel-out/darwin_arm64-fastbuild/bin/external/+_repo_rules+cpython/python_unix_foreign_cc/Configure.log | cut -d '=' -f 2)
-    - ls -lR $DEPS_DIR/lib
+    - ls -lR $DEPS_DIR
   artifacts:
     paths:
       - Configure.log
