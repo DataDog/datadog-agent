@@ -198,15 +198,15 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 			is.cachedInventoryMu.Unlock()
 			break
 		}
-		
+
 		// Only retry if System Probe hasn't started yet
 		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
 			is.log.Warnf("Initial software inventory collection failed, will retry on next interval: %v", err)
 			break
 		}
-		
+
 		is.log.Debugf("System Probe not ready yet, retrying in 1s: %v", err)
-		
+
 		// Use a timer that can be cancelled by context
 		timer := time.NewTimer(1 * time.Second)
 		select {
