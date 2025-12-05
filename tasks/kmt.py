@@ -2455,10 +2455,10 @@ def download_complexity_data(
     dest_path.mkdir(parents=True, exist_ok=True)
 
     if not download_all_jobs:
-        print("Parsing .gitlab-ci.yml file to understand the dependencies for notify_ebpf_complexity_changes")
+        print("Parsing .gitlab/pipeline.yml file to understand the dependencies for notify_ebpf_complexity_changes")
 
         if gitlab_config_file is None:
-            gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab-ci.yml")
+            gitlab_ci_file = os.fspath(Path(__file__).parent.parent / ".gitlab/pipeline.yml")
             gitlab_config = resolve_gitlab_ci_configuration(ctx, gitlab_ci_file)
             gitlab_config = post_process_gitlab_ci_configuration(
                 gitlab_config, filter_jobs="notify_ebpf_complexity_changes"
@@ -2467,9 +2467,9 @@ def download_complexity_data(
             with open(gitlab_config_file) as f:
                 parsed_file = yaml.safe_load(f)
 
-            if ".gitlab-ci.yml" not in parsed_file:
-                raise Exit(f"Could not find .gitlab-ci.yml in {gitlab_config_file}")
-            gitlab_config = parsed_file[".gitlab-ci.yml"]
+            if ".gitlab/pipeline.yml" not in parsed_file:
+                raise Exit(f"Could not find .gitlab/pipeline.yml in {gitlab_config_file}")
+            gitlab_config = parsed_file[".gitlab/pipeline.yml"]
 
         deps = get_gitlab_job_dependencies(gitlab_config, "notify_ebpf_complexity_changes")
         print(f"Dependencies for notify_ebpf_complexity_changes: {deps}")

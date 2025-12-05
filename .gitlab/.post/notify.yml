@@ -59,13 +59,13 @@ notify_gitlab_ci_changes:
     - !reference [.except_mergequeue]
     - changes:
         paths:
-          - .gitlab-ci.yml
+          - .gitlab/pipeline.yml
           - .gitlab/**/*.yml
         compare_to: $COMPARE_TO_BRANCH
   script:
     - python3 -m dda self dep sync -f legacy-tasks
     - !reference [.setup_agent_github_app]
-    - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-ci.yml --pr-comment
+    - dda inv -- -e notify.gitlab-ci-diff --from-diff artifacts/diff.gitlab-pipeline.yml --pr-comment
 
 close_failing_tests_stale_issues:
   extends: .notify-job

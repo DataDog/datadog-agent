@@ -7,7 +7,7 @@ test_and_lint_gitlab_configuration:
     - !reference [.on_dev_branches]
     - when: on_success
   script:
-    - dda inv -- -e linter.full-gitlab-ci --configs-or-diff-file artifacts/after.gitlab-ci.yml
+    - dda inv -- -e linter.full-gitlab-ci --configs-or-diff-file artifacts/after.gitlab-pipeline.yml
     - dda inv -- -e linter.ssm-parameters
 
 test_gitlab_compare_to:
@@ -35,7 +35,7 @@ compute_gitlab_ci_config:
     - git checkout -
   script:
     - mkdir -p artifacts
-    - dda inv -- -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-ci.yml --after-file artifacts/after.gitlab-ci.yml --diff-file artifacts/diff.gitlab-ci.yml
+    - dda inv -- -e gitlab.compute-gitlab-ci-config --before-file artifacts/before.gitlab-pipeline.yml --after-file artifacts/after.gitlab-pipeline.yml --diff-file artifacts/diff.gitlab-pipeline.yml
   artifacts:
     when: always
     paths:

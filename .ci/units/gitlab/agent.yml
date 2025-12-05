@@ -1,0 +1,65 @@
+unit:agent:
+  extends:
+  - .unit:static:trigger
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    UNIT_ID: agent
+    UNIT_DISPLAY_NAME: Agent CI
+  trigger:
+    include:
+    - local: .gitlab/pipeline.yml
+  rules:
+  - when: never
+    if: $CI_COMMIT_TAG
+  - if: $TRIGGER_UNITS =~ /^all$|\bagent\b/
+  - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
+  - if: $DEPLOY_AGENT == "true" || $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID
+      != "null"
+  - if: $CI_COMMIT_BRANCH =~ /^(main|[0-9]+\.[0-9]+\.x|agent-v5)$/
+    changes: &id001
+    - .dda/**/*
+    - .github/**/*
+    - .gitlab/**/*
+    - bazel/**/*
+    - chocolatey/**/*
+    - cmd/**/*
+    - comp/**/*
+    - compliance/**/*
+    - deps/**/*
+    - Dockerfiles/**/*
+    - internal/**/*
+    - omnibus/**/*
+    - packages/**/*
+    - pkg/**/*
+    - rtloader/**/*
+    - tasks/**/*
+    - test/**/*
+    - third_party/**/*
+    - tools/**/*
+    - .bazelignore
+    - .bazelrc
+    - .bazelversion
+    - .clang-format
+    - .custom-gcl.yml
+    - .go-version
+    - .golangci.yml
+    - .pre-commit-config.yaml
+    - .protoc-version
+    - .python-version
+    - .wwhrd.yml
+    - BUILD.bazel
+    - datadog-agent.map
+    - generate_tools.go
+    - go.mod
+    - go.sum
+    - go.work
+    - MODULE.bazel
+    - MODULE.bazel.lock
+    - modules.yml
+    - pyproject.toml
+    - release.json
+    - static-analysis.datadog.yml
+    - ci/units/agent.toml
+  - changes:
+      compare_to: $GIT_BASE_BRANCH
+      paths: *id001

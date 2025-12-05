@@ -16,17 +16,17 @@ def variable_replacements():
             ("DDA_DOCS_INSTALL", get_dda_install_docs()),
             ("DDA_DOCS_TAB_COMPLETE", get_dda_tab_complete_docs()),
             ("VSCODE_EXTENSIONS", get_vscode_extensions()),
+            ("JSON_SCHEMA_CI_UNIT", get_json_schema_ci_unit()),
+            ("CONFIGURED_CI_UNITS", get_configured_ci_units()),
         )
     }
 
 
 @cache
 def get_dda_version():
-    # TODO: uncomment when the build images get updated
-    # gitlab_config = Path(".gitlab-ci.yml").read_text(encoding="utf-8")
-    # build_image_ref = re.search(r"^\s*CI_IMAGE_LINUX: v[^-]+-(.+)$", gitlab_config, flags=re.MULTILINE).group(1)
-    # version_url = f"https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/{build_image_ref}/dda.env"
-    version_url = "https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/refs/heads/main/dda.env"
+    gitlab_config = Path("ci/templates/variables.yml").read_text(encoding="utf-8")
+    build_image_ref = re.search(r"^\s*CI_IMAGE_LINUX: v[^-]+-(.+)$", gitlab_config, flags=re.MULTILINE).group(1)
+    version_url = f"https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/{build_image_ref}/dda.env"
     response = httpx.get(version_url)
     response.raise_for_status()
     return re.search(r"DDA_VERSION=v(.*)", response.text).group(1)
@@ -79,6 +79,36 @@ def get_vscode_extensions():
         for extension in response.text.splitlines()
         if not extension.startswith("#")
     )
+
+
+def get_json_schema_ci_unit():
+    from utils.ci.config.model.unit import CIUnit
+
+    import jsonschema_markdown
+    import msgspec
+
+    json_schema = msgspec.json.schema(CIUnit)
+    full_content = jsonschema_markdown.generate(json_schema, footer=False, hide_empty_columns=True)
+    _, _, schema_doc = full_content.partition("## CIUnit")
+    # Remove property table headers
+    schema_doc = schema_doc.replace("#### Type: `object`", "")
+    # Remove `additionalProperties` warnings for frozen structs
+    schema_doc = schema_doc.replace("> ⚠️ Additional properties are not allowed.", "")
+    return schema_doc.strip()
+
+
+def get_configured_ci_units():
+    import msgspec
+    import tomllib
+    from utils.ci.config.model.unit import CIUnit
+
+    lines = []
+    for unit_file in sorted(Path("ci/units").glob("*.toml")):
+        data = tomllib.loads(unit_file.read_text(encoding="utf-8"))
+        unit = msgspec.convert(data, CIUnit)
+        lines.extend((f"## {unit.name}", "", unit.description))
+
+    return "\n".join(lines)
 
 
 class VariableInjectionPreprocessor(Preprocessor):

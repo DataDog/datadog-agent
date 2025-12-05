@@ -148,7 +148,7 @@ Go build tags control feature inclusion, some examples are:
 - `datadog.yaml` - Main agent configuration
 - `modules.yml` - Go module definitions
 - `release.json` - Release version information
-- `.gitlab-ci.yml` - CI/CD pipeline configuration
+- `.gitlab/pipeline.yml` - CI/CD pipeline configuration
 
 ### Documentation
 - `/docs/` - Internal documentation

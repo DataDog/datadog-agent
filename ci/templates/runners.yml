@@ -1,0 +1,32 @@
+.runner:internal:windows:git-strategy:
+  variables:
+    # Windows runners don't support the `s3` Git strategy.
+    # Cloning is required since cancelled Windows jobs with `fetch` strategy
+    # can cause `CIEXE-1152` which makes the runner unusable.
+    OVERRIDE_GIT_STRATEGY: clone
+
+.runner:linux:arm64:
+  tags:
+  - arch:arm64
+  - specific:true
+
+.runner:linux:amd64:
+  tags:
+  - arch:amd64
+  - specific:true
+
+.runner:windows:2025:
+  extends:
+  - .runner:internal:windows:git-strategy
+  tags:
+  - windows-v2:2025
+
+.runner:windows:2022:
+  extends:
+  - .runner:internal:windows:git-strategy
+  tags:
+  - windows-v2:2022
+
+.runner:docker:amd64:
+  tags:
+  - docker-in-docker:amd64

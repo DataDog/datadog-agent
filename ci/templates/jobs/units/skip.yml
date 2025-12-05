@@ -1,0 +1,15 @@
+spec:
+  inputs:
+    message:
+      type: string
+      default: Unit $UNIT_ID does not need to run
+
+---
+
+unit:skip:
+  extends:
+  - .runner:linux:arm64
+  - .job:no-clone
+  stage: .pre
+  script:
+  - echo "$[[ inputs.message | expand_vars ]]"

@@ -1,0 +1,3 @@
+.job:no-clone:
+  variables:
+    GIT_STRATEGY: none

@@ -1,0 +1,57 @@
+spec:
+  inputs:
+    units:
+      description: A comma-separated list of units to run, or `all` to run all units
+      type: string
+      default: agent
+      regex: ^(all|agent(,agent)*)$
+
+---
+
+variables:
+  # TODO: Make the value a string when we update GitLab CI to a version that supports inputs on
+  # the manual trigger page. See https://docs.gitlab.com/ci/pipelines/#run-a-pipeline-manually
+  TRIGGER_UNITS:
+    description: A comma-separated list of units to run, or `all` to run all units
+    value: $[[ inputs.units ]]
+
+stages:
+- unit-generate
+- unit-trigger
+
+include:
+- local: .ci/units/gitlab/*.yml
+- local: ci/templates/*.yml
+
+validate-units:
+  extends:
+  - .runner:linux:arm64
+  - .image:build:linux
+  stage: .pre
+  script:
+  - dda check ci units
+
+.unit:dynamic:generate:
+  extends:
+  - .runner:linux:arm64
+  - .image:build:linux
+  stage: unit-generate
+  needs:
+  - job: validate-units
+  script:
+  - $UNIT_GENERATOR_COMMAND > pipeline.yml
+  artifacts:
+    paths:
+    - pipeline.yml
+
+.unit:dynamic:trigger:
+  stage: unit-trigger
+  trigger:
+    strategy: depend
+
+.unit:static:trigger:
+  stage: unit-trigger
+  needs:
+  - job: validate-units
+  trigger:
+    strategy: depend

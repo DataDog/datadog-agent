@@ -202,7 +202,7 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         /.*             @DataDog/another-best-team
         """
 
-        linter._gitlab_ci_jobs_codeowners_lint(['somefile', '.gitlab-ci.yml'], CodeOwners(codeowners))
+        linter._gitlab_ci_jobs_codeowners_lint(['somefile', '.gitlab/pipeline.yml'], CodeOwners(codeowners))
 
     def test_error(self):
         codeowners = """
@@ -211,5 +211,5 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         """
 
         with self.assertRaises(GitlabLintFailure) as cm:
-            linter._gitlab_ci_jobs_codeowners_lint(['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners))
+            linter._gitlab_ci_jobs_codeowners_lint(['becareful', '.gitlab/pipeline.yml'], CodeOwners(codeowners))
         self.assertEqual(cm.exception.level, FailureLevel.ERROR)

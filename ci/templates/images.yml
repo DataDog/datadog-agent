@@ -1,0 +1,17 @@
+.image:build:linux:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+
+.image:build:windows:2025:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2025_${ARCH}${CI_IMAGE_WIN_LTSC2025_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2025_X64}
+
+.image:build:windows:2022:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/windows_ltsc2022_${ARCH}${CI_IMAGE_WIN_LTSC2022_X64_SUFFIX}:${CI_IMAGE_WIN_LTSC2022_X64}
+
+.image:build:rpm_armhf:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/rpm_armhf$CI_IMAGE_RPM_ARMHF_SUFFIX:$CI_IMAGE_RPM_ARMHF
+
+.image:build:docker_x64:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+
+.image:build:btf-gen:
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN

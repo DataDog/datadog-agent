@@ -160,30 +160,6 @@ variables:
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
   S3_DSD6_URI: s3://dsd6-staging
 
-  # Build images versions
-  # To use images from datadog-agent-buildimages dev branches, set the corresponding
-  # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v88930157-ef91d52f
-  CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v88930157-ef91d52f
-  CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v88930157-ef91d52f
-  CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v88930157-ef91d52f
-  CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v88930157-ef91d52f
-  CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v88930157-ef91d52f
-  CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v88930157-ef91d52f
-  CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v88930157-ef91d52f
-  CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v88930157-ef91d52f
-  CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v88930157-ef91d52f
-  CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
-
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
   DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
@@ -251,24 +227,6 @@ variables:
   DD_PKG_VERSION: "0.6.0-beta.4"
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
-
-  # Job cloning strategy
-  GIT_STRATEGY: "s3"
-
-  # Job stage attempts (see https://docs.gitlab.com/ee/ci/runners/configure_runners.html#job-stages-attempts)
-  ARTIFACT_DOWNLOAD_ATTEMPTS: 2
-  EXECUTOR_JOB_SECTION_ATTEMPTS: 2
-  GET_SOURCES_ATTEMPTS: 2
-  RESTORE_CACHE_ATTEMPTS: 2
-  # Feature flags
-  FF_CLEAN_UP_FAILED_CACHE_EXTRACT: true # Delete corrupted caches, see https://gitlab.com/gitlab-org/gitlab-runner/-/merge_requests/4565
-  FF_SCRIPT_SECTIONS: 1 # Prevent multiline scripts log collapsing, see https://gitlab.com/gitlab-org/gitlab-runner/-/issues/3392
-  FF_KUBERNETES_HONOR_ENTRYPOINT: true # Honor the entrypoint in the Docker image when running Kubernetes jobs
-  FF_TIMESTAMPS: true
-  FF_USE_FASTZIP: true
-  CACHE_COMPRESSION_LEVEL: slowest
-  # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
-  PYTHONUNBUFFERED: 1
 
 #
 # Condition mixins for simplification of rules
@@ -379,15 +337,12 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 workflow:
+  name: $UNIT_DISPLAY_NAME
   rules:
-    - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
         GO_TEST_SKIP_FLAKE: "false"
-    - <<: *if_release_branch
-    - <<: *if_deploy
-    - !reference [.if_deploy_installer]
-    - if: $CI_COMMIT_TAG == null
+    - when: always
 
 #
 # List of rule blocks used in the pipeline
@@ -1104,7 +1059,6 @@ workflow:
   - changes:
       paths:
         - omnibus/**/*
-        - .gitlab-ci.yml
         - release.json
         - .gitlab/package_build/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1156,7 +1110,6 @@ workflow:
 .on_gitlab_changes:
   changes:
     paths:
-      - .gitlab-ci.yml
       - .gitlab/**/*
       - .gitlab/**/.*
     compare_to: $COMPARE_TO_BRANCH
