@@ -22,6 +22,7 @@ build do
   license "Python-2.0"
 
   if !windows_target?
+    command "otool -DL #{install_dir}/embedded/lib/libssl*dylib #{install_dir}/embedded/lib/libcrypto*.dylib"
     env = with_standard_compiler_flags(with_embedded_path)
     command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
     sh_lib = if linux_target? then "libpython3.so" else "libpython3.13.dylib" end
