@@ -13,7 +13,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -92,10 +91,6 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
 		return nil, err
-	}
-	if env.IsLambda() {
-		// in AWS Lambda, we never want the batch strategy to flush with a tick
-		config.BatchWait = 365 * 24 * time.Hour
 	}
 	return config, nil
 }

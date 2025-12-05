@@ -114,6 +114,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_INSTALL_ONLY")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Set the flavor so CustomActions can adjust their behavior.
                 // For example, we only run openssl fipsinstall in the FIPS flavor.
                 new Property("AgentFlavor", _agentFlavor.FlavorName),
@@ -587,7 +591,8 @@ namespace WixSetup.Datadog_Agent
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    }
+                    },
+                    new WixSharp.File(_agentBinaries.DatadogInterop)
             );
             var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
                  new Files($@"{InstallerSource}\bin\scripts\*")

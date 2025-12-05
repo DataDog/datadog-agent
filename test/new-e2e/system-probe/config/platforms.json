@@ -226,7 +226,7 @@
       "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-x86_64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251120_7497a561"
     },
     "debian_9": {
       "os_name": "Debian GNU/Linux",
@@ -504,7 +504,7 @@
       "kernel": "4.12.14-122.231.1",
       "os_version": "12.5",
       "image": "suse-12.5-arm64.qcow2.xz",
-      "image_version": "20251015_301103a6"
+      "image_version": "20251120_7497a561"
     },
     "fedora_40": {
       "os_name": "Fedora Linux",

@@ -127,7 +127,7 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 	if err != nil {
 		return fmt.Errorf("error creating systemd directory: %w", err)
 	}
-	overridePath := filepath.Join(userUnitsPath, unit+".d", fmt.Sprintf("%s.conf", name))
+	overridePath := filepath.Join(userUnitsPath, unit+".d", name+".conf")
 	return os.WriteFile(overridePath, []byte(content), 0644)
 }
 
@@ -151,7 +151,7 @@ func IsRunning() (running bool, err error) {
 
 // JournaldLogs returns the logs for a given unit since a given time
 func JournaldLogs(ctx context.Context, unit string, since time.Time) (string, error) {
-	journalctlCmd := exec.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
+	journalctlCmd := telemetry.CommandContext(ctx, "journalctl", "_COMM=systemd", "--unit", unit, "-e", "--no-pager", "--since", since.Format(time.RFC3339))
 	stdout, err := journalctlCmd.Output()
 	if err != nil {
 		return "", err

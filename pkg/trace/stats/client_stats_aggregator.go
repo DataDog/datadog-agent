@@ -289,7 +289,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		if agg.okDistributionRaw != nil {
 			sketch, err := decodeSketch(agg.okDistributionRaw)
 			if err != nil {
-				log.Error("Unable to decode OK distribution ddsketch: %v", err)
+				log.Errorf("Unable to decode OK distribution ddsketch: %v", err)
 			} else {
 				agg.okDistribution = normalizeSketch(sketch)
 			}
@@ -298,7 +298,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		if agg.errDistributionRaw != nil {
 			sketch, err := decodeSketch(agg.errDistributionRaw)
 			if err != nil {
-				log.Error("Unable to decode Error distribution ddsketch: %v", err)
+				log.Errorf("Unable to decode Error distribution ddsketch: %v", err)
 			} else {
 				agg.errDistribution = normalizeSketch(sketch)
 			}
@@ -309,13 +309,13 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		if sketch, err := mergeSketch(agg.okDistribution, gs.OkSummary); err == nil {
 			agg.okDistribution = sketch
 		} else {
-			log.Error("Unable to merge OK distribution ddsketch: %v", err)
+			log.Errorf("Unable to merge OK distribution ddsketch: %v", err)
 		}
 
 		if sketch, err := mergeSketch(agg.errDistribution, gs.ErrorSummary); err == nil {
 			agg.errDistribution = sketch
 		} else {
-			log.Error("Unable to merge Error distribution ddsketch: %v", err)
+			log.Errorf("Unable to merge Error distribution ddsketch: %v", err)
 		}
 	}
 }

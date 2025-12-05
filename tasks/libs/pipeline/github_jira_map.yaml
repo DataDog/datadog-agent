@@ -19,14 +19,16 @@
 '@datadog/agent-log-pipelines': AGNTLOG
 '@datadog/agent-runtimes': AGENTRUN
 '@datadog/agent-configuration': AGENTCFG
-'@datadog/container-app': CAP
+'@datadog/kubernetes-experiences': CAP
 '@datadog/metrics-aggregation': AGGR
 '@datadog/serverless': SVLS
+'@datadog/serverless-azure-gcp': SVLS
 '@datadog/remote-config': RC
 '@datadog/fleet': FA
 '@datadog/agent-all': DEFAULT_JIRA_PROJECT
 '@datadog/ebpf-platform': EBPF
 '@datadog/cloud-network-monitoring': CNM
+'@datadog/network-path': NETPATH
 '@datadog/universal-service-monitoring': USMON
 '@datadog/windows-products': WINA
 '@datadog/opentelemetry': OTAGENT
@@ -49,3 +51,4 @@
 '@datadog/agent-processing-and-routing': APR
 '@datadog/agent-discovery': DSCVR
 '@datadog/synthetics-executing': SYNORG
+'@datadog/agent-health': AHEALTH

@@ -13,8 +13,10 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
@@ -26,6 +28,7 @@ const baseStackDepth = 4
 // It implements the LoggerInterface interface.
 type Wrapper struct {
 	handler slog.Handler
+	closed  atomic.Bool
 	flush   func()
 	close   func()
 
@@ -35,10 +38,11 @@ type Wrapper struct {
 
 // NewWrapper returns a new Wrapper implementing the LoggerInterface interface.
 func NewWrapper(handler slog.Handler) types.LoggerInterface {
-	return newWrapperWithCloseAndFlush(handler, nil, nil)
+	return NewWrapperWithCloseAndFlush(handler, nil, nil)
 }
 
-func newWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func()) types.LoggerInterface {
+// NewWrapperWithCloseAndFlush returns a new Wrapper implementing the LoggerInterface interface, with a flush and close function.
+func NewWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func()) types.LoggerInterface {
 	return &Wrapper{
 		handler: handler,
 		flush:   flush,
@@ -47,21 +51,21 @@ func newWrapperWithCloseAndFlush(handler slog.Handler, flush func(), close func(
 }
 
 func (w *Wrapper) handleArgs(level types.LogLevel, v ...interface{}) {
-	if w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
 		// rendering is only done if the level is enabled
 		w.handle(level, renderArgs(v...))
 	}
 }
 
 func (w *Wrapper) handleFormat(level types.LogLevel, format string, params ...interface{}) {
-	if w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
 		// rendering is only done if the level is enabled
 		w.handle(level, renderFormat(format, params...))
 	}
 }
 
 func (w *Wrapper) handleError(level types.LogLevel, message string) error {
-	if w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
+	if !w.closed.Load() && w.handler.Enabled(context.Background(), types.ToSlogLevel(level)) {
 		w.handle(level, message)
 	}
 	return errors.New(message)
@@ -71,7 +75,7 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 	var pc [1]uintptr
 	runtime.Callers(baseStackDepth+w.extraStackDepth, pc[:])
 	r := slog.NewRecord(
-		time.Now().UTC(),
+		time.Now(),
 		types.ToSlogLevel(level),
 		message,
 		pc[0],
@@ -171,6 +175,10 @@ func (w *Wrapper) Criticalf(format string, params ...interface{}) error {
 
 // Close flushes all the messages in the logger and closes it. It cannot be used after this operation.
 func (w *Wrapper) Close() {
+	if !w.closed.CompareAndSwap(false, true) {
+		// already closed, avoid calling the close function again
+		return
+	}
 	if w.close != nil {
 		w.close()
 	}
@@ -178,6 +186,10 @@ func (w *Wrapper) Close() {
 
 // Flush flushes all the messages in the logger.
 func (w *Wrapper) Flush() {
+	if w.closed.Load() {
+		return
+	}
+
 	if w.flush != nil {
 		w.flush()
 	}
@@ -185,31 +197,19 @@ func (w *Wrapper) Flush() {
 
 // SetAdditionalStackDepth sets the additional number of frames to skip by runtime.Caller
 func (w *Wrapper) SetAdditionalStackDepth(depth int) error {
+	if w.closed.Load() {
+		return nil
+	}
+
 	w.extraStackDepth = depth
 	return nil
 }
 
 // SetContext sets context which will be added to every log records
 func (w *Wrapper) SetContext(context interface{}) {
-	if context == nil {
-		w.attrs = nil
+	if w.closed.Load() {
 		return
 	}
 
-	// See `extractContextString` in pkg/util/log/setup/log.go:
-	// the context is a slice of interface{}, it contains an even number of elements,
-	// and keys are strings.
-	//
-	// We can lift the restrictions and/or change the API later, but for now we want
-	// the exact same behavior as we have with seelog
-
-	ctx := context.([]interface{})
-	var attrs []slog.Attr
-	for i := 0; i < len(ctx); i += 2 {
-		key, val := ctx[i], ctx[i+1]
-		if keyStr, ok := key.(string); ok {
-			attrs = append(attrs, slog.Attr{Key: keyStr, Value: slog.AnyValue(val)})
-		}
-	}
-	w.attrs = attrs
+	w.attrs = formatters.ToSlogAttrs(context)
 }

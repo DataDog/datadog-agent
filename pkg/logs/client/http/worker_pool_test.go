@@ -23,68 +23,49 @@ func defaultPool() *workerPool {
 	return newWorkerPool(0, ewmaAlpha, defaultMinWorkers, defaultMaxWorkers, targetLatency, client.NewNoopDestinationMetadata())
 }
 
+var defaultDoWork = func() destinationResult {
+	return destinationResult{latency: targetLatency * 2}
+}
+
+func runXWorkers(pool *workerPool, x int, doWork func() destinationResult) {
+	for i := 0; i < x; i++ {
+		<-pool.pool
+		pool.performWork(doWork)
+		pool.resizeUnsafe()
+	}
+}
+
 func TestRetryableError(t *testing.T) {
 	pool := defaultPool()
-	for i := 0; i < 100; i++ {
-		pool.run(func() destinationResult {
-			return destinationResult{latency: targetLatency * 2}
-		})
-	}
-
+	runXWorkers(pool, 100, defaultDoWork)
 	require.Equal(t, defaultMinWorkers*2, pool.inUseWorkers)
 
-	pool.run(func() destinationResult {
+	retryWork := func() destinationResult {
 		return destinationResult{latency: targetLatency * 2, err: client.NewRetryableError(errors.New(""))}
-	})
-
-	start := time.Now()
-
-	pool.Lock()
-	backoff := pool.shouldBackoff
-	pool.Unlock()
-	for !backoff && time.Since(start) < 500*time.Millisecond {
-		time.Sleep(time.Millisecond)
-		pool.Lock()
-		backoff = pool.shouldBackoff
-		pool.Unlock()
 	}
-
-	assert.Equal(t, true, pool.shouldBackoff)
 
 	// The next pool run will detect the backoff flag to
 	// 1. Reduce the worker load to the minimum
 	// 2. Reset the tracked latency to force a gradual increase.
-	pool.run(func() destinationResult {
-		return destinationResult{latency: targetLatency * 2}
-	})
+	runXWorkers(pool, 1, retryWork)
 
 	assert.Equal(t, defaultMinWorkers, pool.inUseWorkers)
 	assert.Equal(t, time.Duration(0), pool.virtualLatency)
 
 	// Confirm that we do in fact recover over time
-	for i := 0; i < 100; i++ {
-		pool.run(func() destinationResult {
-			return destinationResult{latency: targetLatency * 2}
-		})
-	}
-
-	require.Equal(t, defaultMinWorkers*2, pool.inUseWorkers)
+	runXWorkers(pool, 100, defaultDoWork)
+	assert.Equal(t, defaultMinWorkers*2, pool.inUseWorkers)
 }
 
 func TestNonRetryableError(t *testing.T) {
 	pool := defaultPool()
-	for i := 0; i < 100; i++ {
-		pool.run(func() destinationResult {
-			return destinationResult{latency: targetLatency * 2}
-		})
-	}
+	runXWorkers(pool, 100, defaultDoWork)
+	assert.Equal(t, defaultMinWorkers*2, pool.inUseWorkers)
 
-	require.Equal(t, defaultMinWorkers*2, pool.inUseWorkers)
-	pool.run(func() destinationResult {
+	nonRetryableWork := func() destinationResult {
 		return destinationResult{latency: targetLatency * 2, err: errors.New("")}
-	})
-	pool.resizeUnsafe()
-	pool.resizeUnsafe()
+	}
+	runXWorkers(pool, 1, nonRetryableWork)
 	assert.Equal(t, defaultMinWorkers*2, pool.inUseWorkers)
 }
 
@@ -114,17 +95,12 @@ func TestWorkerCounts(t *testing.T) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			pool := defaultPool()
-
-			for i := 0; i < 500; i++ {
-				pool.run(func() destinationResult {
-					return destinationResult{latency: s.latency}
-				})
-			}
-			time.Sleep(10 * time.Millisecond)
-
+			runXWorkers(pool, 500, func() destinationResult {
+				return destinationResult{latency: s.latency}
+			})
 			assert.Equal(t, s.expectedWorkerCount, pool.inUseWorkers)
 			assert.Equal(t, s.expectedWorkerCount, len(pool.pool))
-			assert.InDelta(t, s.latency, pool.virtualLatency, float64(time.Millisecond))
+			assert.InDelta(t, s.latency, pool.virtualLatency, float64(s.latency)/100)
 		})
 	}
 }

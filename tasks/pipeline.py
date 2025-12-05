@@ -1,5 +1,4 @@
 import os
-import pprint
 import re
 import sys
 import time
@@ -14,7 +13,6 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
-    get_gitlab_bot_token,
     get_gitlab_repo,
     gitlab_configuration_is_modified,
     refresh_pipeline,
@@ -398,6 +396,7 @@ def is_system_probe(owners, files):
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
         ("TEAM", "@DataDog/cloud-network-monitoring"),
+        ("TEAM", "@DataDog/network-path"),
         ("TEAM", "@DataDog/debugger-go"),
     }
     for f in files:
@@ -505,147 +504,6 @@ def changelog(ctx, new_commit_sha):
     )
     if "unable to locate credentials" in res.stderr.casefold():
         raise Exit("Permanent error: unable to locate credentials, retry the job", code=42)
-
-
-@task
-def get_schedules(_, repo: str = 'DataDog/datadog-agent'):
-    """
-    Pretty-print all pipeline schedules on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    for schedule in gitlab_repo.pipelineschedules.list(per_page=100, all=True):
-        schedule.pprint()
-
-
-@task
-def get_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Pretty-print a single pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-
-    schedule.pprint()
-
-
-@task
-def create_schedule(_, description, ref, cron, cron_timezone=None, active=False, repo: str = 'DataDog/datadog-agent'):
-    """
-    Create a new pipeline schedule on the repository.
-
-    Note that unless you explicitly specify the --active flag, the schedule will be created as inactive.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.create(
-        {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone, 'active': active}
-    )
-
-    schedule.pprint()
-
-
-@task
-def edit_schedule(
-    _, schedule_id, description=None, ref=None, cron=None, cron_timezone=None, repo: str = 'DataDog/datadog-agent'
-):
-    """
-    Edit an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    data = {'description': description, 'ref': ref, 'cron': cron, 'cron_timezone': cron_timezone}
-    data = {key: value for (key, value) in data.items() if value is not None}
-
-    schedule = gitlab_repo.pipelineschedules.update(schedule_id, data)
-
-    pprint.pprint(schedule)
-
-
-@task
-def activate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Activate an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': True})
-
-    pprint.pprint(schedule)
-
-
-@task
-def deactivate_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Deactivate an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.update(schedule_id, {'active': False})
-
-    pprint.pprint(schedule)
-
-
-@task
-def delete_schedule(_, schedule_id, repo: str = 'DataDog/datadog-agent'):
-    """
-    Delete an existing pipeline schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    gitlab_repo.pipelineschedules.delete(schedule_id)
-
-    print('Deleted schedule', schedule_id)
-
-
-@task
-def create_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/datadog-agent'):
-    """
-    Create a variable for an existing schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-    schedule.variables.create({'key': key, 'value': value})
-
-    schedule.pprint()
-
-
-@task
-def edit_schedule_variable(_, schedule_id, key, value, repo: str = 'DataDog/datadog-agent'):
-    """
-    Edit an existing variable for a schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-    schedule.variables.update(key, {'value': value})
-
-    schedule.pprint()
-
-
-@task
-def delete_schedule_variable(_, schedule_id, key, repo: str = 'DataDog/datadog-agent'):
-    """
-    Delete an existing variable for a schedule on the repository.
-    """
-
-    gitlab_repo = get_gitlab_repo(repo, token=get_gitlab_bot_token())
-
-    schedule = gitlab_repo.pipelineschedules.get(schedule_id)
-    schedule.variables.delete(key)
-
-    schedule.pprint()
 
 
 @task(

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 var (
@@ -128,9 +129,10 @@ type payloadsBuilderV3 struct {
 	payloadHeaderSizeBound int
 	columnHeaderSizeBound  int
 
-	resourcesBuf []metrics.Resource
+	pipelineConfig  PipelineConfig
+	pipelineContext *PipelineContext
 
-	payloads []*transaction.BytesPayload
+	resourcesBuf []metrics.Resource
 
 	scratchBuf []byte
 
@@ -142,16 +144,24 @@ type payloadsBuilderV3 struct {
 func newPayloadsBuilderV3WithConfig(
 	config config.Component,
 	compression compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
 ) (*payloadsBuilderV3, error) {
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
+
+	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
+		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)
+	}
 
 	return newPayloadsBuilderV3(
 		maxCompressedSize,
 		maxUncompressedSize,
 		maxPointsPerPayload,
 		compression,
+		pipelineConfig,
+		pipelineContext,
 	)
 }
 
@@ -160,6 +170,8 @@ func newPayloadsBuilderV3(
 	maxUncompressedSize int,
 	maxPointsPerPayload int,
 	compression compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
 ) (*payloadsBuilderV3, error) {
 	payloadHeaderSize := protobufFieldHeaderLen(payloadFieldMetricData, maxUncompressedSize)
 	payloadHeaderSizeBound := compression.CompressBound(payloadHeaderSize)
@@ -194,6 +206,9 @@ func newPayloadsBuilderV3(
 
 		payloadHeaderSizeBound: payloadHeaderSizeBound,
 		columnHeaderSizeBound:  columnHeaderSizeBound,
+
+		pipelineConfig:  pipelineConfig,
+		pipelineContext: pipelineContext,
 
 		scratchBuf: make([]byte, max(payloadHeaderSize, columnHeaderSize)),
 	}, nil
@@ -252,8 +267,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			payload = append(payload, compressedBytes...)
 		}
 
-		pb.payloads = append(pb.payloads,
-			transaction.NewBytesPayload(payload, pb.pointsThisPayload))
+		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
 	pb.reset()
@@ -284,10 +298,6 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.compressor.Reset()
 }
 
-func (pb *payloadsBuilderV3) transactionPayloads() []*transaction.BytesPayload {
-	return pb.payloads
-}
-
 func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
 	pb.resourcesBuf = pb.resourcesBuf[0:0]
 
@@ -309,6 +319,10 @@ func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
 }
 
 func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
+	if !pb.pipelineConfig.Filter.Filter(serie) {
+		return nil
+	}
+
 	if len(serie.Points) == 0 {
 		return nil
 	}

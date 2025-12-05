@@ -86,6 +86,7 @@ type RuleDefinition struct {
 	RateLimiterToken       []string               `yaml:"limiter_token,omitempty" json:"limiter_token,omitempty"`
 	Silent                 bool                   `yaml:"silent,omitempty" json:"silent,omitempty"`
 	GroupID                string                 `yaml:"group_id,omitempty" json:"group_id,omitempty"`
+	Priority               int                    `yaml:"priority,omitempty" json:"priority,omitempty"`
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -259,11 +260,11 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 	}
 
 	if s.Inherited && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can be marked as inherited")
+		return errors.New("only variables scoped to process can be marked as inherited")
 	}
 
 	if len(s.ScopeField) > 0 && s.Scope != "process" {
-		return fmt.Errorf("only variables scoped to process can have a custom scope_field")
+		return errors.New("only variables scoped to process can have a custom scope_field")
 	}
 
 	return nil
@@ -342,7 +343,7 @@ func (h *HashDefinition) PostCheck(rule *eval.Rule) error {
 
 	// check that the field is compatible with the rule event type
 	fieldPathForMetadata := h.Field + ".path"
-	fieldEventType, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
+	fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldPathForMetadata)
 	if err != nil {
 		return fmt.Errorf("failed to get event type for field '%s': %w", fieldPathForMetadata, err)
 	}
@@ -416,7 +417,9 @@ type HookPointArg struct {
 
 // PolicyDef represents a policy file definition
 type PolicyDef struct {
-	Version         string             `yaml:"version,omitempty" json:"version"`
+	Version string `yaml:"version,omitempty" json:"version"`
+	// Type is the type of content served by the policy (e.g. "policy" for a default policy, "detection_pack" or empty for others)
+	Type            string             `yaml:"type,omitempty" json:"type,omitempty"`
 	ReplacePolicyID string             `yaml:"replace_policy_id,omitempty" json:"replace_policy_id,omitempty"`
 	Macros          []*MacroDefinition `yaml:"macros,omitempty" json:"macros,omitempty"`
 	Rules           []*RuleDefinition  `yaml:"rules" json:"rules"`

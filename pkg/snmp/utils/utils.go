@@ -8,7 +8,7 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 )
 
 // NormalizeNamespace applies policy according to hostname rule
@@ -17,14 +17,14 @@ func NormalizeNamespace(namespace string) (string, error) {
 
 	// namespace longer than 100 characters are illegal
 	if len(namespace) > 100 {
-		return "", fmt.Errorf("namespace is too long, should contain less than 100 characters")
+		return "", errors.New("namespace is too long, should contain less than 100 characters")
 	}
 
 	for _, r := range namespace {
 		switch r {
 		// has null rune just toss the whole thing
 		case '\x00':
-			return "", fmt.Errorf("namespace cannot contain null character")
+			return "", errors.New("namespace cannot contain null character")
 		// drop these characters entirely
 		case '\n', '\r', '\t':
 			continue
@@ -38,7 +38,7 @@ func NormalizeNamespace(namespace string) (string, error) {
 
 	normalizedNamespace := buf.String()
 	if normalizedNamespace == "" {
-		return "", fmt.Errorf("namespace cannot be empty")
+		return "", errors.New("namespace cannot be empty")
 	}
 
 	return normalizedNamespace, nil

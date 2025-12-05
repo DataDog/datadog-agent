@@ -10,6 +10,7 @@ package connectivity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -149,7 +150,7 @@ func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
 					logURL = endpointInfo.Endpoint.Route
 					statusCode, err = sendHTTPHEADRequestToEndpoint(logURL, getClient(pkgconfigsetup.Datadog(), numberOfWorkers, log, withOneRedirect()))
 				} else {
-					domain, _ := domainResolver.Resolve(endpointInfo.Endpoint)
+					domain := domainResolver.Resolve(endpointInfo.Endpoint)
 					httpTraces = []string{}
 					ctx := httptrace.WithClientTrace(context.Background(), createDiagnoseTraces(&httpTraces, false))
 
@@ -210,7 +211,7 @@ func sendHTTPRequestToEndpoint(ctx context.Context, client *http.Client, domain 
 		"Content-Type":     endpointInfo.ContentType,
 		"DD-API-KEY":       apiKey,
 		"DD-Agent-Version": version.AgentVersion,
-		"User-Agent":       fmt.Sprintf("datadog-agent/%s", version.AgentVersion),
+		"User-Agent":       "datadog-agent/" + version.AgentVersion,
 		"X-Requested-With": requestWithHeader,
 	}
 
@@ -243,7 +244,7 @@ func verifyEndpointResponse(diagCfg diagnose.Config, statusCode int, responseBod
 	}
 
 	if statusCode >= 400 {
-		newErr = fmt.Errorf("bad request")
+		newErr = errors.New("bad request")
 		verifyReport = fmt.Sprintf("Received response : '%v'\n", scrubbedResponseBody)
 	}
 

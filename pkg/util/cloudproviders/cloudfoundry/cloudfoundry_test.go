@@ -74,6 +74,7 @@ func TestHostAliasDefault(t *testing.T) {
 	mockHostname := "hostname"
 
 	// mock getFqdn to avoid flakes in CI runners
+	defer func() { getFqdn = netutil.Fqdn }()
 	getFqdn = func(string) string {
 		return mockHostname
 	}

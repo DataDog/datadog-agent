@@ -12,11 +12,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	gcphost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/gcp/host/linux"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	gcphost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/gcp/host/linux"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 const (

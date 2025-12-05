@@ -77,10 +77,7 @@ type Server struct {
 	urlMutex sync.RWMutex
 	url      string
 
-	storeDriver string
-	store       serverstore.Store
-
-	sqliteDbPath string
+	store serverstore.Store
 
 	responseOverridesMutex    sync.RWMutex
 	responseOverridesByMethod map[string]map[string]httpResponse
@@ -100,7 +97,6 @@ func NewServer(options ...Option) *Server {
 		server: http.Server{
 			Addr: "0.0.0.0:0",
 		},
-		storeDriver:     "memory",
 		forwardEndpoint: "https://app.datadoghq.com",
 		// Source: https://docs.datadoghq.com/api/latest/logs/
 		logForwardEndpoint: "https://agent-http-intake.logs.datadoghq.com",
@@ -110,7 +106,7 @@ func NewServer(options ...Option) *Server {
 		opt(fi)
 	}
 
-	fi.store = serverstore.NewStore(fi.storeDriver, fi.sqliteDbPath)
+	fi.store = serverstore.NewStore()
 	registry := prometheus.NewRegistry()
 
 	storeMetrics := fi.store.GetInternalMetrics()
@@ -175,17 +171,6 @@ func WithPort(port int) Option {
 	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
 }
 
-// WithStoreDriver changes the store driver used by the server
-func WithStoreDriver(driver string) func(*Server) {
-	return func(fi *Server) {
-		if fi.IsRunning() {
-			log.Println("Fake intake is already running. Stop it and try again to change the store driver.")
-			return
-		}
-		fi.storeDriver = driver
-	}
-}
-
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
 func WithReadyChannel(ready chan bool) Option {
 	return func(fi *Server) {
@@ -231,13 +216,6 @@ func WithDDDevForward() Option {
 			fi.apiKey = apiKey
 		}
 		fi.dddevForward = true
-	}
-}
-
-// WithSqlitePath sets the sqlite file path to store the received data.
-func WithSqlitePath(path string) Option {
-	return func(fi *Server) {
-		fi.sqliteDbPath = path
 	}
 }
 
@@ -305,7 +283,7 @@ func (fi *Server) IsRunning() bool {
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
 	if !fi.IsRunning() {
-		return fmt.Errorf("server not running")
+		return errors.New("server not running")
 	}
 	defer close(fi.shutdown)
 	defer fi.store.Close()
@@ -436,6 +414,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 		writeHTTPResponse(w, response)
 		return nil
 	}
+	collectTime := fi.clock.Now().UTC() // record before I/O to cut down on variability
 	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		log.Printf("Error reading body: %v", err.Error())
@@ -456,7 +435,7 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	contentType := req.Header.Get("Content-Type")
 
 	apiKey := fi.extractDatadogAPIKey(req)
-	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, fi.clock.Now().UTC())
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime)
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)
@@ -544,7 +523,7 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 		}
 		jsonResp, err = json.Marshal(resp)
 	} else {
-		writeHTTPResponse(w, buildErrorResponse(fmt.Errorf("invalid route parameter")))
+		writeHTTPResponse(w, buildErrorResponse(errors.New("invalid route parameter")))
 		return
 	}
 

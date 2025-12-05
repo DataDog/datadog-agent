@@ -16,13 +16,13 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/agent-payload/v5/sbom"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	"github.com/fatih/color"
 	"github.com/samber/lo"

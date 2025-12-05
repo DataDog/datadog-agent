@@ -22,19 +22,19 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
-	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go4.org/netipx"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -244,6 +244,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -321,6 +324,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -549,7 +555,7 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
+	assert.Equal(t, 1000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 
@@ -1482,7 +1488,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 	tests := []struct {
 		name                   string
 		conn                   *model.Connection
-		vpcSubnets             []*net.IPNet
+		vpcSubnets             []netip.Prefix
 		domain                 string
 		shouldSchedule         bool
 		subnetSkipped          bool
@@ -1579,7 +1585,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "10.0.0.2", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1591,7 +1597,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "192.168.1.1", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1603,7 +1609,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 				Raddr:     &model.Addr{Ip: "10.0.0.1", Port: int32(80)},
 				Direction: model.ConnectionDirection_outgoing,
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "192.168.0.0/16")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "192.168.0.0/16")},
 			shouldSchedule: true,
 			subnetSkipped:  false,
 		},
@@ -1619,7 +1625,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 					ReplDstIP:   "10.1.2.3",
 				},
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "10.0.0.0/8")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1636,7 +1642,7 @@ func Test_npCollectorImpl_shouldScheduleNetworkPathForConn(t *testing.T) {
 					// ReplDstIP is the empty string
 				},
 			},
-			vpcSubnets:     []*net.IPNet{mustParseCIDR(t, "10.0.0.0/8")},
+			vpcSubnets:     []netip.Prefix{mustParseCIDR(t, "10.0.0.0/8")},
 			shouldSchedule: false,
 			subnetSkipped:  true,
 		},
@@ -1833,9 +1839,9 @@ network_path:
 	}
 }
 
-func mustParseCIDR(t *testing.T, cidr string) *net.IPNet {
-	_, ipNet, err := net.ParseCIDR(cidr)
-	assert.Nil(t, err)
+func mustParseCIDR(t *testing.T, cidr string) netip.Prefix {
+	ipNet, err := netip.ParsePrefix(cidr)
+	assert.NoError(t, err)
 	return ipNet
 }
 

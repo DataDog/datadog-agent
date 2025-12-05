@@ -642,11 +642,6 @@ def build_rc(ctx, release_branch, patch_version=False, k8s_deployments=False, st
         # Step 1: Tag versions
 
         print(color_message(f"Tagging RC for agent version {versions_string}", "bold"))
-        print(
-            color_message(
-                "If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold"
-            )
-        )
 
         # tag_version only takes the highest version (Agent 7 currently), and creates
         # the tags for all supported versions

@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	grpcutils "github.com/DataDog/datadog-agent/pkg/security/utils/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
@@ -309,9 +310,9 @@ func (rsa *RuntimeSecurityAgent) setupGPRC() error {
 			return errors.New("runtime_security_config.socket must be set")
 		}
 
-		family := common.GetFamilyAddress(socketPath)
+		family, socketPath := socket.GetSocketAddress(socketPath)
 		if family == "unix" && runtime.GOOS == "windows" {
-			return fmt.Errorf("unix sockets are not supported on Windows")
+			return errors.New("unix sockets are not supported on Windows")
 		}
 
 		rsa.eventGPRCServer = grpcutils.NewServer(family, socketPath)

@@ -518,6 +518,8 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
+	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
@@ -530,9 +532,6 @@ type AgentConfig struct {
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig
-
-	// Lambda function name
-	LambdaFunctionName string
 
 	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
@@ -623,8 +622,6 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
-
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
 		WatchdogInterval: 10 * time.Second,
@@ -641,13 +638,14 @@ func New() *AgentConfig {
 		Proxy:                     http.ProxyFromEnvironment,
 		OTLPReceiver:              &OTLP{},
 		ContainerTags:             noopContainerTagsFunc,
+		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			MaxPayloadSize: 10 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
 			Enabled:    true,
@@ -667,7 +665,7 @@ func computeGlobalTags() map[string]string {
 
 	tags := make(map[string]string)
 	if inECSManagedInstancesSidecar() {
-		tags["origin"] = "ecs_managed_instances"
+		tags["_dd.origin"] = "ecs_managed_instances"
 	}
 	return tags
 }

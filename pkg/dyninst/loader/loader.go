@@ -95,7 +95,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	ringbufMapSpec, ok := spec.Maps[ringbufMapName]
 	if !ok {
-		return nil, fmt.Errorf("ringbuffer map not found in eBPF spec")
+		return nil, errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
@@ -112,7 +112,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	bpfProgram, ok := collection.Programs["probe_run_with_cookie"]
 	if !ok {
-		return nil, fmt.Errorf("probe_run_with_cookie program not found in collection")
+		return nil, errors.New("probe_run_with_cookie program not found in collection")
 	}
 
 	maps = nil
@@ -182,32 +182,30 @@ func (p *Program) Close() {
 
 // RuntimeStats are cumulative stats aggregated throughout program lifetime.
 type RuntimeStats struct {
+	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
+	CPU time.Duration
 	// Number of probe hits.
 	HitCnt uint64
 	// Number of probe hits that skipped data capture due to throttling.
 	ThrottledCnt uint64
-	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
-	CPU time.Duration
 }
 
-// RuntimeStats returns the runtime stats for the program.
-func (p *Program) RuntimeStats() (stats RuntimeStats) {
+// RuntimeStats returns the per-core runtime stats for the program.
+func (p *Program) RuntimeStats() []RuntimeStats {
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
-		return
+		return nil
 	}
 	entries := statsMap.Iterate()
 	var key uint32
-	var perCPUStats []RuntimeStats
-	if !entries.Next(&key, &perCPUStats) {
-		return stats
-	}
-	for _, cpuStats := range perCPUStats {
-		stats.HitCnt += cpuStats.HitCnt
-		stats.ThrottledCnt += cpuStats.ThrottledCnt
-		stats.CPU += cpuStats.CPU
-	}
-	return
+	var stats []stats
+	_ = entries.Next(&key, &stats)
+	// This is safe because these two structs have the same layout.
+	// See TestRuntimeStatsHasSameLayoutAsStats for more details.
+	return unsafe.Slice(
+		(*RuntimeStats)(unsafe.Pointer(unsafe.SliceData(stats))),
+		len(stats),
+	)
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
@@ -289,7 +287,7 @@ func (l *Loader) init(opts ...Option) error {
 	stripRelocations(l.ebpfSpec)
 	ringbufMapSpec, ok := l.ebpfSpec.Maps[ringbufMapName]
 	if !ok {
-		return fmt.Errorf("ringbuffer map not found in eBPF spec")
+		return errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 	return nil
@@ -443,7 +441,7 @@ func (l *Loader) loadData(
 
 	mapSpec, ok := spec.Maps[throttlerStateMapName]
 	if !ok {
-		return nil, fmt.Errorf("throttler_buf map not found in eBPF spec")
+		return nil, errors.New("throttler_buf map not found in eBPF spec")
 	}
 	mapSpec.MaxEntries = uint32(len(serialized.throttlerParams))
 
@@ -507,7 +505,7 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 	m := serialized.commonTypes.M
 	stack, ok := g.FieldByName("stack")
 	if !ok {
-		return fmt.Errorf("stack field not found in runtime.g")
+		return errors.New("stack field not found in runtime.g")
 	}
 	stackStruct, ok := stack.Type.(*ir.StructureType)
 	if !ok {

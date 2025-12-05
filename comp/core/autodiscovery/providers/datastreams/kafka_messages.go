@@ -23,8 +23,7 @@ import (
 )
 
 const (
-	kafkaConsumerIntegrationName = "kafka_consumer"
-	logsConfig                   = `logs:
+	logsConfig = `logs:
   - type: integration
     service: kafka_consumer
     source: kafka_consumer`
@@ -88,15 +87,6 @@ func (c *controller) manageSubscriptionToRC() {
 			return
 		}
 	}
-}
-
-func isConnectedToKafka(ac autodiscovery.Component) bool {
-	for _, config := range ac.GetUnresolvedConfigs() {
-		if config.Name == kafkaConsumerIntegrationName {
-			return true
-		}
-	}
-	return false
 }
 
 // NewController creates a new controller instance

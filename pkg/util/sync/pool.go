@@ -86,9 +86,9 @@ type poolTelemetry struct {
 // getSimpleCounters gets counters with pre-computed tags to reduce unnecessary repeated work
 func (p *poolTelemetry) getSimpleCounters(module, name string) *poolTelemetrySimple {
 	return &poolTelemetrySimple{
-		get:    p.get.WithTags(map[string]string{"module": module, "name": name}),
-		put:    p.put.WithTags(map[string]string{"module": module, "name": name}),
-		active: p.active.WithTags(map[string]string{"module": module, "name": name}),
+		get:    p.get.WithTags(map[string]string{"module": module, "pool_name": name}),
+		put:    p.put.WithTags(map[string]string{"module": module, "pool_name": name}),
+		active: p.active.WithTags(map[string]string{"module": module, "pool_name": name}),
 	}
 }
 
@@ -101,9 +101,9 @@ type poolTelemetrySimple struct {
 
 func newPoolTelemetry(tm telemetry.Component) *poolTelemetry {
 	return &poolTelemetry{
-		get:    tm.NewCounter("sync__pool", "get", []string{"module", "name"}, "Number of gets from the sync pool"),
-		put:    tm.NewCounter("sync__pool", "put", []string{"module", "name"}, "Number of puts to the sync pool"),
-		active: tm.NewGauge("sync__pool", "active", []string{"module", "name"}, "Number of active items in the sync pool"),
+		get:    tm.NewCounter("sync__pool", "get", []string{"module", "pool_name"}, "Number of gets from the sync pool"),
+		put:    tm.NewCounter("sync__pool", "put", []string{"module", "pool_name"}, "Number of puts to the sync pool"),
+		active: tm.NewGauge("sync__pool", "active", []string{"module", "pool_name"}, "Number of active items in the sync pool"),
 	}
 }
 
