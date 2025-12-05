@@ -31,3 +31,15 @@ bazel:build-deps:windows-amd64:
       [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
       bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' '@openssl//...' --platforms=//bazel/platforms:windows_x86_64
       # bazel build @bzip2//...
+
+bazel:debug-macos-x64:
+  extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
+  script:
+    - bazel build @openssl//:openssl --subcommands --platforms=//bazel/platforms:macos_x86_64
+    - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_x86_64
+
+bazel:debug-arm64:
+  extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
+  script:
+    - bazel build @openssl//:openssl --subcommands --platforms=//bazel/platforms:macos_arm64
+    - bazel build @cpython//:python_unix --subcommands --platforms=//bazel/platforms:macos_arm64
