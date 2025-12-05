@@ -27,9 +27,7 @@ import (
 
 const cacheKeyPrefix = "snmp"
 
-var (
-	autodiscoveryStatusBySubnetVar = expvar.NewMap("snmpAutodiscovery")
-)
+var autodiscoveryStatusBySubnetVar = expvar.NewMap("snmpAutodiscovery")
 
 // AutodiscoveryStatus represents the status of the autodiscovery of a subnet we want to expose in the snmp status
 type AutodiscoveryStatus struct {
@@ -408,6 +406,8 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
+		l.deviceDeduper = devicededuper.NewDeviceDeduper(l.config)
+
 		for _, subnet := range subnets {
 			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
 		}
