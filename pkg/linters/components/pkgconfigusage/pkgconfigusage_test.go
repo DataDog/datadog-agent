@@ -15,6 +15,12 @@ import (
 )
 
 func TestAll(t *testing.T) {
+	// Set environment variables to prevent go commands from accessing
+	// the module cache concurrently, which can cause timeouts on macOS.
+	t.Setenv("GOCACHE", t.TempDir())
+	t.Setenv("GOPRIVATE", "*")
+	t.Setenv("GOPROXY", "off")
+
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get wd: %s", err)
