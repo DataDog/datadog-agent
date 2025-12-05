@@ -23,6 +23,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	gorillamux "github.com/gorilla/mux"
 	"github.com/prometheus/procfs"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -52,11 +54,43 @@ func findService(pid int, services []model.Service) *model.Service {
 }
 
 type testDiscoveryModule struct {
-	url string
+	url    string
+	client *http.Client
 }
 
 func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
+
+	// Check if we should connect to an external sd-agent socket
+	socketPath := os.Getenv("SD_AGENT_SOCKET")
+	if socketPath != "" {
+		// Check if the socket exists
+		if _, err := os.Stat(socketPath); os.IsNotExist(err) {
+			t.Fatalf("SD_AGENT_SOCKET is set to %s but socket does not exist", socketPath)
+		}
+
+		t.Logf("Connecting to external sd-agent at socket: %s", socketPath)
+
+		// Create HTTP client that dials the Unix socket
+		httpClient := &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:          2,
+				IdleConnTimeout:       30 * time.Second,
+				DialContext:           client.DialContextFunc(socketPath),
+				TLSHandshakeTimeout:   1 * time.Second,
+				ResponseHeaderTimeout: 5 * time.Second,
+				ExpectContinueTimeout: 50 * time.Millisecond,
+			},
+		}
+
+		return &testDiscoveryModule{
+			url:    "http://sysprobe",
+			client: httpClient,
+		}
+	}
+
+	// Default: create in-process discovery module
 	mux := gorillamux.NewRouter()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
@@ -70,7 +104,8 @@ func setupDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Cleanup(srv.Close)
 
 	return &testDiscoveryModule{
-		url: srv.URL,
+		url:    srv.URL,
+		client: http.DefaultClient,
 	}
 }
 
