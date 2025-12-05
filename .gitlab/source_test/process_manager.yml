@@ -174,8 +174,19 @@ process_manager_unit_tests_windows:
       # Install protoc (required for prost-build)
       if (-not (Test-Path "C:\protoc\bin\protoc.exe")) {
         Write-Host "Downloading protoc..."
-        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-win64.zip"
-        Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protoc-25.1-win64.zip"
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
         Write-Host "Extracting protoc..."
         Expand-Archive -Path protoc.zip -DestinationPath C:\protoc -Force
       }
@@ -217,8 +228,19 @@ process_manager_build_windows:
       # Install protoc (required for prost-build)
       if (-not (Test-Path "C:\protoc\bin\protoc.exe")) {
         Write-Host "Downloading protoc..."
-        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-win64.zip"
-        Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $protocUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v25.1/protoc-25.1-win64.zip"
+        $retries = 3
+        for ($i = 1; $i -le $retries; $i++) {
+          try {
+            Invoke-WebRequest -Uri $protocUrl -OutFile protoc.zip -UseBasicParsing
+            break
+          } catch {
+            Write-Host "Retry $i/$retries..."
+            Start-Sleep -Seconds 5
+            if ($i -eq $retries) { throw }
+          }
+        }
         Write-Host "Extracting protoc..."
         Expand-Archive -Path protoc.zip -DestinationPath C:\protoc -Force
       }
