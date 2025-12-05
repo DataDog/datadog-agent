@@ -365,6 +365,22 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
+	payloadHardwareCmd := &cobra.Command{
+		Use:   "host-hardware",
+		Short: "[internal] Print the hardware metadata payload.",
+		Long: `
+This command print the hardware metadata payload. This payload is used by the 'hardware' product.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("host-hardware")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				secretnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
@@ -378,6 +394,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
+	showPayloadCommand.AddCommand(payloadHardwareCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}

@@ -129,3 +129,11 @@ func TestShowFullAgentTelemetryCommand(t *testing.T) {
 		func() {},
 	)
 }
+
+func TestShowMetadataHardwareCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "host-hardware"},
+		printPayload,
+		func(_ core.BundleParams) {})
+}
