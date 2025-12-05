@@ -51,6 +51,7 @@ func init() {
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
 	registerFeature(PodResources)
+	registerFeature(KubernetesDevicePlugins)
 	registerFeature(NVML)
 	registerFeature(NonstandardCRIRuntime)
 }
@@ -79,6 +80,7 @@ func detectContainerFeatures(features FeatureMap, cfg model.Reader) {
 	detectCloudFoundry(features, cfg)
 	detectPodman(features, cfg)
 	detectPodResources(features, cfg)
+	detectDevicePlugins(features, cfg)
 	detectNVML(features, cfg)
 }
 
@@ -279,6 +281,32 @@ func detectPodResources(features FeatureMap, cfg model.Reader) {
 	} else {
 		log.Infof("Agent did not find PodResources socket at %s", socketPath)
 	}
+}
+
+func detectDevicePlugins(features FeatureMap, cfg model.Reader) {
+	// We only check the path from config if the path from config exists (does not have unix:// prefix)
+	socketDir := cfg.GetString("kubernetes_kubelet_deviceplugins_socketdir")
+	if socketDir == "" {
+		return
+	}
+
+	configured := cfg.IsConfigured("kubernetes_kubelet_deviceplugins_socketdir")
+	stat, err := os.Stat(socketDir)
+	if err != nil {
+		if configured {
+			log.Infof("Agent did not find device plugins socket path dir %s: %v", socketDir, err)
+		}
+		return
+	}
+	if !stat.IsDir() {
+		if configured {
+			log.Infof("Agent did not find valid device plugins socket path dir %s", socketDir)
+		}
+		return
+	}
+
+	features[KubernetesDevicePlugins] = struct{}{}
+	log.Infof("Agent found device plugins socket path dir %s", socketDir)
 }
 
 func detectNVML(features FeatureMap, _ model.Reader) {
