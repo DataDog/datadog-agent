@@ -44,12 +44,25 @@ build do
 
     # Note: extra_package_file is registered at project level in agent.rb
   elsif windows_target?
+    # Install MinGW-w64 if not present (required for GNU target)
+    mingw_path = "C:\\mingw64\\bin"
+    mingw_archive = "C:\\mingw64.7z"
+    mingw_url = "https://github.com/niXman/mingw-builds-binaries/releases/download/14.2.0-rt_v12-rev1/x86_64-14.2.0-release-posix-seh-ucrt-rt_v12-rev1.7z"
+
+    unless File.exist?("#{mingw_path}\\gcc.exe")
+      command "powershell -Command \"[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '#{mingw_url}' -OutFile '#{mingw_archive}' -UseBasicParsing\"", :live_stream => Omnibus.logger.live_stream(:info)
+      command "7z x #{mingw_archive} -oC:\\ -y", :live_stream => Omnibus.logger.live_stream(:info)
+    end
+
+    # Add Rust GNU target
+    command "rustup target add x86_64-pc-windows-gnu", :live_stream => Omnibus.logger.live_stream(:info)
+
     # Build the Rust binaries (daemon + CLI) for Windows using GNU toolchain
     env = {
-      'PATH' => "#{ENV['USERPROFILE']}\\.cargo\\bin;#{ENV['PATH']}",
+      'PATH' => "#{mingw_path};#{ENV['USERPROFILE']}\\.cargo\\bin;#{ENV['PATH']}",
     }
 
-    # Build with GNU target to avoid MSVC dependency
+    # Build with GNU target
     command "cd process_manager && cargo build --release --bins --target x86_64-pc-windows-gnu", env: env, :live_stream => Omnibus.logger.live_stream(:info)
 
     # Create necessary directories
@@ -62,4 +75,3 @@ build do
     # Note: Windows config files are handled by the MSI installer
   end
 end
-
