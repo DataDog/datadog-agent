@@ -255,7 +255,7 @@ func makeRealDependencies(
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
 	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
-	ret.procSubscriber = procsubscribe.NewRemoteConfigProcessSubscriber(
+	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)
 
