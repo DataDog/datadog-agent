@@ -485,7 +485,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v3",
+				"python": "v4",
 				"js":     "v5",
 				"dotnet": "v3",
 				"ruby":   "v2",
@@ -508,7 +508,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			name: "default libs (major versions mismatch)",
 			libVersions: map[string]string{
 				"java":   "v1",
-				"python": "v3",
+				"python": "v4",
 				"js":     "v3",
 				"dotnet": "v3",
 				"ruby":   "v2",
