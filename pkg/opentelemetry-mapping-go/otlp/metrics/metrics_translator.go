@@ -149,20 +149,22 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 	if cfg.customMapper != nil {
 		t.mapper = cfg.customMapper
 	} else {
-		t.mapper = NewDefaultMapper(cache, logger, cfg)
+		t.mapper = newDefaultMapper(cache, logger, cfg)
 	}
 	return t, nil
 }
 
 // NewTranslator creates a new translator with given options.
 // It returns *Translator (which is an alias for *DefaultTranslator) for backward compatibility.
+//
+// Deprecated: Use [NewDefaultTranslator] instead.
 func NewTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (*Translator, error) {
 	return NewDefaultTranslator(set, attributesTranslator, options...)
 }
 
-// Mapper returns the underlying Mapper implementation.
+// getMapper returns the underlying Mapper implementation.
 // This is useful for testing or for direct access to mapping methods.
-func (t *DefaultTranslator) Mapper() Mapper {
+func (t *DefaultTranslator) getMapper() Mapper {
 	return t.mapper
 }
 
@@ -204,6 +206,8 @@ type Mapper interface {
 
 // Translator is an alias for DefaultTranslator for backward compatibility.
 // External code using *metrics.Translator will continue to work.
+//
+// Deprecated: Use [DefaultTranslator] instead.
 type Translator = DefaultTranslator
 
 // MetricsTranslator defines the interface for translating OTLP metrics to Datadog format.

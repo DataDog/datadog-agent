@@ -29,18 +29,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
-// DefaultMapper is the default implementation of the Mapper interface.
+// defaultMapper is the default implementation of the Mapper interface.
 // It provides the standard mapping logic for converting OTLP metrics to Datadog format.
-type DefaultMapper struct {
+type defaultMapper struct {
 	prevPts *ttlCache
 	logger  *zap.Logger
 	cfg     translatorConfig
 }
 
-// NewDefaultMapper creates a new DefaultMapper with the given dependencies.
-// DefaultMapper implements Mapper and uses Consumer which includes both sketch and histogram interfaces.
-func NewDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) Mapper {
-	return &DefaultMapper{
+// newDefaultMapper creates a new defaultMapper with the given dependencies.
+// defaultMapper implements Mapper and uses Consumer which includes both sketch and histogram interfaces.
+func newDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) Mapper {
+	return &defaultMapper{
 		prevPts: prevPts,
 		logger:  logger,
 		cfg:     cfg,
@@ -49,7 +49,7 @@ func NewDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfi
 
 // isSkippable checks if a value can be skipped (because it is not supported by the backend).
 // It logs that the value is unsupported for debugging since this sometimes means there is a bug.
-func (m *DefaultMapper) isSkippable(name string, v float64) bool {
+func (m *defaultMapper) isSkippable(name string, v float64) bool {
 	skippable := math.IsInf(v, 0) || math.IsNaN(v)
 	if skippable {
 		m.logger.Debug("Unsupported metric value", zap.String(metricName, name), zap.Float64("value", v))
@@ -58,7 +58,7 @@ func (m *DefaultMapper) isSkippable(name string, v float64) bool {
 }
 
 // MapNumberMetrics maps double datapoints into Datadog metrics
-func (m *DefaultMapper) MapNumberMetrics(
+func (m *defaultMapper) MapNumberMetrics(
 	ctx context.Context,
 	consumer Consumer,
 	dims *Dimensions,
@@ -108,7 +108,7 @@ func (m *DefaultMapper) MapNumberMetrics(
 // We follow a similar approach to our OpenMetrics check:
 // we report sum and count by default; buckets count can also
 // be reported (opt-in) tagged by lower bound.
-func (m *DefaultMapper) MapHistogramMetrics(
+func (m *defaultMapper) MapHistogramMetrics(
 	ctx context.Context,
 	consumer Consumer,
 	dims *Dimensions,
@@ -194,7 +194,7 @@ func (m *DefaultMapper) MapHistogramMetrics(
 }
 
 // MapSummaryMetrics maps summary datapoints into Datadog metrics
-func (m *DefaultMapper) MapSummaryMetrics(
+func (m *defaultMapper) MapSummaryMetrics(
 	ctx context.Context,
 	consumer Consumer,
 	dims *Dimensions,
@@ -265,7 +265,7 @@ func (m *DefaultMapper) MapSummaryMetrics(
 //   - a list of bucket counts
 //
 // - A count of zero values in the population
-func (m *DefaultMapper) MapExponentialHistogramMetrics(
+func (m *defaultMapper) MapExponentialHistogramMetrics(
 	ctx context.Context,
 	consumer Consumer,
 	dims *Dimensions,
@@ -363,7 +363,7 @@ func (m *DefaultMapper) MapExponentialHistogramMetrics(
 
 // shouldConsumeInitialValue checks if the initial value of a cumulative monotonic metric
 // should be consumed or dropped.
-func (m *DefaultMapper) shouldConsumeInitialValue(startTs, ts uint64) bool {
+func (m *defaultMapper) shouldConsumeInitialValue(startTs, ts uint64) bool {
 	switch m.cfg.InitialCumulMonoValueMode {
 	case InitialCumulMonoValueModeAuto:
 		if getProcessStartTimeNano() < startTs && startTs != ts {
@@ -379,7 +379,7 @@ func (m *DefaultMapper) shouldConsumeInitialValue(startTs, ts uint64) bool {
 }
 
 // getSketchBuckets converts histogram buckets to a sketch
-func (m *DefaultMapper) getSketchBuckets(
+func (m *defaultMapper) getSketchBuckets(
 	ctx context.Context,
 	consumer Consumer,
 	pointDims *Dimensions,
@@ -515,7 +515,7 @@ func (m *DefaultMapper) getSketchBuckets(
 }
 
 // getLegacyBuckets produces legacy bucket metrics
-func (m *DefaultMapper) getLegacyBuckets(
+func (m *defaultMapper) getLegacyBuckets(
 	ctx context.Context,
 	consumer Consumer,
 	pointDims *Dimensions,
@@ -544,7 +544,7 @@ func (m *DefaultMapper) getLegacyBuckets(
 }
 
 // exponentialHistogramToDDSketch converts an exponential histogram to a DDSketch
-func (m *DefaultMapper) exponentialHistogramToDDSketch(
+func (m *defaultMapper) exponentialHistogramToDDSketch(
 	p pmetric.ExponentialHistogramDataPoint,
 	delta bool,
 ) (*ddsketch.DDSketch, error) {

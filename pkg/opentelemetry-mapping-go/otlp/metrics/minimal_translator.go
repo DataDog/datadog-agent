@@ -18,14 +18,33 @@ import (
 	"go.uber.org/zap"
 )
 
-type MinimalTranslator struct {
+// minimalTranslator is a lightweight translator for OTLP metrics that only supports
+// delta temporality metrics and does not perform cumulative-to-delta conversion.
+// Use this translator when metrics are already in delta format or when you want to
+// forward metrics without stateful conversion.
+//
+// Unlike DefaultTranslator, minimalTranslator:
+//   - Does not maintain a cache for cumulative-to-delta conversion
+//   - Skips unsupported metrics (cumulative monotonic sums, cumulative histograms) instead of converting them
+//   - Does not dual wrie metrics nor add prefix OTel
+//
+// Use NewMinimalTranslator to create instances.
+type minimalTranslator struct {
 	logger               *zap.Logger
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
 	mapper               Mapper
 }
 
-// NewMinimalTranslator creates a new translator with the given options.
+// NewMinimalTranslator creates a new minimal translator for OTLP metrics.
+//
+// The minimal translator is designed for use cases where:
+//   - Metrics are already in delta temporality format
+//   - Cumulative-to-delta conversion is not needed
+//   - Lower memory footprint is desired
+//
+// Unsupported metrics (cumulative monotonic sums, cumulative histograms) are logged and skipped
+// rather than returning an error.
 func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.Translator, options ...TranslatorOption) (MetricsTranslator, error) {
 	cfg := translatorConfig{
 		HistMode:                             HistogramModeDistributions,
@@ -47,7 +66,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 		}
 	}
 
-	return &MinimalTranslator{
+	return &minimalTranslator{
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
@@ -55,9 +74,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 	}, nil
 }
 
-var ErrUnsupportedAggregation = errors.New("unsupported aggregation temporality")
-
-func (t *MinimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error) {
+func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error) {
 	metadata := Metadata{
 		Languages: []string{},
 	}
@@ -131,7 +148,7 @@ func (t *MinimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 	return metadata, nil
 }
 
-func (t *MinimalTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
+func (t *minimalTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
 	if !hasSource {
 		return source.Source{}, errors.New("no source found in resource")
@@ -161,7 +178,7 @@ func isUnsupportedMetric(m pmetric.Metric) bool {
 	return aggr != pmetric.AggregationTemporalityDelta
 }
 
-func (t *MinimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
+func (t *minimalTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
 	baseDims := &Dimensions{
 		name:                md.Name(),
 		tags:                additionalTags,
