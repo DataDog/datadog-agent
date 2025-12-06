@@ -300,9 +300,9 @@ def _build_datadog_interop(ctx, env, configuration, arch, vstudio_root):
 def build_datadog_interop(ctx, configuration="Release", arch="x64", vstudio_root=None, copy_to_root=True):
     """
     Build the libdatadog-interop.dll required for software inventory.
-    
+
     This DLL provides interop functionality for MS Store apps collection on Windows.
-    
+
     Args:
         configuration: Build configuration (Release or Debug)
         arch: Target architecture (x64)
@@ -315,12 +315,14 @@ def build_datadog_interop(ctx, configuration="Release", arch="x64", vstudio_root
 
     env = get_effective_dependencies_env()
     _build_datadog_interop(ctx, env, configuration, arch, vstudio_root)
-    
+
     if copy_to_root:
         # Copy the DLL to the repository root so it can be found during test execution
-        dll_source = os.path.join(os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll")
+        dll_source = os.path.join(
+            os.getcwd(), "tools", "windows", "DatadogInterop", arch, configuration, "libdatadog-interop.dll"
+        )
         dll_dest = os.path.join(os.getcwd(), "libdatadog-interop.dll")
-        
+
         if os.path.exists(dll_source):
             print(f"Copying DLL from {dll_source} to {dll_dest}")
             shutil.copy2(dll_source, dll_dest)
