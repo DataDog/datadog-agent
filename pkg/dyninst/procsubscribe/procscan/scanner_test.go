@@ -374,8 +374,10 @@ type scanOutput struct {
 func (ts *scannerTestState) cloneState(
 	includeStartDelay bool,
 ) *scannerStateSnapshot {
+	ts.scanner.mu.Lock()
+	defer ts.scanner.mu.Unlock()
 	live := make([]int32, 0)
-	ts.scanner.live.Ascend(func(pid uint32) bool {
+	ts.scanner.mu.live.Ascend(func(pid uint32) bool {
 		live = append(live, int32(pid))
 		return true
 	})

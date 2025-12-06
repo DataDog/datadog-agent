@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io/fs"
 	"iter"
+	"sync"
 	"syscall"
 	"time"
 
@@ -44,8 +45,11 @@ type Scanner struct {
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
 
-	// live tracks discovered processes that have been reported as live.
-	live *btree.BTreeG[uint32]
+	mu struct {
+		sync.Mutex
+		// live tracks discovered processes that have been reported as live.
+		live *btree.BTreeG[uint32]
+	}
 
 	// listPids returns an iterator over all PIDs in the system.
 	listPids func() iter.Seq2[uint32, error]
@@ -102,15 +106,16 @@ func newScanner(
 	tracerMetadataReader func(pid int32) (tracermetadata.TracerMetadata, error),
 	resolveExecutable func(pid int32) (process.Executable, error),
 ) *Scanner {
-	return &Scanner{
+	s := &Scanner{
 		startDelay:           startDelay,
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
-		live:                 btree.NewG(16, cmp.Less[uint32]),
 	}
+	s.mu.live = btree.NewG(16, cmp.Less[uint32])
+	return s
 }
 
 // DiscoveredProcess represents a newly discovered process that should be
@@ -138,6 +143,8 @@ func (p *Scanner) Scan() (
 	removed []ProcessID,
 	err error,
 ) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	now, err := p.nowTicks()
 	if err != nil {
 		return nil, nil, fmt.Errorf("get timestamp: %w", err)
@@ -169,7 +176,7 @@ func (p *Scanner) Scan() (
 
 	// Clone the live set. Processes still alive will be removed from this
 	// clone. Whatever remains has exited.
-	noLongerLive := p.live.Clone()
+	noLongerLive := p.mu.live.Clone()
 	var ret []DiscoveredProcess
 
 	for pid, err := range p.listPids() {
@@ -207,7 +214,7 @@ func (p *Scanner) Scan() (
 			continue
 		}
 
-		p.live.ReplaceOrInsert(pid)
+		p.mu.live.ReplaceOrInsert(pid)
 		ret = append(ret, DiscoveredProcess{
 			PID:            pid,
 			StartTimeTicks: uint64(startTime),
@@ -225,4 +232,15 @@ func (p *Scanner) Scan() (
 
 	p.lastWatermark = nextWatermark
 	return ret, removed, nil
+}
+
+func (p *Scanner) LiveProcesses() []ProcessID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	ret := make([]ProcessID, 0, p.mu.live.Len())
+	p.mu.live.Ascend(func(pid uint32) bool {
+		ret = append(ret, ProcessID(pid))
+		return true
+	})
+	return ret
 }

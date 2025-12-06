@@ -10,6 +10,7 @@ package procsubscribe
 import (
 	"maps"
 	"slices"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
@@ -27,9 +28,12 @@ type effects interface {
 }
 
 type subscriberState struct {
-	streamEstablished bool
-	tracked           map[string]*runtimeEntry
-	pidToRuntime      map[int32]string
+	mu struct {
+		sync.Mutex
+		streamEstablished bool
+		tracked           map[string]*runtimeEntry
+		pidToRuntime      map[int32]string
+	}
 }
 
 type runtimeEntry struct {
@@ -39,17 +43,20 @@ type runtimeEntry struct {
 	symdbEnabled bool
 }
 
-func makeSubscriberState() subscriberState {
-	return subscriberState{
-		tracked:      make(map[string]*runtimeEntry),
-		pidToRuntime: make(map[int32]string),
-	}
+func newSubscriberState() *subscriberState {
+	s := &subscriberState{}
+	s.mu.streamEstablished = false
+	s.mu.tracked = make(map[string]*runtimeEntry)
+	s.mu.pidToRuntime = make(map[int32]string)
+	return s
 }
 
 func (s *subscriberState) onStreamEstablished(effects effects) {
-	s.streamEstablished = true
-	toTrack := make([]string, 0, len(s.tracked))
-	for _, entry := range s.tracked {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mu.streamEstablished = true
+	toTrack := make([]string, 0, len(s.mu.tracked))
+	for _, entry := range s.mu.tracked {
 		toTrack = append(toTrack, entry.runtimeID)
 	}
 	slices.Sort(toTrack)
@@ -63,6 +70,8 @@ func (s *subscriberState) onScanUpdate(
 	removed []procscan.ProcessID,
 	effects effects,
 ) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if log.ShouldLog(log.TraceLvl) {
 		added := added
 		removed := removed
@@ -78,8 +87,8 @@ func (s *subscriberState) onScanUpdate(
 			continue
 		}
 		pid := process.ID{PID: int32(proc.PID)}
-		if _, ok := s.tracked[runtimeID]; !ok {
-			s.tracked[runtimeID] = &runtimeEntry{
+		if _, ok := s.mu.tracked[runtimeID]; !ok {
+			s.mu.tracked[runtimeID] = &runtimeEntry{
 				Info: process.Info{
 					ProcessID:   pid,
 					Executable:  proc.Executable,
@@ -94,25 +103,25 @@ func (s *subscriberState) onScanUpdate(
 				"process subscriber: discovered new runtime %s (pid=%d)",
 				runtimeID, pid.PID,
 			)
-			if s.streamEstablished {
+			if s.mu.streamEstablished {
 				effects.track(runtimeID)
 			}
 		}
 
-		s.pidToRuntime[pid.PID] = runtimeID
+		s.mu.pidToRuntime[pid.PID] = runtimeID
 	}
 
 	var removals []process.ID
 	for _, removedPID := range removed {
 		pid := int32(removedPID)
-		runtimeID, ok := s.pidToRuntime[pid]
+		runtimeID, ok := s.mu.pidToRuntime[pid]
 		if !ok {
 			continue
 		}
-		delete(s.pidToRuntime, pid)
-		delete(s.tracked, runtimeID)
+		delete(s.mu.pidToRuntime, pid)
+		delete(s.mu.tracked, runtimeID)
 		removals = append(removals, process.ID{PID: pid})
-		if s.streamEstablished {
+		if s.mu.streamEstablished {
 			effects.untrack(runtimeID)
 		}
 		if log.ShouldLog(log.TraceLvl) {
@@ -135,13 +144,15 @@ func (s *subscriberState) onStreamConfig(
 	if resp == nil || resp.Client == nil {
 		return
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	tracer := resp.Client.GetClientTracer()
 	if tracer == nil {
 		return
 	}
 	runtimeID := tracer.GetRuntimeId()
-	entry, ok := s.tracked[runtimeID]
+	entry, ok := s.mu.tracked[runtimeID]
 	if !ok {
 		return
 	}

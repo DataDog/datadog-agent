@@ -79,7 +79,7 @@ type Subscriber struct {
 
 	mu struct {
 		sync.Mutex
-		state           subscriberState
+		state           *subscriberState
 		started         bool
 		pendingRequests []*pbgo.ConfigSubscriptionRequest
 		callback        func(process.ProcessesUpdate)
@@ -116,9 +116,9 @@ type optionFunc func(*config)
 
 func (f optionFunc) apply(c *config) { f(c) }
 
-// NewRemoteConfigProcessSubscriber creates a ProcessSubscriber that sources
-// updates directly from Remote Config.
-func NewRemoteConfigProcessSubscriber(
+// NewSubscriber creates a Subscriber that sources updates directly from Remote
+// Config.
+func NewSubscriber(
 	client RemoteConfigSubscriber,
 	opts ...Option,
 ) *Subscriber {
@@ -139,7 +139,7 @@ func NewRemoteConfigProcessSubscriber(
 		scanInterval:   cfg.scanInterval,
 		wait:           cfg.wait,
 	}
-	s.mu.state = makeSubscriberState()
+	s.mu.state = newSubscriberState()
 	return s
 }
 
@@ -396,6 +396,73 @@ func (s *Subscriber) runConnectedStream(
 	go func() { wg.Wait(); close(errCh) }()
 
 	return <-errCh
+}
+
+type ProcessReport struct {
+	RuntimeID    string
+	ProcessID    int32
+	Executable   process.Executable
+	SymDBEnabled bool
+	NumProbes    int
+	// ProcessAlive is set if the procscan.Scanner reports the process as alive.
+	// This should be true, except for races between the report and the Scanner
+	// recently figuring out that a process is dead.
+	ProcessAlive bool
+}
+
+// Report is a snapshot of the current state of the subscriber.
+type Report struct {
+	// Processes contains the state for all the currently tracked processes.
+	Processes []ProcessReport
+	// ProcessesNotTracked contains the PIDs of processes known to the scanner
+	// that are not tracked. This should be empty, except for to race conditions
+	// between producing this report and the scanner discovering new processes
+	// that have not been added to the tracked set yet.
+	ProcessesNotTracked []int32
+}
+
+// GetReport returns a snapshot of the current state of the subscriber.
+func (s *Subscriber) GetReport() Report {
+	liveProcs := map[int32]struct{}{}
+	if scanner, ok := s.scanner.(*procscan.Scanner); ok {
+		procs := scanner.LiveProcesses()
+		for _, proc := range procs {
+			liveProcs[int32(proc)] = struct{}{}
+		}
+	}
+
+	var ret Report
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mu.state.mu.Lock()
+	defer s.mu.state.mu.Unlock()
+
+	for _, entry := range s.mu.state.mu.tracked {
+		pid := entry.Info.ProcessID.PID
+		_, alive := liveProcs[pid]
+		pr := ProcessReport{
+			RuntimeID:    entry.runtimeID,
+			ProcessID:    pid,
+			Executable:   entry.Executable,
+			NumProbes:    len(entry.probesByPath),
+			SymDBEnabled: entry.symdbEnabled,
+			ProcessAlive: alive,
+		}
+		ret.Processes = append(ret.Processes, pr)
+	}
+	// Look for processes known to the scanner that are not tracked. There
+	// should be no such processes, modulo race conditions between producing
+	// this report and the scanner discovering new processes that have not been
+	// added to the tracked set yet.
+	for pid := range liveProcs {
+		_, ok := s.mu.state.mu.pidToRuntime[pid]
+		if ok {
+			continue
+		}
+		ret.ProcessesNotTracked = append(ret.ProcessesNotTracked, pid)
+	}
+	return ret
 }
 
 type parsedRemoteConfigUpdate struct {
