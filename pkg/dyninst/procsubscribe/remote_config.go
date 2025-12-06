@@ -116,9 +116,9 @@ type optionFunc func(*config)
 
 func (f optionFunc) apply(c *config) { f(c) }
 
-// NewRemoteConfigProcessSubscriber creates a ProcessSubscriber that sources
-// updates directly from Remote Config.
-func NewRemoteConfigProcessSubscriber(
+// NewSubscriber creates a Subscriber that sources updates directly from Remote
+// Config.
+func NewSubscriber(
 	client RemoteConfigSubscriber,
 	opts ...Option,
 ) *Subscriber {
