@@ -25,17 +25,12 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Filter only MSI packages
-	filterMsi := func(software *Entry) bool {
-		return strings.Contains(software.Source, "msi")
-	}
-
 	// Shows different ways to get the software inventory.
 	// This shows that the Programs provider for Get-Package is entirely based on the registry keys.
 	for _, tt := range []struct {
-		name     string
-		cmd      string
-		filterFn func(software *Entry) bool
+		name        string
+		cmd         string
+		collectorFn func() ([]*Entry, []*Warning, error)
 	}{
 		{
 			name: "Test against Get-Package with Programs provider",
@@ -44,6 +39,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			Select-Object Name, Version, FastPackageReference |
 			Sort-Object Name |
 			ConvertTo-Csv -NoTypeInformation`,
+			collectorFn: GetSoftwareInventory,
 		},
 		{
 			name: "Test against Get-Package with MSI provider",
@@ -52,7 +48,9 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			Select-Object Name, Version, FastPackageReference |
 			Sort-Object Name |
 			ConvertTo-Csv -NoTypeInformation`,
-			filterFn: filterMsi, // Only include MSI packages since we want to compare with the msi provider
+			collectorFn: func() ([]*Entry, []*Warning, error) {
+				return GetSoftwareInventoryWithCollectors([]Collector{&mSICollector{}})
+			},
 		},
 		{
 			name: "Test against regular Registry collection",
@@ -68,6 +66,9 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 					Select-Object DisplayName, DisplayVersion, Publisher, InstallDate
 			}
 			$items | Sort-Object DisplayName | ConvertTo-Csv -NoTypeInformation`,
+			collectorFn: func() ([]*Entry, []*Warning, error) {
+				return GetSoftwareInventoryWithCollectors([]Collector{&registryCollector{}})
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			}
 
 			// Get our inventory
-			ourInventory, warnings, err := GetSoftwareInventory()
+			ourInventory, warnings, err := tt.collectorFn()
 
 			require.NoError(t, err)
 			if len(warnings) > 0 {
@@ -136,10 +137,6 @@ func TestIntegrationCompareWithPowerShell(t *testing.T) {
 			// This allows us to compare versions and sources efficiently
 			ourSoftwareMap := make(map[string][]*Entry)
 			for _, software := range ourInventory {
-				if tt.filterFn != nil && !tt.filterFn(software) {
-					continue // Skip if filter function is provided and returns false
-				}
-
 				if _, exists := ourSoftwareMap[software.DisplayName]; !exists {
 					ourSoftwareMap[software.DisplayName] = []*Entry{software}
 				} else {
