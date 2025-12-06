@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -175,6 +176,11 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	useDrain := UseDrain()
+	if useDrain {
+		defer ReleaseDrain()
+	}
+	logStart := time.Now()
 	p.utilization.Start()
 	defer p.utilization.Stop()
 	defer p.pipelineMonitor.ReportComponentEgress(msg, metrics.ProcessorTlmName, p.instanceID)
@@ -189,6 +195,8 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
+	nDrainProcessed := 0
+	totalTimeDrainProcessing := int64(0)
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
@@ -200,6 +208,19 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 		msg.SetRendered(rendered)
+
+		// Drain sampling
+		// TODO: process bytes and not string for drain processor
+		renderedString := string(rendered)
+		start := time.Now()
+		// TODO: Clean code
+		if useDrain {
+			drainProcessor := GetDrainProcessor()
+			drainProcessor.Match(renderedString)
+			drainProcessor.Train(renderedString)
+		}
+		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
+		nDrainProcessed++
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
@@ -217,6 +238,17 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.utilization.Stop() // Explicitly call stop here to avoid counting writing on the output channel as processing time
 		p.outputChan <- msg
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
+	}
+
+	if useDrain {
+		CountLogs(int64(nDrainProcessed))
+	}
+
+	// Drain metrics
+	processTime := time.Since(logStart)
+	if useDrain {
+		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()) / float64(nDrainProcessed))
+		metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing) / float64(nDrainProcessed))
 	}
 }
 
