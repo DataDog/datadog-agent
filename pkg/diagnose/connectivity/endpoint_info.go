@@ -13,11 +13,12 @@ import (
 	"log"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/gogo/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/gogo/protobuf/proto"
 )
 
 // endpointInfo is a value object that contains all the information we need to
@@ -74,5 +75,18 @@ func getEndpointsInfo(cfg model.Reader) []endpointInfo {
 
 		// Flare endpoint
 		{transaction.Endpoint{Route: helpers.GetFlareEndpoint(cfg), Name: "flare"}, "HEAD", nil, jsonCT},
+	}
+}
+
+func (ei endpointInfo) IsFQDN() bool {
+	return ei.Endpoint.IsFQDN()
+}
+
+func (ei endpointInfo) ToPQDN() endpointInfo {
+	return endpointInfo{
+		Endpoint:    ei.Endpoint.ToPQDN(),
+		Method:      ei.Method,
+		Payload:     ei.Payload,
+		ContentType: ei.ContentType,
 	}
 }

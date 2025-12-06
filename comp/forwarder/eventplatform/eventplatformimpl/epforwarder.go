@@ -345,18 +345,38 @@ func Diagnose() []diagnose.Diagnosis {
 				Diagnosis: fmt.Sprintf("Connectivity to `%s` is Ok", url),
 			})
 		} else {
-			diagnoses = append(diagnoses, diagnose.Diagnosis{
+			diag := diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
 				Category:    desc.category,
 				Name:        name,
 				Diagnosis:   fmt.Sprintf("Connection to `%s` failed", url),
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
 				RawError:    err.Error(),
-			})
+			}
+			diag = maybeTestWithPQDN(endpoints.Main, diag)
+			diagnoses = append(diagnoses, diag)
 		}
 	}
 
 	return diagnoses
+}
+
+// Detect if the connection failed because of using a FQDN by trying with a PQDN
+func maybeTestWithPQDN(endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
+	fqdn := endpoint.Host
+
+	if strings.HasSuffix(fqdn, ".") {
+		log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", fqdn)
+
+		// This function takes `endpoint` by value, so it's safe to mutate here
+		endpoint.Host = strings.TrimSuffix(fqdn, ".")
+		_, err := logshttp.CheckConnectivityDiagnose(endpoint, pkgconfigsetup.Datadog())
+		if err == nil {
+			diag.Remediation = fmt.Sprintf(
+				"The connection to %s failed. It is a fully qualified domain name (FQDN), note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", fqdn)
+		}
+	}
+	return diag
 }
 
 // SendEventPlatformEventBlocking sends messages to the event platform intake.
