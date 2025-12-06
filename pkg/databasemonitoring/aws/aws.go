@@ -16,14 +16,15 @@ import (
 
 // Instance represents an Aurora or RDS instance
 type Instance struct {
-	ID         string
-	ClusterID  string
-	Endpoint   string
-	Port       int32
-	IamEnabled bool
-	Engine     string
-	DbName     string
-	DbmEnabled bool
+	ID           string
+	ClusterID    string
+	Endpoint     string
+	Port         int32
+	IamEnabled   bool
+	Engine       string
+	DbName       string
+	GlobalViewDb string
+	DbmEnabled   bool
 }
 
 // dbNameFromEngine returns the default database name for a given engine type
@@ -42,7 +43,7 @@ func dbNameFromEngine(engine string) (string, error) {
 	}
 }
 
-func makeInstance(db types.DBInstance, dbmTag string) (*Instance, error) {
+func makeInstance(db types.DBInstance, config Config) (*Instance, error) {
 	if db.Endpoint == nil || db.Endpoint.Address == nil {
 		return nil, fmt.Errorf("DBInstance %v missing endpoint", db)
 	}
@@ -95,7 +96,10 @@ func makeInstance(db types.DBInstance, dbmTag string) (*Instance, error) {
 		if tag.Value != nil {
 			tagString += ":" + *tag.Value
 		}
-		if tagString == dbmTag {
+		if tag.Key != nil && *tag.Key == config.GlobalViewDbTag && tag.Value != nil {
+			instance.GlobalViewDb = *tag.Value
+		}
+		if tagString == config.DbmTag {
 			instance.DbmEnabled = true
 			break
 		}
