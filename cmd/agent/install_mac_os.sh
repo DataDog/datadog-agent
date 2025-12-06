@@ -472,6 +472,15 @@ else
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
+
+    # Try to load headless GUI app for current user if they have a user session
+    # The headless GUI LaunchAgent was installed in /Library/LaunchAgents/ by postinst
+    if $cmd_real_user launchctl managername | grep -q "Aqua"; then
+        printf "\033[34m\n* User session detected, loading headless GUI app for current user...\n\033[0m"
+        $cmd_real_user launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
+    else
+        printf "\033[34m\n* No user session detected, headless GUI app will launch at next user login\n\033[0m"
+    fi
 fi
 
 # Set up and start the system-probe service if this version includes support for it
