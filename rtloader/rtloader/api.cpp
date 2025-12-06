@@ -113,7 +113,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
     if (!create_three) {
         return NULL;
     }
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_tracked_malloc(), _get_tracked_free()));
 }
 
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -168,7 +168,7 @@ rtloader_t *make3(const char *python_home, const char *python_exe, char **error)
         return NULL;
     }
 
-    return AS_TYPE(rtloader_t, create_three(python_home, python_exe));
+    return AS_TYPE(rtloader_t, create_three(python_home, python_exe, _get_tracked_malloc(), _get_tracked_free()));
 }
 
 void destroy(rtloader_t *rtloader)

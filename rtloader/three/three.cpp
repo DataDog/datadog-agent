@@ -22,9 +22,10 @@
 #include <functional>
 #include <sstream>
 
-extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe)
+extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
+                                                       rtloader_malloc_t tracked_malloc, rtloader_free_t tracked_free)
 {
-    return new Three(python_home, python_exe);
+    return new Three(python_home, python_exe, tracked_malloc, tracked_free);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -32,8 +33,9 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home, const char *python_exe)
-    : RtLoader()
+Three::Three(const char *python_home, const char *python_exe, rtloader_malloc_t tracked_malloc,
+             rtloader_free_t tracked_free)
+    : RtLoader(tracked_malloc, tracked_free)
     , _pythonHome("")
     , _pythonExe("")
     , _baseClass(NULL)

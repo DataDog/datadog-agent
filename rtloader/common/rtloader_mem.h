@@ -33,11 +33,21 @@ extern void free(void *ptr) __attribute__((deprecated(MEM_DEPRECATION_MSG)));
 */
 void _enable_memory_tracker(void);
 
+/*! \fn rtloader_malloc_t _get_tracked_malloc(void)
+    \brief Gets the current tracked malloc function.
+*/
+rtloader_malloc_t _get_tracked_malloc(void);
+
+/*! \fn rtloader_free_t _get_tracked_free(void)
+    \brief Gets the current tracked free function.
+*/
+rtloader_free_t _get_tracked_free(void);
+
 /*! \fn void *_malloc(size_t sz)
     \brief Basic malloc wrapper that will also keep memory stats if enabled.
     \param sz the number of bytes to allocate.
 
-    This function is thread unsafe in its access to the memory tracker. Onle, use this
+    This function is thread unsafe in its access to the memory tracker. Only, use this
     logic once the memory tracker has be set (or tracking remains disabled).
 */
 extern void *(*_malloc)(size_t sz);
@@ -46,7 +56,7 @@ extern void *(*_malloc)(size_t sz);
     \brief Basic free wrapper that will also keep memory stats if enabled.
     \param ptr the pointer to the heap region you wish to free.
 
-    This function is thread unsafe in its access to the memory tracker. Onle, use this
+    This function is thread unsafe in its access to the memory tracker. Only, use this
     logic once the memory tracker has be set (or tracking remains disabled).
 */
 extern void (*_free)(void *ptr);

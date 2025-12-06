@@ -35,11 +35,6 @@ typedef enum rtloader_gilstate_e {
     DATADOG_AGENT_RTLOADER_GIL_UNLOCKED
 } rtloader_gilstate_t;
 
-typedef enum {
-    DATADOG_AGENT_RTLOADER_ALLOCATION = 0,
-    DATADOG_AGENT_RTLOADER_FREE,
-} rtloader_mem_ops_t;
-
 typedef void *(*rtloader_malloc_t)(size_t);
 typedef void (*rtloader_free_t)(void *);
 

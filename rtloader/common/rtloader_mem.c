@@ -83,6 +83,16 @@ void _enable_memory_tracker(void)
     __atomic_store_n(&_free, _tracked_free, __ATOMIC_RELAXED);
 }
 
+rtloader_malloc_t _get_tracked_malloc(void)
+{
+    return __atomic_load_n(&_malloc, __ATOMIC_RELAXED);
+}
+
+rtloader_free_t _get_tracked_free(void)
+{
+    return __atomic_load_n(&_free, __ATOMIC_RELAXED);
+}
+
 struct memory_stats get_and_reset_memory_stats(void)
 {
     return (struct memory_stats){ .allocations = __atomic_exchange_n(&allocations, 0, __ATOMIC_RELAXED),
