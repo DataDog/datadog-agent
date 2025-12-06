@@ -356,7 +356,10 @@ func (s *syntheticsTestScheduler) networkPathToTestResult(w *workerResult) (*com
 	w.tracerouteResult.Source.Hostname = w.hostname
 	w.tracerouteResult.TestConfigID = w.testCfg.cfg.PublicID
 	w.tracerouteResult.TestResultID = testResultID
-	w.tracerouteResult.Origin = "synthetics"
+	w.tracerouteResult.Origin = payload.PathOriginSynthetics
+	w.tracerouteResult.TestRunType = payload.TestRunTypeScheduled
+	w.tracerouteResult.SourceProduct = payload.SourceProductSynthetics
+	w.tracerouteResult.CollectorType = payload.CollectorTypeAgent
 	w.tracerouteResult.Timestamp = w.finishedAt.UnixMilli()
 
 	cfgRequest, err := configRequestToResultRequest(w.testCfg.cfg.Config.Request)

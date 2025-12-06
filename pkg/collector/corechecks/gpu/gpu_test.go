@@ -43,7 +43,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 	// Create check instance using mocks
 	checkGeneric := newCheck(
 		fakeTagger,
@@ -187,7 +187,7 @@ func TestRunDoesNotError(t *testing.T) {
 			}),
 		),
 	)
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 	// Create check instance using mocks
 	checkGeneric := newCheck(
@@ -266,7 +266,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	}
 
 	// create check instance using mocks
-	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
 	check, ok := iCheck.(*Check)
 	require.True(t, ok)
 
