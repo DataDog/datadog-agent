@@ -8,7 +8,7 @@ See the [Live Processes docs](https://docs.datadoghq.com/graphing/infrastructure
 
 Pre-requisites:
 
-* `go >= 1.24`
+* `go >= 1.25`
 * [deva](https://datadoghq.dev/datadog-agent/setup/#tooling)
 
 Check out the repo in your `$GOPATH`
