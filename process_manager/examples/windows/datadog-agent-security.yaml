@@ -6,9 +6,15 @@
 description: Datadog Security Agent
 command: C:\Program Files\Datadog\Datadog Agent\bin\agent\security-agent.exe
 args:
-  - run
+  - start
+  - -c
+  - C:\ProgramData\Datadog\datadog.yaml
+  - -c
+  - C:\ProgramData\Datadog\security-agent.yaml
+  - --sysprobe-config
+  - C:\ProgramData\Datadog\system-probe.yaml
 process_type: simple
-auto_start: false
+auto_start: false  # Started via 'wants' from main agent
 
 # Restart policy
 restart: on-failure
@@ -17,7 +23,31 @@ restart: on-failure
 start_limit_interval_sec: 10
 start_limit_burst: 5
 
+# Environment file (prefix with '-' to ignore if file doesn't exist)
+environment_file: -C:\ProgramData\Datadog\environment
+
+# Environment variables
+env:
+  DD_FLEET_POLICIES_DIR: C:\ProgramData\Datadog\managed\datadog-agent\stable
+
+# Conditional starting
+# Process only starts if at least one of these config files exists
+condition_path_exists:
+  - "|C:\ProgramData\Datadog\security-agent.yaml"
+  - "|C:\ProgramData\Datadog\managed\datadog-agent\stable\security-agent.yaml"
+
+# Ordering - this process starts after the main agent
+after:
+  - datadog-agent
+
+# Binding - this process is bound to the main agent (stops when main agent stops)
+binds_to:
+  - datadog-agent
+
+# Mutual exclusion
+conflicts:
+  - datadog-agent-security-exp
+
 # Output handling
 stdout: inherit
 stderr: inherit
-

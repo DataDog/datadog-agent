@@ -7,8 +7,10 @@ description: Datadog Process Agent
 command: C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe
 args:
   - run
+  - --cfgpath=C:\ProgramData\Datadog\datadog.yaml
+  - --sysprobe-config=C:\ProgramData\Datadog\system-probe.yaml
 process_type: simple
-auto_start: false
+auto_start: false  # Started via 'wants' from main agent
 
 # Restart policy
 restart: on-failure
@@ -17,7 +19,25 @@ restart: on-failure
 start_limit_interval_sec: 10
 start_limit_burst: 5
 
+# Environment file (prefix with '-' to ignore if file doesn't exist)
+environment_file: -C:\ProgramData\Datadog\environment
+
+# Environment variables
+env:
+  DD_FLEET_POLICIES_DIR: C:\ProgramData\Datadog\managed\datadog-agent\stable
+
+# Ordering - this process starts after the main agent
+after:
+  - datadog-agent
+
+# Binding - this process is bound to the main agent (stops when main agent stops)
+binds_to:
+  - datadog-agent
+
+# Mutual exclusion
+conflicts:
+  - datadog-agent-process-exp
+
 # Output handling
 stdout: inherit
 stderr: inherit
-

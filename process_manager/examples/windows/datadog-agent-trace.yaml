@@ -1,23 +1,47 @@
-# Datadog Trace Agent - Process Manager Configuration (Windows)
+# Datadog Trace Agent (APM) - Process Manager Configuration (Windows)
 #
 # This configuration is used by dd-procmgrd to supervise the Trace Agent process.
 # Place this file at: C:\ProgramData\Datadog\process-manager\processes.d\datadog-agent-trace.yaml
+#
+# Socket Activation:
+# The process manager can pre-create the listening socket and pass it to trace-agent
+# via LISTEN_FDS when a connection arrives.
 
-description: Datadog Trace Agent
+description: Datadog Trace Agent (APM)
 command: C:\Program Files\Datadog\Datadog Agent\bin\agent\trace-agent.exe
 args:
   - run
+  - --config
+  - C:\ProgramData\Datadog\datadog.yaml
 process_type: simple
-auto_start: true
+auto_start: false  # Socket activation starts this on-demand
 
-# Restart policy
-restart: on-failure
+# Restart policy - socket re-activation handles restarts
+restart: never
 
-# Start limits
+# Start limits - protects against crash loops during socket activation
 start_limit_interval_sec: 10
 start_limit_burst: 5
+
+# Environment file (prefix with '-' to ignore if file doesn't exist)
+environment_file: -C:\ProgramData\Datadog\environment
+
+# Environment variables
+env:
+  DD_FLEET_POLICIES_DIR: C:\ProgramData\Datadog\managed\datadog-agent\stable
+
+# Ordering - this process starts after the main agent
+after:
+  - datadog-agent
+
+# Binding - this process is bound to the main agent (stops when main agent stops)
+binds_to:
+  - datadog-agent
+
+# Mutual exclusion - only one variant can run at a time
+conflicts:
+  - datadog-agent-trace-exp
 
 # Output handling
 stdout: inherit
 stderr: inherit
-
