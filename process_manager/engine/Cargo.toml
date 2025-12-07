@@ -53,6 +53,7 @@ windows = { version = "0.58", features = [
     "Win32_System_ProcessStatus",
 ] }
 windows-service = "0.7"
+tracing-appender = "0.2"
 
 [dev-dependencies]
 serial_test = "3"

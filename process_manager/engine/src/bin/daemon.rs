@@ -296,15 +296,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn run_daemon_async(
     _unused: Option<()>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
     // Load configuration from environment variables
     let config = DaemonConfig::from_env();
     config.validate()?;
 
     // Initialize logging with configured level
     let env_filter = EnvFilter::new(&config.log_level);
-    tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .with_target(false)
+
+    // Console layer for stdout
+    let console_layer = tracing_subscriber::fmt::layer()
+        .with_target(false);
+
+    // File layer for persistent logging (important for Windows Service mode)
+    let log_dir = std::env::var("DD_PM_LOG_DIR")
+        .unwrap_or_else(|_| r"C:\ProgramData\Datadog\logs".to_string());
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "procmgrd.log");
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(file_appender)
+        .with_ansi(false)  // No ANSI colors in file
+        .with_target(false);
+
+    // Combine console + file logging
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(console_layer)
+        .with(file_layer)
         .init();
 
     run_daemon_core(config).await
