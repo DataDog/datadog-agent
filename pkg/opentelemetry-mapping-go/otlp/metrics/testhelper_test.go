@@ -24,14 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/quantile/summary"
 )
 
-func NewTestTranslator(t testing.TB, options ...TranslatorOption) *DefaultTranslator {
+func NewTestTranslator(t testing.TB, options ...TranslatorOption) *defaultTranslator {
 	t.Helper()
 	set := componenttest.NewNopTelemetrySettings()
 	attributesTranslator, err := attributes.NewTranslator(set)
 	require.NoError(t, err)
 	mt, err := NewDefaultTranslator(set, attributesTranslator, options...)
 	require.NoError(t, err)
-	return mt
+	return mt.(*defaultTranslator)
 }
 
 // TestDatadog represents a test case for Datadog metrics.

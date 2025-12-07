@@ -26,7 +26,7 @@ import (
 const keyStatsPayload = "dd.internal.stats.payload"
 
 // StatsToMetrics converts a StatsPayload to a pdata.Metrics
-func (t *DefaultTranslator) StatsToMetrics(sp *pb.StatsPayload) (pmetric.Metrics, error) {
+func (t *Translator) StatsToMetrics(sp *pb.StatsPayload) (pmetric.Metrics, error) {
 	bytes, err := proto.Marshal(sp)
 	if err != nil {
 		t.logger.Error("Failed to marshal stats payload", zap.Error(err))

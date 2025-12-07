@@ -12,24 +12,24 @@ import (
 	"go.uber.org/zap"
 )
 
-// SimpleMapper is a cache-free mapper implementation that directly emits
+// LossLessMapper is a cache-free mapper implementation that directly emits
 // metric values without cumulative-to-delta conversion.
-type SimpleMapper struct {
+type LossLessMapper struct {
 	cfg    translatorConfig
 	logger *zap.Logger
 }
 
-// NewSimpleMapper creates a new SimpleMapper without a cache.
+// NewLossLessMapper creates a new LossLessMapper without a cache.
 // This mapper emits raw values as Gauges instead of computing deltas.
-func NewSimpleMapper(cfg translatorConfig, logger *zap.Logger) Mapper {
-	return &SimpleMapper{
+func NewLossLessMapper(cfg translatorConfig, logger *zap.Logger) Mapper {
+	return &LossLessMapper{
 		cfg:    cfg,
 		logger: logger,
 	}
 }
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
-func (m *SimpleMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
+func (m *LossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -56,9 +56,9 @@ func (m *SimpleMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, 
 }
 
 // MapSummaryMetrics maps summary datapoints to Datadog metrics.
-// Since SimpleMapper doesn't use a cache, count and sum are emitted as Gauges
+// Since LossLessMapper doesn't use a cache, count and sum are emitted as Gauges
 // with the current value, rather than as delta Counts.
-func (m *SimpleMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.SummaryDataPointSlice) {
+func (m *LossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.SummaryDataPointSlice) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -89,11 +89,11 @@ func (m *SimpleMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer,
 	}
 }
 
-func (m *SimpleMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
+func (m *LossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil
 }
 
-func (m *SimpleMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
+func (m *LossLessMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
 	consumer.ConsumeExponentialHistogram(ctx, dims, slice)
 }

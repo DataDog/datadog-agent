@@ -159,7 +159,7 @@ func TestConversion(t *testing.T) {
 	}
 
 	t.Run("same", func(t *testing.T) {
-		trans := &DefaultTranslator{logger: zap.NewNop()}
+		trans := &Translator{logger: zap.NewNop()}
 		mx, err := trans.StatsToMetrics(want)
 		assert.NoError(t, err)
 		var results []*pb.StatsPayload

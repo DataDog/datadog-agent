@@ -70,7 +70,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
-		mapper:               NewSimpleMapper(cfg, logger),
+		mapper:               NewLossLessMapper(cfg, logger),
 	}, nil
 }
 

@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestSimpleMapperMapNumberMetrics(t *testing.T) {
+func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 	tests := []struct {
 		name               string
 		dataType           DataType
@@ -159,7 +159,7 @@ func TestSimpleMapperMapNumberMetrics(t *testing.T) {
 			cfg := translatorConfig{
 				InferDeltaInterval: tt.inferDeltaInterval,
 			}
-			mapper := NewSimpleMapper(cfg, zap.NewNop())
+			mapper := NewLossLessMapper(cfg, zap.NewNop())
 
 			slice := pmetric.NewNumberDataPointSlice()
 			tt.setupSlice(slice)
@@ -185,7 +185,7 @@ func TestSimpleMapperMapNumberMetrics(t *testing.T) {
 	}
 }
 
-func TestSimpleMapperMapSummaryMetrics(t *testing.T) {
+func TestLossLessMapperMapSummaryMetrics(t *testing.T) {
 	tests := []struct {
 		name               string
 		quantiles          bool
@@ -334,7 +334,7 @@ func TestSimpleMapperMapSummaryMetrics(t *testing.T) {
 			cfg := translatorConfig{
 				Quantiles: tt.quantiles,
 			}
-			mapper := NewSimpleMapper(cfg, zap.NewNop())
+			mapper := NewLossLessMapper(cfg, zap.NewNop())
 
 			slice := pmetric.NewSummaryDataPointSlice()
 			tt.setupSlice(slice)
@@ -359,9 +359,9 @@ func TestSimpleMapperMapSummaryMetrics(t *testing.T) {
 	}
 }
 
-func TestSimpleMapperMapHistogramMetrics(t *testing.T) {
+func TestLossLessMapperMapHistogramMetrics(t *testing.T) {
 	cfg := translatorConfig{}
-	mapper := NewSimpleMapper(cfg, zap.NewNop())
+	mapper := NewLossLessMapper(cfg, zap.NewNop())
 
 	slice := pmetric.NewHistogramDataPointSlice()
 	dp := slice.AppendEmpty()
@@ -383,9 +383,9 @@ func TestSimpleMapperMapHistogramMetrics(t *testing.T) {
 	assert.Equal(t, 1, consumer.slice.Len())
 }
 
-func TestSimpleMapperMapExponentialHistogramMetrics(t *testing.T) {
+func TestLossLessMapperMapExponentialHistogramMetrics(t *testing.T) {
 	cfg := translatorConfig{}
-	mapper := NewSimpleMapper(cfg, zap.NewNop())
+	mapper := NewLossLessMapper(cfg, zap.NewNop())
 
 	slice := pmetric.NewExponentialHistogramDataPointSlice()
 	dp := slice.AppendEmpty()

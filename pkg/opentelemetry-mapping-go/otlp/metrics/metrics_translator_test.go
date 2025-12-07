@@ -100,7 +100,7 @@ func (t testProvider) Source(context.Context) (source.Source, error) {
 	}, nil
 }
 
-func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *DefaultTranslator {
+func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *defaultTranslator {
 	options := []TranslatorOption{
 		WithFallbackSourceProvider(testProvider(fallbackHostname)),
 		WithHistogramMode(HistogramModeDistributions),
@@ -121,10 +121,10 @@ func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []b
 	)
 
 	require.NoError(t, err)
-	return tr
+	return tr.(*defaultTranslator)
 }
 
-func newTranslator(t *testing.T, logger *zap.Logger) *DefaultTranslator {
+func newTranslator(t *testing.T, logger *zap.Logger) *defaultTranslator {
 	return newTranslatorWithStatsChannel(t, logger, nil)
 }
 
@@ -2000,7 +2000,23 @@ func TestMapAPMStatsWithBytes(t *testing.T) {
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 	ch := make(chan []byte, 10)
-	tr := newTranslatorWithStatsChannel(t, logger, ch)
+
+	options := []TranslatorOption{
+		WithFallbackSourceProvider(testProvider(fallbackHostname)),
+		WithHistogramMode(HistogramModeDistributions),
+		WithNumberMode(NumberModeCumulativeToDelta),
+		WithHistogramAggregations(),
+		WithStatsOut(ch),
+	}
+
+	set := componenttest.NewNopTelemetrySettings()
+	set.Logger = logger
+
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+	tr, err := NewTranslator(set, attributesTranslator, options...)
+	require.NoError(t, err)
+
 	want := &pb.StatsPayload{
 		Stats: []*pb.ClientStatsPayload{statsPayloads[0], statsPayloads[1]},
 	}

@@ -99,9 +99,9 @@ func (*noSourceProvider) Source(context.Context) (source.Source, error) {
 	return source.Source{Kind: source.HostnameKind, Identifier: ""}, nil
 }
 
-// DefaultTranslator is the default metrics translator implementation.
+// defaultTranslator is the default metrics translator implementation.
 // It uses Consumer which includes both sketch and raw histogram consumers.
-type DefaultTranslator struct {
+type defaultTranslator struct {
 	prevPts              *ttlCache
 	logger               *zap.Logger
 	attributesTranslator *attributes.Translator
@@ -110,7 +110,9 @@ type DefaultTranslator struct {
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
-func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (*DefaultTranslator, error) {
+// It returns a MetricsTranslator interface that can be used for translating OTLP metrics.
+// The returned translator also implements StatsTranslator for APM stats conversion.
+func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (MetricsTranslator, error) {
 
 	cfg := translatorConfig{
 		HistMode:                             HistogramModeDistributions,
@@ -139,7 +141,7 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 	cache := newTTLCache(cfg.sweepInterval, cfg.deltaTTL)
 	logger := set.Logger.With(zap.String("component", "metrics translator"))
 
-	t := &DefaultTranslator{
+	t := &defaultTranslator{
 		prevPts:              cache,
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
@@ -155,16 +157,22 @@ func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator 
 }
 
 // NewTranslator creates a new translator with given options.
-// It returns *Translator (which is an alias for *DefaultTranslator) for backward compatibility.
 //
 // Deprecated: Use [NewDefaultTranslator] instead.
 func NewTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (*Translator, error) {
-	return NewDefaultTranslator(set, attributesTranslator, options...)
+	d, err := NewDefaultTranslator(set, attributesTranslator, options...)
+	if err != nil {
+		return nil, err
+	}
+	return &Translator{
+		MetricsTranslator: d,
+		logger:            set.Logger,
+	}, nil
 }
 
 // getMapper returns the underlying Mapper implementation.
 // This is useful for testing or for direct access to mapping methods.
-func (t *DefaultTranslator) getMapper() Mapper {
+func (t *defaultTranslator) getMapper() Mapper {
 	return t.mapper
 }
 
@@ -204,11 +212,13 @@ type Mapper interface {
 	)
 }
 
-// Translator is an alias for DefaultTranslator for backward compatibility.
-// External code using *metrics.Translator will continue to work.
+// Translator is provided for backward compatibility.
 //
-// Deprecated: Use [DefaultTranslator] instead.
-type Translator = DefaultTranslator
+// Deprecated: Use MetricsTranslator interface instead.
+type Translator struct {
+	MetricsTranslator
+	logger *zap.Logger
+}
 
 // MetricsTranslator defines the interface for translating OTLP metrics to Datadog format.
 type MetricsTranslator interface {
@@ -233,7 +243,7 @@ func isCumulativeMonotonic(md pmetric.Metric) bool {
 
 // isSkippable checks if a value can be skipped (because it is not supported by the backend).
 // It logs that the value is unsupported for debugging since this sometimes means there is a bug.
-func (t *DefaultTranslator) isSkippable(name string, v float64) bool {
+func (t *defaultTranslator) isSkippable(name string, v float64) bool {
 	skippable := math.IsInf(v, 0) || math.IsNaN(v)
 	if skippable {
 		t.logger.Debug("Unsupported metric value", zap.String(metricName, name), zap.Float64("value", v))
@@ -257,7 +267,7 @@ func getProcessStartTimeNano() uint64 {
 
 // shouldConsumeInitialValue checks if the initial value of a cumulative monotonic metric
 // should be consumed or dropped.
-func (t *DefaultTranslator) shouldConsumeInitialValue(startTs, ts uint64) bool {
+func (t *defaultTranslator) shouldConsumeInitialValue(startTs, ts uint64) bool {
 	switch t.cfg.InitialCumulMonoValueMode {
 	case InitialCumulMonoValueModeAuto:
 		if getProcessStartTimeNano() < startTs && startTs != ts {
@@ -273,7 +283,7 @@ func (t *DefaultTranslator) shouldConsumeInitialValue(startTs, ts uint64) bool {
 }
 
 // mapNumberMonotonicMetrics maps monotonic datapoints into Datadog metrics
-func (t *DefaultTranslator) mapNumberMonotonicMetrics(
+func (t *defaultTranslator) mapNumberMonotonicMetrics(
 	ctx context.Context,
 	consumer TimeSeriesConsumer,
 	dims *Dimensions,
@@ -373,7 +383,7 @@ func getQuantileTag(quantile float64) string {
 	return "quantile:" + formatFloat(quantile)
 }
 
-func (t *DefaultTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
+func (t *defaultTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	src, hasSource := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
 	if !hasSource {
 		var err error
@@ -487,7 +497,7 @@ func mapHistogramRuntimeMetricWithAttributes(md pmetric.Metric, metricsArray pme
 }
 
 // MapMetrics maps OTLP metrics into the Datadog format
-func (t *DefaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error) {
+func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error) {
 	metadata := Metadata{
 		Languages: []string{},
 	}
@@ -604,7 +614,7 @@ func (t *DefaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 	return metadata, nil
 }
 
-func (t *DefaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
+func (t *defaultTranslator) mapToDDFormat(ctx context.Context, md pmetric.Metric, consumer Consumer, additionalTags []string, host string, scopeName string, rattrs pcommon.Map) error {
 	baseDims := &Dimensions{
 		name:                md.Name(),
 		tags:                additionalTags,
