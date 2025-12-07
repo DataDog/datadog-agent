@@ -89,5 +89,6 @@ build do
     copy 'process_manager/examples/windows/datadog-agent-trace.yaml', "#{pm_etc_dir}/datadog-agent-trace.yaml"
     copy 'process_manager/examples/windows/datadog-agent-process.yaml', "#{pm_etc_dir}/datadog-agent-process.yaml"
     copy 'process_manager/examples/windows/datadog-agent-security.yaml', "#{pm_etc_dir}/datadog-agent-security.yaml"
+    copy 'process_manager/examples/windows/datadog-agent-sysprobe.yaml', "#{pm_etc_dir}/datadog-agent-sysprobe.yaml"
   end
 end
