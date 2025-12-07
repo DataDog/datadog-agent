@@ -101,16 +101,16 @@ func (pc *profileCache) IsOutdated(sysObjectID string, profileName string, now t
 	if pc.profile == nil {
 		return true
 	}
+	if now.Sub(pc.timestamp) > profileRefreshDelay*time.Second {
+		// If the profile refresh delay has been exceeded, we're out of date.
+		return true
+	}
 	if profileName == checkconfig.ProfileNameInline {
 		// inline profiles never change, so if we have a profile it's up-to-date.
 		return false
 	}
 	if profileName == checkconfig.ProfileNameAuto && pc.sysObjectID != sysObjectID {
 		// If we're auto-detecting profiles and the sysObjectID has changed, we're out of date.
-		return true
-	}
-	if now.Sub(pc.timestamp) > profileRefreshDelay*time.Second {
-		// If the profile refresh delay has been exceeded, we're out of date.
 		return true
 	}
 	// If we get here then either we're auto-detecting but the sysobjectid hasn't

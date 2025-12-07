@@ -131,7 +131,7 @@ You must specify a version of the package to install using the syntax: <package>
 		},
 	}
 	installCmd.Flags().BoolVarP(
-		&cliParams.localWheel, "local-wheel", "w", false, fmt.Sprintf("install an agent check from a locally available wheel file. %s", disclaimer),
+		&cliParams.localWheel, "local-wheel", "w", false, "install an agent check from a locally available wheel file. "+disclaimer,
 	)
 	installCmd.Flags().BoolVarP(
 		&cliParams.thirdParty, "third-party", "t", false, "install a community or vendor-contributed integration",
@@ -288,9 +288,9 @@ func getCommandPython(useSysPython bool) (string, error) {
 
 func validateArgs(args []string, local bool) error {
 	if len(args) > 1 {
-		return fmt.Errorf("Too many arguments")
+		return errors.New("Too many arguments")
 	} else if len(args) == 0 {
-		return fmt.Errorf("Missing package argument")
+		return errors.New("Missing package argument")
 	}
 
 	if !local {
@@ -323,7 +323,7 @@ func pip(cliParams *cliParams, args []string, stdout io.Writer, stderr io.Writer
 	args = append([]string{"-mpip"}, cmd)
 
 	if cliParams.verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
+		args = append(args, "-"+strings.Repeat("v", cliParams.verbose))
 	}
 
 	// Append implicit flags to the *pip* command
@@ -420,22 +420,20 @@ func install(cliParams *cliParams, _ log.Component) error {
 			return fmt.Errorf("Some errors prevented moving %s configuration files: %v", integration, err)
 		}
 
-		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully completed the installation of %s", integration,
-		)))
+		fmt.Println(color.GreenString("Successfully completed the installation of " + integration))
 
 		return nil
 	}
 
 	// Additional verification for installation
 	if len(strings.Split(cliParams.args[0], "==")) != 2 {
-		return fmt.Errorf("you must specify a version to install with <package>==<version>")
+		return errors.New("you must specify a version to install with <package>==<version>")
 	}
 
 	intVer := strings.Split(cliParams.args[0], "==")
 	integration := normalizePackageName(strings.TrimSpace(intVer[0]))
 	if integration == "datadog-checks-base" {
-		return fmt.Errorf("this command does not allow installing datadog-checks-base")
+		return errors.New("this command does not allow installing datadog-checks-base")
 	}
 	versionToInstall, err := semver.NewVersion(strings.TrimSpace(intVer[1]))
 	if err != nil || versionToInstall == nil {
@@ -517,7 +515,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 		"--type", rootLayoutType,
 	}
 	if cliParams.verbose > 0 {
-		args = append(args, fmt.Sprintf("-%s", strings.Repeat("v", cliParams.verbose)))
+		args = append(args, "-"+strings.Repeat("v", cliParams.verbose))
 	}
 
 	if cliParams.unsafeDisableVerification {
@@ -554,9 +552,9 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	proxies := pkgconfigsetup.Datadog().GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
-			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
-			fmt.Sprintf("HTTPS_PROXY=%s", proxies.HTTPS),
-			fmt.Sprintf("NO_PROXY=%s", strings.Join(proxies.NoProxy, ",")),
+			"HTTP_PROXY="+proxies.HTTP,
+			"HTTPS_PROXY="+proxies.HTTPS,
+			"NO_PROXY="+strings.Join(proxies.NoProxy, ","),
 		)
 	}
 
@@ -790,7 +788,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
 	confFolder := pkgconfigsetup.Datadog().GetString("confd_path")
 	check := getIntegrationName(integration)
-	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
+	confFileDest := filepath.Join(confFolder, check+".d")
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
 		return err
 	}
@@ -845,9 +843,7 @@ func moveConfigurationFiles(srcFolder string, dstFolder string) error {
 			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
 			continue
 		}
-		fmt.Println(color.GreenString(fmt.Sprintf(
-			"Successfully copied configuration file %s", filename,
-		)))
+		fmt.Println(color.GreenString("Successfully copied configuration file " + filename))
 	}
 	if errorMsg != "" {
 		return errors.New(errorMsg)

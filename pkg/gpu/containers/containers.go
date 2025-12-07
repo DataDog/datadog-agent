@@ -150,7 +150,7 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
 		_, isMigDevice := device.(*ddnvml.MIGDevice)
 		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
-			return nil, fmt.Errorf("MIG devices are not supported for GKE device plugin")
+			return nil, errors.New("MIG devices are not supported for GKE device plugin")
 		}
 	}
 

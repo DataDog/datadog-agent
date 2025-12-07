@@ -64,8 +64,9 @@ func EksFargateAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 			Template: &corev1.PodTemplateSpecArgs{
 				Metadata: &metav1.ObjectMetaArgs{
 					Labels: pulumi.StringMap{
-						"app":                         pulumi.String("dogstatsd-fargate"),
-						"agent.datadoghq.com/sidecar": pulumi.String("fargate"),
+						"app":                             pulumi.String("dogstatsd-fargate"),
+						"agent.datadoghq.com/sidecar":     pulumi.String("fargate"),
+						"admission.datadoghq.com/enabled": pulumi.String("true"),
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
