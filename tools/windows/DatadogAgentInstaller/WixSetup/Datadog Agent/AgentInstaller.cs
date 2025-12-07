@@ -639,6 +639,13 @@ namespace WixSetup.Datadog_Agent
                        new Files($@"{EtcSource}\runtime-security.d\*.*")
             ));
 
+            // Process manager configs - these YAML files define which sub-agents to run
+            appData.AddDir(new Dir(new Id("PROCESSMANAGERLOCATION"), "process-manager",
+                new Dir("processes.d",
+                    new Files($@"{EtcSource}\process-manager\processes.d\*")
+                )
+            ));
+
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

@@ -1,0 +1,23 @@
+# Datadog Process Agent - Process Manager Configuration (Windows)
+#
+# This configuration is used by dd-procmgrd to supervise the Process Agent.
+# Place this file at: C:\ProgramData\Datadog\process-manager\processes.d\datadog-agent-process.yaml
+
+description: Datadog Process Agent
+command: C:\Program Files\Datadog\Datadog Agent\bin\agent\process-agent.exe
+args:
+  - run
+process_type: simple
+auto_start: false
+
+# Restart policy
+restart: on-failure
+
+# Start limits
+start_limit_interval_sec: 10
+start_limit_burst: 5
+
+# Output handling
+stdout: inherit
+stderr: inherit
+

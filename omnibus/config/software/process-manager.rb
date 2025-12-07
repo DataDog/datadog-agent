@@ -82,15 +82,12 @@ build do
     copy 'process_manager/target/x86_64-pc-windows-gnu/release/dd-procmgrd.exe', "#{install_dir}/bin/agent/dd-procmgrd.exe"
     copy 'process_manager/target/x86_64-pc-windows-gnu/release/dd-procmgr.exe', "#{install_dir}/bin/agent/dd-procmgr.exe"
 
-    # Create process manager config directory and copy config files
-    # On Windows, configs go to ProgramData\Datadog\process-manager\processes.d
-    etc_dir = "C:\\ProgramData\\Datadog\\process-manager"
-    mkdir "#{etc_dir}\\processes.d"
-    copy 'process_manager/examples/datadog-agent.yaml', "#{etc_dir}\\processes.d\\datadog-agent.yaml"
-    copy 'process_manager/examples/datadog-agent-trace.yaml', "#{etc_dir}\\processes.d\\datadog-agent-trace.yaml"
-    copy 'process_manager/examples/datadog-agent-trace.socket.yaml', "#{etc_dir}\\processes.d\\datadog-agent-trace.socket.yaml"
-    copy 'process_manager/examples/datadog-agent-process.yaml', "#{etc_dir}\\processes.d\\datadog-agent-process.yaml"
-    copy 'process_manager/examples/datadog-agent-security.yaml', "#{etc_dir}\\processes.d\\datadog-agent-security.yaml"
-    copy 'process_manager/examples/datadog-agent-sysprobe.yaml', "#{etc_dir}\\processes.d\\datadog-agent-sysprobe.yaml"
+    # Copy Windows-specific process manager configs to etc directory (will be installed to ProgramData)
+    pm_etc_dir = "#{install_dir}/etc/datadog-agent/process-manager/processes.d"
+    mkdir pm_etc_dir
+    copy 'process_manager/examples/windows/datadog-agent.yaml', "#{pm_etc_dir}/datadog-agent.yaml"
+    copy 'process_manager/examples/windows/datadog-agent-trace.yaml', "#{pm_etc_dir}/datadog-agent-trace.yaml"
+    copy 'process_manager/examples/windows/datadog-agent-process.yaml', "#{pm_etc_dir}/datadog-agent-process.yaml"
+    copy 'process_manager/examples/windows/datadog-agent-security.yaml', "#{pm_etc_dir}/datadog-agent-security.yaml"
   end
 end

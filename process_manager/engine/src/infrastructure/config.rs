@@ -612,7 +612,9 @@ fn load_single_socket_file_with_name(path: &str) -> Result<(Option<String>, Sock
 ///
 /// Precedence (first match wins):
 /// 1. DD_PM_CONFIG_DIR environment variable
-/// 2. /etc/datadog-agent/process-manager/processes.d/ (if directory exists)
+/// 2. Platform-specific default directory (if exists):
+///    - Linux: /etc/datadog-agent/process-manager/processes.d/
+///    - Windows: C:\ProgramData\Datadog\process-manager\processes.d\
 /// 3. None (start empty)
 ///
 /// Note: Single-file configuration is not supported.
@@ -622,9 +624,15 @@ pub fn get_default_config_path() -> Option<String> {
         return Some(path);
     }
 
-    // 2. Default directory
-    if Path::new("/etc/datadog-agent/process-manager/processes.d").is_dir() {
-        return Some("/etc/datadog-agent/process-manager/processes.d".to_string());
+    // 2. Platform-specific default directory
+    #[cfg(windows)]
+    let default_path = r"C:\ProgramData\Datadog\process-manager\processes.d";
+
+    #[cfg(not(windows))]
+    let default_path = "/etc/datadog-agent/process-manager/processes.d";
+
+    if Path::new(default_path).is_dir() {
+        return Some(default_path.to_string());
     }
 
     // 3. No config found

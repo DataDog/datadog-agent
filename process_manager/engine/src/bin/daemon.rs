@@ -435,9 +435,15 @@ async fn run_daemon_core(config: DaemonConfig) -> Result<(), Box<dyn std::error:
         // Load sockets from config
         load_sockets_from_config(config_path.as_ref().unwrap(), socket_manager.clone()).await;
     } else {
+        #[cfg(windows)]
+        let default_path = r"C:\ProgramData\Datadog\process-manager\processes.d\";
+        #[cfg(not(windows))]
+        let default_path = "/etc/datadog-agent/process-manager/processes.d/";
+
         info!(
             "No configuration directory found. \
-            Set DD_PM_CONFIG_DIR or create /etc/datadog-agent/process-manager/processes.d/ to auto-load processes."
+            Set DD_PM_CONFIG_DIR or create {} to auto-load processes.",
+            default_path
         );
     }
 
