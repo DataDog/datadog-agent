@@ -347,7 +347,9 @@ impl DatadogConfigReader {
         }
 
         // Check bind_host
-        self.get_string("bind_host", &["DD_BIND_HOST"], "localhost")
+        // Default to 127.0.0.1 instead of "localhost" to avoid dual-stack binding
+        // on Windows where "localhost" resolves to both IPv4 and IPv6 addresses
+        self.get_string("bind_host", &["DD_BIND_HOST"], "127.0.0.1")
     }
 
     // =========================================================================
