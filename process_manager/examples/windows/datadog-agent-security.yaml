@@ -26,9 +26,10 @@ env:
 
 # Conditional starting
 # Process only starts if at least one of these config files exists
+# Note: Use forward slashes to avoid YAML escape issues with backslashes
 condition_path_exists:
-  - "|C:\ProgramData\Datadog\security-agent.yaml"
-  - "|C:\ProgramData\Datadog\managed\datadog-agent\stable\security-agent.yaml"
+  - "|C:/ProgramData/Datadog/security-agent.yaml"
+  - "|C:/ProgramData/Datadog/managed/datadog-agent/stable/security-agent.yaml"
 
 # Ordering - this process starts after the main agent
 after:
