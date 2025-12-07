@@ -87,6 +87,7 @@ build do
     mkdir pm_etc_dir
     copy 'process_manager/examples/windows/datadog-agent.yaml', "#{pm_etc_dir}/datadog-agent.yaml"
     copy 'process_manager/examples/windows/datadog-agent-trace.yaml', "#{pm_etc_dir}/datadog-agent-trace.yaml"
+    copy 'process_manager/examples/windows/datadog-agent-trace.socket.yaml', "#{pm_etc_dir}/datadog-agent-trace.socket.yaml"
     copy 'process_manager/examples/windows/datadog-agent-process.yaml', "#{pm_etc_dir}/datadog-agent-process.yaml"
     copy 'process_manager/examples/windows/datadog-agent-security.yaml', "#{pm_etc_dir}/datadog-agent-security.yaml"
     copy 'process_manager/examples/windows/datadog-agent-sysprobe.yaml', "#{pm_etc_dir}/datadog-agent-sysprobe.yaml"

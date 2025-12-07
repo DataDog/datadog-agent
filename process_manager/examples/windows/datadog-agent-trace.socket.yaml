@@ -1,0 +1,44 @@
+# Datadog Trace Agent (APM) - Socket Activation Configuration (Windows)
+# Filename: datadog-agent-trace.socket.yaml
+# Socket name: datadog-agent-trace (from filename, without .socket.yaml)
+#
+# This socket activates trace-agent on-demand when APM traces arrive.
+# Place this file at: C:\ProgramData\Datadog\process-manager\processes.d\datadog-agent-trace.socket.yaml
+#
+# How it works:
+# 1. Process Manager reads APM config from datadog.yaml and DD_APM_* env vars
+# 2. Creates listening socket on TCP port 8126
+# 3. Waits for APM trace connections
+# 4. When first trace arrives -> trace-agent is started
+# 5. trace-agent receives socket FD via DD_APM_NET_RECEIVER_FD
+# 6. If trace-agent crashes -> socket remains open, re-starts on next connection
+
+# Service to activate when connection arrives
+service: datadog-agent-trace
+
+# Configuration source - reads from Datadog APM configuration
+# This is backward-compatible with trace-loader behavior.
+#
+# Reads these settings:
+#   DD_APM_SOCKET_ACTIVATION_ENABLED (must be true)
+#   DD_APM_RECEIVER_PORT / DD_RECEIVER_PORT (default: 8126)
+#   DD_BIND_HOST / DD_APM_NON_LOCAL_TRAFFIC
+#
+# Passes FDs to trace-agent via:
+#   DD_APM_NET_RECEIVER_FD (TCP)
+config_source: datadog-apm
+
+# Accept mode:
+# - false (default): Single service instance handles all connections (Accept=no)
+# - true: Spawn new service instance per connection (Accept=yes, like inetd)
+accept: false
+
+# =============================================================================
+# ALTERNATIVE: Explicit configuration (use instead of config_source)
+# =============================================================================
+# If you prefer explicit socket configuration instead of reading from
+# datadog.yaml, remove 'config_source' and uncomment this:
+#
+# listen_stream: "127.0.0.1:8126"
+# fd_env_var: DD_APM_NET_RECEIVER_FD
+
