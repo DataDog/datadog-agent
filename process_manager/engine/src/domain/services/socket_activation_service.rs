@@ -330,9 +330,11 @@ impl SocketActivationService {
 
         // Make the socket handle inheritable so child processes can use it
         unsafe {
-            let h = HANDLE(handle as isize);
+            // HANDLE is a wrapper around *mut c_void
+            let h = HANDLE(handle as *mut std::ffi::c_void);
             // HANDLE_FLAG_INHERIT = 0x00000001
-            if let Err(e) = SetHandleInformation(h, HANDLE_FLAGS(1), HANDLE_FLAGS(1)) {
+            // SetHandleInformation takes (handle, mask: u32, flags: HANDLE_FLAGS)
+            if let Err(e) = SetHandleInformation(h, 1u32, HANDLE_FLAGS(1)) {
                 error!(
                     socket = %socket_name,
                     error = ?e,
