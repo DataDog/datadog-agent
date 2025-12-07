@@ -303,7 +303,14 @@ impl SocketActivationService {
         });
     }
 
-    /// Accept=no: Windows implementation using select-like polling
+    /// Accept=no: Windows implementation with proper socket handle inheritance
+    ///
+    /// This implementation uses Windows handle inheritance to pass the socket to the child:
+    /// 1. Daemon creates listening socket and makes it inheritable
+    /// 2. When connection arrives, daemon triggers service start
+    /// 3. Socket handle is passed to child via DD_APM_NET_RECEIVER_FD environment variable
+    /// 4. Child uses the inherited handle to accept connections
+    /// 5. If service crashes, daemon detects via select() and re-triggers on next connection
     #[cfg(windows)]
     fn accept_once_single(
         socket_name: String,
@@ -312,10 +319,32 @@ impl SocketActivationService {
         event_tx: mpsc::UnboundedSender<SocketActivationEvent>,
         config: SocketConfig,
     ) {
+        use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS};
+
         debug!(
             socket = %socket_name,
             service = %service_name,
+            handle = handle,
             "Waiting for connection to trigger service activation (Accept=no) - Windows"
+        );
+
+        // Make the socket handle inheritable so child processes can use it
+        unsafe {
+            let h = HANDLE(handle as isize);
+            // HANDLE_FLAG_INHERIT = 0x00000001
+            if let Err(e) = SetHandleInformation(h, HANDLE_FLAGS(1), HANDLE_FLAGS(1)) {
+                error!(
+                    socket = %socket_name,
+                    error = ?e,
+                    "Failed to make socket handle inheritable"
+                );
+                return;
+            }
+        }
+        info!(
+            socket = %socket_name,
+            handle = handle,
+            "Socket handle made inheritable for child processes"
         );
 
         let fd_env_var = config.fd_env_var.clone();
@@ -335,16 +364,20 @@ impl SocketActivationService {
 
             loop {
                 match listener.accept() {
-                    Ok((_stream, _addr)) => {
+                    Ok((_stream, client_addr)) => {
                         info!(
                             socket = %socket_name,
                             service = %service_name,
-                            "Connection detected, triggering service activation"
+                            client = ?client_addr,
+                            handle = handle,
+                            "Connection detected, triggering service activation with handle inheritance"
                         );
 
                         // Reset to blocking for child process
                         let _ = listener.set_nonblocking(false);
 
+                        // Send activation event with the socket handle
+                        // The child will receive this handle via inheritance
                         if let Err(e) = event_tx.send(SocketActivationEvent {
                             socket_name: socket_name.clone(),
                             service_name: service_name.clone(),
@@ -356,10 +389,11 @@ impl SocketActivationService {
                             break;
                         }
 
-                        // Sleep to let child process start
+                        // Wait a bit for child to start, then continue monitoring
+                        // If the child crashes, we'll detect new connections via accept()
                         std::thread::sleep(std::time::Duration::from_millis(100));
 
-                        // Continue listening for reactivation
+                        // Set back to non-blocking to continue polling
                         let _ = listener.set_nonblocking(true);
                     }
                     Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {

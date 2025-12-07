@@ -1108,12 +1108,38 @@ impl TokioProcessExecutor {
         }
 
         // Socket activation on Windows uses handle inheritance
+        // The socket handles should already be inheritable (set by socket_activation_service)
+        // We just need to pass the handle values via environment variables
         if !config.listen_fds.is_empty() {
-            // For Windows, we'd need to convert FDs to handles and use
-            // SetHandleInformation to make them inheritable
-            // This is a complex topic - for now, log a warning
-            warn!(
-                "Socket activation with FD passing is limited on Windows; use TCP sockets instead"
+            let num_handles = config.listen_fds.len();
+            debug!(num_handles = num_handles, "Setting up Windows socket handle inheritance");
+
+            // Set LISTEN_FDS for compatibility (though Windows uses handles, not FDs)
+            cmd.env("LISTEN_FDS", num_handles.to_string());
+            cmd.env("LISTEN_PID", std::process::id().to_string());
+
+            // Set custom env vars for each handle (Datadog-style)
+            // The handle value is passed directly - child uses it via FromRawSocket
+            for (i, &handle) in config.listen_fds.iter().enumerate() {
+                let env_var_name = config
+                    .fd_env_var_names
+                    .get(i)
+                    .filter(|s| !s.is_empty())
+                    .cloned()
+                    .unwrap_or_else(|| format!("LISTEN_FD_{}", i));
+
+                // Pass the raw socket handle value
+                cmd.env(&env_var_name, handle.to_string());
+                debug!(
+                    env_var = %env_var_name,
+                    handle = handle,
+                    "Set socket handle environment variable"
+                );
+            }
+
+            info!(
+                num_handles = num_handles,
+                "Socket handles configured for inheritance"
             );
         }
 
