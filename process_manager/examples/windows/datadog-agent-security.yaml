@@ -7,12 +7,6 @@ description: Datadog Security Agent
 command: C:\Program Files\Datadog\Datadog Agent\bin\agent\security-agent.exe
 args:
   - start
-  - -c
-  - C:\ProgramData\Datadog\datadog.yaml
-  - -c
-  - C:\ProgramData\Datadog\security-agent.yaml
-  - --sysprobe-config
-  - C:\ProgramData\Datadog\system-probe.yaml
 process_type: simple
 auto_start: false  # Started via 'wants' from main agent
 

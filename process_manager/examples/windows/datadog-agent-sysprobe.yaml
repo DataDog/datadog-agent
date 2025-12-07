@@ -9,7 +9,8 @@ description: Datadog System Probe
 command: C:\Program Files\Datadog\Datadog Agent\bin\agent\system-probe.exe
 args:
   - run
-  - --config=C:\ProgramData\Datadog\system-probe.yaml
+  - -c
+  - C:\ProgramData\Datadog\system-probe.yaml
 process_type: simple
 auto_start: false  # Started via 'wants' from main agent
 

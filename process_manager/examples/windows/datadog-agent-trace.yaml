@@ -11,7 +11,7 @@ description: Datadog Trace Agent (APM)
 command: C:\Program Files\Datadog\Datadog Agent\bin\agent\trace-agent.exe
 args:
   - run
-  - --config
+  - -c
   - C:\ProgramData\Datadog\datadog.yaml
 process_type: simple
 auto_start: false  # Socket activation starts this on-demand
