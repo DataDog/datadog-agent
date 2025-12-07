@@ -57,7 +57,7 @@ type DiskCacheConfig struct {
 
 func (cfg *DiskCacheConfig) validate() error {
 	if cfg.DirPath == "" {
-		return fmt.Errorf("dirPath must not be empty")
+		return errors.New("dirPath must not be empty")
 	}
 	if cfg.RequiredDiskSpacePercent < 0 || cfg.RequiredDiskSpacePercent > 100 {
 		return fmt.Errorf(
@@ -66,7 +66,7 @@ func (cfg *DiskCacheConfig) validate() error {
 		)
 	}
 	if cfg.MaxTotalBytes == 0 {
-		return fmt.Errorf("maxTotalBytes must not be zero")
+		return errors.New("maxTotalBytes must not be zero")
 	}
 	return nil
 }
@@ -412,17 +412,17 @@ type DiskFile struct {
 // crashes; it remains accessible via its file descriptor until closed.
 func (c *DiskCache) NewFile(name string, maxSize, initialSize uint64) (_ *DiskFile, retErr error) {
 	if name == "" {
-		return nil, fmt.Errorf("name must not be empty")
+		return nil, errors.New("name must not be empty")
 	}
 	if initialSize > maxSize {
-		return nil, fmt.Errorf("initialSize must be <= maxSize")
+		return nil, errors.New("initialSize must be <= maxSize")
 	}
 	// If the disk doesn't have enough space, we can't create the file.
 	if err := c.checker.check(maxSize); err != nil {
 		return nil, err
 	}
 	if base := path.Base(name); base != name {
-		return nil, fmt.Errorf("name must not contain path separators")
+		return nil, errors.New("name must not contain path separators")
 	}
 	f, err := os.CreateTemp(c.dirPath, fmt.Sprintf("%s.%d", name, os.Getpid()))
 	if err != nil {
@@ -463,7 +463,7 @@ func (c *DiskCache) NewFile(name string, maxSize, initialSize uint64) (_ *DiskFi
 // necessary. If the write would exceed the max size, it fails.
 func (df *DiskFile) Write(p []byte) (int, error) {
 	if df == nil || df.f == nil || df.closed {
-		return 0, fmt.Errorf("write on closed DiskFile")
+		return 0, errors.New("write on closed DiskFile")
 	}
 	if len(p) == 0 {
 		return 0, nil
@@ -532,10 +532,10 @@ func (df *DiskFile) IntoMMap(flags int) (_ SectionData, retErr error) {
 		}
 	}()
 	if df == nil || df.f == nil || df.closed {
-		return nil, fmt.Errorf("IntoMMap on closed DiskFile")
+		return nil, errors.New("IntoMMap on closed DiskFile")
 	}
 	if df.used == 0 {
-		return nil, fmt.Errorf("cannot mmap empty DiskFile")
+		return nil, errors.New("cannot mmap empty DiskFile")
 	}
 	if err := df.f.Sync(); err != nil {
 		return nil, fmt.Errorf("failed to sync DiskFile: %w", err)

@@ -167,11 +167,11 @@ func (pl *ProcessList) isEventValid(event *model.Event) (bool, error) {
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
 		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
-			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+			return false, errors.New("untraced event: IMDS response without credentials")
 		}
 		// ignore IMDS requests without URLs
 		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
-			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+			return false, errors.New("invalid event: IMDS request without any URL")
 		}
 	}
 	return true, nil

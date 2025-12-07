@@ -74,7 +74,7 @@ func (suite *RestartTestSuite) SetupTest() {
 
 	suite.testDir = suite.T().TempDir()
 
-	suite.testLogFile = fmt.Sprintf("%s/test.log", suite.testDir)
+	suite.testLogFile = suite.testDir + "/test.log"
 	fd, err := os.Create(suite.testLogFile)
 	suite.NoError(err)
 
@@ -277,7 +277,7 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 
 	// Get the auditor registry file path to check it was written
 	runPath := agent.config.GetString("logs_config.run_path")
-	registryPath := fmt.Sprintf("%s/registry.json", runPath)
+	registryPath := runPath + "/registry.json"
 
 	// Get file mod time before restart
 	var beforeModTime time.Time
