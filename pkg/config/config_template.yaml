@@ -2010,7 +2010,6 @@ api_key:
 #       # include
 #       - match_domain: 'api.datadoghq.com'
 #         type: include
-#
 
 #     # @param traceroute_queries - integer - optional - default: 3
 #     # @env DD_NETWORK_PATH_COLLECTOR_TRACEROUTE_QUERIES - integer - optional - default: 3
