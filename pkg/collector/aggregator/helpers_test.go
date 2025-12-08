@@ -8,6 +8,7 @@ package aggregator
 import (
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 var stringsSink []string
@@ -26,6 +27,6 @@ func Benchmark_cStringArrayToSlice(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		stringsSink = cStringArrayToSlice(cArray)
+		stringsSink = CStringArrayToSlice(unsafe.Pointer(cArray))
 	}
 }

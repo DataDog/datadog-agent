@@ -45,7 +45,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_name := C.GoString(metricName)
 	_value := float64(value)
 	_hostname := C.GoString(hostname)
-	_tags := cStringArrayToSlice(tags)
+	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
 	switch metricType {
@@ -86,7 +86,7 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 
 	_name := C.GoString(scName)
 	_status := servicecheck.ServiceCheckStatus(status)
-	_tags := cStringArrayToSlice(tags)
+	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_hostname := C.GoString(hostname)
 	_message := C.GoString(message)
 
@@ -124,7 +124,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		Text:           eventParseString(event.text, "msg_text"),
 		Priority:       metricsevent.Priority(eventParseString(event.priority, "priority")),
 		Host:           eventParseString(event.host, "host"),
-		Tags:           cStringArrayToSlice(event.tags),
+		Tags:           CStringArrayToSlice(unsafe.Pointer(event.tags)),
 		AlertType:      metricsevent.AlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
@@ -157,7 +157,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 	_upperBound := float64(upperBound)
 	_monotonic := (monotonic != 0)
 	_hostname := C.GoString(hostname)
-	_tags := cStringArrayToSlice(tags)
+	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
 	sender.HistogramBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)

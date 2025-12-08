@@ -14,12 +14,14 @@ import (
 */
 import "C"
 
-// cStringArrayToSlice converts an array of C strings to a slice of Go strings.
+// CStringArrayToSlice converts an array of C strings to a slice of Go strings.
 // The function will not free the memory of the C strings.
-func cStringArrayToSlice(a **C.char) []string {
-	if a == nil {
+func CStringArrayToSlice(a_ptr unsafe.Pointer) []string {
+	if a_ptr == nil {
 		return nil
 	}
+
+	a := (**C.char)(a_ptr)
 
 	var length int
 	forEachCString(a, func(_ *C.char) {
