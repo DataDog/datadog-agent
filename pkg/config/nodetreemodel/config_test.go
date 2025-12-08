@@ -332,7 +332,8 @@ func TestAllSettingsBySource(t *testing.T) {
 			},
 			"x": 123,
 		},
-		model.SourceUnknown: map[string]interface{}{},
+		model.SourceUnknown:   map[string]interface{}{},
+		model.SourceInfraMode: map[string]interface{}{},
 		model.SourceFile: map[string]interface{}{
 			"a": 987,
 		},
