@@ -21,6 +21,7 @@ import (
 )
 
 var (
+	// Telemetry counters/guages that track disk retry activity
 	tlmPayloadsWrittenToDisk = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_payloads_written",
 		[]string{}, "Payloads written to disk due to backpressure", telemetry.Options{DefaultMetric: true})
 	tlmPayloadsReadFromDisk = telemetry.NewCounterWithOpts("logs_sender", "disk_retry_payloads_read",
@@ -55,18 +56,25 @@ type Retrier struct {
 }
 
 // PersistedPayload represents a payload that has been written to disk for retry
+// this payload mirrors the message payload structs https://github.com/DataDog/datadog-agent/blob/test-journal-payloads-to-disk/pkg/logs/message/message.go#L32
+// Payload represents an encoded collection of messages ready to be sent to the intake
 type PersistedPayload struct {
-	MessageMetas  []*message.MessageMetadata `json:"message_metas"`
-	Encoded       []byte                     `json:"encoded"`
-	Encoding      string                     `json:"encoding"`
-	UnencodedSize int                        `json:"unencoded_size"`
+	// The slice of sources message metadata encoded in the payload
+	MessageMetas []*message.MessageMetadata `json:"message_metas"`
+	// The encoded bytes to be sent to the intake (sometimes compressed)
+	Encoded []byte `json:"encoded"`
+	// The content encoding. A header for HTTP, empty for TCP
+	Encoding string `json:"encoding"`
+	// The size of the unencoded payload
+	UnencodedSize int `json:"unencoded_size"`
 
 	CreatedAt int64  `json:"created_at"`
-	WorkerID  string `json:"worker_id"`
+	WorkerID  string `json:"worker_id"` // TODO: add comment on what this is for
 }
 
 // NewRetrier creates a new disk retrier
 func NewRetrier(config Config) (*Retrier, error) {
+	// Create the directory for the retry files if it doesn't exist with read/write permissions for the current user
 	if err := os.MkdirAll(config.Path, 0755); err != nil {
 		return nil, err
 	}
@@ -269,7 +277,7 @@ func (r *Retrier) readOldestPayload() *message.Payload {
 	)
 }
 
-// ReplayFromDisk tries to write take payloads on disk and sends them into the
+// ReplayFromDisk tries to read payloads from disk and sends them into the
 // pipeline to be sent to the backend. It blocks if there is backpressure.
 func (r *Retrier) ReplayFromDisk(payloadChan chan *message.Payload, done chan struct{}) {
 	for {
