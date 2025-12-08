@@ -105,11 +105,7 @@ func TestCreateProcessService(t *testing.T) {
 				"process://1234": {
 					service: &ProcessService{
 						process: basicProcess,
-						adIdentifiers: []string{
-							"redis-server",
-							"redis",
-						},
-						hosts: map[string]string{"host": "127.0.0.1"},
+						hosts:   map[string]string{"host": "127.0.0.1"},
 						ports: []ContainerPort{
 							{Port: 6379},
 						},
@@ -126,10 +122,7 @@ func TestCreateProcessService(t *testing.T) {
 				"process://1234": {
 					service: &ProcessService{
 						process: processWithMultiplePorts,
-						adIdentifiers: []string{
-							"nginx",
-						},
-						hosts: map[string]string{"host": "127.0.0.1"},
+						hosts:   map[string]string{"host": "127.0.0.1"},
 						ports: []ContainerPort{
 							{Port: 80},
 							{Port: 443},
@@ -151,16 +144,13 @@ func TestCreateProcessService(t *testing.T) {
 			expectedServices: map[string]wlmListenerSvc{},
 		},
 		{
-			name:    "process with same comm and generated name only has one identifier",
+			name:    "process with same comm and generated name",
 			process: processWithSameCommAndGeneratedName,
 			expectedServices: map[string]wlmListenerSvc{
 				"process://1234": {
 					service: &ProcessService{
 						process: processWithSameCommAndGeneratedName,
-						adIdentifiers: []string{
-							"postgres",
-						},
-						hosts: map[string]string{"host": "127.0.0.1"},
+						hosts:   map[string]string{"host": "127.0.0.1"},
 						ports: []ContainerPort{
 							{Port: 5432},
 						},
@@ -187,67 +177,6 @@ func TestCreateProcessService(t *testing.T) {
 	}
 }
 
-func TestComputeProcessServiceIDs(t *testing.T) {
-	tests := []struct {
-		name    string
-		process *workloadmeta.Process
-		want    []string
-	}{
-		{
-			name: "process with different comm and generated name",
-			process: &workloadmeta.Process{
-				Comm: "redis-server",
-				Service: &workloadmeta.Service{
-					GeneratedName: "redis",
-				},
-			},
-			want: []string{"redis-server", "redis"},
-		},
-		{
-			name: "process with same comm and generated name",
-			process: &workloadmeta.Process{
-				Comm: "postgres",
-				Service: &workloadmeta.Service{
-					GeneratedName: "postgres",
-				},
-			},
-			want: []string{"postgres"},
-		},
-		{
-			name: "process with no generated name",
-			process: &workloadmeta.Process{
-				Comm:    "mysqld",
-				Service: &workloadmeta.Service{},
-			},
-			want: []string{"mysqld"},
-		},
-		{
-			name: "process with empty comm",
-			process: &workloadmeta.Process{
-				Comm: "",
-				Service: &workloadmeta.Service{
-					GeneratedName: "someservice",
-				},
-			},
-			want: []string{"someservice"},
-		},
-		{
-			name: "process with nil service",
-			process: &workloadmeta.Process{
-				Comm: "bash",
-			},
-			want: []string{"bash"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := computeProcessServiceIDs(tt.process)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestProcessServiceInterface(t *testing.T) {
 	process := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
@@ -265,24 +194,21 @@ func TestProcessServiceInterface(t *testing.T) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	svc := &ProcessService{
-		process:       process,
-		adIdentifiers: []string{"redis-server", "redis"},
-		hosts:         map[string]string{"host": "127.0.0.1"},
-		ports:         []ContainerPort{{Port: 6379}},
-		pid:           1234,
-		ready:         true,
-		tagger:        taggerComponent,
+		process: process,
+		hosts:   map[string]string{"host": "127.0.0.1"},
+		ports:   []ContainerPort{{Port: 6379}},
+		pid:     1234,
+		ready:   true,
+		tagger:  taggerComponent,
 	}
 
 	t.Run("GetServiceID", func(t *testing.T) {
 		assert.Equal(t, "process://1234", svc.GetServiceID())
 	})
 
-	t.Run("GetADIdentifiers includes cel://process", func(t *testing.T) {
+	t.Run("GetADIdentifiers returns cel://process", func(t *testing.T) {
 		ids := svc.GetADIdentifiers()
-		assert.Contains(t, ids, "redis-server")
-		assert.Contains(t, ids, "redis")
-		assert.Contains(t, ids, "cel://process")
+		assert.Equal(t, []string{"cel://process"}, ids)
 	})
 
 	t.Run("GetHosts", func(t *testing.T) {
@@ -338,33 +264,30 @@ func TestProcessServiceEqual(t *testing.T) {
 	}
 
 	svc1 := &ProcessService{
-		process:       process,
-		tagsHash:      "hash1",
-		adIdentifiers: []string{"redis-server"},
-		hosts:         map[string]string{"host": "127.0.0.1"},
-		ports:         []ContainerPort{{Port: 6379}},
-		pid:           1234,
-		ready:         true,
+		process:  process,
+		tagsHash: "hash1",
+		hosts:    map[string]string{"host": "127.0.0.1"},
+		ports:    []ContainerPort{{Port: 6379}},
+		pid:      1234,
+		ready:    true,
 	}
 
 	svc2 := &ProcessService{
-		process:       process,
-		tagsHash:      "hash1",
-		adIdentifiers: []string{"redis-server"},
-		hosts:         map[string]string{"host": "127.0.0.1"},
-		ports:         []ContainerPort{{Port: 6379}},
-		pid:           1234,
-		ready:         true,
+		process:  process,
+		tagsHash: "hash1",
+		hosts:    map[string]string{"host": "127.0.0.1"},
+		ports:    []ContainerPort{{Port: 6379}},
+		pid:      1234,
+		ready:    true,
 	}
 
 	svc3 := &ProcessService{
-		process:       process,
-		tagsHash:      "hash2", // different hash
-		adIdentifiers: []string{"redis-server"},
-		hosts:         map[string]string{"host": "127.0.0.1"},
-		ports:         []ContainerPort{{Port: 6379}},
-		pid:           1234,
-		ready:         true,
+		process:  process,
+		tagsHash: "hash2", // different hash
+		hosts:    map[string]string{"host": "127.0.0.1"},
+		ports:    []ContainerPort{{Port: 6379}},
+		pid:      1234,
+		ready:    true,
 	}
 
 	t.Run("equal services", func(t *testing.T) {
@@ -412,4 +335,3 @@ func assertProcessServices(t *testing.T, wlm *testWorkloadmetaListener, expected
 		}
 	}
 }
-

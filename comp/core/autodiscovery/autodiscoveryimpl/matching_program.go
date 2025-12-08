@@ -21,7 +21,7 @@ import (
 
 const (
 	containerImageField    = string(workloadfilter.ContainerType) + ".image"
-	processNameField       = string(workloadfilter.ProcessType) + ".name"
+	processCmdlineField    = string(workloadfilter.ProcessType) + ".cmdline"
 	serviceNameField       = string(workloadfilter.ServiceType) + ".name"
 	serviceNamespaceField  = string(workloadfilter.ServiceType) + ".namespace"
 	endpointNameField      = string(workloadfilter.EndpointType) + ".name"
@@ -80,8 +80,8 @@ func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error
 			return errors.New("missing recommended field: " + containerImageField)
 		}
 	case adtypes.CelProcessIdentifier:
-		if !strings.Contains(rules, processNameField) {
-			return errors.New("missing recommended field: " + processNameField)
+		if !strings.Contains(rules, processCmdlineField) {
+			return errors.New("missing recommended field: " + processCmdlineField)
 		}
 	case adtypes.CelServiceIdentifier:
 		if !strings.Contains(rules, serviceNamespaceField) {

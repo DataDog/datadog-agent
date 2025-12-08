@@ -84,16 +84,11 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 		return ports[i].Port < ports[j].Port
 	})
 
-	// Use Comm (short command name) as the AD identifier
-	// This is similar to how containers use the image short name
-	adIdentifiers := computeProcessServiceIDs(process)
-
 	svc := &ProcessService{
-		process:       process,
-		tagsHash:      l.tagger.GetEntityHash(types.NewEntityID(types.Process, process.EntityID.ID), types.ChecksConfigCardinality),
-		adIdentifiers: adIdentifiers,
-		ports:         ports,
-		pid:           int(process.Pid),
+		process:  process,
+		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.Process, process.EntityID.ID), types.ChecksConfigCardinality),
+		ports:    ports,
+		pid:      int(process.Pid),
 		// Host processes are accessible at localhost
 		hosts:  map[string]string{"host": "127.0.0.1"},
 		ready:  true,
@@ -105,35 +100,16 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	l.AddService(svcID, svc, "")
 }
 
-// computeProcessServiceIDs computes the service IDs for a process service.
-// It uses the process Comm (short command name) as the primary identifier.
-func computeProcessServiceIDs(process *workloadmeta.Process) []string {
-	ids := []string{}
-
-	// Use Comm as the primary AD identifier
-	if process.Comm != "" {
-		ids = append(ids, process.Comm)
-	}
-
-	// Also add the generated service name if available and different from Comm
-	if process.Service != nil && process.Service.GeneratedName != "" && process.Service.GeneratedName != process.Comm {
-		ids = append(ids, process.Service.GeneratedName)
-	}
-
-	return ids
-}
-
 // ProcessService implements the Service interface for process entities.
 type ProcessService struct {
-	process       *workloadmeta.Process
-	tagsHash      string
-	adIdentifiers []string
-	hosts         map[string]string
-	ports         []ContainerPort
-	pid           int
-	ready         bool
-	tagger        tagger.Component
-	wmeta         workloadmeta.Component
+	process  *workloadmeta.Process
+	tagsHash string
+	hosts    map[string]string
+	ports    []ContainerPort
+	pid      int
+	ready    bool
+	tagger   tagger.Component
+	wmeta    workloadmeta.Component
 }
 
 var _ Service = &ProcessService{}
@@ -149,19 +125,18 @@ func (s *ProcessService) Equal(o Service) bool {
 		s.tagsHash == s2.tagsHash &&
 		reflect.DeepEqual(s.hosts, s2.hosts) &&
 		reflect.DeepEqual(s.ports, s2.ports) &&
-		reflect.DeepEqual(s.adIdentifiers, s2.adIdentifiers) &&
 		s.pid == s2.pid &&
 		s.ready == s2.ready
 }
 
 // GetServiceID returns the AD entity ID of the service.
 func (s *ProcessService) GetServiceID() string {
-	return fmt.Sprintf("process://%s", s.process.EntityID.ID)
+	return "process://" + s.process.EntityID.ID
 }
 
 // GetADIdentifiers returns the service's AD identifiers.
 func (s *ProcessService) GetADIdentifiers() []string {
-	return append(s.adIdentifiers, string(adtypes.CelProcessIdentifier))
+	return []string{string(adtypes.CelProcessIdentifier)}
 }
 
 // GetHosts returns the service's IPs for each host.
