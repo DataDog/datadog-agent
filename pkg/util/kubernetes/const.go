@@ -30,8 +30,14 @@ const (
 
 	// AutoscalingLabelKey is the label key that is present when the resource is managed by Datadog Autoscaling
 	AutoscalingLabelKey = "autoscaling.datadoghq.com/managed"
+	// KarpenterNodePoolKey is the label key that is present when the node is managed by a Karpenter NodePool
+	KarpenterNodePoolKey = "karpenter.sh/nodepool"
+	// KarpenterNodePoolHashKey is the annotation key that is present that tracks the Karpenter NodePool template hash
+	KarpenterNodePoolHashKey = "karpenter.sh/nodepool-hash"
 	// ClusterAutoscalerTagName is the autoscaling label tag name
 	ClusterAutoscalerTagName = "kube_cluster_autoscaler"
+	// KarpenterNodePoolTagName is the Karpenter NodePool tag name
+	KarpenterNodePoolTagName = "karpenter_nodepool"
 
 	// RcIDAnnotKey is the key of the RC ID annotation
 	RcIDAnnotKey = "admission.datadoghq.com/rc.id"

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -133,7 +134,6 @@ func (c *Controller) Process(ctx context.Context, _, _, name string) autoscaling
 }
 
 func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *karpenterv1.NodePool) autoscaling.ProcessResult {
-	// TODO create duplicate NodePools with greater weight, rather than updating user NodePools
 	npi, foundInStore := c.store.LockRead(name, true)
 	defer c.store.Unlock(name)
 
@@ -146,10 +146,14 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 			}
 		} else {
 			// Present in store and found in cluster; update it
-			// TODO check if hash of spec from remote config matches current object before updating
-			if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
-				log.Errorf("Error updating NodePool: %v", err)
-				return autoscaling.Requeue
+			// Only update if there is no TargetHash (i.e. it is fully Datadog-managed) or if the TargetHash has not changed
+			if npi.TargetHash() == "" || npi.TargetHash() == nodePool.GetAnnotations()[kubernetes.KarpenterNodePoolHashKey] {
+				if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
+					log.Errorf("Error updating NodePool: %v", err)
+					return autoscaling.Requeue
+				}
+			} else {
+				log.Infof("NodePool TargetHash (%s) has changed since recommendation was generated; update will not be applied.", npi.TargetHash())
 			}
 		}
 	} else {
