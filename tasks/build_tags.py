@@ -328,6 +328,7 @@ build_tags = {
         "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
+        "installer": INSTALLER_TAGS.union(FIPS_TAGS),
         # Test setups
         "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),

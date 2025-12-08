@@ -23,6 +23,7 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -293,6 +294,17 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		return nil
 	}
 
+	// If FIPS is enabled, don't start the daemon
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Could not determine FIPS status, exiting: %v", err)
+		return nil
+	}
+	if fipsEnabled {
+		log.Info("FIPS mode is enabled, fleet daemon will not start")
+		return nil
+	}
+
 	go func() {
 		gcTicker := time.NewTicker(gcInterval)
 		defer gcTicker.Stop()
@@ -330,12 +342,24 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	// Always close the remote config client as it was initialized in NewDaemon; avoid unknown side effects in the RC client
+	d.rc.Close()
+
+	// If remote updates are disabled, we don't need to stop the updater daemon background goroutine as it was never started, we return early
 	if !d.env.RemoteUpdates {
-		// If remote updates are disabled, we don't need to stop the daemon as it was never started
-		return nil
+		return d.taskDB.Close()
 	}
 
-	d.rc.Close()
+	// Same, if FIPS is enabled, the updater daemon background goroutine was never started, we return early
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Could not determine FIPS status: %v", err)
+	}
+	if fipsEnabled {
+		return d.taskDB.Close()
+	}
+
+	// Stop the background goroutine
 	close(d.stopChan)
 	d.requestsWG.Wait()
 	return d.taskDB.Close()
