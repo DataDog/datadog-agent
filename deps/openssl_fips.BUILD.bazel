@@ -33,7 +33,7 @@ configure_make(
     configure_options = select({
         "@platforms//os:windows": [
             "mingw64",
-        ] + ENABLE_FIPS[:-1],
+        ] + ENABLE_FIPS,
         # Setting libdir to lib as linux x86 will use lib64 by default.
         "//conditions:default": ENABLE_FIPS + ["--libdir=lib"],
     }),
