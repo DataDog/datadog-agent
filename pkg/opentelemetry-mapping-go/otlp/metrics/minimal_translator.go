@@ -45,7 +45,7 @@ type minimalTranslator struct {
 //
 // Unsupported metrics (cumulative monotonic sums, cumulative histograms) are logged and skipped
 // rather than returning an error.
-func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.Translator, options ...TranslatorOption) (MetricsTranslator, error) {
+func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.Translator, options ...TranslatorOption) (Provider, error) {
 	cfg := translatorConfig{
 		HistMode:                             HistogramModeDistributions,
 		SendHistogramAggregations:            false,
@@ -70,7 +70,7 @@ func NewMinimalTranslator(logger *zap.Logger, attributesTranslator *attributes.T
 		logger:               logger,
 		attributesTranslator: attributesTranslator,
 		cfg:                  cfg,
-		mapper:               NewLossLessMapper(cfg, logger),
+		mapper:               newLossLessMapper(cfg, logger),
 	}, nil
 }
 

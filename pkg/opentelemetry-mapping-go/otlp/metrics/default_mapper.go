@@ -47,16 +47,6 @@ func newDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfi
 	}
 }
 
-// isSkippable checks if a value can be skipped (because it is not supported by the backend).
-// It logs that the value is unsupported for debugging since this sometimes means there is a bug.
-func (m *defaultMapper) isSkippable(name string, v float64) bool {
-	skippable := math.IsInf(v, 0) || math.IsNaN(v)
-	if skippable {
-		m.logger.Debug("Unsupported metric value", zap.String(metricName, name), zap.Float64("value", v))
-	}
-	return skippable
-}
-
 // MapNumberMetrics maps double datapoints into Datadog metrics
 func (m *defaultMapper) MapNumberMetrics(
 	ctx context.Context,
@@ -81,7 +71,7 @@ func (m *defaultMapper) MapNumberMetrics(
 			val = float64(p.IntValue())
 		}
 
-		if m.isSkippable(pointDims.name, val) {
+		if isSkippable(m.logger, pointDims.name, val) {
 			continue
 		}
 
@@ -138,7 +128,7 @@ func (m *defaultMapper) MapHistogramMetrics(
 		}
 
 		sumDims := pointDims.WithSuffix("sum")
-		if !m.isSkippable(sumDims.name, p.Sum()) {
+		if !isSkippable(m.logger, sumDims.name, p.Sum()) {
 			if delta {
 				histInfo.sum = p.Sum()
 			} else if dx, ok := m.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
@@ -218,10 +208,10 @@ func (m *defaultMapper) MapSummaryMetrics(
 			countDims := pointDims.WithSuffix("count")
 			val := float64(p.Count())
 			dx, isFirstPoint, shouldDropPoint := m.prevPts.MonotonicDiff(countDims, startTs, ts, val)
-			if !shouldDropPoint && !m.isSkippable(countDims.name, dx) {
+			if !shouldDropPoint && !isSkippable(m.logger, countDims.name, dx) {
 				if !isFirstPoint {
 					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, dx)
-				} else if i == 0 && m.shouldConsumeInitialValue(startTs, ts) {
+				} else if i == 0 && shouldConsumeInitialValue(m.cfg.InitialCumulMonoValueMode, startTs, ts) {
 					// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
 					consumer.ConsumeTimeSeries(ctx, countDims, Count, ts, 0, val)
 				}
@@ -230,7 +220,7 @@ func (m *defaultMapper) MapSummaryMetrics(
 
 		{
 			sumDims := pointDims.WithSuffix("sum")
-			if !m.isSkippable(sumDims.name, p.Sum()) {
+			if !isSkippable(m.logger, sumDims.name, p.Sum()) {
 				if dx, ok := m.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
 					consumer.ConsumeTimeSeries(ctx, sumDims, Count, ts, 0, dx)
 				}
@@ -243,7 +233,7 @@ func (m *defaultMapper) MapSummaryMetrics(
 			for i := 0; i < quantiles.Len(); i++ {
 				q := quantiles.At(i)
 
-				if m.isSkippable(baseQuantileDims.name, q.Value()) {
+				if isSkippable(m.logger, baseQuantileDims.name, q.Value()) {
 					continue
 				}
 
@@ -290,7 +280,7 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 		}
 
 		sumDims := pointDims.WithSuffix("sum")
-		if !m.isSkippable(sumDims.name, p.Sum()) {
+		if !isSkippable(m.logger, sumDims.name, p.Sum()) {
 			if delta {
 				histInfo.sum = p.Sum()
 			} else if dx, ok := m.prevPts.Diff(sumDims, startTs, ts, p.Sum()); ok {
@@ -359,23 +349,6 @@ func (m *defaultMapper) MapExponentialHistogramMetrics(
 
 		consumer.ConsumeSketch(ctx, pointDims, ts, 0, agentSketch)
 	}
-}
-
-// shouldConsumeInitialValue checks if the initial value of a cumulative monotonic metric
-// should be consumed or dropped.
-func (m *defaultMapper) shouldConsumeInitialValue(startTs, ts uint64) bool {
-	switch m.cfg.InitialCumulMonoValueMode {
-	case InitialCumulMonoValueModeAuto:
-		if getProcessStartTimeNano() < startTs && startTs != ts {
-			// Report the first value if the timeseries started after the Datadog Agent process started.
-			return true
-		}
-	case InitialCumulMonoValueModeKeep:
-		return true
-	case InitialCumulMonoValueModeDrop:
-		// do nothing, drop the point
-	}
-	return false
 }
 
 // getSketchBuckets converts histogram buckets to a sketch

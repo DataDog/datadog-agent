@@ -110,9 +110,9 @@ type defaultTranslator struct {
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
-// It returns a MetricsTranslator interface that can be used for translating OTLP metrics.
+// It returns a Provider interface that can be used for translating OTLP metrics.
 // The returned translator also implements StatsTranslator for APM stats conversion.
-func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (MetricsTranslator, error) {
+func NewDefaultTranslator(set component.TelemetrySettings, attributesTranslator *attributes.Translator, options ...TranslatorOption) (Provider, error) {
 
 	cfg := translatorConfig{
 		HistMode:                             HistogramModeDistributions,
@@ -165,8 +165,8 @@ func NewTranslator(set component.TelemetrySettings, attributesTranslator *attrib
 		return nil, err
 	}
 	return &Translator{
-		MetricsTranslator: d,
-		logger:            set.Logger,
+		Provider: d,
+		logger:   set.Logger,
 	}, nil
 }
 
@@ -213,15 +213,16 @@ type Mapper interface {
 }
 
 // Translator is provided for backward compatibility.
+// External code using *metrics.Translator will continue to work.
 //
-// Deprecated: Use MetricsTranslator interface instead.
+// Deprecated: Use [NewDefaultTranslator] and [Provider] interface instead.
 type Translator struct {
-	MetricsTranslator
+	Provider
 	logger *zap.Logger
 }
 
-// MetricsTranslator defines the interface for translating OTLP metrics to Datadog format.
-type MetricsTranslator interface {
+// Provider defines the interface for translating OTLP metrics to Datadog format.
+type Provider interface {
 	MapMetrics(ctx context.Context, md pmetric.Metrics, consumer Consumer, hostFromAttributesHandler attributes.HostFromAttributesHandler) (Metadata, error)
 }
 
@@ -243,10 +244,10 @@ func isCumulativeMonotonic(md pmetric.Metric) bool {
 
 // isSkippable checks if a value can be skipped (because it is not supported by the backend).
 // It logs that the value is unsupported for debugging since this sometimes means there is a bug.
-func (t *defaultTranslator) isSkippable(name string, v float64) bool {
+func isSkippable(logger *zap.Logger, name string, v float64) bool {
 	skippable := math.IsInf(v, 0) || math.IsNaN(v)
 	if skippable {
-		t.logger.Debug("Unsupported metric value", zap.String(metricName, name), zap.Float64("value", v))
+		logger.Debug("Unsupported metric value", zap.String(metricName, name), zap.Float64("value", v))
 	}
 	return skippable
 }
@@ -266,9 +267,9 @@ func getProcessStartTimeNano() uint64 {
 }
 
 // shouldConsumeInitialValue checks if the initial value of a cumulative monotonic metric
-// should be consumed or dropped.
-func (t *defaultTranslator) shouldConsumeInitialValue(startTs, ts uint64) bool {
-	switch t.cfg.InitialCumulMonoValueMode {
+// should be consumed or dropped based on the configuration mode.
+func shouldConsumeInitialValue(mode InitialCumulMonoValueMode, startTs, ts uint64) bool {
+	switch mode {
 	case InitialCumulMonoValueModeAuto:
 		if getProcessStartTimeNano() < startTs && startTs != ts {
 			// Report the first value if the timeseries started after the Datadog Agent process started.
@@ -308,7 +309,7 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 			val = float64(p.IntValue())
 		}
 
-		if t.isSkippable(pointDims.name, val) {
+		if isSkippable(t.logger, pointDims.name, val) {
 			continue
 		}
 
@@ -330,7 +331,7 @@ func (t *defaultTranslator) mapNumberMonotonicMetrics(
 
 		if !isFirstPoint {
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, dx)
-		} else if i == 0 && t.shouldConsumeInitialValue(startTs, ts) {
+		} else if i == 0 && shouldConsumeInitialValue(t.cfg.InitialCumulMonoValueMode, startTs, ts) {
 			// We only compute the first point in the timeseries if it is the first value in the datapoint slice.
 			// Todo: Investigate why we don't compute first val if i > 0 and add reason as comment.
 			consumer.ConsumeTimeSeries(ctx, pointDims, Count, ts, 0, val)

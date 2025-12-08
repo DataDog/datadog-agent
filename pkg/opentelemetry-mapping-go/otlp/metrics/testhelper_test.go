@@ -92,7 +92,7 @@ type TestingT interface {
 //
 // To generate OTLP data to be used on this assert, use the pmetric.JSONMarshaler and json.Indent.
 // If the Datadog data does not match, a file ending in .actual will be generated containing the actual translator output.
-func AssertTranslatorMap(t TestingT, translator MetricsTranslator, otlpfilename string, datadogfilename string) bool {
+func AssertTranslatorMap(t TestingT, translator Provider, otlpfilename string, datadogfilename string) bool {
 	// Check that the filenames follow conventions.
 	prefix := strings.TrimSuffix(filepath.Base(otlpfilename), ".json")
 	if !strings.HasPrefix(filepath.Base(datadogfilename), prefix) {

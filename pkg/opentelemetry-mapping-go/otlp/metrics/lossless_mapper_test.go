@@ -159,7 +159,7 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 			cfg := translatorConfig{
 				InferDeltaInterval: tt.inferDeltaInterval,
 			}
-			mapper := NewLossLessMapper(cfg, zap.NewNop())
+			mapper := newLossLessMapper(cfg, zap.NewNop())
 
 			slice := pmetric.NewNumberDataPointSlice()
 			tt.setupSlice(slice)
@@ -334,7 +334,7 @@ func TestLossLessMapperMapSummaryMetrics(t *testing.T) {
 			cfg := translatorConfig{
 				Quantiles: tt.quantiles,
 			}
-			mapper := NewLossLessMapper(cfg, zap.NewNop())
+			mapper := newLossLessMapper(cfg, zap.NewNop())
 
 			slice := pmetric.NewSummaryDataPointSlice()
 			tt.setupSlice(slice)
@@ -361,7 +361,7 @@ func TestLossLessMapperMapSummaryMetrics(t *testing.T) {
 
 func TestLossLessMapperMapHistogramMetrics(t *testing.T) {
 	cfg := translatorConfig{}
-	mapper := NewLossLessMapper(cfg, zap.NewNop())
+	mapper := newLossLessMapper(cfg, zap.NewNop())
 
 	slice := pmetric.NewHistogramDataPointSlice()
 	dp := slice.AppendEmpty()
@@ -385,7 +385,7 @@ func TestLossLessMapperMapHistogramMetrics(t *testing.T) {
 
 func TestLossLessMapperMapExponentialHistogramMetrics(t *testing.T) {
 	cfg := translatorConfig{}
-	mapper := NewLossLessMapper(cfg, zap.NewNop())
+	mapper := newLossLessMapper(cfg, zap.NewNop())
 
 	slice := pmetric.NewExponentialHistogramDataPointSlice()
 	dp := slice.AppendEmpty()

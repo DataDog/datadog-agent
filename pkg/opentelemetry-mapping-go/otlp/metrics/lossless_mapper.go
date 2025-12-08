@@ -12,24 +12,29 @@ import (
 	"go.uber.org/zap"
 )
 
-// LossLessMapper is a cache-free mapper implementation that directly emits
-// metric values without cumulative-to-delta conversion.
-type LossLessMapper struct {
+// lossLessMapper is a cache-free mapper implementation that directly emits
+// metric values without cumulative-to-delta conversion and sends Histograms wihtout conversion.
+//
+//	This mapper emits raw values from OTLP cumulative monotonic Sums as Datadog Gauges,
+//	instead of computing deltas and reporting them as Datadog Counts.
+type lossLessMapper struct {
 	cfg    translatorConfig
 	logger *zap.Logger
 }
 
-// NewLossLessMapper creates a new LossLessMapper without a cache.
-// This mapper emits raw values as Gauges instead of computing deltas.
-func NewLossLessMapper(cfg translatorConfig, logger *zap.Logger) Mapper {
-	return &LossLessMapper{
+// newLossLessMapper creates a new lossLessMapper without a cache.
+// This mapper emits raw values from OTLP delta Sums as Datadog Counts,
+// and OTLP cumulative values (like Summary count/sum) as Datadog Gauges
+// instead of computing deltas.
+func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) Mapper {
+	return &lossLessMapper{
 		cfg:    cfg,
 		logger: logger,
 	}
 }
 
 // MapNumberMetrics maps number datapoints to Datadog metrics.
-func (m *LossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
+func (m *lossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, dt DataType, slice pmetric.NumberDataPointSlice) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -56,9 +61,9 @@ func (m *LossLessMapper) MapNumberMetrics(ctx context.Context, consumer Consumer
 }
 
 // MapSummaryMetrics maps summary datapoints to Datadog metrics.
-// Since LossLessMapper doesn't use a cache, count and sum are emitted as Gauges
+// Since lossLessMapper doesn't use a cache, count and sum are emitted as Gauges
 // with the current value, rather than as delta Counts.
-func (m *LossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.SummaryDataPointSlice) {
+func (m *lossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.SummaryDataPointSlice) {
 	for i := 0; i < slice.Len(); i++ {
 		p := slice.At(i)
 		if p.Flags().NoRecordedValue() {
@@ -89,11 +94,11 @@ func (m *LossLessMapper) MapSummaryMetrics(ctx context.Context, consumer Consume
 	}
 }
 
-func (m *LossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
+func (m *lossLessMapper) MapHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.HistogramDataPointSlice, _ bool) error {
 	consumer.ConsumeExplicitBoundHistogram(ctx, dims, slice)
 	return nil
 }
 
-func (m *LossLessMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
+func (m *lossLessMapper) MapExponentialHistogramMetrics(ctx context.Context, consumer Consumer, dims *Dimensions, slice pmetric.ExponentialHistogramDataPointSlice, _ bool) {
 	consumer.ConsumeExponentialHistogram(ctx, dims, slice)
 }
