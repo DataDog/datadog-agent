@@ -23,8 +23,6 @@ import (
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
@@ -2233,7 +2231,6 @@ func TestAutoinstrumentation(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
-			mockImageResolver := NewFakeImageResolver()
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
@@ -2242,17 +2239,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}
 
 			// Setup webhook.
-			config, err := autoinstrumentation.NewConfig(mockConfig)
-			require.NoError(t, err)
-			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
-			require.NoError(t, err)
-			mutator := common.NewMutators(
-				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
-				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
-				apmMutator,
-			)
-			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2390,7 +2377,6 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
-			mockImageResolver := NewFakeImageResolver()
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
@@ -2399,17 +2385,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			config, err := autoinstrumentation.NewConfig(mockConfig)
-			require.NoError(t, err)
-			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
-			require.NoError(t, err)
-			mutator := common.NewMutators(
-				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
-				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
-				apmMutator,
-			)
-			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2593,7 +2569,6 @@ func TestSkippedDueToResources(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
-			mockImageResolver := NewFakeImageResolver()
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
@@ -2602,17 +2577,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			config, err := autoinstrumentation.NewConfig(mockConfig)
-			require.NoError(t, err)
-			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
-			require.NoError(t, err)
-			mutator := common.NewMutators(
-				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
-				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
-				apmMutator,
-			)
-			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2659,17 +2624,4 @@ func languageSetOf(languages ...string) languagemodels.LanguageSet {
 		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
-}
-
-// MockImageResolver is a simple implementation that returns the original image unchanged.
-type MockImageResolver struct{}
-
-// newNoOpImageResolver creates a new noOpImageResolver.
-func NewFakeImageResolver() *MockImageResolver {
-	return &MockImageResolver{}
-}
-
-// Resolve returns the original image reference.
-func (r *MockImageResolver) Resolve(_ string, _ string, _ string) (*autoinstrumentation.ResolvedImage, bool) {
-	return nil, false
 }

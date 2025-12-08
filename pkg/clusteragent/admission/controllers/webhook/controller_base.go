@@ -30,7 +30,6 @@ import (
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoscaling"
-	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
@@ -145,7 +144,7 @@ func (c *controllerBase) generateWebhooks(wmeta workloadmeta.Component, pa workl
 	webhooks = append(webhooks, autoscalingWebhook)
 
 	// Setup APM Instrumentation webhook. APM Instrumentation webhook needs to be registered after the config webhook.
-	apmWebhook, err := generateAutoInstrumentationWebhook(wmeta, datadogConfig, rcClient)
+	apmWebhook, err := autoinstrumentation.NewAutoInstrumentation(datadogConfig, wmeta, rcClient)
 	if err != nil {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	} else {
@@ -182,32 +181,6 @@ func generateTagsFromLabelsWebhook(wmeta workloadmeta.Component, datadogConfig c
 	}
 	mutator := tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), filter)
 	return tagsfromlabels.NewWebhook(wmeta, datadogConfig, mutator), nil
-}
-
-func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogConfig config.Component, rcClient *rcclient.Client) (*autoinstrumentation.Webhook, error) {
-	config, err := autoinstrumentation.NewConfig(datadogConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
-	}
-
-	imageResolver := autoinstrumentation.NewImageResolver(rcClient, datadogConfig)
-
-	apm, err := autoinstrumentation.NewTargetMutator(config, wmeta, imageResolver)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
-	}
-
-	labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(datadogConfig))
-
-	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
-	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
-	// env vars to be set from labels if they are available..
-	mutator := mutatecommon.NewMutators(
-		tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(datadogConfig), apm),
-		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
-		apm,
-	)
-	return autoinstrumentation.NewWebhook(config.Webhook, wmeta, mutator, labelSelectors)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.
