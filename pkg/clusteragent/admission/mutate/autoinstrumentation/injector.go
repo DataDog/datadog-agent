@@ -20,8 +20,8 @@ import (
 const (
 	injectPackageDir   = "opt/datadog-packages/datadog-apm-inject"
 	libraryPackagesDir = "opt/datadog/apm/library"
-	volumeName = "datadog-auto-instrumentation"
-	mountPath  = "/datadog-lib"
+	volumeName         = "datadog-auto-instrumentation"
+	mountPath          = "/datadog-lib"
 )
 
 func asAbs(path string) string {
