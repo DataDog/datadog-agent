@@ -198,6 +198,17 @@ build do
     move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
 
+  # sd-agent (Service Discovery Agent)
+  # Downloaded from private GitHub releases in CI
+  # Only for Linux targets
+  if linux_target?
+    sd_agent_bin = ENV['SD_AGENT_BIN']
+    if sd_agent_bin && File.exist?(sd_agent_bin)
+      copy sd_agent_bin, "#{install_dir}/embedded/bin/sd-agent"
+      command "chmod 0755 #{install_dir}/embedded/bin/sd-agent"
+    end
+  end
+
   # System-probe eBPF files
   if sysprobe_enabled?
     mkdir "#{install_dir}/embedded/share/system-probe/ebpf"
