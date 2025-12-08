@@ -124,6 +124,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	} else {
 		scanner = c.trivyCollector.ScanContainerdImage
 	}
+
 	report, err = scanner(ctx, imageMeta, image, c.containerdClient, c.opts)
 	scanResult := sbom.ScanResult{
 		Error:   err,

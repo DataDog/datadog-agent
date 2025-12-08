@@ -251,7 +251,7 @@ func (c *Collector) ScanFSTrivyReport(ctx context.Context, path string, scanOpti
 }
 
 // ScanFilesystem scans the specified directory and logs detailed scan steps.
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (sbom.Report, error) {
+func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions, removeLayers bool) (*Report, error) {
 	trivyReport, err := c.ScanFSTrivyReport(ctx, path, scanOptions, removeLayers)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
@@ -264,7 +264,12 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	}
 
 	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	return c.buildReport(trivyReport, hash)
+	report, err := c.buildReport(trivyReport, hash)
+	if report != nil {
+		report.method = "filesystem"
+	}
+
+	return report, err
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {

@@ -7,6 +7,7 @@
 package sbom
 
 import (
+	"strings"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -17,14 +18,16 @@ import (
 )
 
 const (
-	ScanFilesystemType = "filesystem" // ScanFilesystemType defines the type for file-system scan
-	ScanDaemonType     = "daemon"     // ScanDaemonType defines the type for daemon scan
+	ScanFilesystemType = "filesystem"  // ScanFilesystemType defines the type for file-system scan
+	ScanDaemonType     = "daemon"      // ScanDaemonType defines the type for daemon scan
+	ScanMethodTagName  = "scan_method" // ScanMethodTagName defines the tag name for scan method
 )
 
 // Report defines the report interface
 type Report interface {
 	ToCycloneDX() *cyclonedx_v1_4.Bom
 	ID() string
+	Tags() []string
 }
 
 // ScanOptionsFromConfigForContainers loads the scanning options from the configuration
@@ -63,6 +66,7 @@ type ScanResult struct {
 	Duration  time.Duration
 	ImgMeta   *workloadmeta.ContainerImageMetadata
 	RequestID string
+	Tags      []string
 }
 
 // ConvertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
@@ -79,11 +83,19 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 		report = result.Report.ToCycloneDX()
 	}
 
-	return &workloadmeta.SBOM{
+	sbom := &workloadmeta.SBOM{
 		CycloneDXBOM:       report,
 		GenerationTime:     result.CreatedAt,
 		GenerationDuration: result.Duration,
 		Status:             status,
 		Error:              reportedError,
 	}
+
+	for _, tag := range result.Tags {
+		if strings.HasPrefix(ScanMethodTagName+":", tag) {
+			sbom.GenerationMethod = strings.TrimPrefix(tag, ScanMethodTagName+":")
+		}
+	}
+
+	return sbom
 }
