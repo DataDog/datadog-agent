@@ -7,6 +7,8 @@ const VERSION: &'static CStr = c"0.1.0";
 /// Check implementation
 pub fn check(check: &AgentCheck) -> Result<(), Box<dyn Error>> {
     check.gauge("hello.gauge", 1.0, &vec![], "", false)?;
+    check.service_check("hello.service_check", rust_check_core::ServiceCheckStatus::OK, &vec![], "", "")?;
+    check.event("hello.event", "hello.text", 0, "normal", "", &vec![], "info", "", "", "")?;
 
     Ok(())
 }
