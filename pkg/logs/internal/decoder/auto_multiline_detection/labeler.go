@@ -12,8 +12,11 @@ import "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multilin
 type Label uint32
 
 const (
+	// startGroup indicates a log line that should start a new multiline group
 	startGroup Label = iota
+	// noAggregate indicates a standalone single-line log
 	noAggregate
+	// aggregate indicates a log line that should be aggregated into the previous line
 	aggregate
 
 	defaultLabelSource = "default"
@@ -75,7 +78,8 @@ func (l *Labeler) Label(rawMessage []byte) Label {
 	return context.label
 }
 
-func labelToString(label Label) string {
+// LabelToString converts a Label to its string representation
+func LabelToString(label Label) string {
 	switch label {
 	case startGroup:
 		return "start_group"
