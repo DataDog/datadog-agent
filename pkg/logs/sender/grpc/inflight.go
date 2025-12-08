@@ -38,15 +38,17 @@ type inflightTracker struct {
 	headBatchID    uint32         // BatchID of the oldest sent payload (at head)
 	batchIDCounter uint32         // Next batchID to be assigned when markSent is called
 	snapshot       *snapshotState // Accumulated state for new streams
+	pipelineName   string         // For telemetry tagging
 }
 
 // newInflightTracker creates a new bounded inflight tracker with the given capacity
 // Allocates capacity+1 slots to implement the "waste one slot" ring buffer pattern
-func newInflightTracker(capacity int) *inflightTracker {
+func newInflightTracker(capacity int, pipelineName string) *inflightTracker {
 	return &inflightTracker{
-		items:    make([]*message.Payload, capacity+1),
-		cap:      capacity,
-		snapshot: newSnapshotState(),
+		items:        make([]*message.Payload, capacity+1),
+		cap:          capacity,
+		snapshot:     newSnapshotState(),
+		pipelineName: pipelineName,
 	}
 }
 
@@ -83,6 +85,7 @@ func (t *inflightTracker) pop() *message.Payload {
 			t.snapshot.apply(extra)
 		}
 	}
+	tlmPipelineStateSize.Set(float64(len(t.snapshot.getSerialized())), t.pipelineName)
 
 	// Advance headBatchID for the next payload
 	if t.head != t.sentTail {
@@ -165,7 +168,7 @@ func (t *inflightTracker) resetOnRotation() {
 // getSnapshot returns the current snapshot state for stream bootstrapping
 // Returns serialized bytes (marshaled DatumSequence) or nil if empty
 func (t *inflightTracker) getSnapshot() []byte {
-	return t.snapshot.serialize()
+	return t.snapshot.getSerialized()
 }
 
 // snapshotState maintains the accumulated state changes for stream bootstrapping
@@ -173,6 +176,8 @@ func (t *inflightTracker) getSnapshot() []byte {
 type snapshotState struct {
 	dictMap    map[uint64]*statefulpb.DictEntryDefine
 	patternMap map[uint64]*statefulpb.PatternDefine
+	cached     []byte
+	dirty      bool
 }
 
 // newSnapshotState creates a new empty snapshot state
@@ -180,6 +185,7 @@ func newSnapshotState() *snapshotState {
 	return &snapshotState{
 		dictMap:    make(map[uint64]*statefulpb.DictEntryDefine),
 		patternMap: make(map[uint64]*statefulpb.PatternDefine),
+		dirty:      true,
 	}
 }
 
@@ -189,6 +195,7 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 		return
 	}
 
+	s.dirty = true
 	for _, datum := range extra.StateChanges {
 		switch d := datum.Data.(type) {
 		case *statefulpb.Datum_PatternDefine:
@@ -207,10 +214,16 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 // Returns the marshaled DatumSequence containing all pattern and dictionary definitions
 // Used to send snapshot on new stream creation
 func (s *snapshotState) serialize() []byte {
+	if !s.dirty {
+		return s.cached
+	}
+
 	// Calculate total datums needed
 	totalSize := len(s.patternMap) + len(s.dictMap)
 
 	if totalSize == 0 {
+		s.cached = nil
+		s.dirty = false
 		return nil
 	}
 
@@ -232,5 +245,12 @@ func (s *snapshotState) serialize() []byte {
 	}
 
 	serialized, _ := proto.Marshal(datumSeq)
+	s.cached = serialized
+	s.dirty = false
 	return serialized
+}
+
+// getSerialized returns the cached or newly serialized snapshot
+func (s *snapshotState) getSerialized() []byte {
+	return s.serialize()
 }

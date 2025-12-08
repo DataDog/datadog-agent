@@ -25,22 +25,21 @@ var (
 	tlmDroppedTooLarge = telemetry.NewCounter("logs_sender_grpc_batch_strategy", "dropped_too_large", []string{"pipeline"}, "Number of payloads dropped due to being too large")
 )
 
-// StatefulExtra holds state changes (non-Log datums) from a batch
-// Used by inflight tracker to maintain snapshot state for stream rotation
-type StatefulExtra struct {
-	StateChanges []*statefulpb.Datum
+// telemetryBreakdown groups datum sizes for telemetry reporting on a stream.
+type telemetryBreakdown struct {
+	PatternLogsCount  int
+	PatternLogBytes   int
+	StateChangesCount int
+	StateChangeBytes  int
+	DatumCount        int
 }
 
-// isStateDatum returns true if the datum represents a state change
-// (pattern/dict define/delete operations)
-func isStateDatum(datum *statefulpb.Datum) bool {
-	switch datum.Data.(type) {
-	case *statefulpb.Datum_PatternDefine, *statefulpb.Datum_PatternDelete,
-		*statefulpb.Datum_DictEntryDefine, *statefulpb.Datum_DictEntryDelete:
-		return true
-	default:
-		return false
-	}
+// StatefulExtra holds state changes (non-Log datums) from a batch and telemetry
+// metadata used when emitting per-stream metrics.
+// Used by inflight tracker to maintain snapshot state for stream rotation.
+type StatefulExtra struct {
+	StateChanges []*statefulpb.Datum
+	Telemetry    telemetryBreakdown
 }
 
 // batchStrategy contains batching logic for gRPC sender without serializer
@@ -213,11 +212,27 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		unencodedSize += msgMeta.RawDataLen
 	}
 
-	// Extract all state changes from this batch for snapshot management
-	var stateChanges []*statefulpb.Datum
+	// Extract all state changes and telemetry from this batch for snapshot management and metrics
+	var (
+		stateChanges []*statefulpb.Datum
+		tlmData      telemetryBreakdown
+	)
 	for _, datum := range grpcDatums {
-		if isStateDatum(datum) {
+		tlmData.DatumCount++
+		switch d := datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine:
 			stateChanges = append(stateChanges, datum)
+			s.recordStateChangeTelemetry(datum, &tlmData)
+		case *statefulpb.Datum_PatternDelete, *statefulpb.Datum_DictEntryDelete:
+			stateChanges = append(stateChanges, datum)
+			s.recordStateChangeTelemetry(datum, &tlmData)
+		case *statefulpb.Datum_DictEntryDefine:
+			stateChanges = append(stateChanges, datum)
+			s.recordStateChangeTelemetry(datum, &tlmData)
+		case *statefulpb.Datum_Logs:
+			if d.Logs != nil {
+				s.recordLogTelemetry(d.Logs, proto.Size(datum), &tlmData)
+			}
 		}
 	}
 
@@ -248,13 +263,47 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	}
 
 	// Store batch-level state changes in payload
-	if len(stateChanges) > 0 {
-		p.StatefulExtra = &StatefulExtra{
-			StateChanges: stateChanges,
-		}
+	p.StatefulExtra = &StatefulExtra{
+		StateChanges: stateChanges,
+		Telemetry:    tlmData,
 	}
 
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, s.instanceID)
 	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+}
+
+// recordStateChangeTelemetry updates pipeline telemetry and per-batch counters for state mutations.
+func (s *batchStrategy) recordStateChangeTelemetry(datum *statefulpb.Datum, tlmData *telemetryBreakdown) {
+	size := proto.Size(datum)
+	tlmData.StateChangesCount++
+	tlmData.StateChangeBytes += size
+	tlmPipelineStateChangeBytes.Add(float64(size), s.pipelineName)
+
+	switch datum.Data.(type) {
+	case *statefulpb.Datum_PatternDefine:
+		tlmPipelinePatternsAdded.Inc(s.pipelineName)
+		tlmPipelinePatternBytesAdded.Add(float64(size), s.pipelineName)
+	case *statefulpb.Datum_PatternDelete:
+		tlmPipelinePatternsRemoved.Inc(s.pipelineName)
+		tlmPipelinePatternBytesRemoved.Add(float64(size), s.pipelineName)
+	case *statefulpb.Datum_DictEntryDefine:
+		tlmPipelineTokensAdded.Inc(s.pipelineName)
+		tlmPipelineTokenBytesAdded.Add(float64(size), s.pipelineName)
+	case *statefulpb.Datum_DictEntryDelete:
+		tlmPipelineTokensRemoved.Inc(s.pipelineName)
+		tlmPipelineTokenBytesRemoved.Add(float64(size), s.pipelineName)
+	}
+}
+
+// recordLogTelemetry updates pipeline and per-batch counters for log datums.
+func (s *batchStrategy) recordLogTelemetry(log *statefulpb.Log, encodedSize int, tlmData *telemetryBreakdown) {
+	switch log.Content.(type) {
+	case *statefulpb.Log_Raw:
+		tlmPipelineRawLogBytes.Add(float64(encodedSize), s.pipelineName)
+	case *statefulpb.Log_Structured:
+		tlmData.PatternLogsCount++
+		tlmData.PatternLogBytes += encodedSize
+		tlmPipelinePatternLogBytes.Add(float64(encodedSize), s.pipelineName)
+	}
 }

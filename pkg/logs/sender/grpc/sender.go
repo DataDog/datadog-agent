@@ -122,6 +122,7 @@ func NewSender(
 
 	// Get stream lifetime from config
 	streamLifetime := config.StreamLifetime(cfg)
+	pipelineName := "logs"
 
 	sender := &Sender{
 		endpoint:            endpoint,
@@ -160,6 +161,7 @@ func NewSender(
 			sender.sink,
 			endpoint,
 			streamLifetime,
+			pipelineName,
 		)
 
 		sender.workers = append(sender.workers, worker)
