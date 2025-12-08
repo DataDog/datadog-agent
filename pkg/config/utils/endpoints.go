@@ -212,7 +212,7 @@ func BuildURLWithPrefix(prefix, site string) string {
 // GetMainEndpoint returns the main DD URL defined in the config, based on `site` and the prefix, or ddURLKey
 func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
 	// value under ddURLKey takes precedence over 'site'
-	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
+	if c.IsConfigured(ddURLKey) && c.GetString(ddURLKey) != "" {
 		return getResolvedDDUrl(c, ddURLKey)
 	} else if c.GetString("site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("site"))

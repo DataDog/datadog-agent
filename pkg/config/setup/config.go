@@ -2807,9 +2807,9 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 }
 
 func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
-	config.BindEnv(prefix + "logs_dd_url")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
-	config.BindEnv(prefix + "dd_url")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv(prefix + "additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault(prefix+"logs_dd_url", "") // Send the logs to a proxy. Must respect format '<HOST>:<PORT>' and '<PORT>' to be an integer
+	config.BindEnvAndSetDefault(prefix+"dd_url", "")
+	config.BindEnvAndSetDefault(prefix+"additional_endpoints", []map[string]interface{}{})
 	config.BindEnvAndSetDefault(prefix+"use_compression", true)
 	config.BindEnvAndSetDefault(prefix+"compression_kind", DefaultLogCompressionKind)
 	config.BindEnvAndSetDefault(prefix+"zstd_compression_level", DefaultZstdCompressionLevel) // Default level for the zstd algorithm
