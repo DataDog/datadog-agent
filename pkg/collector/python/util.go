@@ -16,12 +16,12 @@ import "C"
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"io"
 	"os/exec"
 	"sync"
 	"syscall"
 	"unsafe"
-	"github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 )
 
 // GetSubprocessOutput runs the subprocess and returns the output
