@@ -226,8 +226,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 			cluster := drainProcessor.Match(renderedString)
 			drainProcessor.Train(renderedString)
 			if cluster.Size() >= drainClusterSizeThreshold {
-				// TODO: Really ignore
-				rendered = append([]byte("[DRAIN-IGNORED] "), rendered...)
+				// rendered = append([]byte("[DRAIN-IGNORED] "), rendered...)
 				metrics.TlmDrainIgnored.Inc()
 			}
 		}
