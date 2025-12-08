@@ -99,7 +99,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/faceair/drain => github.com/CelianR/drain v0.0.0-20251205093542-ea656b1e1880
+replace github.com/faceair/drain => github.com/CelianR/drain v0.0.0-20251208124546-3a7b7cf7d399
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

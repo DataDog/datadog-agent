@@ -81,6 +81,10 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	// Initialize cached failover config
 	p.updateFailoverConfig()
 
+	log.Info("CELIAN INIT")
+	// Init drain processor
+	GetDrainProcessor()
+
 	// Register for config change notifications
 	if config != nil {
 		config.OnUpdate(p.onLogsFailoverSettingChanged)
@@ -176,6 +180,7 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
+	log.Infof("CELIAN PROCESS MESSAGE %s", msg.GetContent())
 	useDrain := UseDrain()
 	if useDrain {
 		defer ReleaseDrain()
@@ -195,7 +200,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
-	nDrainProcessed := 0
 	totalTimeDrainProcessing := int64(0)
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
@@ -214,16 +218,22 @@ func (p *Processor) processMessage(msg *message.Message) {
 		start := time.Now()
 		// TODO: Clean code
 		if useDrain {
+			drainNLogs++
+			// TODO: What to do with long lines?
+			if len(renderedString) > drainMaxLineLength {
+				renderedString = renderedString[:drainMaxLineLength]
+			}
+
 			drainProcessor := GetDrainProcessor()
 			cluster := drainProcessor.Match(renderedString)
+			drainProcessor.Train(renderedString)
 			if cluster.Size() >= drainClusterSizeThreshold {
-				rendered = []byte("[DRAIN-IGNORED] " + renderedString)
+				// TODO: Really ignore
+				rendered = append([]byte("[DRAIN-IGNORED] "), rendered...)
 				metrics.TlmDrainIgnored.Inc()
 			}
-			drainProcessor.Train(renderedString)
 		}
 		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
-		nDrainProcessed++
 
 		msg.SetRendered(rendered)
 
@@ -245,15 +255,11 @@ func (p *Processor) processMessage(msg *message.Message) {
 		p.pipelineMonitor.ReportComponentIngress(msg, metrics.StrategyTlmName, p.instanceID)
 	}
 
-	if useDrain {
-		CountLogs(int64(nDrainProcessed))
-	}
-
 	// Drain metrics
 	processTime := time.Since(logStart)
 	if useDrain {
-		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()) / float64(nDrainProcessed))
-		metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing) / float64(nDrainProcessed))
+		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()))
+		metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing))
 	}
 }
 

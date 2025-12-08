@@ -18,8 +18,13 @@ import (
 
 const (
 	reportDrainInfoInterval = 20 * time.Second
+	updateDrainInterval     = 1 * time.Minute
+	// We decrease each cluster size by this factor every time we update drain
+	// 0.95 each minute ~= 50% in an hour
+	drainClusterSizeDecay = 0.95
 	// Threshold to determine whether or not to send a message based on the size of his cluster
 	drainClusterSizeThreshold = 10
+	drainMaxLineLength        = 120
 )
 
 var (
@@ -28,19 +33,27 @@ var (
 	drainMutex            sync.Mutex
 	drainNLogs            int64
 	drainLastTimeReported time.Time
+	drainLastTimeUpdated  time.Time
 )
 
 func GetDrainProcessor() *drain.Drain {
 	drainInitOnce.Do(func() {
 		drainProcessor = drain.New(drain.DefaultConfig())
 		drainLastTimeReported = time.Now()
+		drainLastTimeUpdated = time.Now()
 		log.Info("Initialized drain processor")
 	})
 	return drainProcessor
 }
 
 func UseDrain() bool {
-	return drainMutex.TryLock()
+	canUse := drainMutex.TryLock()
+
+	if canUse {
+		updateDrain()
+	}
+
+	return canUse
 }
 
 func ReleaseDrain() {
@@ -52,8 +65,18 @@ func ReleaseDrain() {
 	drainMutex.Unlock()
 }
 
-func CountLogs(n int64) {
-	drainNLogs += n
+// Decrease the size of each cluster by the decay factor
+func updateDrain() {
+	if time.Since(drainLastTimeUpdated) < updateDrainInterval {
+		return
+	}
+	drainLastTimeUpdated = time.Now()
+
+	clusters := drainProcessor.Clusters()
+	for _, cluster := range clusters {
+		// TODO: Can we remove clusters
+		cluster.SetSize(int(float64(cluster.Size()) * drainClusterSizeDecay))
+	}
 }
 
 // Reports metrics and display logs for drain clusters
