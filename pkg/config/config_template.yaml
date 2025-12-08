@@ -1921,6 +1921,7 @@ api_key:
 {{ end -}}
 
 {{ if .NetworkPath -}}
+{{ if (ne .OS "darwin") -}}
 
 #############################################
 ## Network Path Dynamic Test Configuration ##
@@ -2040,6 +2041,7 @@ api_key:
 #
 #     pathtest_contexts_limit: 1000
 
+{{ end -}}
 {{ end -}}
 {{ end -}}
 
