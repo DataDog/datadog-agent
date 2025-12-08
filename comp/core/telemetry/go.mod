@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.61.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.2
+	github.com/prometheus/common v0.67.4
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
 )
