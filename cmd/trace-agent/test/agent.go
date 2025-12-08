@@ -45,6 +45,11 @@ var ErrNotInstalled = errors.New("agent: trace-agent not found in $PATH")
 // SecretBackendBinary secret binary name
 var SecretBackendBinary = "secret-script.test"
 
+var (
+	tmpDir    string
+	buildOnce sync.Once
+)
+
 type grpcServer struct {
 	pb.UnimplementedAgentSecureServer
 }
@@ -63,8 +68,70 @@ type agentRunner struct {
 	authToken            string
 }
 
+// CleanupCachedBinaries removes the temporary directory created for cached binaries.
+func CleanupCachedBinaries() {
+	if tmpDir != "" {
+		_, tmpDir = os.RemoveAll(tmpDir), ""
+	}
+}
+
+func buildBinaries(verbose bool) error {
+	var err error
+	tmpDir, err = os.MkdirTemp("", "trace-agent-integration-tests")
+	if err != nil {
+		return err
+	}
+	binpath := filepath.Join(tmpDir, "trace-agent")
+	if verbose {
+		log.Printf("agent: installing in %s...", binpath)
+	}
+	// Set environment variables to prevent go build commands from accessing
+	// the module cache concurrently, which can cause timeouts.
+	env := append(os.Environ(),
+		"GOPRIVATE=*",
+		"GOPROXY=off",
+	)
+	cmd := exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent")
+	cmd.Env = env
+	o, err := cmd.CombinedOutput()
+	if err != nil {
+		if verbose {
+			log.Printf("error installing trace-agent: %v", err)
+			log.Print(string(o))
+		}
+		return ErrNotInstalled
+	}
+
+	binSecrets := filepath.Join(tmpDir, SecretBackendBinary)
+	cmd = exec.Command("go", "build", "-o", binSecrets, "./testdata/secretscript.go")
+	cmd.Env = env
+	o, err = cmd.CombinedOutput()
+	if err != nil {
+		if verbose {
+			log.Printf("error installing secret-script: %v", err)
+			log.Print(string(o))
+		}
+		return ErrNotInstalled
+	}
+
+	if err := os.Chmod(binSecrets, 0700); err != nil {
+		if verbose {
+			log.Printf("error changing permissions secret-script: %v", err)
+		}
+		return ErrNotInstalled
+	}
+	return nil
+}
+
 func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agentRunner, error) {
-	bindir, err := os.MkdirTemp("", "trace-agent-integration-tests")
+	var err error
+	buildOnce.Do(func() {
+		err = buildBinaries(verbose)
+	})
+	if err != nil {
+		return nil, err
+	}
+	bindir, err := os.MkdirTemp(tmpDir, "runner-")
 	if err != nil {
 		return nil, err
 	}
@@ -72,32 +139,18 @@ func newAgentRunner(ddAddr string, verbose bool, buildSecretBackend bool) (*agen
 	if verbose {
 		log.Printf("agent: installing in %s...", binpath)
 	}
-	// TODO(gbbr): find a way to re-use the same binary within a whole run
-	// instead of creating new ones on each test creating a new runner.
-	o, err := exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent").CombinedOutput()
-	if err != nil {
+	if err := os.Symlink(filepath.Join(tmpDir, "trace-agent"), binpath); err != nil {
 		if verbose {
 			log.Printf("error installing trace-agent: %v", err)
-			log.Print(string(o))
 		}
 		return nil, ErrNotInstalled
 	}
 
 	if buildSecretBackend {
 		binSecrets := filepath.Join(bindir, SecretBackendBinary)
-		o, err := exec.Command("go", "build", "-o", binSecrets, "./testdata/secretscript.go").CombinedOutput()
-
-		if err != nil {
+		if err := os.Symlink(filepath.Join(tmpDir, SecretBackendBinary), binSecrets); err != nil {
 			if verbose {
 				log.Printf("error installing secret-script: %v", err)
-				log.Print(string(o))
-			}
-			return nil, ErrNotInstalled
-		}
-
-		if err := os.Chmod(binSecrets, 0700); err != nil {
-			if verbose {
-				log.Printf("error changing permissions secret-script: %v", err)
 			}
 			return nil, ErrNotInstalled
 		}
