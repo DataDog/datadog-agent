@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix SNMP autodiscovery bug where the agent had to be restarted to take into account new devices discovered in a subnet.
+    Fix SNMP Autodiscovery bug where the Agent had to be restarted to take into account new devices discovered in a subnet.
