@@ -75,8 +75,16 @@ var (
 	globalBBSCacheLock sync.Mutex
 )
 
+// BBSCacheConfig holds configuration for BBSCache
+type BBSCacheConfig struct {
+	BBSClient    bbs.Client       // BBS API client
+	PollInterval time.Duration    // Interval between cache refresh polls
+	IncludeList  []*regexp.Regexp // Regex patterns for environment variables to include as tags
+	ExcludeList  []*regexp.Regexp // Regex patterns for environment variables to exclude from tags
+}
+
 // ConfigureGlobalBBSCache configures the global instance of BBSCache from provided config
-func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyfile string, pollInterval time.Duration, includeList, excludeList []*regexp.Regexp, testing bbs.Client) (*BBSCache, error) {
+func ConfigureGlobalBBSCache(ctx context.Context, config BBSCacheConfig) (*BBSCache, error) {
 	globalBBSCacheLock.Lock()
 	defer globalBBSCacheLock.Unlock()
 
@@ -85,35 +93,15 @@ func ConfigureGlobalBBSCache(ctx context.Context, bbsURL, cafile, certfile, keyf
 	}
 
 	globalBBSCache.configured = true
-	if testing != nil {
-		globalBBSCache.bbsAPIClient = testing
-	} else {
-		clientConfig := bbs.ClientConfig{
-			URL:                    bbsURL,
-			IsTLS:                  true,
-			CAFile:                 cafile,
-			CertFile:               certfile,
-			KeyFile:                keyfile,
-			ClientSessionCacheSize: 0,
-			MaxIdleConnsPerHost:    0,
-			InsecureSkipVerify:     false,
-			Retries:                10,
-			RequestTimeout:         5 * time.Second,
-		}
-		var err error
-		globalBBSCache.bbsAPIClient, err = bbs.NewClientWithConfig(clientConfig)
-		if err != nil {
-			return nil, err
-		}
-	}
+	globalBBSCache.bbsAPIClient = config.BBSClient
 
 	globalBBSCache.bbsAPIClientLogger = lager.NewLogger("bbs")
-	globalBBSCache.pollInterval = pollInterval
+	globalBBSCache.pollInterval = config.PollInterval
 	globalBBSCache.lastUpdated = time.Time{} // zero time
 	globalBBSCache.updatedOnce = make(chan struct{})
 	globalBBSCache.cancelContext = ctx
-	globalBBSCache.envIncludeList = includeList
-	globalBBSCache.envExcludeList = excludeList
+	globalBBSCache.envIncludeList = config.IncludeList
+	globalBBSCache.envExcludeList = config.ExcludeList
 
 	go globalBBSCache.start()
 

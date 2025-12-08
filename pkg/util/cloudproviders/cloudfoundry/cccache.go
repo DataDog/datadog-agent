@@ -114,8 +114,19 @@ type CCClientI interface {
 
 var globalCCCache = &CCCache{}
 
+// CCCacheConfig holds configuration for CCCache
+type CCCacheConfig struct {
+	CCClient           CCClientI     // Cloud Controller API client
+	PollInterval       time.Duration // Interval between cache refresh polls
+	AppsBatchSize      int           // Number of apps to fetch per API request
+	RefreshCacheOnMiss bool          // Whether to refresh cache on cache miss
+	ServeNozzleData    bool          // Whether to prepare CFApplication data for the nozzle
+	SidecarsTags       bool          // Whether to include sidecar tags
+	SegmentsTags       bool          // Whether to include isolation segment tags
+}
+
 // ConfigureGlobalCCCache configures the global instance of CCCache from provided config
-func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecret string, skipSSLValidation bool, pollInterval time.Duration, appsBatchSize int, refreshCacheOnMiss, serveNozzleData, sidecarsTags, segmentsTags bool, testing CCClientI) (*CCCache, error) {
+func ConfigureGlobalCCCache(ctx context.Context, config CCCacheConfig) (*CCCache, error) {
 	globalCCCache.Lock()
 	defer globalCCCache.Unlock()
 
@@ -123,33 +134,18 @@ func ConfigureGlobalCCCache(ctx context.Context, ccURL, ccClientID, ccClientSecr
 		return globalCCCache, nil
 	}
 
-	if testing != nil {
-		globalCCCache.ccAPIClient = testing
-	} else {
-		clientConfig := &cfclient.Config{
-			ApiAddress:        ccURL,
-			ClientID:          ccClientID,
-			ClientSecret:      ccClientSecret,
-			SkipSslValidation: skipSSLValidation,
-			UserAgent:         "datadog-cluster-agent",
-		}
-		var err error
-		globalCCCache.ccAPIClient, err = NewCFClient(clientConfig)
-		if err != nil {
-			return nil, err
-		}
-	}
+	globalCCCache.ccAPIClient = config.CCClient
 
-	globalCCCache.pollInterval = pollInterval
-	globalCCCache.appsBatchSize = appsBatchSize
+	globalCCCache.pollInterval = config.PollInterval
+	globalCCCache.appsBatchSize = config.AppsBatchSize
 	globalCCCache.lastUpdated = time.Time{} // zero time
 	globalCCCache.updatedOnce = make(chan struct{})
 	globalCCCache.cancelContext = ctx
 	globalCCCache.configured = true
-	globalCCCache.refreshCacheOnMiss = refreshCacheOnMiss
-	globalCCCache.serveNozzleData = serveNozzleData
-	globalCCCache.sidecarsTags = sidecarsTags
-	globalCCCache.segmentsTags = segmentsTags
+	globalCCCache.refreshCacheOnMiss = config.RefreshCacheOnMiss
+	globalCCCache.serveNozzleData = config.ServeNozzleData
+	globalCCCache.sidecarsTags = config.SidecarsTags
+	globalCCCache.segmentsTags = config.SegmentsTags
 
 	go globalCCCache.start()
 
