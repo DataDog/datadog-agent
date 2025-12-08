@@ -153,7 +153,7 @@ configure_make(
     deps = [
         "@libffi//:ffi",
         "@openssl//:openssl",
-        # "@libyaml",
+        "@libyaml//:libyaml",
         # "@sqlite3",
         "@zlib//:zlib",
         "@bzip2//:libbz2",
@@ -162,6 +162,7 @@ configure_make(
     dynamic_deps = [
         "@zlib//:z",
         "@bzip2//:bz2",
+        "@libyaml//:yaml",
     ],
     targets = [
         # Build in parallel but install without parallel execution
