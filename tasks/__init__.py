@@ -45,6 +45,7 @@ from tasks import (
     kmt,
     linter,
     loader,
+    logs_processor,
     macos,
     modules,
     msi,
@@ -197,6 +198,7 @@ ns.add_collection(fips)
 ns.add_collection(go)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
+ns.add_collection(logs_processor, "logs-processor")
 ns.add_collection(msi)
 ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
