@@ -34,6 +34,12 @@ var (
 	// TlmLogsProcessTime is the average logs process time for each log
 	TlmLogsProcessTime = telemetry.NewGauge("logs", "logs_process_time",
 		nil, "Logs process time for each log (average)")
+	// TlmDrainIgnored is the number of ignored logs by drain
+	TlmDrainIgnored = telemetry.NewCounter("logs", "drain_ignored",
+		nil, "Total number of ignored logs by drain")
+	// TlmDrainClustersAboveThreshold is the number of clusters above the ignore threshold
+	TlmDrainClustersAboveThreshold = telemetry.NewGauge("logs", "drain_clusters_above_threshold",
+		nil, "Total number of clusters above the ignore threshold")
 	// LogsExpvars contains metrics for the logs agent.
 	LogsExpvars *expvar.Map
 	// LogsDecoded is the total number of decoded logs

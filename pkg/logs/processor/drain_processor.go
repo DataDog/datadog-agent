@@ -16,7 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const reportDrainInfoInterval = 20 * time.Second
+const (
+	reportDrainInfoInterval = 20 * time.Second
+	// Threshold to determine whether or not to send a message based on the size of his cluster
+	drainClusterSizeThreshold = 10
+)
 
 var (
 	drainProcessor        *drain.Drain
@@ -60,7 +64,7 @@ func reportDrainInfo() {
 	log.Infof("drain: Displaying the top 10 clusters")
 	// Sort by size
 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
-		return a.Size() - b.Size()
+		return b.Size() - a.Size()
 	})
 	nClusters := len(clusters)
 	for i, cluster := range clusters[:min(10, nClusters)] {
@@ -73,9 +77,14 @@ func reportDrainInfo() {
 			maxSize = cluster.Size()
 		}
 	}
+	nClustersAboveThreshold := 0
 	for _, cluster := range clusters {
-		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size()) / float64(maxSize))
+		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size()) / float64(maxSize) * 100)
+		if cluster.Size() >= drainClusterSizeThreshold {
+			nClustersAboveThreshold++
+		}
 	}
+	metrics.TlmDrainClustersAboveThreshold.Set(float64(nClustersAboveThreshold))
 	metrics.TlmDrainClusters.Set(float64(len(clusters)))
 	metrics.TlmDrainClustersRatio.Set(drainClustersRatio)
 	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))

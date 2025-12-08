@@ -207,7 +207,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 			log.Error("can't render the msg", err)
 			return
 		}
-		msg.SetRendered(rendered)
 
 		// Drain sampling
 		// TODO: process bytes and not string for drain processor
@@ -216,11 +215,17 @@ func (p *Processor) processMessage(msg *message.Message) {
 		// TODO: Clean code
 		if useDrain {
 			drainProcessor := GetDrainProcessor()
-			drainProcessor.Match(renderedString)
+			cluster := drainProcessor.Match(renderedString)
+			if cluster.Size() >= drainClusterSizeThreshold {
+				rendered = []byte("[DRAIN-IGNORED] " + renderedString)
+				metrics.TlmDrainIgnored.Inc()
+			}
 			drainProcessor.Train(renderedString)
 		}
 		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
 		nDrainProcessed++
+
+		msg.SetRendered(rendered)
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")
