@@ -73,28 +73,35 @@ type MockComponent interface {
 type MockComponentImplMrf struct {
 	settings.Component
 
-	logs    *bool
-	metrics *bool
-	apm     *bool
+	logs      *bool
+	metrics   *bool
+	apm       *bool
+	allowlist *[]string
 }
 
 func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
 	v, ok := value.(bool)
-	if !ok {
-		return fmt.Errorf("unexpected value type %T", value)
+	if ok {
+		switch setting {
+		case "multi_region_failover.failover_metrics":
+			m.metrics = &v
+		case "multi_region_failover.failover_logs":
+			m.logs = &v
+		case "multi_region_failover.failover_apm":
+			m.apm = &v
+		default:
+			return &settings.SettingNotFoundError{Name: setting}
+		}
+		return nil
 	}
 
-	switch setting {
-	case "multi_region_failover.failover_metrics":
-		m.metrics = &v
-	case "multi_region_failover.failover_logs":
-		m.logs = &v
-	case "multi_region_failover.failover_apm":
-		m.apm = &v
-	default:
-		return &settings.SettingNotFoundError{Name: setting}
+	v2, ok := value.([]string)
+	if ok {
+		m.allowlist = &v2
+		return nil
 	}
-	return nil
+
+	return fmt.Errorf("unexpected value type %T", value)
 }
 
 func TestRCClientCreate(t *testing.T) {
@@ -271,6 +278,9 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
+	activeAllowlist := state.RawConfig{Config: []byte(`{"name": "yesallowlist", "metric_allowlist": ["system.cpu.usage"]}`)}
+	emptyAllowlist := state.RawConfig{Config: []byte(`{"name": "emptyallowlist", "metric_allowlist": []}`)}
+	nilAllowlist := state.RawConfig{Config: []byte(`{"name": "nilallowlist"}`)}
 
 	rc := rcComponent.(*rcClient)
 
@@ -289,15 +299,40 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	rc.settingsComponent = &MockComponentImplMrf{}
 
 	// Should enable metrics failover and disable logs failover
+	// and set the metrics allowlist
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
-		"datadog/2/AGENT_FAILOVER/none/configname":       allInactive,
-		"datadog/2/AGENT_FAILOVER/nologs/configname":     noLogs,
-		"datadog/2/AGENT_FAILOVER/yesmetrics/configname": activeMetrics,
-		"datadog/2/AGENT_FAILOVER/yesapm/configname":     activeAPM,
+		"datadog/2/AGENT_FAILOVER/none/configname":         allInactive,
+		"datadog/2/AGENT_FAILOVER/nologs/configname":       noLogs,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
+		"datadog/2/AGENT_FAILOVER/yesapm/configname":       activeAPM,
+		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": activeAllowlist,
 	}, applyEmpty)
 
 	cmpntSettings := rc.settingsComponent.(*MockComponentImplMrf)
 	assert.True(t, *cmpntSettings.metrics)
 	assert.False(t, *cmpntSettings.logs)
 	assert.True(t, *cmpntSettings.apm)
+	assert.ElementsMatch(t, []string{"system.cpu.usage"}, *cmpntSettings.allowlist)
+
+	// Should set an empty allowlist
+	rc.settingsComponent = &MockComponentImplMrf{}
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": emptyAllowlist,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
+	}, applyEmpty)
+
+	cmpntSettings = rc.settingsComponent.(*MockComponentImplMrf)
+	assert.True(t, *cmpntSettings.metrics)
+	assert.ElementsMatch(t, []string{}, *cmpntSettings.allowlist)
+
+	// Should not set an allowlist
+	rc.settingsComponent = &MockComponentImplMrf{}
+	rc.mrfUpdateCallback(map[string]state.RawConfig{
+		"datadog/2/AGENT_FAILOVER/emptyallowlist/configname": nilAllowlist,
+		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":     activeMetrics,
+	}, applyEmpty)
+
+	cmpntSettings = rc.settingsComponent.(*MockComponentImplMrf)
+	assert.True(t, *cmpntSettings.metrics)
+	assert.Nil(t, cmpntSettings.allowlist)
 }
