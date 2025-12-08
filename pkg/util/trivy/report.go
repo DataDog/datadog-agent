@@ -20,8 +20,9 @@ import (
 
 // Report describes a trivy report along with its marshaler
 type Report struct {
-	id  string
-	bom *cyclonedx_v1_4.Bom
+	id     string
+	bom    *cyclonedx_v1_4.Bom
+	method string
 }
 
 type reportOptions struct {
@@ -55,4 +56,12 @@ func (r *Report) ToCycloneDX() *cyclonedx_v1_4.Bom {
 // ID returns the report identifier
 func (r *Report) ID() string {
 	return r.id
+}
+
+// Tags returns the report tags
+func (r *Report) Tags() []string {
+	if r.method != "" {
+		return []string{"scan_method:" + r.method}
+	}
+	return nil
 }

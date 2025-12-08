@@ -120,8 +120,20 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 			},
 		}
 
-		return c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
+		report, err := c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)
+		if err != nil {
+			return nil, err
+		}
+
+		report.method = "overlayfs"
+		return report, nil
 	}
 
-	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	report, err := c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	report.method = "tarball"
+	return report, nil
 }

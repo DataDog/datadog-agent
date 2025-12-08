@@ -57,7 +57,8 @@ func (s *scanRequest) ID() string {
 var _ sbom.ScanRequest = (*scanRequest)(nil)
 
 type mockReport struct {
-	id string
+	id   string
+	tags []string
 }
 
 // ToCycloneDX returns a mock BOM
@@ -68,6 +69,11 @@ func (m mockReport) ToCycloneDX() *cyclonedx_v1_4.Bom {
 // ID returns the report ID
 func (m mockReport) ID() string {
 	return m.id
+}
+
+// Tags returns the report tags
+func (m mockReport) Tags() []string {
+	return m.tags
 }
 
 var _ sbom.Report = mockReport{}
