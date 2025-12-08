@@ -18,6 +18,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,10 +34,10 @@ func TestLeafNodeCanHaveComplexMapValue(t *testing.T) {
 	nodeTreeConfig, ok := cfg.(NodeTreeConfig)
 	require.Equal(t, ok, true)
 	// Assert that the key is a leaf node, since it was directly added by BindEnvAndSetDefault
-	n, err := nodeTreeConfig.GetNode("kubernetes_node_annotations_as_tags")
+	node, err := nodeTreeConfig.GetNode("kubernetes_node_annotations_as_tags")
 	require.NoError(t, err)
-	_, ok = n.(LeafNode)
-	require.Equal(t, ok, true)
+	require.True(t, node.IsLeafNode())
+	require.Equal(t, map[string]string{"cluster.k8s.io/machine": "kube_machine"}, node.Get())
 }
 
 // Test that default, file, and env layers can build, get merged, and retrieve settings
@@ -494,6 +495,25 @@ logs_config:
 	assert.True(t, cfg.HasSection("logs_config"))
 	assert.False(t, cfg.HasSection("apm_config"))
 	assert.True(t, cfg.HasSection("runtime_security_config"))
+}
+
+func TestMapGetChildNotFound(t *testing.T) {
+	m := map[string]interface{}{"a": "apple", "b": "banana"}
+	n, err := newNodeTree(m, model.SourceDefault)
+	assert.NoError(t, err)
+
+	val, err := n.GetChild("a")
+	assert.NoError(t, err)
+	str, err := cast.ToStringE(val.Get())
+	assert.NoError(t, err)
+	assert.Equal(t, str, "apple")
+
+	_, err = n.GetChild("c")
+	require.Error(t, err)
+	assert.Equal(t, err.Error(), "not found")
+
+	assert.True(t, n.IsInnerNode())
+	assert.Equal(t, n.ChildrenKeys(), []string{"a", "b"})
 }
 
 func TestStringifyLayers(t *testing.T) {
