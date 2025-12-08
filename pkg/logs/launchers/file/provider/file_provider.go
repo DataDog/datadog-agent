@@ -401,9 +401,9 @@ func ShouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	}
 
 	infos := make(map[string]string)
-	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(ContainersLogsDir, func(containerLogFilename string, d os.DirEntry, err error) error {
 		// we only wants to follow symlinks
-		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+		if d == nil || d.Type()&os.ModeSymlink != os.ModeSymlink || d.IsDir() {
 			// not a symlink, we are not interested in this file
 			return nil
 		}

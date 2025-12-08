@@ -474,13 +474,13 @@ func TestNoOutsideImport(t *testing.T) {
 	}
 
 	// Walk the directory tree
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(rootDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Only check .go files
-		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".go") {
 			// Create a file set and parse the file
 			fs := token.NewFileSet()
 			node, err := parser.ParseFile(fs, path, nil, parser.ImportsOnly)
