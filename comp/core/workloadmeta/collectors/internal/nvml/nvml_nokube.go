@@ -3,18 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package serverstore
+//go:build linux && nvml && !kubelet
 
-import (
-	"testing"
+package nvml
 
-	"github.com/stretchr/testify/suite"
-)
+import "context"
 
-func TestSqlStore(t *testing.T) {
-	suite.Run(t, &StoreTestSuite{
-		StoreConstructor: func() Store {
-			return newSQLStore("")
-		},
-	})
+func (c *collector) getUnhealthyDevices(ctx context.Context) (map[string]struct{}, error) {
+	// gpu health info not available without kubelet access
+	return nil, nil
 }
