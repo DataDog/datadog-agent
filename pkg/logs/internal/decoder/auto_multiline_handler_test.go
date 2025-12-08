@@ -28,7 +28,7 @@ func TestAutoMultilineHandler_ManualFlush(t *testing.T) {
 	}
 
 	// Create handler with long flush timeout to avoid auto-flush during test
-	handler := NewAutoMultilineHandler(outputFn, 100, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 100, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 
 	// Add an incomplete message
 	handler.process(newTestMessage(`{"key":`))
@@ -48,7 +48,7 @@ func TestAutoMultilineHandler_FlushWithPendingJSON(t *testing.T) {
 	}
 
 	// Create handler with long flush timeout
-	handler := NewAutoMultilineHandler(outputFn, 100, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 100, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 
 	// Add incomplete JSON messages
 	handler.process(newTestMessage(`{"key":`))
@@ -72,7 +72,7 @@ func TestAutoMultilineHandler_CompleteJSONGrouping(t *testing.T) {
 		outputChan <- m
 	}
 
-	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 
 	// Process complete JSON, should output immediately
 	handler.process(newTestMessage(`{"key":"value"}`))
@@ -88,7 +88,7 @@ func TestAutoMultilineHandler_MultiPartJSONGrouping(t *testing.T) {
 		outputChan <- m
 	}
 
-	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -107,7 +107,7 @@ func TestAutoMultilineHandler_FlushAfterInvalidJSON(t *testing.T) {
 		outputChan <- m
 	}
 
-	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 
 	// Start with valid JSON part
 	handler.process(newTestMessage(`{"key":`))
@@ -132,7 +132,7 @@ func TestAutoMultilineHandler_MixedFormatLog(t *testing.T) {
 		outputChan <- m
 	}
 
-	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 
 	// Process multi-part JSON
 	handler.process(newTestMessage(`{"key":`))
@@ -182,7 +182,7 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 	}
 
 	// Create handler with JSON aggregation disabled
-	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil)
+	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil, false)
 	handler.enableJSONAggregation = false
 
 	// Process multi-part JSON
@@ -202,4 +202,30 @@ func TestAutoMultilineHandler_JSONAggregationDisabled(t *testing.T) {
 		assert.Fail(t, "Expected no more messages")
 	default:
 	}
+}
+
+func TestAutoMultilineHandler_LabelLogs(t *testing.T) {
+	outputChan := make(chan *message.Message, 10)
+	outputFn := func(m *message.Message) {
+		outputChan <- m
+	}
+
+	handler := NewAutoMultilineHandler(outputFn, 1000, 10*time.Second, status.NewInfoRegistry(), nil, nil, true)
+	handler.enableJSONAggregation = false
+
+	handler.process(newTestMessage(`10-04-2025 12:00:00 [INFO] begnning of a stack trace`))
+	msg := <-outputChan
+	assert.Contains(t, msg.ProcessingTags[0], "start_group", nil)
+
+	handler.process(newTestMessage(` at com.example.MyClass.method(MyClass.java:123)`))
+	msg = <-outputChan
+	assert.Contains(t, msg.ProcessingTags[0], "aggregate", nil)
+
+	handler.process(newTestMessage(` at com.example.MyClass.method(MyClass.java:123)`))
+	msg = <-outputChan
+	assert.Contains(t, msg.ProcessingTags[0], "aggregate", nil)
+
+	handler.process(newTestMessage(`10-04-2025 12:00:00 [INFO] single line log`))
+	msg = <-outputChan
+	assert.Contains(t, msg.ProcessingTags[0], "start_group", nil)
 }
