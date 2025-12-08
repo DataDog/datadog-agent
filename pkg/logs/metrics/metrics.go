@@ -100,6 +100,46 @@ var (
 	LogsTruncated = expvar.Int{}
 	// TlmTruncatedCount tracks the count of times a log is truncated
 	TlmTruncatedCount = telemetry.NewCounter("logs", "truncated", []string{"service", "source"}, "Count the number of times a log is truncated")
+
+	// gRPC Stateful Pipeline-level metrics
+	// TlmGRPCStatefulStateSize tracks the current state size in bytes per pipeline
+	TlmGRPCStatefulStateSize = telemetry.NewGauge("logs_grpc_stateful", "state_size_bytes", []string{"pipeline"}, "Current state size in bytes")
+	// TlmGRPCStatefulPatternsAdded tracks patterns added to state per pipeline
+	TlmGRPCStatefulPatternsAdded = telemetry.NewCounter("logs_grpc_stateful", "patterns_added", []string{"pipeline"}, "Number of patterns added to state")
+	// TlmGRPCStatefulPatternsRemoved tracks patterns removed from state per pipeline
+	TlmGRPCStatefulPatternsRemoved = telemetry.NewCounter("logs_grpc_stateful", "patterns_removed", []string{"pipeline"}, "Number of patterns removed from state")
+	// TlmGRPCStatefulTokensAdded tracks dictionary entries added to state per pipeline
+	TlmGRPCStatefulTokensAdded = telemetry.NewCounter("logs_grpc_stateful", "tokens_added", []string{"pipeline"}, "Number of tokens (dict entries) added to state")
+	// TlmGRPCStatefulTokensRemoved tracks dictionary entries removed from state per pipeline
+	TlmGRPCStatefulTokensRemoved = telemetry.NewCounter("logs_grpc_stateful", "tokens_removed", []string{"pipeline"}, "Number of tokens (dict entries) removed from state")
+	// TlmGRPCStatefulPatternBytesAdded tracks bytes of patterns added to state per pipeline
+	TlmGRPCStatefulPatternBytesAdded = telemetry.NewCounter("logs_grpc_stateful", "pattern_bytes_added", []string{"pipeline"}, "Bytes of patterns added to state")
+	// TlmGRPCStatefulPatternBytesRemoved tracks bytes of patterns removed from state per pipeline
+	TlmGRPCStatefulPatternBytesRemoved = telemetry.NewCounter("logs_grpc_stateful", "pattern_bytes_removed", []string{"pipeline"}, "Bytes of patterns removed from state")
+	// TlmGRPCStatefulTokenBytesAdded tracks bytes of dictionary entries added to state per pipeline
+	TlmGRPCStatefulTokenBytesAdded = telemetry.NewCounter("logs_grpc_stateful", "token_bytes_added", []string{"pipeline"}, "Bytes of tokens (dict entries) added to state")
+	// TlmGRPCStatefulTokenBytesRemoved tracks bytes of dictionary entries removed from state per pipeline
+	TlmGRPCStatefulTokenBytesRemoved = telemetry.NewCounter("logs_grpc_stateful", "token_bytes_removed", []string{"pipeline"}, "Bytes of tokens (dict entries) removed from state")
+	// TlmGRPCStatefulPatternLogsBytesSent tracks bytes of pattern logs sent per pipeline
+	TlmGRPCStatefulPatternLogsBytesSent = telemetry.NewCounter("logs_grpc_stateful", "pattern_logs_bytes_sent", []string{"pipeline"}, "Bytes of pattern logs sent")
+	// TlmGRPCStatefulRawLogsBytesSent tracks bytes of raw logs sent per pipeline
+	TlmGRPCStatefulRawLogsBytesSent = telemetry.NewCounter("logs_grpc_stateful", "raw_logs_bytes_sent", []string{"pipeline"}, "Bytes of raw logs sent")
+	// TlmGRPCStatefulStateChangeBytesSent tracks bytes of state changes sent per pipeline
+	TlmGRPCStatefulStateChangeBytesSent = telemetry.NewCounter("logs_grpc_stateful", "state_change_bytes_sent", []string{"pipeline"}, "Bytes of state changes sent")
+
+	// gRPC Stateful Stream-level metrics
+	// TlmGRPCStatefulStreamPatternLogsSent tracks number of pattern logs sent per stream
+	TlmGRPCStatefulStreamPatternLogsSent = telemetry.NewCounter("logs_grpc_stateful_stream", "pattern_logs_sent", []string{"stream"}, "Number of pattern logs sent")
+	// TlmGRPCStatefulStreamPatternLogsBytesSent tracks bytes of pattern logs sent per stream
+	TlmGRPCStatefulStreamPatternLogsBytesSent = telemetry.NewCounter("logs_grpc_stateful_stream", "pattern_logs_bytes_sent", []string{"stream"}, "Bytes of pattern logs sent")
+	// TlmGRPCStatefulStreamStateChangesSent tracks number of state changes sent per stream
+	TlmGRPCStatefulStreamStateChangesSent = telemetry.NewCounter("logs_grpc_stateful_stream", "state_changes_sent", []string{"stream"}, "Number of state changes sent (pattern adds/removes, dict entry defines/removes)")
+	// TlmGRPCStatefulStreamStateChangeBytesSent tracks bytes of state changes sent per stream
+	TlmGRPCStatefulStreamStateChangeBytesSent = telemetry.NewCounter("logs_grpc_stateful_stream", "state_change_bytes_sent", []string{"stream"}, "Bytes of state changes sent")
+	// TlmGRPCStatefulStreamBatchesSent tracks number of batches sent per stream
+	TlmGRPCStatefulStreamBatchesSent = telemetry.NewCounter("logs_grpc_stateful_stream", "batches_sent", []string{"stream"}, "Number of batches sent")
+	// TlmGRPCStatefulStreamDatumsPerBatch tracks histogram of datums per batch per stream
+	TlmGRPCStatefulStreamDatumsPerBatch = telemetry.NewHistogram("logs_grpc_stateful_stream", "datums_per_batch", []string{"stream"}, "Histogram of number of datums per batch", []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000})
 )
 
 func init() {
