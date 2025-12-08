@@ -1923,9 +1923,9 @@ api_key:
 {{ if .NetworkPath -}}
 {{ if (ne .OS "darwin") -}}
 
-########################################
-## Network Path Configuration         ##
-########################################
+#############################################
+## Network Path Dynamic Test Configuration ##
+#############################################
 
 # network_path:
 #   # @param connections_monitoring - custom object - optional
