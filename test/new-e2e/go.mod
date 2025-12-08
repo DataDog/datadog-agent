@@ -7,10 +7,10 @@ go 1.24.10
 // TODO: Implement hard check in CI
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.175
+	github.com/DataDog/agent-payload/v5 v5.0.177
 	github.com/DataDog/datadog-agent/pkg/util/option v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/version v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.6-0.20251107170748-5d4ea60490c6
@@ -221,7 +221,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/metrics v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07
 	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.5
-	github.com/DataDog/datadog-agent/test/e2e-framework v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-go/v5 v5.8.1
 	github.com/DataDog/dd-trace-go/v2 v2.2.2
 	github.com/DataDog/orchestrion v1.4.0
