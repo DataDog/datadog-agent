@@ -5,7 +5,8 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "pkg_mklink")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 
 package(
     default_applicable_licenses = [":license"],
@@ -29,7 +30,6 @@ exports_files([
 ])
 
 VERSION = "1.0.8"
-SONAME = "libbz2.so.%s" % VERSION
 
 exports_files([
     "LICENSE",
@@ -53,7 +53,7 @@ cc_binary(
     name = "bzip2",
     srcs = ["bzip2.c"],
     deps = [
-        ":bz2",
+        ":libbz2",
     ],
     copts = [
         "-Wall",
@@ -66,7 +66,7 @@ cc_binary(
 )
 
 cc_library(
-    name = "bz2",
+    name = "libbz2",
     srcs = [
         "blocksort.c",
         "bzlib.c",
@@ -113,10 +113,9 @@ cc_library(
 )
 
 cc_shared_library(
-    name = "libbz2_so",
-    shared_lib_name = SONAME,
+    name = "bz2",
     win_def_file = "libbz2.def",
-    deps = [":bz2"],
+    deps = [":libbz2"],
     user_link_flags = select({
         #"//bazel/platforms:os_aix": [
         #    "-qmkshrobj",
@@ -136,32 +135,12 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-pkg_mklink(
-    name = "so_major_minor",
-    link_name = "embedded/lib/libbz2.so.1.0",
-    target = SONAME,
-)
-
-pkg_mklink(
-    name = "so_major",
-    link_name = "embedded/lib/libbz2.so.1",
-    target = SONAME,
-)
-
-pkg_mklink(
-    name = "so",
-    link_name = "embedded/lib/libbz2.so",
-    target = SONAME,
-)
-
-pkg_files(
+so_symlink(
     name = "lib_files",
-    srcs = [
-        ":libbz2_so",
-        # Note: you would think you can put :so and other links here, but pkg_files
-        # seems to drop links in srcs.
-    ],
-    prefix = "embedded/lib",
+    src = ":bz2",
+    libname = "libbz2",
+    version = VERSION,
+    prefix = "embedded",
 )
 
 pkg_files(
@@ -175,8 +154,5 @@ pkg_install(
     srcs = [
         ":hdr_files",
         ":lib_files",
-        ":so_major_minor",
-        ":so_major",
-        ":so",
     ],
 )

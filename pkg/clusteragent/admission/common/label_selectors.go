@@ -45,7 +45,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool, config LabelSelectorsConfi
 		// Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
 		nsSelector.MatchExpressions = append(
 			nsSelector.MatchExpressions,
-			azureAKSLabelSelectorRequirement()...,
+			AzureAKSLabelSelectorRequirement()...,
 		)
 	}
 	return nsSelector, objSelector
@@ -68,9 +68,7 @@ func applySelectorConfig(nsSelector *metav1.LabelSelector, config LabelSelectors
 }
 
 func applyAdmissionEnabledSelectors(selector *metav1.LabelSelector) {
-	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
-		pkgconfigsetup.Datadog().GetBool("apm_config.instrumentation.enabled") ||
-		len(pkgconfigsetup.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
+	if pkgconfigsetup.Datadog().GetBool("admission_controller.mutate_unlabelled") {
 		// Accept all, ignore pods explicitly filtered-out
 		selector.MatchExpressions = []metav1.LabelSelectorRequirement{
 			{
@@ -87,7 +85,7 @@ func applyAdmissionEnabledSelectors(selector *metav1.LabelSelector) {
 	}
 }
 
-func azureAKSLabelSelectorRequirement() []metav1.LabelSelectorRequirement {
+func AzureAKSLabelSelectorRequirement() []metav1.LabelSelectorRequirement {
 	return []metav1.LabelSelectorRequirement{
 		{
 			Key:      "control-plane",
