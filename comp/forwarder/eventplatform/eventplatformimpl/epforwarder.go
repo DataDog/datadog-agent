@@ -313,6 +313,7 @@ func (s *defaultEventPlatformForwarder) SendEventPlatformEvent(e *message.Messag
 // Diagnose enumerates known epforwarder pipelines and endpoints to test each of them connectivity
 func Diagnose() []diagnose.Diagnosis {
 	var diagnoses []diagnose.Diagnosis
+	cfg := pkgconfigsetup.Datadog()
 
 	for _, desc := range getPassthroughPipelines() {
 		//nolint:misspell
@@ -321,8 +322,8 @@ func Diagnose() []diagnose.Diagnosis {
 			log.Debugf("Skipping diagnosis for event-management-intake because it does not support the empty payload")
 			continue
 		}
-		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, pkgconfigsetup.Datadog())
-		endpoints, err := config.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
+		configKeys := config.NewLogsConfigKeys(desc.endpointsConfigPrefix, cfg)
+		endpoints, err := config.BuildHTTPEndpointsWithConfig(cfg, configKeys, desc.hostnameEndpointPrefix, desc.intakeTrackType, config.DefaultIntakeProtocol, config.DefaultIntakeOrigin)
 		if err != nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
 				Status:      diagnose.DiagnosisFail,
@@ -334,7 +335,7 @@ func Diagnose() []diagnose.Diagnosis {
 			continue
 		}
 
-		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, pkgconfigsetup.Datadog())
+		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, cfg)
 		name := fmt.Sprintf("Connectivity to %s", url)
 		if err == nil {
 			diagnoses = append(diagnoses, diagnose.Diagnosis{
@@ -352,7 +353,7 @@ func Diagnose() []diagnose.Diagnosis {
 				Remediation: "Please validate Agent configuration and firewall to access " + url,
 				RawError:    err.Error(),
 			}
-			diag = maybeTestWithPQDN(endpoints.Main, diag)
+			diag = maybeTestWithPQDN(cfg, endpoints.Main, diag)
 			diagnoses = append(diagnoses, diag)
 		}
 	}
@@ -361,15 +362,18 @@ func Diagnose() []diagnose.Diagnosis {
 }
 
 // Detect if the connection failed because of using a FQDN by trying with a PQDN
-func maybeTestWithPQDN(endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
-	fqdn := endpoint.Host
+func maybeTestWithPQDN(cfg model.Reader, endpoint config.Endpoint, diag diagnose.Diagnosis) diagnose.Diagnosis {
+	if cfg.Get("convert_dd_site_fqdn.enabled") == false {
+		return diag
+	}
 
+	fqdn := endpoint.Host
 	if strings.HasSuffix(fqdn, ".") {
 		log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", fqdn)
 
 		// This function takes `endpoint` by value, so it's safe to mutate here
 		endpoint.Host = strings.TrimSuffix(fqdn, ".")
-		_, err := logshttp.CheckConnectivityDiagnose(endpoint, pkgconfigsetup.Datadog())
+		_, err := logshttp.CheckConnectivityDiagnose(endpoint, cfg)
 		if err == nil {
 			diag.Remediation = fmt.Sprintf(
 				"The connection to %s failed. It is a fully qualified domain name (FQDN), note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", fqdn)

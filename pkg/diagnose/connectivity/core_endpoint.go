@@ -20,6 +20,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -68,19 +69,95 @@ func getLogsUseTCP() bool {
 }
 
 type connDiagnostician struct {
-	diagCfg diagnose.Config
-	log     log.Component
-	client  *http.Client
+	diagCfg            diagnose.Config
+	log                log.Component
+	domainResolvers    map[string]resolver.DomainResolver
+	altDomainResolvers map[string]resolver.DomainResolver
+	client             *http.Client
 }
 
 func newConnectivityDiagnostician(diagCfg diagnose.Config, log log.Component) *connDiagnostician {
-	client := getClient(pkgconfigsetup.Datadog(), 1, log)
-
 	return &connDiagnostician{
 		diagCfg: diagCfg,
 		log:     log,
-		client:  client,
 	}
+}
+
+func (cd *connDiagnostician) init() diagnose.Diagnosis {
+	var diag diagnose.Diagnosis
+
+	config := pkgconfigsetup.Datadog()
+	cd.client = getClient(config, 1, cd.log)
+
+	// Create standard domain resolvers
+	cd.domainResolvers, diag = cd.makeDomainResolvers(config, false)
+	if diag.Status != diagnose.DiagnosisSuccess {
+		return diag
+	}
+
+	if config.Get("convert_dd_site_fqdn.enabled") == true {
+		cd.altDomainResolvers, diag = cd.makeDomainResolvers(config, true)
+		if diag.Status != diagnose.DiagnosisSuccess {
+			return diag
+		}
+	}
+
+	return diagnose.Diagnosis{
+		Status: diagnose.DiagnosisSuccess,
+	}
+}
+
+func (cd *connDiagnostician) makeDomainResolvers(config pkgconfigmodel.Config, disableFQDN bool) (map[string]resolver.DomainResolver, diagnose.Diagnosis) {
+	var err error
+
+	endpointOptions := utils.DefaultEndpointOptions()
+	endpointOptions.DisableFQDN = disableFQDN
+
+	endpointDescriptors, err := utils.GetMultipleEndpointsWithOptions(config, endpointOptions)
+	if err != nil {
+		return nil, diagnose.Diagnosis{
+			Status:      diagnose.DiagnosisSuccess,
+			Name:        "Endpoints configuration",
+			Diagnosis:   "Misconfiguration of agent endpoints",
+			Remediation: "Please validate Agent configuration",
+			RawError:    err.Error(),
+		}
+	}
+	domainResolvers, err := resolver.NewSingleDomainResolvers2(endpointDescriptors)
+	if err != nil {
+		return nil, diagnose.Diagnosis{
+			Status:      diagnose.DiagnosisSuccess,
+			Name:        "Resolver error",
+			Diagnosis:   "Unable to create domain resolver",
+			Remediation: "This is likely due to a bug",
+			RawError:    err.Error(),
+		}
+	}
+	return domainResolvers, diagnose.Diagnosis{Status: diagnose.DiagnosisSuccess}
+}
+
+func (cd *connDiagnostician) diagnose() []diagnose.Diagnosis {
+	var diagnoses []diagnose.Diagnosis
+
+	// Create diagnosis for logs
+	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
+		diag := cd.checkLogsEndpoint()
+		diagnoses = append(diagnoses, diag)
+	}
+
+	endpointsInfo := getEndpointsInfo(pkgconfigsetup.Datadog())
+
+	// Send requests to all endpoints for all domains
+	for _, domainResolver := range cd.domainResolvers {
+		// Go through all API Keys of a domain and send an HTTP request on each endpoint
+		for _, apiKey := range domainResolver.GetAPIKeys() {
+			for _, endpointInfo := range endpointsInfo {
+				diag := cd.checkEndpoint(domainResolver, endpointInfo, apiKey)
+				diagnoses = append(diagnoses, diag)
+			}
+		}
+	}
+	return diagnoses
 }
 
 func (cd *connDiagnostician) checkLogsEndpoint() diagnose.Diagnosis {
@@ -135,17 +212,18 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 	diagnosisName := "Connectivity to " + logURL
 	diag := createDiagnosis(diagnosisName, logURL, report, reportErr)
 
-	// Detect if the connection failed because of using a FQDN by trying with a PQDN
-	if diag.Status != diagnose.DiagnosisSuccess {
+	// Detect if the connection failed because a FQDN was used, by checking if one with a PQDN succeeds
+	if diag.Status != diagnose.DiagnosisSuccess && cd.altDomainResolvers != nil {
 		if (endpointInfo.Method == "HEAD" && endpointInfo.IsFQDN()) || domainResolver.IsFQDN() {
-			cd.log.Infof("The connection to %s with a FQDN failed; attempting with a PQDN", logURL)
+			pqdn := endpointToPQDN(domainResolver.GetConfigName())
+			altResolver, ok := cd.altDomainResolvers[pqdn]
+			if ok {
+				cd.log.Infof("The connection to %s with a FQDN failed; attempting to connect to %s", logURL, pqdn)
 
-			domainResolver.ToPQDN()
-			d := cd.checkEndpoint(domainResolver, endpointInfo.ToPQDN(), apiKey)
-			domainResolver.ToFQDN()
-
-			if d.Status == diagnose.DiagnosisSuccess {
-				diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", logURL)
+				d := cd.checkEndpoint(altResolver, endpointInfo.ToPQDN(), apiKey)
+				if d.Status == diagnose.DiagnosisSuccess {
+					diag.Remediation = fmt.Sprintf("The connection to %s failed. It is a fully qualified domain name (FQDN); note the trailing dot. However, the connection without the trailing dot, succeeded. Check that your firewall and/or proxy configuration accept FQDN connections, or disable FQDN usage by setting `convert_dd_site_fqdn.enabled` to false", logURL)
+				}
 			}
 		}
 	}
@@ -154,61 +232,36 @@ func (cd *connDiagnostician) checkEndpoint(domainResolver resolver.DomainResolve
 	if len(httpTraces) > 0 && (cd.diagCfg.Verbose || reportErr != nil) {
 		diag.Diagnosis = fmt.Sprintf("\n%s\n%s", strings.Join(httpTraces, "\n"), diag.Diagnosis)
 	}
-
 	return diag
+}
+
+func endpointToPQDN(endpoint string) string {
+	url, err := url.Parse(endpoint)
+	if err != nil {
+		panic("endpoint is not a valid URL")
+	}
+	host := strings.TrimSuffix(url.Host, ".")
+	if port := url.Port(); port != "" {
+		url.Host = fmt.Sprintf("%s:%s", host, port)
+	} else {
+		url.Host = host
+	}
+	return url.String()
 }
 
 // Diagnose performs connectivity diagnosis
 func Diagnose(diagCfg diagnose.Config, log log.Component) []diagnose.Diagnosis {
-
-	// Create domain resolvers
-	keysPerDomain, err := utils.GetMultipleEndpoints(pkgconfigsetup.Datadog())
-	if err != nil {
-		return []diagnose.Diagnosis{
-			{
-				Status:      diagnose.DiagnosisSuccess,
-				Name:        "Endpoints configuration",
-				Diagnosis:   "Misconfiguration of agent endpoints",
-				Remediation: "Please validate Agent configuration",
-				RawError:    err.Error(),
-			},
-		}
-	}
-
 	var diagnoses []diagnose.Diagnosis
-	domainResolvers, err := resolver.NewSingleDomainResolvers2(keysPerDomain)
-	if err != nil {
-		return []diagnose.Diagnosis{
-			{
-				Status:      diagnose.DiagnosisSuccess,
-				Name:        "Resolver error",
-				Diagnosis:   "Unable to create domain resolver",
-				Remediation: "This is likely due to a bug",
-				RawError:    err.Error(),
-			},
-		}
-	}
 
 	connDiagnostician := newConnectivityDiagnostician(diagCfg, log)
-
-	// Create diagnosis for logs
-	if pkgconfigsetup.Datadog().GetBool("logs_enabled") {
-		diag := connDiagnostician.checkLogsEndpoint()
+	diag := connDiagnostician.init()
+	if diag.Status != diagnose.DiagnosisSuccess {
 		diagnoses = append(diagnoses, diag)
+		return diagnoses
 	}
 
-	endpointsInfo := getEndpointsInfo(pkgconfigsetup.Datadog())
-
-	// Send requests to all endpoints for all domains
-	for _, domainResolver := range domainResolvers {
-		// Go through all API Keys of a domain and send an HTTP request on each endpoint
-		for _, apiKey := range domainResolver.GetAPIKeys() {
-			for _, endpointInfo := range endpointsInfo {
-				diag := connDiagnostician.checkEndpoint(domainResolver, endpointInfo, apiKey)
-				diagnoses = append(diagnoses, diag)
-			}
-		}
-	}
+	diags := connDiagnostician.diagnose()
+	diagnoses = append(diagnoses, diags...)
 	return diagnoses
 }
 
