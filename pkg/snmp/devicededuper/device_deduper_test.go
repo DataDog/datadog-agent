@@ -6,10 +6,9 @@
 package devicededuper
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp"
 	"github.com/stretchr/testify/assert"
@@ -608,4 +607,3 @@ func TestDeviceDeduper_ResetCounters(t *testing.T) {
 	// Verify device infos are cleared
 	assert.Len(t, deduperImpl.deviceInfos, 0)
 }
-
