@@ -66,7 +66,7 @@ func (t *localTraceroute) Run(ctx context.Context, cfg config.Config) (payload.N
 		return payload.NetworkPath{}, fmt.Errorf("error getting traceroute: %s", err)
 	}
 
-	agentHostname, err := t.hostname.Get(context.TODO())
+	agentHostname, err := t.hostname.Get(ctx)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("error getting the hostname: %w", err)
 	}
