@@ -215,10 +215,10 @@ func generateIR(
 		}
 	}
 	if commonTypes.G == nil {
-		return nil, fmt.Errorf("runtime.g not found")
+		return nil, errors.New("runtime.g not found")
 	}
 	if commonTypes.M == nil {
-		return nil, fmt.Errorf("runtime.m not found")
+		return nil, errors.New("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -311,7 +311,7 @@ func generateIR(
 
 	textSection := section{header: objFile.Section(".text")}
 	if textSection.header == nil {
-		return nil, fmt.Errorf("failed to find text section")
+		return nil, errors.New("failed to find text section")
 	}
 	textSection.data, err = objFile.SectionData(textSection.header)
 	if err != nil {
@@ -680,7 +680,7 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 					}
 				case *exprlang.GetMemberExpr:
 				case *exprlang.UnsupportedExpr:
-					msg := fmt.Sprintf("unsupported operation: %s", expr.Operation)
+					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
 					continue
 				default:
@@ -1080,7 +1080,7 @@ func expandTypesWithBudgets(
 			return fmt.Errorf("failed to get next entry: %w", err)
 		}
 		if entry == nil {
-			return fmt.Errorf("unexpected EOF while reading type")
+			return errors.New("unexpected EOF while reading type")
 		}
 		name, err := getAttr[string](entry, dwarf.AttrName)
 		if err != nil {
@@ -1595,7 +1595,7 @@ func processDwarf(
 	}
 
 	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
-		return processedDwarf{}, fmt.Errorf("runtime.firstmoduledata not found")
+		return processedDwarf{}, errors.New("runtime.firstmoduledata not found")
 	}
 	return processedDwarf{
 		pendingSubprograms: append(v.subprograms, inlinedSubprograms...),
@@ -1920,7 +1920,7 @@ func findStructSizeAndMemberOffset(
 		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
 	}
 	if !entry.Children {
-		return 0, 0, fmt.Errorf("struct type has no children")
+		return 0, 0, errors.New("struct type has no children")
 	}
 	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
 	if err != nil {
@@ -1936,7 +1936,7 @@ func findStructSizeAndMemberOffset(
 			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
 		}
 		if child == nil {
-			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
+			return 0, 0, errors.New("unexpected EOF while reading struct type")
 		}
 		if child.Tag == 0 {
 			break
@@ -2412,7 +2412,7 @@ func iterConcreteSubprograms(
 				)
 			}
 			if len(currentSubprogram.ranges) == 0 {
-				return fmt.Errorf("no ranges for concrete subprogram entry")
+				return errors.New("no ranges for concrete subprogram entry")
 			}
 
 			slices.SortFunc(currentSubprogram.ranges, cmpRange)
@@ -2760,7 +2760,7 @@ func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
 	strDataType := &ir.GoStringDataType{
 		TypeCommon: ir.TypeCommon{
 			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("%s.str", st.Name),
+			Name:             st.Name + ".str",
 			DynamicSizeClass: ir.DynamicSizeString,
 			ByteSize:         1,
 		},
@@ -2796,7 +2796,7 @@ func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
 	arrayDataType := &ir.GoSliceDataType{
 		TypeCommon: ir.TypeCommon{
 			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("%s.array", st.Name),
+			Name:             st.Name + ".array",
 			DynamicSizeClass: ir.DynamicSizeSlice,
 			ByteSize:         elementType.GetByteSize(),
 		},
@@ -3155,7 +3155,7 @@ func resolveExpression(
 			if ptrType, ok := currentType.(*ir.PointerType); ok {
 				// Check for void pointer.
 				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
-					return ir.Expression{}, fmt.Errorf(
+					return ir.Expression{}, errors.New(
 						"cannot dereference void pointer",
 					)
 				}
@@ -3242,7 +3242,7 @@ func resolveExpression(
 		if ptrType, ok := currentType.(*ir.PointerType); ok {
 			// Check for void pointer.
 			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
-				return ir.Expression{}, fmt.Errorf(
+				return ir.Expression{}, errors.New(
 					"cannot dereference void pointer",
 				)
 			}

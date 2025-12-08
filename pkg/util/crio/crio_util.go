@@ -11,6 +11,7 @@ package crio
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -225,7 +226,7 @@ func (c *clientImpl) connect() error {
 
 	// Ensure connection is ready
 	if conn.GetState() != connectivity.Ready {
-		return fmt.Errorf("connection not in READY state")
+		return errors.New("connection not in READY state")
 	}
 
 	return nil

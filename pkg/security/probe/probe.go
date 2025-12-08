@@ -166,7 +166,7 @@ func (p *Probe) sendConsumerStats() error {
 		dropped := consumer.eventDropped.Swap(0)
 		if dropped > 0 {
 			tags := []string{
-				fmt.Sprintf("consumer_id:%s", consumer.consumer.ID()),
+				"consumer_id:" + consumer.consumer.ID(),
 			}
 			if err := p.StatsdClient.Count(metrics.MetricEventMonitoringEventsDropped, dropped, tags, 1.0); err != nil {
 				return err
@@ -188,8 +188,8 @@ func (p *Probe) SendStats() error {
 		count := counter.Swap(0)
 		if count > 0 {
 			tags := []string{
-				fmt.Sprintf("rule_id:%s", tags.ruleID),
-				fmt.Sprintf("action_name:%s", tags.actionName),
+				"rule_id:" + tags.ruleID,
+				"action_name:" + tags.actionName,
 			}
 			_ = p.StatsdClient.Count(metrics.MetricRuleActionPerformed, count, tags, 1.0)
 		}

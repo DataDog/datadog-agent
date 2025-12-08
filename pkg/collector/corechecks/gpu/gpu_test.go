@@ -10,6 +10,7 @@ package gpu
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 	// Create check instance using mocks
 	checkGeneric := newCheck(
 		fakeTagger,
@@ -186,7 +187,7 @@ func TestRunDoesNotError(t *testing.T) {
 			}),
 		),
 	)
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 	// Create check instance using mocks
 	checkGeneric := newCheck(
@@ -265,7 +266,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	}
 
 	// create check instance using mocks
-	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
 	check, ok := iCheck.(*Check)
 	require.True(t, ok)
 
@@ -486,7 +487,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 			pid := int32(len(processes)+i) + 1000
 			process := &workloadmeta.Process{
 				EntityID: workloadmeta.EntityID{
-					ID:   fmt.Sprintf("%d", pid),
+					ID:   strconv.Itoa(int(pid)),
 					Kind: workloadmeta.KindProcess,
 				},
 				Owner:       &container.EntityID,
@@ -495,7 +496,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 				NsPid:       pid,
 			}
 
-			processTags := []string{"pid:" + fmt.Sprintf("%d", pid), "nspid:" + fmt.Sprintf("%d", pid)}
+			processTags := []string{"pid:" + strconv.Itoa(int(pid)), "nspid:" + strconv.Itoa(int(pid))}
 			containerTags := []string{"container_id:" + container.EntityID.ID}
 
 			processes = append(processes, process)

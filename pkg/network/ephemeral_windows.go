@@ -6,7 +6,7 @@
 package network
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -81,7 +81,7 @@ func parseNetshOutput(output string) (low, hi uint16, err error) {
 	*/
 	matches := netshRegexp.FindAllStringSubmatch(output, -1)
 	if len(matches) != 2 {
-		return 0, 0, fmt.Errorf("could not parse output of netsh")
+		return 0, 0, errors.New("could not parse output of netsh")
 	}
 	portstart, err := strconv.Atoi(matches[0][1])
 	if err != nil {

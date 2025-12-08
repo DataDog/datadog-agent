@@ -96,7 +96,7 @@ func getEBPFBuildDir() (string, error) {
 		arch = "arm64"
 	}
 
-	return fmt.Sprintf("pkg/ebpf/bytecode/build/%s", arch), nil
+	return "pkg/ebpf/bytecode/build/" + arch, nil
 }
 
 func glob(dir, filePattern string, filterFn func(path string) bool) ([]string, error) {
@@ -273,8 +273,8 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return fmt.Errorf("could not get relative path for %s: %w", testsuite, err)
 		}
 		junitfilePrefix := strings.ReplaceAll(pkg, "/", "-")
-		xmlpath := filepath.Join(xmlDir, fmt.Sprintf("%s.xml", junitfilePrefix))
-		jsonpath := filepath.Join(jsonDir, fmt.Sprintf("%s.json", junitfilePrefix))
+		xmlpath := filepath.Join(xmlDir, junitfilePrefix+".xml")
+		jsonpath := filepath.Join(jsonDir, junitfilePrefix+".json")
 
 		testsuiteArgs := []string{testsuite}
 		if testContainer != nil {

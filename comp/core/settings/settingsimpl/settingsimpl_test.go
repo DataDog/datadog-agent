@@ -338,7 +338,7 @@ func TestRuntimeSettings(t *testing.T) {
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
-				requestBody := fmt.Sprintf("value=%s", html.EscapeString("fancy"))
+				requestBody := "value=" + html.EscapeString("fancy")
 				request, err := http.NewRequest("POST", ts.URL+"/config/foo", bytes.NewBuffer([]byte(requestBody)))
 				require.NoError(t, err)
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")

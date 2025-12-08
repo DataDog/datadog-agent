@@ -488,3 +488,17 @@ func TestLoggingToClosedWrapperDoesNotCallHandler(t *testing.T) {
 	// Verify that handler was never called (no records logged)
 	assert.Empty(t, handler.records, "handler should not be called after wrapper is closed")
 }
+
+func TestRecordTimeZone(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows uses syscalls to get the timezone, so we can't test it")
+	}
+
+	t.Setenv("TZ", "CET")
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	wrapper.Info("test message")
+	record := handler.lastRecord()
+	assert.Equal(t, "CET", record.Time.Location().String())
+}
