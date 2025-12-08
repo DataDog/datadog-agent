@@ -69,7 +69,7 @@ func (t *remoteTraceroute) Run(ctx context.Context, cfg config.Config) (payload.
 	if err := json.Unmarshal(resp, &path); err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("error unmarshalling response: %w", err)
 	}
-	agentHostname, err := t.hostname.Get(context.TODO())
+	agentHostname, err := t.hostname.Get(ctx)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("error getting the hostname: %w", err)
 	}
