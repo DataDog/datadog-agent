@@ -13,9 +13,9 @@ import (
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/pipeline"
 )
 
@@ -124,7 +124,7 @@ func (a *Agent) installWindowsInstallScript(params *installParams) error {
 		}
 		env["DD_SITE"] = "datad0g.com"
 		env["DD_INSTALLER_URL"] = artifactURL
-		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = fmt.Sprintf("pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
+		env["DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT"] = "pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 		env["DD_INSTALLER_REGISTRY_URL_AGENT_PACKAGE"] = "installtesting.datad0g.com.internal.dda-testing.com"
 		scriptURL = fmt.Sprintf("https://installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", os.Getenv("E2E_PIPELINE_ID"))
 	}

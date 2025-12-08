@@ -208,12 +208,12 @@ func testLongFunctionWithChangingState() {
 	fmt.Println(s, a, b)
 	// This loop and the following print statement reproduce
 	// https://github.com/golang/go/issues/75615
-	for _ = range 10 {
+	for range 10 {
 		a, b = b, a+b
 	}
 	s += a
 	fmt.Println(s, a, b)
-	for _ = range 10 {
+	for range 10 {
 		a, b = b-a, a
 	}
 	s += b

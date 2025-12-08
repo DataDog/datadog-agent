@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 // Host is a remote host environment.
@@ -138,13 +138,13 @@ func (h *Host) Run(command string, env ...string) string {
 
 // UserExists checks if a user exists on the host.
 func (h *Host) UserExists(username string) bool {
-	_, err := h.remote.Execute(fmt.Sprintf("id -u %s", username))
+	_, err := h.remote.Execute("id -u " + username)
 	return err == nil
 }
 
 // GroupExists checks if a group exists on the host.
 func (h *Host) GroupExists(groupname string) bool {
-	_, err := h.remote.Execute(fmt.Sprintf("id -g %s", groupname))
+	_, err := h.remote.Execute("id -g " + groupname)
 	return err == nil
 }
 
@@ -166,15 +166,15 @@ func (h *Host) WriteFile(path string, content []byte) error {
 
 // DeletePath deletes a path on the host.
 func (h *Host) DeletePath(path string) {
-	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
-	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
+	h.remote.MustExecute("sudo ls " + path)
+	h.remote.MustExecute("sudo rm -rf " + path)
 }
 
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(t *testing.T, units ...string) {
 	for _, unit := range units {
 		assert.Eventually(t, func() bool {
-			_, err := h.remote.Execute(fmt.Sprintf("systemctl is-active --quiet %s", unit))
+			_, err := h.remote.Execute("systemctl is-active --quiet " + unit)
 
 			return err == nil
 		}, time.Second*90, time.Second*2, "unit %s did not become active. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
@@ -395,10 +395,12 @@ func (h *Host) fs() map[string]FileInfo {
 		"/run/utmp",
 		"/tmp",
 	}
-	cmd := "sudo find / "
+	var cmdBuilder strings.Builder
+	cmdBuilder.WriteString("sudo find / ")
 	for _, dir := range ignoreDirs {
-		cmd += fmt.Sprintf("-path '%s' -prune -o ", dir)
+		fmt.Fprintf(&cmdBuilder, "-path '%s' -prune -o ", dir)
 	}
+	cmd := cmdBuilder.String()
 	cmd += `-printf '%p\\|//%s\\|//%TY-%Tm-%Td %TH:%TM:%TS\\|//%f\\|//%m\\|//%u\\|//%g\\|//%y\\|//%l\n' 2>/dev/null`
 	output := h.remote.MustExecute(cmd + " || true")
 	lines := strings.Split(output, "\n")
@@ -500,7 +502,7 @@ func (h *Host) SetUmask(mask string) (oldmask string) {
 	} else {
 		h.remote.MustExecute(fmt.Sprintf("sed -i -E 's/umask %s/umask %s/g' ~/.bashrc", oldmask, mask))
 	}
-	h.remote.MustExecute(fmt.Sprintf("umask | grep -q %s", mask)) // Correctness check
+	h.remote.MustExecute("umask | grep -q " + mask) // Correctness check
 	return oldmask
 }
 

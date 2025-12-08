@@ -110,14 +110,14 @@ func RemoveInstallInfo() {
 func getToolVersion(ctx context.Context, installType string) (tool string, toolVersion string, installerVersion string) {
 	tool = toolInstaller
 	toolVersion = version.AgentVersion
-	installerVersion = fmt.Sprintf("%s_package", installType)
+	installerVersion = installType + "_package"
 	if _, err := exec.LookPath("dpkg-query"); err == nil {
 		tool = "dpkg"
 		toolVersion, err = getDpkgVersion(ctx)
 		if err != nil {
 			toolVersion = "unknown"
 		}
-		toolVersion = fmt.Sprintf("dpkg-%s", toolVersion)
+		toolVersion = "dpkg-" + toolVersion
 	}
 	if _, err := exec.LookPath("rpm"); err == nil {
 		tool = "rpm"
@@ -125,7 +125,7 @@ func getToolVersion(ctx context.Context, installType string) (tool string, toolV
 		if err != nil {
 			toolVersion = "unknown"
 		}
-		toolVersion = fmt.Sprintf("rpm-%s", toolVersion)
+		toolVersion = "rpm-" + toolVersion
 	}
 	return
 }

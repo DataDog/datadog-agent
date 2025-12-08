@@ -6,13 +6,13 @@
 package installtest
 
 import (
-	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -351,7 +351,7 @@ func (s *testInstallOptsSuite) TestInstallOpts() {
 		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 		windowsAgent.WithTags("k1:v1,k2:v2"),
 		windowsAgent.WithHostname("win-installopts"),
-		windowsAgent.WithCmdPort(fmt.Sprintf("%d", cmdPort)),
+		windowsAgent.WithCmdPort(strconv.Itoa(cmdPort)),
 		windowsAgent.WithProxyHost("proxy.foo.com"),
 		windowsAgent.WithProxyPort("1234"),
 		windowsAgent.WithProxyUser("puser"),
@@ -475,7 +475,7 @@ func (s *testInstallFailSuite) TestInstallFail() {
 	vm := s.Env().RemoteHost
 
 	// run installer with failure flag
-	if !s.Run(fmt.Sprintf("install %s", s.AgentPackage.AgentVersion()), func() {
+	if !s.Run("install "+s.AgentPackage.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithValidAPIKey(),

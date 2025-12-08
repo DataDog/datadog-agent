@@ -5,17 +5,15 @@ include:
 .tests_macos_gitlab:
   stage: source_test
   extends:
-    - .unit_test_base
+    - .bazel:defs:cache:macos
     - .macos_gitlab
   rules:
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
-  needs: ["go_deps", "go_tools_deps"]
   variables:
+    FLAKY_PATTERNS_CONFIG: $CI_PROJECT_DIR/flaky-patterns-runtime.yaml
     TEST_OUTPUT_FILE: test_output.json
   script:
-    - !reference [.retrieve_linux_go_deps]
-    - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
