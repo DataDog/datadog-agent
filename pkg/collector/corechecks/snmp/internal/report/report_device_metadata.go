@@ -403,7 +403,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum[fmt.Sprintf("%s.%s", localPortNum, lldpRemIndex)],
+					IPAddress:   remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum[buildLLDPRemoteKey(localPortNum, lldpRemIndex)],
 				},
 				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -572,6 +572,10 @@ func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) 
 	return interfaceIndexByIDType
 }
 
+func buildLLDPRemoteKey(localPortNum, lldpRemIndex string) string {
+	return fmt.Sprintf("%s.%s", localPortNum, lldpRemIndex)
+}
+
 func getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(remManIndexes []string) map[string]string {
 	remManAddrByRemIndex := make(map[string]string)
 	for _, fullIndex := range remManIndexes {
@@ -595,7 +599,7 @@ func getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(remManIndexes []string)
 		// We only support IPv4 for the moment
 		// TODO: Support IPv6
 		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
-			remManAddrByRemIndex[fmt.Sprintf("%s.%s", lldpRemLocalPortNum, lldpRemIndex)] = strings.Join(lldpRemManAddr, ".")
+			remManAddrByRemIndex[buildLLDPRemoteKey(lldpRemLocalPortNum, lldpRemIndex)] = strings.Join(lldpRemManAddr, ".")
 		}
 	}
 	return remManAddrByRemIndex

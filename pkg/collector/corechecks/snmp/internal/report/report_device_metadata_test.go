@@ -1131,6 +1131,47 @@ func TestComputeInterfaceStatus(t *testing.T) {
 	}
 }
 
+func Test_buildLLDPRemoteKey(t *testing.T) {
+	tests := []struct {
+		name         string
+		localPortNum string
+		lldpRemIndex string
+		expectedKey  string
+	}{
+		{
+			name:         "basic case",
+			localPortNum: "102",
+			lldpRemIndex: "2",
+			expectedKey:  "102.2",
+		},
+		{
+			name:         "different values",
+			localPortNum: "99",
+			lldpRemIndex: "5",
+			expectedKey:  "99.5",
+		},
+		{
+			name:         "single digit values",
+			localPortNum: "1",
+			lldpRemIndex: "1",
+			expectedKey:  "1.1",
+		},
+		{
+			name:         "large values",
+			localPortNum: "10000",
+			lldpRemIndex: "99999",
+			expectedKey:  "10000.99999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildLLDPRemoteKey(tt.localPortNum, tt.lldpRemIndex)
+			assert.Equal(t, tt.expectedKey, result)
+		})
+	}
+}
+
 func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 	indexes := []string{
 		// IPv4
