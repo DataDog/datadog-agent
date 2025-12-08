@@ -125,6 +125,8 @@ func (r *Runner) AddWorker() {
 
 // newWorker adds a new worker running in a separate goroutine
 func (r *Runner) newWorker() (*worker.Worker, error) {
+	watchdogWarningTimeout := pkgconfigsetup.Datadog().GetDuration("check_watchdog_warning_timeout")
+
 	worker, err := worker.NewWorker(
 		r.senderManager,
 		r.haAgent,
@@ -133,6 +135,7 @@ func (r *Runner) newWorker() (*worker.Worker, error) {
 		r.pendingChecksChan,
 		r.checksTracker,
 		r.ShouldAddCheckStats,
+		watchdogWarningTimeout,
 	)
 	if err != nil {
 		log.Errorf("Runner %d was unable to instantiate a worker: %s", r.id, err)

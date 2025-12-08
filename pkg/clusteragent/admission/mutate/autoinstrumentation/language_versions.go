@@ -152,7 +152,7 @@ const defaultVersionMagicString = "default"
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
-	python: "v3", // https://datadoghq.atlassian.net/browse/INPLAT-598
+	python: "v4", // https://datadoghq.atlassian.net/browse/INPLAT-852
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
 	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128

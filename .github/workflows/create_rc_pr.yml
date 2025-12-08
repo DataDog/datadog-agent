@@ -3,9 +3,9 @@ name: Create RC PR
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 14 * * 2,4' # Run on Tuesday and Thursday at 14:00 UTC
-    - cron: '0 8 * * 2,4' # Same as above but at 08:00 UTC, to warn agent-integrations team about releasing
-    - cron: '0 9 * * 1' # Run Agent 6 workflow on Monday at 09:00 UTC
+    - cron: "0 14 * * 2,4" # Run on Tuesday and Thursday at 14:00 UTC
+    - cron: "0 8 * * 2,4" # Same as above but at 08:00 UTC, to warn agent-integrations team about releasing
+    - cron: "0 9 * * 1" # Run Agent 6 workflow on Monday at 09:00 UTC
 
 env:
   IS_AGENT6_RELEASE: ${{ github.event.schedule == '0 9 * * 1' }}
@@ -37,7 +37,7 @@ jobs:
       - name: Check previous agent 6 RC status
         if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
         env:
-          DD_SITE: 'datadoghq.com'
+          DD_SITE: "datadoghq.com"
           DD_API_KEY: ${{ secrets.DD_API_KEY }}
           DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
@@ -97,7 +97,7 @@ jobs:
         env:
           ATLASSIAN_USERNAME: ${{ secrets.ATLASSIAN_USERNAME }}
           ATLASSIAN_PASSWORD: ${{ secrets.ATLASSIAN_PASSWORD }}
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           MATRIX: ${{ matrix.value }}
           WARNING: ${{ needs.find_release_branches.outputs.warning }}
         run: |
@@ -110,7 +110,7 @@ jobs:
       - name: Check if agent 6 is in qualification phase
         if: ${{ env.IS_AGENT6_RELEASE == 'true' }}
         env:
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: |
           is_qualification=$(dda inv -- -e release.is-qualification -r 6.53.x --output)
           echo "IS_QUALIFICATION=$is_qualification" >> $GITHUB_ENV
@@ -119,10 +119,10 @@ jobs:
           fi
 
       - name: Create RC PR
-        if: ${{ steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false') }}
+        if: ${{ needs.find_release_branches.outputs.warning == '' && (steps.check_for_changes.outputs.CHANGES == 'true' || ( env.IS_AGENT6_RELEASE == 'true' && env.IS_QUALIFICATION == 'false')) }}
         env:
           MATRIX: ${{ matrix.value }}
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
           if ${{ env.IS_AGENT6_RELEASE == 'true' }}; then
