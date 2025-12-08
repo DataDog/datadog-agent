@@ -6,14 +6,20 @@
 // Package tokens contains the token definitions for the tokenizer.
 package tokens
 
-// Token is the type that represents a single token.
-type Token byte
+// TokenKind represents the type/category of a token
+type TokenKind byte
+
+// Token represents a single token with its kind and optional literal value
+type Token struct {
+	Kind TokenKind
+	Lit  string // Literal string value (for character/digit runs and special recognition)
+}
 
 // Disable linter since the token list is self explanatory, or documented where needed.
 //
 //revive:disable
 const (
-	Space Token = iota
+	Space TokenKind = iota
 
 	// Special Characters
 	Colon        // :
@@ -80,3 +86,33 @@ const (
 )
 
 //revive:enable
+
+// NewToken creates a token with the given kind and literal value
+func NewToken(kind TokenKind, lit string) Token {
+	return Token{Kind: kind, Lit: lit}
+}
+
+// NewSimpleToken creates a token with just a kind (no literal value)
+func NewSimpleToken(kind TokenKind) Token {
+	return Token{Kind: kind, Lit: ""}
+}
+
+// Equals compares two tokens for equality
+// If both tokens have literals, compares both kind and literal
+// If pattern token has no literal, only compares kind
+func (t Token) Equals(pattern Token) bool {
+	if t.Kind != pattern.Kind {
+		return false
+	}
+	// If pattern has a literal value, it must match exactly
+	if pattern.Lit != "" {
+		return t.Lit == pattern.Lit
+	}
+	// Pattern has no literal, so kind match is sufficient
+	return true
+}
+
+// EqualsKind checks if token has the given kind (ignoring literal value)
+func (t Token) EqualsKind(kind TokenKind) bool {
+	return t.Kind == kind
+}

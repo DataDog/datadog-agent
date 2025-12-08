@@ -22,11 +22,11 @@ const (
 
 // TokenBasedProcessingRule represents a single detection and redaction rule
 type TokenBasedProcessingRule struct {
-	Name         string
-	Type         ProcessingRuleType
-	TokenPattern []tokens.Token // For token-based rules
-	Replacement  []byte
-	PrefilterKeywords [][]byte       // Literal strings that must be present for rule to apply
+	Name              string
+	Type              ProcessingRuleType
+	TokenPattern      []tokens.Token // For token-based rules
+	Replacement       []byte
+	PrefilterKeywords [][]byte // Literal strings that must be present for rule to apply
 }
 
 type ProcessingRuleApplicatorConfig struct {
@@ -152,13 +152,16 @@ func (h *ProcessingRuleApplicator) applyTokenRules(content []byte, toks []tokens
 	return content, matchedRules
 }
 
-// matchesTokenPattern checks if two token sequences match exactly
+// matchesTokenPattern checks if actual tokens match the expected pattern.
+// Pattern tokens with literal values must match exactly (kind + literal).
+// Pattern tokens without literals match any token of the same kind.
 func (h *ProcessingRuleApplicator) matchesTokenPattern(actual, expected []tokens.Token) bool {
 	if len(actual) != len(expected) {
 		return false
 	}
 	for i := range actual {
-		if actual[i] != expected[i] {
+		// Use the Equals method which handles literal matching
+		if !actual[i].Equals(expected[i]) {
 			return false
 		}
 	}
@@ -171,7 +174,7 @@ func (h *ProcessingRuleApplicator) hasPrefilterKeywords(content []byte, keywords
 	if len(keywords) == 0 {
 		return true // No prefilter requirements
 	}
-	
+
 	for _, keyword := range keywords {
 		if !bytes.Contains(content, keyword) {
 			return false // Missing required keyword

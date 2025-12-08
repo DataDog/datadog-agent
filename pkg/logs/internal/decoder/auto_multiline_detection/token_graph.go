@@ -39,10 +39,10 @@ func NewTokenGraph(minimumTokenLength int, inputData [][]tokens.Token) *TokenGra
 func (m *TokenGraph) add(ts []tokens.Token) {
 	lastToken := ts[0]
 	for _, token := range ts[1:] {
-		if m.adjacencies[lastToken] == nil {
-			m.adjacencies[lastToken] = make([]bool, tokens.End)
+		if m.adjacencies[lastToken.Kind] == nil {
+			m.adjacencies[lastToken.Kind] = make([]bool, tokens.End)
 		}
-		m.adjacencies[lastToken][token] = true
+		m.adjacencies[lastToken.Kind][token.Kind] = true
 		lastToken = token
 	}
 }
@@ -57,7 +57,7 @@ func (m *TokenGraph) MatchProbability(ts []tokens.Token) MatchContext {
 	// A function used by maxSubsequence to look up a match in the graph for a pair of tokens.
 	matchForIndex := func(idx int) int {
 		match := -1
-		if m.adjacencies[lastToken] != nil && m.adjacencies[lastToken][ts[idx+1]] {
+		if m.adjacencies[lastToken.Kind] != nil && m.adjacencies[lastToken.Kind][ts[idx+1].Kind] {
 			match = 1
 		}
 		lastToken = ts[idx+1]

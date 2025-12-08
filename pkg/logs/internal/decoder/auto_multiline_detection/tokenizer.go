@@ -25,15 +25,27 @@ const maxRun = 10
 // that can be used to compare log messages structure. A tokenizer instance is not thread safe
 // as bufferes are reused to avoid allocations.
 type Tokenizer struct {
-	maxEvalBytes int
-	strBuf       *bytes.Buffer
+	maxEvalBytes    int
+	strBuf          *bytes.Buffer
+	captureLiterals bool // Whether to capture literal string values
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
 func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	return &Tokenizer{
-		maxEvalBytes: maxEvalBytes,
-		strBuf:       bytes.NewBuffer(make([]byte, 0, maxRun)),
+		maxEvalBytes:    maxEvalBytes,
+		strBuf:          bytes.NewBuffer(make([]byte, 0, maxRun)),
+		captureLiterals: false, // Default: don't capture (for auto-multiline)
+	}
+}
+
+// NewTokenizerWithLiterals returns a tokenizer that captures literal string values.
+// Use this for processing rules that need exact string matching.
+func NewTokenizerWithLiterals(maxEvalBytes int) *Tokenizer {
+	return &Tokenizer{
+		maxEvalBytes:    maxEvalBytes,
+		strBuf:          bytes.NewBuffer(make([]byte, 0, maxRun)),
+		captureLiterals: true,
 	}
 }
 
@@ -47,7 +59,7 @@ func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 	return true
 }
 
-// Tokenize converts a byte slice to a list of tokens.
+// Tokenize converts a byte slice to a list of tokens with optional literal values.
 // This function return the slice of tokens, and a slice of indices where each token starts.
 func (t *Tokenizer) Tokenize(input []byte) ([]tokens.Token, []int) {
 	// len(ts) will always be <= len(input)
@@ -59,9 +71,10 @@ func (t *Tokenizer) Tokenize(input []byte) ([]tokens.Token, []int) {
 
 	idx := 0
 	run := 0
-	lastToken := getToken(input[0])
+	lastTokenKind := getTokenKind(input[0])
 	t.strBuf.Reset()
-	t.strBuf.WriteRune(unicode.ToUpper(rune(input[0])))
+	// Always buffer for special token detection, regardless of captureLiterals
+	t.strBuf.WriteByte(input[0])
 
 	insertToken := func() {
 		defer func() {
@@ -69,17 +82,23 @@ func (t *Tokenizer) Tokenize(input []byte) ([]tokens.Token, []int) {
 			t.strBuf.Reset()
 		}()
 
-		// Only test for special tokens if the last token was a charcater (Special tokens are currently only A-Z).
-		if lastToken == tokens.C1 {
+		var literal string
+		if t.captureLiterals {
+			literal = t.strBuf.String()
+		}
+
+		// Only test for special tokens if the last token was a character (Special tokens are currently only A-Z).
+		if lastTokenKind == tokens.C1 {
 			if t.strBuf.Len() == 1 {
-				if specialToken := getSpecialShortToken(t.strBuf.Bytes()[0]); specialToken != tokens.End {
-					ts = append(ts, specialToken)
+				if specialTokenKind := getSpecialShortToken(t.strBuf.Bytes()[0]); specialTokenKind != tokens.End {
+					ts = append(ts, tokens.NewToken(specialTokenKind, literal))
 					indicies = append(indicies, idx)
 					return
 				}
 			} else if t.strBuf.Len() > 1 { // Only test special long tokens if buffer is > 1 token
-				if specialToken := getSpecialLongToken(t.strBuf.String()); specialToken != tokens.End {
-					ts = append(ts, specialToken)
+				upperLit := strings.ToUpper(t.strBuf.String())
+				if specialTokenKind := getSpecialLongToken(upperLit); specialTokenKind != tokens.End {
+					ts = append(ts, tokens.NewToken(specialTokenKind, literal))
 					indicies = append(indicies, idx-run)
 					return
 				}
@@ -87,33 +106,29 @@ func (t *Tokenizer) Tokenize(input []byte) ([]tokens.Token, []int) {
 		}
 
 		// Check for char or digit runs
-		if lastToken == tokens.C1 || lastToken == tokens.D1 {
+		if lastTokenKind == tokens.C1 || lastTokenKind == tokens.D1 {
 			indicies = append(indicies, idx-run)
 			// Limit max run size
 			if run >= maxRun {
 				run = maxRun - 1
 			}
-			ts = append(ts, lastToken+tokens.Token(run))
+			ts = append(ts, tokens.NewToken(lastTokenKind+tokens.TokenKind(run), literal))
 		} else {
-			ts = append(ts, lastToken)
+			ts = append(ts, tokens.NewToken(lastTokenKind, literal))
 			indicies = append(indicies, idx-run)
 		}
 	}
 
 	for _, char := range input[1:] {
-		currentToken := getToken(char)
-		if currentToken != lastToken {
+		currentTokenKind := getTokenKind(char)
+		if currentTokenKind != lastTokenKind {
 			insertToken()
 		} else {
 			run++
 		}
-		if currentToken == tokens.C1 {
-			// Store upper case A-Z characters for matching special tokens
-			t.strBuf.WriteRune(unicode.ToUpper(rune(char)))
-		} else {
-			t.strBuf.WriteByte(char)
-		}
-		lastToken = currentToken
+		// Always buffer for special token detection
+		t.strBuf.WriteByte(char)
+		lastTokenKind = currentTokenKind
 		idx++
 	}
 
@@ -123,8 +138,8 @@ func (t *Tokenizer) Tokenize(input []byte) ([]tokens.Token, []int) {
 	return ts, indicies
 }
 
-// getToken returns a single token from a single byte.
-func getToken(char byte) tokens.Token {
+// getTokenKind returns the token kind for a single byte.
+func getTokenKind(char byte) tokens.TokenKind {
 	if unicode.IsDigit(rune(char)) {
 		return tokens.D1
 	} else if unicode.IsSpace(rune(char)) {
@@ -193,8 +208,9 @@ func getToken(char byte) tokens.Token {
 	return tokens.C1
 }
 
-func getSpecialShortToken(char byte) tokens.Token {
-	switch char {
+func getSpecialShortToken(char byte) tokens.TokenKind {
+	charUpper := byte(unicode.ToUpper(rune(char)))
+	switch charUpper {
 	case 'T':
 		return tokens.T
 	case 'Z':
@@ -203,9 +219,10 @@ func getSpecialShortToken(char byte) tokens.Token {
 	return tokens.End
 }
 
-// getSpecialLongToken returns a special token that is > 1 character.
+// getSpecialLongToken returns a special token kind that is > 1 character.
 // NOTE: This set of tokens is non-exhaustive and can be expanded.
-func getSpecialLongToken(input string) tokens.Token {
+// Input should be uppercase.
+func getSpecialLongToken(input string) tokens.TokenKind {
 	switch input {
 	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL",
 		"AUG", "SEP", "OCT", "NOV", "DEC":
@@ -228,13 +245,19 @@ func getSpecialLongToken(input string) tokens.Token {
 
 // tokenToString converts a single token to a debug string.
 func tokenToString(token tokens.Token) string {
-	if token >= tokens.D1 && token <= tokens.D10 {
-		return strings.Repeat("D", int(token-tokens.D1)+1)
-	} else if token >= tokens.C1 && token <= tokens.C10 {
-		return strings.Repeat("C", int(token-tokens.C1)+1)
+	// If token has a literal value, return it
+	if token.Lit != "" {
+		return token.Lit
 	}
 
-	switch token {
+	// Otherwise return a debug representation based on kind
+	if token.Kind >= tokens.D1 && token.Kind <= tokens.D10 {
+		return strings.Repeat("D", int(token.Kind-tokens.D1)+1)
+	} else if token.Kind >= tokens.C1 && token.Kind <= tokens.C10 {
+		return strings.Repeat("C", int(token.Kind-tokens.C1)+1)
+	}
+
+	switch token.Kind {
 	case tokens.Space:
 		return " "
 	case tokens.Colon:
@@ -331,7 +354,7 @@ func isMatch(seqA []tokens.Token, seqB []tokens.Token, thresh float64) bool {
 	match := 0
 
 	for i := 0; i < count; i++ {
-		if seqA[i] == seqB[i] {
+		if seqA[i].Equals(seqB[i]) {
 			match++
 		}
 		if match+(count-i-1) < requiredMatches {
