@@ -50,9 +50,9 @@ func TestGetListener(t *testing.T) {
 		configmock.New(t)
 
 		res, err := getListener("localhost:5009")
-		defer res.Close()
-
 		require.NoError(t, err)
+
+		defer res.Close()
 		require.Equal(t, "127.0.0.1:5009", res.Addr().String())
 	})
 
@@ -60,9 +60,9 @@ func TestGetListener(t *testing.T) {
 		configmock.New(t)
 
 		res, err := getListener("127.0.0.1:5009")
-		defer res.Close()
-
 		require.NoError(t, err)
+
+		defer res.Close()
 		require.Equal(t, "127.0.0.1:5009", res.Addr().String())
 	})
 
