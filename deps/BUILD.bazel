@@ -29,7 +29,6 @@ filegroup(
             "@libxslt",
             "@nghttp2",
             "@pcre2",
-            "@popt",
             "@zstd",
         ],
         "//:macos_arm64": [

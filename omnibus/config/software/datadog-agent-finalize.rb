@@ -25,7 +25,12 @@ build do
     # TODO too many things done here, should be split
     block do
         # Push all the pieces built with Bazel.
-        command_on_repo_root "bazelisk run -- //packages/install_dir:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
+
+        if heroku_target?
+            command_on_repo_root "bazelisk run --//packages/agent:flavor=heroku -- //packages/install_dir:install --destdir=#{install_dir}"
+        else
+            command_on_repo_root "bazelisk run -- //packages/install_dir:install --destdir=#{install_dir}"
+        end
 
         # Conf files
         if windows_target?
