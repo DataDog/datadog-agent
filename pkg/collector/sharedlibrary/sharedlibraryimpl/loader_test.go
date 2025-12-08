@@ -36,7 +36,7 @@ func TestCreateFakeCheck(t *testing.T) {
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
+	loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, &ffi.NoopSharedLibraryLoader{})
 	assert.Nil(t, err)
 
 	check, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
@@ -65,7 +65,7 @@ func TestLoadWithMissingLibrary(t *testing.T) {
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	sharedLibraryLoader := ffi.NewSharedLibraryLoader("folder/path/without/expected/library")
 
-	loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
+	loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
 	assert.Nil(t, err)
 
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)

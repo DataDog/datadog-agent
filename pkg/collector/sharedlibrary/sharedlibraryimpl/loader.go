@@ -26,8 +26,7 @@ type CheckLoader struct {
 	loader ffi.LibraryLoader
 }
 
-// NewSharedLibraryCheckLoader creates the checks loader
-func NewSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader) (*CheckLoader, error) {
+func newSharedLibraryCheckLoader(_ sender.SenderManager, _ option.Option[integrations.Component], _ tagger.Component, _ workloadfilter.Component, loader ffi.LibraryLoader) (*CheckLoader, error) {
 	return &CheckLoader{
 		loader: loader,
 	}, nil

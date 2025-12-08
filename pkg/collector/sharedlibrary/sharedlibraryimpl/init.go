@@ -27,7 +27,7 @@ func InitSharedLibraryChecksLoader() {
 
 	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
 		sharedLibraryLoader := ffi.NewSharedLibraryLoader(libFolderPath)
-		loader, err := NewSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter, sharedLibraryLoader)
+		loader, err := newSharedLibraryCheckLoader(senderManager, logReceiver, tagger, filter, sharedLibraryLoader)
 		priority := 40
 		return loader, priority, err
 	}
