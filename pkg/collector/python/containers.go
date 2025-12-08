@@ -40,7 +40,7 @@ func IsContainerExcluded(name, image, namespace *C.char) C.int {
 	filterablePod := workloadfilter.CreatePod("", "", goNs, nil)
 	filterableContainer := workloadfilter.CreateContainer("", goName, goImg, filterablePod)
 
-	if checkContext.Filter.IsExcluded(filterableContainer) {
+	if checkContext.IsExcluded(filterableContainer) {
 		return 1
 	}
 	return 0

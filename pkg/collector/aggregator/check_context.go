@@ -9,6 +9,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -25,9 +26,21 @@ var checkContextMutex = sync.Mutex{}
 // per dependency used inside SubmitMetric like methods.
 type CheckContext struct {
 	senderManager sender.SenderManager
-	LogReceiver   option.Option[integrations.Component]
-	Tagger        tagger.Component
-	Filter        workloadfilter.FilterBundle
+	logReceiver   option.Option[integrations.Component]
+	tagger        tagger.Component
+	filter        workloadfilter.FilterBundle
+}
+
+func (cc *CheckContext) Tag(entityID types.EntityID, cardinality types.TagCardinality) ([]string, error) {
+	return cc.tagger.Tag(entityID, cardinality)
+}
+
+func (cc *CheckContext) GetLogReceiver() (integrations.Component, bool) {
+	return cc.logReceiver.Get()
+}
+
+func (cc *CheckContext) IsExcluded(container *workloadfilter.Container) bool {
+	return cc.filter.IsExcluded(container)
 }
 
 // GetCheckContext retrives the current context
@@ -47,9 +60,9 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 	if checkCtx == nil {
 		checkCtx = &CheckContext{
 			senderManager: senderManager,
-			LogReceiver:   logReceiver,
-			Tagger:        tagger,
-			Filter:        filterStore.GetContainerSharedMetricFilters(),
+			logReceiver:   logReceiver,
+			tagger:        tagger,
+			filter:        filterStore.GetContainerSharedMetricFilters(),
 		}
 
 		if _, ok := logReceiver.Get(); !ok {
@@ -57,14 +70,5 @@ func InitializeCheckContext(senderManager sender.SenderManager, logReceiver opti
 		}
 	}
 
-	checkContextMutex.Unlock()
-}
-
-// releaseCheckContext is only used in test files
-//
-//nolint:unused
-func releaseCheckContext() {
-	checkContextMutex.Lock()
-	checkCtx = nil
 	checkContextMutex.Unlock()
 }

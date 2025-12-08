@@ -46,7 +46,7 @@ func Tags(id *C.char, cardinality C.int) **C.char {
 	}
 	entityID := types.NewEntityID(prefix, eid)
 
-	tags, _ = checkContext.Tagger.Tag(entityID, types.TagCardinality(cardinality))
+	tags, _ = checkContext.Tag(entityID, types.TagCardinality(cardinality))
 
 	length := len(tags)
 	if length == 0 {

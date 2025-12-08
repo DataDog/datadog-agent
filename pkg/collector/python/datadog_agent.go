@@ -231,7 +231,7 @@ func SendLog(logLine, checkID *C.char) {
 		log.Errorf("Log submission failed: %s", err)
 	}
 
-	lr, ok := cc.LogReceiver.Get()
+	lr, ok := cc.GetLogReceiver()
 	if !ok {
 		log.Error("Log submission failed: no receiver")
 		return
