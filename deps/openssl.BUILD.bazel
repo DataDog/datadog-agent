@@ -2,7 +2,7 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 
 package(default_visibility = ["//visibility:public"])
 
