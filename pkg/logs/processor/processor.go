@@ -81,7 +81,6 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 	// Initialize cached failover config
 	p.updateFailoverConfig()
 
-	log.Info("CELIAN INIT")
 	// Init drain processor
 	GetDrainProcessor()
 
@@ -180,7 +179,6 @@ func (p *Processor) run() {
 }
 
 func (p *Processor) processMessage(msg *message.Message) {
-	log.Infof("CELIAN PROCESS MESSAGE %s", msg.GetContent())
 	useDrain := UseDrain()
 	if useDrain {
 		defer ReleaseDrain()
