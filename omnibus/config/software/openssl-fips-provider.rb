@@ -23,7 +23,7 @@ relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
     dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
-    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{dest}"
+    command_on_repo_root "bazelisk run --copt=-H -- @openssl_fips//:install --destdir=#{dest}"
     
     # Calling helpers to set the correct paths in openssl.cnf and fipsinstall.sh.
     if windows?
