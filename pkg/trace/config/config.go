@@ -552,9 +552,6 @@ type AgentConfig struct {
 	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
 	DebugV1Payloads bool
 
-	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
-	EnableV1TraceEndpoint bool
-
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
 }
