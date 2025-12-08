@@ -22,15 +22,14 @@ source url: "https://www.openssl.org/source/#{OPENSSL_FIPS_MODULE_FILENAME}",
 relative_path "openssl-#{OPENSSL_FIPS_MODULE_VERSION}"
 
 build do
-    dest = if !windows_target? then "#{install_dir}/embedded" else "#{windows_safe_path(python_3_embedded)}" end
-    command_on_repo_root "bazelisk run --copt=-H -- @openssl_fips//:install --destdir=#{dest}"
+    command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}"
     
     # Calling helpers to set the correct paths in openssl.cnf and fipsinstall.sh.
     if windows?
       command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips_win --embedded_ssl_dir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'"
     else
-      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{dest}"
+      command_on_repo_root "bazelisk run -- @openssl_fips//:configure_fips --destdir=#{install_dir}"
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
-        " #{dest}/lib/ossl-modules/fips.so" \
+        " #{install_dir}/embedded/lib/ossl-modules/fips.so" \
     end
 end
