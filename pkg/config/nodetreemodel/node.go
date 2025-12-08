@@ -201,11 +201,19 @@ func setNodeAtPath(n *nodeImpl, fields []string, value interface{}, source model
 
 // InsertChildNode sets a node in the current node
 func (n *nodeImpl) InsertChildNode(name string, node *nodeImpl) {
+	if n.IsLeafNode() {
+		log.Error("cannot InsertChildNode of leaf node")
+		return
+	}
 	n.children[name] = node
 }
 
 // RemoveChild removes a node from the current node
 func (n *nodeImpl) RemoveChild(name string) {
+	if n.IsLeafNode() {
+		log.Error("cannot RemoveChild of leaf node")
+		return
+	}
 	delete(n.children, name)
 }
 
