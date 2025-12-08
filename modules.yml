@@ -269,6 +269,7 @@ modules:
     should_test_condition: never
   pkg/serializer:
     used_by_otel: true
+  pkg/ssi/testutils: default
   pkg/status/health:
     used_by_otel: true
   pkg/tagger/types:
