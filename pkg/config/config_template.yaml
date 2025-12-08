@@ -1929,19 +1929,19 @@ api_key:
 
 # network_path:
 #   # @param connections_monitoring - custom object - optional
-#   # Specific configurations for monitoring network connections via Network Path.
+#   # Configurations for Network Path Dynamic Test for monitoring network connections via Network Path.
 #
 #   connections_monitoring:
 
 #     # @param enabled - bool - optional - default: false
 #     # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
-#     # [Beta] Enables monitoring network connections via Network Path.
+#     # Enables Network Path Dynamic Test for monitoring network connections via Network Path.
 #
 #     enabled: false
 
 #   # @param collector - custom object - optional
-#   # Configuration related to Network Path Collector.
-#   # Network Path Collector is used to monitor network traffic connections on the host.
+#   # Configuration related to Network Path Collector used for Network Path Dynamic Test
+#   # to monitor network traffic connections on the host.
 #
 #   collector:
 
