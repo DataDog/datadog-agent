@@ -6,7 +6,7 @@ visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio"
 
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
-bazel_dep(name = "package_metadata", version = "0.0.6")
+bazel_dep(name = "package_metadata", version = "0.0.7")
 
 # Instead of the canonical rules_license, we use the version from supply-chain.
 # This allows mixing both old and new license rules during the multi-year

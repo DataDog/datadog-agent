@@ -135,6 +135,7 @@ use (
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
+	pkg/ssi/testutils
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
