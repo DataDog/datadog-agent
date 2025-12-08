@@ -15,16 +15,10 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	ecsComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/ecs"
