@@ -1937,7 +1937,7 @@ api_key:
 #     # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
 #     # Enables Network Path Dynamic Test for monitoring network connections via Network Path.
 #
-#     enabled: false
+#     enabled: true
 
 #   # @param collector - custom object - optional
 #   # Configuration related to Network Path Collector used for Network Path Dynamic Test
