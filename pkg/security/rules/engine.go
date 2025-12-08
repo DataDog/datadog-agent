@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -260,8 +261,8 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 				return
 			case <-heartbeatTicker.C:
 				tags := []string{
-					fmt.Sprintf("version:%s", version.AgentVersion),
-					fmt.Sprintf("os:%s", runtime.GOOS),
+					"version:" + version.AgentVersion,
+					"os:" + runtime.GOOS,
 					constants.CardinalityTagPrefix + "none",
 				}
 
@@ -290,7 +291,7 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
-					tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+					tags = append(tags, "policies_version:"+version)
 				}
 				e.RUnlock()
 
@@ -398,47 +399,73 @@ func (e *RuleEngine) notifyAPIServer(ruleIDs []rules.RuleID, policies []*monitor
 	e.apiServer.ApplyPolicyStates(policies)
 }
 
-// GetSECLVariables returns the state of all current variable instances
-func (e *RuleEngine) GetSECLVariables() map[string]*api.SECLVariableState {
-	rs := e.GetRuleSet()
-	if rs == nil {
-		return nil
+type seclVariableEventPreparator struct {
+	ctxPool *eval.ContextPool
+	event   *model.Event
+}
+
+func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparator {
+	return &seclVariableEventPreparator{
+		ctxPool: eval.NewContextPool(),
+		event:   e.probe.PlatformProbe.NewEvent(),
 	}
+}
 
-	seclVariableStates := make(map[string]*api.SECLVariableState)
+var eventZeroer = model.NewEventZeroer()
 
-	addVariableState := func(name string, instance eval.VariableInstance) {
-		defer func() {
-			if err := recover(); err != nil {
-				seclog.Errorf("recovered panic while getting value of variable '%s': %v", name, err)
+func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
+	eventZeroer(p.event)
+	f(p.event)
+	return p.ctxPool.Get(p.event)
+}
+
+func (p *seclVariableEventPreparator) put(ctx *eval.Context) {
+	p.ctxPool.Put(ctx)
+}
+
+func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVariable, seclVariables map[string]*api.SECLVariableState, preparator *seclVariableEventPreparator) {
+	for name, value := range rsVariables {
+		if strings.HasPrefix(name, "process.") {
+			scopedVariable := value.(eval.ScopedVariable)
+			if !scopedVariable.IsMutable() {
+				continue
 			}
-		}()
-		seclVariableStates[name] = &api.SECLVariableState{
-			Name:  name,
-			Value: fmt.Sprintf("%+v", instance.GetValue()),
-		}
-	}
 
-	rs.IterVariables(func(definition eval.VariableDefinition, instances map[string]eval.VariableInstance) {
-		name := definition.VariableName(true)
-		switch definition.Scoper().Type() {
-		case eval.GlobalScoperType:
-			globalInstance, ok := instances[rules.GlobalScopeKey]
-			if ok && !globalInstance.IsExpired() { // skip variables that expired but are yet to be cleaned up
-				addVariableState(name, globalInstance)
-			}
-		case eval.ProcessScoperType, eval.CGroupScoperType, eval.ContainerScoperType:
-			for scopeKey, instance := range instances {
-				if instance.IsExpired() { // skip variables that expired but are yet to be cleaned up
-					continue
+			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
+				entry.Retain()
+				defer entry.Release()
+
+				ctx := preparator.get(func(event *model.Event) {
+					event.ProcessCacheEntry = entry
+				})
+				defer preparator.put(ctx)
+
+				value, found := scopedVariable.GetValue(ctx)
+				if !found {
+					return
 				}
-				scopedName := fmt.Sprintf("%s.%s", name, scopeKey)
-				addVariableState(scopedName, instance)
+
+				scopedName := fmt.Sprintf("%s.%d", name, entry.Pid)
+				scopedValue := fmt.Sprintf("%+v", value)
+				seclVariables[scopedName] = &api.SECLVariableState{
+					Name:  scopedName,
+					Value: scopedValue,
+				}
+			})
+		} else if strings.Contains(name, ".") { // other scopes
+			continue
+		} else { // global variables
+			value, found := value.(eval.Variable).GetValue()
+			if !found {
+				continue
+			}
+			scopedValue := fmt.Sprintf("%+v", value)
+			seclVariables[name] = &api.SECLVariableState{
+				Name:  name,
+				Value: scopedValue,
 			}
 		}
-	})
-
-	return seclVariableStates
+	}
 }
 
 func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {

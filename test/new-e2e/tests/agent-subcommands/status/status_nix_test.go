@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 type linuxStatusSuite struct {
@@ -22,7 +23,7 @@ type linuxStatusSuite struct {
 
 func TestLinuxStatusSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
+	e2e.Run(t, &linuxStatusSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithoutFakeIntake()))))
 }
 
 func (v *linuxStatusSuite) TestStatusHostname() {
@@ -53,7 +54,7 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 		shouldContains = []string{"FIPS Mode: proxy", "FIPS proxy"}
 	}
 
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig("fips.enabled: true")))))
 
 	expectedSections := []expectedSection{
 		{
@@ -69,10 +70,10 @@ func (v *linuxStatusSuite) TestFIPSProxyStatus() {
 
 // This test asserts the presence of metadata sent by Python checks in the status subcommand output.
 func (v *linuxStatusSuite) TestChecksMetadataUnix() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(scenec2.WithAgentOptions(
 		agentparams.WithIntegration("custom_check.d", string(customCheckYaml)),
 		agentparams.WithFile("/etc/datadog-agent/checks.d/custom_check.py", string(customCheckPython), true),
-	)))
+	))))
 
 	expectedSections := []expectedSection{
 		{

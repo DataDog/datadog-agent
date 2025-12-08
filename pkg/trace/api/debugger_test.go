@@ -6,7 +6,6 @@
 package api
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -117,7 +116,7 @@ func TestDebuggerProxyHandler(t *testing.T) {
 			called = true
 		}))
 		defer srv.Close()
-		req, err := http.NewRequest("POST", fmt.Sprintf("/some/path?ddtags=%s", tooLongString), nil)
+		req, err := http.NewRequest("POST", "/some/path?ddtags="+tooLongString, nil)
 		assert.NoError(t, err)
 		conf := getConf()
 		conf.Hostname = "myhost"
@@ -133,11 +132,11 @@ func TestDebuggerProxyHandler(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
 			ddtags := req.URL.Query().Get("ddtags")
 			assert.False(t, strings.Contains(ddtags, "orchestrator"), "ddtags should not contain orchestrator: %v", ddtags)
-			assert.Equal(t, fmt.Sprintf("host:myhost,default_env:test,agent_version:v1,%s", extraTag), ddtags)
+			assert.Equal(t, "host:myhost,default_env:test,agent_version:v1,"+extraTag, ddtags)
 			numCalls.Add(1)
 		}))
 		defer srv.Close()
-		req, err := http.NewRequest("POST", fmt.Sprintf("/some/path?ddtags=%s", extraTag), nil)
+		req, err := http.NewRequest("POST", "/some/path?ddtags="+extraTag, nil)
 		assert.NoError(t, err)
 		conf := getConf()
 		conf.Hostname = "myhost"

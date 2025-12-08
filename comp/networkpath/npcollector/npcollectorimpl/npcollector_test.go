@@ -244,6 +244,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -321,6 +324,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "test_result_id": "",
     "pathtrace_id": "",
     "origin": "network_traffic",
+    "test_run_type": "dynamic",
+    "source_product": "network_path",
+    "collector_type": "agent",
     "protocol": "UDP",
     "source": {
         "name": "test-hostname",
@@ -549,7 +555,7 @@ func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, 4, npCollector.workers)
 	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
-	assert.Equal(t, 5000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
+	assert.Equal(t, 1000, npCollector.collectorConfigs.storeConfig.ContextsLimit)
 	assert.Equal(t, "default", npCollector.networkDevicesNamespace)
 }
 

@@ -117,7 +117,7 @@ func TestSeelogConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
-			config := NewSeelogConfig(tc.loggerName, tc.logLevel, tc.format, tc.jsonFormat, tc.commonFormat, tc.syslogRFC)
+			config := NewSeelogConfig(tc.loggerName, tc.logLevel, tc.format, tc.jsonFormat, tc.commonFormat, tc.syslogRFC, nil, nil)
 			config.ConfigureSyslog(tc.syslogURI)
 			config.EnableFileLogging(tc.logfile, tc.maxsize, tc.maxrolls)
 			config.EnableConsoleLog(tc.consoleLoggingEnabled)

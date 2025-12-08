@@ -165,12 +165,6 @@ func (c *realDependencies) asDependencies() dependencies {
 }
 
 func (c *realDependencies) shutdown() {
-	if c.logUploader != nil {
-		c.logUploader.Stop()
-	}
-	if c.diagsUploader != nil {
-		c.diagsUploader.Stop()
-	}
 	if c.actuator != nil {
 		if err := c.actuator.Shutdown(); err != nil {
 			log.Warnf("error shutting down actuator: %v", err)
@@ -183,6 +177,12 @@ func (c *realDependencies) shutdown() {
 	}
 	if c.loader != nil {
 		c.loader.Close()
+	}
+	if c.logUploader != nil {
+		c.logUploader.Stop()
+	}
+	if c.diagsUploader != nil {
+		c.diagsUploader.Stop()
 	}
 	if c.symdbManager != nil {
 		c.symdbManager.stop()

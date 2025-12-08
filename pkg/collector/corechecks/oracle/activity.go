@@ -334,12 +334,12 @@ AND status = 'ACTIVE'`)
 			}
 		} else {
 			if (sample.OpFlags & 128) == 128 {
-				statement = fmt.Sprintf("%s IN HARD PARSE", statement)
+				statement = statement + " IN HARD PARSE"
 			} else if (sample.OpFlags & 16) == 16 {
-				statement = fmt.Sprintf("%s IN PARSE", statement)
+				statement = statement + " IN PARSE"
 			}
 			if (sample.OpFlags & 65536) == 65536 {
-				statement = fmt.Sprintf("%s IN CURSOR CLOSING", statement)
+				statement = statement + " IN CURSOR CLOSING"
 			}
 		}
 
