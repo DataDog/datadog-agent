@@ -6,6 +6,7 @@
 package privatebundles
 
 import (
+	com_datadoghq_datadog_agentactions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/datadog/agentactions"
 	com_datadoghq_kubernetes_apiextensions "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apiextensions"
 	com_datadoghq_kubernetes_apps "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/apps"
 	com_datadoghq_kubernetes_batch "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/batch"
@@ -21,6 +22,7 @@ type Registry struct {
 func NewRegistry() *Registry {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
+			"com.datadoghq.datadog.agentactions":       com_datadoghq_datadog_agentactions.NewDatadogAgentActions(),
 			"com.datadoghq.kubernetes.apiextensions":   com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":            com_datadoghq_kubernetes_apps.NewKubernetesApps(),
 			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
