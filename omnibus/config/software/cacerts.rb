@@ -31,7 +31,7 @@ name "cacerts"
 # when they change.
 default_version "2025-12-02"
 source url: "https://curl.se/ca/cacert-#{version}.pem",
-       sha256: "f1407d974c5ed87d544bd931a278232e13925177e239fca370619aba63c757b4"
+       sha256: "f1407d974c5ed87d544bd931a278232e13925177e239fca370619aba63c757b4",
        target_filename: "cacert.pem"
 
 relative_path "cacerts-#{version}"
