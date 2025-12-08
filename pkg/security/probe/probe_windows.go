@@ -131,6 +131,10 @@ type WindowsProbe struct {
 	// approvers
 	approvers    map[eval.Field][]approver
 	approverLock sync.RWMutex
+
+	// ETW ready signaling for tests
+	etwReady     chan struct{}
+	etwReadyOnce sync.Once
 }
 
 type writeRateLimiterKey struct {
@@ -491,6 +495,11 @@ func (p *WindowsProbe) startAuditTracing(ecb etwCallback) error {
 func (p *WindowsProbe) startFrimTracing(ecb etwCallback) error {
 	log.Info("Starting FRIM tracing...")
 	err := p.frimSession.StartTracing(func(e *etw.DDEventRecord) {
+		// Signal that ETW is ready on the first event
+		p.etwReadyOnce.Do(func() {
+			close(p.etwReady)
+			log.Info("ETW FRIM tracing is now ready (first event received)")
+		})
 		p.stats.totalEtwNotifications++
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
@@ -946,6 +955,12 @@ func (p *WindowsProbe) Start() error {
 	return p.pm.Start()
 }
 
+// ETWReady returns the channel that is closed when ETW is ready (first event received).
+// This is primarily useful for tests to avoid flaky behavior from ETW startup delays.
+func (p *WindowsProbe) ETWReady() <-chan struct{} {
+	return p.etwReady
+}
+
 func (p *WindowsProbe) handleProcessStart(ev *model.Event, start *procmon.ProcessStartNotification) bool {
 	pid := process.Pid(start.Pid)
 	if pid == 0 {
@@ -1378,6 +1393,8 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		volumeMap: make(map[string]string),
 
 		writeRateLimiter: writeRateLimiter,
+
+		etwReady: make(chan struct{}),
 
 		processKiller: processKiller,
 

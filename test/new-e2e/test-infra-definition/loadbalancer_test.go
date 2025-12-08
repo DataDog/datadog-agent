@@ -23,7 +23,7 @@ type loadBalancerSuiteMetrics struct {
 }
 
 func TestLoadBalancer(t *testing.T) {
-	e2e.Run(t, &loadBalancerSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithFakeIntakeOptions(fakeintake.WithLoadBalancer())))))
+	e2e.Run(t, &loadBalancerSuiteMetrics{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithRunOptions(ec2.WithFakeIntakeOptions(fakeintake.WithLoadBalancer())))), e2e.WithSkipCoverage())
 }
 
 func (v *loadBalancerSuiteMetrics) Test_FakeIntakeReceivesMetrics() {

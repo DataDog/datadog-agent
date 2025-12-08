@@ -1,5 +1,5 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//compliance:license_csv.bzl", "license_csv")
 
@@ -21,17 +21,6 @@ license_csv(
     offers_dir = "sources_dir",
     tags = ["manual"],
     target = "//deps:all_deps",
-)
-
-# We need to install sources.txt in /opt/datadog-agent/sources/.
-pkg_files(
-    name = "source_offers",
-    srcs = [":sources.txt"],
-    # Must be writable or the signing step in finalize fails.
-    attributes = pkg_attributes(
-        mode = "0644",
-    ),
-    prefix = "sources",
 )
 
 # Turn the copied licenses into a target we can feed to other rules.

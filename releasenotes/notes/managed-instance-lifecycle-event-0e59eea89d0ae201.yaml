@@ -1,0 +1,6 @@
+
+---
+
+fixes:
+  - |
+    Send ECS task lifecycle event for ECS Managed Instances when agent is deployed as a sidecar.

@@ -119,7 +119,7 @@ func processMemorySample(device ddnvml.Device) ([]Metric, uint64, error) {
 }
 
 // createStatelessAPIs creates API call definitions for all stateless metrics on demand
-func createStatelessAPIs() []apiCallInfo {
+func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 	apis := []apiCallInfo{
 		// Memory collector APIs
 		{
@@ -337,6 +337,20 @@ func createStatelessAPIs() []apiCallInfo {
 			},
 		},
 		{
+			Name: "device_unhealthy_count",
+			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
+				gpu, err := deps.Workloadmeta.GetGPU(device.GetDeviceInfo().UUID)
+				if err != nil {
+					return nil, 0, err
+				}
+				var count float64
+				if !gpu.Healthy {
+					count = 1
+				}
+				return []Metric{{Name: "device.unhealthy", Value: count, Type: metrics.GaugeType}}, 0, nil
+			},
+		},
+		{
 			Name: "clock_throttle_reasons",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				reasons, err := device.GetCurrentClocksThrottleReasons()
@@ -430,6 +444,6 @@ func createStatelessAPIs() []apiCallInfo {
 var statelessAPIFactory = createStatelessAPIs
 
 // newStatelessCollector creates a collector that consolidates all stateless collector types
-func newStatelessCollector(device ddnvml.Device, _ *CollectorDependencies) (Collector, error) {
-	return NewBaseCollector(stateless, device, statelessAPIFactory())
+func newStatelessCollector(device ddnvml.Device, deps *CollectorDependencies) (Collector, error) {
+	return NewBaseCollector(stateless, device, statelessAPIFactory(deps))
 }

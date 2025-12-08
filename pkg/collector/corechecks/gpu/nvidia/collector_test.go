@@ -147,7 +147,11 @@ func TestAllCollectorsWork(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, eventsGatherer.Stop()) })
 	devices, err := deviceCache.AllPhysicalDevices()
 	require.NoError(t, err)
-	deps := &CollectorDependencies{DeviceEventsGatherer: eventsGatherer}
+
+	deps := &CollectorDependencies{
+		DeviceEventsGatherer: eventsGatherer,
+		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
+	}
 	collectors, err := BuildCollectors(devices, deps)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
