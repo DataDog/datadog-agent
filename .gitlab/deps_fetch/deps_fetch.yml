@@ -146,3 +146,51 @@ fetch_openjdk:
     - wget "$JDK_URL/$JDK_FILENAME" -O "$JDK_FILENAME"
     - echo "$JDK_SHA256  $JDK_FILENAME" | sha256sum -c
     - $S3_CP_CMD "$JDK_FILENAME" "$S3_DD_AGENT_OMNIBUS_JAVA_URI/$JDK_FILENAME" --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers
+
+fetch_sd_agent_x64:
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  needs: []
+  tags: ["arch:amd64", "specific:true"]
+  stage: deps_fetch
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  variables:
+    SD_AGENT_RELEASE_TAG: "omnibus-test"
+    SD_AGENT_ARCH: "x86_64"
+    SD_AGENT_REPO: "DataDog/sd-agent"
+  before_script:
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/sd-agent --policy self.gitlab.read)
+  script:
+
+    # Download binary using GitHub API (get asset ID first, then download)
+    - |
+      ASSET_NAME="sd-agent-${SD_AGENT_RELEASE_TAG}-${SD_AGENT_ARCH}"
+      echo "Fetching release info from: https://api.github.com/repos/${SD_AGENT_REPO}/releases/tags/${SD_AGENT_RELEASE_TAG}"
+      RELEASE_DATA=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/${SD_AGENT_REPO}/releases/tags/${SD_AGENT_RELEASE_TAG}")
+      echo "Looking for asset name: ${ASSET_NAME}"
+      ASSET_ID=$(echo "$RELEASE_DATA" | grep -B2 "\"name\": \"${ASSET_NAME}\"" | grep '"id":' | head -n1 | sed -E 's/.*"id": ([0-9]+).*/\1/')
+      echo "Found asset ID: ${ASSET_ID}"
+      if [ -z "$ASSET_ID" ] || [ "$ASSET_ID" = "" ]; then
+        echo "ERROR: Asset ${ASSET_NAME} not found"
+        echo "Available assets in release:"
+        echo "$RELEASE_DATA" | grep '"name":' | head -20
+        exit 1
+      fi
+      curl -L -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/octet-stream" "https://api.github.com/repos/${SD_AGENT_REPO}/releases/assets/${ASSET_ID}" -o "sd-agent-${SD_AGENT_ARCH}"
+      ls -lh "sd-agent-${SD_AGENT_ARCH}"
+
+    # Upload to S3 for package_build jobs
+    - $S3_CP_CMD "sd-agent-${SD_AGENT_ARCH}" "$S3_PERMANENT_ARTIFACTS_URI/sd-agent-${SD_AGENT_RELEASE_TAG}-${SD_AGENT_ARCH}"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - sd-agent-${SD_AGENT_ARCH}
+  rules:
+    - when: on_success
+
+fetch_sd_agent_arm64:
+  extends: fetch_sd_agent_x64
+  tags: ["arch:arm64", "specific:true"]
+  variables:
+    SD_AGENT_ARCH: "aarch64"

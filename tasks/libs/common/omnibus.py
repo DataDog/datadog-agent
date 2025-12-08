@@ -43,6 +43,7 @@ ENV_PASSHTROUGH = {
     'RUBY_VERSION': 'Used by Omnibus / Gemspec',
     'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS': 'Use to determine whether Omnibus can write to the artifact cache',
     'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
+    'SD_AGENT_BIN': 'Path to sd-agent binary',
     'SSH_AUTH_SOCK': 'Developer environments configure Git to use SSH authentication',
     'XDG_CACHE_HOME': "Runner-dependent cache path used by `bazel` (natively on POSIX OSes, emulated on Windows)",
     'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
