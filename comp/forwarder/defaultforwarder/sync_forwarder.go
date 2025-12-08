@@ -12,7 +12,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -23,19 +25,22 @@ import (
 type SyncForwarder struct {
 	config           config.Component
 	log              log.Component
+	secrets          secrets.Component
 	defaultForwarder *DefaultForwarder
 	client           *http.Client
 }
 
 // NewSyncForwarder returns a new synchronous forwarder.
-func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain map[string][]utils.APIKeys, timeout time.Duration) (*SyncForwarder, error) {
-	options, err := NewOptions(config, log, keysPerDomain)
+func NewSyncForwarder(config config.Component, log log.Component, secrets secrets.Component, endpoints utils.EndpointDescriptorSet, timeout time.Duration) (*SyncForwarder, error) {
+	options, err := NewOptionsWithOPW(config, log, endpoints)
 	if err != nil {
 		return nil, err
 	}
+	options.Secrets = secrets
 	return &SyncForwarder{
 		config:           config,
 		log:              log,
+		secrets:          secrets,
 		defaultForwarder: NewDefaultForwarder(config, log, options),
 		client: &http.Client{
 			Timeout:   timeout,
@@ -55,13 +60,13 @@ func (f *SyncForwarder) Stop() {
 
 func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	for _, t := range transactions {
-		if err := t.Process(context.Background(), f.config, f.log, f.client); err != nil {
+		if err := t.Process(context.Background(), f.config, f.log, f.secrets, f.client); err != nil {
 			f.log.Debugf("SyncForwarder.sendHTTPTransactions first attempt: %s", err)
 			// Retry once after error
 			// The intake may have closed the connection between Lambda invocations.
 			// If so, the first attempt will fail because the closed connection will still be cached.
 			f.log.Debug("Retrying transaction")
-			if err := t.Process(context.Background(), f.config, f.log, f.client); err != nil {
+			if err := t.Process(context.Background(), f.config, f.log, f.secrets, f.client); err != nil {
 				f.log.Warnf("SyncForwarder.sendHTTPTransactions failed to send: %s", err)
 			}
 		}
@@ -74,12 +79,6 @@ func (f *SyncForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTra
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1SeriesEndpoint, payload, transaction.Series, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitSeries will send timeseries to the v2 endpoint
-func (f *SyncForwarder) SubmitSeries(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SeriesEndpoint, payload, transaction.Series, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -98,12 +97,6 @@ func (f *SyncForwarder) SubmitV1Intake(payload transaction.BytesPayloads, kind t
 // the backend handles v2 endpoints).
 func (f *SyncForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.V1CheckRunsEndpoint, payload, transaction.CheckRuns, extra)
-	return f.sendHTTPTransactions(transactions)
-}
-
-// SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
-func (f *SyncForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
-	transactions := f.defaultForwarder.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, transaction.Sketches, extra)
 	return f.sendHTTPTransactions(transactions)
 }
 
@@ -130,11 +123,6 @@ func (f *SyncForwarder) SubmitProcessChecks(payload transaction.BytesPayloads, e
 // SubmitProcessDiscoveryChecks sends process discovery checks
 func (f *SyncForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
-}
-
-// SubmitProcessEventChecks sends process events checks
-func (f *SyncForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.defaultForwarder.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
@@ -165,4 +153,14 @@ func (f *SyncForwarder) SubmitOrchestratorChecks(payload transaction.BytesPayloa
 // SubmitOrchestratorManifests sends orchestrator manifests
 func (f *SyncForwarder) SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error {
 	return f.defaultForwarder.SubmitOrchestratorManifests(payload, extra)
+}
+
+// GetDomainResolvers returns the list of resolvers used by this forwarder.
+func (f *SyncForwarder) GetDomainResolvers() []resolver.DomainResolver {
+	return f.defaultForwarder.GetDomainResolvers()
+}
+
+// SubmitTransaction adds a transaction to the queue for sending.
+func (f *SyncForwarder) SubmitTransaction(txn *transaction.HTTPTransaction) error {
+	return f.sendHTTPTransactions([]*transaction.HTTPTransaction{txn})
 }

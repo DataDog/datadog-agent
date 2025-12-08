@@ -47,8 +47,8 @@ const DefaultIntakeProtocol IntakeProtocol = ""
 // DefaultIntakeOrigin indicates that no special DD_SOURCE header is in use for the endpoint intake track type.
 const DefaultIntakeOrigin IntakeOrigin = "agent"
 
-// ServerlessIntakeOrigin is the lambda extension origin
-const ServerlessIntakeOrigin IntakeOrigin = "lambda-extension"
+// ServerlessIntakeOrigin indicates that data was sent by serverless
+const ServerlessIntakeOrigin IntakeOrigin = "serverless"
 
 // DDOTIntakeOrigin is the DDOT Collector origin
 const DDOTIntakeOrigin IntakeOrigin = "ddot"
@@ -157,6 +157,17 @@ func GlobalFingerprintConfig(coreConfig pkgconfigmodel.Reader) (*types.Fingerpri
 	if err != nil {
 		return nil, err
 	}
+
+	// Rectify the count value to the appropriate default value if not set.
+	if !coreConfig.IsConfigured("logs_config.fingerprint_config.count") {
+		switch config.FingerprintStrategy {
+		case types.FingerprintStrategyLineChecksum:
+			config.Count = types.DefaultLinesCount
+		case types.FingerprintStrategyByteChecksum:
+			config.Count = types.DefaultBytesCount
+		default:
+		}
+	}
 	log.Debugf("GlobalFingerprintConfig: after unmarshaling - FingerprintStrategy: %s, Count: %d, CountToSkip: %d, MaxBytes: %d",
 		config.FingerprintStrategy, config.Count, config.CountToSkip, config.MaxBytes)
 
@@ -246,7 +257,9 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		apiKeyConfigPath := "multi_region_failover.api_key"
+
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", logsConfig.logsNoSSL())
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel
@@ -258,6 +271,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		e.useSSL = main.useSSL
 		e.ConnectionResetInterval = logsConfig.connectionResetInterval()
 		e.ProxyAddress = logsConfig.socks5ProxyAddress()
+		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)
 	}
@@ -349,7 +363,9 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
+		apiKeyConfigPath := "multi_region_failover.api_key"
+
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionKind = main.CompressionKind
@@ -363,6 +379,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol
 		e.Origin = intakeOrigin
+		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)
 	}

@@ -14,6 +14,7 @@ spec:
     metadata:
       labels:
         app: datadog-appsec-extproc
+        admission.datadoghq.com/enabled: "true"
     spec:
       containers:
         - name: datadog-appsec-extproc-container
@@ -26,10 +27,7 @@ spec:
           env:
             - name: DD_APPSEC_BODY_PARSING_SIZE_LIMIT
               value: "10000000" # 10MB limit for body parsing
-
-            # Requires v2.4.0+ of the extension
-            # If you _must_ use TLS you need to create a BackendTLSPolicy
-            # and use DD_SERVICE_EXTENSION_TLS_KEY_FILE and DD_SERVICE_EXTENSION_TLS_CERT_FILE
+            # at least v2.3.1-docker.1 required to disable TLS
             - name: DD_SERVICE_EXTENSION_TLS
               value: "false"
           readinessProbe:

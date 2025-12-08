@@ -9,7 +9,6 @@ package providers
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -104,8 +103,8 @@ func TestStream(t *testing.T) {
 	configToSchedule := changes.Schedule[0]
 	assert.Equal(t, "openmetrics", configToSchedule.Name)
 	assert.Equal(t, names.PrometheusPods, configToSchedule.Provider)
-	assert.Equal(t, fmt.Sprintf("prometheus_pods:containerd://%s", testContainerID), configToSchedule.Source)
-	assert.Equal(t, []string{fmt.Sprintf("containerd://%s", testContainerID)}, configToSchedule.ADIdentifiers)
+	assert.Equal(t, "prometheus_pods:containerd://"+testContainerID, configToSchedule.Source)
+	assert.Equal(t, []string{"containerd://" + testContainerID}, configToSchedule.ADIdentifiers)
 
 	// Remove the pod
 	wmeta.Notify([]workloadmeta.CollectorEvent{
@@ -129,8 +128,8 @@ func TestStream(t *testing.T) {
 	configToUnschedule := changes.Unschedule[0]
 	assert.Equal(t, "openmetrics", configToUnschedule.Name)
 	assert.Equal(t, names.PrometheusPods, configToUnschedule.Provider)
-	assert.Equal(t, fmt.Sprintf("prometheus_pods:containerd://%s", testContainerID), configToUnschedule.Source)
-	assert.Equal(t, []string{fmt.Sprintf("containerd://%s", testContainerID)}, configToUnschedule.ADIdentifiers)
+	assert.Equal(t, "prometheus_pods:containerd://"+testContainerID, configToUnschedule.Source)
+	assert.Equal(t, []string{"containerd://" + testContainerID}, configToUnschedule.ADIdentifiers)
 }
 
 func TestStream_NoAnnotations(t *testing.T) {
@@ -259,7 +258,7 @@ func TestGetConfigErrors(t *testing.T) {
 			wantErrs: true,
 		},
 		{
-			name: "pod with port annotation but no matching container",
+			name: "pod with port annotation but no matching container should not generate errors",
 			events: []workloadmeta.Event{
 				{
 					Type: workloadmeta.EventTypeSet,
@@ -302,7 +301,7 @@ func TestGetConfigErrors(t *testing.T) {
 					},
 				},
 			},
-			wantErrs: true,
+			wantErrs: false,
 		},
 		{
 			name: "valid pod should not generate errors",

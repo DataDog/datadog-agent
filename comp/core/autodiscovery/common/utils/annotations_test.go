@@ -258,25 +258,25 @@ func TestParseJSONValue(t *testing.T) {
 		{
 			name:                "empty value",
 			inputValue:          "",
-			expectedErr:         fmt.Errorf("value is empty"),
+			expectedErr:         errors.New("value is empty"),
 			expectedReturnValue: nil,
 		},
 		{
 			name:                "value is not a list",
 			inputValue:          "{}",
-			expectedErr:         fmt.Errorf("failed to unmarshal JSON: json: cannot unmarshal object into Go value of type []interface {}"),
+			expectedErr:         errors.New("failed to unmarshal JSON: json: cannot unmarshal object into Go value of type []interface {}"),
 			expectedReturnValue: nil,
 		},
 		{
 			name:                "invalid json",
 			inputValue:          "[{]",
-			expectedErr:         fmt.Errorf("failed to unmarshal JSON: invalid character ']' looking for beginning of object key string"),
+			expectedErr:         errors.New("failed to unmarshal JSON: invalid character ']' looking for beginning of object key string"),
 			expectedReturnValue: nil,
 		},
 		{
 			name:                "bad type",
 			inputValue:          "[1, {\"test\": 1}, \"test\"]",
-			expectedErr:         fmt.Errorf("failed to decode JSON Object '1' to integration.Data struct: found non JSON object type, value is: '1'"),
+			expectedErr:         errors.New("failed to decode JSON Object '1' to integration.Data struct: found non JSON object type, value is: '1'"),
 			expectedReturnValue: nil,
 		},
 		{

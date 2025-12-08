@@ -31,7 +31,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 	if scrub {
 		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
 		for _, config := range danglingConf {
-			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.Default()))
+			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
 		}
 		danglingConf = scrubbedConf
 	}
@@ -46,7 +46,7 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 		if scrub {
 			scrubbedConf := make([]integration.Config, 0, len(configs))
 			for _, config := range configs {
-				scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.Default()))
+				scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
 			}
 			configs = scrubbedConf
 		}

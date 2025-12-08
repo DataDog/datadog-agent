@@ -6,7 +6,9 @@
 package catalog
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -14,35 +16,37 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // FilterConfig holds all configuration values needed for filter initialization
 type FilterConfig struct {
 	// Legacy container filters
-	ContainerInclude        []string
-	ContainerExclude        []string
-	ContainerIncludeMetrics []string
-	ContainerExcludeMetrics []string
-	ContainerIncludeLogs    []string
-	ContainerExcludeLogs    []string
+	ContainerInclude        []string `json:"container_include"`
+	ContainerExclude        []string `json:"container_exclude"`
+	ContainerIncludeMetrics []string `json:"container_include_metrics"`
+	ContainerExcludeMetrics []string `json:"container_exclude_metrics"`
+	ContainerIncludeLogs    []string `json:"container_include_logs"`
+	ContainerExcludeLogs    []string `json:"container_exclude_logs"`
 
 	// Legacy AC filters
-	ACInclude []string
-	ACExclude []string
+	ACInclude []string `json:"ac_include"`
+	ACExclude []string `json:"ac_exclude"`
 
 	// Pause container settings
-	ExcludePauseContainer     bool
-	SBOMExcludePauseContainer bool
+	ExcludePauseContainer     bool `json:"exclude_pause_container"`
+	SBOMExcludePauseContainer bool `json:"sbom_exclude_pause_container"`
 
 	// SBOM container filtering
-	SBOMContainerInclude []string
-	SBOMContainerExclude []string
+	SBOMContainerInclude []string `json:"sbom_container_include"`
+	SBOMContainerExclude []string `json:"sbom_container_exclude"`
 
 	// Process filtering settings
-	ProcessBlacklistPatterns []string
+	ProcessBlacklistPatterns []string `json:"process_blacklist_patterns"`
 
 	// CEL workload filter rules (pre-parsed)
-	CELProductRules map[workloadfilter.Product]map[workloadfilter.ResourceType][]string
+	CELProductRules map[workloadfilter.Product]map[workloadfilter.ResourceType][]string `json:"cel_product_rules"`
 }
 
 // NewFilterConfig creates a FilterConfig from the agent config
@@ -127,7 +131,7 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
 	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := cfg.UnmarshalKey("cel_workload_exclude", &celConfig)
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
 	if err == nil {
 		return celConfig, nil
 	}
@@ -145,4 +149,14 @@ func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	}
 
 	return nil, err
+}
+
+// String returns a simple string representation of the FilterConfig
+func (fc *FilterConfig) String() (string, error) {
+	filterConfigJSON, err := json.Marshal(fc)
+	if err != nil {
+		log.Warnf("failed to marshal filter configuration: %v", err)
+		return fmt.Sprintf("%+v", fc), err
+	}
+	return string(filterConfigJSON), nil
 }

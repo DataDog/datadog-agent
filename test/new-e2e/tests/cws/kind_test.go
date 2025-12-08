@@ -13,15 +13,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 const (
@@ -71,15 +72,17 @@ func TestKindSuite(t *testing.T) {
 	ddHostname := fmt.Sprintf("%s-%s", k8sHostnamePrefix, uuid.NewString()[:4])
 	values := fmt.Sprintf(valuesFmt, ddHostname)
 	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
-	e2e.Run[environments.Kubernetes](t, &kindSuite{ddHostname: ddHostname},
+	e2e.Run(t, &kindSuite{ddHostname: ddHostname},
 		e2e.WithProvisioner(
-			awskubernetes.KindProvisioner(
-				awskubernetes.WithEC2VMOptions(
-					ec2.WithOS(osDesc),
-				),
-				awskubernetes.WithoutFakeIntake(),
-				awskubernetes.WithAgentOptions(
-					kubernetesagentparams.WithHelmValues(values),
+			awskubernetes.Provisioner(
+				awskubernetes.WithRunOptions(
+					scenkind.WithVMOptions(
+						ec2.WithOS(osDesc),
+					),
+					scenkind.WithoutFakeIntake(),
+					scenkind.WithAgentOptions(
+						kubernetesagentparams.WithHelmValues(values),
+					),
 				),
 			),
 		),

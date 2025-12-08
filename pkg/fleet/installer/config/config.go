@@ -7,24 +7,16 @@
 package config
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	patch "gopkg.in/evanphx/json-patch.v4"
-	"gopkg.in/yaml.v3"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
-)
-
-const (
-	deploymentIDFile = ".deployment-id"
+	"gopkg.in/yaml.v2"
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -37,6 +29,8 @@ const (
 	FileOperationMergePatch FileOperationType = "merge-patch"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
+	// FileOperationDeleteAll deletes the config at the given path and all its subdirectories.
+	FileOperationDeleteAll FileOperationType = "delete-all"
 	// FileOperationCopy copies the config at the given path to the given path.
 	FileOperationCopy FileOperationType = "copy"
 	// FileOperationMove moves the config at the given path to the given path.
@@ -55,89 +49,6 @@ type State struct {
 	ExperimentDeploymentID string
 }
 
-// GetState returns the state of the directories.
-func (d *Directories) GetState() (State, error) {
-	stablePath := filepath.Join(d.StablePath, deploymentIDFile)
-	experimentPath := filepath.Join(d.ExperimentPath, deploymentIDFile)
-	stableDeploymentID, err := os.ReadFile(stablePath)
-	if err != nil && !os.IsNotExist(err) {
-		return State{}, err
-	}
-	experimentDeploymentID, err := os.ReadFile(experimentPath)
-	if err != nil && !os.IsNotExist(err) {
-		return State{}, err
-	}
-	stableExists := len(stableDeploymentID) > 0
-	experimentExists := len(experimentDeploymentID) > 0
-	// If experiment is symlinked to stable, it means the experiment is not installed.
-	if stableExists && experimentExists && isSameFile(stablePath, experimentPath) {
-		experimentDeploymentID = nil
-	}
-	return State{
-		StableDeploymentID:     string(stableDeploymentID),
-		ExperimentDeploymentID: string(experimentDeploymentID),
-	}, nil
-}
-
-// WriteExperiment writes the experiment to the directories.
-func (d *Directories) WriteExperiment(ctx context.Context, operations Operations) error {
-	if runtime.GOOS == "windows" {
-		// On windows, experiments are not supported yet for configuration.
-		return operations.Apply(d.StablePath)
-	}
-	err := os.RemoveAll(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = copyDirectory(ctx, d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-
-	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
-
-	err = operations.Apply(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// PromoteExperiment promotes the experiment to the stable.
-func (d *Directories) PromoteExperiment(_ context.Context) error {
-	if runtime.GOOS == "windows" {
-		// On windows, experiments are not supported yet for configuration.
-		return nil
-	}
-	// check if experiment path exists using os
-	_, err := os.Stat(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = replaceConfigDirectory(d.StablePath, d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveExperiment removes the experiment from the directories.
-func (d *Directories) RemoveExperiment(_ context.Context) error {
-	if runtime.GOOS == "windows" {
-		// On windows, experiments are not supported yet for configuration.
-		return nil
-	}
-	err := os.RemoveAll(d.ExperimentPath)
-	if err != nil {
-		return err
-	}
-	err = symlink.Set(d.ExperimentPath, d.StablePath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // Operations is the list of operations to perform on the configs.
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`
@@ -150,15 +61,13 @@ func (o *Operations) Apply(rootPath string) error {
 	if err != nil {
 		return err
 	}
+	defer root.Close()
 	for _, operation := range o.FileOperations {
-		err := operation.apply(root)
+		// TODO (go.1.25): we won't need rootPath in 1.25
+		err := operation.apply(root, rootPath)
 		if err != nil {
 			return err
 		}
-	}
-	err = os.WriteFile(filepath.Join(rootPath, deploymentIDFile), []byte(o.DeploymentID), 0640)
-	if err != nil {
-		return err
 	}
 	return nil
 }
@@ -171,7 +80,7 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
-func (a *FileOperation) apply(root *os.Root) error {
+func (a *FileOperation) apply(root *os.Root, rootPath string) error {
 	if !configNameAllowed(a.FilePath) {
 		return fmt.Errorf("modifying config file %s is not allowed", a.FilePath)
 	}
@@ -312,28 +221,56 @@ func (a *FileOperation) apply(root *os.Root) error {
 			return err
 		}
 		return nil
+	case FileOperationDeleteAll:
+		// TODO(go.1.25): os.Root.RemoveAll is only available starting go 1.25 so we'll use it instead
+		// We can't get the path from os.Root, so we have to use the rootPath.
+		err := os.RemoveAll(filepath.Join(rootPath, path))
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown operation type: %s", a.FileOperationType)
 	}
 }
 
 func ensureDir(root *os.Root, filePath string) error {
-	dir := path.Dir(filePath)
+	// Normalize path to forward slashes and remove leading slash
+	normalizedPath := filepath.ToSlash(strings.TrimPrefix(filePath, "/"))
+
+	// Get the directory part
+	dir := path.Dir(normalizedPath)
 	if dir == "." {
 		return nil
 	}
+	currentRoot := root
 	for part := range strings.SplitSeq(dir, "/") {
 		if part == "" {
 			continue
 		}
-		err := root.Mkdir(part, 0755)
+
+		// Try to create the directory
+		err := currentRoot.Mkdir(part, 0755)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
-		root, err = root.OpenRoot(part)
+
+		// Open the directory for the next iteration
+		nextRoot, err := currentRoot.OpenRoot(part)
 		if err != nil {
 			return err
 		}
+
+		// Close the previous root if it's not the original root
+		if currentRoot != root {
+			currentRoot.Close()
+		}
+		currentRoot = nextRoot
+	}
+
+	// Close the final root if it's not the original root
+	if currentRoot != root {
+		currentRoot.Close()
 	}
 	return nil
 }
@@ -353,13 +290,16 @@ var (
 )
 
 func configNameAllowed(file string) bool {
+	// Normalize path to use forward slashes for consistent matching on all platforms
+	normalizedFile := filepath.ToSlash(file)
+
 	// Matching everything under the legacy /managed directory
-	if strings.HasPrefix(file, "/managed") {
+	if strings.HasPrefix(normalizedFile, "/managed") {
 		return true
 	}
 
 	for _, allowedFile := range allowedConfigFiles {
-		match, err := filepath.Match(allowedFile, file)
+		match, err := filepath.Match(allowedFile, normalizedFile)
 		if err != nil {
 			return false
 		}
@@ -379,6 +319,21 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return allOps
 	}
 
+	// Check if stable is a symlink or not. If it's not we can return early
+	// because the migration is already done
+	existingStablePath := filepath.Join(rootPath, legacyPathPrefix)
+	info, err := os.Lstat(existingStablePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return allOps
+		}
+		return allOps
+	}
+	// If it's not a symlink, we can return early
+	if info.Mode()&os.ModeSymlink == 0 {
+		return allOps
+	}
+
 	// Eval legacyPathPrefix symlink from rootPath
 	// /etc/datadog-agent/managed/datadog-agent/aaaa-bbbb-cccc
 	stableDirPath, err := filepath.EvalSymlinks(filepath.Join(realRootPath, legacyPathPrefix))
@@ -392,6 +347,13 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 		return allOps
 	}
 
+	// Recursively delete targetPath/
+	// RemoveAll removes symlinks but not the content they point to as it uses os.Remove first
+	allOps = append(allOps, FileOperation{
+		FileOperationType: FileOperationDeleteAll,
+		FilePath:          "/managed",
+	})
+
 	err = filepath.Walk(stableDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -400,17 +362,12 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 			return nil
 		}
 
-		// Ignore application_monitoring.yaml as we need to keep it in the managed directory
-		if strings.HasSuffix(path, "application_monitoring.yaml") {
-			return nil
-		}
-
-		ops, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
+		op, err := buildOperationsFromLegacyConfigFile(path, realRootPath, managedDirSubPath)
 		if err != nil {
 			return err
 		}
 
-		allOps = append(allOps, ops...)
+		allOps = append(allOps, op)
 		return nil
 	})
 	if err != nil {
@@ -420,52 +377,48 @@ func buildOperationsFromLegacyInstaller(rootPath string) []FileOperation {
 	return allOps
 }
 
-func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) ([]FileOperation, error) {
-	var ops []FileOperation
-
+func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirSubPath string) (FileOperation, error) {
 	// Read the stable config file
 	stableDatadogYAML, err := os.ReadFile(fullFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ops, nil
+			return FileOperation{}, nil
 		}
-		return ops, err
+		return FileOperation{}, err
 	}
 
-	// Since the config is YAML, we need to convert it to JSON
-	// 1. Parse the YAML in interface{}
-	// 2. Serialize the interface{} to JSON
-	var stableDatadogJSON interface{}
+	var stableDatadogJSON map[string]any
 	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
 	}
 	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
 	}
 
 	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, err
 	}
 	fPath, err := filepath.Rel(managedDirSubPath, managedFilePath)
 	if err != nil {
-		return ops, err
+		return FileOperation{}, err
 	}
 
-	// Add the merge patch operation
-	ops = append(ops, FileOperation{
+	op := FileOperation{
 		FileOperationType: FileOperationType(FileOperationMergePatch),
 		FilePath:          "/" + strings.TrimPrefix(fPath, "/"),
 		Patch:             stableDatadogJSONBytes,
-	})
+	}
+	if fPath == "application_monitoring.yaml" {
+		// Copy in managed directory
+		op = FileOperation{
+			FileOperationType: FileOperationMergePatch,
+			FilePath:          "/" + filepath.Join("managed", "datadog-agent", "stable", fPath),
+			Patch:             stableDatadogJSONBytes,
+		}
+	}
 
-	// Add the delete operation for the old file
-	ops = append(ops, FileOperation{
-		FileOperationType: FileOperationType(FileOperationDelete),
-		FilePath:          "/" + strings.TrimPrefix(managedFilePath, "/"),
-	})
-
-	return ops, nil
+	return op, nil
 }

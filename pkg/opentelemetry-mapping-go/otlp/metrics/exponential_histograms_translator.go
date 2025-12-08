@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -47,7 +48,7 @@ func (t *Translator) exponentialHistogramToDDSketch(
 	delta bool,
 ) (*ddsketch.DDSketch, error) {
 	if !delta {
-		return nil, fmt.Errorf("cumulative exponential histograms are not supported")
+		return nil, errors.New("cumulative exponential histograms are not supported")
 	}
 
 	// Create the DDSketch stores

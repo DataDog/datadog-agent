@@ -6,8 +6,6 @@
 package cloudservice
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -31,10 +29,12 @@ type CloudService interface {
 	GetSource() metrics.MetricSource
 
 	// Init bootstraps the CloudService.
-	Init() error
+	// traceAgent is optional and only used by CloudRunJobs
+	Init(traceAgent interface{}) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
-	Shutdown(agent serverlessMetrics.ServerlessMetricAgent, runErr error)
+	// traceAgent is optional and currently only used by CloudRunJobs
+	Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error)
 
 	// GetStartMetricName returns the metric name for start events
 	GetStartMetricName() string
@@ -74,18 +74,18 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 }
 
 // Init is not necessary for LocalService
-func (l *LocalService) Init() error {
+func (l *LocalService) Init(_ interface{}) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for LocalService
-func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", defaultPrefix), 1.0, l.GetSource(), agent)
+func (l *LocalService) Shutdown(agent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(defaultPrefix+".enhanced.shutdown", 1.0, l.GetSource(), agent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (l *LocalService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", defaultPrefix)
+	return defaultPrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

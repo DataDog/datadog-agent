@@ -8,7 +8,6 @@ package driver
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -48,7 +47,7 @@ func Stop() error {
 		return ErrDriverNotInitialized
 	}
 	if driverRef.inuse.Load() == 0 {
-		return fmt.Errorf("driver.Stop called without corresponding Start")
+		return errors.New("driver.Stop called without corresponding Start")
 	}
 	return driverRef.stop(false)
 }

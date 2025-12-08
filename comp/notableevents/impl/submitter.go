@@ -8,30 +8,43 @@
 package notableeventsimpl
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
+	"time"
 
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // eventPayload represents a Windows Event Log event to be submitted
 // TODO(WINA-1968): TBD format for event payload, finish with intake.
 type eventPayload struct {
-	Channel string
-	EventID uint
+	Channel   string
+	Provider  string
+	EventID   uint
+	Timestamp time.Time
 }
 
-// submitter receives event payloads from a channel and drains them to prevent blocking the collector
+// submitter receives event payloads from a channel and forwards them to the event platform
 type submitter struct {
 	// in
-	inChan <-chan eventPayload
+	eventPlatformForwarder eventplatform.Forwarder
+	hostname               hostname.Component
+	inChan                 <-chan eventPayload
 	// internal
 	wg sync.WaitGroup
 }
 
 // newSubmitter creates a new submitter instance
-func newSubmitter(inChan <-chan eventPayload) *submitter {
+func newSubmitter(forwarder eventplatform.Forwarder, inChan <-chan eventPayload, hostname hostname.Component) *submitter {
 	return &submitter{
-		inChan: inChan,
+		eventPlatformForwarder: forwarder,
+		hostname:               hostname,
+		inChan:                 inChan,
 	}
 }
 
@@ -46,14 +59,74 @@ func (s *submitter) stop() {
 	s.wg.Wait()
 }
 
-// run is the main loop that drains events from the channel
+// run is the main loop that processes events
 func (s *submitter) run() {
 	defer s.wg.Done()
 
 	for payload := range s.inChan {
-		// For now, just log the event to prevent blocking the collector
-		log.Debugf("Received notable event: channel=%s, event_id=%d", payload.Channel, payload.EventID)
+		if err := s.submitEvent(payload); err != nil {
+			log.Warnf("Failed to submit notable event: %v", err)
+		}
 	}
 
 	log.Info("Notable events submitter input channel closed, shutting down")
+}
+
+// submitEvent creates a message and submits it to the event platform
+func (s *submitter) submitEvent(payload eventPayload) error {
+	// Get hostname
+	hostnameValue := s.hostname.GetSafe(context.TODO())
+
+	// Create base tags for the event
+	tags := []string{
+		"channel:" + payload.Channel,
+		"provider:" + payload.Provider,
+		fmt.Sprintf("event_id:%d", payload.EventID),
+		"source:windows_event_log",
+	}
+
+	// Create Event Management v2 API payload
+	timestamp := payload.Timestamp.In(time.UTC).Format("2006-01-02T15:04:05.000000Z")
+	eventData := map[string]interface{}{
+		"data": map[string]interface{}{
+			"type": "event",
+			"attributes": map[string]interface{}{
+				"host":     hostnameValue,
+				"title":    fmt.Sprintf("System Error - Event ID %d - %s", payload.EventID, payload.Provider),
+				"category": "alert",
+				"attributes": map[string]interface{}{
+					"status":   "error",
+					"priority": "5",
+					"custom": map[string]interface{}{
+						"channel":  payload.Channel,
+						"provider": payload.Provider,
+						"event_id": payload.EventID,
+						"source":   "windows_event_log",
+					},
+				},
+				"message":   fmt.Sprintf("Windows Event Log detected event %d from %s", payload.EventID, payload.Provider),
+				"tags":      tags,
+				"timestamp": timestamp,
+			},
+		},
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(eventData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event payload: %w", err)
+	}
+
+	log.Debugf("Submitting notable event: channel=%s, event_id=%d", payload.Channel, payload.EventID)
+
+	// Create message for event platform
+	msg := message.NewMessage(jsonData, nil, "", time.Now().UnixNano())
+
+	// Submit to event platform using the eventsv2 event type
+	if err := s.eventPlatformForwarder.SendEventPlatformEventBlocking(msg, eventplatform.EventTypeEventManagement); err != nil {
+		return fmt.Errorf("failed to send event to platform: %w", err)
+	}
+
+	log.Debugf("Successfully submitted notable event: channel=%s, event_id=%d", payload.Channel, payload.EventID)
+	return nil
 }

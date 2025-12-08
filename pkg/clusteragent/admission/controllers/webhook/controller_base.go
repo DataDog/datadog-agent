@@ -194,6 +194,8 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)
 	}
 
+	labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(datadogConfig))
+
 	// For auto instrumentation, we need all the mutators to be applied for SSI to function. Specifically, we need
 	// things like the Datadog socket to be mounted from the config webhook and the DD_ENV, DD_SERVICE, and DD_VERSION
 	// env vars to be set from labels if they are available..
@@ -202,7 +204,7 @@ func generateAutoInstrumentationWebhook(wmeta workloadmeta.Component, datadogCon
 		configWebhook.NewMutator(configWebhook.NewMutatorConfig(datadogConfig), apm),
 		apm,
 	)
-	return autoinstrumentation.NewWebhook(config, wmeta, mutator)
+	return autoinstrumentation.NewWebhook(config.Webhook, wmeta, mutator, labelSelectors)
 }
 
 // controllerBase acts as a base class for ControllerV1 and ControllerV1beta1.

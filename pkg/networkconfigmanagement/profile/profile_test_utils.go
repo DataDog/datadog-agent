@@ -8,11 +8,37 @@
 package profile
 
 import (
+	"embed"
 	"fmt"
+	"path/filepath"
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+//go:embed fixtures/*
+var fixturesFS embed.FS
+
+// Fixture represents the data to pass in for the test and its expected output for profile definitions
+type Fixture struct {
+	Initial  []byte
+	Expected []byte
+}
+
+func loadFixture(profileName string) Fixture {
+	initial, err := fixturesFS.ReadFile("fixtures/" + profileName + "/initial.txt")
+	if err != nil {
+		panic(fmt.Sprintf("could not load initial data fixture for profile: %s, error: %s", profileName, err))
+	}
+	expected, err := fixturesFS.ReadFile("fixtures/" + profileName + "/expected.txt")
+	if err != nil {
+		panic(fmt.Sprintf("could not load expected data fixture for profile: %s, error: %s", profileName, err))
+	}
+	return Fixture{
+		Initial:  normalizeOutput(initial),
+		Expected: normalizeOutput(expected),
+	}
+}
 
 var exampleConfig = `
 Building configuration...
@@ -183,7 +209,25 @@ func getRunningScrubber() *scrubber.Scrubber {
 	sc := scrubber.New()
 	sc.AddReplacer(scrubber.SingleLine, scrubber.Replacer{
 		Regex: regexp.MustCompile(`(username .+ (password|secret) \d) .+`),
-		Repl:  []byte(fmt.Sprintf(`$1 %s`, "<redacted secret>")),
+		Repl:  []byte("$1 " + "<redacted secret>"),
 	})
 	return sc
+}
+
+var ncmDefaultProfilesPath = filepath.Join("..", "..", "..", "cmd", "agent", "dist", "conf.d", "network_config_management.d", "default_profiles")
+
+// IOSProfile parses the test profile for IOS devices to test with
+func IOSProfile() *NCMProfile {
+	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "cisco-ios.json"))
+	configFile := resolveNCMProfileDefinitionPath(file)
+	prof, _ := ParseNCMProfileFromFile(configFile)
+	return prof
+}
+
+// JunOSProfile parses the test profile for junOS devices to test with
+func JunOSProfile() *NCMProfile {
+	file, _ := filepath.Abs(filepath.Join(ncmDefaultProfilesPath, "junos.json"))
+	configFile := resolveNCMProfileDefinitionPath(file)
+	prof, _ := ParseNCMProfileFromFile(configFile)
+	return prof
 }

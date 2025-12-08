@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"testing"
@@ -58,6 +59,7 @@ func runTest(
 	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
+	probesCfgs = slices.DeleteFunc(probesCfgs, testprogs.HasIssueTag)
 	iro, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
 	require.Empty(t, iro.Issues)

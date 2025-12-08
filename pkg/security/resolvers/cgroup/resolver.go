@@ -106,7 +106,9 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface) (*Re
 		if value.ContainerContext.Resolved && value.ContainerContext.ContainerID != "" {
 			value.ContainerContext.CallReleaseCallback()
 		}
-		value.CGroupContext.CallReleaseCallback()
+		if value.CGroupContext.Releasable != nil {
+			value.CGroupContext.CallReleaseCallback()
+		}
 		value.Deleted.Store(true)
 
 		cr.NotifyListeners(CGroupDeleted, value)
@@ -218,7 +220,7 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	cr.cgroups.Add(process.CGroup.CGroupFile.Inode, &cgroupCopy)
 
 	cr.NotifyListeners(CGroupCreated, newCGroup)
-	cr.deletedCgroups.Inc()
+	cr.addedCgroups.Inc()
 }
 
 // returns false if the fallback failed

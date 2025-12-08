@@ -10,14 +10,17 @@ package collectorimpl
 
 import (
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/cumulativetodeltaprocessor"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor"
 
 	"go.opentelemetry.io/collector/confmap"
@@ -26,6 +29,8 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
+	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 )
 
 // ExtraFactories is an interface that provides extra factories for the collector.
@@ -40,6 +45,7 @@ type ExtraFactories interface {
 type extraFactoriesWithAgentCore struct {
 	tagger     tagger.Component
 	hostname   hostname.Component
+	ipcComp    ipc.Component
 	traceAgent traceagent.Component
 	log        log.Component
 }
@@ -49,13 +55,14 @@ var _ ExtraFactories = (*extraFactoriesWithAgentCore)(nil)
 // NewExtraFactoriesWithAgentCore creates a new ExtraFactories instance when the Agent Core is available.
 func NewExtraFactoriesWithAgentCore(
 	tagger tagger.Component,
-	hostname hostname.Component,
+	hostname hostname.Component, ipcComp ipc.Component,
 	traceAgent traceagent.Component,
 	log log.Component,
 ) ExtraFactories {
 	return extraFactoriesWithAgentCore{
 		tagger:     tagger,
 		hostname:   hostname,
+		ipcComp:    ipcComp,
 		traceAgent: traceAgent,
 		log:        log,
 	}
@@ -64,6 +71,7 @@ func NewExtraFactoriesWithAgentCore(
 func (e extraFactoriesWithAgentCore) GetExtensions() []extension.Factory {
 	return []extension.Factory{
 		ddprofilingextensionimpl.NewFactoryForAgent(e.traceAgent, e.log),
+		hpflareextension.NewFactoryForAgent(e.ipcComp),
 	}
 }
 
@@ -89,7 +97,7 @@ func NewExtraFactoriesWithoutAgentCore() ExtraFactories {
 
 // GetExtensions returns the extensions for the collector.
 func (e extraFactoriesWithoutAgentCore) GetExtensions() []extension.Factory {
-	return nil
+	return []extension.Factory{}
 }
 
 // GetProcessors returns the processors for the collector.
@@ -107,7 +115,7 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory())
+		recvMap, err := otelcol.MakeFactoryMap(receiver.NewFactory(), otlpreceiver.NewFactory())
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
@@ -120,22 +128,25 @@ func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, e
 			return otelcol.Factories{}, err
 		}
 
-		processorFactories := []processor.Factory{attributesprocessor.NewFactory()}
+		processorFactories := []processor.Factory{attributesprocessor.NewFactory(), cumulativetodeltaprocessor.NewFactory()}
 		processorFactories = append(processorFactories, extraFactories.GetProcessors()...)
 		processors, err := otelcol.MakeFactoryMap(processorFactories...)
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
 
-		extensions, err := otelcol.MakeFactoryMap(extraFactories.GetExtensions()...)
+		extensionFactories := extraFactories.GetExtensions()
+		extensions, err := otelcol.MakeFactoryMap(extensionFactories...)
 		if err != nil {
 			return otelcol.Factories{}, err
 		}
+
 		return otelcol.Factories{
 			Receivers:  recvMap,
 			Exporters:  expMap,
 			Processors: processors,
 			Extensions: extensions,
+			Telemetry:  otelconftelemetry.NewFactory(),
 		}, nil
 	}
 }

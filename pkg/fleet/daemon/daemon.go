@@ -23,6 +23,7 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -42,6 +43,8 @@ const (
 	gcInterval = 1 * time.Hour
 	// refreshStateInterval is the interval at which the state will be refreshed
 	refreshStateInterval = 30 * time.Second
+	// disableClientIDCheck is the magic string to disable the client ID check.
+	disableClientIDCheck = "disable-client-id-check"
 )
 
 var (
@@ -94,6 +97,7 @@ type daemonImpl struct {
 	requests        chan remoteAPIRequest
 	requestsWG      sync.WaitGroup
 	taskDB          *taskDB
+	clientID        string
 }
 
 func newInstaller(installerBin string) func(env *env.Env) installer.Installer {
@@ -124,6 +128,10 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
+	configID := config.GetString("config_id")
+	if configID == "" {
+		configID = "empty"
+	}
 	env := &env.Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
@@ -140,6 +148,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 		NoProxy:              strings.Join(config.GetStringSlice("proxy.no_proxy"), ","),
 		IsCentos6:            env.DetectCentos6(),
 		IsFromDaemon:         true,
+		ConfigID:             configID,
 	}
 	installer := newInstaller(installerBin)
 	return newDaemon(rc, installer, env, taskDB), nil
@@ -148,6 +157,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB) *daemonImpl {
 	i := &daemonImpl{
 		env:             env,
+		clientID:        rc.client.GetClientID(),
 		rc:              rc,
 		installer:       installer,
 		requests:        make(chan remoteAPIRequest, 32),
@@ -293,6 +303,17 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		return nil
 	}
 
+	// If FIPS is enabled, don't start the daemon
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Could not determine FIPS status, exiting: %v", err)
+		return nil
+	}
+	if fipsEnabled {
+		log.Info("FIPS mode is enabled, fleet daemon will not start")
+		return nil
+	}
+
 	go func() {
 		gcTicker := time.NewTicker(gcInterval)
 		defer gcTicker.Stop()
@@ -330,12 +351,24 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 	d.m.Lock()
 	defer d.m.Unlock()
 
+	// Always close the remote config client as it was initialized in NewDaemon; avoid unknown side effects in the RC client
+	d.rc.Close()
+
+	// If remote updates are disabled, we don't need to stop the updater daemon background goroutine as it was never started, we return early
 	if !d.env.RemoteUpdates {
-		// If remote updates are disabled, we don't need to stop the daemon as it was never started
-		return nil
+		return d.taskDB.Close()
 	}
 
-	d.rc.Close()
+	// Same, if FIPS is enabled, the updater daemon background goroutine was never started, we return early
+	fipsEnabled, err := fips.Enabled()
+	if err != nil {
+		log.Warnf("Could not determine FIPS status: %v", err)
+	}
+	if fipsEnabled {
+		return d.taskDB.Close()
+	}
+
+	// Stop the background goroutine
 	close(d.stopChan)
 	d.requestsWG.Wait()
 	return d.taskDB.Close()
@@ -671,11 +704,11 @@ func (d *daemonImpl) verifyState(ctx context.Context, request remoteAPIRequest) 
 	installerVersionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
 	packageVersionEqual := s.Stable == request.ExpectedState.Stable && s.Experiment == request.ExpectedState.Experiment
 	configVersionEqual := c.Stable == request.ExpectedState.StableConfig && c.Experiment == request.ExpectedState.ExperimentConfig
-
-	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual) {
+	clientIDEqual := d.clientID == request.ExpectedState.ClientID || request.ExpectedState.ClientID == disableClientIDCheck
+	if installerVersionEqual && (!packageVersionEqual || !configVersionEqual || !clientIDEqual) {
 		log.Infof(
-			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v",
-			request.ID, request.ExpectedState, s, c,
+			"remote request %s not executed as state does not match: expected %v, got package: %v, config: %v, client id: %s",
+			request.ID, request.ExpectedState, s, c, d.clientID,
 		)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
@@ -749,6 +782,12 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	if err != nil {
 		log.Errorf("could not get tasks state: %v", err)
 	}
+	runningVersions := map[string]string{
+		"datadog-agent": version.AgentPackageVersion,
+	}
+	runningConfigVersions := map[string]string{
+		"datadog-agent": d.env.ConfigID,
+	}
 	var packages []*pbgo.PackageState
 	for pkg, s := range state {
 		p := &pbgo.PackageState{
@@ -757,6 +796,8 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentVersion:       s.Experiment,
 			StableConfigVersion:     configState[pkg].Stable,
 			ExperimentConfigVersion: configState[pkg].Experiment,
+			RunningVersion:          runningVersions[pkg],
+			RunningConfigVersion:    runningConfigVersions[pkg],
 		}
 
 		requestState, ok := tasksState[pkg]

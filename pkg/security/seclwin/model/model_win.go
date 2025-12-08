@@ -92,7 +92,7 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
 
 	return func(e *Event) {
 		*e = eventZero
@@ -242,9 +242,9 @@ func SetAncestorFields(_ *ProcessCacheEntry, _ string, _ interface{}) (bool, err
 	return true, nil
 }
 
-// Key returns a unique key for the entity
-func (pc *ProcessCacheEntry) Key() (string, bool) {
-	return strconv.Itoa(int(pc.Pid)), true
+// Hash returns a unique key for the entity
+func (pc *ProcessCacheEntry) Hash() string {
+	return strconv.Itoa(int(pc.Pid))
 }
 
 // ParentScope returns the parent entity scope

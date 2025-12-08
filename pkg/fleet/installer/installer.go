@@ -91,7 +91,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
@@ -103,7 +103,7 @@ func NewInstaller(env *env.Env) (Installer, error) {
 		packages:   pkgs,
 		config: &config.Directories{
 			StablePath:     paths.AgentConfigDir,
-			ExperimentPath: paths.AgentConfigDir + "-exp",
+			ExperimentPath: paths.AgentConfigDirExp,
 		},
 		hooks: packages.NewHooks(env, pkgs),
 
@@ -482,7 +482,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 	if !state.HasExperiment() {
 		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -614,7 +614,8 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	// TODO: check if error must trigger a specific flow
+	_ = i.close()
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
@@ -693,7 +694,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
 		}
 		if !isDotnetInstalled {
-			return fmt.Errorf("APM dotnet library is not installed")
+			return errors.New("APM dotnet library is not installed")
 		}
 	} else {
 		var isInjectorInstalled bool
@@ -702,7 +703,7 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 			return fmt.Errorf("could not check if APM injector is installed: %w", err)
 		}
 		if !isInjectorInstalled {
-			return fmt.Errorf("APM injector is not installed")
+			return errors.New("APM injector is not installed")
 		}
 	}
 
@@ -726,7 +727,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
 		}
 		if !isDotnetInstalled {
-			return fmt.Errorf("APM dotnet library is not installed")
+			return errors.New("APM dotnet library is not installed")
 		}
 	} else {
 		var isInjectorInstalled bool
@@ -735,7 +736,7 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 			return fmt.Errorf("could not check if APM injector is installed: %w", err)
 		}
 		if !isInjectorInstalled {
-			return fmt.Errorf("APM injector is not installed")
+			return errors.New("APM injector is not installed")
 		}
 	}
 

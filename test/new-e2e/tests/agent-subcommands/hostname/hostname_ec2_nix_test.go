@@ -8,14 +8,14 @@ package hostname
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 type linuxHostnameSuite struct {
@@ -24,20 +24,20 @@ type linuxHostnameSuite struct {
 
 func TestLinuxHostnameSuite(t *testing.T) {
 	t.Parallel()
-	osOption := awshost.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault))
+	osOption := awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)))
 	e2e.Run(t, &linuxHostnameSuite{baseHostnameSuite: baseHostnameSuite{osOption: osOption}}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
 func (v *linuxHostnameSuite) TestAgentConfigHostnameFileOverride() {
 	fileContent := "hostname.from.file"
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithFile("/tmp/var/hostname", fileContent, false), agentparams.WithAgentConfig("hostname_file: /tmp/var/hostname")))))
 
 	hostname := v.Env().Agent.Client.Hostname()
 	assert.Equal(v.T(), fileContent, hostname)
 }
 
 func (v *linuxHostnameSuite) TestAgentConfigPreferImdsv2() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true"))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("ec2_prefer_imdsv2: true")))))
 	// e2e metadata provider already uses IMDSv2
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 
@@ -48,7 +48,7 @@ func (v *linuxHostnameSuite) TestAgentConfigPreferImdsv2() {
 
 // https://github.com/DataDog/datadog-agent/blob/main/pkg/util/hostname/README.md#the-current-logic
 func (v *linuxHostnameSuite) TestAgentHostnameDefaultsToResourceId() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithAgentOptions(agentparams.WithAgentConfig(""))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(v.GetOs(), awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("")))))
 
 	metadata := client.NewEC2Metadata(v.T(), v.Env().RemoteHost.Host, v.Env().RemoteHost.OSFamily)
 	hostname := v.Env().Agent.Client.Hostname()

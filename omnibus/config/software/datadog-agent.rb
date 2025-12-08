@@ -19,16 +19,12 @@ unless do_repackage?
 
   dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
-  # Alternative memory allocator which has better support for memory allocated by cgo calls,
-  # especially at higher thread counts.
-  dependency "libjemalloc" if linux_target?
-
   dependency 'datadog-agent-dependencies'
 end
 
 source path: '..',
        options: {
-         exclude: ["**/testdata/**/*"],
+         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -132,6 +128,7 @@ build do
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir "#{install_dir}/bin/scripts/"
     copy "#{project_dir}/omnibus/windows-scripts/iis-instrumentation.bat", "#{install_dir}/bin/scripts/"
+    copy "#{project_dir}/omnibus/windows-scripts/host-instrumentation.bat", "#{install_dir}/bin/scripts/"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
@@ -141,16 +138,23 @@ build do
   # Build the installer
   # We do this in the same software definition to avoid redundant copying, as it's based on the same source
   if linux_target? and !heroku_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
-  unless windows_target?
-    command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+  if linux_target?
+    if heroku_target?
+      # shouldn't be needed in practice, but it is used by the systemd service,
+      # which is used when installing the deb manually
+      copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
+      command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
+    else
+      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
+    end
   end
 
   if windows_target?
@@ -299,6 +303,7 @@ build do
         "#{install_dir}/embedded/bin/process-agent",
         "#{install_dir}/embedded/bin/security-agent",
         "#{install_dir}/embedded/bin/system-probe",
+        "#{install_dir}/embedded/bin/installer",
       ]
 
       symbol = "_Cfunc_go_openssl"

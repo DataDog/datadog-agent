@@ -1,6 +1,7 @@
 #ifndef _APPROVERS_H
 #define _APPROVERS_H
 
+#include "constants/offsets/filesystem.h"
 #include "constants/enums.h"
 #include "maps.h"
 #include "rate_limiter.h"
@@ -42,8 +43,6 @@ void __attribute__((always_inline)) monitor_event_rejected(u64 event_type) {
     __sync_fetch_and_add(&stats->event_rejected, 1);
 }
 
-void get_dentry_name(struct dentry *dentry, void *buffer, size_t n);
-
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall_cache_t *syscall, u64 event_type) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
@@ -65,6 +64,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_auid(struct syscall
         return ACCEPTED;
     }
 
+    return DISCARDED;
+}
+enum SYSCALL_STATE __attribute__((always_inline)) flag_approver (struct u64_flags_filter_t *filter, u32 type, u64 value) {
+    if (filter == NULL || !filter->is_set) {
+        return DISCARDED;
+    }
+    if (((1 << (value % 64)) & filter->flags) > 0) {
+        monitor_event_approved(type, FLAG_APPROVER_TYPE);
+        return APPROVED;
+    }
     return DISCARDED;
 }
 
@@ -353,16 +362,8 @@ enum SYSCALL_STATE __attribute__((always_inline)) utime_approvers(struct syscall
 enum SYSCALL_STATE __attribute__((always_inline)) bpf_approvers(struct syscall_cache_t *syscall) {
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
-    if (filter == NULL || !filter->is_set) {
-        return DISCARDED;
-    }
-
-    if (((1 << syscall->bpf.cmd) & filter->flags) > 0) {
-        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
-        return APPROVED;
-    }
-
-    return DISCARDED;
+    u64 cmd = syscall->bpf.cmd;
+    return flag_approver(filter, syscall->type, cmd);
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) sysctl_approvers(struct syscall_cache_t *syscall) {
@@ -383,16 +384,15 @@ enum SYSCALL_STATE __attribute__((always_inline)) sysctl_approvers(struct syscal
 enum SYSCALL_STATE __attribute__((always_inline)) connect_approvers(struct syscall_cache_t *syscall) {
     u32 key = 0;
     struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&connect_addr_family_approvers, &key);
-    if (filter == NULL || !filter->is_set) {
-        return DISCARDED;
-    }
+    u64 family = syscall->connect.family;
+    return flag_approver(filter, syscall->type, family);
+}
 
-    if (((1 << syscall->connect.family) & filter->flags) > 0) {
-        monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
-        return APPROVED;
-    }
-
-    return DISCARDED;
+enum SYSCALL_STATE __attribute__((always_inline)) prctl_approvers(struct syscall_cache_t *syscall) {
+    u32 key = 0;
+    struct u64_flags_filter_t *filter = bpf_map_lookup_elem(&prctl_option_approvers, &key);
+    u64 option = syscall->prctl.option;
+    return flag_approver(filter, syscall->type, option);
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 tgid, struct syscall_cache_t *syscall, enum SYSCALL_STATE (*check_approvers)(struct syscall_cache_t *syscall)) {

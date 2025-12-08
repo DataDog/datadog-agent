@@ -7,7 +7,7 @@
     - when: on_success
   script:
     - !reference [.retrieve_linux_go_deps]
-    - dda inv -- -e otel-agent.build
+    - dda inv -- -e otel-agent.build --flavor "$FLAVOR"
   needs: ["go_deps"]
   variables:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -18,11 +18,9 @@
       - $CI_PROJECT_DIR/bin/otel-agent/otel-agent
 
 build_otel_agent_binary_x64:
-  extends: .build_otel_agent_binary_common
+  extends: [.build_otel_agent_binary_common, .agent_base_flavor]
   tags: ["arch:amd64", "specific:true"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
 
 build_otel_agent_binary_arm64:
-  extends: .build_otel_agent_binary_common
+  extends: [.build_otel_agent_binary_common, .agent_base_flavor]
   tags: ["arch:arm64", "specific:true"]
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX

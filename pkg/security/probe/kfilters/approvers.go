@@ -114,7 +114,7 @@ func getFlagsKFilter(tableName string, flags ...uint32) (kFilter, error) {
 func getEnumsKFilters(tableName string, enums ...uint64) (kFilter, error) {
 	var flags []uint64
 	for _, enum := range enums {
-		flags = append(flags, 1<<enum)
+		flags = append(flags, 1<<(enum%64))
 	}
 	return newKFilterWithUInt64Flags(tableName, flags...)
 }
@@ -205,4 +205,5 @@ func init() {
 	KFilterGetters["bpf"] = bpfKFiltersGetter
 	KFilterGetters["sysctl"] = sysctlKFiltersGetter
 	KFilterGetters["connect"] = connectKFiltersGetter
+	KFilterGetters["prctl"] = prctlKFiltersGetter
 }

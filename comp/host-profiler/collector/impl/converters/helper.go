@@ -18,7 +18,11 @@ func removeInfraAttributesProcessor(confStringMap map[string]any) error {
 		return err
 	}
 
-	return removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName())
+	err := removeFromList(confStringMap, []string{"service", "pipelines", "profiles"}, "processors", infraAttributesName())
+	if err != nil {
+		return err
+	}
+	return removeFromList(confStringMap, []string{"service", "pipelines", "metrics"}, "processors", infraAttributesName())
 }
 
 func removeDDProfilingExtension(confStringMap map[string]any) error {
@@ -29,12 +33,24 @@ func removeDDProfilingExtension(confStringMap map[string]any) error {
 	return removeFromList(confStringMap, []string{"service"}, "extensions", ddprofilingName())
 }
 
+func removeHpFlareExtension(confStringMap map[string]any) error {
+	if err := removeFromMap(confStringMap, []string{"extensions"}, hpflareName()); err != nil {
+		return err
+	}
+
+	return removeFromList(confStringMap, []string{"service"}, "extensions", hpflareName())
+}
+
 func infraAttributesName() string {
 	return "infraattributes/default"
 }
 
 func ddprofilingName() string {
 	return "ddprofiling/default"
+}
+
+func hpflareName() string {
+	return "hpflare/default"
 }
 
 func removeFromMap(confStringMap map[string]any, parentNames []string, mapName string) error {

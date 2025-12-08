@@ -6,6 +6,7 @@
 package traceroute
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -88,7 +89,8 @@ func TestGetTracerouteURL(t *testing.T) {
 				Transport: mockTransport,
 			}
 
-			_, err := getTraceroute(
+			_, err := getTracerouteFromSysProbe(
+				context.TODO(),
 				mockClient,
 				tt.clientID,
 				tt.host,

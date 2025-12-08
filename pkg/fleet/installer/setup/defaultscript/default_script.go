@@ -121,44 +121,34 @@ func setConfigSecurityProducts(s *common.Setup) {
 	}
 
 	if complianceConfigEnabledOk && strings.ToLower(complianceConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.ComplianceConfig.Enabled = true
+		s.Config.SecurityAgentYAML.ComplianceConfig.Enabled = config.BoolToPtr(true)
 	}
 	if runtimeSecurityConfigEnabledOk && strings.ToLower(runtimeSecurityConfigEnabled) != "false" {
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled = true
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.Enabled = config.BoolToPtr(true)
 	}
 	if sbomContainerImageEnabledOk && strings.ToLower(sbomContainerImageEnabled) != "false" {
-		s.Config.DatadogYAML.SBOM.Enabled = true
-		s.Config.DatadogYAML.SBOM.ContainerImage.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = true
+		s.Config.DatadogYAML.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.ContainerImage.Enabled = config.BoolToPtr(true)
 	}
 	if sbomHostEnabledOk && strings.ToLower(sbomHostEnabled) != "false" {
-		s.Config.DatadogYAML.SBOM.Enabled = true
-		s.Config.DatadogYAML.SBOM.Host.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = true
-		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = true
+		s.Config.DatadogYAML.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.DatadogYAML.SBOM.Host.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SecurityAgentYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
+		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
 	}
 }
 
 // setConfigInstallerDaemon sets the daemon in the configuration
 func setConfigInstallerDaemon(s *common.Setup) {
-	if runtime.GOOS == "windows" {
-		// on windows this needs to default to false
-		// as setup is the entry point for FIPS installations as well
-		s.Config.DatadogYAML.RemoteUpdates = false
-		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "true" {
-			s.Config.DatadogYAML.RemoteUpdates = true
-		}
-	} else {
-		s.Config.DatadogYAML.RemoteUpdates = true
-		if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok && strings.ToLower(val) == "false" {
-			s.Config.DatadogYAML.RemoteUpdates = false
-		}
+	if val, ok := os.LookupEnv("DD_REMOTE_UPDATES"); ok {
+		s.Config.DatadogYAML.RemoteUpdates = config.BoolToPtr(strings.ToLower(val) == "true")
 	}
 }
 
@@ -209,13 +199,20 @@ func installDDOTPackage(s *common.Setup) {
 // installAPMPackages installs the APM packages
 func installAPMPackages(s *common.Setup) {
 	// Injector install
-	_, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
+	apmInstrumentationMethod, apmInstrumentationEnabled := os.LookupEnv("DD_APM_INSTRUMENTATION_ENABLED")
 	if apmInstrumentationEnabled {
-		if runtime.GOOS != "windows" {
+		if runtime.GOOS == "windows" {
+			switch apmInstrumentationMethod {
+			case env.APMInstrumentationEnabledHost:
+				s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
+			case env.APMInstrumentationEnabledIIS:
+				// we don't need to install anything for IIS
+			default:
+				// we do nothing in unless it is host or IIS
+			}
+		} else {
 			s.Packages.Install(common.DatadogAPMInjectPackage, defaultInjectorVersion)
 		}
-		// the "host" options will be added to windows
-		// this will then install the IIS agent package
 	}
 
 	// Libraries install
@@ -274,7 +271,7 @@ func exitOnUnsupportedEnvVars(envVars ...string) error {
 
 func telemetrySupportedEnvVars(s *common.Setup, envVars ...string) {
 	for _, envVar := range envVars {
-		s.Span.SetTag(fmt.Sprintf("env_var.%s", envVar), os.Getenv(envVar))
+		s.Span.SetTag("env_var."+envVar, os.Getenv(envVar))
 	}
 }
 

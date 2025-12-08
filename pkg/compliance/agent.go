@@ -11,15 +11,11 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
+	"errors"
 	"expvar"
 	"fmt"
 	"hash/fnv"
-	"io"
 	"math/rand"
-	"net/http"
-	"net/url"
-	"strconv"
 	"sync"
 	"time"
 
@@ -90,9 +86,9 @@ type AgentOptions struct {
 	// enabled.
 	EnabledConfigurationExporters []ConfigurationExporter
 
-	// SysProbeClient is the HTTP client to allow the execution of benchmarks
-	// from system-probe. see: cmd/system-probe/modules/compliance.go
-	SysProbeClient *http.Client
+	// SysProbeClient is the possibly remote client to allow the execution of benchmarks
+	// from system-probe.
+	SysProbeClient SysProbeClient
 }
 
 // ConfigurationExporter is an enum type defining all configuration export
@@ -487,40 +483,14 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 
 func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, containerID utils.ContainerID, pid int32) error {
 	if a.opts.SysProbeClient == nil {
-		return fmt.Errorf("system-probe socket client was not created")
+		return errors.New("system-probe socket client was not created")
 	}
 
-	qs := make(url.Values)
-	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
-	sysProbeComplianceModuleURL := &url.URL{
-		Scheme:   "http",
-		Host:     "unix",
-		Path:     "/compliance/dbconfig",
-		RawQuery: qs.Encode(),
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sysProbeComplianceModuleURL.String(), nil)
+	resource, err := a.opts.SysProbeClient.FetchDBConfig(ctx, pid)
 	if err != nil {
 		return err
 	}
 
-	resp, err := a.opts.SysProbeClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error running cross-container benchmark: %s", resp.Status)
-	}
-
-	var resource *dbconfig.DBResource
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(body, &resource); err != nil {
-		return err
-	}
 	if resource != nil {
 		dbResourceLog := NewResourceLog(a.opts.Hostname+"_"+string(containerID), resource.Type, resource.Config)
 		dbResourceLog.Container = &CheckContainerMeta{

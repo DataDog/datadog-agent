@@ -8,10 +8,10 @@ package languagedetection
 import (
 	"strings"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	"github.com/stretchr/testify/require"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 func (s *languageDetectionSuite) installPython() {
@@ -21,30 +21,38 @@ func (s *languageDetectionSuite) installPython() {
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigStr))))
-	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(coreConfigStr),
+	})...))
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionCoreAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(coreConfigNoCheckStr))))
-	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(coreConfigNoCheckStr),
+	})...))
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgent() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigStr))))
-	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(processConfigStr),
+	})...))
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
 func (s *languageDetectionSuite) TestPythonDetectionProcessAgentNoCheck() {
-	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithAgentConfig(processConfigNoCheckStr))))
-	s.runPython()
-	s.checkDetectedLanguage("python3", "python", "process_collector")
+	s.UpdateEnv(awshost.ProvisionerNoFakeIntake(getProvisionerOptions([]func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(processConfigNoCheckStr),
+	})...))
+	pid := s.startPython()
+	s.checkDetectedLanguage(pid, "python", "process_collector")
 }
 
-func (s *languageDetectionSuite) runPython() {
+func (s *languageDetectionSuite) startPython() string {
 	s.Env().RemoteHost.MustExecute("echo -e 'import time\ntime.sleep(60)' > prog.py")
-	s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null &")
+	return s.Env().RemoteHost.MustExecute("nohup python3 prog.py >myscript.log 2>&1 </dev/null & echo -n $!")
 }

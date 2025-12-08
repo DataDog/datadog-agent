@@ -496,6 +496,7 @@ namespace WixSetup.Datadog_Agent
                            "DD_INSTALLER_REGISTRY_URL=[DD_INSTALLER_REGISTRY_URL]," +
                            "DD_APM_INSTRUMENTATION_ENABLED=[DD_APM_INSTRUMENTATION_ENABLED]," +
                            "DD_APM_INSTRUMENTATION_LIBRARIES=[DD_APM_INSTRUMENTATION_LIBRARIES]," +
+                           "DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT=[DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT]," +
                            "DD_REMOTE_UPDATES=[DD_REMOTE_UPDATES]," +
                            "DD_INFRASTRUCTURE_MODE=[DD_INFRASTRUCTURE_MODE]," +
                            "FLEET_INSTALL=[FLEET_INSTALL]");
@@ -524,7 +525,7 @@ namespace WixSetup.Datadog_Agent
                     CustomActions.PurgeOciPackages,
                     // Check the return value to prevent removing datadog-installer.exe if purge fails.
                     // We will need to use the datadog-installer.exe to cleanup packages if purge fails.
-                    // To skip purging entirely, set the PURGE property to 0.
+                    // To skip purging entirely, set the KEEP_INSTALLED_PACKAGES property to 1.
                     Return.check,
                     When.Before,
                     new Step(CleanupOnUninstall.Id),
@@ -534,7 +535,7 @@ namespace WixSetup.Datadog_Agent
                 Execute = Execute.deferred,
                 Impersonate = false
             }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],PURGE=[PURGE]");
+                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION],SITE=[SITE],APIKEY=[APIKEY],KEEP_INSTALLED_PACKAGES=[KEEP_INSTALLED_PACKAGES],FLEET_INSTALL=[FLEET_INSTALL]");
 
             WriteInstallInfo = new CustomAction<CustomActions>(
                     new Id(nameof(WriteInstallInfo)),
@@ -631,7 +632,8 @@ namespace WixSetup.Datadog_Agent
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            };
+            }
+                .SetProperties("DD_INSTALL_ONLY=[DD_INSTALL_ONLY]");
 
             // Rollback StartDDServices stops the the services so that any file locks are released.
             StartDDServicesRollback = new CustomAction<CustomActions>(

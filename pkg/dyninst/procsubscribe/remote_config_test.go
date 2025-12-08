@@ -616,6 +616,127 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	}, durations)
 }
 
+func TestSymDBStatePreservedWhenNotInMatchedConfigs(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewRemoteConfigProcessSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithJitterFactor(0),
+	)
+	t.Cleanup(subscriber.Close)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	updatesCh := make(chan process.ProcessesUpdate, 2)
+	subscriber.Subscribe(func(update process.ProcessesUpdate) {
+		select {
+		case updatesCh <- update:
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+			cancel()
+			t.Error("expected send to succeed")
+		}
+	})
+	subscriber.Start()
+
+	s := receiveSoon(t, streams)
+
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.EqualExportedValues(t, &pbgo.ConfigSubscriptionRequest{
+		RuntimeId: runtimeID1,
+		Action:    pbgo.ConfigSubscriptionRequest_TRACK,
+		Products:  pbgo.ConfigSubscriptionProducts_LIVE_DEBUGGING,
+	}, trackReq)
+
+	symdbPath := fmt.Sprintf("datadog/1/%s/foo/symdb.json", data.ProductLiveDebuggingSymbolDB)
+	probePath := "datadog/1/LIVE_DEBUGGING/config-id/probe.json"
+	probeJSON := `{"id":"probe-id","version":1,"type":"METRIC_PROBE","where":{"typeName":"pkg.Type","methodName":"Func"},"kind":"count","metricName":"test.metric"}`
+
+	// Initial config with both symdb and probe.
+	initialResp := &pbgo.ConfigSubscriptionResponse{
+		Client:         client1,
+		MatchedConfigs: []string{symdbPath, probePath},
+		TargetFiles: []*pbgo.File{
+			{
+				Path: symdbPath,
+				Raw:  []byte(`{"upload_symbols":true}`),
+			},
+			{
+				Path: probePath,
+				Raw:  []byte(probeJSON),
+			},
+		},
+	}
+	require.NoError(t, s.stream.Send(initialResp))
+
+	getUpdate := func() process.ProcessesUpdate {
+		t.Helper()
+		select {
+		case update := <-updatesCh:
+			return update
+		case <-time.After(time.Second):
+			t.Fatal("expected update")
+			panic("unreachable")
+		}
+	}
+
+	update := getUpdate()
+	require.Len(t, update.Updates, 1)
+	require.Equal(t, runtimeID1, update.Updates[0].RuntimeID)
+	require.True(t, update.Updates[0].ShouldUploadSymDB)
+
+	// Send a config update with only probe config (symdb not in
+	// MatchedConfigs). This tests the bug fix where symdb state should be
+	// preserved rather than incorrectly disabled.
+	probeOnlyResp := &pbgo.ConfigSubscriptionResponse{
+		Client:         client1,
+		MatchedConfigs: []string{probePath, symdbPath},
+		TargetFiles:    []*pbgo.File{},
+	}
+	require.NoError(t, s.stream.Send(probeOnlyResp))
+
+	// Should NOT receive an update because symdb state hasn't changed (it
+	// should remain enabled from the initial config).
+	select {
+	case <-time.After(50 * time.Millisecond):
+	case update := <-updatesCh:
+		t.Fatalf("expected no update, got update with %d items: %#v", len(update.Updates), update)
+	}
+
+	// Now explicitly remove symdb to verify it can still be disabled.
+	emptyResp := &pbgo.ConfigSubscriptionResponse{
+		Client:         client1,
+		MatchedConfigs: []string{},
+	}
+	require.NoError(t, s.stream.Send(emptyResp))
+
+	update = getUpdate()
+	require.Len(t, update.Updates, 1)
+	require.Equal(t, runtimeID1, update.Updates[0].RuntimeID)
+	require.False(t, update.Updates[0].ShouldUploadSymDB)
+
+	subscriber.Close()
+}
+
 type scanResult struct {
 	added   []procscan.DiscoveredProcess
 	removed []procscan.ProcessID

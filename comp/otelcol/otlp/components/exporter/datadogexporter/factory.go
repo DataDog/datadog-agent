@@ -8,6 +8,7 @@ package datadogexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -117,6 +118,7 @@ func CreateDefaultConfig() component.Config {
 	ddcfg := datadogconfig.CreateDefaultConfig().(*datadogconfig.Config)
 	ddcfg.Traces.TracesConfig.ComputeTopLevelBySpanKind = true
 	ddcfg.Logs.Endpoint = "https://agent-http-intake.logs.datadoghq.com"
+	ddcfg.QueueSettings = exporterhelper.NewDefaultQueueConfig() // TODO: remove this line with next collector version upgrade
 	return ddcfg
 }
 
@@ -160,7 +162,7 @@ func (f *factory) createTracesExporter(
 	}
 
 	if cfg.OnlyMetadata {
-		return nil, fmt.Errorf("datadog::only_metadata should not be set in OTel Agent")
+		return nil, errors.New("datadog::only_metadata should not be set in OTel Agent")
 	}
 
 	tracex := newTracesExporter(ctx, set, cfg, f.traceagentcmp, f.gatewayUsage, f.store.DDOTTraces, f.reporter)

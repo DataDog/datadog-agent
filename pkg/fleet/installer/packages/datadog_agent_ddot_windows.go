@@ -15,7 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
@@ -204,6 +204,8 @@ func ensureDDOTService() error {
 		if err := configureDDOTServiceCredentials(s); err != nil {
 			return err
 		}
+		// Best-effort: align service DACL to allow the core Agent user to control OTEL service
+		configureDDOTServicePermissions(s)
 		return nil
 	}
 
@@ -221,6 +223,8 @@ func ensureDDOTService() error {
 	if err := configureDDOTServiceCredentials(s); err != nil {
 		return err
 	}
+	// Best-effort: align service DACL to allow the core Agent user to control OTEL service
+	configureDDOTServicePermissions(s)
 	return nil
 }
 
@@ -263,6 +267,76 @@ func configureDDOTServiceCredentials(s *mgr.Service) error {
 		return nil
 	}
 	return nil
+}
+
+// configureDDOTServicePermissions sets the DDOT service DACL to match MSI semantics used
+// for other Agent services:
+// - Grants the core Agent service user (dd-agent) SERVICE_START | SERVICE_STOP | GENERIC_READ.
+// - Retains full control for LocalSystem (SY) and Builtin Administrators (BA).
+// - Removes permissive access for Everyone by not including a WD ACE.
+// Notes:
+//   - We apply the DACL via SDDL in one call (replace-style). This mirrors MSI intent without
+//     requiring a read/modify/write of the existing ACL.
+//   - We do NOT mark the DACL as protected (no D:P), so inheritance is not forcibly blocked.
+//   - This alignment is implemented here (Go) because the DDOT service is delivered via OCI,
+//     outside the MSI service tables where other services receive their ACLs.
+func configureDDOTServicePermissions(s *mgr.Service) {
+	// Resolve the core Agent service account SID (locale-independent). This SID is used
+	// to grant the dd-agent user explicit start/stop/read access on the DDOT service.
+	sid, err := winutil.GetServiceUserSID(coreAgentService)
+	if err != nil || sid == nil {
+		log.Warnf("DDOT: could not resolve SID for core Agent user to set service DACL: %v", err)
+		return
+	}
+	sidStr := sid.String()
+	if sidStr == "" {
+		log.Warnf("DDOT: could not stringify SID for core Agent user")
+		return
+	}
+
+	// If the core Agent runs as LocalSystem, SY already has full control on services.
+	// No additional ACEs are required; leave the service DACL unchanged.
+	lsSid, err2 := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err2 == nil && windows.EqualSid(sid, lsSid) {
+		return
+	}
+
+	// MSI parity SDDL:
+	// - (A;;GA;;;SY)   LocalSystem full control
+	// - (A;;GA;;;BA)   Builtin Administrators full control
+	// - (A;;0x80000030;;;<dd-agent SID>) dd-agent: START|STOP|GENERIC_READ
+	//   0x80000030 = SERVICE_START (0x10) | SERVICE_STOP (0x20) | GENERIC_READ (0x80000000)
+	//   We intentionally omit Everyone (WD).
+	sddl := fmt.Sprintf(
+		`D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x80000030;;;%s)`,
+		sidStr,
+	)
+
+	// Convert SDDL, extract the DACL and apply it to the service using SetNamedSecurityInfo.
+	// Any failure logs a warning and returns; permissions alignment is best-effort and
+	// should not block installation or service availability.
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil || sd == nil {
+		log.Warnf("DDOT: failed to convert SDDL for service DACL: %v", err)
+		return
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		log.Warnf("DDOT: failed to retrieve DACL from security descriptor: %v", err)
+		return
+	}
+	if err := windows.SetNamedSecurityInfo(
+		s.Name,
+		windows.SE_SERVICE,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, // owner unchanged
+		nil, // group unchanged
+		dacl,
+		nil, // SACL unchanged
+	); err != nil {
+		log.Warnf("DDOT: failed to set service DACL for %q: %v", s.Name, err)
+		return
+	}
 }
 
 // stopServiceIfExists stops the service if it exists

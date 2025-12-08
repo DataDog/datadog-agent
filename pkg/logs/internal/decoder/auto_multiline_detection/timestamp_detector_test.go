@@ -115,11 +115,11 @@ func printMatchUnderline(t *testing.T, context *messageContext, input string, ma
 	if len(input) > maxLen {
 		evalStr = input[:maxLen]
 	}
-	dbgStr := ""
+	var dbgBuilder strings.Builder
 	printChar := " "
 	last := context.tokenIndicies[0]
 	for i, idx := range context.tokenIndicies {
-		dbgStr += strings.Repeat(printChar, idx-last)
+		dbgBuilder.WriteString(strings.Repeat(printChar, idx-last))
 		if i == match.start {
 			printChar = "^"
 		}
@@ -128,6 +128,6 @@ func printMatchUnderline(t *testing.T, context *messageContext, input string, ma
 		}
 		last = idx
 	}
-	dbgStr += strings.Repeat(printChar, len(evalStr)-last)
-	fmt.Printf("\t\t\t%v\n", dbgStr)
+	dbgBuilder.WriteString(strings.Repeat(printChar, len(evalStr)-last))
+	fmt.Printf("\t\t\t%v\n", dbgBuilder.String())
 }

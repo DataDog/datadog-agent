@@ -330,3 +330,15 @@ func TestReadConfigInvalidYaml(t *testing.T) {
 	err := cfg.ReadConfig(strings.NewReader("123"))
 	require.Error(t, err)
 }
+
+func TestBuildNestedMap(t *testing.T) {
+	m := buildNestedMap([]string{"a", "b", "c"}, 123)
+	expect := map[string]interface{}{
+		"a": map[string]interface{}{
+			"b": map[string]interface{}{
+				"c": 123,
+			},
+		},
+	}
+	require.Equal(t, expect, m)
+}
