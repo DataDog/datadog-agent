@@ -193,7 +193,14 @@ func (s *ipcClient) do(req *http.Request, contentType string, onChunk func([]byt
 
 // determine if the request is to a socket Listener by checking the url
 func isUDSRequest(req *http.Request) bool {
-	if ipAddr := net.ParseIP(req.URL.Host); ipAddr != nil {
+	host, _, err := net.SplitHostPort(req.URL.Host)
+	if err != nil {
+		host = req.URL.Host
+	}
+	if host == "localhost" {
+		return false
+	}
+	if ipAddr := net.ParseIP(host); ipAddr != nil {
 		return false
 	}
 	return true

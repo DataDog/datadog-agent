@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -46,12 +47,11 @@ func getListener(address string) (net.Listener, error) {
 		return listener, err
 	}
 
-	if ipAddr := net.ParseIP(address); ipAddr != nil {
-		return net.Listen("tcp", address)
+	if strings.HasSuffix(address, ".socket") {
+		return net.Listen("unix", address)
 	}
 
-	// if the address is an IP address, return a TCP listener otherwise try it as a unix socket
-	return net.Listen("unix", address)
+	return net.Listen("tcp", address)
 }
 
 // getIPCServerAddressPort returns whether the IPC server is enabled, and if so its host and host:port

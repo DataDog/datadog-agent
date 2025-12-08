@@ -37,3 +37,39 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		require.False(t, enabled)
 	})
 }
+
+func TestGetListener(t *testing.T) {
+	t.Run("localhost without port", func(t *testing.T) {
+		configmock.New(t)
+
+		_, err := getListener("localhost")
+		require.Error(t, err)
+	})
+
+	t.Run("localhost with port", func(t *testing.T) {
+		configmock.New(t)
+
+		res, err := getListener("localhost:5009")
+		defer res.Close()
+
+		require.NoError(t, err)
+		require.Equal(t, "127.0.0.1:5009", res.Addr().String())
+	})
+
+	t.Run("ipv4 with port", func(t *testing.T) {
+		configmock.New(t)
+
+		res, err := getListener("127.0.0.1:5009")
+		defer res.Close()
+
+		require.NoError(t, err)
+		require.Equal(t, "127.0.0.1:5009", res.Addr().String())
+	})
+
+	t.Run("ipv4 without port", func(t *testing.T) {
+		configmock.New(t)
+
+		_, err := getListener("127.0.0.1")
+		require.Error(t, err)
+	})
+}
