@@ -100,7 +100,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_pc_dir = "lib/pkgconfig",
+    out_data_dirs = ["lib/pkgconfig"],
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,
