@@ -1,4 +1,4 @@
-From 9a7abe9942747b6e45f65e70ea5430cab5848ed2 Mon Sep 17 00:00:00 2001
+From 284f58d8ef542b64b614317e6c50a54c3937bbd6 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
 Date: Mon, 1 Dec 2025 15:46:12 +0100
 Subject: [PATCH 2/2] configure_make: provide (DY)LD_LIBRARY_PATH based on the
