@@ -298,9 +298,7 @@ http_archive(
     files = {
         "openssl.cnf": "//deps:openssl_fips/openssl.cnf",
         "fipsinstall.sh": "//deps:openssl_fips/fipsinstall.sh",
-        "configure_fips.sh": "//deps:openssl_fips/configure_fips.sh",
-        "configure_fips.bat": "//deps:openssl_fips/configure_fips.bat",
-        "configure_fips.ps1": "//deps:openssl_fips/configure_fips.ps1",
+        "configure_fips.py": "//deps:openssl_fips/configure_fips.py",
         "BUILD.bazel": "//deps:openssl_fips.BUILD.bazel",
     },
     sha256 = "eb1ab04781474360f77c318ab89d8c5a03abc38e63d65a603cabbf1b00a1dc90",
