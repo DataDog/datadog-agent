@@ -13,6 +13,8 @@
 #include <string.h>
 #include <sys/types.h>
 
+// Get the size of an allocated memory block.
+// Note that the size returned here is not less that the requested size (malloc’s argument) but it may be larger.
 #if defined(__linux__)
 #    define _get_alloc_size(ptr) malloc_usable_size(ptr)
 #elif defined(_WIN32)
@@ -20,6 +22,8 @@
 #elif defined(__APPLE__) || defined(__FreeBSD__)
 #    define _get_alloc_size(ptr) malloc_size(ptr)
 #else
+#    warning "Metrics `rtloader.allocated_bytes`, `rtloader.freed_bytes` and `rtloader.inuse_bytes`"
+#    warning "are available only on Linux, Windows, MacOS and FreeBSD platforms."
 #    define _get_alloc_size(ptr) 0
 #endif
 

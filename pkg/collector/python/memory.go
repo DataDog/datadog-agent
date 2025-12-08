@@ -27,6 +27,7 @@ import (
 #    include <malloc/malloc.h>
 #endif
 
+// Used in TrackedCString to get the size of C memory allocated by C.CString
 static inline size_t get_alloc_size(void *ptr) {
 #if defined(__linux__)
     return malloc_usable_size(ptr);
