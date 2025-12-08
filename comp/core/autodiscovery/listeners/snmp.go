@@ -406,7 +406,8 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		l.deviceDeduper = devicededuper.NewDeviceDeduper(l.config)
+		// Reset the device deduper counters at the start of each discovery interval
+		l.deviceDeduper.ResetCounters()
 
 		for _, subnet := range subnets {
 			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
