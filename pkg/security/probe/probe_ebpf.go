@@ -811,7 +811,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		if ok {
 			for _, s := range snapshotBoundSockets {
 				entry.Retain()
-				bindEvent := p.newBindEventFromSnapshot(entry, s)
+				bindEvent := p.newBindEventFromReplay(entry, s)
 				events = append(events, bindEvent)
 			}
 		}
@@ -1041,7 +1041,6 @@ func (p *EBPFProbe) zeroEvent() *model.Event {
 	probeEventZeroer(p.event)
 	p.event.FieldHandlers = p.fieldHandlers
 	p.event.Origin = EBPFOrigin
-	p.event.ProcessContext = &model.ProcessContext{}
 	return p.event
 }
 
@@ -3467,21 +3466,17 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
-	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	return event
 }
 
-// newBindEventFromSnapshot returns a new bind event with a process context
-func (p *EBPFProbe) newBindEventFromSnapshot(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
+// newBindEventFromReplay returns a new bind event with a process context
+func (p *EBPFProbe) newBindEventFromReplay(entry *model.ProcessCacheEntry, snapshottedBind model.SnapshottedBoundSocket) *model.Event {
 	event := p.eventPool.Get()
 	event.TimestampRaw = uint64(time.Now().UnixNano())
 	event.Type = uint32(model.BindEventType)
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
-	event.ProcessContext.Process.ContainerContext.ContainerID = entry.ContainerContext.ContainerID
-	event.ProcessContext.Process.CGroup = entry.CGroup
 
 	event.Bind.SyscallEvent.Retval = 0
 	event.Bind.AddrFamily = snapshottedBind.Family

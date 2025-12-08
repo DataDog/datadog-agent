@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -48,6 +47,7 @@ import (
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 // team: agent-apm
@@ -380,7 +380,7 @@ func TestConfigHostname(t *testing.T) {
 			}
 			srcpath := filepath.Join(os.TempDir(), stat.Name())
 			binpath := strings.TrimSuffix(srcpath, ".go")
-			if err := exec.Command("go", "build", "-o", binpath, srcpath).Run(); err != nil {
+			if err := testutil.IsolatedGoBuildCmd(t.TempDir(), binpath, srcpath).Run(); err != nil {
 				t.Fatal(err)
 			}
 			os.Remove(srcpath)

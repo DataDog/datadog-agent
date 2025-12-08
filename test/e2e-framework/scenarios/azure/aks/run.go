@@ -78,10 +78,6 @@ providers:
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithoutDDDevForwarding())
 			}
 
-			if storeType := env.AgentFakeintakeStoreType(); storeType != "" {
-				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithStoreType(storeType))
-			}
-
 			if retentionPeriod := env.AgentFakeintakeRetentionPeriod(); retentionPeriod != "" {
 				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithRetentionPeriod(retentionPeriod))
 			}
