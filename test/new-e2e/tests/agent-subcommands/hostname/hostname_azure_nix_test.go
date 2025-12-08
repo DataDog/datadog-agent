@@ -45,7 +45,7 @@ func (v *linuxAzureHostnameSuite) TestAgentHostnameStyle() {
 	hostname := v.Env().RemoteHost.MustExecute("hostname")
 	hostname = strings.TrimSpace(hostname)
 
-	metadataStr := v.Env().RemoteHost.MustExecute(fmt.Sprintf("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?api-version=%s", azureMetadataAPIVersion))
+	metadataStr := v.Env().RemoteHost.MustExecute("curl -s -H \"Metadata: true\" http://169.254.169.254/metadata/instance/compute?api-version=" + azureMetadataAPIVersion)
 
 	var metadata struct {
 		VMID              string
