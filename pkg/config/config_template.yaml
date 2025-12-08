@@ -1977,6 +1977,12 @@ api_key:
 #
 #     pathtest_interval: 30m
 
+#     # @param filters - list of custom objects - optional
+#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - list of custom objects - optional
+#     # Custom filters to include or exclude specific destinations from network path collection.
+#     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
+#     # Filters are applied sequentially, the last matching filter takes precedence.
+#
 #     filters:
 #
 #       # exclude single domain
@@ -2035,12 +2041,6 @@ api_key:
 #     # The maximum number of pathtest contexts that can be maintained.
 #
 #     pathtest_contexts_limit: 1000
-
-#     # @param filters - list of custom objects - optional
-#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - list of custom objects - optional
-#     # Custom filters to include or exclude specific destinations from network path collection.
-#     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
-#     # Filters are applied sequentially, the last matching filter takes precedence.
 
 {{ end -}}
 {{ end -}}
