@@ -45,12 +45,10 @@ func (c *workloadselectionComponent) isCompilePolicyBinaryAvailable() bool {
 // The owner is NOT changed - it remains as ddagentuser
 func setFileReadableByEveryone(path string) error {
 	// Create an SDDL with only the DACL part (no Owner/Group)
-	// D:PAI - DACL, Protected (doesn't inherit from parent), Auto-Inherit to children
-	// (A;OICI;FA;;;SY) - Allow, Object+Container Inherit, Full Access, SYSTEM
-	// (A;OICI;FA;;;BA) - Allow, Object+Container Inherit, Full Access, Administrators
-	// (A;OICI;0x1200A9;;;WD) - Allow, Object+Container Inherit, Read+Execute, Everyone (World Domain)
-	// Note: We add an ACE for the current owner (CO - Creator Owner) to maintain their full control
-	sddl := "D:PAI(A;OICI;FA;;;CO)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200A9;;;WD)"
+	// D:AI - DACL, Auto-Inherit.
+	//        "Inherit permissions from the parent folder (System/Admins usually)."
+	// (A;;GRGX;;;WD) - Allow Generic Read + Generic Execute to Everyone (World Domain).
+	sddl := "D:AI(A;;GRGX;;;WD)"
 
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
