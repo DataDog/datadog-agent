@@ -38,7 +38,7 @@ type SP_DEVICE_INTERFACE_DATA struct {
 // https://learn.microsoft.com/en-us/windows/win32/api/setupapi/ns-setupapi-sp_device_interface_detail_data_w
 type SP_DEVICE_INTERFACE_DETAIL_DATA struct {
 	CbSize     uint32
-	DevicePath *uint16
+	DevicePath [1]uint16
 }
 
 //revive:enable:var-naming
@@ -55,10 +55,7 @@ func SetupDiEnumDeviceInterfaces(deviceInfoSet windows.DevInfo, interfaceClassGU
 		uintptr(unsafe.Pointer(data)),
 	)
 	if r0 == 0 {
-		if e1 != windows.ERROR_SUCCESS {
-			return error(e1)
-		}
-		return windows.GetLastError()
+		return e1
 	}
 	return nil
 }
@@ -76,10 +73,7 @@ func SetupDiGetDeviceInterfaceDetail(deviceInfoSet windows.DevInfo, deviceInterf
 		0,
 	)
 	if r0 == 0 {
-		if e1 != windows.ERROR_SUCCESS {
-			return error(e1)
-		}
-		return windows.GetLastError()
+		return e1
 	}
 	return nil
 }

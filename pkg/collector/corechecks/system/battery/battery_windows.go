@@ -10,6 +10,7 @@ package battery
 import (
 	"errors"
 	"fmt"
+	"math"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -222,9 +223,13 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 	for i := uint32(0); ; i++ {
 		err = winutil.SetupDiEnumDeviceInterfaces(hdev, &GUID_DEVCLASS_BATTERY, i, &ifData)
 		if err != nil {
-			// No more interfaces
-			log.Debugf("No more interfaces found")
-			break
+			if err == windows.ERROR_NO_MORE_ITEMS {
+				// No more interfaces found
+				log.Debugf("No more interfaces found")
+				break
+			}
+			log.Errorf("Error enumerating device interfaces: %v", err)
+			return nil, fmt.Errorf("Error enumerating device interfaces: %w", err)
 		}
 
 		// First call: get required size
@@ -232,6 +237,12 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 		err = winutil.SetupDiGetDeviceInterfaceDetail(hdev, &ifData, nil, 0, &required)
 		if err != nil && err != windows.ERROR_INSUFFICIENT_BUFFER {
 			log.Errorf("Error getting device interface detail: %v", err)
+			continue
+		}
+
+		// Validate required size
+		if required == 0 {
+			log.Errorf("Required buffer size is 0")
 			continue
 		}
 
@@ -263,12 +274,12 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 			continue
 		}
 
-		// DevicePath is WCHAR* right after cbSize field.
-		devicePathPtr := (*uint16)(unsafe.Pointer(&buf[unsafe.Sizeof(interfaceDetailData.CbSize)]))
-		devicePath := windows.UTF16PtrToString((*uint16)(devicePathPtr))
+		// DevicePath is WCHAR* of the first element of the DevicePath array.
+		devicePathPtr := &interfaceDetailData.DevicePath[0]
+		devicePath := windows.UTF16PtrToString(devicePathPtr)
 
-		log.Debugf("Querying battery device: %s", devicePath)
-		bi, bs, err := queryBatteryDevice(devicePath)
+		log.Debugf("Querying battery device %s", devicePath)
+		bi, bs, err := queryBatteryDevice(devicePathPtr)
 		if err != nil {
 			log.Errorf("Error querying battery device: %v", err)
 			continue
@@ -286,9 +297,9 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 
 		info.DesignedCapacity = float64(bi.DesignedCapacity)
 		info.FullChargedCapacity = float64(bi.FullChargedCapacity)
-		info.MaximumCapacityPct = (float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100
+		info.MaximumCapacityPct = math.Round((float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100)
 		info.CycleCount = float64(bi.CycleCount)
-		info.CurrentCharge = float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100
+		info.CurrentCharge = math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100)
 		info.Voltage = float64(bs.Voltage)
 		info.ChargeRate = float64(bs.Rate)
 		info.PowerState = getPowerState(bs.PowerState)
@@ -306,9 +317,9 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 }
 
 // queryBatteryDevice queries the battery information for a given device path
-func queryBatteryDevice(devicePath string) (*BATTERY_INFORMATION, *BATTERY_STATUS, error) {
+func queryBatteryDevice(devicePathPtr *uint16) (*BATTERY_INFORMATION, *BATTERY_STATUS, error) {
 	handle, err := windows.CreateFile(
-		windows.StringToUTF16Ptr(devicePath),
+		devicePathPtr,
 		windows.GENERIC_READ|windows.GENERIC_WRITE,
 		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
