@@ -23,7 +23,7 @@
           {
             "function": "main.executeStringFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 60
+            "lineNumber": 64
           },
           {
             "function": "main.main",
@@ -62,6 +62,6 @@
       }
     },
     "timestamp": "[ts]",
-    "message": "xxxxxxxxxxx"
+    "message": "xxxxxxxxxxx..."
   }
 ]

@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
+require "./lib/omnibus/packagers/tarball.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -210,9 +211,14 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target? || (ENV["SKIP_PKG_COMPRESSION"] == "true")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# Uncompressed tar for faster local builds (skip the slow XZ compression)
+package :tarball do
+  skip_packager !(ENV["SKIP_PKG_COMPRESSION"] == "true")
 end
 
 # ------------------------------------
@@ -369,7 +375,7 @@ if windows_target?
     OPENSSL_BINARIES = [
       "#{python_3_embedded}\\DLLs\\libcrypto-3-x64.dll",
       "#{python_3_embedded}\\DLLs\\libssl-3-x64.dll",
-      fips_mode? ? "#{python_3_embedded}\\bin\\openssl.exe" : nil,
+      "#{python_3_embedded}\\bin\\openssl.exe",
       fips_mode? ? "#{python_3_embedded}\\lib\\ossl-modules\\fips.dll" : nil,
     ].compact
 
