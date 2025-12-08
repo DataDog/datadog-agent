@@ -2011,7 +2011,7 @@ api_key:
 #     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - list of custom objects - optional
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
-#     # Filters are applied sequentially, and the last matching filter takes precedence.
+#     # Filters are applied sequentially, the last matching filter takes precedence.
 #
 #     filters:
 #
@@ -2037,7 +2037,7 @@ api_key:
 #         match_domain_strategy: regex         # use regex to match domain
 #         type: exclude
 #
-#       # include 
+#       # include
 #       - match_domain: 'api.datadoghq.com'
 #         type: include
 #
