@@ -214,11 +214,68 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	}
 
 	// Extract all state changes from this batch for snapshot management
+	// and track metrics for different datum types
 	var stateChanges []*statefulpb.Datum
+	var patternLogBytes, rawLogBytes, stateChangeBytes int
+	var patternsAdded, patternsRemoved, tokensAdded, tokensRemoved int
+	var patternBytesAdded, tokenBytesAdded int
+
 	for _, datum := range grpcDatums {
 		if isStateDatum(datum) {
 			stateChanges = append(stateChanges, datum)
+
+			// Track state change metrics
+			switch d := datum.Data.(type) {
+			case *statefulpb.Datum_PatternDefine:
+				patternsAdded++
+				bytes := len(d.PatternDefine.Template)
+				patternBytesAdded += bytes
+				stateChangeBytes += proto.Size(datum)
+			case *statefulpb.Datum_PatternDelete:
+				patternsRemoved++
+				stateChangeBytes += proto.Size(datum)
+			case *statefulpb.Datum_DictEntryDefine:
+				tokensAdded++
+				bytes := len(d.DictEntryDefine.Value)
+				tokenBytesAdded += bytes
+				stateChangeBytes += proto.Size(datum)
+			case *statefulpb.Datum_DictEntryDelete:
+				tokensRemoved++
+				stateChangeBytes += proto.Size(datum)
+			}
+		} else if logDatum, ok := datum.Data.(*statefulpb.Datum_Logs); ok {
+			// Track log bytes by type (pattern vs raw)
+			if logDatum.Logs.GetStructured() != nil {
+				patternLogBytes += proto.Size(datum)
+			} else if logDatum.Logs.GetRaw() != "" {
+				rawLogBytes += proto.Size(datum)
+			}
 		}
+	}
+
+	// Report pipeline-level metrics
+	if patternsAdded > 0 {
+		metrics.TlmGRPCStatefulPatternsAdded.Add(float64(patternsAdded), s.pipelineName)
+		metrics.TlmGRPCStatefulPatternBytesAdded.Add(float64(patternBytesAdded), s.pipelineName)
+	}
+	if patternsRemoved > 0 {
+		metrics.TlmGRPCStatefulPatternsRemoved.Add(float64(patternsRemoved), s.pipelineName)
+	}
+	if tokensAdded > 0 {
+		metrics.TlmGRPCStatefulTokensAdded.Add(float64(tokensAdded), s.pipelineName)
+		metrics.TlmGRPCStatefulTokenBytesAdded.Add(float64(tokenBytesAdded), s.pipelineName)
+	}
+	if tokensRemoved > 0 {
+		metrics.TlmGRPCStatefulTokensRemoved.Add(float64(tokensRemoved), s.pipelineName)
+	}
+	if patternLogBytes > 0 {
+		metrics.TlmGRPCStatefulPatternLogsBytesSent.Add(float64(patternLogBytes), s.pipelineName)
+	}
+	if rawLogBytes > 0 {
+		metrics.TlmGRPCStatefulRawLogsBytesSent.Add(float64(rawLogBytes), s.pipelineName)
+	}
+	if stateChangeBytes > 0 {
+		metrics.TlmGRPCStatefulStateChangeBytesSent.Add(float64(stateChangeBytes), s.pipelineName)
 	}
 
 	// Create DatumSequence and marshal to bytes

@@ -8,6 +8,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -16,10 +17,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sender"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
@@ -182,7 +185,7 @@ func newStreamWorkerWithClock(
 
 	// Use provided inflightTracker (testing) or create default one
 	if inflightTracker == nil {
-		inflightTracker = newInflightTracker(maxInflight)
+		inflightTracker = newInflightTrackerWithPipeline(maxInflight, workerID)
 	}
 
 	worker := &streamWorker{
@@ -623,6 +626,9 @@ func (s *streamWorker) senderLoop(streamInfo *streamInfo, batchToSendCh chan *st
 			s.signalStreamFailure(streamInfo)
 			return
 		}
+
+		// Track stream-level metrics after successful send
+		s.trackBatchMetrics(batch)
 	}
 	log.Infof("Worker %s: Sender channel closed, sender exiting", s.workerID)
 }
@@ -661,7 +667,7 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
 				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
-				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
+				s.handleIrrecoverableError(fmt.Sprintf("protocol: code=%v, message=%s", st.Code(), st.Message()), streamInfo)
 				return
 			default:
 				// All other non-OK statuses: signal stream failure
@@ -711,6 +717,55 @@ func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *strea
 // inflight tracker. It doesn't change inflight tracker state
 func (s *streamWorker) getNextBatch() *statefulpb.StatefulBatch {
 	return createBatch(s.inflight.nextToSend().Encoded, s.inflight.nextBatchID())
+}
+
+// trackBatchMetrics tracks stream-level metrics for a sent batch
+func (s *streamWorker) trackBatchMetrics(batch *statefulpb.StatefulBatch) {
+	// Skip snapshot batch (batch 0)
+	if batch.BatchId == 0 {
+		return
+	}
+
+	// Increment batch counter
+	metrics.TlmGRPCStatefulStreamBatchesSent.Inc(s.workerID)
+
+	// Unmarshal to count datums and track detailed metrics
+	var datumSeq statefulpb.DatumSequence
+	if err := proto.Unmarshal(batch.Data, &datumSeq); err != nil {
+		log.Warnf("Worker %s: Failed to unmarshal batch for metrics: %v", s.workerID, err)
+		return
+	}
+
+	var patternLogCount, stateChangeCount int
+	var patternLogBytes, stateChangeBytes int
+
+	for _, datum := range datumSeq.Data {
+		switch datum.Data.(type) {
+		case *statefulpb.Datum_PatternDefine, *statefulpb.Datum_PatternDelete,
+			*statefulpb.Datum_DictEntryDefine, *statefulpb.Datum_DictEntryDelete:
+			stateChangeCount++
+			stateChangeBytes += proto.Size(datum)
+		case *statefulpb.Datum_Logs:
+			logDatum := datum.Data.(*statefulpb.Datum_Logs)
+			if logDatum.Logs.GetStructured() != nil {
+				patternLogCount++
+				patternLogBytes += proto.Size(datum)
+			}
+		}
+	}
+
+	// Report stream-level metrics
+	if patternLogCount > 0 {
+		metrics.TlmGRPCStatefulStreamPatternLogsSent.Add(float64(patternLogCount), s.workerID)
+		metrics.TlmGRPCStatefulStreamPatternLogsBytesSent.Add(float64(patternLogBytes), s.workerID)
+	}
+	if stateChangeCount > 0 {
+		metrics.TlmGRPCStatefulStreamStateChangesSent.Add(float64(stateChangeCount), s.workerID)
+		metrics.TlmGRPCStatefulStreamStateChangeBytesSent.Add(float64(stateChangeBytes), s.workerID)
+	}
+
+	// Track histogram of datums per batch
+	metrics.TlmGRPCStatefulStreamDatumsPerBatch.Observe(float64(len(datumSeq.Data)), s.workerID)
 }
 
 // createBatch creates a StatefulBatch from serialized data and batch ID

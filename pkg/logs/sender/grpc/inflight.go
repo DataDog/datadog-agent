@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
 
@@ -38,15 +39,22 @@ type inflightTracker struct {
 	headBatchID    uint32         // BatchID of the oldest sent payload (at head)
 	batchIDCounter uint32         // Next batchID to be assigned when markSent is called
 	snapshot       *snapshotState // Accumulated state for new streams
+	pipelineName   string         // Pipeline name for metrics tagging
 }
 
 // newInflightTracker creates a new bounded inflight tracker with the given capacity
 // Allocates capacity+1 slots to implement the "waste one slot" ring buffer pattern
 func newInflightTracker(capacity int) *inflightTracker {
+	return newInflightTrackerWithPipeline(capacity, "")
+}
+
+// newInflightTrackerWithPipeline creates a new bounded inflight tracker with pipeline name for metrics
+func newInflightTrackerWithPipeline(capacity int, pipelineName string) *inflightTracker {
 	return &inflightTracker{
-		items:    make([]*message.Payload, capacity+1),
-		cap:      capacity,
-		snapshot: newSnapshotState(),
+		items:        make([]*message.Payload, capacity+1),
+		cap:          capacity,
+		snapshot:     newSnapshotState(),
+		pipelineName: pipelineName,
 	}
 }
 
@@ -80,7 +88,7 @@ func (t *inflightTracker) pop() *message.Payload {
 	// Apply state changes from this payload to snapshot
 	if payload.StatefulExtra != nil {
 		if extra, ok := payload.StatefulExtra.(*StatefulExtra); ok {
-			t.snapshot.apply(extra)
+			t.snapshot.apply(extra, t.pipelineName)
 		}
 	}
 
@@ -184,7 +192,7 @@ func newSnapshotState() *snapshotState {
 }
 
 // apply updates the snapshot state by processing state changes from a payload
-func (s *snapshotState) apply(extra *StatefulExtra) {
+func (s *snapshotState) apply(extra *StatefulExtra, pipelineName string) {
 	if extra == nil {
 		return
 	}
@@ -194,13 +202,50 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 		case *statefulpb.Datum_PatternDefine:
 			s.patternMap[d.PatternDefine.PatternId] = d.PatternDefine
 		case *statefulpb.Datum_PatternDelete:
+			// Track bytes removed before deletion
+			if pipelineName != "" {
+				if oldPattern, exists := s.patternMap[d.PatternDelete.PatternId]; exists {
+					bytesRemoved := len(oldPattern.Template)
+					metrics.TlmGRPCStatefulPatternBytesRemoved.Add(float64(bytesRemoved), pipelineName)
+				}
+			}
 			delete(s.patternMap, d.PatternDelete.PatternId)
 		case *statefulpb.Datum_DictEntryDefine:
 			s.dictMap[d.DictEntryDefine.Id] = d.DictEntryDefine
 		case *statefulpb.Datum_DictEntryDelete:
+			// Track bytes removed before deletion
+			if pipelineName != "" {
+				if oldEntry, exists := s.dictMap[d.DictEntryDelete.Id]; exists {
+					bytesRemoved := len(oldEntry.Value)
+					metrics.TlmGRPCStatefulTokenBytesRemoved.Add(float64(bytesRemoved), pipelineName)
+				}
+			}
 			delete(s.dictMap, d.DictEntryDelete.Id)
 		}
 	}
+
+	// Update state size gauge after applying changes
+	if pipelineName != "" {
+		s.updateStateSizeMetric(pipelineName)
+	}
+}
+
+// updateStateSizeMetric updates the state size gauge metric
+func (s *snapshotState) updateStateSizeMetric(pipelineName string) {
+	stateSize := s.calculateSize()
+	metrics.TlmGRPCStatefulStateSize.Set(float64(stateSize), pipelineName)
+}
+
+// calculateSize calculates the total size of the snapshot state in bytes
+func (s *snapshotState) calculateSize() int {
+	size := 0
+	for _, pattern := range s.patternMap {
+		size += proto.Size(pattern)
+	}
+	for _, entry := range s.dictMap {
+		size += proto.Size(entry)
+	}
+	return size
 }
 
 // serialize returns the current snapshot state as serialized bytes
