@@ -1,6 +1,6 @@
 """Cross-platform FIPS configuration script.
 
-Replaces placeholder values in openssl.cnf and fipsinstall.sh with actual paths.
+Replaces placeholder values in openssl.cnf.tmp and fipsinstall.sh with actual paths.
 Works on both Windows and Linux.
 """
 
@@ -34,11 +34,11 @@ def main():
     destdir = Path(args.destdir)
     embedded_ssl_dir = args.embedded_ssl_dir if args.embedded_ssl_dir else str(destdir / "embedded" / "ssl")
 
-    openssl_cnf = destdir / "embedded" / "ssl" / "openssl.cnf"
+    openssl_cnf_tmp = destdir / "embedded" / "ssl" / "openssl.cnf.tmp"
     fipsinstall_sh = destdir / "embedded" / "bin" / "fipsinstall.sh"
 
-    # Replace {{embedded_ssl_dir}} in openssl.cnf
-    replace_in_file(openssl_cnf, "{{embedded_ssl_dir}}", embedded_ssl_dir)
+    # Replace {{embedded_ssl_dir}} in openssl.cnf.tmp
+    replace_in_file(openssl_cnf_tmp, "{{embedded_ssl_dir}}", embedded_ssl_dir)
 
     # Replace {{install_dir}} in fipsinstall.sh (Linux only)
     if os.name != "nt" and fipsinstall_sh.exists():

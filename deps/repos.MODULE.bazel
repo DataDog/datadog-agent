@@ -296,7 +296,7 @@ http_archive(
 http_archive(
     name = "openssl_fips",
     files = {
-        "openssl.cnf": "//deps:openssl_fips/openssl.cnf",
+        "openssl.cnf.tmp": "//deps:openssl_fips/openssl.cnf.tmp",
         "fipsinstall.sh": "//deps:openssl_fips/fipsinstall.sh",
         "configure_fips.py": "//deps:openssl_fips/configure_fips.py",
         "BUILD.bazel": "//deps:openssl_fips.BUILD.bazel",
