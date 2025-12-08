@@ -3,8 +3,8 @@ cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCB
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/appsec-internal-go v1.14.0 h1:MIEZ015kdpeSZSFYBQteSmg8f7zkQTWbMDHbSL9zBx8=
 github.com/DataDog/appsec-internal-go v1.14.0/go.mod h1:9YppRCpElfGX+emXOKruShFYsdPq7WEPq/Fen4tYYpk=
-github.com/DataDog/datadog-api-client-go/v2 v2.49.0 h1:44ltl4mpJCtUdBLvOvXcCcvNewB+beDesZaoQYZqjCc=
-github.com/DataDog/datadog-api-client-go/v2 v2.49.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
+github.com/DataDog/datadog-api-client-go/v2 v2.50.0 h1:AHHJcU9DSZqCzNcwwOo3OYH7e5FaHf8ppa9G52ydJxg=
+github.com/DataDog/datadog-api-client-go/v2 v2.50.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.8.1 h1:+GOES5W9zpKlhwHptZVW2C0NLVf7ilr7pHkDcbNvpIc=
 github.com/DataDog/datadog-go/v5 v5.8.1/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-libddwaf/v3 v3.5.4 h1:cLV5lmGhrUBnHG50EUXdqPQAlJdVCp9n3aQ5bDWJEAg=

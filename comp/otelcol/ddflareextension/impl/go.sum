@@ -38,8 +38,8 @@ github.com/Code-Hex/go-generics-cache v1.5.1 h1:6vhZGc5M7Y/YD8cIUcY8kcuQLB4cHR7U
 github.com/Code-Hex/go-generics-cache v1.5.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/DataDog/agent-payload/v5 v5.0.177 h1:lZ19A2l7p+raX65GFK9BAQ17YWBbLgBG4FLyorU1mY4=
 github.com/DataDog/agent-payload/v5 v5.0.177/go.mod h1:9PtvPKsgZVTTvqgYtcwB4bjXAkxYzC2wzSXSadPRHv8=
-github.com/DataDog/datadog-api-client-go/v2 v2.49.0 h1:44ltl4mpJCtUdBLvOvXcCcvNewB+beDesZaoQYZqjCc=
-github.com/DataDog/datadog-api-client-go/v2 v2.49.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
+github.com/DataDog/datadog-api-client-go/v2 v2.50.0 h1:AHHJcU9DSZqCzNcwwOo3OYH7e5FaHf8ppa9G52ydJxg=
+github.com/DataDog/datadog-api-client-go/v2 v2.50.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.8.1 h1:+GOES5W9zpKlhwHptZVW2C0NLVf7ilr7pHkDcbNvpIc=
 github.com/DataDog/datadog-go/v5 v5.8.1/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
