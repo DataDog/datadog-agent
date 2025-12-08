@@ -133,6 +133,8 @@ pkg_files(
     attributes = pkg_attributes(
         mode = "0755",
     ),
+    prefix = "embedded/bin",
+    visibility = ["//packages/install_dir:__pkg__"],
 )
 
 pkg_install(
