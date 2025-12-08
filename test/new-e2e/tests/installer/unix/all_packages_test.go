@@ -311,20 +311,20 @@ func (s *packageBaseSuite) installAnsible(flavor e2eos.Descriptor) string {
 	pathPrefix := ""
 	switch flavor.Flavor {
 	case e2eos.Ubuntu, e2eos.Debian:
-		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible git")
+		s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y ansible")
 	case e2eos.Fedora:
-		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible git")
+		s.Env().RemoteHost.MustExecute("sudo dnf install -y ansible")
 	case e2eos.CentOS:
 		// Can't install ansible with yum install because the available package on centos is max ansible 2.9, EOL since May 2022
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl git")
+		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 curl")
 		s.Env().RemoteHost.MustExecute("curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py && python3 get-pip.py && rm get-pip.py")
 		s.Env().RemoteHost.MustExecute("python3 -m pip install ansible")
 		pathPrefix = "/home/centos/.local/bin/"
 	case e2eos.AmazonLinux, e2eos.RedHat:
-		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip git && yes | pip3 install ansible")
+		s.Env().RemoteHost.MustExecute("sudo yum install -y python3 python3-pip && yes | pip3 install ansible")
 		pathPrefix = "/home/ec2-user/.local/bin/"
 	case e2eos.Suse:
-		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip git && sudo pip3 install ansible")
+		s.Env().RemoteHost.MustExecute("sudo zypper install -y python3 python3-pip && sudo pip3 install ansible")
 	default:
 		s.Env().RemoteHost.MustExecute("python3 -m ensurepip --upgrade && python3 -m pip install pipx && python3 -m pipx ensurepath")
 		pathPrefix = "/usr/bin/"
@@ -342,7 +342,7 @@ func (s *packageBaseSuite) writeAnsiblePlaybook(env map[string]string, params ..
       become: true
       retries: 3
       import_role:
-        name: ansible-datadog
+        name: datadog.dd.agent
 `
 	playbookStringSuffix := `
   vars:
