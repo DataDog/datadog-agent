@@ -36,6 +36,15 @@ func TestGetIPCServerAddressPort(t *testing.T) {
 		_, enabled := getIPCServerAddressPort()
 		require.False(t, enabled)
 	})
+
+	t.Run("default unix socket", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("agent_ipc.use_socket", true)
+
+		path, enabled := getIPCServerAddressPort()
+		require.True(t, enabled)
+		require.Equal(t, "/var/run/datadog/agent_ipc.socket", path)
+	})
 }
 
 func TestGetListener(t *testing.T) {

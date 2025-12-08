@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	agentIpcUseSocket        = false
 	agentIpcPort             = 5004
 	securityCmdPort          = 5010
 	apmCmdPort               = 5012
