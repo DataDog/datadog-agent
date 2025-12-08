@@ -24,11 +24,14 @@ alias(
 pkg_files(
     name = "bin_files",
     srcs = [":dd_compile_policy"],
-    attributes = pkg_attributes(
-        group = "root",
-        mode = "0555",
-        owner = "root",
-    ),
+    attributes = select({
+        "//:windows_x86_64": None,  # Windows doesn't use Unix permissions
+        "//conditions:default": pkg_attributes(
+            group = "root",
+            mode = "0555",
+            owner = "root",
+        ),
+    }),
     prefix = select({
         "//:windows_x86_64": "bin/agent",
         "//conditions:default": "embedded/bin",
