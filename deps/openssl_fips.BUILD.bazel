@@ -105,7 +105,7 @@ pkg_files(
 
 pkg_files(
     name = "openssl_cnf",
-    srcs = [":openssl.cnf"],
+    srcs = ["openssl.cnf.tmp"],
     prefix = "embedded/ssl",
 )
 
