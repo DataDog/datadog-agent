@@ -317,7 +317,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.4.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.2
+	github.com/prometheus/common v0.67.4
 	github.com/prometheus/procfs v0.19.2
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/rickar/props v1.0.0
