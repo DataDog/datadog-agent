@@ -1977,6 +1977,35 @@ api_key:
 #
 #     pathtest_interval: 30m
 
+#     filters:
+#
+#       # exclude single domain
+#       - match_domain: 'api.slack.com'
+#         type: exclude
+#
+#       # exclude domain using wildcard
+#       - match_domain: '*.datadoghq.com'      # translate to regex '.*\.datadoghq\.com
+#         type: exclude
+#       - match_domain: '*.zoom.us'
+#         match_domain_strategy: wildcard      # use wildcard to match domain (default)
+#         type: exclude
+#
+#       # exclude single IP or using CIDR notation
+#       - match_ip: 10.10.10.10
+#         type: exclude
+#       - match_ip: 10.20.0.0/24
+#         type: exclude
+#
+#       # exclude using regex
+#       - match_domain: '.*\.zoom\.us'
+#         match_domain_strategy: regex         # use regex to match domain
+#         type: exclude
+#
+#       # include
+#       - match_domain: 'api.datadoghq.com'
+#         type: include
+#
+
 #     # @param traceroute_queries - integer - optional - default: 3
 #     # @env DD_NETWORK_PATH_COLLECTOR_TRACEROUTE_QUERIES - integer - optional - default: 3
 #     # The number of traceroute queries for static path tests.
@@ -2012,35 +2041,6 @@ api_key:
 #     # Custom filters to include or exclude specific destinations from network path collection.
 #     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
 #     # Filters are applied sequentially, the last matching filter takes precedence.
-#
-#     filters:
-#
-#       # exclude single domain
-#       - match_domain: 'api.slack.com'
-#         type: exclude
-#
-#       # exclude domain using wildcard
-#       - match_domain: '*.datadoghq.com'      # translate to regex '.*\.datadoghq\.com
-#         type: exclude
-#       - match_domain: '*.zoom.us'
-#         match_domain_strategy: wildcard      # use wildcard to match domain (default)
-#         type: exclude
-#
-#       # exclude single IP or using CIDR notation
-#       - match_ip: 10.10.10.10
-#         type: exclude
-#       - match_ip: 10.20.0.0/24
-#         type: exclude
-#
-#       # exclude using regex
-#       - match_domain: '.*\.zoom\.us'
-#         match_domain_strategy: regex         # use regex to match domain
-#         type: exclude
-#
-#       # include
-#       - match_domain: 'api.datadoghq.com'
-#         type: include
-#
 
 {{ end -}}
 {{ end -}}
