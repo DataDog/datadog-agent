@@ -1,4 +1,4 @@
-From a1a8b100128e92274609b97dbcbd9bcd40590ca5 Mon Sep 17 00:00:00 2001
+From d5cb752d75761205a1121616d3b5a92d2cf6f93b Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
 Date: Mon, 1 Dec 2025 15:46:12 +0100
 Subject: [PATCH 2/2] configure_make: provide (DY)LD_LIBRARY_PATH based on the
@@ -151,7 +151,7 @@ index a749ae2..e52d7b5 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/framework/toolchains/windows_commands.bzl b/foreign_cc/private/framework/toolchains/windows_commands.bzl
-index 1fa741f..0a15572 100644
+index 1fa741f..60ca440 100644
 --- a/foreign_cc/private/framework/toolchains/windows_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/windows_commands.bzl
 @@ -14,6 +14,9 @@ def pwd():
@@ -159,7 +159,7 @@ index 1fa741f..0a15572 100644
      return "echo {text}".format(text = text)
  
 +def export_ld_library_path_var():
-+    pass
++    return ""
 +
  def export_var(name, value):
      return "{name}={value}; export {name}".format(name = name, value = value)
@@ -169,7 +169,7 @@ index 1fa741f..0a15572 100644
  """
  
 +def increment_ld_library_path(_source):
-+    pass
++    return ""
 +
  def increment_pkg_config_path(_source):
      text = """\
