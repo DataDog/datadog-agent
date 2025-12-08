@@ -294,7 +294,7 @@ require (
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e
 	github.com/mailru/easyjson v0.9.0
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mdlayher/netlink v1.8.0
 	github.com/miekg/dns v1.1.68
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
