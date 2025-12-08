@@ -1947,22 +1947,65 @@ api_key:
 
 #     # @param workers - integer - optional - default: 4
 #     # @env DD_NETWORK_PATH_COLLECTOR_WORKERS - integer - optional - default: 4
-#     # The `workers` refers to the number of concurrent workers available for network path execution.
+#     # The number of concurrent workers available for network path execution.
 #
 #     workers: 4
 
-#     # @param pathtest_interval - integer - optional - default: 10m
-#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL - integer - optional - default: 10m
-#     # The `pathtest_interval` refers to the traceroute run interval for monitored connections.
+#     # @param timeout - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_TIMEOUT - integer - optional - default: 1000
+#     # The timeout in milliseconds for a network path test.
 #
-#     pathtest_interval: 10m
+#     timeout: 1000
 
-#     # @param pathtest_ttl - integer - optional - default: 35m
-#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_TTL - integer - optional - default: 35m
-#     # The `pathtest_ttl` refers to the duration (time-to-live) a connection will be monitored when it's not seen anymore.
-#     # The TTL is reset each time the connection is seen again.
+#     # @param max_ttl - integer - optional - default: 30
+#     # @env DD_NETWORK_PATH_COLLECTOR_MAX_TTL - integer - optional - default: 30
+#     # The maximum TTL (Time To Live) for traceroute tests.
 #
-#     pathtest_ttl: 35m
+#     max_ttl: 30
+
+#     # @param pathtest_ttl - string - optional - default: 70m
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_TTL - string - optional - default: 70m
+#     # The duration (time-to-live) a connection will be monitored when it's not seen anymore.
+#     # The TTL is reset each time the connection is seen again.
+#     # With 30min interval, 70m will allow running a test 3 times (t0, t30, t60).
+#
+#     pathtest_ttl: 70m
+
+#     # @param pathtest_interval - string - optional - default: 30m
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL - string - optional - default: 30m
+#     # The traceroute run interval for monitored connections.
+#
+#     pathtest_interval: 30m
+
+#     # @param traceroute_queries - integer - optional - default: 3
+#     # @env DD_NETWORK_PATH_COLLECTOR_TRACEROUTE_QUERIES - integer - optional - default: 3
+#     # The number of traceroute queries for static path tests.
+#
+#     traceroute_queries: 3
+
+#     # @param e2e_queries - integer - optional - default: 50
+#     # @env DD_NETWORK_PATH_COLLECTOR_E2E_QUERIES - integer - optional - default: 50
+#     # The number of end-to-end queries for static path tests.
+#
+#     e2e_queries: 50
+
+#     # @param input_chan_size - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE - integer - optional - default: 1000
+#     # The size of the input channel buffer.
+#
+#     input_chan_size: 1000
+
+#     # @param processing_chan_size - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_PROCESSING_CHAN_SIZE - integer - optional - default: 1000
+#     # The size of the processing channel buffer.
+#
+#     processing_chan_size: 1000
+
+#     # @param pathtest_contexts_limit - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_CONTEXTS_LIMIT - integer - optional - default: 1000
+#     # The maximum number of pathtest contexts that can be maintained.
+#
+#     pathtest_contexts_limit: 1000
 
 {{ end -}}
 {{ end -}}
