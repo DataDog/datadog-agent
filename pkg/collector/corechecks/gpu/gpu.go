@@ -9,6 +9,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -110,7 +111,7 @@ func newCheckTelemetryMetrics(tm telemetry.Component) *checkTelemetryMetrics {
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	// Check if GPU check is enabled (follows SBOM pattern)
 	if !pkgconfigsetup.Datadog().GetBool("gpu.enabled") {
-		return fmt.Errorf("GPU check is disabled")
+		return errors.New("GPU check is disabled")
 	}
 
 	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
@@ -183,6 +184,7 @@ func (c *Check) ensureInitCollectors() error {
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
+				Workloadmeta:         c.wmeta,
 			})
 		if err != nil {
 			return fmt.Errorf("failed to build NVML collectors: %w", err)

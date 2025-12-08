@@ -8,7 +8,7 @@ package selftests
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -234,7 +234,7 @@ func (t *SelfTester) beginSelfTests(timeout time.Duration) error {
 	select {
 	case t.selfTestRunning <- timeout:
 	default:
-		return fmt.Errorf("channel is already full, self test is already running")
+		return errors.New("channel is already full, self test is already running")
 	}
 	t.waitingForEvent.Store(true)
 

@@ -254,7 +254,7 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 		if d.aggregator.hostname != "" {
 			// Send startup event only when we have a valid hostname
 			d.aggregator.eventIn <- event.Event{
-				Text:           fmt.Sprintf("Version %s", agentVersion),
+				Text:           "Version " + agentVersion,
 				SourceTypeName: "System",
 				Host:           d.aggregator.hostname,
 				EventType:      "Agent Startup",

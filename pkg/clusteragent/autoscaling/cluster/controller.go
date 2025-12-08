@@ -10,6 +10,7 @@ package cluster
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -177,7 +178,7 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 	}
 
 	if len(ncList.Items) == 0 {
-		return fmt.Errorf("no NodeClasses found, NodePool cannot be created")
+		return errors.New("no NodeClasses found, NodePool cannot be created")
 	}
 
 	if len(ncList.Items) > 1 {

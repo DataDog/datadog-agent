@@ -9,6 +9,7 @@ package actuator
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -343,7 +344,7 @@ func handleProcessesUpdated(
 	ev eventProcessesUpdated,
 ) error {
 	if sm.shuttingDown {
-		return fmt.Errorf("processes should not be updated during shutdown")
+		return errors.New("processes should not be updated during shutdown")
 	}
 
 	var before, after []probeKey
@@ -841,7 +842,7 @@ func maybeDequeueProgram(sm *state, effects effectHandler) error {
 
 func handleShutdown(sm *state, effects effectHandler) error {
 	if sm.shuttingDown {
-		return fmt.Errorf("state machine is already shutting down")
+		return errors.New("state machine is already shutting down")
 	}
 	sm.shuttingDown = true
 

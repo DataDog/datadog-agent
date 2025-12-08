@@ -8,7 +8,6 @@ package snmp
 
 import (
 	"embed"
-	"fmt"
 	"path"
 	"testing"
 	"time"
@@ -16,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
@@ -180,7 +179,7 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
 	require.NoError(s.T(), err)
 
-	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("docker restart %s", s.Env().Agent.ContainerName))
+	_, err = s.Env().RemoteHost.Execute("docker restart " + s.Env().Agent.ContainerName)
 	require.NoError(s.T(), err)
 
 	err = fakeintake.FlushServerAndResetAggregators()

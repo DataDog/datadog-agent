@@ -335,7 +335,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
-	req.Header.Set("User-Agent", fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
 	if payload.Encoding != "" {
 		req.Header.Set("Content-Encoding", payload.Encoding)
@@ -476,7 +476,7 @@ func buildURL(endpoint config.Endpoint) string {
 	if endpoint.Version == config.EPIntakeVersion2 && endpoint.TrackType != "" {
 		url.Path = fmt.Sprintf("%s/api/v2/%s", endpoint.PathPrefix, endpoint.TrackType)
 	} else {
-		url.Path = fmt.Sprintf("%s/v1/input", endpoint.PathPrefix)
+		url.Path = endpoint.PathPrefix + "/v1/input"
 	}
 	return url.String()
 }

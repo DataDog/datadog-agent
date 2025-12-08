@@ -8,6 +8,7 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -149,7 +150,7 @@ const (
 	symdbUploaderPath = "/symdb/v1/input"
 )
 
-var errSchemeRequired = fmt.Errorf("scheme is required")
+var errSchemeRequired = errors.New("scheme is required")
 
 // Parse the trace agent URL from the environment variables, falling back to the
 // default.

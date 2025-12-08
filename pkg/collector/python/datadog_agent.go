@@ -675,7 +675,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 func httpHeaders() map[string]string {
 	av, _ := version.Agent()
 	return map[string]string{
-		"User-Agent":   fmt.Sprintf("Datadog Agent/%s", av.GetNumber()),
+		"User-Agent":   "Datadog Agent/" + av.GetNumber(),
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}

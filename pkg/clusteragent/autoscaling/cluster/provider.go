@@ -9,6 +9,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -32,7 +33,7 @@ func StartClusterAutoscaling(
 	senderManager sender.SenderManager,
 ) error {
 	if apiCl == nil {
-		return fmt.Errorf("Impossible to start cluster autoscaling without valid APIClient")
+		return errors.New("Impossible to start cluster autoscaling without valid APIClient")
 	}
 
 	eventBroadcaster := record.NewBroadcaster()

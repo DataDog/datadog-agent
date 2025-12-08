@@ -10,7 +10,7 @@ package profile
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
@@ -94,7 +94,7 @@ func Test_validateOutput(t *testing.T) {
 			profile:     newTestProfile(),
 			commandType: Startup,
 			configBytes: []byte(exampleConfig),
-			expected:    fmt.Errorf("no metadata found for command type startup in profile test"),
+			expected:    errors.New("no metadata found for command type startup in profile test"),
 		},
 	}
 	for _, tt := range tests {

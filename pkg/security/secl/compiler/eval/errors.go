@@ -109,7 +109,7 @@ func (e *ErrRuleParse) Error() string {
 		column--
 	}
 
-	str := fmt.Sprintf("%s\n", e.expr)
+	str := e.expr + "\n"
 	str += strings.Repeat(" ", column)
 	str += "^"
 	return str

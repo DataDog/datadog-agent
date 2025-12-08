@@ -221,7 +221,7 @@ func (fh *forwarderHealth) setAPIKeyStatus(apiKey string, _ string, status *expv
 	if len(apiKey) > 5 {
 		apiKey = apiKey[len(apiKey)-5:]
 	}
-	obfuscatedKey := fmt.Sprintf("API key ending with %s", apiKey)
+	obfuscatedKey := "API key ending with " + apiKey
 	if status == &apiKeyRemove {
 		apiKeyStatus.Delete(obfuscatedKey)
 		apiKeyFailure.Delete(obfuscatedKey)
@@ -255,7 +255,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 		return false, err
 	}
 
-	req.Header.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	req.Header.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 
 	resp, err := client.Do(req)
 	if err != nil {

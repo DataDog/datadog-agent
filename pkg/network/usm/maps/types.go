@@ -8,7 +8,10 @@
 // Package maps provides eBPF map leak detection for USM
 package maps
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // MapLeakInfo contains leak detection results for a single eBPF map
 type MapLeakInfo struct {
@@ -55,18 +58,20 @@ func (m *MapLeakInfo) HasLeaks() bool {
 
 // String returns a human-readable summary of the report
 func (r *LeakDetectionReport) String() string {
-	result := "USM eBPF Map Leak Detection (PID-Keyed Maps)\n"
-	result += "=============================================\n\n"
+	var builder strings.Builder
+	builder.WriteString("USM eBPF Map Leak Detection (PID-Keyed Maps)\n")
+	builder.WriteString("=============================================\n\n")
 
 	for _, mapInfo := range r.Maps {
-		result += mapInfo.String() + "\n"
+		builder.WriteString(mapInfo.String())
+		builder.WriteString("\n")
 		if mapInfo.HasLeaks() && len(mapInfo.DeadPIDs) > 0 {
-			result += fmt.Sprintf("  - Dead PIDs: %v\n", mapInfo.DeadPIDs)
+			fmt.Fprintf(&builder, "  - Dead PIDs: %v\n", mapInfo.DeadPIDs)
 		}
 	}
 
-	result += fmt.Sprintf("\nSummary: %d leaked entries found across %d maps\n",
+	fmt.Fprintf(&builder, "\nSummary: %d leaked entries found across %d maps\n",
 		r.TotalLeakedEntries, r.TotalMapsChecked)
 
-	return result
+	return builder.String()
 }

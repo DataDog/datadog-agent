@@ -19,6 +19,7 @@ linters:
     - govet                     # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - ineffassign               # Detects when assignments to existing variables are not used
     - misspell                  # Finds commonly misspelled English words in comments
+    - perfsprint                # replace uses of fmt.Sprintf and fmt.Errorf with better (both in CPU and memory) alternatives
     - pkgconfigusage            # Linter for checking usage of pkgconfig inside components folder
     - revive                    # Revive is a replacement for golint, a coding style checker
     - staticcheck               # staticcheck is a go vet on steroids, applying a ton of static analysis checks
@@ -187,6 +188,11 @@ linters:
             - allowRegex: ^_
         - name: var-declaration
         - name: var-naming
+          # disable package name lint
+          arguments:
+            - []
+            - []
+            - [skipPackageNameChecks: true]
         - name: duplicated-imports
     forbidigo:
       forbid:
@@ -259,6 +265,10 @@ linters:
     - path: _test\.go
       linters:
         - errcheck
+    # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
+    - path: "pkg/privateactionrunner/"
+      linters:
+        - revive
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]

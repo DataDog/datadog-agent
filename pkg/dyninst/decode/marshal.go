@@ -141,11 +141,11 @@ func (m *messageData) processJSONSegment(
 	// Check presence bit using same logic as processExpression.
 	presenceBitsetSize := ev.rootType.PresenceBitsetSize
 	if int(presenceBitsetSize) > len(ev.rootData) {
-		return fmt.Errorf("presence bitset is out of bounds")
+		return errors.New("presence bitset is out of bounds")
 	}
 	presenceBitSet := bitset(ev.rootData[:presenceBitsetSize])
 	if exprIdx >= int(presenceBitsetSize)*8 {
-		return fmt.Errorf("expression index out of bounds")
+		return errors.New("expression index out of bounds")
 	}
 	if !presenceBitSet.get(exprIdx) {
 		// Expression evaluation failed.
@@ -161,7 +161,7 @@ func (m *messageData) processJSONSegment(
 	exprDataStart := expr.Offset
 	exprDataEnd := exprDataStart + expr.Expression.Type.GetByteSize()
 	if exprDataEnd > uint32(len(ev.rootData)) {
-		return fmt.Errorf("expression data out of bounds")
+		return errors.New("expression data out of bounds")
 	}
 	exprData := ev.rootData[exprDataStart:exprDataEnd]
 
