@@ -23,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/remote-config/functiontools"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -435,26 +436,39 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 							err = errors.Wrap(oneErr, err.Error())
 						}
 					}
+				}
 
-					if task.Config.TaskType == string(types.TaskRestart) {
-						processed = true
-						pkglog.Errorf("[FA] Restarting agent task %s", configPath)
-						switch task.Config.TaskArgs["manager"] {
-						case "docker":
-							pkglog.Errorf("[FA] Restarting docker container %s", task.Config.TaskArgs["target_name"])
-							err = exec.Command("docker", "restart", task.Config.TaskArgs["target_name"]).Run()
-						case "launchctl":
-							pkglog.Errorf("[FA] Restarting launchctl service %s", task.Config.TaskArgs["target_name"])
-							err = exec.Command("launchctl", "kickstart", "-k", task.Config.TaskArgs["target_name"]).Run()
-						case "systemctl":
-							pkglog.Errorf("[FA] Restarting systemctl service %s", task.Config.TaskArgs["target_name"])
-							err = exec.Command("systemctl", "restart", task.Config.TaskArgs["target_name"]).Run()
-						}
-						if err != nil {
-							pkglog.Errorf("[FA] Error while restarting agent task: %s", err.Error())
-						}
+				switch task.Config.TaskType {
+				case string(types.TaskRestart):
+					processed = true
+					pkglog.Errorf("[FA] Restarting agent task %s", configPath)
+					switch task.Config.TaskArgs["manager"] {
+					case "docker":
+						pkglog.Errorf("[FA] Restarting docker container %s", task.Config.TaskArgs["target_name"])
+						err = exec.Command("docker", "restart", task.Config.TaskArgs["target_name"]).Run()
+					case "launchctl":
+						pkglog.Errorf("[FA] Restarting launchctl service %s", task.Config.TaskArgs["target_name"])
+						err = exec.Command("launchctl", "kickstart", "-k", task.Config.TaskArgs["target_name"]).Run()
+					case "systemctl":
+						pkglog.Errorf("[FA] Restarting systemctl service %s", task.Config.TaskArgs["target_name"])
+						err = exec.Command("systemctl", "restart", task.Config.TaskArgs["target_name"]).Run()
+					}
+					if err != nil {
+						pkglog.Errorf("[FA] Error while restarting agent task: %s", err.Error())
+					}
+				case string(types.TaskExecuteFunctionTool):
+					processed = true
+					pkglog.Errorf("[FA] Executing function tool for agent task %s", configPath)
+					pkglog.Errorf("[FA] Task: %s", task)
+					pkglog.Errorf("[FA] Call ID: %s", task.Config.TaskArgs["call_id"])
+					pkglog.Errorf("[FA] Function tool name: %s", task.Config.TaskArgs["function_tool_name"])
+					pkglog.Errorf("[FA] Parameters: %s", task.Config.TaskArgs["parameters"])
+					err = functiontools.NewCall(task).Execute().Send()
+					if err != nil {
+						pkglog.Errorf("[FA] Error while executing function tool for agent task: %s", err.Error())
 					}
 				}
+
 				if processed && err != nil {
 					// One failure
 					applyStateCallback(configPath, state.ApplyStatus{
