@@ -6,6 +6,7 @@ go 1.24.10
 godebug tlsmlkem=0
 
 use (
+
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -135,6 +136,7 @@ use (
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
+	pkg/ssi/testutils
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
