@@ -49,9 +49,10 @@ configure_make(
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,
     # hence, we can treat them as such.
+    out_bin_dir = "providers",
     out_binaries = select({
         "@platforms//os:windows": [
-            "providers/" + FIPS_WIN,
+            FIPS_WIN,
         ],
         "//conditions:default": [],
     }),
@@ -104,9 +105,7 @@ pkg_files(
     srcs = ["fipsinstall.sh"],
     prefix = "embedded/bin",
     attributes = pkg_attributes(
-        group = "root",
         mode = "0755",
-        owner = "root",
     ),
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
