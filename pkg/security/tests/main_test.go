@@ -73,7 +73,12 @@ func TestMain(m *testing.M) {
 				fmt.Fprintf(os.Stderr, "Failed to compile required tests regex: %s\nRequired tests patterns: %s\n", err, strings.Join(requiredTestsPatterns, ","))
 				os.Exit(1)
 			}
+			fmt.Printf("Required tests regex: %s\n", requiredTestsRegex.String())
+		} else {
+			fmt.Printf("No required tests found for the given test runner tags: %s\n", testRunnerTags)
 		}
+	} else {
+		fmt.Printf("No required tests configuration file provided, skipping required tests checks\n")
 	}
 
 	preTestsHook()
