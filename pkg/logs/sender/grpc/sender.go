@@ -80,6 +80,7 @@ type Sender struct {
 	destinationsContext *client.DestinationsContext
 	cfg                 pkgconfigmodel.Reader
 	numberOfWorkers     int
+	pipelineName        string // Pipeline name for telemetry
 
 	// Pipeline integration
 	pipelineMonitor metrics.PipelineMonitor
@@ -101,6 +102,7 @@ type Sender struct {
 // numberOfPipelines determines how many streamWorker to create (same as number of pipelines)
 func NewSender(
 	numberOfPipelines int,
+	pipelineName string,
 	cfg pkgconfigmodel.Reader,
 	sink sender.Sink,
 	endpoints *config.Endpoints,
@@ -128,6 +130,7 @@ func NewSender(
 		destinationsContext: destinationsCtx,
 		cfg:                 cfg,
 		numberOfWorkers:     numberOfWorkers,
+		pipelineName:        pipelineName,
 		pipelineMonitor:     metrics.NewTelemetryPipelineMonitor(),
 		workers:             make([]*streamWorker, 0, numberOfWorkers),
 		queues:              make([]chan *message.Payload, numberOfWorkers),
@@ -145,7 +148,7 @@ func NewSender(
 
 	// Create multiple streamWorker instances (like Sender creates Workers)
 	for i := 0; i < numberOfWorkers; i++ {
-		workerID := fmt.Sprintf("worker-%d", i)
+		workerID := fmt.Sprintf("%s-stream-%d", pipelineName, i)
 
 		// Create input queue for this worker (like Sender creates queues)
 		sender.queues[i] = make(chan *message.Payload, inputChanBufferSize)
@@ -153,6 +156,7 @@ func NewSender(
 		// Create streamWorker instance
 		worker := newStreamWorker(
 			workerID,
+			pipelineName,
 			sender.queues[i],
 			destinationsCtx,
 			sender.conn,
@@ -165,8 +169,8 @@ func NewSender(
 		sender.workers = append(sender.workers, worker)
 	}
 
-	log.Infof("Created gRPC sender with %d streams for endpoint %s:%d",
-		numberOfWorkers, endpoint.Host, endpoint.Port)
+	log.Infof("Created gRPC sender with %d streams for endpoint %s:%d (pipeline: %s)",
+		numberOfWorkers, endpoint.Host, endpoint.Port, pipelineName)
 	return sender
 }
 
@@ -198,6 +202,9 @@ func (s *Sender) createConnection() error {
 	// Add user agent
 	userAgent := fmt.Sprintf("datadog-agent/%s", version.AgentVersion)
 	opts = append(opts, grpc.WithUserAgent(userAgent))
+
+	// Enable gzip compression for log payloads
+	// opts = append(opts, grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 
 	// Add headers via per-RPC credentials
 	headerCreds := &headerCredentials{endpoint: s.endpoint}

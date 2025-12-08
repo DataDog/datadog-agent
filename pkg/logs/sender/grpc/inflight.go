@@ -234,3 +234,28 @@ func (s *snapshotState) serialize() []byte {
 	serialized, _ := proto.Marshal(datumSeq)
 	return serialized
 }
+
+// size returns the estimated size of the snapshot state in bytes
+// This counts patterns and dictionary entries for telemetry purposes
+func (s *snapshotState) size() int {
+	totalSize := 0
+
+	// Calculate pattern sizes
+	for _, pattern := range s.patternMap {
+		// pattern_id (8 bytes) + template length + param_count (4 bytes) + pos_list
+		totalSize += 8 + len(pattern.Template) + 4 + (len(pattern.PosList) * 4)
+	}
+
+	// Calculate dict entry sizes
+	for _, entry := range s.dictMap {
+		// id (8 bytes) + value string length
+		totalSize += 8 + len(entry.Value)
+	}
+
+	return totalSize
+}
+
+// getSnapshotSize returns the current snapshot state size in bytes for telemetry
+func (t *inflightTracker) getSnapshotSize() int {
+	return t.snapshot.size()
+}
