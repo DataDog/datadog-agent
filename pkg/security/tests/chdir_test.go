@@ -10,6 +10,7 @@ package tests
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -58,6 +59,10 @@ func TestChdir(t *testing.T) {
 
 			validateSyscallContext(t, event, "$.syscall.chdir.path")
 		})
+
+		if slices.Contains(testRunnerTags, "os:ubuntu_22.04") {
+			t.Fatalf("artificially failing test %s on os:ubuntu_22.04 runner", t.Name())
+		}
 	})
 
 	t.Run("fchdir", func(t *testing.T) {
