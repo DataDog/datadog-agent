@@ -57,14 +57,14 @@ type Endpoint struct {
 	// wrongly update an endpoint when an API key is linked to multuple endpoints.
 	additionalEndpointsIdx int
 
-	Host                    string `mapstructure:"host" json:"host"`
+	Host                    string `mapstructure:"host" json:"host" yaml:"host"`
 	Port                    int
-	PathPrefix              string `mapstructure:"path_prefix" json:"path_prefix"`
-	UseCompression          bool   `mapstructure:"use_compression" json:"use_compression"`
-	CompressionKind         string `mapstructure:"compression_kind" json:"compression_kind"`
-	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level"`
+	PathPrefix              string `mapstructure:"path_prefix" json:"path_prefix" yaml:"path_prefix"`
+	UseCompression          bool   `mapstructure:"use_compression" json:"use_compression" yaml:"use_compression"`
+	CompressionKind         string `mapstructure:"compression_kind" json:"compression_kind" yaml:"compression_kind"`
+	CompressionLevel        int    `mapstructure:"compression_level" json:"compression_level" yaml:"compression_level"`
 	ProxyAddress            string
-	IsMRF                   bool `mapstructure:"-" json:"-"`
+	IsMRF                   bool `mapstructure:"-" json:"-" yaml:"-"`
 	ConnectionResetInterval time.Duration
 
 	BackoffFactor    float64
@@ -79,14 +79,14 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
-// unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/mapstructure.
+// unmarshalEndpoint is used to load additional endpoints from the configuration which stored as JSON/YAML/mapstructure.
 // A different type is used than Endpoint since we want some fields to be private in Endpoint (APIKey, IsReliable, ...).
 type unmarshalEndpoint struct {
-	APIKey     string `mapstructure:"api_key" json:"api_key"`
-	IsReliable *bool  `mapstructure:"is_reliable" json:"is_reliable"`
-	UseSSL     *bool  `mapstructure:"use_ssl" json:"use_ssl"`
+	APIKey     string `mapstructure:"api_key" json:"api_key" yaml:"api_key"`
+	IsReliable *bool  `mapstructure:"is_reliable" json:"is_reliable" yaml:"is_reliable"`
+	UseSSL     *bool  `mapstructure:"use_ssl" json:"use_ssl" yaml:"use_ssl"`
 
-	Endpoint `mapstructure:",squash"`
+	Endpoint `mapstructure:",squash" yaml:",inline"`
 }
 
 // EndpointCompressionOptions is the compression options for the endpoint

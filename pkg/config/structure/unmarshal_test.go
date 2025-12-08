@@ -1559,3 +1559,55 @@ some_config:
 	assert.NoError(t, err)
 	assert.Equal(t, map[ResourceType]string{"memory": "5g"}, res.Resources)
 }
+
+func TestEnableStringUnmarshal(t *testing.T) {
+	type RuleBundle struct {
+		Products []string            `mapstructure:"products"`
+		Rules    map[string][]string `mapstructure:"rules"`
+	}
+
+	expected := []RuleBundle{
+		{
+			Products: []string{"global"},
+			Rules: map[string][]string{
+				"containers": {
+					`container.name == "redis"`,
+					`container.pod.namespace == "filtered-ns"`,
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name     string
+		envValue string
+	}{
+		{
+			name:     "JSON format in env var",
+			envValue: `[{"products": ["global"], "rules": {"containers": ["container.name == \"redis\"", "container.pod.namespace == \"filtered-ns\""]}}]`,
+		},
+		{
+			name: "YAML format in env var",
+			envValue: `- products: ["global"]
+  rules:
+    containers:
+    - container.name == "redis"
+    - container.pod.namespace == "filtered-ns"`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DD_TEST_CONFIG", tc.envValue)
+
+			mockConfig := newEmptyMockConf(t)
+			mockConfig.BindEnvAndSetDefault("test_config", []interface{}{})
+			mockConfig.BuildSchema()
+
+			var result []RuleBundle
+			err := UnmarshalKey(mockConfig, "test_config", &result, EnableStringUnmarshal)
+			require.NoError(t, err)
+			assert.Equal(t, expected, result)
+		})
+	}
+}

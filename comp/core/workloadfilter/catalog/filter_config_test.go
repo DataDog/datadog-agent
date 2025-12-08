@@ -18,7 +18,7 @@ import (
 )
 
 func TestNewFilterConfig_CELFallback(t *testing.T) {
-	t.Run("successful unmarshal - no fallback needed", func(t *testing.T) {
+	t.Run("successful unmarshal", func(t *testing.T) {
 
 		mockConfig := configmock.New(t)
 
@@ -40,7 +40,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Contains(t, filterConfig.CELProductRules, workloadfilter.ProductMetrics)
 	})
 
-	t.Run("unmarshal fails but YAML string fallback succeeds", func(t *testing.T) {
+	t.Run("unmarshal YAML string succeeds", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 
 		// Set up YAML string like what would come from configuration files
@@ -69,7 +69,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Equal(t, "service.name == 'yaml-service'", serviceRules)
 	})
 
-	t.Run("unmarshal fails but JSON string fallback succeeds", func(t *testing.T) {
+	t.Run("unmarshal JSON string succeeds", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		jsonConfig := `[
 			{
@@ -97,7 +97,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Equal(t, "service.name == 'test-service'", serviceRules)
 	})
 
-	t.Run("both unmarshal and fallback fail", func(t *testing.T) {
+	t.Run("unmarshal invalid string fails", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("cel_workload_exclude", "invalid string data")
 

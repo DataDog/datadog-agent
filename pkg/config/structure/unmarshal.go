@@ -7,10 +7,10 @@
 package structure
 
 import (
-	"encoding/json"
 	"reflect"
 
 	mapstructure "github.com/go-viper/mapstructure/v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -40,7 +40,7 @@ var ErrorUnused UnmarshalKeyOption = func(fs *featureSet) {
 	fs.errorUnused = true
 }
 
-// EnableStringUnmarshal allows UnmarshalKey to handle stringified json and Unmarshal it
+// EnableStringUnmarshal allows UnmarshalKey to handle stringified YAML (including JSON) and Unmarshal it
 var EnableStringUnmarshal UnmarshalKeyOption = func(fs *featureSet) {
 	fs.stringUnmarshal = true
 }
@@ -86,7 +86,7 @@ func UnmarshalKey(cfg model.Reader, key string, target interface{}, opts ...Unma
 			if str == "" {
 				return nil
 			}
-			return json.Unmarshal([]byte(str), &target)
+			return yaml.Unmarshal([]byte(str), target)
 		}
 	}
 

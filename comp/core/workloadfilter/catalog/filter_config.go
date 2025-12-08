@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"strings"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/impl/parse"
@@ -130,25 +128,9 @@ func (fc *FilterConfig) GetLegacyContainerExclude() []string {
 func loadCELConfig(cfg config.Component) ([]workloadfilter.RuleBundle, error) {
 	var celConfig []workloadfilter.RuleBundle
 
-	// First try the standard UnmarshalKey method (input defined in datadog.yaml)
-	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig)
-	if err == nil {
-		return celConfig, nil
-	}
-
-	// Fallback: try to get raw value and unmarshal manually
-	rawValue := cfg.GetString("cel_workload_exclude")
-	if rawValue == "" {
-		return nil, nil
-	}
-
-	// handles both yaml and json input
-	err = yaml.Unmarshal([]byte(rawValue), &celConfig)
-	if err == nil {
-		return celConfig, nil
-	}
-
-	return nil, err
+	// UnmarshalKey with EnableStringUnmarshal handles both YAML and JSON from env vars
+	err := structure.UnmarshalKey(cfg, "cel_workload_exclude", &celConfig, structure.EnableStringUnmarshal)
+	return celConfig, err
 }
 
 // String returns a simple string representation of the FilterConfig
