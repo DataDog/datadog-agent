@@ -1,4 +1,4 @@
-From e2dcde59a2da3220870990d91e3228885c6610d4 Mon Sep 17 00:00:00 2001
+From a1a8b100128e92274609b97dbcbd9bcd40590ca5 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
 Date: Mon, 1 Dec 2025 15:46:12 +0100
 Subject: [PATCH 2/2] configure_make: provide (DY)LD_LIBRARY_PATH based on the
@@ -9,9 +9,9 @@ Subject: [PATCH 2/2] configure_make: provide (DY)LD_LIBRARY_PATH based on the
  .../private/framework/toolchains/commands.bzl    | 15 +++++++++++++++
  .../framework/toolchains/linux_commands.bzl      | 16 ++++++++++++++++
  .../framework/toolchains/macos_commands.bzl      | 14 ++++++++++++++
- .../framework/toolchains/windows_commands.bzl    |  4 ++++
+ .../framework/toolchains/windows_commands.bzl    |  8 ++++++++
  foreign_cc/private/make_script.bzl               |  7 +++++++
- 6 files changed, 58 insertions(+), 1 deletion(-)
+ 6 files changed, 62 insertions(+), 1 deletion(-)
 
 diff --git a/foreign_cc/private/configure_script.bzl b/foreign_cc/private/configure_script.bzl
 index bbb5056..9e14e3d 100644
@@ -151,10 +151,20 @@ index a749ae2..e52d7b5 100644
      local_var = local_var,
      mkdirs = mkdirs,
 diff --git a/foreign_cc/private/framework/toolchains/windows_commands.bzl b/foreign_cc/private/framework/toolchains/windows_commands.bzl
-index 1fa741f..9ce6c22 100644
+index 1fa741f..0a15572 100644
 --- a/foreign_cc/private/framework/toolchains/windows_commands.bzl
 +++ b/foreign_cc/private/framework/toolchains/windows_commands.bzl
-@@ -205,6 +205,9 @@ export MSYS2_ARG_CONV_EXCL="*"
+@@ -14,6 +14,9 @@ def pwd():
+ def echo(text):
+     return "echo {text}".format(text = text)
+ 
++def export_ld_library_path_var():
++    pass
++
+ def export_var(name, value):
+     return "{name}={value}; export {name}".format(name = name, value = value)
+ 
+@@ -205,6 +208,9 @@ export MSYS2_ARG_CONV_EXCL="*"
  export SYSTEMDRIVE="C:"
  """
  
@@ -164,8 +174,11 @@ index 1fa741f..9ce6c22 100644
  def increment_pkg_config_path(_source):
      text = """\
  local children=$($REAL_FIND "$1" -mindepth 1 -name '*.pc')
-@@ -303,6 +306,7 @@ commands = struct(
+@@ -301,8 +307,10 @@ commands = struct(
+     echo = echo,
+     enable_tracing = enable_tracing,
      env = env,
++    export_ld_library_path_var = export_ld_library_path_var,
      export_var = export_var,
      if_else = if_else,
 +    increment_ld_library_path = increment_ld_library_path,
