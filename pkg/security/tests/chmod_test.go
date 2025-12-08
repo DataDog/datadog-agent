@@ -10,6 +10,7 @@ package tests
 
 import (
 	"os"
+	"slices"
 	"syscall"
 	"testing"
 
@@ -34,6 +35,10 @@ func TestChmod(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	if slices.Contains(testRunnerTags, "os:ubuntu_24.10") {
+		t.Fatalf("artificially failing test %s on os:ubuntu_24.10 runner", t.Name())
+	}
 
 	fileMode := 0o447
 	expectedMode := uint16(applyUmask(fileMode))
