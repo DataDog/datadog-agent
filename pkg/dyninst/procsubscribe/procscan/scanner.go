@@ -219,6 +219,7 @@ func (p *Scanner) Scan() (
 	removed = make([]ProcessID, 0, noLongerLive.Len())
 	noLongerLive.Ascend(func(pid uint32) bool {
 		removed = append(removed, ProcessID(pid))
+		p.live.Delete(pid)
 		return true
 	})
 	noLongerLive.Clear(true)
