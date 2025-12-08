@@ -428,6 +428,20 @@ func GetWorkloadMetaMock(t testing.TB) workloadmetamock.Mock {
 	))
 }
 
+// GetWorkloadMetaMockWithDefaultGPUs is the same as GetWorkloadMetaMock, but adds the GPUs of testutil.GPUUUIDs
+func GetWorkloadMetaMockWithDefaultGPUs(t testing.TB) workloadmetamock.Mock {
+	wmeta := GetWorkloadMetaMock(t)
+	for _, uuid := range GPUUUIDs {
+		wmeta.Set(&workloadmeta.GPU{
+			EntityID: workloadmeta.EntityID{
+				ID:   uuid,
+				Kind: workloadmeta.KindGPU,
+			},
+		})
+	}
+	return wmeta
+}
+
 // GetTelemetryMock returns a mock of the telemetry.Component.
 func GetTelemetryMock(t testing.TB) telemetry.Mock {
 	return fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
