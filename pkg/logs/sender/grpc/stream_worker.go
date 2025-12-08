@@ -8,6 +8,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -107,6 +108,7 @@ type streamWorker struct {
 	// Configuration
 	workerID            string
 	destinationsContext *client.DestinationsContext
+	pipelineName        string
 
 	// Pipeline integration
 	inputChan  chan *message.Payload
@@ -154,9 +156,10 @@ func newStreamWorker(
 	sink sender.Sink,
 	endpoint config.Endpoint,
 	streamLifetime time.Duration,
+	pipelineName string,
 ) *streamWorker {
 	return newStreamWorkerWithClock(workerID, inputChan, destinationsCtx, conn, client, sink,
-		endpoint, streamLifetime, clock.New(), nil)
+		endpoint, streamLifetime, clock.New(), nil, pipelineName)
 }
 
 // newStreamWorkerWithClock creates a new gRPC stream worker with injectable clock for testing
@@ -171,6 +174,7 @@ func newStreamWorkerWithClock(
 	streamLifetime time.Duration,
 	clock clock.Clock,
 	inflightTracker *inflightTracker,
+	pipelineName string,
 ) *streamWorker {
 	backoffPolicy := backoff.NewExpBackoffPolicy(
 		endpoint.BackoffFactor,
@@ -182,12 +186,13 @@ func newStreamWorkerWithClock(
 
 	// Use provided inflightTracker (testing) or create default one
 	if inflightTracker == nil {
-		inflightTracker = newInflightTracker(maxInflight)
+		inflightTracker = newInflightTracker(maxInflight, pipelineName)
 	}
 
 	worker := &streamWorker{
 		workerID:            workerID,
 		destinationsContext: destinationsCtx,
+		pipelineName:        pipelineName,
 		inputChan:           inputChan,
 		outputChan:          nil,
 		sink:                sink,
@@ -509,6 +514,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 
 	// Send snapshot state first (batch 0)
 	serialized := s.inflight.getSnapshot()
+	tlmPipelineStateSize.Set(float64(len(serialized)), s.pipelineName)
 	if serialized != nil {
 		// Send snapshot to sender goroutine via channel
 		// This call won't block because it's buffered channel's first write
@@ -661,7 +667,7 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
 				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
-				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
+				s.handleIrrecoverableError(fmt.Sprintf("protocol: code=%v, message=%s", st.Code(), st.Message()), streamInfo)
 				return
 			default:
 				// All other non-OK statuses: signal stream failure
@@ -710,7 +716,9 @@ func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *strea
 // getNextBatch crafts a StatefulBatch with the next batch to send from the
 // inflight tracker. It doesn't change inflight tracker state
 func (s *streamWorker) getNextBatch() *statefulpb.StatefulBatch {
-	return createBatch(s.inflight.nextToSend().Encoded, s.inflight.nextBatchID())
+	payload := s.inflight.nextToSend()
+	s.recordPayloadMetrics(payload)
+	return createBatch(payload.Encoded, s.inflight.nextBatchID())
 }
 
 // createBatch creates a StatefulBatch from serialized data and batch ID
@@ -728,4 +736,22 @@ func createStoppedTimer(clk clock.Clock, d time.Duration) *clock.Timer {
 		<-t.C
 	}
 	return t
+}
+
+func (s *streamWorker) recordPayloadMetrics(payload *message.Payload) {
+	if payload == nil {
+		return
+	}
+
+	extra, ok := payload.StatefulExtra.(*StatefulExtra)
+	if !ok || extra == nil {
+		return
+	}
+
+	tlmStreamPatternLogs.Add(float64(extra.Telemetry.PatternLogsCount), s.workerID)
+	tlmStreamPatternLogBytes.Add(float64(extra.Telemetry.PatternLogBytes), s.workerID)
+	tlmStreamStateChanges.Add(float64(extra.Telemetry.StateChangesCount), s.workerID)
+	tlmStreamStateChangeBytes.Add(float64(extra.Telemetry.StateChangeBytes), s.workerID)
+	tlmStreamBatches.Inc(s.workerID)
+	tlmStreamDatumsPerBatch.Observe(float64(extra.Telemetry.DatumCount), s.workerID)
 }
