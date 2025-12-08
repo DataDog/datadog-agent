@@ -975,7 +975,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
-require github.com/go-jose/go-jose/v4 v4.1.3
+require (
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/go-jose/go-jose/v4 v4.1.3
+)
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
 replace (
@@ -1143,6 +1146,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils => ./pkg/ssi/testutils
 	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ./pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset

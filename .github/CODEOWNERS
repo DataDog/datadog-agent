@@ -652,6 +652,7 @@
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/ndm-core
 /pkg/snmp/                              @DataDog/ndm-core
+/pkg/ssi/                               @DataDog/injection-platform
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-products
 /comp/core/workloadmeta/collectors/internal/cloudfoundry     @DataDog/agent-integrations

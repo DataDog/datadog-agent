@@ -32,7 +32,11 @@ dependency 'pympler'
 
 dependency "systemd" if linux_target?
 
-dependency 'libpcap' if linux_target? and !heroku_target? # system-probe dependency
+if linux_target? and !heroku_target? # system-probe dependency
+  build do
+    command_on_repo_root "bazelisk run -- @libpcap//:install --destdir='#{install_dir}/embedded'"
+  end
+end
 
 # Include traps db file in snmp.d/traps_db/
 # TODO: Fix rules_pkg so install works.
