@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 typedef struct {
-    bool found;             // 1 if battery found, 0 otherwise
     int cycleCount;
     int designCapacity;
     int appleRawMaxCapacity;
@@ -13,6 +12,7 @@ typedef struct {
     int instantAmperage;   // mA (negative = discharging, positive = charging)
     bool isCharging;        // 1 if charging, 0 otherwise
     bool externalConnected; // 1 if AC power connected, 0 otherwise
+    bool found;             // 1 if battery found, 0 otherwise
 } BatteryInfo;
 
 BatteryInfo getBatteryInfo(void);
