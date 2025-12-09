@@ -852,6 +852,7 @@ func TestConcentratorInput(t *testing.T) {
 				root.SetFloat64Attribute(k, v)
 			}
 		}
+		root.SetAttributeFromString("_dd.convertedv1", "v07-process")
 		return root
 	}
 

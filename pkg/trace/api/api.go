@@ -511,7 +511,7 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   tracerVersion,
 		}
-		return ConvertToIdx(oldPayload), nil
+		return ConvertToIdx(oldPayload, "v01-json"), nil
 	case v05:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -536,7 +536,7 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 		}
 		var tracerPayload pb.TracerPayload
 		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
-		return ConvertToIdx(&tracerPayload), err
+		return ConvertToIdx(&tracerPayload, "v07-pb"), err
 	case V10:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -588,7 +588,7 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 				Chunks:          traceChunksFromTraces(v4Traces),
 				TracerVersion:   tracerVersion,
 			}
-			return ConvertToIdx(v4TracerPayload), nil
+			return ConvertToIdx(v4TracerPayload, "v04-json"), nil
 		default:
 			// do our best
 			var v4Traces pb.Traces
@@ -614,7 +614,7 @@ func (r *HTTPReceiver) decodeTracerPayload(v Version, req *http.Request, cIDProv
 				Chunks:          traceChunksFromTraces(v4Traces),
 				TracerVersion:   tracerVersion,
 			}
-			return ConvertToIdx(v4TracerPayload), nil
+			return ConvertToIdx(v4TracerPayload, "v04-json"), nil
 		}
 		tp.SetLanguageName(lang)
 		tp.SetLanguageVersion(langVersion)

@@ -57,7 +57,7 @@ func TestConvertToIdx_ErrorFieldIsBool(t *testing.T) {
 				},
 			}
 
-			result := ConvertToIdx(payload)
+			result := ConvertToIdx(payload, "")
 
 			require.Len(t, result.Chunks, 1)
 			require.Len(t, result.Chunks[0].Spans, 1)
@@ -134,7 +134,7 @@ func TestConvertToIdx_KindFieldMatchesOTELSpec(t *testing.T) {
 				},
 			}
 
-			result := ConvertToIdx(payload)
+			result := ConvertToIdx(payload, "")
 
 			require.Len(t, result.Chunks, 1)
 			require.Len(t, result.Chunks[0].Spans, 1)
@@ -168,7 +168,7 @@ func TestConvertToIdx_PromotedFields(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -201,7 +201,7 @@ func TestConvertToIdx_EnvFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -232,7 +232,7 @@ func TestConvertToIdx_HostnameFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -260,7 +260,7 @@ func TestConvertToIdx_VersionFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -288,7 +288,7 @@ func TestConvertToIdx_ComponentFieldPromoted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -342,7 +342,7 @@ func TestConvertToIdx_DecisionMakerFieldSetsSamplingMechanism(t *testing.T) {
 				},
 			}
 
-			result := ConvertToIdx(payload)
+			result := ConvertToIdx(payload, "")
 
 			require.Len(t, result.Chunks, 1)
 			assert.Equal(t, tt.expectedSamplingMechanism, result.Chunks[0].SamplingMechanism())
@@ -369,7 +369,7 @@ func TestConvertToIdx_NilChunksSkipped(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 2)
 	// First chunk should be nil/empty, second should have data
@@ -399,7 +399,7 @@ func TestConvertToIdx_EmptySpansChunksSkipped(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 2)
 	assert.Nil(t, result.Chunks[0])
@@ -430,7 +430,7 @@ func TestConvertToIdx_SpanMetricsConverted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -461,7 +461,7 @@ func TestConvertToIdx_SamplingPriorityMetricSetsChunkPriority(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.Equal(t, int32(2), result.Chunks[0].Priority)
@@ -486,7 +486,7 @@ func TestConvertToIdx_ChunkPriorityUsedWhenSpanHasNone(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.Equal(t, int32(1), result.Chunks[0].Priority)
@@ -514,7 +514,7 @@ func TestConvertToIdx_SpanPriorityTakesPrecedence(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.Equal(t, int32(2), result.Chunks[0].Priority)
@@ -542,7 +542,7 @@ func TestConvertToIdx_MetaStructConverted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -587,7 +587,7 @@ func TestConvertToIdx_SpanLinksConverted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -634,7 +634,7 @@ func TestConvertToIdx_SpanEventsConverted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -703,7 +703,7 @@ func TestConvertToIdx_SpanEventAttributeTypes(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -801,7 +801,7 @@ func TestConvertToIdx_ArrayValueAllTypes(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -833,7 +833,7 @@ func TestConvertToIdx_GitCommitShaExtracted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	// Git commit sha should be set as a string attribute on the payload
@@ -862,7 +862,7 @@ func TestConvertToIdx_DecisionMakerFromChunkTags(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.Equal(t, uint32(5), result.Chunks[0].SamplingMechanism())
@@ -892,7 +892,7 @@ func TestConvertToIdx_SpanDecisionMakerTakesPrecedence(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.Equal(t, uint32(8), result.Chunks[0].SamplingMechanism())
@@ -919,7 +919,7 @@ func TestConvertToIdx_InvalidSamplingMechanismIgnored(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	// Should default to 0 when invalid
@@ -952,7 +952,7 @@ func TestConvertToIdx_PayloadFieldsOverrideSpanFields(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	assert.Equal(t, "payload-hostname", result.Hostname())
 	assert.Equal(t, "payload-env", result.Env())
@@ -982,7 +982,7 @@ func TestConvertToIdx_PayloadMetadataFieldsSet(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	assert.Equal(t, "container-123", result.ContainerID())
 	assert.Equal(t, "go", result.LanguageName())
@@ -1017,7 +1017,7 @@ func TestConvertToIdx_ChunkAttributesConverted(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.NotEmpty(t, result.Attributes)
@@ -1044,7 +1044,7 @@ func TestConvertToIdx_ChunkOriginAndDroppedTracePreserved(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	assert.Equal(t, "lambda", result.Chunks[0].Origin())
@@ -1080,7 +1080,7 @@ func TestConvertToIdx_PromotedTagsNotInAttributes(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 1)
 	require.Len(t, result.Chunks[0].Spans, 1)
@@ -1096,7 +1096,7 @@ func TestConvertToIdx_PromotedTagsNotInAttributes(t *testing.T) {
 	attrs := span.Attributes()
 	// We can't easily check the string table references, but we can verify
 	// that the map doesn't have too many entries
-	assert.LessOrEqual(t, len(attrs), 2) // "normal" and "normal.metric"
+	assert.LessOrEqual(t, len(attrs), 3) // "normal", "normal.metric", and "_dd.convertedv1"
 }
 
 // Test isPromotedTag function behavior
@@ -1155,7 +1155,7 @@ func TestConvertToIdx_FirstEnvUsedForPayload(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	assert.Equal(t, "first-env", result.Env())
 }
@@ -1193,11 +1193,65 @@ func TestConvertToIdx_MultipleChunks(t *testing.T) {
 		},
 	}
 
-	result := ConvertToIdx(payload)
+	result := ConvertToIdx(payload, "")
 
 	require.Len(t, result.Chunks, 2)
 	assert.Equal(t, int32(1), result.Chunks[0].Priority)
 	assert.Equal(t, "synthetics", result.Chunks[0].Origin())
 	assert.Equal(t, int32(2), result.Chunks[1].Priority)
 	assert.Equal(t, "lambda", result.Chunks[1].Origin())
+}
+
+// Test that _dd.convertedv1 attribute is properly set on spans
+func TestConvertToIdx_ConvertedV1AttributeSet(t *testing.T) {
+	payload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{
+			{
+				Spans: []*pb.Span{
+					{
+						Service:  "test-service",
+						Name:     "test-span",
+						Resource: "test-resource",
+						TraceID:  123,
+						SpanID:   456,
+					},
+					{
+						Service:  "test-service",
+						Name:     "test-span-2",
+						Resource: "test-resource-2",
+						TraceID:  123,
+						SpanID:   789,
+						ParentID: 456,
+					},
+				},
+			},
+		},
+	}
+
+	t.Run("attribute set when originPayloadVersion is provided", func(t *testing.T) {
+		result := ConvertToIdx(payload, "v0.5")
+
+		require.Len(t, result.Chunks, 1)
+		require.Len(t, result.Chunks[0].Spans, 2)
+
+		// Both spans should have the _dd.convertedv1 attribute set
+		for i, span := range result.Chunks[0].Spans {
+			val, ok := span.GetAttributeAsString("_dd.convertedv1")
+			assert.True(t, ok, "span %d should have _dd.convertedv1 attribute", i)
+			assert.Equal(t, "v0.5", val, "span %d should have correct version value", i)
+		}
+	})
+
+	t.Run("attribute not set when originPayloadVersion is empty", func(t *testing.T) {
+		result := ConvertToIdx(payload, "")
+
+		require.Len(t, result.Chunks, 1)
+		require.Len(t, result.Chunks[0].Spans, 2)
+
+		// Neither span should have the _dd.convertedv1 attribute set
+		for i, span := range result.Chunks[0].Spans {
+			_, ok := span.GetAttributeAsString("_dd.convertedv1")
+			assert.False(t, ok, "span %d should not have _dd.convertedv1 attribute when originPayloadVersion is empty", i)
+		}
+	})
 }

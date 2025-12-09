@@ -22,7 +22,8 @@ func isPromotedTag(key string) bool {
 }
 
 // ConvertToIdx converts a TracerPayload to the new string indexed TracerPayload format
-func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
+// originPayloadVersion is the version of the original payload, this is used to set the _dd.convertedv1 attribute on the spans (for debugging purposes)
+func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.InternalTracerPayload {
 	stringTable := idx.NewStringTable()
 	payloadAttrs := convertAttributesMap(payload.Tags, stringTable)
 	idxChunks := make([]*idx.InternalTraceChunk, len(payload.Chunks))
@@ -157,6 +158,9 @@ func ConvertToIdx(payload *pb.TracerPayload) *idx.InternalTracerPayload {
 				Events:       spanEvents,
 			}
 			idxSpans[spanIndex] = idx.NewInternalSpan(stringTable, protoSpan)
+			if originPayloadVersion != "" {
+				idxSpans[spanIndex].SetAttributeFromString("_dd.convertedv1", originPayloadVersion)
+			}
 		}
 		var samplingMechanism uint64
 		if payloadDecisionMaker == "" {

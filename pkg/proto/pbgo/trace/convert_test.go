@@ -73,7 +73,7 @@ func TestConvertedSpan(t *testing.T) {
 	assert.Equal(t, "client", kindAttr)
 	convertedV1, found := idxSpan.GetAttributeAsString("_dd.convertedv1")
 	assert.True(t, found)
-	assert.Equal(t, "true", convertedV1)
+	assert.Equal(t, "v04", convertedV1)
 	assert.Equal(t, "production", idxSpan.Env())
 	assert.Equal(t, "1.2.3", idxSpan.Version())
 	assert.Equal(t, "http-client", idxSpan.Component())

@@ -127,7 +127,7 @@ func readV05StringRef(newZeroRef uint32, bts []byte) (uint32, []byte, error) {
 // in pkg/trace/api/version.go
 // The provided InternalSpan must have a pre-populated Strings field
 // newZeroRef is the new location for string ref `0` (0 if unchanged) see buildStringTable for more details
-func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFields *SpanConvertedFields, newZeroRef uint32) ([]byte, error) {
+func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFields *SpanConvertedFields, newZeroRef uint32) ([]byte, error) {
 	var (
 		sz  uint32
 		err error
@@ -140,17 +140,17 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		return bts, errors.New("encoded span needs exactly 12 elements in array")
 	}
 	// Service (0)
-	z.span.ServiceRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.ServiceRef, bts, err = readV05StringRef(newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
 	// Name (1)
-	z.span.NameRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.NameRef, bts, err = readV05StringRef(newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
 	// Resource (2)
-	z.span.ResourceRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.ResourceRef, bts, err = readV05StringRef(newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
@@ -160,33 +160,33 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		return bts, err
 	}
 	// SpanID (4)
-	z.span.SpanID, bts, err = parseUint64Bytes(bts)
+	s.span.SpanID, bts, err = parseUint64Bytes(bts)
 	if err != nil {
 		return bts, err
 	}
 	// ParentID (5)
-	z.span.ParentID, bts, err = parseUint64Bytes(bts)
+	s.span.ParentID, bts, err = parseUint64Bytes(bts)
 	if err != nil {
 		return bts, err
 	}
 	// Start (6)
 	var spanStart int64
 	spanStart, bts, err = parseInt64Bytes(bts)
-	z.span.Start = uint64(spanStart)
+	s.span.Start = uint64(spanStart)
 	if err != nil {
 		return bts, err
 	}
 	// Duration (7)
 	var spanDuration int64
 	spanDuration, bts, err = parseInt64Bytes(bts)
-	z.span.Duration = uint64(spanDuration)
+	s.span.Duration = uint64(spanDuration)
 	if err != nil {
 		return bts, err
 	}
 	// Error (8)
 	var spanError int32
 	spanError, bts, err = parseInt32Bytes(bts)
-	z.span.Error = spanError != 0
+	s.span.Error = spanError != 0
 	if err != nil {
 		return bts, err
 	}
@@ -195,8 +195,8 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if err != nil {
 		return bts, err
 	}
-	if z.span.Attributes == nil && sz > 0 {
-		z.span.Attributes = make(map[uint32]*AnyValue, sz)
+	if s.span.Attributes == nil && sz > 0 {
+		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
 	for sz > 0 {
 		sz--
@@ -209,8 +209,8 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		if err != nil {
 			return bts, err
 		}
-		z.handlePromotedMetaFields(key, val, convertedFields)
-		z.span.Attributes[key] = &AnyValue{
+		s.handlePromotedMetaFields(key, val, convertedFields)
+		s.span.Attributes[key] = &AnyValue{
 			Value: &AnyValue_StringValueRef{
 				StringValueRef: val,
 			},
@@ -221,8 +221,8 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if err != nil {
 		return bts, err
 	}
-	if z.span.Attributes == nil && sz > 0 {
-		z.span.Attributes = make(map[uint32]*AnyValue, sz)
+	if s.span.Attributes == nil && sz > 0 {
+		s.span.Attributes = make(map[uint32]*AnyValue, sz)
 	}
 	for sz > 0 {
 		sz--
@@ -238,18 +238,19 @@ func (z *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 		if err != nil {
 			return bts, err
 		}
-		z.handlePromotedMetricsFields(key, val, convertedFields)
-		z.span.Attributes[key] = &AnyValue{
+		s.handlePromotedMetricsFields(key, val, convertedFields)
+		s.span.Attributes[key] = &AnyValue{
 			Value: &AnyValue_DoubleValue{
 				DoubleValue: val,
 			},
 		}
 	}
 	// Type (11)
-	z.span.TypeRef, bts, err = readV05StringRef(newZeroRef, bts)
+	s.span.TypeRef, bts, err = readV05StringRef(newZeroRef, bts)
 	if err != nil {
 		return bts, err
 	}
+	s.SetAttributeFromString("_dd.convertedv1", "v05")
 	return bts, nil
 }
 

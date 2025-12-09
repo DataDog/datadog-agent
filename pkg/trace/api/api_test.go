@@ -1617,7 +1617,7 @@ func TestGetProcessTags(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := getProcessTags(tc.header, ConvertToIdx(tc.payload))
+			result := getProcessTags(tc.header, ConvertToIdx(tc.payload, "v04-json"))
 			if result != tc.expected {
 				t.Errorf("expected %q, got %q", tc.expected, result)
 			}

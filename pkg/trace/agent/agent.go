@@ -395,7 +395,7 @@ func (a *Agent) setFirstTraceTagsV1(root *idx.InternalSpan) {
 func (a *Agent) Process(p *api.Payload) {
 	payloadV1 := api.PayloadV1{
 		Source:                 p.Source,
-		TracerPayload:          api.ConvertToIdx(p.TracerPayload),
+		TracerPayload:          api.ConvertToIdx(p.TracerPayload, "v07-process"),
 		ClientComputedTopLevel: p.ClientComputedTopLevel,
 		ClientComputedStats:    p.ClientComputedStats,
 		ClientDroppedP0s:       p.ClientDroppedP0s,
