@@ -3,10 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-package traceroute
+package remoteimpl
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -14,7 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
 type mockRoundTripper struct {
@@ -30,6 +36,119 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		Body:       http.NoBody,
 		Header:     make(http.Header),
 	}, nil
+}
+
+type mockTransport struct {
+	RoundTripFunc func(req *http.Request) (*http.Response, error)
+}
+
+func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return m.RoundTripFunc(req)
+}
+
+func TestGetTraceroute(t *testing.T) {
+	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+	expectedDest := payload.NetworkPathDestination{
+		Hostname: "example.com",
+		Port:     80,
+	}
+
+	expectedPath := payload.NetworkPath{
+		Timestamp:   1234567890,
+		Protocol:    payload.ProtocolTCP,
+		Destination: expectedDest,
+	}
+
+	jsonBytes, err := json.Marshal(expectedPath)
+	require.NoError(t, err)
+
+	// Update expectedPath with the expected source hostname
+	expectedPath.Source.Hostname = "test-agent-hostname"
+
+	client := &http.Client{
+		Transport: &mockTransport{
+			RoundTripFunc: func(req *http.Request) (*http.Response, error) {
+				assert.Contains(t, req.URL.Path, "/traceroute/example.com")
+				assert.Equal(t, clientID, req.URL.Query().Get("client_id"))
+				assert.Equal(t, "80", req.URL.Query().Get("port"))
+				assert.Equal(t, "TCP", req.URL.Query().Get("protocol"))
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader(jsonBytes)),
+					Header:     make(http.Header),
+				}, nil
+			},
+		},
+	}
+
+	cfg := config.Config{
+		DestHostname: "example.com",
+		DestPort:     80,
+		Protocol:     payload.ProtocolTCP,
+		Timeout:      5 * time.Second,
+		MaxTTL:       30,
+	}
+
+	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+	path, err := rt.Run(context.Background(), cfg)
+	require.NoError(t, err)
+	assert.Equal(t, expectedPath, path)
+}
+
+func TestGetTracerouteError(t *testing.T) {
+	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+	client := &http.Client{
+		Transport: &mockTransport{
+			RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusInternalServerError,
+					Body:       io.NopCloser(bytes.NewReader([]byte("internal server error"))),
+					Header:     make(http.Header),
+				}, nil
+			},
+		},
+	}
+
+	cfg := config.Config{
+		DestHostname: "example.com",
+		DestPort:     80,
+		Protocol:     payload.ProtocolTCP,
+	}
+
+	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+	_, err := rt.Run(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "traceroute request failed")
+}
+
+func TestGetTracerouteInvalidJSON(t *testing.T) {
+	hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+
+	client := &http.Client{
+		Transport: &mockTransport{
+			RoundTripFunc: func(_ *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(bytes.NewReader([]byte("invalid json"))),
+					Header:     make(http.Header),
+				}, nil
+			},
+		},
+	}
+
+	cfg := config.Config{
+		DestHostname: "example.com",
+		DestPort:     80,
+		Protocol:     payload.ProtocolTCP,
+	}
+
+	rt := &remoteTraceroute{sysprobeClient: client, log: logmock.New(t), hostname: hostnameComponent}
+	_, err := rt.Run(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "error unmarshalling response")
 }
 
 func TestGetTracerouteURL(t *testing.T) {
@@ -89,9 +208,10 @@ func TestGetTracerouteURL(t *testing.T) {
 				Transport: mockTransport,
 			}
 
-			_, err := getTracerouteFromSysProbe(
+			hostnameComponent, _ := hostnameinterface.NewMock("test-agent-hostname")
+			rt := &remoteTraceroute{sysprobeClient: mockClient, log: logmock.New(t), hostname: hostnameComponent}
+			_, err := rt.getTracerouteFromSysProbe(
 				context.TODO(),
-				mockClient,
 				tt.clientID,
 				tt.host,
 				tt.port,
