@@ -21,10 +21,7 @@ var TimeNow = time.Now
 // SendMetadata send Versa device, interface and IP Address metadata
 func (s *Sender) SendMetadata(devices []devicemetadata.DeviceMetadata, interfaces []devicemetadata.InterfaceMetadata, ipAddresses []devicemetadata.IPAddressMetadata, topologyLinks []devicemetadata.TopologyLinkMetadata) {
 	collectionTime := TimeNow()
-	if len(topologyLinks) >= 0 {
-		log.Tracef("topology links recieved in SendMetadata")
-	}
-	metadataPayloads := devicemetadata.BatchPayloads(integrations.Versa, s.namespace, "", collectionTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, nil, nil, nil, nil)
+	metadataPayloads := devicemetadata.BatchPayloads(integrations.Versa, s.namespace, "", collectionTime, devicemetadata.PayloadMetadataBatchSize, devices, interfaces, ipAddresses, topologyLinks, nil, nil, nil)
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {

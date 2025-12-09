@@ -547,6 +547,7 @@ type AnalyticsInterfaceMetrics struct {
 type LldpNeighborInterfaceDetailResponse struct {
 }
 
+// Neighbor encapsulates metadata for a Versa neighbor device
 type Neighbor struct {
 	SystemName string
 	SystemDescription string
