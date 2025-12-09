@@ -305,7 +305,7 @@ build do
         "#{install_dir}/embedded/bin/system-probe",
       ]
 
-      symbol = "_Cfunc_go_openssl"
+      symbol = "_Cfunc__mkcgo_OPENSSL_init"
       check_block = Proc.new { |binary, symbols|
         count = symbols.scan(symbol).count
         if count > 0
