@@ -43,7 +43,10 @@ license(
 # still works for a long period before its replacement is needed.
 # https://app.datadoghq.com/synthetics/details/pya-ptn-xnv
 
-# Last update from upstream: cacert-2025-08-12.pem
+# Last update from upstream: cacert-2025-02-02.pem
+# When you update this file, you almost certainly have to update our alert at
+# https://app.datadoghq.com/synthetics/edit/pya-ptn-xnv?from_details=true
+# Change the header condition.
 filegroup(
     name = "cacerts",
     srcs = ["cacert.pem"],
