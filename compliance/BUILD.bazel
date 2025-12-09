@@ -13,7 +13,7 @@ py_binary(
 )
 
 filegroup(
-    name = "all_agent",
+    name = "all_agent_deps",
     srcs = [
         "//deps:all_deps",
     ] + select({
@@ -33,7 +33,7 @@ license_csv(
     licenses_dir = "licenses_dir",
     offers_dir = "sources_dir",
     tags = ["manual"],
-    target = ":all_agent",
+    target = ":all_agent_deps",
 )
 
 # Turn the copied licenses into a target we can feed to other rules.
