@@ -24,7 +24,7 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		{
 			name:    "Cisco IOS",
 			profile: IOSProfile(),
-			fixture: loadFixture("cisco-ios"),
+			fixture: loadFixture("cisco-ios", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp:  1760099696,
 				ConfigSize: 3781,
@@ -33,7 +33,7 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		{
 			name:    "JunOS",
 			profile: JunOSProfile(),
-			fixture: loadFixture("junos"),
+			fixture: loadFixture("junos", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				ConfigSize: 0,
 				Timestamp:  1730646727,
