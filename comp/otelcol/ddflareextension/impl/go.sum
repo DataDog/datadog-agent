@@ -546,8 +546,8 @@ github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsc
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:xoXscg49+yF7tcrkQAoTnXewo2oVwLnIJV7vmhetR7I=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.141.0 h1:2EzfxvGyBqT1Xsl6TCuzRuedpShwMDW+oLMkM4FKICg=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.141.0/go.mod h1:ZCswp+K42xFdAAlpvW5j8UhMRS+U6+3fBkjGIC11Qvs=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.1-0.20251209210115-47c7266a2a71 h1:Gd+gOUyKmKEpaLk42v8rtasxtJyOXcHyIHFjQZWUxmo=
-github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:xCvSRcXFdcHhpkwWNSoh2XRtTxY9B+C2E6QBn/Mmb4Y=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.0 h1:zjpLlSX54bK0VggpxxNmrXqZax/olGG2OoCzPSALiH0=
+github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.0/go.mod h1:i/Ek7jXgow5ut5l4kdVYqwsSX3+4ZTN2UR1Vga8BT1U=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.141.1-0.20251209210115-47c7266a2a71 h1:ZperMQ0NRXXCS3us2fEMoheXM8vMiVgZ8xyl3z0FdS0=
 github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:rkxAahCSnRM8MhRqzTfEQzfprDaR2OHzl0dVnibPjz0=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.141.1-0.20251209210115-47c7266a2a71 h1:nrYS9vlK02e7C4qDwwzCN8zNikJUpBJLpEs4X6fSlys=
@@ -558,8 +558,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:q/ZErqIwiiiqvZ9GzmwKbEVv2BmFcJItqkFNZuUh5h8=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.141.1-0.20251209210115-47c7266a2a71 h1:K/pZVmLCrJjwae+uQA0udnPYJ0rgGMRp2sWwVRVzIGU=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:jLGZgA0bRNsUlFbfEVm1yfsNukDkB3HyYJB7aCIV7aM=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.141.0 h1:Ib8U2EOQq54eRDf33sAK8e2M7aA5UVWfnC5DSEdebk8=
-github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.141.0/go.mod h1:SSQbMNwi8G+rrCMAQxan7lk6nyqLRZ4F7+9sIDXxyDc=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.141.1-0.20251209210115-47c7266a2a71 h1:FdtkYsM+U+ywe/cWuV/pfEib5cPhj9Nw9pRdx8bn3BY=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:oDmeHbwZjZsNxLiOgx4/cUw7Y7SslJDMm3PbwZfs45I=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.141.1-0.20251209210115-47c7266a2a71 h1:zx4nwiJnzZV6rmEL0JxghHUeYgByCcDtGxm8kONyFSc=
@@ -576,8 +574,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetr
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:zyF9ao7W9WM8dq9VDeDXl/WI1bGVaexfC9uk57Zibrg=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.141.1-0.20251209210115-47c7266a2a71 h1:fTqWc256c0Tb/BClKoraIl53cHjWPWTp1qzYcSPs8k0=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:gg4p8aJSZABsKiBNnydrva/ey8OOhVILUMCZl2c5Cd4=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.141.0 h1:bsAO48ojRBMA0dk/RR7LIurkoYZfKTFxnrCQofiFNbI=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.141.0/go.mod h1:eVHnGSqQGxwjlF9svzO1LRRgmMWKLWVKXSCHKRzHfRM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.141.1-0.20251209210115-47c7266a2a71 h1:CGJp+iegmIE8c0id/+XZNyy0vLE9dYbdtNu7r+UxYQg=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.141.1-0.20251209210115-47c7266a2a71/go.mod h1:f8n3TK12zG6ItOgFuE9u2NhaEhFqsR0WzF4pVFWK1ss=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheusremotewrite v0.141.0 h1:tvNr9AgMCb3QzNWXolKCJxpuyujrhRN77HyctzG9WUE=

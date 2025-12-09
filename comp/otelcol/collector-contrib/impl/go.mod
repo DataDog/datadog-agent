@@ -13,7 +13,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.141.1-0.20251209210115-47c7266a2a71
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.141.1-0.20251209210115-47c7266a2a71
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.141.1-0.20251209210115-47c7266a2a71
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.1-0.20251209210115-47c7266a2a71
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.141.1-0.20251209210115-47c7266a2a71
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.141.1-0.20251209210115-47c7266a2a71
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/hostobserver v0.141.1-0.20251209210115-47c7266a2a71
@@ -61,9 +61,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
 	github.com/onsi/ginkgo/v2 v2.26.0 // indirect
 	github.com/onsi/gomega v1.38.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.141.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.141.1-0.20251209210115-47c7266a2a71 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.141.0 // indirect
 )
 
 require (

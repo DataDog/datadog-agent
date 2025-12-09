@@ -16,7 +16,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/gorilla/mux v1.8.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.141.1-0.20251209210115-47c7266a2a71
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.1-0.20251209210115-47c7266a2a71
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.141.1-0.20251209210115-47c7266a2a71
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.141.1-0.20251209210115-47c7266a2a71
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.141.1-0.20251209210115-47c7266a2a71
@@ -60,8 +60,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.26.0 // indirect
 	github.com/onsi/gomega v1.38.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.141.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.141.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect

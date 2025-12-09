@@ -725,7 +725,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.141.1-0.20251209210115-47c7266a2a71 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter v0.141.1-0.20251209210115-47c7266a2a71 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.141.1-0.20251209210115-47c7266a2a71 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.1-0.20251209210115-47c7266a2a71 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.141.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.141.1-0.20251209210115-47c7266a2a71 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.141.1-0.20251209210115-47c7266a2a71 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/ecsobserver v0.141.1-0.20251209210115-47c7266a2a71 // indirect
@@ -980,11 +980,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.3
 )
 
-require (
-	github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.141.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.141.0 // indirect
-)
+require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
 
 // github.com/aws/karpenter-provider-aws requires alpha versions of K8s libraries. We are only using some constants from these packages.
 replace (
