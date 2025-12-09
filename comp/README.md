@@ -464,6 +464,10 @@ Package networkpath implements the "networkpath" bundle,
 
 Package npcollector used to manage network paths
 
+### [comp/networkpath/traceroute](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/traceroute)
+
+Package traceroute provides the traceroute component
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry-agent

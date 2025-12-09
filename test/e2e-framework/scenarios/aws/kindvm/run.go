@@ -236,6 +236,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress"); err != nil {
 				return err
 			}
+			for _, appFunc := range params.depWorkloadAppFuncs {
+				_, err := appFunc(&awsEnv, kubeProvider, dependsOnDDAgent)
+				if err != nil {
+					return err
+				}
+			}
 		}
 
 		if params.deployArgoRollout {
