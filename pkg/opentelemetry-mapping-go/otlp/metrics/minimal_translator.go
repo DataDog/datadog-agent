@@ -33,7 +33,7 @@ type minimalTranslator struct {
 	logger               *zap.Logger
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
-	mapper               Mapper
+	mapper               mapper
 }
 
 // NewMinimalTranslator creates a new minimal translator for OTLP metrics.
@@ -118,6 +118,15 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 			for k := 0; k < metricsArray.Len(); k++ {
 				md := metricsArray.At(k)
 
+				if md.Name() == keyStatsPayload && md.Type() == pmetric.MetricTypeSum {
+					// these metrics are an APM Stats payload; consume it as such
+					for l := 0; l < md.Sum().DataPoints().Len(); l++ {
+						if payload, ok := md.Sum().DataPoints().At(l).Attributes().Get(keyStatsPayload); ok && t.cfg.statsOut != nil && payload.Type() == pcommon.ValueTypeBytes {
+							t.cfg.statsOut <- payload.Bytes().AsRaw()
+						}
+					}
+					continue
+				}
 				if _, ok := runtimeMetricsMappings[md.Name()]; ok {
 					metadata.Languages = extractLanguageTag(md.Name(), metadata.Languages)
 				} else {

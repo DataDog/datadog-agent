@@ -26,7 +26,7 @@ type lossLessMapper struct {
 // This mapper emits raw values from OTLP delta Sums as Datadog Counts,
 // and OTLP cumulative values (like Summary count/sum) as Datadog Gauges
 // instead of computing deltas.
-func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) Mapper {
+func newLossLessMapper(cfg translatorConfig, logger *zap.Logger) mapper {
 	return &lossLessMapper{
 		cfg:    cfg,
 		logger: logger,

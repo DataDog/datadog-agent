@@ -106,7 +106,7 @@ type defaultTranslator struct {
 	logger               *zap.Logger
 	attributesTranslator *attributes.Translator
 	cfg                  translatorConfig
-	mapper               Mapper
+	mapper               mapper
 }
 
 // NewDefaultTranslator creates a new translator with the given options.
@@ -172,14 +172,14 @@ func NewTranslator(set component.TelemetrySettings, attributesTranslator *attrib
 
 // getMapper returns the underlying Mapper implementation.
 // This is useful for testing or for direct access to mapping methods.
-func (t *defaultTranslator) getMapper() Mapper {
+func (t *defaultTranslator) getMapper() mapper {
 	return t.mapper
 }
 
-// Mapper defines the interface for mapping OTLP metric data points to Datadog format.
+// mapper defines the interface for mapping OTLP metric data points to Datadog format.
 // Consumer includes both sketch and raw histogram consumers - implementations can
 // use either based on configuration. Consumers can no-op methods they don't need.
-type Mapper interface {
+type mapper interface {
 	MapNumberMetrics(
 		ctx context.Context,
 		consumer Consumer,

@@ -39,7 +39,7 @@ type defaultMapper struct {
 
 // newDefaultMapper creates a new defaultMapper with the given dependencies.
 // defaultMapper implements Mapper and uses Consumer which includes both sketch and histogram interfaces.
-func newDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) Mapper {
+func newDefaultMapper(prevPts *ttlCache, logger *zap.Logger, cfg translatorConfig) mapper {
 	return &defaultMapper{
 		prevPts: prevPts,
 		logger:  logger,

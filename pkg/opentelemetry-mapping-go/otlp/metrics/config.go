@@ -53,7 +53,7 @@ type translatorConfig struct {
 
 	// customMapper allows overriding the default metric mapping behavior.
 	// If nil, the Translator uses itself as the mapper.
-	customMapper Mapper
+	customMapper mapper
 }
 
 // TranslatorOption is a translator creation option.
@@ -243,15 +243,6 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
-		return nil
-	}
-}
-
-// WithMapper sets a custom Mapper implementation to override the default metric mapping behavior.
-// This allows for different mapping strategies to be injected into the translator.
-func WithMapper(mapper Mapper) TranslatorOption {
-	return func(t *translatorConfig) error {
-		t.customMapper = mapper
 		return nil
 	}
 }
