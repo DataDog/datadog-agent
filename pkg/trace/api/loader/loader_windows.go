@@ -127,12 +127,18 @@ func (c *winSocketConn) SetDeadline(t time.Time) error {
 	return c.SetWriteDeadline(t)
 }
 
+// Windows socket options not defined in syscall package
+const (
+	soRcvTimeo = 0x1006 // SO_RCVTIMEO
+	soSndTimeo = 0x1005 // SO_SNDTIMEO
+)
+
 func (c *winSocketConn) SetReadDeadline(t time.Time) error {
-	return setSocketTimeout(c.handle, syscall.SO_RCVTIMEO, t)
+	return setSocketTimeout(c.handle, soRcvTimeo, t)
 }
 
 func (c *winSocketConn) SetWriteDeadline(t time.Time) error {
-	return setSocketTimeout(c.handle, syscall.SO_SNDTIMEO, t)
+	return setSocketTimeout(c.handle, soSndTimeo, t)
 }
 
 func setSocketTimeout(handle syscall.Handle, opt int, t time.Time) error {
