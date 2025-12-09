@@ -271,7 +271,7 @@ require (
 	github.com/h2non/filetype v1.1.3
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/hashicorp/go-version v1.7.0
+	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
@@ -326,7 +326,7 @@ require (
 	github.com/safchain/ethtool v0.6.2
 	github.com/samber/lo v1.51.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v4 v4.25.10
+	github.com/shirou/gopsutil/v4 v4.25.11
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sijms/go-ora/v2 v2.8.24
 	github.com/sirupsen/logrus v1.9.3
@@ -341,7 +341,7 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.5.0
-	github.com/tklauser/go-sysconf v0.3.15 // indirect
+	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/twmb/franz-go v1.18.2-0.20250413173443-1d5a55fa468d
 	github.com/twmb/franz-go/pkg/kadm v1.12.0
 	github.com/twmb/franz-go/pkg/kmsg v1.11.2-0.20250413173443-1d5a55fa468d
@@ -578,7 +578,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/ebitengine/purego v0.9.0 // indirect
+	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/elastic/go-freelru v0.16.0 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
@@ -828,7 +828,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tilinna/clock v1.1.0 // indirect
-	github.com/tklauser/numcpus v0.10.0 // indirect
+	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/ua-parser/uap-go v0.0.0-20240611065828-3a4781585db6 // indirect
@@ -975,7 +975,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
 
-require github.com/go-jose/go-jose/v4 v4.1.3
+require (
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/go-jose/go-jose/v4 v4.1.3
+)
 
 require github.com/aws/aws-sdk-go-v2/service/signin v1.0.1 // indirect
 
@@ -1145,6 +1148,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ./pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ./pkg/serializer
+	github.com/DataDog/datadog-agent/pkg/ssi/testutils => ./pkg/ssi/testutils
 	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagger/types => ./pkg/tagger/types
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset
