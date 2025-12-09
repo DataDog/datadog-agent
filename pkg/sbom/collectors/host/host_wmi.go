@@ -143,12 +143,14 @@ func (c *Collector) Scan(_ context.Context, _ sbom.ScanRequest) sbom.ScanResult 
 	err := wmi.Query(q, &report.KBS)
 	if err != nil {
 		return sbom.ScanResult{
-			Error: err,
+			GenerationMethod: "wmi",
+			Error:            err,
 		}
 	}
 
 	return sbom.ScanResult{
-		Error:  err,
-		Report: &report,
+		Error:            err,
+		Report:           &report,
+		GenerationMethod: "wmi",
 	}
 }

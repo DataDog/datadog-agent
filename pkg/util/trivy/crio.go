@@ -98,6 +98,5 @@ func (c *Collector) ScanCRIOImageFromOverlayFS(ctx context.Context, imgMeta *wor
 		return nil, err
 	}
 
-	report.method = "overlayfs"
 	return report, nil
 }
