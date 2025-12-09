@@ -29,23 +29,20 @@ func NewConfig(config config.Component) *Config {
 	}
 }
 
-func (c *Config) enabledBaseline() bool {
-	// `use_dogstatsd` is the baseline configuration for enabling DogStatsD: if it's false, then DogStatsD is disabled
-	// and shouldn't be started at all in either Core Agent or Agent Data Plane
-	return c.config.GetBool("use_dogstatsd")
-}
-
 // Enabled returns true if DogStatsD is enabled in any mode
 //
 // This covers both both possible modes of DSD running internally (Core Agent) and via Agent Data Plane.
 func (c *Config) Enabled() bool {
-	return c.EnabledInternal() || c.EnabledDataPlane()
+	// `use_dogstatsd` is the baseline configuration for enabling DogStatsD:
+	// - when `false`, DogStatsD shouldn't be started at all in either Core Agent or ADP
+	// - when `true`, then we know either the Core Agent or ADP will handle it, depending on additional configuration
+	return c.config.GetBool("use_dogstatsd")
 }
 
 // EnabledInternal returns true if DogStatsD is enabled internally
 func (c *Config) EnabledInternal() bool {
 	// We only enable DSD internally if it's enabled in a baseline fashion _and_ the data plane is not handling it.
-	return c.enabledBaseline() && !c.EnabledDataPlane()
+	return c.Enabled() && !c.EnabledDataPlane()
 }
 
 // EnabledDataPlane returns true if DogStatsD is enabled via Agent Data Plane
@@ -61,5 +58,5 @@ func (c *Config) EnabledDataPlane() bool {
 	// check to see if enabled for DogStatsD.
 	dsdEnabledDataPlane := c.config.GetBool("data_plane.enabled") && c.config.GetBool("data_plane.dogstatsd.enabled")
 
-	return c.enabledBaseline() && (dsdEnabledDataPlaneOldStyle || dsdEnabledDataPlane)
+	return c.Enabled() && (dsdEnabledDataPlaneOldStyle || dsdEnabledDataPlane)
 }
