@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/quantile
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/util/quantile/sketchtest v0.73.0-rc.12
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/dustin/go-humanize v1.0.1
 	github.com/stretchr/testify v1.11.1
