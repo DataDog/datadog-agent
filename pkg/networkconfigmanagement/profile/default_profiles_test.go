@@ -43,13 +43,13 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		{
 			name:                      "PAN-OS",
 			profile:                   DefaultProfile("pan-os"),
-			fixture:                   loadFixture("pan-os"),
+			fixture:                   loadFixture("pan-os", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 		{
 			name:                      "AOSW",
 			profile:                   DefaultProfile("aosw"),
-			fixture:                   loadFixture("aosw"),
+			fixture:                   loadFixture("aosw", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 	}
