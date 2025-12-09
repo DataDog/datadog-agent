@@ -269,6 +269,7 @@ modules:
     should_test_condition: never
   pkg/serializer:
     used_by_otel: true
+  pkg/ssi/testutils: default
   pkg/status/health:
     used_by_otel: true
   pkg/tagger/types:
@@ -370,8 +371,6 @@ modules:
     - ./examples
     should_test_condition: is_linux
     test_targets:
-    - ./pkg/runner
-    - ./pkg/utils/e2e/client
     - ./system-probe/
   test/otel:
     used_by_otel: true

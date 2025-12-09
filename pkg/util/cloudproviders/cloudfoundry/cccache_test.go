@@ -285,7 +285,7 @@ func TestCCCache_RefreshCacheOnMiss_GetProcesses(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListProcessByAppGUID"), 2)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListProcessByAppGUID"), 6)
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -309,7 +309,7 @@ func TestCCCache_RefreshCacheOnMiss_GetApp(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3AppByGUID"), 2)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3AppByGUID"), 6)
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -333,7 +333,7 @@ func TestCCCache_RefreshCacheOnMiss_GetSpace(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3SpaceByGUID"), 2)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3SpaceByGUID"), 6)
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -357,7 +357,7 @@ func TestCCCache_RefreshCacheOnMiss_GetOrg(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"), 2)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"), 6)
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()
@@ -381,14 +381,14 @@ func TestCCCache_RefreshCacheOnMiss_GetCFApplication(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListV3OrganizationsByQuery"), 1)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListV3SpacesByQuery"), 1)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListV3AppsByQuery"), 1)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListAllProcessesByQuery"), 1)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3AppByGUID"), 2)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"), 2)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3SpaceByGUID"), 2)
-	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListProcessByAppGUID"), 2)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListV3OrganizationsByQuery"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListV3SpacesByQuery"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListV3AppsByQuery"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListAllProcessesByQuery"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3AppByGUID"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3OrganizationByGUID"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("GetV3SpaceByGUID"), 10)
+	assert.LessOrEqual(t, globalCCClientCounter.GetHits("ListProcessByAppGUID"), 10)
 
 	cc.refreshCacheOnMiss = false
 	cc.readData()

@@ -86,7 +86,7 @@ func (r *Releasable) CallReleaseCallback() {
 
 // AppendReleaseCallback sets a callback to be called when the cache entry is released
 func (r *Releasable) AppendReleaseCallback(callback func()) {
-	if callback != nil {
+	if callback != nil && r != nil {
 		r.onReleaseCallbacks = append(r.onReleaseCallbacks, callback)
 	}
 }

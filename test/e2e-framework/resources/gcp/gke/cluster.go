@@ -34,17 +34,13 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 
 		return labels
 	}).(pulumi.StringMapOutput)
-
-	cluster, err := container.NewCluster(e.Ctx(), e.Namer.ResourceName(name), &container.ClusterArgs{
+	clusterArgs := &container.ClusterArgs{
 		Name:               clusterName,
 		Network:            pulumi.String(e.DefaultNetworkName()),
 		Subnetwork:         pulumi.String(e.DefaultSubnet()),
-		InitialNodeCount:   pulumi.Int(1),
 		MinMasterVersion:   pulumi.String(e.KubernetesVersion()),
-		NodeVersion:        pulumi.String(e.KubernetesVersion()),
 		DeletionProtection: pulumi.Bool(false),
 		EnableAutopilot:    pulumi.Bool(autopilot),
-		NodeLocations:      pulumi.StringArray{pulumi.String(e.Zone())},
 		PrivateClusterConfig: &container.ClusterPrivateClusterConfigArgs{
 			EnablePrivateNodes:        pulumi.Bool(true),
 			EnablePrivateEndpoint:     pulumi.Bool(true),
@@ -60,20 +56,28 @@ func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.R
 					CidrBlock:   pulumi.String("172.16.0.0/12"),
 					DisplayName: pulumi.String("ddbuild vpn private ips"),
 				},
-			}, // Empty array to disable master authorized networks
+			},
 		},
-		NodeConfig: &container.ClusterNodeConfigArgs{
-			MachineType: pulumi.String(e.DefaultInstanceType()),
+		ResourceLabels: clusterLabels,
+	}
 
+	// Autopilot clusters manage nodes automatically, so we don't specify node configuration
+	if !autopilot {
+		clusterArgs.InitialNodeCount = pulumi.Int(1)
+		clusterArgs.NodeVersion = pulumi.String(e.KubernetesVersion())
+		clusterArgs.NodeLocations = pulumi.StringArray{pulumi.String(e.Zone())}
+		clusterArgs.NodeConfig = &container.ClusterNodeConfigArgs{
+			MachineType: pulumi.String(e.DefaultInstanceType()),
 			OauthScopes: pulumi.StringArray{
 				pulumi.String("https://www.googleapis.com/auth/compute"),
 				pulumi.String("https://www.googleapis.com/auth/devstorage.read_only"),
 				pulumi.String("https://www.googleapis.com/auth/logging.write"),
 				pulumi.String("https://www.googleapis.com/auth/monitoring"),
 			},
-		},
-		ResourceLabels: clusterLabels,
-	}, opts...)
+		}
+	}
+
+	cluster, err := container.NewCluster(e.Ctx(), e.Namer.ResourceName(name), clusterArgs, opts...)
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}
