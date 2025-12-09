@@ -59,10 +59,3 @@ Datadog Private Action Runner enables execution of private actions.`,
 
 	return privateActionRunnerCmd
 }
-
-// SetDefaultCommandIfNonePresent sets the default command to 'run' if no command is present
-func SetDefaultCommandIfNonePresent(cmd *cobra.Command) {
-	if len(cmd.Commands()) > 0 {
-		cmd.SetArgs([]string{"run"})
-	}
-}

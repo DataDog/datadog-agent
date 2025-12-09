@@ -18,6 +18,5 @@ import (
 func main() {
 	flavor.SetFlavor(flavor.PrivateActionRunner)
 	rootCmd := command.MakeCommand(subcommands.PrivateActionRunnerSubcommands())
-	command.SetDefaultCommandIfNonePresent(rootCmd)
 	os.Exit(runcmd.Run(rootCmd))
 }
