@@ -52,7 +52,7 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
 		{t: testDDOT, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.WindowsServer2022}, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.WindowsServer2022}},
 		{t: testUpgradeScenario, skippedFlavors: []e2eos.Descriptor{e2eos.WindowsServer2022}},
 	}
 )
@@ -272,7 +272,7 @@ func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.Execute("sudo datadog-installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-installer/stable/bin/installer/installer purge")
 	s.Env().RemoteHost.Execute("sudo /opt/datadog-packages/datadog-agent/stable/embedded/bin/installer purge")
-	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent|| sudo yum remove -y datadog-installer datadog-agent || sudo zypper remove -y datadog-installer datadog-agent")
+	s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-installer datadog-agent datadog-fips-agent || sudo yum remove -y datadog-installer datadog-agent datadog-fips-agent || sudo zypper remove -y datadog-installer datadog-agent datadog-fips-agent")
 	s.Env().RemoteHost.Execute("sudo rm -rf /etc/datadog-agent")
 }
 

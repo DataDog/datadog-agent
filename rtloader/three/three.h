@@ -27,7 +27,7 @@ public:
       Basic constructor, initializes the _error string to an empty string and
       errorFlag to false and set the supplied PYTHONHOME and ProgramName.
     */
-    Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb);
+    Three(const char *python_home, const char *python_exe, rtloader_malloc_t, rtloader_free_t);
 
     //! Destructor.
     /*!

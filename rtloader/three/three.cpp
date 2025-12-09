@@ -23,9 +23,9 @@
 #include <sstream>
 
 extern "C" DATADOG_AGENT_RTLOADER_API RtLoader *create(const char *python_home, const char *python_exe,
-                                                       cb_memory_tracker_t memtrack_cb)
+                                                       rtloader_malloc_t tracked_malloc, rtloader_free_t tracked_free)
 {
-    return new Three(python_home, python_exe, memtrack_cb);
+    return new Three(python_home, python_exe, tracked_malloc, tracked_free);
 }
 
 extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
@@ -33,8 +33,9 @@ extern "C" DATADOG_AGENT_RTLOADER_API void destroy(RtLoader *p)
     delete p;
 }
 
-Three::Three(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb)
-    : RtLoader(memtrack_cb)
+Three::Three(const char *python_home, const char *python_exe, rtloader_malloc_t tracked_malloc,
+             rtloader_free_t tracked_free)
+    : RtLoader(tracked_malloc, tracked_free)
     , _pythonHome("")
     , _pythonExe("")
     , _baseClass(NULL)

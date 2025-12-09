@@ -40,6 +40,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -164,7 +168,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
-		defer C._free(unsafe.Pointer(moduleName))
+		defer C.call_free(unsafe.Pointer(moduleName))
 		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
 			if strings.HasPrefix(name, wheelNamespace+".") {
 				loadedAsWheel = true
@@ -193,7 +197,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 	// TrackedCStrings untracked by memory tracker currently
 	versionAttr := TrackedCString("__version__")
-	defer C._free(unsafe.Pointer(versionAttr))
+	defer C.call_free(unsafe.Pointer(versionAttr))
 	// get_attr_string allocation tracked by memory tracker
 	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
@@ -210,7 +214,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		var goCheckFilePath string
 
 		fileAttr := TrackedCString("__file__")
-		defer C._free(unsafe.Pointer(fileAttr))
+		defer C.call_free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
 			goCheckFilePath = C.GoString(checkFilePath)
@@ -227,7 +231,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		var haSupported C.bool
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
-		defer C._free(unsafe.Pointer(haSupportedAttr))
+		defer C.call_free(unsafe.Pointer(haSupportedAttr))
 		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
