@@ -9,17 +9,22 @@
 package profile
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"gopkg.in/yaml.v2"
 )
+
+//go:embed default_profiles/*
+var defaultProfilesFS embed.FS
 
 // CommandType represent enums for standard CLI command output we are interested in for NCM
 type CommandType string
@@ -73,48 +78,6 @@ type NCMProfile struct {
 	Commands map[CommandType]*Commands
 }
 
-// ParseProfileFromFile is a base function to easily unmarshal YAML for any type T given a file path
-func ParseProfileFromFile[T Definition[T]](filePath string) (T, error) {
-	var profile T
-	buf, err := os.ReadFile(filePath)
-	if err != nil {
-		return profile, fmt.Errorf("unable to read file %q: %w", filePath, err)
-	}
-
-	if json.Valid(buf) {
-		// if successfully unmarshalled, return early
-		if err = json.Unmarshal(buf, &profile); err == nil {
-			return profile, nil
-		}
-		log.Warnf("unable to parse JSON profile from file %q: %v", filePath, err)
-	}
-	// try to unmarshal as YAML next
-	err = yaml.UnmarshalStrict(buf, &profile)
-	// err out in this case, not parseable as JSON and YAML
-	if err != nil {
-		return profile, fmt.Errorf("unable to parse JSON or YAML; parse error in file %q: %w", filePath, err)
-	}
-	return profile, nil
-}
-
-// ParseNCMProfileFromFile does extra work to unmarshal the YAML, transforming the list of commands into a map for ease of retrieval
-func ParseNCMProfileFromFile(filePath string) (*NCMProfile, error) {
-	path := resolveNCMProfileDefinitionPath(filePath)
-	ncmRawProfile, err := ParseProfileFromFile[*NCMProfileRaw](path)
-	if err != nil {
-		return nil, err
-	}
-	var np NCMProfile
-	np.Commands = make(map[CommandType]*Commands)
-	for i := range ncmRawProfile.Commands {
-		cmd := &ncmRawProfile.Commands[i]
-		// initialize scrubber if redaction rules are specified
-		cmd.initializeScrubber()
-		np.Commands[cmd.CommandType] = cmd
-	}
-	return &np, nil
-}
-
 // GetCommandValues retrieves the list of CLI commands corresponding to the main command (e.g. running) intended for the device
 func (np *NCMProfile) GetCommandValues(command CommandType) ([]string, error) {
 	cmds, ok := np.Commands[command]
@@ -124,12 +87,49 @@ func (np *NCMProfile) GetCommandValues(command CommandType) ([]string, error) {
 	return cmds.Values, nil
 }
 
+// GetProfile retrieves the profile from the profile map (by name)
+func (pm Map) GetProfile(profileName string) (*NCMProfile, error) {
+	profile, ok := pm[profileName]
+	if !ok {
+		return nil, fmt.Errorf("profile %q not found", profileName)
+	}
+	return profile, nil
+}
+
+var profilesRootOverride string // for testing only
+
+// getNCMProfileFS returns the filesystem to use for profiles
+// Returns the embedded FS by default, or allows filesystem override for testing
+func getNCMProfileFS() fs.FS {
+	if profilesRootOverride != "" {
+		return os.DirFS(profilesRootOverride)
+	}
+	return defaultProfilesFS
+}
+
+// SetProfilesPathForTesting allows tests to override the profiles location
+func SetProfilesPathForTesting(path string) {
+	// path should point to the directory containing the profiles folder
+	// e.g., "test/conf.d/network_config_management.d"
+	profilesRootOverride = path
+}
+
+// ResetProfilesPath resets to use embedded profiles (for test cleanup)
+func ResetProfilesPath() {
+	profilesRootOverride = ""
+}
+
 // GetProfileMap retrieves the map of profiles loaded from the profile folder path given
 func GetProfileMap(profilesFolder string) (Map, error) {
-	profilesRoot := getNCMProfileConfdRoot(profilesFolder)
-	files, err := os.ReadDir(profilesRoot)
+	profileFS := getNCMProfileFS()
+	folderToRead := profilesFolder
+	if folderToRead == "" {
+		folderToRead = defaultProfilesFolder
+	}
+
+	files, err := fs.ReadDir(profileFS, folderToRead)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read profile dir %q: %w", profilesRoot, err)
+		return nil, fmt.Errorf("failed to read profile dir %q: %w", folderToRead, err)
 	}
 
 	profiles := make(Map)
@@ -139,9 +139,16 @@ func GetProfileMap(profilesFolder string) (Map, error) {
 		if !strings.HasSuffix(filename, ".yaml") && !strings.HasSuffix(filename, ".json") {
 			continue
 		}
-		profileName := filename[:len(filename)-len(".yaml")]
-		absPath := filepath.Join(profilesRoot, filename)
-		definition, err := ParseNCMProfileFromFile(absPath)
+		profileName := strings.TrimSuffix(filename, filepath.Ext(filename))
+		filePath := path.Join(folderToRead, filename)
+
+		bytes, err := fs.ReadFile(profileFS, filePath)
+		if err != nil {
+			log.Warnf("cannot read profile file %q: %v", filePath, err)
+			continue
+		}
+
+		definition, err := parseNCMProfileFromBytes(bytes, profileName)
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
 			continue
@@ -154,39 +161,52 @@ func GetProfileMap(profilesFolder string) (Map, error) {
 	return profiles, nil
 }
 
-// GetProfile retrieves the profile from the profile map (by name)
-func (pm Map) GetProfile(profileName string) (*NCMProfile, error) {
-	profile, ok := pm[profileName]
-	if !ok {
-		return nil, fmt.Errorf("profile %q not found", profileName)
+// parseNCMProfileFromBytes parses from bytes instead of file path
+func parseNCMProfileFromBytes(b []byte, profileName string) (*NCMProfile, error) {
+	var ncmRawProfile NCMProfileRaw
+
+	if json.Valid(b) {
+		if err := json.Unmarshal(b, &ncmRawProfile); err == nil {
+			return transformRawProfile(&ncmRawProfile), nil
+		}
+		log.Warnf("unable to parse JSON profile %q", profileName)
 	}
-	return profile, nil
+
+	if err := yaml.UnmarshalStrict(b, &ncmRawProfile); err != nil {
+		return nil, fmt.Errorf("unable to parse JSON or YAML for profile %q: %w", profileName, err)
+	}
+
+	return transformRawProfile(&ncmRawProfile), nil
+}
+
+// transformRawProfile converts NCMProfileRaw to NCMProfile
+func transformRawProfile(raw *NCMProfileRaw) *NCMProfile {
+	np := &NCMProfile{
+		BaseProfile: raw.BaseProfile,
+		Commands:    make(map[CommandType]*Commands),
+	}
+	for i := range raw.Commands {
+		cmd := &raw.Commands[i]
+		cmd.initializeScrubber()
+		np.Commands[cmd.CommandType] = cmd
+	}
+	return np
 }
 
 const defaultProfilesFolder = "default_profiles"
 
-func getNCMProfileConfdRoot(profileFolderName string) string {
-	confdPath := pkgconfigsetup.Datadog().GetString("confd_path")
-	return filepath.Join(confdPath, "network_config_management.d", profileFolderName)
-}
-
-func resolveNCMProfileDefinitionPath(definitionFile string) string {
-	if filepath.IsAbs(definitionFile) {
-		return definitionFile
-	}
-	return filepath.Join(getNCMProfileConfdRoot(defaultProfilesFolder), definitionFile)
-}
-
-// SetConfdPathAndCleanProfiles is used for testing only (taken from SNMP profile helper utils)
+// SetConfdPathAndCleanProfiles is used for testing only
 func SetConfdPathAndCleanProfiles() {
-	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d"))
+	file, _ := filepath.Abs(filepath.Join(".", "test", "conf.d", "network_config_management.d"))
+	// this is for unit tests running in the profile directory
 	if !pathExists(file) {
-		file, _ = filepath.Abs(filepath.Join("..", "test", "conf.d"))
+		file, _ = filepath.Abs(filepath.Join("..", "test", "conf.d", "network_config_management.d"))
 	}
+	// this is for unit tests running for the core check (`networkconfigmanagement_test.go`)
 	if !pathExists(file) {
-		file, _ = filepath.Abs(filepath.Join("..", "..", "..", "networkconfigmanagement", "test", "conf.d"))
+		file, _ = filepath.Abs(filepath.Join("..", "..", "..", "networkconfigmanagement", "test", "conf.d", "network_config_management.d"))
 	}
-	pkgconfigsetup.Datadog().SetWithoutSource("confd_path", file)
+	SetProfilesPathForTesting(file)
 }
 
 // pathExists returns true if the given path exists (taken from SNMP profile helper utils)
