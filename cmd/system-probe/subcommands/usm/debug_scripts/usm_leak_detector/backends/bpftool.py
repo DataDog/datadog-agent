@@ -102,25 +102,6 @@ class BpftoolBackend(EbpfBackend):
             print(f"Error parsing bpftool output: {e}", file=sys.stderr)
             return []
 
-    def dump_map_by_id(self, map_id: int) -> List[Dict]:
-        """Dump map contents by ID."""
-        output = self._run(["map", "dump", "id", str(map_id), "--json"])
-        if output is None:
-            return []
-        try:
-            return json.loads(output)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing map dump: {e}", file=sys.stderr)
-            return []
-
-    def dump_map_by_name(self, name: str) -> List[Dict]:
-        """Dump map by name - bpftool doesn't support this directly, so we find by ID first."""
-        maps = self.list_maps()
-        for m in maps:
-            if m.get("name") == name:
-                return self.dump_map_by_id(m.get("id"))
-        return []
-
     def iter_map_by_id(self, map_id: int) -> Generator[Dict, None, None]:
         """Stream map entries by ID, yielding one entry at a time.
 

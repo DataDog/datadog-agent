@@ -2,7 +2,6 @@
 system-probe backend for eBPF map operations.
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -112,49 +111,6 @@ class SystemProbeBackend(EbpfBackend):
             i += 1
 
         return maps
-
-    def dump_map_by_name(self, name: str) -> List[Dict]:
-        """Dump map contents by name using system-probe.
-
-        system-probe returns BTF-formatted JSON with named fields:
-        [{"key": {"saddr_h": 0, "saddr_l": 123, ...}, "value": {...}}, ...]
-
-        We convert the BTF-formatted key to the same format as bpftool hex arrays
-        would parse to, so the rest of the code works unchanged.
-        """
-        output = self._run(["ebpf", "map", "dump", "name", name])
-        if output is None:
-            return []
-
-        try:
-            entries = json.loads(output)
-        except json.JSONDecodeError as e:
-            print(f"Error parsing system-probe output: {e}", file=sys.stderr)
-            return []
-
-        # Convert BTF-formatted keys to our internal format
-        result = []
-        for entry in entries:
-            key = entry.get("key", {})
-            if isinstance(key, dict):
-                # BTF-formatted key with named fields
-                conn = self._parse_btf_key(key)
-                if conn:
-                    # Store the parsed ConnTuple directly
-                    result.append({"key": conn, "_btf": True})
-            elif isinstance(key, list):
-                # Already hex array format (shouldn't happen with system-probe)
-                result.append(entry)
-
-        return result
-
-    def dump_map_by_id(self, map_id: int) -> List[Dict]:
-        """Dump map by ID - system-probe uses name, so we find name first."""
-        maps = self.list_maps()
-        for m in maps:
-            if m.get("id") == map_id:
-                return self.dump_map_by_name(m.get("name", ""))
-        return []
 
     def _parse_btf_key(self, key: Dict) -> Optional[ConnTuple]:
         """Parse BTF-formatted key dict into ConnTuple."""

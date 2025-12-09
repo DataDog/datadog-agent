@@ -7,7 +7,7 @@ Entries are considered leaked if the process no longer exists.
 
 import os
 import struct
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 from .backends import EbpfBackend
 from .constants import PID_KEYED_MAPS
@@ -94,7 +94,7 @@ def analyze_pid_map(
     proc_root: str = "/proc",
     verbose: bool = False
 ) -> PIDLeakInfo:
-    """Analyze a PID-keyed map for leaked entries.
+    """Analyze a PID-keyed map for leaked entries using streaming.
 
     Args:
         map_name: Name of the eBPF map to analyze
@@ -105,15 +105,16 @@ def analyze_pid_map(
     Returns:
         PIDLeakInfo with analysis results
     """
-    entries = backend.dump_map_by_name(map_name)
-    total = len(entries)
+    total = 0
 
     # Track seen PIDs to avoid redundant /proc lookups
     seen_pids: Dict[int, bool] = {}
     dead_pids: Set[int] = set()
     leaked_count = 0
 
-    for entry in entries:
+    # Stream entries one at a time to minimize memory usage
+    for entry in backend.iter_map_by_name(map_name):
+        total += 1
         key = entry.get("key")
         if key is None:
             continue
@@ -123,13 +124,13 @@ def analyze_pid_map(
             pid_tgid = key.get("pid_tgid")
             if pid_tgid is None:
                 if verbose:
-                    print(f"  Warning: BTF key missing pid_tgid field")
+                    print("  Warning: BTF key missing pid_tgid field")
                 continue
         else:
             pid_tgid = parse_pid_tgid_key(key)
             if pid_tgid is None:
                 if verbose:
-                    print(f"  Warning: Could not parse pid_tgid key")
+                    print("  Warning: Could not parse pid_tgid key")
                 continue
 
         pid = extract_pid(pid_tgid)
