@@ -101,7 +101,7 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 	process := event.ProcessContext.Process
 	rootPIDs := []uint32{process.Pid, 1}
 	if process.ContainerContext.ContainerID != "" && r.cgroupResolver != nil {
-		w, ok := r.cgroupResolver.GetWorkload(process.ContainerContext.ContainerID)
+		w, ok := r.cgroupResolver.GetContainerWorkload(process.ContainerContext.ContainerID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}

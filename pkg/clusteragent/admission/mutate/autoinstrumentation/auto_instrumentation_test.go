@@ -8,8 +8,6 @@
 package autoinstrumentation_test
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,6 +26,7 @@ import (
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
 
 const (
@@ -43,7 +42,7 @@ var defaultLibraries = map[string]string{
 	"java":   "v1",
 	"js":     "v5",
 	"php":    "v1",
-	"python": "v3",
+	"python": "v4",
 	"ruby":   "v2",
 }
 
@@ -2276,28 +2275,28 @@ func TestAutoinstrumentation(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Require injection to have occurred.
-			validator := newPodValidator(in)
-			validator.requireInjection(t, test.expected.containerNames)
+			validator := testutils.NewPodValidator(in)
+			validator.RequireInjection(t, test.expected.containerNames)
 
 			// Require the libraries and versions to match.
 			if len(test.expected.initContainerImages) > 0 {
 				require.Empty(t, test.expected.libraryVersions, "the test was not properly configured, library versions should only be set without init container images")
 				require.Empty(t, test.expected.injectorVersion, "the test was not properly configured, injector version should only be set without init container images")
-				validator.requireInitContainerImages(t, test.expected.initContainerImages)
+				validator.RequireInitContainerImages(t, test.expected.initContainerImages)
 			} else {
-				validator.requireInjectorVersion(t, test.expected.injectorVersion)
-				validator.requireLibraryVersions(t, test.expected.libraryVersions)
+				validator.RequireInjectorVersion(t, test.expected.injectorVersion)
+				validator.RequireLibraryVersions(t, test.expected.libraryVersions)
 			}
 
 			// Require environments to be set.
-			validator.requireEnvs(t, test.expected.requiredEnvs, test.expected.containerNames)
-			validator.requireMissingEnvs(t, test.expected.unsetEnvs, test.expected.containerNames)
+			validator.RequireEnvs(t, test.expected.requiredEnvs, test.expected.containerNames)
+			validator.RequireMissingEnvs(t, test.expected.unsetEnvs, test.expected.containerNames)
 
 			// Require security context to match expected.
-			validator.requireInitSecurityContext(t, test.expected.initSecurityContext)
+			validator.RequireInitSecurityContext(t, test.expected.initSecurityContext)
 
 			// Require resources match expected.
-			validator.requireInitResourceRequirements(t, test.expected.initResourceRequirements)
+			validator.RequireInitResourceRequirements(t, test.expected.initResourceRequirements)
 		})
 	}
 }
@@ -2420,10 +2419,10 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Setup validator.
-			validator := newPodValidator(in)
+			validator := testutils.NewPodValidator(in)
 
 			// Require environment to match.
-			validator.requireEnvs(t, test.expected, test.expectedContainers)
+			validator.RequireEnvs(t, test.expected, test.expectedContainers)
 		})
 	}
 }
@@ -2623,406 +2622,22 @@ func TestSkippedDueToResources(t *testing.T) {
 			require.True(t, mutated, "the pod was mutated but the webhook returned false")
 
 			// Setup validator.
-			validator := newPodValidator(in)
+			validator := testutils.NewPodValidator(in)
 
 			// Ensure the pod was properly skipped due to resources.
 			if test.skipped {
 				missingEnv := []string{
 					"LD_PRELOAD",
 				}
-				validator.requireMissingEnvs(t, missingEnv, test.expectedContainers)
-				validator.requireAnnotations(t, test.expectedAnnotations)
+				validator.RequireMissingEnvs(t, missingEnv, test.expectedContainers)
+				validator.RequireAnnotations(t, test.expectedAnnotations)
 				return
 			}
 
 			// Otherwise, require injection.
-			validator.requireInjection(t, test.expectedContainers)
+			validator.RequireInjection(t, test.expectedContainers)
 		})
 	}
-}
-
-type image struct {
-	raw      string
-	name     string
-	registry string
-	tag      string
-}
-
-func newImage(i string) *image {
-	// gcr.io/datadoghq/dd-lib-java-init:v1
-	parts := strings.Split(i, ":")
-	if len(parts) != 2 {
-		return nil
-	}
-
-	fullImage := parts[0]
-	tag := parts[1]
-
-	// gcr.io/datadoghq/dd-lib-java-init
-	parts = strings.Split(fullImage, "/")
-	if len(parts) < 1 {
-		return nil
-	}
-	name := parts[len(parts)-1]
-	registry := strings.TrimSuffix(fullImage, "/"+name)
-
-	return &image{
-		raw:      i,
-		name:     name,
-		registry: registry,
-		tag:      tag,
-	}
-}
-
-type podValidator struct {
-	raw                 *corev1.Pod
-	initContainers      map[string]*containerValidator
-	containers          map[string]*containerValidator
-	allContainerNames   []string
-	injectorVersion     string
-	libraryVersions     map[string]string
-	initContainerImages []string
-}
-
-func newPodValidator(pod *corev1.Pod) *podValidator {
-	containers := make(map[string]*containerValidator, len(pod.Spec.Containers))
-	for _, container := range pod.Spec.Containers {
-		containers[container.Name] = newContainerValidator(&container)
-	}
-
-	initContainers := make(map[string]*containerValidator, len(pod.Spec.InitContainers))
-	for _, container := range pod.Spec.InitContainers {
-		initContainers[container.Name] = newContainerValidator(&container)
-	}
-
-	return &podValidator{
-		raw:                 pod,
-		initContainers:      initContainers,
-		containers:          containers,
-		allContainerNames:   parseAllContainerNames(pod),
-		injectorVersion:     parseInjectorVersion(pod),
-		libraryVersions:     parseLibraryVersions(pod),
-		initContainerImages: parseInitContainerImages(pod),
-	}
-}
-
-func (v *podValidator) requireInitSecurityContext(t *testing.T, expected *corev1.SecurityContext) {
-	for _, validator := range v.initContainers {
-		validator.requireSecurityContext(t, expected)
-	}
-}
-
-func (v *podValidator) requireInitResourceRequirements(t *testing.T, expected *corev1.ResourceRequirements) {
-	for name, validator := range v.initContainers {
-		if !strings.HasPrefix(name, "datadog-") {
-			continue
-		}
-
-		validator.requireResourceRequirements(t, expected)
-	}
-}
-
-func (v *podValidator) requireInjection(t *testing.T, expectedContainers []string) {
-	// Validate the containers are injected that are expected to be.
-	for _, containerName := range expectedContainers {
-		validator, found := v.containers[containerName]
-		require.True(t, found, "invalid test setup, expected container %s does not exist in the pod", containerName)
-		validator.requireInjection(t)
-	}
-
-	// Validate the containers not expected to be injected are not.
-	notExpected := difference(v.allContainerNames, expectedContainers)
-	for _, containerName := range notExpected {
-		validator, found := v.containers[containerName]
-		require.True(t, found, "invalid test setup, expected container %s does not exist in the pod", containerName)
-		validator.requireNoInjection(t)
-	}
-
-	// Validate pod level volumes are created.
-	expectedVolumeNames := []string{
-		"datadog-auto-instrumentation",
-		"datadog-auto-instrumentation-etc",
-	}
-	v.requireVolumeNames(t, expectedVolumeNames)
-
-	// Validate pod annotations.
-	expectedAnnotations := map[string]string{
-		common.K8sAutoscalerSafeToEvictVolumesAnnotation: "datadog-auto-instrumentation,datadog-auto-instrumentation-etc",
-	}
-	v.requireAnnotations(t, expectedAnnotations)
-
-	// Validate injector init container.
-	validator, ok := v.initContainers["datadog-init-apm-inject"]
-	require.True(t, ok, "could not find datadog inject init container")
-	expectedVolumeMounts := []corev1.VolumeMount{
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/datadog-inject",
-			SubPath:   "opt/datadog-packages/datadog-apm-inject",
-		},
-		{
-			Name:      "datadog-auto-instrumentation-etc",
-			MountPath: "/datadog-etc",
-			SubPath:   "",
-		},
-	}
-	validator.requireVolumeMounts(t, expectedVolumeMounts)
-	validator.requireCommand(t, "/bin/sh -c -- cp -r /opt/datadog-packages/datadog-apm-inject/* /datadog-inject && echo /opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so > /datadog-etc/ld.so.preload && echo $(date +%s) >> /datadog-inject/c-init-time.datadog-init-apm-inject")
-
-	// Validate library init containers.
-	for lang := range v.libraryVersions {
-		validator, ok := v.initContainers[fmt.Sprintf("datadog-lib-%s-init", lang)]
-		require.True(t, ok, "could not find datadog library init container", lang)
-		expectedVolumeMounts := []corev1.VolumeMount{
-			{
-				Name:      "datadog-auto-instrumentation",
-				MountPath: "/datadog-lib",
-				SubPath:   "opt/datadog/apm/library/" + lang,
-			},
-			{
-				Name:      "datadog-auto-instrumentation",
-				MountPath: "/opt/datadog-packages/datadog-apm-inject",
-				SubPath:   "opt/datadog-packages/datadog-apm-inject",
-			},
-		}
-		validator.requireVolumeMounts(t, expectedVolumeMounts)
-		validator.requireCommand(t, "/bin/sh -c -- sh copy-lib.sh /datadog-lib && echo $(date +%s) >> /opt/datadog-packages/datadog-apm-inject/c-init-time.datadog-lib-"+lang+"-init")
-	}
-}
-
-func (v *podValidator) requireAnnotations(t *testing.T, expected map[string]string) {
-	for key, expectedValue := range expected {
-		actualValue, exists := v.raw.Annotations[key]
-		require.True(t, exists, "annotation does not exist", key)
-		require.Equal(t, expectedValue, actualValue, "annotation does not match expected value")
-	}
-}
-
-func (v *podValidator) requireVolumeNames(t *testing.T, expected []string) {
-	require.Equal(t, len(expected), len(v.raw.Spec.Volumes), "expected volume count doesn't match actual volume count")
-	for i, volume := range v.raw.Spec.Volumes {
-		require.Equal(t, expected[i], volume.Name, "volume names do not match")
-	}
-}
-
-func (v *podValidator) requireEnvs(t *testing.T, expected map[string]string, expectedContainers []string) {
-	for _, name := range expectedContainers {
-		validator, found := v.containers[name]
-		require.True(t, found, "invalid test setup, expected container %s does not exist in the pod", name)
-		validator.requireEnvs(t, expected)
-	}
-}
-
-func (v *podValidator) requireMissingEnvs(t *testing.T, missing []string, expectedContainers []string) {
-	for _, name := range expectedContainers {
-		validator, found := v.containers[name]
-		require.True(t, found, "invalid test setup, expected container %s does not exist in the pod", name)
-		validator.requireMissingEnvs(t, missing)
-	}
-}
-
-func (v *podValidator) requireInjectorVersion(t *testing.T, expected string) {
-	require.Equal(t, expected, v.injectorVersion, "the injector version does not match the expected")
-}
-
-func (v *podValidator) requireLibraryVersions(t *testing.T, expected map[string]string) {
-	require.Equal(t, expected, v.libraryVersions, "the injected library versions do not match the expected")
-}
-
-func (v *podValidator) requireInitContainerImages(t *testing.T, expected []string) {
-	require.ElementsMatch(t, expected, v.initContainerImages, "init container images do not match expectated")
-}
-
-type containerValidator struct {
-	raw         *corev1.Container
-	image       *image
-	envs        map[string]string
-	commandline string
-}
-
-func newContainerValidator(container *corev1.Container) *containerValidator {
-	return &containerValidator{
-		raw:         container,
-		envs:        newEnvMap(container.Env),
-		image:       newImage(container.Image),
-		commandline: parseCommandline(container),
-	}
-}
-
-func (v *containerValidator) requireInjection(t *testing.T) {
-	expectedEnvs := map[string]string{
-		"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
-		"DD_INJECT_SENDER_TYPE": "k8s",
-	}
-	v.requireEnvs(t, expectedEnvs)
-
-	expectedVolumeMounts := []corev1.VolumeMount{
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/opt/datadog-packages/datadog-apm-inject",
-			SubPath:   "opt/datadog-packages/datadog-apm-inject",
-		},
-		{
-			Name:      "datadog-auto-instrumentation-etc",
-			MountPath: "/etc/ld.so.preload",
-			SubPath:   "ld.so.preload",
-			ReadOnly:  true,
-		},
-		{
-			Name:      "datadog-auto-instrumentation",
-			MountPath: "/opt/datadog/apm/library",
-			SubPath:   "opt/datadog/apm/library",
-		},
-	}
-	v.requireVolumeMounts(t, expectedVolumeMounts)
-}
-
-func (v *containerValidator) requireNoInjection(t *testing.T) {
-	unsetEnvs := []string{
-		"LD_PRELOAD",
-		"DD_INJECT_SENDER_TYPE",
-		"DD_INSTRUMENTATION_INSTALL_TYPE",
-	}
-	v.requireMissingEnvs(t, unsetEnvs)
-	v.requireNoVolumeMounts(t)
-}
-
-func (v *containerValidator) requireVolumeMounts(t *testing.T, expected []corev1.VolumeMount) {
-	require.Equal(t, expected, v.raw.VolumeMounts, "volume mounts do not match expected")
-}
-
-func (v *containerValidator) requireCommand(t *testing.T, expected string) {
-	require.Equal(t, expected, v.commandline, "command line does not match expected")
-}
-
-func (v *containerValidator) requireSecurityContext(t *testing.T, expected *corev1.SecurityContext) {
-	require.Equal(t, expected, v.raw.SecurityContext, "security context not match expected")
-}
-
-func (v *containerValidator) requireResourceRequirements(t *testing.T, expected *corev1.ResourceRequirements) {
-	if expected == nil {
-		expected = &corev1.ResourceRequirements{
-			Limits:   corev1.ResourceList{},
-			Requests: corev1.ResourceList{},
-		}
-	}
-
-	require.Zero(t, expected.Requests.Memory().Cmp(*v.raw.Resources.Requests.Memory()), "expected memory request: %s, actual: %s", expected.Requests.Memory().String(), v.raw.Resources.Requests.Memory().String())
-	require.Zero(t, expected.Limits.Memory().Cmp(*v.raw.Resources.Limits.Memory()), "expected memory limit: %s, actual: %s", expected.Limits.Memory().String(), v.raw.Resources.Limits.Memory().String())
-	require.Zero(t, expected.Requests.Cpu().Cmp(*v.raw.Resources.Requests.Cpu()), "expected cpu request: %s, actual: %s", expected.Requests.Cpu().String(), v.raw.Resources.Requests.Cpu().String())
-	require.Zero(t, expected.Limits.Cpu().Cmp(*v.raw.Resources.Limits.Cpu()), "expected cpu limit: %s, actual: %s", expected.Limits.Cpu().String(), v.raw.Resources.Limits.Cpu().String())
-}
-
-func (v *containerValidator) requireNoVolumeMounts(t *testing.T) {
-	require.Empty(t, v.raw.VolumeMounts, "container should not have additional volume mounts")
-}
-
-func (v *containerValidator) requireEnvs(t *testing.T, expected map[string]string) {
-	for key, expectedValue := range expected {
-		actualValue, found := v.envs[key]
-		require.True(t, found, "could not find expected env %s in environment", key)
-		require.Equal(t, expectedValue, actualValue, "environment values do not match for container")
-	}
-}
-
-func (v *containerValidator) requireMissingEnvs(t *testing.T, missing []string) {
-	for _, key := range missing {
-		actualValue, found := v.envs[key]
-		require.False(t, found, "found %s in environment set to %s when it was not expected to be set", key, actualValue)
-	}
-}
-
-func newEnvMap(in []corev1.EnvVar) map[string]string {
-	envVars := make(map[string]string, len(in))
-	for _, env := range in {
-		envVars[env.Name] = env.Value
-	}
-	return envVars
-}
-
-func parseInjectorVersion(pod *corev1.Pod) string {
-	for _, container := range pod.Spec.InitContainers {
-		if container.Name == "datadog-init-apm-inject" {
-			parts := strings.Split(container.Image, ":")
-			if len(parts) != 2 {
-				continue
-			}
-			return parts[1]
-		}
-	}
-
-	return ""
-}
-
-func parseCommandline(container *corev1.Container) string {
-	command := strings.Join(container.Command, " ")
-	args := strings.Join(container.Args, " ")
-	return strings.Join([]string{command, args}, " ")
-}
-
-func difference(a, b []string) []string {
-	setB := make(map[string]bool, len(b))
-	for _, elem := range b {
-		setB[elem] = true
-	}
-
-	diff := []string{}
-	for _, elem := range a {
-		if _, found := setB[elem]; !found {
-			diff = append(diff, elem)
-		}
-	}
-
-	return diff
-}
-
-func parseAllContainerNames(pod *corev1.Pod) []string {
-	names := make([]string, len(pod.Spec.Containers))
-	for i, container := range pod.Spec.Containers {
-		names[i] = container.Name
-	}
-	return names
-}
-
-func parseInitContainerImages(pod *corev1.Pod) []string {
-	images := make([]string, len(pod.Spec.InitContainers))
-	for i, container := range pod.Spec.InitContainers {
-		images[i] = container.Image
-	}
-	return images
-}
-
-func parseLibraryVersions(pod *corev1.Pod) map[string]string {
-	injectedVersions := map[string]string{}
-
-	for _, container := range pod.Spec.InitContainers {
-		// gcr.io/datadoghq/dd-lib-java-init:v1
-		parts := strings.Split(container.Image, ":")
-		if len(parts) != 2 {
-			continue
-		}
-		fullImage := parts[0]
-		version := parts[1]
-
-		// gcr.io/datadoghq/dd-lib-java-init
-		parts = strings.Split(fullImage, "/")
-		if len(parts) < 1 {
-			continue
-		}
-		image := parts[len(parts)-1]
-
-		// dd-lib-java-init
-		parts = strings.Split(image, "-")
-		if len(parts) != 4 {
-			continue
-		}
-
-		// java
-		lib := parts[2]
-		injectedVersions[lib] = version
-	}
-
-	return injectedVersions
 }
 
 func newTestNamespace(name string, labels map[string]string) workloadmeta.KubernetesMetadata {
