@@ -188,6 +188,11 @@ linters:
             - allowRegex: ^_
         - name: var-declaration
         - name: var-naming
+          # disable package name lint
+          arguments:
+            - []
+            - []
+            - [skipPackageNameChecks: true]
         - name: duplicated-imports
     forbidigo:
       forbid:
