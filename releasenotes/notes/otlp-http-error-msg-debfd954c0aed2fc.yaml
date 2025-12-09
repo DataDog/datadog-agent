@@ -8,8 +8,9 @@
 ---
 enhancements:
   - |
-    OTLP spans describing an HTTP error now derive the `error.msg` attribute from the status code,
-    instead of sourcing it from the deprecated `http.status_text` attribute.
-    In other words, a span that previously had `error.msg: "500"` will now have `error.msg: "500 Internal Server Error"`.
-    Users who relied on this attribute to extract the status code should use `http.response.status_code` instead,
-    or can set `error.msg` manually to override this behavior.
+    OTLP spans describing an HTTP error without an explicit error message will now fallback
+    to one with a description, eg. "500 Internal Server Error" instead of just "500".
+    Users who relied on the error message to extract the status code should use `http.response.status_code` instead.
+    
+    Additionally, the error message is no longer sourced from the deprecated `http.status_text` attribute.
+    This behavior can be overridden by explicitly setting the span's status message.
