@@ -1162,13 +1162,13 @@ func (se *InternalSpanEvent) Time() uint64 {
 }
 
 // Msgsize returns the size of the message when serialized.
-func (x *SpanEvent) Msgsize() int {
+func (spanEvent *SpanEvent) Msgsize() int {
 	size := 0
 	size += msgp.MapHeaderSize                   // Map
 	size += msgp.Uint32Size + msgp.Uint64Size    // Time
 	size += msgp.Uint32Size + msgp.Uint32Size    // NameRef
 	size += msgp.Uint32Size + msgp.MapHeaderSize // Attributes
-	for _, attr := range x.Attributes {
+	for _, attr := range spanEvent.Attributes {
 		size += msgp.Uint32Size + attr.Msgsize() // Key size + Attribute size
 	}
 	return size
@@ -1195,8 +1195,8 @@ func (se *InternalSpanEvent) GetAttribute(key string) (*AnyValue, bool) {
 }
 
 // AsString returns the attribute in string format, this format is backwards compatible with non-v1 behavior
-func (x *AnyValue) AsString(strTable *StringTable) string {
-	switch v := x.Value.(type) {
+func (av *AnyValue) AsString(strTable *StringTable) string {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		return strTable.Get(v.StringValueRef)
 	case *AnyValue_BoolValue:
@@ -1227,8 +1227,8 @@ func (x *AnyValue) AsString(strTable *StringTable) string {
 }
 
 // AsDoubleValue returns the attribute in float64 format, returning an error if the attribute is not a float64 or can't be converted to a float64
-func (x *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
-	switch v := x.Value.(type) {
+func (av *AnyValue) AsDoubleValue(strTable *StringTable) (float64, error) {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		doubleVal, err := strconv.ParseFloat(strTable.Get(v.StringValueRef), 64)
 		if err != nil {

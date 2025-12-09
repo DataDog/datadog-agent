@@ -215,7 +215,7 @@ func UnmarshalSpanEventList(bts []byte, strings *StringTable) (spanEvents []*Spa
 }
 
 // UnmarshalMsg unmarshals a SpanEvent from a byte stream, updating the strings slice with new strings
-func (x *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
+func (spanEvent *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, err error) {
 	var numSpanEventFields uint32
 	numSpanEventFields, o, err = msgp.ReadMapHeaderBytes(bts)
 	if err != nil {
@@ -238,7 +238,7 @@ func (x *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, er
 				err = msgp.WrapError(err, "Failed to read span event time")
 				return
 			}
-			x.Time = time
+			spanEvent.Time = time
 		case 2:
 			var name uint32
 			name, o, err = UnmarshalStreamingString(o, strings)
@@ -246,7 +246,7 @@ func (x *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, er
 				err = msgp.WrapError(err, "Failed to read span event name")
 				return
 			}
-			x.NameRef = name
+			spanEvent.NameRef = name
 		case 3:
 			var kvl map[uint32]*AnyValue
 			kvl, o, err = UnmarshalKeyValueMap(o, strings)
@@ -254,7 +254,7 @@ func (x *SpanEvent) UnmarshalMsg(bts []byte, strings *StringTable) (o []byte, er
 				err = msgp.WrapError(err, "Failed to read span event attributes")
 				return
 			}
-			x.Attributes = kvl
+			spanEvent.Attributes = kvl
 		default:
 		}
 	}
@@ -559,9 +559,9 @@ func MarshalAttributesMap(bts []byte, attributes map[uint32]*AnyValue, strings *
 }
 
 // Msgsize returns the size of the message when serialized.
-func (x *AnyValue) Msgsize() int {
+func (av *AnyValue) Msgsize() int {
 	size := msgp.Uint32Size // For the type
-	switch v := x.Value.(type) {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		size += msgp.Uint32Size
 	case *AnyValue_BoolValue:
@@ -587,9 +587,9 @@ func (x *AnyValue) Msgsize() int {
 }
 
 // MarshalMsg marshals an AnyValue into a byte stream
-func (x *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
+func (av *AnyValue) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) ([]byte, error) {
 	var err error
-	switch v := x.Value.(type) {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		bts = msgp.AppendUint32(bts, 1) // write the type
 		bts = serStrings.AppendStreamingString(strings.Get(v.StringValueRef), v.StringValueRef, bts)
@@ -661,14 +661,14 @@ func (sl *SpanLink) MarshalMsg(bts []byte, strings *StringTable, serStrings *Ser
 }
 
 // MarshalMsg marshals a SpanEvent into a byte stream
-func (x *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
+func (spanEvent *SpanEvent) MarshalMsg(bts []byte, strings *StringTable, serStrings *SerializedStrings) (o []byte, err error) {
 	o = msgp.AppendMapHeader(bts, 3)
 	o = msgp.AppendUint32(o, 1) // time
-	o = msgp.AppendUint64(o, x.Time)
+	o = msgp.AppendUint64(o, spanEvent.Time)
 	o = msgp.AppendUint32(o, 2) // name
-	o = serStrings.AppendStreamingString(strings.Get(x.NameRef), x.NameRef, o)
+	o = serStrings.AppendStreamingString(strings.Get(spanEvent.NameRef), spanEvent.NameRef, o)
 	o = msgp.AppendUint32(o, 3) // attributes
-	o, err = MarshalAttributesMap(o, x.Attributes, strings, serStrings)
+	o, err = MarshalAttributesMap(o, spanEvent.Attributes, strings, serStrings)
 	if err != nil {
 		err = msgp.WrapError(err, "Failed to marshal attributes")
 		return
@@ -1287,7 +1287,7 @@ func (s *InternalSpan) UnmarshalMsgConverted(bts []byte, convertedFields *SpanCo
 }
 
 // UnmarshalMsgConverted unmarshals a v4 span event directly into an idx.SpanEvent for efficiency
-func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) { //nolint:receiver-naming
+func (spanEvent *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) { //nolint:receiver-naming
 	var field []byte
 	_ = field
 	var numFields uint32
@@ -1305,7 +1305,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 		}
 		switch msgp.UnsafeString(field) {
 		case "time_unix_nano":
-			x.Time, bts, err = msgp.ReadUint64Bytes(bts)
+			spanEvent.Time, bts, err = msgp.ReadUint64Bytes(bts)
 			if err != nil {
 				err = msgp.WrapError(err, "TimeUnixNano")
 				return
@@ -1315,7 +1315,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				bts, err = msgp.ReadNilBytes(bts)
 				break
 			}
-			x.NameRef, bts, err = parseStringBytesRef(strings, bts)
+			spanEvent.NameRef, bts, err = parseStringBytesRef(strings, bts)
 			if err != nil {
 				err = msgp.WrapError(err, "Name")
 				return
@@ -1327,8 +1327,8 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 				err = msgp.WrapError(err, "Attributes")
 				return
 			}
-			if x.Attributes == nil {
-				x.Attributes = make(map[uint32]*AnyValue, numAttributes)
+			if spanEvent.Attributes == nil {
+				spanEvent.Attributes = make(map[uint32]*AnyValue, numAttributes)
 			}
 			for numAttributes > 0 {
 				var value *AnyValue
@@ -1353,7 +1353,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 						return
 					}
 				}
-				x.Attributes[keyRef] = value
+				spanEvent.Attributes[keyRef] = value
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -1368,7 +1368,7 @@ func (x *SpanEvent) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o [
 }
 
 // UnmarshalMsgConverted unmarshals a v4 any value directly into an idx.AnyValue for efficiency
-func (x *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) {
+func (av *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []byte, err error) {
 	var field []byte
 	_ = field
 	var numFields uint32
@@ -1494,23 +1494,23 @@ func (x *AnyValue) UnmarshalMsgConverted(strings *StringTable, bts []byte) (o []
 	}
 	switch valueType {
 	case stringValueType:
-		x.Value = &AnyValue_StringValueRef{
+		av.Value = &AnyValue_StringValueRef{
 			StringValueRef: strValueRef,
 		}
 	case boolValueType:
-		x.Value = &AnyValue_BoolValue{
+		av.Value = &AnyValue_BoolValue{
 			BoolValue: boolValue,
 		}
 	case intValueType:
-		x.Value = &AnyValue_IntValue{
+		av.Value = &AnyValue_IntValue{
 			IntValue: intValue,
 		}
 	case doubleValueType:
-		x.Value = &AnyValue_DoubleValue{
+		av.Value = &AnyValue_DoubleValue{
 			DoubleValue: doubleValue,
 		}
 	case arrayValueType:
-		x.Value = &AnyValue_ArrayValue{
+		av.Value = &AnyValue_ArrayValue{
 			ArrayValue: &ArrayValue{
 				Values: arrayValue,
 			},

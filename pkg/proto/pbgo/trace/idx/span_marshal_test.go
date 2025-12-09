@@ -232,8 +232,8 @@ func FuzzAnyValueMarshalUnmarshal(f *testing.F) {
 	})
 }
 
-func (x *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings *StringTable, expectedStrings *StringTable) {
-	switch v := x.Value.(type) {
+func (av *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings *StringTable, expectedStrings *StringTable) {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		actualString := actualStrings.Get(v.StringValueRef)
 		expectedString := expectedStrings.Get(expected.Value.(*AnyValue_StringValueRef).StringValueRef)
