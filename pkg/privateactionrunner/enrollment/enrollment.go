@@ -66,9 +66,9 @@ func generateKeys() (*jose.JSONWebKey, *jose.JSONWebKey, error) {
 }
 
 // ProvisionRunnerIdentityWithAPIKey enrolls a runner using API key and app key authentication
-func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actionsAllowlist string) error {
+func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actionsAllowlist, connectionGroupId string) error {
 
-	conf, err := RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlist)
+	conf, err := RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlist, connectionGroupId)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actions
 }
 
 // RunEnrollmentWithAPIKey enrolls a runner using API key and application key authentication
-func RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlistStr string) (*RunnerConfigYaml, error) {
+func RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlistStr, connectionGroupId string) (*RunnerConfigYaml, error) {
 	actionsAllowlist := strings.Split(actionsAllowlistStr, ",")
 
 	log.Info("Enrolling runner with API key authentication",
@@ -123,9 +123,10 @@ func RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlistS
 		"data": map[string]interface{}{
 			"type": "createRunnerRequest",
 			"attributes": map[string]interface{}{
-				"runner_name":    runnerName,
-				"runner_modes":   []string{modes.ModePull.MetricTag()},
-				"public_key_pem": publicKeyPEM,
+				"runner_name":              runnerName,
+				"runner_modes":             []string{modes.ModePull.MetricTag()},
+				"public_key_pem":           publicKeyPEM,
+				"join_connection_group_id": connectionGroupId,
 			},
 		},
 	}

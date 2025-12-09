@@ -7,6 +7,7 @@
 package privateactionrunner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // Commands returns the private action runner subcommands
@@ -39,6 +41,7 @@ func selfEnrollCommand(_ *command.GlobalParams) *cobra.Command {
 	var site string
 	var runnerName string
 	var actionsAllowList string
+	var connectionGroupId string
 
 	cmd := &cobra.Command{
 		Use:   "self-enroll --api-key <api-key> --app-key <app-key>",
@@ -69,10 +72,14 @@ Example:
 				site = "datadoghq.com" // Default site
 			}
 			if runnerName == "" {
-				runnerName = fmt.Sprintf("agent_%d", time.Now().Unix())
+				if agentHostname, err := hostname.Get(context.Background()); err == nil {
+					runnerName = agentHostname
+				} else {
+					runnerName = fmt.Sprintf("agent_%d", time.Now().Unix())
+				}
 			}
 			// Perform self-enrollment
-			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actionsAllowList)
+			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actionsAllowList, connectionGroupId)
 		},
 	}
 
@@ -80,7 +87,8 @@ Example:
 	cmd.Flags().StringVarP(&appKey, "app-key", "", "", "Datadog APP key for authentication (required)")
 	cmd.Flags().StringVarP(&site, "site", "", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
 	cmd.Flags().StringVarP(&runnerName, "name", "", "", "Name of the private action runner")
-	cmd.Flags().StringVarP(&actionsAllowList, "actions-allowlist", "", "", "Allowlist of actions for the private action runner")
+	cmd.Flags().StringVarP(&actionsAllowList, "actions-allowlist", "", "com.datadoghq.datadog.agentactions.helloWorld", "Allowlist of actions for the private action runner")
+	cmd.Flags().StringVarP(&connectionGroupId, "connection-group-id", "", "", "Join a connection group on creation")
 	//cmd.MarkFlagRequired("api-key")
 	//cmd.MarkFlagRequired("app-key")
 
