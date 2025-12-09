@@ -6,6 +6,8 @@
 package grpc
 
 import (
+	"fmt"
+
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -166,6 +168,15 @@ func (t *inflightTracker) resetOnRotation() {
 // Returns serialized bytes (marshaled DatumSequence) or nil if empty
 func (t *inflightTracker) getSnapshot() []byte {
 	return t.snapshot.serialize()
+}
+
+// dumpState returns a string representation of the inflight tracker's current state
+// Useful for logging and debugging
+func (t *inflightTracker) dumpState() string {
+	return fmt.Sprintf("head=%d sentTail=%d tail=%d cap=%d headBatchID=%d batchIDCounter=%d "+
+		"hasSpace=%v hasUnacked=%v hasUnSent=%v nextBatchID=%d sentCount=%d totalCount=%d",
+		t.head, t.sentTail, t.tail, t.cap, t.headBatchID, t.batchIDCounter,
+		t.hasSpace(), t.hasUnacked(), t.hasUnSent(), t.nextBatchID(), t.sentCount(), t.totalCount())
 }
 
 // snapshotState maintains the accumulated state changes for stream bootstrapping

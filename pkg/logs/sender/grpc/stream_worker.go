@@ -242,6 +242,7 @@ func (s *streamWorker) supervisorLoop() {
 
 	// supervisor loop starts without a stream, but asyncCreateNewStream is called
 	// right after in streamWorker's start(), so we are in connecting state right away
+	log.Infof("Worker %s: State transition: (initial) → connecting", s.workerID)
 	s.streamState = connecting
 
 	for {
@@ -263,6 +264,7 @@ func (s *streamWorker) supervisorLoop() {
 		if s.streamState == active && s.inflight.hasUnSent() {
 			sendChan = s.batchToSendCh // Enable sending
 			nextBatch = s.getNextBatch()
+			log.Infof("Worker %s: Sending enabled, next batch %d, inflight: [%s]", s.workerID, nextBatch.BatchId, s.inflight.dumpState())
 		} else {
 			sendChan = nil // Disable sending
 		}
@@ -316,6 +318,7 @@ func (s *streamWorker) supervisorLoop() {
 func (s *streamWorker) handleBatchAck(ack *batchAck) {
 	// Ignore stale acks from old streams
 	if ack.stream != s.currentStream {
+		log.Infof("Worker %s: Ignoring stale ack for batch %d from old stream", s.workerID, ack.status.BatchId)
 		return
 	}
 
@@ -323,6 +326,7 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 	// Handle snapshot/state ack (batch 0) - no payload to pop
 	if receivedBatchID == 0 {
+		log.Infof("Worker %s: Received snapshot/state ack (batch 0)", s.workerID)
 		return
 	}
 
@@ -355,6 +359,7 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 
 	// Pop the acknowledged payload and send to auditor
 	payload := s.inflight.pop()
+	log.Infof("Worker %s: Successfully processed acknowledgment for batch %d, inflight: [%s]", s.workerID, receivedBatchID, s.inflight.dumpState())
 	if s.outputChan != nil {
 		select {
 		case s.outputChan <- payload:
@@ -377,6 +382,8 @@ func (s *streamWorker) handleBatchAck(ack *batchAck) {
 func (s *streamWorker) handleStreamFailure(failedStream *streamInfo) {
 	// Ignore if: stale signal OR not in active/draining state
 	if failedStream != s.currentStream || (s.streamState != active && s.streamState != draining) {
+		log.Infof("Worker %s: Ignoring stream failure signal (stale: %v, state: %v)",
+			s.workerID, failedStream != s.currentStream, s.streamState)
 		return
 	}
 
@@ -388,6 +395,7 @@ func (s *streamWorker) handleStreamFailure(failedStream *streamInfo) {
 // handleStreamReady processes async stream creation results
 func (s *streamWorker) handleStreamReady(result streamCreationResult) {
 	if s.streamState != connecting {
+		log.Infof("Worker %s: Ignoring stream ready signal (state: %v, expected: connecting)", s.workerID, s.streamState)
 		return
 	}
 
@@ -402,6 +410,7 @@ func (s *streamWorker) handleStreamReady(result streamCreationResult) {
 // handleStreamTimeout processes stream lifetime expiration
 func (s *streamWorker) handleStreamTimeout() {
 	if s.streamState != active {
+		log.Infof("Worker %s: Ignoring stream timeout (state: %v, expected: active)", s.workerID, s.streamState)
 		return
 	}
 
@@ -420,6 +429,7 @@ func (s *streamWorker) handleStreamTimeout() {
 // handleDrainTimeout handles drain timer expiration
 func (s *streamWorker) handleDrainTimeout() {
 	if s.streamState != draining {
+		log.Infof("Worker %s: Ignoring drain timeout (state: %v, expected: draining)", s.workerID, s.streamState)
 		return
 	}
 
@@ -431,6 +441,7 @@ func (s *streamWorker) handleDrainTimeout() {
 // handleBackoffTimeout processes backoff timer expiration and retries stream creation
 func (s *streamWorker) handleBackoffTimeout() {
 	if s.streamState != disconnected {
+		log.Infof("Worker %s: Ignoring backoff timeout (state: %v, expected: disconnected)", s.workerID, s.streamState)
 		return
 	}
 
@@ -513,6 +524,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 		// Send snapshot to sender goroutine via channel
 		// This call won't block because it's buffered channel's first write
 		s.batchToSendCh <- createBatch(serialized, 0)
+		log.Infof("Worker %s: Queued snapshot/state batch (batch 0, size: %d bytes) for transmission", s.workerID, len(serialized))
 	}
 }
 
@@ -610,6 +622,7 @@ func (s *streamWorker) closeStream(streamInfo *streamInfo) {
 // This goroutine exits when the stream fails/terminates
 func (s *streamWorker) senderLoop(streamInfo *streamInfo, batchToSendCh chan *statefulpb.StatefulBatch) {
 	for batch := range batchToSendCh {
+		log.Infof("Worker %s: Transmitting batch %d (size: %d bytes)", s.workerID, batch.BatchId, len(batch.Data))
 		if err := streamInfo.stream.Send(batch); err != nil {
 			// Check if it's due to context cancellation (clean shutdown/rotation)
 			ctxErr := streamInfo.ctx.Err()
@@ -635,6 +648,7 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 		msg, err := streamInfo.stream.Recv()
 		if err == nil {
 			// Normal message (batch acknowledgment) - forward to supervisor
+			log.Infof("Worker %s: Received batch acknowledgment for batch %d", s.workerID, msg.BatchId)
 			s.signalBatchAck(streamInfo, msg)
 			continue
 		}
@@ -658,9 +672,11 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.Unauthenticated, codes.PermissionDenied:
+				log.Infof("Worker %s: gRPC auth/permission error (code %v): %v", s.workerID, st.Code(), st.Message())
 				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
 				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
+				log.Infof("Worker %s: gRPC protocol error (code %v): %v", s.workerID, st.Code(), st.Message())
 				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
 				return
 			default:
