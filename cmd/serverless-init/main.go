@@ -188,7 +188,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
 		}
 	}
-	// The functionTags key:value comma-separated string is derived from DD_TAGS and DD_EXTRA_TAGS and DD_DOGSTATSD_TAGS.
+
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),

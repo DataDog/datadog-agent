@@ -104,7 +104,6 @@ func TestDdTags(t *testing.T) {
 	assert.Equal(t, "value6", mergedTags["key6"])
 }
 
-
 func TestMakeMetricAgentTags(t *testing.T) {
 	tags := map[string]string{
 		"key1":                "value1",

@@ -80,8 +80,9 @@ func GetBaseTagsMapWithMetadata(metadata map[string]string, versionMode string) 
 	return tagsMap
 }
 
-// AddTraceTags adds tags needed for accurate trace metric stats computation to a new tag map.
+// MakeTraceAgentTags handles tag customization for the trace agent.
 //
+// * Adds tags needed for accurate trace metric stats computation to a new tag map.
 // Some traces are sampled out in the agent and don't get sent to the backend.
 // If "_dd.compute_stats" is enabled, we make sure to count the unsampled traces when computing trace stat metrics.
 // If "_dd.compute_stats" is disabled, the result is known incorrect data.
@@ -95,8 +96,9 @@ func MakeTraceAgentTags(tagsMap map[string]string) map[string]string {
 	return tagsMap
 }
 
-// MakeMetricAgentTags creates a new tag map without high cardinality tags we use on traces
+// MakeMetricAgentTags handles tag customization for the metric agent.
 //
+// * Creates a new tag map without high cardinality tags we use on traces
 // We avoid these tags for metrics by default due to cost, as we store and bill by cardinality.
 func MakeMetricAgentTags(tags map[string]string) map[string]string {
 	newTags := make(map[string]string, len(tags))
