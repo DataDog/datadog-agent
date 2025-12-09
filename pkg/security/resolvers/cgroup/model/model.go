@@ -19,9 +19,10 @@ import (
 
 // CacheEntry cgroup resolver cache entry
 type CacheEntry struct {
-	model.CGroupContext
-	model.ContainerContext
 	sync.RWMutex
+	CGroupContext    model.CGroupContext
+	ContainerContext model.ContainerContext
+
 	Deleted *atomic.Bool
 	PIDs    map[uint32]bool
 }
