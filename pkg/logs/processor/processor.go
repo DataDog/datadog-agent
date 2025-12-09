@@ -178,6 +178,23 @@ func (p *Processor) run() {
 	}
 }
 
+// TODO: Remove Tue + timezone etc.
+// TODO: 0 for any number (not only digits, 978 -> 0)
+func drainPreprocesing(rendered []byte) string {
+	result := make([]byte, len(rendered))
+	// TODO: Do it within drain package?
+	// Strip out digits to avoid timestamp issues
+	for i, char := range rendered {
+		if char >= '0' && char <= '9' {
+			result[i] = '0'
+		} else {
+			result[i] = char
+		}
+	}
+
+	return string(result)
+}
+
 func (p *Processor) processMessage(msg *message.Message) {
 	useDrain := UseDrain()
 	if useDrain {
@@ -212,7 +229,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 		// Drain sampling
 		// TODO: process bytes and not string for drain processor
-		renderedString := string(rendered)
+		renderedString := drainPreprocesing(rendered)
 		start := time.Now()
 		// TODO: Clean code
 		if useDrain {
