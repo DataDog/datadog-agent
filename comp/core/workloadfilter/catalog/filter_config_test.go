@@ -18,9 +18,7 @@ import (
 )
 
 func TestNewFilterConfig_CELFallback(t *testing.T) {
-	// When configuration option is defined through datadog.yaml,
-	// the config component loads the value as an object.
-	t.Run("unmarshal cel workload exclude object", func(t *testing.T) {
+	t.Run("successful unmarshal - no fallback needed", func(t *testing.T) {
 
 		mockConfig := configmock.New(t)
 
@@ -42,9 +40,36 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Contains(t, filterConfig.CELProductRules, workloadfilter.ProductMetrics)
 	})
 
-	// When configuration option is defined through envvar,
-	// the config component loads the value as a string.
-	t.Run("unmarshal cel workload exclude JSON string", func(t *testing.T) {
+	t.Run("unmarshal fails but YAML string fallback succeeds", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+
+		// Set up YAML string like what would come from configuration files
+		yamlConfig := `- products:
+  - metrics
+  rules:
+    kube_services:
+    - service.name == 'yaml-service'
+    pods:
+    - pod.namespace == 'yaml-ns'
+    containers:
+    - container.name == 'yaml-test'`
+		mockConfig.SetWithoutSource("cel_workload_exclude", yamlConfig)
+
+		filterConfig, err := NewFilterConfig(mockConfig)
+		require.NoError(t, err)
+		assert.NotNil(t, filterConfig)
+		assert.NotNil(t, filterConfig.CELProductRules)
+		assert.Contains(t, filterConfig.CELProductRules, workloadfilter.ProductMetrics)
+
+		containerRules := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ContainerType)
+		assert.Equal(t, "container.name == 'yaml-test'", containerRules)
+		podRules := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.PodType)
+		assert.Equal(t, "pod.namespace == 'yaml-ns'", podRules)
+		serviceRules := filterConfig.GetCELRulesForProduct(workloadfilter.ProductMetrics, workloadfilter.ServiceType)
+		assert.Equal(t, "service.name == 'yaml-service'", serviceRules)
+	})
+
+	t.Run("unmarshal fails but JSON string fallback succeeds", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		jsonConfig := `[
 			{
@@ -72,7 +97,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Equal(t, "service.name == 'test-service'", serviceRules)
 	})
 
-	t.Run("unmarshal cel workload exclude invalid string", func(t *testing.T) {
+	t.Run("both unmarshal and fallback fail", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 		mockConfig.SetWithoutSource("cel_workload_exclude", "invalid string data")
 
@@ -81,7 +106,7 @@ func TestNewFilterConfig_CELFallback(t *testing.T) {
 		assert.Nil(t, filterConfig)
 	})
 
-	t.Run("unmarshal cel workload exclude empty config", func(t *testing.T) {
+	t.Run("no cel_workload_exclude config", func(t *testing.T) {
 		mockConfig := configmock.New(t)
 
 		filterConfig, err := NewFilterConfig(mockConfig)

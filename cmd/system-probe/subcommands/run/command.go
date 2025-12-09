@@ -54,6 +54,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -159,6 +160,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				configsyncimpl.Module(configsyncimpl.NewParams(configSyncTimeout, true, configSyncTimeout)),
 				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
+				localtraceroute.Module(),
 			)
 		},
 	}
@@ -339,6 +341,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
 		remotehostnameimpl.Module(),
+		localtraceroute.Module(),
 	)
 }
 

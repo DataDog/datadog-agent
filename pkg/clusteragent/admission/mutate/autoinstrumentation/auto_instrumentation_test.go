@@ -42,7 +42,7 @@ var defaultLibraries = map[string]string{
 	"java":   "v1",
 	"js":     "v5",
 	"php":    "v1",
-	"python": "v3",
+	"python": "v4",
 	"ruby":   "v2",
 }
 
