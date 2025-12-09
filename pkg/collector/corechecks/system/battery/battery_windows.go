@@ -217,9 +217,8 @@ func hasBatteryAvailable() (bool, error) {
 				return false, nil
 			} else if err == windows.ERROR_NO_MORE_ITEMS {
 				break
-			} else {
-				return false, fmt.Errorf("error enumerating device interfaces: %w", err)
 			}
+			return false, fmt.Errorf("error enumerating device interfaces: %w", err)
 		}
 
 		interfaceDetailData, err := getDeviceInterfaceDetailData(hdev, ifData)
