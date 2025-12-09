@@ -246,7 +246,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
-      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
+      - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
 
 new-e2e-containers-eks-init:
   stage: e2e_init
