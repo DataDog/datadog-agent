@@ -24,7 +24,7 @@ const (
 	drainClusterSizeDecay = 0.95
 	// Threshold to determine whether or not to send a message based on the size of his cluster
 	drainClusterSizeThreshold = 10
-	drainMaxLineLength        = 120
+	drainMaxLineLength        = 160
 )
 
 var (
