@@ -642,6 +642,28 @@ def docker_build(
     # Get current working directory (repo root)
     repo_root = os.getcwd()
 
+    # GIT ISOLATION: Pre-generate version cache and shadow .git to isolate the build.
+    # This solves two problems:
+    # 1. Git worktrees use a .git file with absolute path that doesn't exist in Docker
+    # 2. We want read-only mounts so the build can't affect the local filesystem
+    #
+    # Solution: Shadow .git with an empty file/dir so git operations see "not a repo"
+    # instead of failing on invalid worktree paths. The repo mount is read-only.
+    from tasks.libs.releasing.version import create_version_json
+
+    create_version_json(ctx)
+
+    # Create shadow for .git - must match type (file for worktree, dir for regular repo)
+    git_path = os.path.join(repo_root, '.git')
+    git_shadow_path = None
+    if os.path.isfile(git_path):
+        # Worktree: .git is a file, shadow with empty file
+        git_shadow_fd, git_shadow_path = tempfile.mkstemp(prefix='git-shadow-')
+        os.close(git_shadow_fd)
+    elif os.path.isdir(git_path):
+        # Regular repo: .git is a directory, shadow with empty directory
+        git_shadow_path = tempfile.mkdtemp(prefix='git-shadow-')
+
     # Build environment variables
     env_args = [
         "-e OMNIBUS_GIT_CACHE_DIR=/omnibus-state/git-cache",
@@ -657,14 +679,19 @@ def docker_build(
     ]
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
+    # The repo is mounted read-only with .git shadowed by an empty file/dir
+    container_repo_path = "/go/src/github.com/DataDog/datadog-agent"
     volume_args = [
         f"-v {omnibus_dir}:/omnibus",
         f"-v {omnibus_state_dir}:/omnibus-state",
         f"-v {gems_dir}:/gems",
         f"-v {go_mod_dir}:/go/pkg/mod",
         f"-v {go_build_dir}:/root/.cache/go-build",
-        f"-v {repo_root}:/go/src/github.com/DataDog/datadog-agent",
+        f"-v {repo_root}:{container_repo_path}:ro",
     ]
+    # Shadow .git with empty file/dir (must come after repo mount to override)
+    if git_shadow_path:
+        volume_args.append(f"-v {git_shadow_path}:{container_repo_path}/.git:ro")
 
     # Build the docker command
     env_str = " ".join(env_args)
@@ -683,7 +710,7 @@ def docker_build(
     docker_cmd = (
         f"docker run --rm "
         f"{env_str} {vol_str} "
-        f"-w /go/src/github.com/DataDog/datadog-agent "
+        f"-w {container_repo_path} "
         f"{build_image} "
         f"{build_cmd}"
     )
@@ -694,8 +721,16 @@ def docker_build(
     print(f"Workers: {workers}")
     print()
 
-    # Run the omnibus build
-    ctx.run(docker_cmd)
+    # Run the omnibus build, ensuring shadow cleanup happens even on failure
+    try:
+        ctx.run(docker_cmd)
+    finally:
+        # Clean up the temporary shadow file/dir
+        if git_shadow_path:
+            if os.path.isfile(git_shadow_path):
+                os.unlink(git_shadow_path)
+            elif os.path.isdir(git_shadow_path):
+                os.rmdir(git_shadow_path)
 
     # Build Docker image from the tarball
     print("\n" + "=" * 60)
