@@ -7,6 +7,7 @@ package metric_history
 
 import (
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -21,6 +22,10 @@ type MetricHistoryCache struct {
 	mediumCapacity int // default: 60 (1 hour at 1 min)
 	longCapacity   int // default: 24 (24 hours at 1 hour)
 
+	// Retention durations for rollup logic
+	recentRetention time.Duration // default: 5 minutes
+	mediumRetention time.Duration // default: 1 hour
+
 	// Metric name filtering (prefix match)
 	includePrefixes []string // if empty, include all metrics
 }
@@ -32,6 +37,8 @@ func NewMetricHistoryCache() *MetricHistoryCache {
 		recentCapacity:  20,
 		mediumCapacity:  60,
 		longCapacity:    24,
+		recentRetention: 5 * time.Minute,
+		mediumRetention: 1 * time.Hour,
 		includePrefixes: []string{},
 	}
 }
@@ -116,4 +123,13 @@ func (c *MetricHistoryCache) GetHistory(key ckey.ContextKey) *MetricHistory {
 // SeriesCount returns the number of tracked series.
 func (c *MetricHistoryCache) SeriesCount() int {
 	return len(c.series)
+}
+
+// Configure applies a Config to the cache, updating capacities and retention durations.
+func (c *MetricHistoryCache) Configure(cfg Config) {
+	c.recentCapacity = cfg.RecentCapacity()
+	c.mediumCapacity = cfg.MediumCapacity()
+	c.longCapacity = cfg.LongCapacity()
+	c.recentRetention = cfg.RecentDuration
+	c.mediumRetention = cfg.MediumDuration
 }
