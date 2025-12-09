@@ -26,7 +26,7 @@ func (s *baseSuite) SetupSuite() {
 
 	s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("CURRENT_APM_INJECT_VERSION"))
 	if s.currentAPMInjectVersion.PackageVersion() == "" {
-		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.b0d6e40.glci1268607480.g798d11fa-1")
+		s.currentAPMInjectVersion = installerwindows.NewVersionFromPackageVersion("0.52.0-dev.b0d6e40.glci1280793465.g20c05acb-1")
 	}
 	s.previousAPMInjectVersion = installerwindows.NewVersionFromPackageVersion(os.Getenv("PREVIOUS_APM_INJECT_VERSION"))
 	if s.previousAPMInjectVersion.PackageVersion() == "" {
