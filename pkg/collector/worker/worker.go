@@ -12,6 +12,7 @@ import (
 	"time"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -56,6 +57,7 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	healthPlatform          healthplatform.Component
 	watchdogWarningTimeout  time.Duration
 }
 
@@ -63,6 +65,7 @@ type Worker struct {
 func NewWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -91,6 +94,7 @@ func NewWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
+		healthPlatform,
 		pollingInterval,
 		watchdogWarningTimeout,
 	)
@@ -107,6 +111,7 @@ func newWorkerWithOptions(
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
 	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
@@ -126,6 +131,7 @@ func newWorkerWithOptions(
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
+		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
 	}, nil
@@ -226,7 +232,7 @@ func (w *Worker) Run() {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent, w.healthPlatform)
 			}
 		}
 

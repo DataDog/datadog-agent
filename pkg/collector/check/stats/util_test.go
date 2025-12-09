@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 )
 
 func newMockStats(updateTimestamp time.Time, lastExecutionTime time.Duration, interval time.Duration) *Stats {
 	mockStatsCheck := newMockCheckWithInterval(interval)
-	mockStats := NewStats(mockStatsCheck)
+	mockStats := NewStats(mockStatsCheck, healthplatformmock.Mock(nil))
 
 	mockStats.UpdateTimestamp = updateTimestamp
 	mockStats.LastExecutionTime = lastExecutionTime
