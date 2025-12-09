@@ -358,3 +358,69 @@ func TestPatcherRetriesFailedPatches(t *testing.T) {
 
 	assert.Eventuallyf(t, func() bool { return lp.queue.NumRequeues(owner) >= 1 }, 2*time.Second, 20*time.Millisecond, "Patching should have been retried")
 }
+
+func TestPatcherRequeuesWhenNotLeader(t *testing.T) {
+	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	mocklogger := logmock.New(t)
+
+	ctx := context.TODO()
+	lp := newMockLanguagePatcher(ctx, mockK8sClient, mockStore, mocklogger)
+	lp.leaderElectionEnabled = true
+
+	go lp.run(ctx)
+	defer lp.cancel()
+
+	deploymentName := "test-deployment"
+	ns := "test-namespace"
+
+	deployment := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name":        deploymentName,
+				"namespace":   ns,
+				"annotations": map[string]interface{}{},
+			},
+			"spec": map[string]interface{}{},
+		},
+	}
+
+	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	_, err := mockK8sClient.Resource(gvr).Namespace(ns).Create(context.TODO(), deployment, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	mockDeploymentEvent := workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.KubernetesDeployment{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindKubernetesDeployment,
+				ID:   ns + "/" + deploymentName,
+			},
+			DetectedLanguages: map[languagemodels.Container]languagemodels.LanguageSet{
+				*languagemodels.NewContainer("some-cont"): {"java": {}},
+			},
+		},
+	}
+
+	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, mockDeploymentEvent)
+
+	owner := langUtil.NamespacedOwnerReference{
+		Name:       deploymentName,
+		APIVersion: "apps/v1",
+		Kind:       langUtil.KindDeployment,
+		Namespace:  ns,
+	}
+
+	assert.Eventuallyf(
+		t,
+		func() bool { return lp.queue.NumRequeues(owner) >= 1 },
+		2*time.Second,
+		20*time.Millisecond,
+		"Patching should have been retried when not leader",
+	)
+}
