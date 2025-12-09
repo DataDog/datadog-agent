@@ -38,6 +38,11 @@
           "property_doc_link": "event-service-doc"
         },
         {
+          "name": "event.signature",
+          "definition": "Signature of the process pid and its cgroup with agent secret key",
+          "property_doc_link": "event-signature-doc"
+        },
+        {
           "name": "event.source",
           "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
           "property_doc_link": "event-source-doc"
@@ -15318,6 +15323,18 @@
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.signature",
+      "link": "event-signature-doc",
+      "type": "string",
+      "definition": "Signature of the process pid and its cgroup with agent secret key",
       "prefixes": [
         ""
       ],

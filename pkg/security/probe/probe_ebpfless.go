@@ -408,6 +408,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	p.probe.logTraceEvent(event.GetEventType(), event)
 
+	// sign the event
+	p.fieldHandlers.ResolveSignature(event)
+
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
 
