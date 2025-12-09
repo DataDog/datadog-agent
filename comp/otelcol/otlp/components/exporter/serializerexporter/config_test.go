@@ -43,7 +43,7 @@ func TestUnmarshalConfig(t *testing.T) {
 	want := factory.CreateDefaultConfig().(*ExporterConfig)
 	want.TimeoutConfig.Timeout = 10 * time.Second
 	want.HTTPConfig.Timeout = 10 * time.Second
-	queueConfig := want.QueueBatchConfig.Get()
+	queueConfig := *want.QueueBatchConfig.Get()
 	queueConfig.QueueSize = 100
 	want.QueueBatchConfig = configoptional.Some(queueConfig)
 	want.Metrics.APMStatsReceiverAddr = "localhost:1234"
