@@ -316,16 +316,14 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 }
 
 // GetCGroupContext returns the cgroup context with the specified path key
-func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (*model.CGroupContext, bool) {
+func (cr *Resolver) GetCGroupContext(cgroupPath model.PathKey) (model.CGroupContext, bool) {
 	cr.Lock()
 	defer cr.Unlock()
 
 	if cgroupContext, found := cr.cgroups.Get(cgroupPath.Inode); found {
-		// Return a copy to avoid race conditions when dereferencing the shared pointer
-		cgroupContextCopy := *cgroupContext
-		return &cgroupContextCopy, true
+		return *cgroupContext, true
 	}
-	return nil, false
+	return model.CGroupContext{}, false
 }
 
 // Iterate iterates on all cached cgroups, callback may return 'true' to break iteration
