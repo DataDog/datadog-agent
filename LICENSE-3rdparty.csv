@@ -140,13 +140,14 @@ core,github.com/DataDog/datadog-operator/api/datadoghq/common,Apache-2.0,"Copyri
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-operator/api/datadoghq/v2alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-traceroute/cache,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/icmp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/log,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/packets,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-traceroute/publicip,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/result,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/reversedns,Apache-2.0,"Copyright 2016-present Datadog, Inc"
-core,github.com/DataDog/datadog-traceroute/runner,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/sack,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/tcp,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/datadog-traceroute/traceroute,Apache-2.0,"Copyright 2016-present Datadog, Inc"
@@ -528,6 +529,7 @@ core,github.com/aws/aws-sdk-go-v2/credentials,Apache-2.0,"Copyright 2014-2015 St
 core,github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/credentials/endpointcreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/credentials/endpointcreds/internal/client,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/credentials/logincreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/credentials/processcreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/credentials/ssocreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/credentials/stscreds,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -571,6 +573,9 @@ core,github.com/aws/aws-sdk-go-v2/service/rds/types,Apache-2.0,"Copyright 2014-2
 core,github.com/aws/aws-sdk-go-v2/service/servicediscovery,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/servicediscovery/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/servicediscovery/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/signin,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/signin/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
+core,github.com/aws/aws-sdk-go-v2/service/signin/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sso,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sso/internal/endpoints,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 core,github.com/aws/aws-sdk-go-v2/service/sso/types,Apache-2.0,"Copyright 2014-2015 Stripe, Inc. | Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved."
@@ -1733,7 +1738,6 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsam
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/sampling,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/telemetry,Apache-2.0,Copyright The OpenTelemetry Authors
-core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/internal/tracelimiter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor/pkg/samplingpolicy,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/common,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2576,17 +2580,17 @@ core,go.uber.org/fx/internal/testutil,MIT,"Copyright (c) 2016-2018 Uber Technolo
 core,go.uber.org/goleak,MIT,"Copyright (c) 2018 Uber Technologies, Inc"
 core,go.uber.org/goleak/internal/stack,MIT,"Copyright (c) 2018 Uber Technologies, Inc"
 core,go.uber.org/multierr,MIT,"Copyright (c) 2017-2021 Uber Technologies, Inc"
-core,go.uber.org/zap,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/buffer,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/exp/zapslog,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc | Copyright (c) 2016-2024 Uber Technologies, Inc"
-core,go.uber.org/zap/internal,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/internal/bufferpool,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/internal/pool,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/internal/stacktrace,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
-core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2017 Uber Technologies, Inc"
+core,go.uber.org/zap,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/buffer,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/exp/zapslog,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/internal,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/internal/bufferpool,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/internal/color,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/internal/exit,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/internal/pool,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/internal/stacktrace,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/zapcore,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
+core,go.uber.org/zap/zapgrpc,MIT,"Copyright (c) 2016-2024 Uber Technologies, Inc"
 core,go.yaml.in/yaml/v2,Apache-2.0,Copyright 2011-2016 Canonical Ltd
 core,go.yaml.in/yaml/v3,MIT,Copyright (c) 2006-2010 Kirill Simonov | Copyright (c) 2006-2011 Kirill Simonov | Copyright (c) 2011-2019 Canonical Ltd | Copyright 2011-2016 Canonical Ltd | copyright staring in 2011 when the project was ported over:
 core,go4.org/intern,BSD-3-Clause,"Copyright (c) 2020, Brad Fitzpatrick"
@@ -3888,6 +3892,7 @@ core,k8s.io/kube-state-metrics/v2/pkg/watch,Apache-2.0,Copyright 2014 The Kubern
 core,k8s.io/kubectl/pkg/cmd/util,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubectl/pkg/cmd/util/podcmd,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubectl/pkg/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubelet/pkg/apis/podresources/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/kubelet/pkg/apis/stats/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/metrics/pkg/apis/custom_metrics,Apache-2.0,Copyright 2014 The Kubernetes Authors.

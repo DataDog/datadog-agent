@@ -57,7 +57,8 @@ func createTestProcess(pid, ppid uint32, containerID containerutils.ContainerID)
 					ContainerID: containerID,
 				},
 				CGroup: model.CGroupContext{
-					CGroupID: "",
+					Releasable: &model.Releasable{},
+					CGroupID:   "",
 					CGroupFile: model.PathKey{
 						Inode:   0,
 						MountID: 0,
@@ -138,7 +139,8 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 
 	// Add parent cgroup context to cache
 	parentCgroup := &model.CGroupContext{
-		CGroupID: "parent-cgroup-id",
+		Releasable: &model.Releasable{},
+		CGroupID:   "parent-cgroup-id",
 		CGroupFile: model.PathKey{
 			Inode:   parentInode,
 			MountID: 123,

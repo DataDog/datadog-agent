@@ -153,7 +153,7 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
 
 	return func(e *Event) {
 		*e = eventZero
@@ -170,7 +170,7 @@ func (e *Event) GetContainerID() string {
 
 // CGroupContext holds the cgroup context of an event
 type CGroupContext struct {
-	Releasable
+	*Releasable
 	CGroupID      containerutils.CGroupID `field:"id,handler:ResolveCGroupID"` // SECLDoc[id] Definition:`ID of the cgroup`
 	CGroupFile    PathKey                 `field:"file"`
 	CGroupVersion int                     `field:"version,handler:ResolveCGroupVersion"` // SECLDoc[version] Definition:`[Experimental] Version of the cgroup API`
