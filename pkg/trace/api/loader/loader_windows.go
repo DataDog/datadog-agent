@@ -14,6 +14,9 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // GetListenerFromFD creates a new net.Listener from a Windows socket handle
@@ -22,7 +25,7 @@ import (
 // The handle is inherited from the parent process using SetHandleInformation.
 //
 // Unlike Unix, Go's net.FileListener doesn't work with Windows socket handles,
-// so we create a custom listener that uses the raw socket handle directly.
+// so we create a custom listener that uses Windows socket APIs directly.
 func GetListenerFromFD(handleStr string, name string) (net.Listener, error) {
 	handle, err := strconv.ParseUint(handleStr, 10, 64)
 	if err != nil {
@@ -31,7 +34,7 @@ func GetListenerFromFD(handleStr string, name string) (net.Listener, error) {
 
 	// Create a custom listener that wraps the inherited socket handle
 	listener := &winSocketListener{
-		handle: syscall.Handle(handle),
+		handle: windows.Handle(handle),
 		name:   name,
 	}
 
@@ -45,24 +48,29 @@ func GetListenerFromFD(handleStr string, name string) (net.Listener, error) {
 
 // winSocketListener wraps a Windows socket handle to implement net.Listener
 type winSocketListener struct {
-	handle syscall.Handle
+	handle windows.Handle
 	name   string
 	addr   net.Addr
 }
 
 func (l *winSocketListener) initAddr() error {
 	// Get the local address from the socket using getsockname
-	sa, err := syscall.Getsockname(l.handle)
+	var sa windows.RawSockaddrAny
+	saLen := int32(unsafe.Sizeof(sa))
+	err := windows.Getsockname(l.handle, &sa, &saLen)
 	if err != nil {
 		return err
 	}
-	l.addr = sockaddrToTCPAddr(sa)
+	l.addr = rawSockaddrToTCPAddr(&sa)
 	return nil
 }
 
 func (l *winSocketListener) Accept() (net.Conn, error) {
-	// Accept a new connection on the socket
-	newHandle, sa, err := syscall.Accept(l.handle)
+	// Accept a new connection using Windows API
+	var sa windows.RawSockaddrAny
+	saLen := int32(unsafe.Sizeof(sa))
+
+	newHandle, err := windows.Accept(l.handle, &sa, &saLen)
 	if err != nil {
 		return nil, &net.OpError{Op: "accept", Net: "tcp", Err: err}
 	}
@@ -71,14 +79,14 @@ func (l *winSocketListener) Accept() (net.Conn, error) {
 	conn := &winSocketConn{
 		handle:     newHandle,
 		localAddr:  l.addr,
-		remoteAddr: sockaddrToTCPAddr(sa),
+		remoteAddr: rawSockaddrToTCPAddr(&sa),
 	}
 
 	return conn, nil
 }
 
 func (l *winSocketListener) Close() error {
-	return syscall.Closesocket(l.handle)
+	return windows.Closesocket(l.handle)
 }
 
 func (l *winSocketListener) Addr() net.Addr {
@@ -87,29 +95,40 @@ func (l *winSocketListener) Addr() net.Addr {
 
 // winSocketConn wraps a Windows socket handle to implement net.Conn
 type winSocketConn struct {
-	handle     syscall.Handle
+	handle     windows.Handle
 	localAddr  net.Addr
 	remoteAddr net.Addr
 }
 
 func (c *winSocketConn) Read(b []byte) (int, error) {
-	n, err := syscall.Read(c.handle, b)
-	if err != nil {
-		return n, &net.OpError{Op: "read", Net: "tcp", Err: err}
+	var bytesRead uint32
+	var flags uint32
+	buf := windows.WSABuf{
+		Len: uint32(len(b)),
+		Buf: &b[0],
 	}
-	return n, nil
+	err := windows.WSARecv(c.handle, &buf, 1, &bytesRead, &flags, nil, nil)
+	if err != nil {
+		return int(bytesRead), &net.OpError{Op: "read", Net: "tcp", Err: err}
+	}
+	return int(bytesRead), nil
 }
 
 func (c *winSocketConn) Write(b []byte) (int, error) {
-	n, err := syscall.Write(c.handle, b)
-	if err != nil {
-		return n, &net.OpError{Op: "write", Net: "tcp", Err: err}
+	var bytesSent uint32
+	buf := windows.WSABuf{
+		Len: uint32(len(b)),
+		Buf: &b[0],
 	}
-	return n, nil
+	err := windows.WSASend(c.handle, &buf, 1, &bytesSent, 0, nil, nil)
+	if err != nil {
+		return int(bytesSent), &net.OpError{Op: "write", Net: "tcp", Err: err}
+	}
+	return int(bytesSent), nil
 }
 
 func (c *winSocketConn) Close() error {
-	return syscall.Closesocket(c.handle)
+	return windows.Closesocket(c.handle)
 }
 
 func (c *winSocketConn) LocalAddr() net.Addr {
@@ -127,21 +146,15 @@ func (c *winSocketConn) SetDeadline(t time.Time) error {
 	return c.SetWriteDeadline(t)
 }
 
-// Windows socket options not defined in syscall package
-const (
-	soRcvTimeo = 0x1006 // SO_RCVTIMEO
-	soSndTimeo = 0x1005 // SO_SNDTIMEO
-)
-
 func (c *winSocketConn) SetReadDeadline(t time.Time) error {
-	return setSocketTimeout(c.handle, soRcvTimeo, t)
+	return setSocketTimeout(c.handle, windows.SO_RCVTIMEO, t)
 }
 
 func (c *winSocketConn) SetWriteDeadline(t time.Time) error {
-	return setSocketTimeout(c.handle, soSndTimeo, t)
+	return setSocketTimeout(c.handle, windows.SO_SNDTIMEO, t)
 }
 
-func setSocketTimeout(handle syscall.Handle, opt int, t time.Time) error {
+func setSocketTimeout(handle windows.Handle, opt int, t time.Time) error {
 	var timeout int32
 	if !t.IsZero() {
 		d := time.Until(t)
@@ -150,22 +163,26 @@ func setSocketTimeout(handle syscall.Handle, opt int, t time.Time) error {
 		}
 		timeout = int32(d.Milliseconds())
 	}
-	return syscall.SetsockoptInt(handle, syscall.SOL_SOCKET, opt, int(timeout))
+	return windows.SetsockoptInt(handle, syscall.SOL_SOCKET, opt, int(timeout))
 }
 
-// sockaddrToTCPAddr converts a syscall.Sockaddr to a *net.TCPAddr
-func sockaddrToTCPAddr(sa syscall.Sockaddr) *net.TCPAddr {
-	switch sa := sa.(type) {
-	case *syscall.SockaddrInet4:
+// rawSockaddrToTCPAddr converts a windows.RawSockaddrAny to a *net.TCPAddr
+func rawSockaddrToTCPAddr(sa *windows.RawSockaddrAny) *net.TCPAddr {
+	switch sa.Addr.Family {
+	case windows.AF_INET:
+		addr := (*windows.RawSockaddrInet4)(unsafe.Pointer(sa))
+		port := int(addr.Port>>8) | int(addr.Port&0xff)<<8 // network byte order
 		return &net.TCPAddr{
-			IP:   net.IPv4(sa.Addr[0], sa.Addr[1], sa.Addr[2], sa.Addr[3]),
-			Port: sa.Port,
+			IP:   net.IPv4(addr.Addr[0], addr.Addr[1], addr.Addr[2], addr.Addr[3]),
+			Port: port,
 		}
-	case *syscall.SockaddrInet6:
+	case windows.AF_INET6:
+		addr := (*windows.RawSockaddrInet6)(unsafe.Pointer(sa))
+		port := int(addr.Port>>8) | int(addr.Port&0xff)<<8 // network byte order
 		return &net.TCPAddr{
-			IP:   sa.Addr[:],
-			Port: sa.Port,
-			Zone: zoneToString(int(sa.ZoneId)),
+			IP:   addr.Addr[:],
+			Port: port,
+			Zone: zoneToString(int(addr.Scope_id)),
 		}
 	default:
 		return nil
