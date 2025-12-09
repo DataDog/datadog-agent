@@ -988,12 +988,17 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 		return n, err
 	}
 
-	// at this point, only the cgroup file is available, we need to resolve the cgroup context
-	cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(ev.ProcessContext.Process.CGroup.CGroupFile)
-	if err != nil {
-		return n, err
+	// Important : ev.ProcessContext is populated from the unmarshaling of the event.
+
+	if !ev.ProcessContext.Process.CGroup.CGroupFile.IsNull() {
+		cgroupContext, _, err := p.Resolvers.ResolveCGroupContext(ev.ProcessContext.Process.CGroup.CGroupFile)
+		if err != nil {
+			return n, err
+		}
+		p.Resolvers.ProcessResolver.SetProcessCGroupContext(entry, cgroupContext)
+	} else {
+		seclog.Debugf("no cgroup file available for process %d", entry.Pid)
 	}
-	p.Resolvers.ProcessResolver.SetProcessCGroupContext(entry, cgroupContext)
 
 	entry.Source = model.ProcessCacheEntryFromEvent
 
