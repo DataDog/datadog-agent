@@ -43,7 +43,7 @@ func TestBatteryCheckWithMockedData(t *testing.T) {
 			FullChargedCapacity: 95000,
 			MaximumCapacityPct:  95.0,
 			CycleCount:          150,
-			CurrentCharge:       84.21,
+			CurrentChargePct:    84.21,
 			Voltage:             12450, // 12.45V in mV
 			ChargeRate:          -2500, // -2.5A discharge rate in mA
 			PowerState:          []string{"power_state:battery_discharging"},
@@ -74,7 +74,7 @@ func TestBatteryCheckWithMockedData(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "system.battery.maximum_capacity", 95000.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.maximum_capacity_pct", 95.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.cycle_count", 150.0, "", []string(nil))
-	mockSender.AssertMetric(t, "Gauge", "system.battery.current_charge", 84.21, "", []string(nil))
+	mockSender.AssertMetric(t, "Gauge", "system.battery.current_charge_pct", 84.21, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.voltage", 12450.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.charge_rate", -2500.0, "", []string(nil))
 	mockSender.AssertMetric(t, "Gauge", "system.battery.power_state", 1.0, "", []string{"power_state:battery_discharging"})
@@ -145,7 +145,7 @@ func TestBatteryMultipleRuns(t *testing.T) {
 			FullChargedCapacity: 95000,
 			MaximumCapacityPct:  95.0,
 			CycleCount:          150,
-			CurrentCharge:       85.0 - float64(callCount*5.0),  // Simulate discharge (percentage)
+			CurrentChargePct:    85.0 - float64(callCount*5.0),  // Simulate discharge (percentage)
 			Voltage:             12300 - float64(callCount*50),  // Voltage drops as battery discharges
 			ChargeRate:          -2000 - float64(callCount*100), // Discharge rate increases
 			PowerState:          []string{"power_state:battery_discharging"},
@@ -214,7 +214,7 @@ func TestBatteryHealthLevels(t *testing.T) {
 					FullChargedCapacity: tt.fullChargedCapacity,
 					MaximumCapacityPct:  healthPercent,
 					CycleCount:          100,
-					CurrentCharge:       50.0,
+					CurrentChargePct:    50.0,
 					Voltage:             12500, // 12.5V
 					ChargeRate:          0,     // Not charging/discharging
 					PowerState:          []string{"power_state:battery_power_on_line"},
@@ -264,7 +264,7 @@ func TestBatteryDischargeSimulation(t *testing.T) {
 			FullChargedCapacity: 48000,
 			MaximumCapacityPct:  96.0, // Percentage (48000/50000 * 100)
 			CycleCount:          150,
-			CurrentCharge:       charge,               // Already percentage
+			CurrentChargePct:    charge,               // Already percentage
 			Voltage:             12500 - (charge * 5), // Voltage decreases as charge decreases
 			ChargeRate:          -1500 - (charge * 2), // Discharge rate varies with charge
 			PowerState:          []string{"power_state:battery_discharging"},
@@ -351,7 +351,7 @@ func TestBatteryPowerStates(t *testing.T) {
 					FullChargedCapacity: 48000,
 					MaximumCapacityPct:  96.0,
 					CycleCount:          100,
-					CurrentCharge:       75.0,
+					CurrentChargePct:    75.0,
 					Voltage:             12400, // 12.4V
 					ChargeRate:          -1800, // Discharging at 1.8A
 					PowerState:          tt.powerState,
