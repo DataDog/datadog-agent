@@ -105,12 +105,12 @@ github.com/vmihailenco/tagparser v0.1.2 h1:gnjoVuB/kljJ5wICEEOpx98oXMWPLj22G67Vb
 github.com/vmihailenco/tagparser v0.1.2/go.mod h1:OeAg3pn3UbLjkWt+rN9oFYB6u/cQgqMEUPoW2WPyhdI=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
-go.opentelemetry.io/collector/featuregate v1.47.0 h1:LuJnDngViDzPKds5QOGxVYNL1QCCVWN/m61lHTV8Pf4=
-go.opentelemetry.io/collector/featuregate v1.47.0/go.mod h1:d0tiRzVYrytB6LkcYgz2ESFTv7OktRPQe0QEQcPt1L4=
+go.opentelemetry.io/collector/featuregate v1.47.1-0.20251204124628-a330ae2ccbb5 h1:ZgAr6Ea5Ah+ZYPXV1O705E1ButOXOcHpG7X/aqgeSAQ=
+go.opentelemetry.io/collector/featuregate v1.47.1-0.20251204124628-a330ae2ccbb5/go.mod h1:/1bclXgP91pISaEeNulRxzzmzMTm4I5Xih2SnI4HRSo=
 go.opentelemetry.io/collector/internal/testutil v0.141.0 h1:/rUGApojPtUPMN3rFfApNgEjAt03rCGt2qxNxGGs/4A=
 go.opentelemetry.io/collector/internal/testutil v0.141.0/go.mod h1:YAD9EAkwh/l5asZNbEBEUCqEjoL1OKMjAMoPjPqH76c=
-go.opentelemetry.io/collector/pdata v1.47.0 h1:4Mk0mo2RlKCUPomV8ISm+Yx/STFtuSn88yjiCePHkGA=
-go.opentelemetry.io/collector/pdata v1.47.0/go.mod h1:yMdjdWZBNA8wLFCQXOCLb0RfcpZOxp7exH+bN7udWO0=
+go.opentelemetry.io/collector/pdata v1.47.1-0.20251204124628-a330ae2ccbb5 h1:Rk7822425BYLSbERtfZQjEA5uSZlr1oq1mXNYnowP/E=
+go.opentelemetry.io/collector/pdata v1.47.1-0.20251204124628-a330ae2ccbb5/go.mod h1:GqJMMiLUqYPYYsh5hHwWmZnMm7sAiqrv9e8gA9EIqWU=
 go.opentelemetry.io/proto/slim/otlp v1.9.0 h1:fPVMv8tP3TrsqlkH1HWYUpbCY9cAIemx184VGkS6vlE=
 go.opentelemetry.io/proto/slim/otlp v1.9.0/go.mod h1:xXdeJJ90Gqyll+orzUkY4bOd2HECo5JofeoLpymVqdI=
 go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development v0.2.0 h1:o13nadWDNkH/quoDomDUClnQBpdQQ2Qqv0lQBjIXjE8=

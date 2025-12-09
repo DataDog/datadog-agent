@@ -233,7 +233,7 @@ require (
 	github.com/avast/retry-go/v4 v4.6.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.2
 	github.com/digitalocean/go-libvirt v0.0.0-20240812180835-9c6c0a310c6c
-	github.com/goccy/go-yaml v1.18.0
+	github.com/goccy/go-yaml v1.19.0
 	github.com/google/go-containerregistry v0.20.3
 	github.com/hairyhenderson/go-codeowners v0.7.0
 )
@@ -289,7 +289,7 @@ require (
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/iwdgo/sigintwindows v0.2.2 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/klauspost/compress v1.18.1 // indirect
+	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -327,9 +327,9 @@ require (
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/collector/component v1.47.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.47.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.47.0 // indirect
+	go.opentelemetry.io/collector/component v1.47.1-0.20251204124628-a330ae2ccbb5 // indirect
+	go.opentelemetry.io/collector/featuregate v1.47.1-0.20251204124628-a330ae2ccbb5 // indirect
+	go.opentelemetry.io/collector/pdata v1.47.1-0.20251204124628-a330ae2ccbb5 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
