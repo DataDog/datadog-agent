@@ -49,7 +49,7 @@ const (
 
 	// Data rate (PHY link rate) valid range in Mbps
 	minDataRate = 0     // 0 indicates unknown/inactive
-	maxDataRate = 40000 // 40 Gbps
+	maxDataRate = 100000 // 100 Gbps (supports WiFi 8 and beyond)
 
 	// MAC address standard format length (XX:XX:XX:XX:XX:XX)
 	macAddressLength = 17
@@ -94,23 +94,24 @@ func GetWiFiInfo() (wifiInfo, error) {
 
 	// Try to fetch from console user's GUI
 	socketPath := filepath.Join(pkgconfigsetup.InstallPath, "run", fmt.Sprintf("gui-%s.sock", uid))
-	info, err := fetchWiFiFromGUI(socketPath, 2*time.Second)
+	info, err := fetchWiFiFromGUI(socketPath, 1*time.Second)
 	if err != nil {
 		// GUI might not be running - try to launch it
 		log.Infof("Console user's GUI not responding, attempting to launch it: %v", err)
 		if launchErr := launchGUIApp(uid); launchErr != nil {
 			log.Warnf("Failed to launch console user's GUI app: %v", launchErr)
 		} else {
-			log.Info("Waiting for console user's GUI to start, retrying connection...")
+		log.Info("Waiting for console user's GUI to start, retrying connection...")
 
-			// Retry connection (up to 20 fast attempts before giving up)
-			retryErr := checkpkg.Retry(500*time.Millisecond, 20, func() error {
-				info, err = fetchWiFiFromGUI(socketPath, 2*time.Second)
-				if err != nil {
-					return checkpkg.RetryableError{Err: err}
-				}
-				return nil
-			}, "GUI WiFi socket connection")
+		// Retry connection (give GUI ~1.6s to start, then fallback)
+		// This prevents blocking the check scheduler for too long (WiFi metrics are periodic, not critical)
+		retryErr := checkpkg.Retry(400*time.Millisecond, 4, func() error {
+			info, err = fetchWiFiFromGUI(socketPath, 1*time.Second)
+			if err != nil {
+				return checkpkg.RetryableError{Err: err}
+			}
+			return nil
+		}, "GUI WiFi socket connection")
 
 			if retryErr == nil {
 				// Successfully connected after launch
@@ -149,7 +150,7 @@ func tryAnyAvailableGUISocket() (wifiInfo, error) {
 	var lastErr error
 	for _, socketPath := range sockets {
 		log.Debugf("Trying fallback socket: %s", socketPath)
-		info, err := fetchWiFiFromGUI(socketPath, 2*time.Second)
+		info, err := fetchWiFiFromGUI(socketPath, 1*time.Second)
 		if err == nil {
 			log.Infof("Successfully retrieved WiFi data from fallback socket: %s", socketPath)
 			return info, nil

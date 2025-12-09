@@ -100,7 +100,7 @@ sudo -Hu "$INSTALL_USER" cp -vf "$CONF_DIR/com.datadoghq.agent.plist.example" "$
 # Install GUI LaunchAgent based on installation mode
 if [ -f "/tmp/install-ddagent/system-wide" ]; then
   # System-wide installation: Install GUI app for all users (headless mode)
-  echo "# Configuring GUI for system-wide installation"
+  echo "# Configuring GUI app for system-wide installation"
 
   # Install GUI appfor ALL users (headless mode)
   cp -vf "$CONF_DIR/com.datadoghq.gui.plist.example" /Library/LaunchAgents/com.datadoghq.gui.plist
@@ -119,12 +119,12 @@ if [ -f "/tmp/install-ddagent/system-wide" ]; then
   echo "=========================================="
   echo "Datadog Agent GUI (System-Wide)"
   echo "=========================================="
-  echo "The GUI will launch automatically for each user when they log in."
+  echo "The GUI app will launch automatically for each user when they log in."
   echo ""
   echo "For WiFi data collection (SSID/BSSID), users must grant Location permission:"
   echo "  System Settings -> Privacy & Security -> Location Services -> Enable 'Datadog Agent'"
   echo ""
-  echo "Note: The GUI will prompt for this permission when it starts."
+  echo "Note: The GUI will prompt for this permission when needed."
   echo "=========================================="
   echo ""
 else
