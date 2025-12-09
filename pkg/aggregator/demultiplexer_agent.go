@@ -21,6 +21,7 @@ import (
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	metrichistory "github.com/DataDog/datadog-agent/pkg/aggregator/metric_history"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/metric_history/detectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -210,8 +211,18 @@ func initAgentDemultiplexer(log log.Component,
 	if histCfg.Enabled {
 		log.Infof("Metric history cache enabled, tracking prefixes: %v", histCfg.IncludePrefixes)
 		metricHistCache = metrichistory.NewMetricHistoryCache()
-		metricHistCache.SetIncludePrefixes(histCfg.IncludePrefixes)
-		// Note: capacity configuration will be added when we implement rollup
+		metricHistCache.Configure(histCfg)
+
+		// Set up anomaly detection
+		registry := metrichistory.NewDetectorRegistry()
+		if histCfg.AnomalyDetectionEnabled {
+			// Create and configure the mean change detector
+			detector := detectors.NewMeanChangeDetector()
+			detector.Threshold = histCfg.MeanChangeThreshold
+			detector.MinSegmentSize = histCfg.MeanChangeMinSegment
+			registry.Register(detector)
+		}
+		metricHistCache.SetupDetectors(histCfg, registry)
 	}
 
 	// --
@@ -508,6 +519,16 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
 		})
+
+	// Metric history cache maintenance and anomaly detection
+	// -------------------------------------------------------
+	if d.metricHistoryCache != nil {
+		anomalies := d.metricHistoryCache.OnFlush(start)
+		for _, a := range anomalies {
+			d.log.Warnf("[ANOMALY DETECTED] %s | %s: %s (severity: %.2f)",
+				a.DetectorName, a.SeriesKey.Name, a.Message, a.Severity)
+		}
+	}
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)

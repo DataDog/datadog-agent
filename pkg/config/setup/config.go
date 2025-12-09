@@ -1608,6 +1608,12 @@ func aggregator(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_history.retention.recent_duration", "5m")
 	config.BindEnvAndSetDefault("metric_history.retention.medium_duration", "1h")
 	config.BindEnvAndSetDefault("metric_history.retention.long_duration", "24h")
+
+	// Metric history anomaly detection
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.enabled", true)
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.detection_interval_flushes", 4)
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.mean_change_threshold", 2.0)
+	config.BindEnvAndSetDefault("metric_history.anomaly_detection.mean_change_min_segment", 5)
 }
 
 func serverless(config pkgconfigmodel.Setup) {

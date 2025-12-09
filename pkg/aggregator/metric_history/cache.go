@@ -31,6 +31,12 @@ type MetricHistoryCache struct {
 
 	// Expiry duration for series that haven't been seen
 	expiryDuration time.Duration // default: 25 minutes (100 cycles * 15s)
+
+	// Anomaly detection
+	flushCount        int
+	detectionEnabled  bool
+	detectionInterval int
+	registry          *DetectorRegistry
 }
 
 // NewMetricHistoryCache creates a new cache with default configuration.
@@ -161,4 +167,36 @@ func (c *MetricHistoryCache) Expire(nowTimestamp int64) int {
 	}
 
 	return expired
+}
+
+// OnFlush is called after each flush cycle to perform maintenance.
+// Returns any detected anomalies.
+func (c *MetricHistoryCache) OnFlush(now time.Time) []Anomaly {
+	c.flushCount++
+
+	// Always run rollup and expiration
+	c.Rollup(now)
+	c.Expire(now.Unix())
+
+	// Run detection if it's time
+	if c.detectionEnabled && c.detectionInterval > 0 && c.flushCount%c.detectionInterval == 0 {
+		return c.runDetection()
+	}
+	return nil
+}
+
+// runDetection runs all registered detectors against the cache.
+func (c *MetricHistoryCache) runDetection() []Anomaly {
+	if c.registry == nil {
+		return nil
+	}
+	return c.registry.RunAll(c)
+}
+
+// SetupDetectors configures anomaly detection based on the provided configuration.
+// The registry parameter should be pre-configured with detectors.
+func (c *MetricHistoryCache) SetupDetectors(cfg Config, registry *DetectorRegistry) {
+	c.registry = registry
+	c.detectionEnabled = cfg.AnomalyDetectionEnabled
+	c.detectionInterval = cfg.DetectionIntervalFlushes
 }

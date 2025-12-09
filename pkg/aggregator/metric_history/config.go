@@ -19,6 +19,12 @@ type Config struct {
 	MediumDuration  time.Duration
 	LongDuration    time.Duration
 	ExpiryDuration  time.Duration
+
+	// Anomaly detection configuration
+	AnomalyDetectionEnabled  bool
+	DetectionIntervalFlushes int     // run detection every N flushes (default: 4, ~1 minute)
+	MeanChangeThreshold      float64 // default: 2.0
+	MeanChangeMinSegment     int     // default: 5
 }
 
 // DefaultConfig returns the default configuration.
@@ -30,6 +36,12 @@ func DefaultConfig() Config {
 		MediumDuration:  1 * time.Hour,
 		LongDuration:    24 * time.Hour,
 		ExpiryDuration:  25 * time.Minute, // 100 flush cycles * 15s
+
+		// Anomaly detection defaults
+		AnomalyDetectionEnabled:  true,
+		DetectionIntervalFlushes: 4,   // ~1 minute at 15s flush interval
+		MeanChangeThreshold:      2.0, // 2 standard deviations
+		MeanChangeMinSegment:     5,   // minimum 5 points per segment
 	}
 }
 
@@ -67,6 +79,23 @@ func LoadConfig(cfg model.Reader) Config {
 		if duration, err := time.ParseDuration(cfg.GetString("metric_history.expiry_duration")); err == nil {
 			result.ExpiryDuration = duration
 		}
+	}
+
+	// Load anomaly detection configuration
+	if cfg.IsSet("metric_history.anomaly_detection.enabled") {
+		result.AnomalyDetectionEnabled = cfg.GetBool("metric_history.anomaly_detection.enabled")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.detection_interval_flushes") {
+		result.DetectionIntervalFlushes = cfg.GetInt("metric_history.anomaly_detection.detection_interval_flushes")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.mean_change_threshold") {
+		result.MeanChangeThreshold = cfg.GetFloat64("metric_history.anomaly_detection.mean_change_threshold")
+	}
+
+	if cfg.IsSet("metric_history.anomaly_detection.mean_change_min_segment") {
+		result.MeanChangeMinSegment = cfg.GetInt("metric_history.anomaly_detection.mean_change_min_segment")
 	}
 
 	return result
