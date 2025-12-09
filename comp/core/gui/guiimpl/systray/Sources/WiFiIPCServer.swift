@@ -76,7 +76,7 @@ class WiFiIPCServer {
             }
         }
 
-        // Set umask to create socket with 0o660 permissions atomically
+        // Set umask to create socket with 0o660 (-rw-rw----) permissions atomically
         let oldUmask = umask(0o117)
         defer {
             // Restore original umask after bind
