@@ -222,12 +222,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 				renderedString = renderedString[:drainMaxLineLength]
 			}
 
+			// TODO: Remove timestamp prefix
+
 			drainProcessor := GetDrainProcessor()
 			cluster := drainProcessor.Match(renderedString)
 			drainProcessor.Train(renderedString)
+			// Ignore log if belongs to a too big cluster
 			if cluster != nil && cluster.Size() >= drainClusterSizeThreshold {
-				// rendered = append([]byte("[DRAIN-IGNORED] "), rendered...)
-				log.Info("drain: IGNORED")
+				rendered = append([]byte("[DRAIN-IGNORED] "), rendered...)
+				msg.ProcessingTags = append(msg.ProcessingTags, "drain_ignored:true")
 				metrics.TlmDrainIgnored.Inc()
 			}
 		}
