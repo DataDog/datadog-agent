@@ -261,7 +261,6 @@ func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgM
 		fakeContainer: fakeContainer,
 	}, imgMeta, scanOptions)
 
-	report.method = "overlayfs"
 	return report, err
 }
 
@@ -314,7 +313,6 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		return nil, fmt.Errorf("unable to scan image %s, err: %w", imgMeta.ID, err)
 	}
 
-	report.method = "filesystem"
 	return report, err
 }
 

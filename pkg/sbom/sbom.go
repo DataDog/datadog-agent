@@ -7,7 +7,6 @@
 package sbom
 
 import (
-	"strings"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
@@ -27,7 +26,6 @@ const (
 type Report interface {
 	ToCycloneDX() *cyclonedx_v1_4.Bom
 	ID() string
-	Tags() []string
 }
 
 // ScanOptionsFromConfigForContainers loads the scanning options from the configuration
@@ -60,13 +58,13 @@ type ScanOptions = types.ScanOptions
 
 // ScanResult defines the scan result
 type ScanResult struct {
-	Error     error
-	Report    Report
-	CreatedAt time.Time
-	Duration  time.Duration
-	ImgMeta   *workloadmeta.ContainerImageMetadata
-	RequestID string
-	Tags      []string
+	Error            error
+	Report           Report
+	CreatedAt        time.Time
+	Duration         time.Duration
+	GenerationMethod string
+	ImgMeta          *workloadmeta.ContainerImageMetadata
+	RequestID        string
 }
 
 // ConvertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
@@ -87,14 +85,9 @@ func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
 		CycloneDXBOM:       report,
 		GenerationTime:     result.CreatedAt,
 		GenerationDuration: result.Duration,
+		GenerationMethod:   result.GenerationMethod,
 		Status:             status,
 		Error:              reportedError,
-	}
-
-	for _, tag := range result.Tags {
-		if strings.HasPrefix(ScanMethodTagName+":", tag) {
-			sbom.GenerationMethod = strings.TrimPrefix(tag, ScanMethodTagName+":")
-		}
 	}
 
 	return sbom

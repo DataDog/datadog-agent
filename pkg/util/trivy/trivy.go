@@ -264,12 +264,7 @@ func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions
 	}
 
 	hash := "sha256:" + base64.StdEncoding.EncodeToString(hasher.Sum(nil))
-	report, err := c.buildReport(trivyReport, hash)
-	if report != nil {
-		report.method = "filesystem"
-	}
-
-	return report, err
+	return c.buildReport(trivyReport, hash)
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier) (*types.Report, error) {
