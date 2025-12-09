@@ -24,7 +24,7 @@ _SQLITE3_PUBLIC_HEADERS = [
 ]
 
 cc_library(
-    name = "_sqlite3_impl",
+    name = "libsqlite3",
     srcs = [
         "sqlite3.c",
     ],
@@ -46,11 +46,12 @@ cc_library(
         "//conditions:default": ["-O3"],
     }),
     linkstatic = True,
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "sqlite3",
-    deps = [":_sqlite3_impl"],
+    deps = [":libsqlite3"],
     dynamic_deps = select({
         "@platforms//os:windows": [],
         "//conditions:default": ["@zlib//:z"],
