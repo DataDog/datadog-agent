@@ -75,7 +75,7 @@ filter_directory(
     strip_prefix = ".",
 )
 
-# You would expect that filter_directory returns something useable to pkg_* rules.
+# You would expect that filter_directory returns something usable to pkg_* rules.
 # It does not, so we have to wrap it.
 pkg_files(
     name = "offer_copies",
