@@ -1,0 +1,10 @@
+# openscap
+
+alias(
+    name = "all_deps",
+    actual = "@openscap//:all_deps",
+    visibility = [
+        "//compliance:__pkg__",
+        "//packages:__subpackages__",
+    ],
+)

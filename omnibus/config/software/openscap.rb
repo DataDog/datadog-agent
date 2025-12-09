@@ -15,6 +15,17 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
+# Install all my deps.
+# During migration we'll shift omnibus dependency's to this block
+# Eventually, all the dependencies are done with bazel, and we can build openscap directly.
+# Then this entire file will be removed.
+build do
+  command_on_repo_root "bazelisk run -- @popt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/popt.pc" \
+    " #{install_dir}/embedded/lib/libpopt.so"
+-end
+
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'

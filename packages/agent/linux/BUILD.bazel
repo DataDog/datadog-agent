@@ -1,0 +1,20 @@
+# agent linux distribution packages
+
+load("//compliance:package_licenses.bzl", "package_licenses")
+
+filegroup(
+    name = "all_deps",
+    srcs = [
+        "//deps:all_deps",
+    ] + select({
+        "@platforms//os:linux": [
+            "//deps/openscap:all_deps",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+package_licenses(
+    name = "license_files",
+    src = ":all_deps",
+)

@@ -27,6 +27,14 @@ build do
         # Push all the pieces built with Bazel.
         command_on_repo_root "bazelisk run -- //packages/install_dir:install --destdir=#{install_dir}",  env: {"BUILD_WORKSPACE_DIRECTORY" => "." }
 
+	if linux_target?
+	    if heroku_target?
+               command_on_repo_root "bazelisk run -- //packages/agent/heroku:install_license_files --destdir=#{install_dir}"
+            else
+               command_on_repo_root "bazelisk run -- //packages/agent/linux:install_license_files --destdir=#{install_dir}"
+            end
+        end
+
         # Conf files
         if windows_target?
             conf_dir = "#{install_dir}/etc/datadog-agent"
