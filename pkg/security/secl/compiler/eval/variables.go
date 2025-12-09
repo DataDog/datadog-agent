@@ -1070,6 +1070,7 @@ type MutableSECLVariable interface {
 type ScopedVariables struct {
 	scoperName     string
 	scoper         Scoper
+	varsLock       sync.RWMutex
 	vars           map[string]map[string]MutableSECLVariable
 	expirablesLock sync.RWMutex
 	expirables     map[string][]expirableVariable
@@ -1077,12 +1078,16 @@ type ScopedVariables struct {
 
 // Len returns the length of the variable map
 func (v *ScopedVariables) Len() int {
+	v.varsLock.RLock()
+	defer v.varsLock.RUnlock()
 	return len(v.vars)
 }
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName string, opts VariableOpts) (SECLVariable, error) {
 	getVariable := func(ctx *Context) MutableSECLVariable {
+		v.varsLock.RLock()
+		defer v.varsLock.RUnlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return nil
@@ -1102,6 +1107,8 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 	}
 
 	setVariable := func(ctx *Context, value any) error {
+		v.varsLock.Lock()
+		defer v.varsLock.Unlock()
 		scope := v.scoper(ctx)
 		if scope == nil {
 			return fmt.Errorf("`%s` scoper failed to scope variable '%s'", v.scoperName, name)
@@ -1218,7 +1225,9 @@ func (v *ScopedVariables) CleanupExpiredVariables() {
 
 // ReleaseVariable releases a scoped variable
 func (v *ScopedVariables) ReleaseVariable(key string) {
+	v.varsLock.Lock()
 	delete(v.vars, key)
+	v.varsLock.Unlock()
 	v.expirablesLock.Lock()
 	delete(v.expirables, key)
 	v.expirablesLock.Unlock()
