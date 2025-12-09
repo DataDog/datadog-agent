@@ -348,8 +348,8 @@ func (cr *Resolver) iterate(cb func(*cgroupModel.CacheEntry) bool) {
 	}
 }
 
-// GetWorkload returns the workload referenced by the provided ID
-func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
+// GetContainerWorkload returns the workload referenced by the provided container ID
+func (cr *Resolver) GetContainerWorkload(id containerutils.ContainerID) (*cgroupModel.CacheEntry, bool) {
 	if id == "" {
 		return nil, false
 	}
@@ -360,8 +360,8 @@ func (cr *Resolver) GetWorkload(id containerutils.ContainerID) (*cgroupModel.Cac
 	return cr.containerWorkloads.Get(id)
 }
 
-// GetWorkloadByCGroupID returns the workload referenced by the provided cgroup ID
-func (cr *Resolver) GetWorkloadByCGroupID(cgroupID containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
+// GetHostWorkload returns the workload referenced by the provided cgroup ID
+func (cr *Resolver) GetHostWorkload(cgroupID containerutils.CGroupID) (*cgroupModel.CacheEntry, bool) {
 	if cgroupID == "" {
 		return nil, false
 	}

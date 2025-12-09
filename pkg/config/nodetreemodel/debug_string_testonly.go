@@ -101,11 +101,11 @@ func (d *treeDebugger) appendExtraDetails(lines []string) []string {
 	return append(lines, res...)
 }
 
-func (d *treeDebugger) stringifySourceTree(tree Node, src model.Source) ([]string, error) {
+func (d *treeDebugger) stringifySourceTree(tree *nodeImpl, src model.Source) ([]string, error) {
 	if tree == nil {
 		return nil, fmt.Errorf("invalid source: %s", src)
 	}
-	if len(tree.(InnerNode).ChildrenKeys()) == 0 {
+	if len(tree.ChildrenKeys()) == 0 {
 		// If a tree is empty, don't process its root nodes. This allows
 		// OmitPointerAddr to correctly count unique nodes that actually appear.
 		return nil, nil
@@ -139,35 +139,31 @@ func (d *treeDebugger) branchCheckFilter(path string) (bool, bool) {
 	return false, false
 }
 
-func (d *treeDebugger) nodeToString(n Node, depth int, path string) ([]string, error) {
+func (d *treeDebugger) nodeToString(node *nodeImpl, depth int, path string) ([]string, error) {
 	isAllowBranch, isPrefixSetting := d.branchCheckFilter(path)
 	if !isAllowBranch {
 		return []string{}, nil
 	}
 
 	padding := strings.Repeat("  ", depth)
-	if n == nil {
+	if node == nil {
 		return []string{fmt.Sprintf("%s  %v", padding, "<nil>")}, nil
 	}
-	if leaf, ok := n.(LeafNode); ok {
+	if node.IsLeafNode() {
 		if !isPrefixSetting {
 			return []string{}, nil
 		}
-		val := leaf.Get()
-		source := leaf.Source()
-		ptr := d.makePointer(n)
+		val := node.Get()
+		source := node.Source()
+		ptr := d.makePointer(node)
 		showval := fmt.Sprintf("%v", val)
 		if strval, ok := val.(string); ok {
 			showval = fmt.Sprintf("%q", strval)
 		}
 		return []string{fmt.Sprintf("%s  leaf(%s), val:%v, source:%s", padding, ptr, showval, source)}, nil
 	}
-	inner, ok := n.(InnerNode)
-	if !ok {
-		return nil, fmt.Errorf("unknown node type: %T", n)
-	}
-	keys := inner.ChildrenKeys()
-	ptr := d.makePointer(n)
+	keys := node.ChildrenKeys()
+	ptr := d.makePointer(node)
 	result := []string{}
 	if depth > 0 && (isAllowBranch || isPrefixSetting) {
 		result = append(result, fmt.Sprintf("%sinner(%s)", padding, ptr))
@@ -178,7 +174,7 @@ func (d *treeDebugger) nodeToString(n Node, depth int, path string) ([]string, e
 			nextPath = key
 		}
 		msg := fmt.Sprintf("%s> %s", padding, key)
-		child, _ := n.GetChild(key)
+		child, _ := node.GetChild(key)
 		rest, err := d.nodeToString(child, depth+1, nextPath)
 		if err != nil {
 			return nil, err
