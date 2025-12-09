@@ -396,6 +396,7 @@ def is_system_probe(owners, files):
         ("TEAM", "@DataDog/ebpf-platform"),
         ("TEAM", "@DataDog/agent-security"),
         ("TEAM", "@DataDog/cloud-network-monitoring"),
+        ("TEAM", "@DataDog/network-path"),
         ("TEAM", "@DataDog/debugger-go"),
     }
     for f in files:

@@ -162,6 +162,7 @@ pkg_install(
         ":lib_files",
         ":license_files",
     ],
+    destdir_flag = "@@//:install_dir",
 )
 
 # buildifier: disable=no-effect
