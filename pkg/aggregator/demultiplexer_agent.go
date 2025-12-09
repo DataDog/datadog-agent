@@ -20,6 +20,7 @@ import (
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	metrichistory "github.com/DataDog/datadog-agent/pkg/aggregator/metric_history"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -72,6 +73,9 @@ type AgentDemultiplexer struct {
 
 	// sharded statsd time samplers
 	statsd
+
+	// metric history cache for storing historical metric data
+	metricHistoryCache *metrichistory.MetricHistoryCache
 }
 
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
@@ -199,6 +203,17 @@ func initAgentDemultiplexer(log log.Component,
 		)
 	}
 
+	// metric history cache
+	// --------------------
+	var metricHistCache *metrichistory.MetricHistoryCache
+	histCfg := metrichistory.LoadConfig(pkgconfigsetup.Datadog())
+	if histCfg.Enabled {
+		log.Infof("Metric history cache enabled, tracking prefixes: %v", histCfg.IncludePrefixes)
+		metricHistCache = metrichistory.NewMetricHistoryCache()
+		metricHistCache.SetIncludePrefixes(histCfg.IncludePrefixes)
+		// Note: capacity configuration will be added when we implement rollup
+	}
+
 	// --
 	demux := &AgentDemultiplexer{
 		log:       log,
@@ -217,8 +232,9 @@ func initAgentDemultiplexer(log log.Component,
 			noAggSerializer:  noAggSerializer,
 		},
 
-		hostTagProvider: hosttags.NewHostTagProvider(),
-		senders:         newSenders(agg),
+		hostTagProvider:    hosttags.NewHostTagProvider(),
+		senders:            newSenders(agg),
+		metricHistoryCache: metricHistCache,
 
 		// statsd time samplers
 		statsd: statsd{
@@ -437,6 +453,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			// wrap the sink to observe metrics for history cache
+			if d.metricHistoryCache != nil {
+				seriesSink = metrichistory.NewObservingSink(seriesSink, d.metricHistoryCache)
+			}
+
 			// flush DogStatsD pipelines (statsd/time samplers)
 			// ------------------------------------------------
 
