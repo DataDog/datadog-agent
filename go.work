@@ -155,6 +155,7 @@ use (
 	pkg/util/flavor
 	pkg/util/fxutil
 	pkg/util/grpc
+	pkg/util/health
 	pkg/util/hostinfo
 	pkg/util/hostname/validate
 	pkg/util/http
