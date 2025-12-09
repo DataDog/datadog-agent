@@ -1,13 +1,3 @@
-Building configuration...
-Current configuration : 3781 bytes
-!
-! **********************************************************************
-! Sample Cisco IOS Running Configuration (for secret-hiding tests)
-! **********************************************************************
-!
-! Last configuration change at 12:34:56 UTC Fri Oct 10 2025 by admin
-! NVRAM config last updated at 12:35:10 UTC Fri Oct 10 2025 by admin
-!
 version 15.7
 service timestamps debug datetime msec
 service timestamps log datetime msec

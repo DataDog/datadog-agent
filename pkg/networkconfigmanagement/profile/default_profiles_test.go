@@ -65,3 +65,34 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		})
 	}
 }
+
+func Test_DefaultProfiles_Startup(t *testing.T) {
+	tests := []struct {
+		name                      string
+		profile                   *NCMProfile
+		fixture                   Fixture
+		expectedExtractedMetadata *ExtractedMetadata
+		expectedErrMsg            string
+	}{
+		{
+			name:    "Cisco IOS",
+			profile: IOSProfile(),
+			fixture: loadFixture("cisco-ios", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp:  1765307830,
+				ConfigSize: 3163,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.profile.initializeScrubbers()
+			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessCommandOutput(Startup, tt.fixture.Initial)
+			if tt.expectedErrMsg != "" {
+				assert.EqualError(t, err, tt.expectedErrMsg)
+			}
+			assert.Equal(t, tt.fixture.Expected, actualOutput)
+			assert.Equal(t, tt.expectedExtractedMetadata, actualExtractedMetadata)
+		})
+	}
+}
