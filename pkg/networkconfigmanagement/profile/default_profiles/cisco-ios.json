@@ -152,7 +152,7 @@
         "validation": [
           {
             "type": "valid_output",
-            "pattern": "Building configuration..."
+            "pattern": "! Last configuration change at"
           }
         ],
         "redaction": [
