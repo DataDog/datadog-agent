@@ -33,7 +33,6 @@ cc_library(
     copts = [
         "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
-        "-DSQLITE_HAVE_ZLIB",
         "-DSQLITE_THREADSAFE=1",
     ] + select({
         "@platforms//os:windows": [
@@ -52,10 +51,6 @@ cc_library(
 cc_shared_library(
     name = "sqlite3",
     deps = [":libsqlite3"],
-    dynamic_deps = select({
-        "@platforms//os:windows": [],
-        "//conditions:default": ["@zlib//:z"],
-    }),
     visibility = ["//visibility:public"],
 )
 
