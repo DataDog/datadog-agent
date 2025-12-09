@@ -1944,7 +1944,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
 	// Tag logs with their auto multiline detection label without aggregating them
-	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", false)
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
