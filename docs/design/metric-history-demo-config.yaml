@@ -1,0 +1,17 @@
+# Minimal agent config for metric history cache demo
+api_key: "0000001"  # Fake key for local testing
+
+# Enable metric history cache
+metric_history:
+  enabled: true
+  include_metrics:
+    - "system."
+    - "datadog.agent."
+  anomaly_detection:
+    enabled: true
+    detection_interval_flushes: 4  # every ~1 minute
+    mean_change_threshold: 2.0
+
+# Log to stdout for visibility
+log_level: info
+log_to_console: true
