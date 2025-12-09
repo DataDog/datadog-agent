@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/pkg/config/create"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
@@ -72,6 +74,10 @@ Example:
 				site = "datadoghq.com" // Default site
 			}
 			if runnerName == "" {
+				// Initialize minimal config and feature detection for hostname resolution
+				cfg := create.NewConfig("datadog")
+				env.DetectFeatures(cfg)
+
 				if agentHostname, err := hostname.Get(context.Background()); err == nil {
 					runnerName = agentHostname
 				} else {
