@@ -968,6 +968,22 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+.on_ssi_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/clusteragent/admission/mutate/autoinstrumentation/**/*
+        - pkg/clusteragent/admission/mutate/common/**/*
+        - pkg/clusteragent/admission/mutate/config/**/*
+        - pkg/clusteragent/admission/mutate/tagsfromlabels/**/*
+        - pkg/clusteragent/admission/common/**/*
+        - pkg/clusteragent/admission/controllers/webhook/**/*
+        - comp/core/workloadmeta/collectors/internal/kubeapiserver/**/*
+        - comp/languagedetection/**/*
+        - test/new-e2e/tests/ssi/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_windows_service_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
