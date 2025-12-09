@@ -154,7 +154,7 @@ configure_make(
         "@libffi//:ffi",
         "@openssl//:openssl",
         "@libyaml//:libyaml",
-        # "@sqlite3",
+        "@sqlite3//:libsqlite3",
         "@zlib//:zlib",
         "@bzip2//:libbz2",
         "@xz//:liblzma",
@@ -163,6 +163,7 @@ configure_make(
         "@zlib//:z",
         "@bzip2//:bz2",
         "@libyaml//:yaml",
+        "@sqlite3//:sqlite3",
     ],
     targets = [
         # Build in parallel but install without parallel execution
