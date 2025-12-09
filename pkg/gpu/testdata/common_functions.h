@@ -78,4 +78,21 @@ cudaError_t cudaDeviceSynchronize() {
     return 0;
 }
 
+cudaError_t cuLaunchKernel(const void *func, unsigned int grid_x, unsigned int grid_y, unsigned int grid_z, unsigned int block_x, unsigned int block_y, unsigned int block_z, unsigned int shared_mem, void* stream, void ** kernel_params, void ** extra) {
+    (void)func;
+    (void)grid_x;
+    (void)grid_y;
+    (void)grid_z;
+    (void)block_x;
+    (void)block_y;
+    (void)block_z;
+    (void)shared_mem;
+    return 0;
+}
+
+cudaError_t cuStreamSynchronize(cudaStream_t stream) {
+    (void)stream; // Suppress unused parameter warning
+    return 0;
+}
+
 #endif // COMMON_FUNCTIONS_H
