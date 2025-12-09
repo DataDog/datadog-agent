@@ -8,10 +8,11 @@
 package listeners
 
 import (
-	"fmt"
 	"hash/fnv"
 	"maps"
 	"strconv"
+
+	"github.com/samber/lo"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -31,21 +32,20 @@ const (
 
 // getStandardTags extract standard tags from labels of kubernetes services
 func getStandardTags(labels map[string]string) []string {
-	tags := []string{}
 	if labels == nil {
-		return tags
+		return []string{}
 	}
 	labelToTagKeys := map[string]string{
 		kubernetes.EnvTagLabelKey:     tagKeyEnv,
 		kubernetes.VersionTagLabelKey: tagKeyVersion,
 		kubernetes.ServiceTagLabelKey: tagKeyService,
 	}
-	for labelKey, tagKey := range labelToTagKeys {
+	return lo.FilterMapToSlice(labelToTagKeys, func(labelKey, tagKey string) (string, bool) {
 		if tagValue, found := labels[labelKey]; found {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, tagValue))
+			return tagKey + ":" + tagValue, true
 		}
-	}
-	return tags
+		return "", false
+	})
 }
 
 // standardTagsDigest computes the hash of standard tags in a map

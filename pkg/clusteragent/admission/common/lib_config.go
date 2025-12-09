@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -113,10 +114,9 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		})
 	}
 	if lc.TracingServiceMapping != nil {
-		pairs := make([]string, 0, len(lc.TracingServiceMapping))
-		for _, m := range lc.TracingServiceMapping {
-			pairs = append(pairs, fmt.Sprintf("%s:%s", m.FromKey, m.ToName))
-		}
+		pairs := lo.Map(lc.TracingServiceMapping, func(m TracingServiceMapEntry, _ int) string {
+			return m.FromKey + ":" + m.ToName
+		})
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_TRACE_SERVICE_MAPPING",
 			Value: strings.Join(pairs, ", "),
@@ -129,10 +129,9 @@ func (lc LibConfig) ToEnvs() []corev1.EnvVar {
 		})
 	}
 	if lc.TracingHeaderTags != nil {
-		pairs := make([]string, 0, len(lc.TracingHeaderTags))
-		for _, m := range lc.TracingHeaderTags {
-			pairs = append(pairs, fmt.Sprintf("%s:%s", m.Header, m.TagName))
-		}
+		pairs := lo.Map(lc.TracingHeaderTags, func(m TracingHeaderTagEntry, _ int) string {
+			return m.Header + ":" + m.TagName
+		})
 		envs = append(envs, corev1.EnvVar{
 			Name:  "DD_TRACE_HEADER_TAGS",
 			Value: strings.Join(pairs, ", "),

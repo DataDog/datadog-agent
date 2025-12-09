@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/samber/lo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -80,13 +81,12 @@ func buildDatadogQueryForExternalMetric(metricName string, labels map[string]str
 	if len(labels) == 0 {
 		result = metricName + "{*}"
 	} else {
-		datadogTags := []string{}
-		for key, val := range labels {
-			datadogTags = append(datadogTags, fmt.Sprintf("%s:%s", key, val))
-		}
+		datadogTags := lo.MapToSlice(labels, func(key, val string) string {
+			return key + ":" + val
+		})
 		sort.Strings(datadogTags)
 		tags := strings.Join(datadogTags, ",")
-		result = fmt.Sprintf("%s{%s}", metricName, tags)
+		result = metricName + "{" + tags + "}"
 	}
 
 	return fmt.Sprintf("%s:%s.rollup(%d)", queryConfigAggregator, result, queryConfigRollup)

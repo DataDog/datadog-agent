@@ -18,6 +18,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	containerdevents "github.com/containerd/containerd/events"
+	"github.com/samber/lo"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -44,12 +45,9 @@ func (c *ContainerdCheck) computeEvents(events []containerdEvent, sender sender.
 			continue
 		}
 
-		var tags []string
-		if len(e.Extra) > 0 {
-			for k, v := range e.Extra {
-				tags = append(tags, fmt.Sprintf("%s:%s", k, v))
-			}
-		}
+		tags := lo.MapToSlice(e.Extra, func(k, v string) string {
+			return k + ":" + v
+		})
 
 		alertType := event.AlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {

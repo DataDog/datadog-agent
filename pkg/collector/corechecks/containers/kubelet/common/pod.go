@@ -112,7 +112,7 @@ func (p *PodUtils) computePodTagsByPVC(pod *workloadmeta.KubernetesPod) {
 		if v.PersistentVolumeClaim != nil {
 			pvcName := v.PersistentVolumeClaim.ClaimName
 			if pvcName != "" {
-				p.podTagsByPVC[fmt.Sprintf("%s/%s", pod.Namespace, pvcName)] = filteredTags
+				p.podTagsByPVC[pod.Namespace+"/"+pvcName] = filteredTags
 			}
 		}
 
@@ -130,7 +130,7 @@ func (p *PodUtils) computePodTagsByPVC(pod *workloadmeta.KubernetesPod) {
 
 // GetPodTagsByPVC returns the computed pod tags for a PVC with a given name in a given namespace.
 func (p *PodUtils) GetPodTagsByPVC(namespace, pvcName string) []string {
-	return p.podTagsByPVC[fmt.Sprintf("%s/%s", namespace, pvcName)]
+	return p.podTagsByPVC[namespace+"/"+pvcName]
 }
 
 // IsStaticPendingPod returns whether the pod with the given UID is a static pending pod or not, or returns false

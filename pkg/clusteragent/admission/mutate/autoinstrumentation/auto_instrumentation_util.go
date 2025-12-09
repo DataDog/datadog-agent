@@ -8,8 +8,6 @@
 package autoinstrumentation
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -41,7 +39,7 @@ func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
 
 func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string) []libInfo {
 	// populate libInfoList using the languages found in workloadmeta
-	id := fmt.Sprintf("%s/%s", ns, deploymentName)
+	id := ns + "/" + deploymentName
 	deployment, err := store.GetKubernetesDeployment(id)
 	if err != nil {
 		return nil

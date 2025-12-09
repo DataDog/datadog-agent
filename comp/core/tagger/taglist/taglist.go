@@ -7,10 +7,11 @@
 package taglist
 
 import (
-	"fmt"
 	"maps"
 	"strings"
 	"unique"
+
+	"github.com/samber/lo"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -46,13 +47,13 @@ func addTags(target map[string]bool, name string, value string, splits map[strin
 		// common for tags like "kube_namespace", "pod_phase", "env",
 		// "kube_qos", etc. Using the unique package helps optimize memory usage
 		// in such cases.
-		key := unique.Make(fmt.Sprintf("%s:%s", name, value))
+		key := unique.Make(name + ":" + value)
 		target[key.Value()] = true
 		return
 	}
 
 	for _, elt := range strings.Split(value, sep) {
-		key := unique.Make(fmt.Sprintf("%s:%s", name, elt))
+		key := unique.Make(name + ":" + elt)
 		target[key.Value()] = true
 	}
 }
@@ -99,17 +100,7 @@ func (l *TagList) AddAuto(name, value string) {
 // - high cardinality
 // - standard tags
 func (l *TagList) Compute() ([]string, []string, []string, []string) {
-	return toSlice(l.lowCardTags), toSlice(l.orchestratorCardTags), toSlice(l.highCardTags), toSlice(l.standardTags)
-}
-
-func toSlice(m map[string]bool) []string {
-	s := make([]string, len(m))
-	index := 0
-	for tag := range m {
-		s[index] = tag
-		index++
-	}
-	return s
+	return lo.Keys(l.lowCardTags), lo.Keys(l.orchestratorCardTags), lo.Keys(l.highCardTags), lo.Keys(l.standardTags)
 }
 
 // Copy creates a deep copy of the taglist object for reuse
