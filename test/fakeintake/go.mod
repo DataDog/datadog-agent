@@ -20,7 +20,7 @@ require (
 	github.com/samber/lo v1.51.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
-	github.com/tinylib/msgp v1.5.0
+	github.com/tinylib/msgp v1.6.1
 	google.golang.org/protobuf v1.36.10
 )
 
