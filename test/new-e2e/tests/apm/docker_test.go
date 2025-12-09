@@ -262,7 +262,6 @@ func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
 }
 
 func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
-
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
 
@@ -281,12 +280,13 @@ func (s *DockerFakeintakeSuite) TestAPMModeDefault() {
 }
 
 func (s *DockerFakeintakeSuite) TestAPMModeEdge() {
-	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(
-		append(dockerAgentOptions(s.transport),
+	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithRunOptions(
+		scendocker.WithAgentOptions(append(dockerAgentOptions(s.transport),
 			dockeragentparams.WithAgentServiceEnvVariable(
 				"DD_APM_MODE",
 				pulumi.String("edge")),
-		)...)))
+		)...),
+	)))
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)

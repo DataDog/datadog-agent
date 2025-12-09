@@ -423,9 +423,13 @@ func (s *VMFakeintakeSuite) TestAPMModeDefault() {
 }
 
 func (s *VMFakeintakeSuite) TestAPMModeEdge() {
-	s.UpdateEnv(awshost.Provisioner(vmProvisionerOpts(awshost.WithAgentOptions(agentparams.WithAgentConfig(vmAgentConfig(s.transport, `
-apm_config.mode: edge
-`))))...))
+	cfg := `apm_config.mode: edge`
+	opts := vmProvisionerOpts(awshost.WithRunOptions(
+		ec2.WithAgentOptions(
+			agentparams.WithAgentConfig(vmAgentConfig(s.transport, cfg)),
+		),
+	))
+	s.UpdateEnv(awshost.Provisioner(opts...))
 
 	err := s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 	s.Require().NoError(err)
