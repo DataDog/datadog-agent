@@ -430,6 +430,10 @@
         "rule_context": {
           "$ref": "#/$defs/RuleContext",
           "description": "RuleContext rule context"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the event"
         }
       },
       "additionalProperties": false,

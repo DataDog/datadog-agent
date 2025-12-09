@@ -1130,9 +1130,9 @@ func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (inte
 			if err != nil {
 				return nil, err
 			}
-			if leaf, match := node.(nodetreemodel.LeafNode); match {
+			if node.IsLeafNode() {
 				// if we find a leaf, can't get a child of it
-				leafValue := leaf.Get()
+				leafValue := node.Get()
 				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
 					remain := strings.Join(parts[i:], ".")
 					return leafMap[remain], nil
