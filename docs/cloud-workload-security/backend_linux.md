@@ -441,6 +441,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "rule_context": {
                     "$ref": "#/$defs/RuleContext",
                     "description": "RuleContext rule context"
+                },
+                "source": {
+                    "type": "string",
+                    "description": "Source of the event"
                 }
             },
             "additionalProperties": false,
@@ -3095,6 +3099,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "rule_context": {
             "$ref": "#/$defs/RuleContext",
             "description": "RuleContext rule context"
+        },
+        "source": {
+            "type": "string",
+            "description": "Source of the event"
         }
     },
     "additionalProperties": false,
@@ -3113,6 +3121,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `matched_rules` | The list of rules that the event matched (only valid in the context of an anomaly) |
 | `variables` | Variables values |
 | `rule_context` | RuleContext rule context |
+| `source` | Source of the event |
 
 | References |
 | ---------- |
