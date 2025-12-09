@@ -199,16 +199,17 @@ func (is *softwareInventory) startSoftwareInventoryCollection(ctx context.Contex
 			break
 		}
 
-		// Only retry if System Probe hasn't started yet
+		// Only retry if System Probe hasn't started yet.
+		// This error is returned for the first 5min after the Agent startup (configurable with check_system_probe_startup_time).
 		if !errors.Is(err, sysprobeclient.ErrNotStartedYet) {
-			is.log.Warnf("Initial software inventory collection failed, will retry on next interval: %v", err)
+			_ = is.log.Warnf("Initial software inventory collection failed, will retry on next interval: %v", err)
 			break
 		}
 
-		is.log.Debugf("System Probe not ready yet, retrying in 1s: %v", err)
+		is.log.Debugf("System Probe not ready yet, retrying in 10s: %v", err)
 
 		// Use a timer that can be cancelled by context
-		timer := time.NewTimer(1 * time.Second)
+		timer := time.NewTimer(10 * time.Second)
 		select {
 		case <-timer.C:
 			continue
