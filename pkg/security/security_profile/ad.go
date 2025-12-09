@@ -523,11 +523,11 @@ workloadLoop:
 		defaultConfig := m.getDefaultLoadConfig()
 
 		// if not a container, check we should trace it
-		if workloads[0].ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		if workloads[0].ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
 			continue
 		}
 
-		if err := m.startDumpWithConfig(workloads[0].ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
+		if err := m.startDumpWithConfig(workloads[0].ContainerContext.ContainerID, workloads[0].CGroupContext, utils.NewCookie(), *defaultConfig); err != nil {
 			seclog.Debugf("%v", err)
 		}
 	}
