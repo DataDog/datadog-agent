@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -72,7 +74,6 @@ type Forwarder interface {
 	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
 	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
@@ -115,6 +116,7 @@ type Options struct {
 	APIKeyValidationInterval       time.Duration
 	DomainResolvers                map[string]pkgresolver.DomainResolver
 	ConnectionResetInterval        time.Duration
+	Secrets                        secrets.Component
 }
 
 // SetFeature sets forwarder features in a feature set
@@ -306,6 +308,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
+			secrets:               options.Secrets,
 			domainResolvers:       options.DomainResolvers,
 			disableAPIKeyChecking: options.DisableAPIKeyChecking,
 			validationInterval:    options.APIKeyValidationInterval,
@@ -385,6 +388,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 			fwd := newDomainForwarder(
 				config,
 				log,
+				options.Secrets,
 				domain,
 				resolver.IsMRF(),
 				resolver.IsLocal(),
@@ -438,7 +442,7 @@ func (f *DefaultForwarder) Start() error {
 	defer f.m.Unlock()
 
 	if f.internalState.Load() == Started {
-		return fmt.Errorf("the forwarder is already started")
+		return errors.New("the forwarder is already started")
 	}
 
 	for _, df := range f.domainForwarders {
@@ -549,7 +553,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Destination = payload.Destination
 				auth.Authorize(t)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 				if allowArbitraryTags {
 					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 				}
@@ -571,7 +575,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	if f.internalState.Load() == Stopped {
-		return fmt.Errorf("the forwarder is not started")
+		return errors.New("the forwarder is not started")
 	}
 
 	f.retryQueueDurationCapacityMutex.Lock()
@@ -694,11 +698,6 @@ func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload transaction.Byte
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
-// SubmitProcessEventChecks sends process events checks
-func (f *DefaultForwarder) SubmitProcessEventChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
-	return f.submitProcessLikePayload(endpoints.ProcessLifecycleEndpoint, payload, extra, true)
-}
-
 // SubmitRTProcessChecks sends real time process checks
 func (f *DefaultForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
@@ -795,7 +794,7 @@ func (f *DefaultForwarder) GetDomainResolvers() []pkgresolver.DomainResolver {
 // SubmitTransaction adds a transaction to the queue for sending.
 func (f *DefaultForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
 	t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-	t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 
 	if f.config.GetBool("allow_arbitrary_tags") {
 		t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")

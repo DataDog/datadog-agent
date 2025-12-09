@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -151,40 +152,40 @@ func Command() []*cobra.Command {
 
 						args := []string{
 							"trace",
-							fmt.Sprintf(`--%s`, probeAddrOpt),
+							"--" + probeAddrOpt,
 							params.ProbeAddr,
 						}
 
 						if params.Verbose {
-							args = append(args, fmt.Sprintf(`--%s`, verboseOpt))
+							args = append(args, "--"+verboseOpt)
 						}
 						if params.Debug {
-							args = append(args, fmt.Sprintf(`--%s`, debugOpt))
+							args = append(args, "--"+debugOpt)
 						}
 						if params.UID != -1 {
-							args = append(args, fmt.Sprintf(`--%s`, uidOpt), fmt.Sprintf(`%d`, params.UID))
+							args = append(args, "--"+uidOpt, strconv.Itoa(int(params.UID)))
 						}
 						if params.GID != -1 {
-							args = append(args, fmt.Sprintf(`--%s`, gidOpt), fmt.Sprintf(`%d`, params.GID))
+							args = append(args, "--"+gidOpt, strconv.Itoa(int(params.GID)))
 						}
 						if params.Async {
-							args = append(args, fmt.Sprintf(`--%s`, asyncOpt))
+							args = append(args, "--"+asyncOpt)
 						}
 						if params.StatsDisabled {
-							args = append(args, fmt.Sprintf(`--%s`, disableStatsOpt))
+							args = append(args, "--"+disableStatsOpt)
 						}
 						if params.ProcScanDisabled {
-							args = append(args, fmt.Sprintf(`--%s`, disableProcScanOpt))
+							args = append(args, "--"+disableProcScanOpt)
 						}
 						if params.ScanProcEvery != "" {
-							args = append(args, fmt.Sprintf(`--%s`, scanProcEveryOpt), params.ScanProcEvery)
+							args = append(args, "--"+scanProcEveryOpt, params.ScanProcEvery)
 						}
 						if params.SeccompDisabled {
-							args = append(args, fmt.Sprintf(`--%s`, disableSeccompOpt))
+							args = append(args, "--"+disableSeccompOpt)
 						}
 
 						for _, pid := range set {
-							args = append(args, fmt.Sprintf(`--%s`, pidOpt), fmt.Sprintf(`%d`, pid))
+							args = append(args, "--"+pidOpt, strconv.Itoa(pid))
 						}
 
 						cmd := exec.Command(executable, args...)

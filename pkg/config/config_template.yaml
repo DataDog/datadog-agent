@@ -899,6 +899,18 @@ api_key:
 #
 # secret_refresh_interval: 0
 
+## @param secret_refresh_on_api_key_failure_interval - integer - optional - default 0
+## @env DD_SECRET_REFRESH_ON_API_KEY_FAILURE_INTERVAL - integer - optional - default 0
+##
+## `secret_refresh_on_api_key_failure_interval` is the time in minutes between two secret refreshes
+## triggered by the Agent using an invalid or expired API key (HTTP error code 403 received or the
+## health probe failing). This rate limits how often the secrets are refreshed in response to errors.
+## Set to 0 to disable the refresh.
+##
+## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
+##
+# secret_refresh_on_api_key_failure_interval: 0
+
 ## @param secret_refresh_scatter - boolean - optional - default true
 ## @env DD_SECRET_REFRESH_SCATTER - boolean - optional - default true
 ##
@@ -1911,46 +1923,123 @@ api_key:
 {{ if .NetworkPath -}}
 {{ if (ne .OS "darwin") -}}
 
-########################################
-## Network Path Configuration         ##
-########################################
+#############################################
+## Network Path Dynamic Test Configuration ##
+#############################################
 
 # network_path:
 #   # @param connections_monitoring - custom object - optional
-#   # Specific configurations for monitoring network connections via Network Path.
+#   # Configurations for Network Path Dynamic Test for monitoring network connections via Network Path.
 #
 #   connections_monitoring:
 
 #     # @param enabled - bool - optional - default: false
 #     # @env DD_NETWORK_PATH_CONNECTIONS_MONITORING_ENABLED - bool - optional - default: false
-#     # [Beta] Enables monitoring network connections via Network Path.
+#     # Enables Network Path Dynamic Test for monitoring network connections via Network Path.
 #
-#     enabled: false
+#     enabled: true
 
 #   # @param collector - custom object - optional
-#   # Configuration related to Network Path Collector.
-#   # Network Path Collector is used to monitor network traffic connections on the host.
+#   # Configuration related to Network Path Collector used for Network Path Dynamic Test
+#   # to monitor network traffic connections on the host.
 #
 #   collector:
 
 #     # @param workers - integer - optional - default: 4
 #     # @env DD_NETWORK_PATH_COLLECTOR_WORKERS - integer - optional - default: 4
-#     # The `workers` refers to the number of concurrent workers available for network path execution.
+#     # The number of concurrent workers available for network path execution.
 #
 #     workers: 4
 
-#     # @param pathtest_interval - integer - optional - default: 10m
-#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL - integer - optional - default: 10m
-#     # The `pathtest_interval` refers to the traceroute run interval for monitored connections.
+#     # @param timeout - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_TIMEOUT - integer - optional - default: 1000
+#     # The timeout in milliseconds for a network path test.
 #
-#     pathtest_interval: 10m
+#     timeout: 1000
 
-#     # @param pathtest_ttl - integer - optional - default: 35m
-#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_TTL - integer - optional - default: 35m
-#     # The `pathtest_ttl` refers to the duration (time-to-live) a connection will be monitored when it's not seen anymore.
-#     # The TTL is reset each time the connection is seen again.
+#     # @param max_ttl - integer - optional - default: 30
+#     # @env DD_NETWORK_PATH_COLLECTOR_MAX_TTL - integer - optional - default: 30
+#     # The maximum TTL (Time To Live) for traceroute tests.
 #
-#     pathtest_ttl: 35m
+#     max_ttl: 30
+
+#     # @param pathtest_ttl - string - optional - default: 70m
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_TTL - string - optional - default: 70m
+#     # The duration (time-to-live) a connection will be monitored when it's not seen anymore.
+#     # The TTL is reset each time the connection is seen again.
+#     # With 30min interval, 70m will allow running a test 3 times (t0, t30, t60).
+#
+#     pathtest_ttl: 70m
+
+#     # @param pathtest_interval - string - optional - default: 30m
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_INTERVAL - string - optional - default: 30m
+#     # The traceroute run interval for monitored connections.
+#
+#     pathtest_interval: 30m
+
+#     # @param filters - list of custom objects - optional
+#     # @env DD_NETWORK_PATH_COLLECTOR_FILTERS - list of custom objects - optional
+#     # Custom filters to include or exclude specific destinations from network path collection.
+#     # Filters support matching by domain (with wildcard or regex) and by IP address (single IP or CIDR notation).
+#     # Filters are applied sequentially, the last matching filter takes precedence.
+#
+#     filters:
+#
+#       # exclude single domain
+#       - match_domain: 'api.slack.com'
+#         type: exclude
+#
+#       # exclude domain using wildcard
+#       - match_domain: '*.datadoghq.com'      # translate to regex '.*\.datadoghq\.com
+#         type: exclude
+#       - match_domain: '*.zoom.us'
+#         match_domain_strategy: wildcard      # use wildcard to match domain (default)
+#         type: exclude
+#
+#       # exclude single IP or using CIDR notation
+#       - match_ip: 10.10.10.10
+#         type: exclude
+#       - match_ip: 10.20.0.0/24
+#         type: exclude
+#
+#       # exclude using regex
+#       - match_domain: '.*\.zoom\.us'
+#         match_domain_strategy: regex         # use regex to match domain
+#         type: exclude
+#
+#       # include
+#       - match_domain: 'api.datadoghq.com'
+#         type: include
+
+#     # @param traceroute_queries - integer - optional - default: 3
+#     # @env DD_NETWORK_PATH_COLLECTOR_TRACEROUTE_QUERIES - integer - optional - default: 3
+#     # The number of traceroute queries for static path tests.
+#
+#     traceroute_queries: 3
+
+#     # @param e2e_queries - integer - optional - default: 50
+#     # @env DD_NETWORK_PATH_COLLECTOR_E2E_QUERIES - integer - optional - default: 50
+#     # The number of end-to-end queries for static path tests.
+#
+#     e2e_queries: 50
+
+#     # @param input_chan_size - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_INPUT_CHAN_SIZE - integer - optional - default: 1000
+#     # The size of the input channel buffer.
+#
+#     input_chan_size: 1000
+
+#     # @param processing_chan_size - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_PROCESSING_CHAN_SIZE - integer - optional - default: 1000
+#     # The size of the processing channel buffer.
+#
+#     processing_chan_size: 1000
+
+#     # @param pathtest_contexts_limit - integer - optional - default: 1000
+#     # @env DD_NETWORK_PATH_COLLECTOR_PATHTEST_CONTEXTS_LIMIT - integer - optional - default: 1000
+#     # The maximum number of pathtest contexts that can be maintained.
+#
+#     pathtest_contexts_limit: 1000
 
 {{ end -}}
 {{ end -}}
@@ -2270,6 +2359,9 @@ api_key:
 #     - '*token'
 #     - 'sql*'
 #     - '*pass*d*'
+#
+#   custom_sensitive_regexps:
+#     - 'gh-[a-zA-Z0-9]+'
 
 #   # @param envs_with_value - list of strings - optional
 #   # @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
@@ -3698,11 +3790,11 @@ api_key:
 #
 # kubelet_client_key: <CLIENT_KEY_FILE_PATH>
 
-## @param kubelet_cache_pods_duration - integer - optional - default: 5
-## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 5
+## @param kubelet_cache_pods_duration - integer - optional - default: 0
+## @env DD_KUBELET_CACHE_PODS_DURATION - integer - optional - default: 0
 ## Polling frequency in seconds of the Agent to the kubelet "/pods" endpoint.
 #
-# kubelet_cache_pods_duration: 5
+# kubelet_cache_pods_duration: 0
 
 ## @param kubernetes_pod_expiration_duration - integer - optional - default: 900
 ## @env DD_KUBERNETES_POD_EXPIRATION_DURATION - integer - optional - default: 900
@@ -4253,8 +4345,8 @@ api_key:
 #         #   "10.0.0.1":              # target device IP address
 #         #     - match_field: "name"  # (required) the field to match, can be `name` (interface name) or `index` (ifIndex)
 #         #       match_value: "eth0"  # (required) the value to match
-#         #       in_speed: 50         # (optional) inbound speed value in bits per sec, no value or 0 means no override
-#         #       out_speed: 25        # (optional) outbound speed value in bits per sec, no value or 0 means no override
+#         #       in_speed: 50         # (optional) inbound speed value in bytes per sec, no value or 0 means no override
+#         #       out_speed: 25        # (optional) outbound speed value in bytes per sec, no value or 0 means no override
 #         #       tags:                # (optional) interface level tags
 #         #         - "testTagKey:testTagValue"
 #         #         - "tagKey2:tagValue2"

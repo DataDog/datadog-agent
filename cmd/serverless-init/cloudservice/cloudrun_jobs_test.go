@@ -6,7 +6,7 @@
 package cloudservice
 
 import (
-	"fmt"
+	"errors"
 	"os/exec"
 	"testing"
 	"time"
@@ -23,8 +23,20 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// mockTraceProcessor is a mock implementation of the Processor interface for testing
+type mockTraceProcessor struct {
+	processCalled bool
+	lastPayload   *api.Payload
+}
+
+func (m *mockTraceProcessor) Process(p *api.Payload) {
+	m.processCalled = true
+	m.lastPayload = p
+}
 
 func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	service := &CloudRunJobs{}
@@ -68,7 +80,7 @@ func TestCloudRunJobsGetOrigin(t *testing.T) {
 
 func TestCloudRunJobsInit(t *testing.T) {
 	service := &CloudRunJobs{}
-	assert.NoError(t, service.Init())
+	assert.NoError(t, service.Init(nil))
 }
 
 func TestIsCloudRunJob(t *testing.T) {
@@ -87,12 +99,12 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
 	require.Error(t, err)
-	jobs.Shutdown(agent, err)
+	jobs.Shutdown(agent, nil, err)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Empty(t, timedMetrics)
@@ -101,7 +113,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:1")
+			require.Contains(t, sample.Tags, "succeeded:false")
 			foundShutdown = true
 		}
 	}
@@ -113,20 +125,158 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	agent := serverlessMetrics.ServerlessMetricAgent{Demux: demux}
 
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
-	shutdownMetricName := fmt.Sprintf("%s.enhanced.task.ended", cloudRunJobsPrefix)
+	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
-	jobs.Shutdown(agent, nil)
+	jobs.Shutdown(agent, nil, nil)
 
 	generatedMetrics, _ := demux.WaitForSamples(100 * time.Millisecond)
 
 	foundShutdown := false
 	for _, sample := range generatedMetrics {
 		if sample.Name == shutdownMetricName {
-			require.Contains(t, sample.Tags, "exit_code:0")
+			require.Contains(t, sample.Tags, "succeeded:true")
 			foundShutdown = true
 		}
 	}
 	assert.True(t, foundShutdown, "shutdown metric not emitted")
+}
+
+func TestCloudRunJobsSpanCreation(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "my-test-job")
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(nil)
+
+	// Verify span was created
+	assert.NotNil(t, jobs.jobSpan)
+	if jobs.jobSpan != nil {
+		// Service should fallback to job name since DD_SERVICE is not in tags
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Service)
+		assert.Equal(t, "gcp.run.job.task", jobs.jobSpan.Name)
+		assert.Equal(t, "my-test-job", jobs.jobSpan.Resource)
+		assert.NotZero(t, jobs.jobSpan.TraceID)
+		assert.NotZero(t, jobs.jobSpan.SpanID)
+		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
+		assert.NotNil(t, jobs.jobSpan.Meta)
+		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+	}
+}
+
+func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+			// No "service" tag
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "my-job-name")
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(nil)
+
+	// Verify span falls back to job name for service name
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Service)
+	assert.Equal(t, "my-job-name", jobs.jobSpan.Resource)
+}
+
+func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+			// No "service" tag
+		}
+	}
+
+	// No CLOUD_RUN_JOB environment variable
+
+	jobs := &CloudRunJobs{}
+	jobs.Init(nil)
+
+	// Verify span falls back to default "gcp.run.job"
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Service)
+	assert.Equal(t, "gcp.run.job", jobs.jobSpan.Resource)
+}
+
+func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "test-job")
+
+	mockAgent := &mockTraceProcessor{}
+	jobs := &CloudRunJobs{}
+	jobs.Init(mockAgent)
+
+	// Simulate an error
+	testErr := errors.New("task failed")
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, testErr)
+
+	// Verify the span was submitted
+	assert.True(t, mockAgent.processCalled)
+	assert.NotNil(t, mockAgent.lastPayload)
+
+	// Verify span has error information
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, int32(1), jobs.jobSpan.Error)
+	assert.Equal(t, "task failed", jobs.jobSpan.Meta["error.msg"])
+	assert.Equal(t, "1", jobs.jobSpan.Meta["exit_code"])
+	assert.NotZero(t, jobs.jobSpan.Duration)
+}
+
+func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
+	metadataHelperFunc = func(*GCPConfig, bool) map[string]string {
+		return map[string]string{
+			"project_id": "test-project",
+			"location":   "us-central1",
+		}
+	}
+
+	t.Setenv("CLOUD_RUN_JOB", "success-job")
+
+	mockAgent := &mockTraceProcessor{}
+	jobs := &CloudRunJobs{}
+	jobs.Init(mockAgent)
+
+	// Simulate success (no error)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, nil)
+
+	// Verify the span was submitted
+	assert.True(t, mockAgent.processCalled)
+	assert.NotNil(t, mockAgent.lastPayload)
+
+	// Verify span has no error
+	require.NotNil(t, jobs.jobSpan)
+	assert.Equal(t, int32(0), jobs.jobSpan.Error)
+	assert.NotContains(t, jobs.jobSpan.Meta, "error.msg")
+	assert.NotZero(t, jobs.jobSpan.Duration)
+}
+
+func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
+	mockAgent := &mockTraceProcessor{}
+	jobs := &CloudRunJobs{}
+	// Don't call Init, so jobSpan remains nil
+
+	// Should not panic
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, nil)
+
+	// Should not submit anything
+	assert.False(t, mockAgent.processCalled)
 }
 
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {

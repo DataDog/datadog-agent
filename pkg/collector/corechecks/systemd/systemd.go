@@ -556,7 +556,7 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	}
 
 	if len(c.config.instance.UnitNames) == 0 && len(c.config.instance.UnitRegexes) == 0 {
-		return fmt.Errorf("please set either `unit_names` or `unit_regexes` in the instance config")
+		return errors.New("please set either `unit_names` or `unit_regexes` in the instance config")
 	}
 
 	for _, regex := range c.config.instance.UnitRegexes {

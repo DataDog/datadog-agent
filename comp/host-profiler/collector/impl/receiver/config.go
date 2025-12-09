@@ -8,13 +8,16 @@
 package receiver
 
 import (
+	"errors"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/dd-otel-host-profiler/config"
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 	ebpfcollector "go.opentelemetry.io/ebpf-profiler/collector"
+	ebpfconfig "go.opentelemetry.io/ebpf-profiler/collector/config"
 	"go.opentelemetry.io/ebpf-profiler/tracer/types"
 )
 
@@ -25,7 +28,7 @@ type ReporterConfig struct {
 
 // Config is the configuration for the profiles receiver.
 type Config struct {
-	Ebpfcollector        *ebpfcollector.Config         `mapstructure:"ebpfcollector"`
+	EbpfCollectorConfig  *ebpfconfig.Config            `mapstructure:"ebpf_collector"`
 	SymbolUploader       reporter.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
 	ReporterConfig       ReporterConfig                `mapstructure:"reporter"`
 	EnableSplitByService bool                          `mapstructure:"enable_split_by_service"`
@@ -33,35 +36,67 @@ type Config struct {
 
 var _ xconfmap.Validator = (*Config)(nil)
 
+func errSymbolEndpointsRequired() error {
+	return errors.New("symbol_endpoints is required")
+}
+func errSymbolEndpointsSiteRequired() error {
+	return errors.New("symbol_endpoints.site is required")
+}
+func errSymbolEndpointsAPIKeyRequired() error {
+	return errors.New("symbol_endpoints.api_key is required")
+}
+func errSymbolEndpointsAppKeyRequired() error {
+	return errors.New("symbol_endpoints.app_key is required")
+}
+
 // Validate validates the config.
 // This is automatically called by the config parser as it implements the xconfmap.Validator interface.
 func (c *Config) Validate() error {
+	if err := c.EbpfCollectorConfig.Validate(); err != nil {
+		return err
+	}
 	if c.ReporterConfig.CollectContext {
-		includeTracers, err := types.Parse(c.Ebpfcollector.Tracers)
+		includeTracers, err := types.Parse(c.EbpfCollectorConfig.Tracers)
 		if err != nil {
 			return err
 		}
 		includeTracers.Enable(types.Labels)
-		c.Ebpfcollector.Tracers = includeTracers.String()
+		c.EbpfCollectorConfig.Tracers = includeTracers.String()
 	}
 	if c.EnableSplitByService {
 		includeEnvVars := reporter.ServiceNameEnvVars
-		if c.Ebpfcollector.IncludeEnvVars != "" {
-			includeEnvVars = append(includeEnvVars, c.Ebpfcollector.IncludeEnvVars)
+		if c.EbpfCollectorConfig.IncludeEnvVars != "" {
+			includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
 		}
-		c.Ebpfcollector.IncludeEnvVars = strings.Join(includeEnvVars, ",")
+		c.EbpfCollectorConfig.IncludeEnvVars = strings.Join(includeEnvVars, ",")
 	}
 
+	if c.SymbolUploader.Enabled {
+		if len(c.SymbolUploader.SymbolEndpoints) == 0 {
+			return errSymbolEndpointsRequired()
+		}
+		for _, endpoint := range c.SymbolUploader.SymbolEndpoints {
+			if endpoint.Site == "" {
+				return errSymbolEndpointsSiteRequired()
+			}
+			if endpoint.APIKey == "" {
+				return errSymbolEndpointsAPIKeyRequired()
+			}
+			if endpoint.AppKey == "" {
+				return errSymbolEndpointsAppKeyRequired()
+			}
+		}
+	}
 	return nil
 }
 
 // This is the default config for the profiles receiver
 func defaultConfig() component.Config {
-	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfcollector.Config)
+	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Tracers = getDefaultTracersString()
 
 	return Config{
-		Ebpfcollector: cfg,
+		EbpfCollectorConfig: cfg,
 		SymbolUploader: reporter.SymbolUploaderConfig{
 			SymbolUploaderOptions: reporter.SymbolUploaderOptions{
 				Enabled:              config.DefaultUploadSymbols,
@@ -72,7 +107,7 @@ func defaultConfig() component.Config {
 				DryRun:               config.DefaultUploadSymbolsDryRun,
 				SymbolEndpoints:      nil,
 			},
-			Version:                        "0.0.0",
+			Version:                        version.AgentVersion,
 			DisableDebugSectionCompression: false,
 		},
 

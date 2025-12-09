@@ -70,6 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var kv = kernel.MustHostVersion()
@@ -163,7 +164,7 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.ServiceMonitoringEnabled = false
 	// Enabling all features, to ensure nothing is forcing USM enablement.
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -2077,6 +2078,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				flake.Mark(t)
 				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()

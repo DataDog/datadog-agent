@@ -31,7 +31,7 @@ type timeSamplerWorker struct {
 	// flushFilterList is the filter applied when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
 	// process, such as histograms which create several metrics.
-	flushFilterList *utilstrings.Matcher
+	flushFilterList utilstrings.Matcher
 
 	// parallel serialization configuration
 	parallelSerialization FlushAndSerializeInParallel
@@ -42,7 +42,7 @@ type timeSamplerWorker struct {
 	// use this chan to trigger a flush of the time sampler
 	flushChan chan flushTrigger
 	// use this chan to trigger a filterList reconfiguration
-	filterListChan chan *utilstrings.Matcher
+	filterListChan chan utilstrings.Matcher
 	// use this chan to stop the timeSamplerWorker
 	stopChan chan struct{}
 	// channel to trigger interactive dump of the context resolver
@@ -72,7 +72,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		stopChan:       make(chan struct{}),
 		flushChan:      make(chan flushTrigger),
 		dumpChan:       make(chan dumpTrigger),
-		filterListChan: make(chan *utilstrings.Matcher),
+		filterListChan: make(chan utilstrings.Matcher),
 
 		tagsStore: tagsStore,
 	}
@@ -116,7 +116,7 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushFilterList, trigger.forceFlushAll)
+	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, &w.flushFilterList, trigger.forceFlushAll)
 	trigger.blockChan <- struct{}{}
 }
 

@@ -9,7 +9,6 @@ import re
 import shutil
 import sys
 import tempfile
-from itertools import chain
 from subprocess import check_output
 
 from invoke.exceptions import Exit
@@ -486,6 +485,7 @@ def docker_functional_tests(
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
 
     cmd = 'docker run --name {container_name} {caps} --privileged -d '
+    cmd += '--env=CI '
     cmd += '-v /dev:/dev '
     cmd += '-v /proc:/host/proc -e HOST_PROC=/host/proc '
     cmd += '-v /etc:/host/etc -e HOST_ETC=/host/etc '
@@ -677,13 +677,9 @@ def generate_cws_proto(ctx):
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
-            ctx.run(
-                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/eventmonitor/proto/api/api.proto"
-            )
 
     security_files = glob.glob("pkg/security/**/*.pb.go", recursive=True)
-    eventmonitor_files = glob.glob("pkg/eventmonitor/**/*.pb.go", recursive=True)
-    for path in chain(security_files, eventmonitor_files):
+    for path in security_files:
         print(f"replacing protoc version in {path}")
         with open(path) as f:
             content = f.read()

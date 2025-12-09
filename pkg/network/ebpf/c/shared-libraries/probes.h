@@ -97,7 +97,7 @@ static __always_inline void push_event_if_relevant(void *ctx, lib_path_t *path, 
     u64 gpu_libset_enabled = 0;
     LOAD_CONSTANT("gpu_libset_enabled", gpu_libset_enabled);
 
-    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't') || match6chars(0, '4', 'j', 'c', 'u', 'd', 'a'))) {
+    if (gpu_libset_enabled && (match6chars(0, 'c', 'u', 'd', 'a', 'r', 't') || match6chars(0, '4', 'j', 'c', 'u', 'd', 'a') || match6chars(0, 'i', 'b', 'c', 'u', 'd', 'a'))) {
         if (ringbuffers_enabled) {
             bpf_ringbuf_output_with_telemetry(&gpu_shared_libraries, path, sizeof(lib_path_t), 0);
         } else {

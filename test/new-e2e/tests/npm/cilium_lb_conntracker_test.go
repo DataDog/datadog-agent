@@ -8,7 +8,6 @@ package npm
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -21,15 +20,16 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/DataDog/test-infra-definitions/common/config"
-	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/cilium"
-	"github.com/DataDog/test-infra-definitions/components/kubernetes/istio"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	npmtools "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/npm-tools"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/istio"
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 )
 
 type ciliumLBConntrackerTestSuite struct {
@@ -42,7 +42,7 @@ func TestCiliumLBConntracker(t *testing.T) {
 	// TODO: find a way to update this list dynamically
 	versionsToTest := []string{"1.15.17", "1.16.10", "1.17.4"}
 	for _, v := range versionsToTest {
-		t.Run(fmt.Sprintf("version %s", v), func(_t *testing.T) {
+		t.Run("version "+v, func(_t *testing.T) {
 			_t.Parallel()
 
 			testCiliumLBConntracker(t, v)
@@ -79,17 +79,18 @@ func testCiliumLBConntracker(t *testing.T, ciliumVersion string) {
 		},
 	}
 
-	name := strings.ReplaceAll(fmt.Sprintf("cilium-lb-%s", ciliumVersion), ".", "-")
+	name := strings.ReplaceAll("cilium-lb-"+ciliumVersion, ".", "-")
 	e2e.Run(t, suite,
-		e2e.WithStackName(fmt.Sprintf("stack-%s", name)),
+		e2e.WithStackName("stack-"+name),
 		e2e.WithProvisioner(
-			awskubernetes.KindProvisioner(
-				awskubernetes.WithName(name),
-				awskubernetes.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
-				awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
-				awskubernetes.WithWorkloadApp(httpBinServiceInstall),
-				awskubernetes.WithWorkloadApp(npmToolsWorkload),
-			),
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithName(name),
+					scenkindvm.WithCiliumOptions(cilium.WithHelmValues(ciliumHelmValues), cilium.WithVersion(ciliumVersion)),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
+					scenkindvm.WithWorkloadApp(httpBinServiceInstall),
+					scenkindvm.WithWorkloadApp(npmToolsWorkload),
+				)),
 		),
 	)
 }

@@ -8,7 +8,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -234,7 +233,7 @@ func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
 }
 
 func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
-	req.Header.Set("Via", fmt.Sprintf("trace-agent %s", f.conf.AgentVersion))
+	req.Header.Set("Via", "trace-agent "+f.conf.AgentVersion)
 	if _, ok := req.Header["User-Agent"]; !ok {
 		// explicitly disable User-Agent so it's not set to the default value
 		// that net/http gives it: Go-http-client/1.1
@@ -334,7 +333,7 @@ func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
 
 func (f *TelemetryForwarder) forwardTelemetryEndpoint(req *http.Request, endpoint *config.Endpoint) (*http.Response, error) {
 	tags := []string{
-		fmt.Sprintf("endpoint:%s", endpoint.Host),
+		"endpoint:" + endpoint.Host,
 	}
 	defer func(now time.Time) {
 		_ = f.statsd.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)
