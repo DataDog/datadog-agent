@@ -1,0 +1,39 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `cpu_oscillation.yaml` and make your changes on that file.
+
+## CPU Oscillation Detector
+##
+## Detects rapid CPU oscillation patterns that may indicate:
+## - Restart loops
+## - Thrashing systems
+## - Retry storms
+## - Misconfigured autoscaling
+##
+## This check samples CPU at 1Hz and analyzes the pattern for oscillations.
+## Metrics are emitted every 15 seconds after a 60-second window fills.
+## Detection is only possible after the warmup period (default 5 minutes).
+
+init_config:
+
+## The CPU Oscillation check only supports one configured instance.
+
+instances:
+  -
+
+    ## @param amplitude_multiplier - float - optional - default: 2.0
+    ## The multiplier applied to the baseline standard deviation to determine
+    ## the amplitude threshold. Swings must exceed this threshold to be flagged.
+    ## Lower values = more sensitive (more detections, potentially more false positives)
+    ## Higher values = less sensitive (fewer detections, may miss real issues)
+    ## Valid range: 0.5 to 10.0
+    #
+    # amplitude_multiplier: 2.0
+
+    ## @param warmup_seconds - integer - optional - default: 300
+    ## Initial learning period in seconds during which the check learns the
+    ## host's normal CPU variance without flagging oscillations.
+    ## Detection is disabled during this period.
+    ## Valid range: 60 to 1800 seconds (1 to 30 minutes)
+    #
+    # warmup_seconds: 300

@@ -60,6 +60,7 @@ AGENT_CORECHECKS = [
     "container_image",
     "container_lifecycle",
     "cpu",
+    "cpu_oscillation",
     "cri",
     "snmp",
     "docker",

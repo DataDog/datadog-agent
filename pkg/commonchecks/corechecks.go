@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/load"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/oscillation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/disk"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/diskv2"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
@@ -74,6 +75,7 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 ) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
+	corecheckLoader.RegisterCheck(oscillation.CheckName, oscillation.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
