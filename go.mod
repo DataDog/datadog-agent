@@ -435,10 +435,10 @@ require (
 	k8s.io/kube-state-metrics/v2 v2.13.1-0.20241025121156-110f03d7331f
 	k8s.io/kubectl v0.34.1
 	k8s.io/kubelet v0.34.1
-	k8s.io/metrics v0.34.1
+	k8s.io/metrics v0.34.2
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	pgregory.net/rapid v1.2.0
-	sigs.k8s.io/custom-metrics-apiserver v1.33.0
+	sigs.k8s.io/custom-metrics-apiserver v1.34.0
 	sigs.k8s.io/gateway-api v1.3.0
 	sigs.k8s.io/karpenter v1.8.0
 	sigs.k8s.io/yaml v1.6.0
@@ -585,7 +585,7 @@ require (
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/go-perf v0.0.0-20241029065020-30bec95324b8 // indirect
 	github.com/elastic/lunes v0.2.0 // indirect
-	github.com/emicklei/go-restful/v3 v3.12.2 // indirect
+	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.35.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
@@ -964,7 +964,7 @@ require (
 	k8s.io/component-helpers v0.34.1 // indirect
 	k8s.io/csi-translation-lib v0.34.1 // indirect
 	k8s.io/kms v0.35.0-alpha.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
+	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/sample-controller v0.34.1 // indirect
 	mellium.im/sasl v0.3.2 // indirect
 	modernc.org/sqlite v1.36.2 // indirect
