@@ -49,7 +49,41 @@ github.com/grpc-ecosystem/grpc-gateway: Copyright (c) 2015, Gengo, Inc.
 google.golang.org/grpc: Copyright 2014 gRPC authors.
 google.golang.org/grpc/*: Copyright 2014 gRPC authors.
 github.com/skydive-project/go-debouncer: Copyright (C) 2018 Red Hat, Inc.
-
+# taken from https://gitlab.com/gitlab-org/api/client-go and then `rg --no-filename Copyright | sort | uniq`
+gitlab.com/gitlab-org/api/client-go: [
+    "// Copyright 2021 Paul Cioanca",
+    "// Copyright 2021, Andrea Funto'",
+    "// Copyright 2021, Arkbriar",
+    "// Copyright 2021, Eric Stevens",
+    "// Copyright 2021, Igor Varavko",
+    "// Copyright 2021, Kordian Bruck",
+    "// Copyright 2021, Markus Lackner",
+    "// Copyright 2021, Matej Velikonja",
+    "// Copyright 2021, Matthias Simon",
+    "// Copyright 2021, Patrick Webster",
+    "// Copyright 2021, Paul Shoemaker",
+    "// Copyright 2021, Pavel Kostohrys",
+    "// Copyright 2021, Sander van Harmelen",
+    "// Copyright 2021, Sander van Harmelen, Michael Lihs",
+    "// Copyright 2021, Serena Fang",
+    "// Copyright 2021, Stany MARCEL",
+    "// Copyright 2021, Sune Keller",
+    "// Copyright 2021, Timo Furrer <tuxtimo@gmail.com>",
+    "// Copyright 2022, Daniel Steinke",
+    "// Copyright 2022, Daniela Filipe Bento",
+    "// Copyright 2022, FantasyTeddy",
+    "// Copyright 2022, Mai Lapyst",
+    "// Copyright 2022, Masahiro Yoshida",
+    "// Copyright 2022, Ryan Glab <ryan.j.glab@gmail.com>",
+    "// Copyright 2022, Timo Furrer <tuxtimo@gmail.com>",
+    "// Copyright 2023, 徐晓伟 <xuxiaowei@xuxiaowei.com.cn>",
+    "// Copyright 2023, Hakki Ceylan, Yavuz Turk",
+    "// Copyright 2023, James Hong",
+    "// Copyright 2023, Joel Gerber",
+    "// Copyright 2023, Nick Westbury",
+    "// Copyright 2023, Sander van Harmelen",
+    "// Copyright 2024, Sander van Harmelen",
+]
 # NOTE: We cannot use
 #   github.com/DataDog/*: Datadog, Inc.
 # because many of those repos are forks, where DD does not own the copyright.
