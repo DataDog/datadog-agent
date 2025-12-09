@@ -27,6 +27,63 @@ def seccomp_safe_sleep(delay: float) -> None:
             pass
 
 
+def _parse_entry_key(entry: Dict, conn_tuple_offset: int, verbose: bool = False):
+    """Parse a map entry's key into a ConnTuple.
+
+    Handles multiple formats:
+    - BTF-formatted dict keys (from bpftool with BTF)
+    - Hex array keys (from bpftool without BTF)
+    - Pre-parsed ConnTuple (from system-probe backend)
+
+    Args:
+        entry: Map entry dict with 'key' field
+        conn_tuple_offset: Byte offset of ConnTuple within key
+        verbose: Enable verbose output
+
+    Returns:
+        ConnTuple or None if parsing failed
+    """
+    key = entry.get("key")
+    if key is None:
+        return None
+
+    # Handle pre-parsed ConnTuple from system-probe backend
+    if entry.get("_btf"):
+        return key
+
+    # Handle BTF-formatted dict keys (bpftool with BTF)
+    if isinstance(key, dict):
+        # BTF output has named fields like saddr_h, saddr_l, etc.
+        try:
+            return ConnTuple(
+                saddr_h=key.get("saddr_h", 0),
+                saddr_l=key.get("saddr_l", 0),
+                daddr_h=key.get("daddr_h", 0),
+                daddr_l=key.get("daddr_l", 0),
+                sport=key.get("sport", 0),
+                dport=key.get("dport", 0),
+                netns=key.get("netns", 0),
+                pid=key.get("pid", 0),
+                metadata=key.get("metadata", 0),
+            )
+        except (TypeError, ValueError):
+            if verbose:
+                print(f"  Warning: Could not parse BTF key: {key}")
+            return None
+
+    # Handle hex array keys (bpftool without BTF)
+    if isinstance(key, list):
+        key_bytes = hex_array_to_bytes(key)
+        conn = parse_conn_tuple(key_bytes, offset=conn_tuple_offset)
+        if conn is None and verbose:
+            print(f"  Warning: Could not parse key of {len(key_bytes)} bytes")
+        return conn
+
+    if verbose:
+        print(f"  Warning: Unknown key format: {type(key)}")
+    return None
+
+
 def analyze_map(
     map_name: str,
     backend: EbpfBackend,
@@ -35,7 +92,7 @@ def analyze_map(
     recheck_delay: float = 0,
     proc_root: str = "/proc"
 ) -> MapLeakInfo:
-    """Analyze a single map for leaks.
+    """Analyze a single map for leaks using streaming to minimize memory usage.
 
     Args:
         map_name: Name of the eBPF map to analyze
@@ -48,33 +105,18 @@ def analyze_map(
     Returns:
         MapLeakInfo with analysis results
     """
-    entries = backend.dump_map_by_name(map_name)
-    total = len(entries)
+    total = 0
     leaked: List[tuple] = []
 
     # Look up ConnTuple offset for this map (default 0)
     conn_tuple_offset = CONN_TUPLE_OFFSET.get(map_name, 0)
 
-    for entry in entries:
-        key = entry.get("key")
-        if key is None:
-            continue
+    # Stream entries one at a time to minimize memory usage
+    for entry in backend.iter_map_by_name(map_name):
+        total += 1
 
-        # Handle both BTF-formatted (dict/ConnTuple) and hex array formats
-        if entry.get("_btf"):
-            # Key is already a ConnTuple from system-probe backend
-            conn = key
-        elif isinstance(key, list):
-            # Hex array from bpftool
-            key_bytes = hex_array_to_bytes(key)
-            conn = parse_conn_tuple(key_bytes, offset=conn_tuple_offset)
-            if conn is None:
-                if verbose:
-                    print(f"  Warning: Could not parse key of {len(key_bytes)} bytes")
-                continue
-        else:
-            if verbose:
-                print(f"  Warning: Unknown key format: {type(key)}")
+        conn = _parse_entry_key(entry, conn_tuple_offset, verbose)
+        if conn is None:
             continue
 
         valid, reason = validate_tuple(conn, connection_index)

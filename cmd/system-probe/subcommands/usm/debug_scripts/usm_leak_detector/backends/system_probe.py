@@ -6,9 +6,10 @@ import json
 import os
 import subprocess
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
+from .streaming import iter_json_objects
 from ..models import ConnTuple
 from ..subprocess_utils import safe_subprocess_run
 
@@ -171,3 +172,48 @@ class SystemProbeBackend(EbpfBackend):
             )
         except (TypeError, ValueError):
             return None
+
+    def iter_map_by_name(self, name: str) -> Generator[Dict, None, None]:
+        """Stream map entries by name, yielding one entry at a time.
+
+        Uses subprocess.Popen to stream system-probe output and parse
+        JSON objects incrementally to minimize memory usage.
+
+        Args:
+            name: eBPF map name
+
+        Yields:
+            Dict entries with 'key' (ConnTuple) and '_btf' fields
+        """
+        if not self.binary_path:
+            print("Error: system-probe binary not found", file=sys.stderr)
+            return
+
+        cmd = [self.binary_path, "ebpf", "map", "dump", "name", name]
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1
+            )
+        except FileNotFoundError:
+            print(f"Error: system-probe not found at {self.binary_path}", file=sys.stderr)
+            return
+
+        try:
+            for entry in iter_json_objects(proc.stdout):
+                key = entry.get("key", {})
+                if isinstance(key, dict):
+                    # BTF-formatted key with named fields
+                    conn = self._parse_btf_key(key)
+                    if conn:
+                        yield {"key": conn, "_btf": True}
+                elif isinstance(key, list):
+                    # Hex array format (rare with system-probe)
+                    yield entry
+        finally:
+            proc.stdout.close()
+            proc.stderr.close()
+            proc.wait()

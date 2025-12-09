@@ -5,10 +5,11 @@ bpftool backend for eBPF map operations.
 import json
 import subprocess
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
 from .bpftool_downloader import download_bpftool
+from .streaming import iter_json_objects
 from ..subprocess_utils import safe_subprocess_run
 
 
@@ -119,3 +120,53 @@ class BpftoolBackend(EbpfBackend):
             if m.get("name") == name:
                 return self.dump_map_by_id(m.get("id"))
         return []
+
+    def iter_map_by_id(self, map_id: int) -> Generator[Dict, None, None]:
+        """Stream map entries by ID, yielding one entry at a time.
+
+        Uses subprocess.Popen to stream bpftool output line by line,
+        parsing JSON objects incrementally to minimize memory usage.
+
+        Args:
+            map_id: eBPF map ID
+
+        Yields:
+            Dict entries with 'key' and 'value' fields
+        """
+        cmd = [self._bpftool_path, "map", "dump", "id", str(map_id), "--json"]
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1  # Line buffered
+            )
+        except FileNotFoundError:
+            print("Error: bpftool not found in PATH", file=sys.stderr)
+            return
+
+        try:
+            # Stream JSON objects one at a time
+            for entry in iter_json_objects(proc.stdout):
+                yield entry
+        finally:
+            # Ensure process is cleaned up
+            proc.stdout.close()
+            proc.stderr.close()
+            proc.wait()
+
+    def iter_map_by_name(self, name: str) -> Generator[Dict, None, None]:
+        """Stream map entries by name, yielding one entry at a time.
+
+        Args:
+            name: eBPF map name
+
+        Yields:
+            Dict entries with 'key' and 'value' fields
+        """
+        maps = self.list_maps()
+        for m in maps:
+            if m.get("name") == name:
+                yield from self.iter_map_by_id(m.get("id"))
+                return

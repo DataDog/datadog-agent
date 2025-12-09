@@ -2,7 +2,7 @@
 Abstract base class for eBPF backends.
 """
 
-from typing import Dict, List
+from typing import Dict, Generator, List
 
 
 class EbpfBackend:
@@ -19,6 +19,22 @@ class EbpfBackend:
     def dump_map_by_id(self, map_id: int) -> List[Dict]:
         """Dump map contents by ID. Returns list of entries with 'key' field."""
         raise NotImplementedError
+
+    def iter_map_by_name(self, name: str) -> Generator[Dict, None, None]:
+        """Stream map entries by name, yielding one entry at a time.
+
+        This is the memory-efficient alternative to dump_map_by_name().
+        Default implementation falls back to dump_map_by_name().
+
+        Args:
+            name: eBPF map name
+
+        Yields:
+            Dict entries with 'key' and 'value' fields
+        """
+        # Default: fall back to non-streaming version
+        for entry in self.dump_map_by_name(name):
+            yield entry
 
     @staticmethod
     def is_available() -> bool:
