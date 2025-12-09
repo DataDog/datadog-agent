@@ -7,6 +7,7 @@ package processor
 
 import (
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -112,4 +113,46 @@ func reportDrainInfo() {
 	metrics.TlmDrainClustersRatio.Set(drainClustersRatio)
 	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
 	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize) / float64(drainNLogs))
+}
+
+const (
+	// Spaces are delimiters we want to remove
+	drainTokenSpaces = " \t\n\r"
+	// Delimiters are non spaces we want to use to split tokens but we want to keep them at the end of each token
+	// TODO: Keep points? Commas?
+	drainTokenDelimiters = ":-._;/\\.,'\"`~*+=()[]{}&!@#$%^"
+)
+
+// TODO: Array of array of bytes?
+func DrainTokenize(msg []byte) []string {
+	tokens := make([]string, 0)
+	token := make([]byte, 0)
+	for _, char := range msg {
+		// Skip spaces
+		// TODO: Optimize by using []byte
+		if strings.ContainsRune(drainTokenSpaces, rune(char)) {
+			if len(token) > 0 {
+				tokens = append(tokens, string(token))
+				token = make([]byte, 0)
+			}
+			continue
+		}
+
+		token = append(token, char)
+
+		// TODO: Merge delimiters?
+		// Delimiters
+		if strings.ContainsRune(drainTokenDelimiters, rune(char)) {
+			// Keep delimiters at the end of the token
+			if len(token) > 0 {
+				tokens = append(tokens, string(token))
+				token = make([]byte, 0)
+			}
+		}
+	}
+
+	if len(token) > 0 {
+		tokens = append(tokens, string(token))
+	}
+	return tokens
 }
