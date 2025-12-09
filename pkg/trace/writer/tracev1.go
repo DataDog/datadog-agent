@@ -26,6 +26,9 @@ import (
 // pathTraces is the target host API path for delivering traces.
 const pathTraces = "/api/v0.2/traces"
 
+// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+const tagAPMMode = "_dd.apm_mode"
+
 const defaultConnectionLimit = 5
 
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
@@ -94,6 +97,8 @@ type TraceWriterV1 struct {
 	timing     timing.Reporter
 	mu         sync.Mutex
 	compressor compression.Component
+	// apmMode exists here to propagate the value to the AgentPayload
+	apmMode string
 }
 
 // NewTraceWriterV1 returns a new TraceWriterV1. It is created for the given agent configuration and
@@ -125,6 +130,8 @@ func NewTraceWriterV1(
 		statsd:             statsd,
 		timing:             timing,
 		compressor:         compressor,
+		// apmMode exists here to propagate the value to the AgentPayload
+		apmMode: cfg.APMMode,
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
@@ -287,6 +294,9 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.InternalTracerPayload) {
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
 		IdxTracerPayloads:  protoPayloads,
+	}
+	if w.apmMode != "" {
+		p.Tags = map[string]string{tagAPMMode: w.apmMode}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

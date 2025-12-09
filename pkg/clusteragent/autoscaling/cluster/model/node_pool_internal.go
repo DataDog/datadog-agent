@@ -23,8 +23,12 @@ import (
 
 const (
 	// For use on NodePools
-	DatadogCreatedLabelKey  = "autoscaling.datadoghq.com/created"
-	datadogModifiedLabelKey = "autoscaling.datadoghq.com/modified"
+	DatadogCreatedLabelKey      = "autoscaling.datadoghq.com/created"
+	datadogModifiedLabelKey     = "autoscaling.datadoghq.com/modified"
+	datadogReplicaAnnotationKey = "autoscaling.datadoghq.com/target-nodepool"
+
+	// KarpenterNodePoolHashAnnotationKey is the annotation key that that tracks the Karpenter NodePool template hash
+	KarpenterNodePoolHashAnnotationKey = "karpenter.sh/nodepool-hash"
 )
 
 type NodePoolInternal struct {
@@ -63,7 +67,7 @@ func NewNodePoolInternal(v *kubeAutoscaling.ClusterAutoscalingValues) NodePoolIn
 }
 
 func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpenterv1.NodePool {
-	return &karpenterv1.NodePool{
+	knp := &karpenterv1.NodePool{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "NodePool",
 			APIVersion: "karpenter.sh/v1",
@@ -74,6 +78,12 @@ func ConvertToKarpenterNodePool(n NodePoolInternal, nodeClassName string) *karpe
 		},
 		Spec: buildNodePoolSpec(n, nodeClassName),
 	}
+
+	if n.TargetName() != "" {
+		knp.ObjectMeta.Annotations = map[string]string{datadogReplicaAnnotationKey: n.TargetName()}
+	}
+
+	return knp
 }
 
 // Getters

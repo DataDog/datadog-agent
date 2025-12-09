@@ -40,7 +40,6 @@ import (
 	ddprofilingextension "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
@@ -146,10 +145,6 @@ const tracesToTracesStability = component.StabilityLevel(component.StabilityLeve
 const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
-	serializerexporter.InitTelemetry(reqs.Telemetry)
-	logsagentexporter.InitTelemetry(reqs.Telemetry)
-	datadogexporter.InitTelemetry(reqs.Telemetry)
-
 	store := serializerexporter.TelemetryStore{}
 	if reqs.Telemetry != nil {
 		store.DDOTTraces = reqs.Telemetry.NewGauge(

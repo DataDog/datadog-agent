@@ -158,6 +158,17 @@ func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endp
 	return endpoints
 }
 
+// normalizeAPMMode normalizes the APM mode to a valid value for the DD_APM_MODE config. Currently only "edge" is supported.
+func normalizeAPMMode(mode string) string {
+	switch strings.ToLower(mode) {
+	case "edge":
+		return "edge"
+	}
+	// If DD_APM_MODE is set to an invalid value, warn about it and return an empty string
+	log.Warnf("invalid value for 'DD_APM_MODE': '%s', dropping", mode)
+	return ""
+}
+
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
@@ -662,6 +673,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	return nil
 }
