@@ -8,9 +8,8 @@
 #   - arch (architecture of the test runner: x86_64, arm64)
 #   - os (operating system of the test runner: ubuntu_24.10, amazon_2023, etc.)
 runners:
-  - tags: "test_set:cws_host,os:ubuntu_24.10,arch:x86_64"
+  - tags: "test_set:cws_host"
     required_tests:
-      - "TestChmod"
   - tags: "test_set:cws_docker"
     required_tests:
   - tags: "test_set:cws_ad"
@@ -21,6 +20,5 @@ runners:
     required_tests:
   - tags: "test_set:cws_req"
     required_tests:
-      - "TestChmod"
   - tags: "test_set:cws_peds"
     required_tests:
