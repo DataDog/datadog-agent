@@ -7,11 +7,8 @@
 package command
 
 import (
-	"path"
-
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -19,19 +16,19 @@ import (
 // A pointer to this type is passed to SubcommandFactory's, but its contents
 // are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
-	ConfFilePath      string
+	// ConfFilePath holds the path to the folder containing the configuration
+	// file, to allow overrides from the command line
+	ConfFilePath string
+
+	// ExtraConfFilePath represents the paths to additional configuration files.
 	ExtraConfFilePath []string
+
+	// NoColor is a flag to disable color output
+	NoColor bool
 }
 
 // SubcommandFactory returns a sub-command factory
 type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
-
-// LoggerName defines the logger name
-var (
-	defaultConfigFilePaths = []string{
-		path.Join(defaultpaths.ConfPath, "datadog.yaml"),
-	}
-)
 
 // MakeCommand makes the top-level Cobra command for this command.
 func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
@@ -42,10 +39,18 @@ func MakeCommand(subcommandFactories []SubcommandFactory) *cobra.Command {
 		Short: "Datadog Private Action Runner.",
 		Long: `
 Datadog Private Action Runner enables execution of private actions.`,
+		SilenceUsage: true,
 	}
 
-	privateActionRunnerCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "cfgpath", "c", defaultConfigFilePaths, "paths to yaml configuration files")
+	privateActionRunnerCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	privateActionRunnerCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "E", []string{}, "specify additional configuration files to be loaded sequentially after the main datadog.yaml")
+	privateActionRunnerCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 
+	privateActionRunnerCmd.PersistentPreRun = func(*cobra.Command, []string) {
+		if globalParams.NoColor {
+			color.NoColor = true
+		}
+	}
 	for _, factory := range subcommandFactories {
 		for _, subcmd := range factory(&globalParams) {
 			privateActionRunnerCmd.AddCommand(subcmd)
