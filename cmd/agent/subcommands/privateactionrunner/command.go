@@ -41,7 +41,7 @@ func selfEnrollCommand(_ *command.GlobalParams) *cobra.Command {
 	var site string
 	var runnerName string
 	var actionsAllowList string
-	var connectionGroupId string
+	var connectionGroupID string
 
 	cmd := &cobra.Command{
 		Use:   "self-enroll --api-key <api-key> --app-key <app-key>",
@@ -79,7 +79,7 @@ Example:
 				}
 			}
 			// Perform self-enrollment
-			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actionsAllowList, connectionGroupId)
+			return enrollment.ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actionsAllowList, connectionGroupID)
 		},
 	}
 
@@ -88,7 +88,7 @@ Example:
 	cmd.Flags().StringVarP(&site, "site", "", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
 	cmd.Flags().StringVarP(&runnerName, "name", "", "", "Name of the private action runner")
 	cmd.Flags().StringVarP(&actionsAllowList, "actions-allowlist", "", "com.datadoghq.datadog.agentactions.helloWorld", "Allowlist of actions for the private action runner")
-	cmd.Flags().StringVarP(&connectionGroupId, "connection-group-id", "", "", "Join a connection group on creation")
+	cmd.Flags().StringVarP(&connectionGroupID, "connection-group-id", "", "", "Join a connection group on creation")
 	//cmd.MarkFlagRequired("api-key")
 	//cmd.MarkFlagRequired("app-key")
 
