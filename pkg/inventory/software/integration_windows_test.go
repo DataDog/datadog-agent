@@ -12,7 +12,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -258,9 +257,6 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-	if os.Getenv("CI") == "true" {
-		t.Skip("Skipping test in CI environment: no Windows Store apps in containerized CI")
-	}
 
 	// Define struct to match PowerShell JSON output
 	type psAppxPackage struct {
@@ -302,15 +298,10 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	if len(jsonBytes) >= 3 && jsonBytes[0] == 0xEF && jsonBytes[1] == 0xBB && jsonBytes[2] == 0xBF {
 		jsonBytes = jsonBytes[3:]
 	}
-	// Handle empty or whitespace-only output
-	jsonBytes = bytes.TrimSpace(jsonBytes)
-	if len(jsonBytes) == 0 || string(jsonBytes) == "[]" {
-		t.Skip("No MS Store apps found in the system")
-		return
+	if len(jsonBytes) > 0 {
+		err = json.Unmarshal(jsonBytes, &psApps)
+		require.NoError(t, err, "Failed to parse JSON output")
 	}
-	err = json.Unmarshal(jsonBytes, &psApps)
-	require.NoError(t, err, "Failed to parse JSON output")
-
 	// Build map: productCode -> []Entry
 	psInventory := []Entry{}
 	for _, app := range psApps {
