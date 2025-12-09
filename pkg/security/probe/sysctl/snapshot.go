@@ -127,7 +127,7 @@ func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
 		// Skip if mode doesn't allow reading
 		info, err := d.Info()
 		if err != nil {
-			return nil // Skip files that can't be read
+			return err
 		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
@@ -176,7 +176,7 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 		// Skip if mode doesn't allow reading
 		info, err := d.Info()
 		if err != nil {
-			return nil // Skip files we can't read info for
+			return err
 		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
@@ -218,7 +218,7 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 		// Skip if mode doesn't allow reading
 		info, err := d.Info()
 		if err != nil {
-			return nil // Skip files we can't read info for
+			return err
 		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
