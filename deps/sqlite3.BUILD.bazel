@@ -34,6 +34,7 @@ cc_library(
         "-Wall",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
         "-DSQLITE_THREADSAFE=1",
+        "-O2",
     ] + select({
         "@platforms//os:windows": [
             "/O2",
