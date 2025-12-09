@@ -28,6 +28,9 @@ type MetricHistoryCache struct {
 
 	// Metric name filtering (prefix match)
 	includePrefixes []string // if empty, include all metrics
+
+	// Expiry duration for series that haven't been seen
+	expiryDuration time.Duration // default: 25 minutes (100 cycles * 15s)
 }
 
 // NewMetricHistoryCache creates a new cache with default configuration.
@@ -40,6 +43,7 @@ func NewMetricHistoryCache() *MetricHistoryCache {
 		recentRetention: 5 * time.Minute,
 		mediumRetention: 1 * time.Hour,
 		includePrefixes: []string{},
+		expiryDuration:  25 * time.Minute,
 	}
 }
 
@@ -132,4 +136,29 @@ func (c *MetricHistoryCache) Configure(cfg Config) {
 	c.longCapacity = cfg.LongCapacity()
 	c.recentRetention = cfg.RecentDuration
 	c.mediumRetention = cfg.MediumDuration
+	c.expiryDuration = cfg.ExpiryDuration
+}
+
+// Expire removes series that haven't been seen for expiryDuration.
+// Should be called after each flush cycle to clean up stale series.
+// nowTimestamp is the current timestamp in seconds (same units as LastSeen).
+//
+// Integration Note (Task 8):
+// This method should be called in the demultiplexer's flush cycle, after Rollup().
+// The call should be made alongside Rollup() in the flush goroutine, typically:
+//
+//	cache.Rollup(time.Now())
+//	cache.Expire(time.Now().Unix())
+func (c *MetricHistoryCache) Expire(nowTimestamp int64) int {
+	expired := 0
+	expiryThreshold := nowTimestamp - int64(c.expiryDuration.Seconds())
+
+	for key, history := range c.series {
+		if history.LastSeen < expiryThreshold {
+			delete(c.series, key)
+			expired++
+		}
+	}
+
+	return expired
 }

@@ -149,8 +149,8 @@ func TestSummaryStatsMerge(t *testing.T) {
 
 	assert.Equal(t, int64(8), s1.Count)
 	assert.Equal(t, 160.0, s1.Sum)
-	assert.Equal(t, 5.0, s1.Min)   // min of 10 and 5
-	assert.Equal(t, 30.0, s1.Max)  // max of 30 and 25
+	assert.Equal(t, 5.0, s1.Min)  // min of 10 and 5
+	assert.Equal(t, 30.0, s1.Max) // max of 30 and 25
 }
 
 func TestSummaryStatsMergeWithNegativeValues(t *testing.T) {

@@ -18,6 +18,7 @@ type Config struct {
 	RecentDuration  time.Duration
 	MediumDuration  time.Duration
 	LongDuration    time.Duration
+	ExpiryDuration  time.Duration
 }
 
 // DefaultConfig returns the default configuration.
@@ -28,6 +29,7 @@ func DefaultConfig() Config {
 		RecentDuration:  5 * time.Minute,
 		MediumDuration:  1 * time.Hour,
 		LongDuration:    24 * time.Hour,
+		ExpiryDuration:  25 * time.Minute, // 100 flush cycles * 15s
 	}
 }
 
@@ -58,6 +60,12 @@ func LoadConfig(cfg model.Reader) Config {
 	if cfg.IsSet("metric_history.retention.long_duration") {
 		if duration, err := time.ParseDuration(cfg.GetString("metric_history.retention.long_duration")); err == nil {
 			result.LongDuration = duration
+		}
+	}
+
+	if cfg.IsSet("metric_history.expiry_duration") {
+		if duration, err := time.ParseDuration(cfg.GetString("metric_history.expiry_duration")); err == nil {
+			result.ExpiryDuration = duration
 		}
 	}
 

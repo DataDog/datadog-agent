@@ -331,9 +331,9 @@ func TestConfigure(t *testing.T) {
 	cache.Configure(cfg)
 
 	// Verify capacities are calculated correctly
-	assert.Equal(t, 40, cache.recentCapacity)   // 10 minutes / 15 seconds
-	assert.Equal(t, 120, cache.mediumCapacity)  // 2 hours / 1 minute
-	assert.Equal(t, 48, cache.longCapacity)     // 48 hours / 1 hour
+	assert.Equal(t, 40, cache.recentCapacity)  // 10 minutes / 15 seconds
+	assert.Equal(t, 120, cache.mediumCapacity) // 2 hours / 1 minute
+	assert.Equal(t, 48, cache.longCapacity)    // 48 hours / 1 hour
 
 	// Verify retention durations
 	assert.Equal(t, 10*time.Minute, cache.recentRetention)

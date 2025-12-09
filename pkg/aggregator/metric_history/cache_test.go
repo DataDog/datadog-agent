@@ -7,6 +7,7 @@ package metric_history
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -364,4 +365,227 @@ func TestObserveWithEmptyPoints(t *testing.T) {
 	require.NotNil(t, history)
 	assert.Equal(t, 0, history.Recent.Len())
 	assert.Equal(t, int64(0), history.LastSeen)
+}
+
+func TestExpireRemovesStaleSeriesOnly(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	// Create series with different timestamps
+	tags1 := []string{"host:web01"}
+	oldSerie := &metrics.Serie{
+		Name:       "old.metric",
+		Tags:       tagset.CompositeTagsFromSlice(tags1),
+		Points:     []metrics.Point{{Ts: 1000.0, Value: 10.0}},
+		MType:      metrics.APIGaugeType,
+		ContextKey: generateContextKey("old.metric", "", tags1),
+	}
+
+	tags2 := []string{"host:web02"}
+	recentSerie := &metrics.Serie{
+		Name:       "recent.metric",
+		Tags:       tagset.CompositeTagsFromSlice(tags2),
+		Points:     []metrics.Point{{Ts: 2000.0, Value: 20.0}},
+		MType:      metrics.APIGaugeType,
+		ContextKey: generateContextKey("recent.metric", "", tags2),
+	}
+
+	cache.Observe(oldSerie)
+	cache.Observe(recentSerie)
+
+	// Verify both series exist
+	assert.Equal(t, 2, cache.SeriesCount())
+
+	// Run expiration with a timestamp that should expire the old serie
+	// oldSerie was last seen at 1000, so with expiry duration of 25 minutes (1500 seconds),
+	// it should be expired when nowTimestamp > 1000 + 1500 = 2500
+	nowTimestamp := int64(2600)
+	expired := cache.Expire(nowTimestamp)
+
+	// Should have expired 1 series
+	assert.Equal(t, 1, expired)
+	assert.Equal(t, 1, cache.SeriesCount())
+
+	// Old series should be gone
+	oldHistory := cache.GetHistory(oldSerie.ContextKey)
+	assert.Nil(t, oldHistory)
+
+	// Recent series should still exist
+	recentHistory := cache.GetHistory(recentSerie.ContextKey)
+	assert.NotNil(t, recentHistory)
+}
+
+func TestExpireWithActivelyUpdatedSeries(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	tags := []string{"env:prod"}
+	contextKey := generateContextKey("active.metric", "", tags)
+
+	// Create initial observation
+	serie1 := &metrics.Serie{
+		Name:       "active.metric",
+		Tags:       tagset.CompositeTagsFromSlice(tags),
+		Points:     []metrics.Point{{Ts: 1000.0, Value: 10.0}},
+		MType:      metrics.APIGaugeType,
+		ContextKey: contextKey,
+	}
+
+	cache.Observe(serie1)
+
+	// Update with recent data
+	serie2 := &metrics.Serie{
+		Name:       "active.metric",
+		Tags:       tagset.CompositeTagsFromSlice(tags),
+		Points:     []metrics.Point{{Ts: 2000.0, Value: 20.0}},
+		MType:      metrics.APIGaugeType,
+		ContextKey: contextKey,
+	}
+
+	cache.Observe(serie2)
+
+	// Verify series exists and LastSeen is updated
+	assert.Equal(t, 1, cache.SeriesCount())
+	history := cache.GetHistory(contextKey)
+	require.NotNil(t, history)
+	assert.Equal(t, int64(2000), history.LastSeen)
+
+	// Run expiration with a timestamp that would have expired the original point,
+	// but not the updated one
+	nowTimestamp := int64(2500)
+	expired := cache.Expire(nowTimestamp)
+
+	// Should not have expired any series
+	assert.Equal(t, 0, expired)
+	assert.Equal(t, 1, cache.SeriesCount())
+
+	// Series should still exist
+	history = cache.GetHistory(contextKey)
+	assert.NotNil(t, history)
+}
+
+func TestExpireWithNoStaleMetrics(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	// Create recent series
+	tags := []string{"env:prod"}
+	serie := &metrics.Serie{
+		Name:       "recent.metric",
+		Tags:       tagset.CompositeTagsFromSlice(tags),
+		Points:     []metrics.Point{{Ts: 2000.0, Value: 10.0}},
+		MType:      metrics.APIGaugeType,
+		ContextKey: generateContextKey("recent.metric", "", tags),
+	}
+
+	cache.Observe(serie)
+	assert.Equal(t, 1, cache.SeriesCount())
+
+	// Run expiration with a timestamp that shouldn't expire anything
+	nowTimestamp := int64(2100)
+	expired := cache.Expire(nowTimestamp)
+
+	// Should not have expired any series
+	assert.Equal(t, 0, expired)
+	assert.Equal(t, 1, cache.SeriesCount())
+}
+
+func TestExpireWithEmptyCache(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	// Run expiration on empty cache
+	nowTimestamp := int64(1000)
+	expired := cache.Expire(nowTimestamp)
+
+	// Should not have expired any series
+	assert.Equal(t, 0, expired)
+	assert.Equal(t, 0, cache.SeriesCount())
+}
+
+func TestExpireWithCustomExpiryDuration(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	// Set a shorter expiry duration
+	cfg := DefaultConfig()
+	cfg.ExpiryDuration = 5 * time.Minute // 300 seconds
+	cache.Configure(cfg)
+
+	// Create series
+	tags := []string{"env:prod"}
+	serie := &metrics.Serie{
+		Name:       "test.metric",
+		Tags:       tagset.CompositeTagsFromSlice(tags),
+		Points:     []metrics.Point{{Ts: 1000.0, Value: 10.0}},
+		MType:      metrics.APIGaugeType,
+		ContextKey: generateContextKey("test.metric", "", tags),
+	}
+
+	cache.Observe(serie)
+	assert.Equal(t, 1, cache.SeriesCount())
+
+	// Run expiration with a timestamp that exceeds the custom expiry duration
+	// LastSeen = 1000, expiry = 300, so should expire at nowTimestamp > 1300
+	nowTimestamp := int64(1400)
+	expired := cache.Expire(nowTimestamp)
+
+	// Should have expired the series
+	assert.Equal(t, 1, expired)
+	assert.Equal(t, 0, cache.SeriesCount())
+}
+
+func TestExpireWithMultipleSeriesAtDifferentAges(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	// Create series at different timestamps
+	series := []struct {
+		name      string
+		timestamp float64
+		tags      []string
+	}{
+		{"very.old.metric", 1000.0, []string{"age:very_old"}},
+		{"old.metric", 2000.0, []string{"age:old"}},
+		{"recent.metric", 3000.0, []string{"age:recent"}},
+		{"very.recent.metric", 4000.0, []string{"age:very_recent"}},
+	}
+
+	for _, s := range series {
+		serie := &metrics.Serie{
+			Name:       s.name,
+			Tags:       tagset.CompositeTagsFromSlice(s.tags),
+			Points:     []metrics.Point{{Ts: s.timestamp, Value: 10.0}},
+			MType:      metrics.APIGaugeType,
+			ContextKey: generateContextKey(s.name, "", s.tags),
+		}
+		cache.Observe(serie)
+	}
+
+	assert.Equal(t, 4, cache.SeriesCount())
+
+	// Expire with timestamp that should remove the two oldest
+	// Expiry duration is 25 minutes (1500 seconds)
+	// nowTimestamp = 3600, so threshold = 3600 - 1500 = 2100
+	// Should expire: very.old.metric (1000) and old.metric (2000)
+	// Should keep: recent.metric (3000) and very.recent.metric (4000)
+	nowTimestamp := int64(3600)
+	expired := cache.Expire(nowTimestamp)
+
+	assert.Equal(t, 2, expired)
+	assert.Equal(t, 2, cache.SeriesCount())
+
+	// Verify the correct series remain
+	assert.Nil(t, cache.GetHistory(generateContextKey("very.old.metric", "", []string{"age:very_old"})))
+	assert.Nil(t, cache.GetHistory(generateContextKey("old.metric", "", []string{"age:old"})))
+	assert.NotNil(t, cache.GetHistory(generateContextKey("recent.metric", "", []string{"age:recent"})))
+	assert.NotNil(t, cache.GetHistory(generateContextKey("very.recent.metric", "", []string{"age:very_recent"})))
+}
+
+func TestConfigureUpdatesExpiryDuration(t *testing.T) {
+	cache := NewMetricHistoryCache()
+
+	// Verify default expiry duration
+	assert.Equal(t, 25*time.Minute, cache.expiryDuration)
+
+	// Configure with a different expiry duration
+	cfg := DefaultConfig()
+	cfg.ExpiryDuration = 10 * time.Minute
+	cache.Configure(cfg)
+
+	assert.Equal(t, 10*time.Minute, cache.expiryDuration)
 }
