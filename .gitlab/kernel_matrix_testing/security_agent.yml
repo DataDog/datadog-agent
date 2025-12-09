@@ -109,6 +109,7 @@ upload_secagent_tests_arm64:
   timeout: 1h 30m
   variables:
     TEST_COMPONENT: security-agent
+    RETRY: 0
 
 .kmt_run_secagent_tests:
   extends: .kmt_run_secagent_tests_base
