@@ -35,7 +35,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.73.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.73.0-rc.9 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.47.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.141.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.141.1-0.20251203101216-a0cbea73c189 // indirect

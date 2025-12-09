@@ -26,11 +26,11 @@ require (
 	go.opentelemetry.io/collector/consumer/xconsumer v0.141.0
 	go.opentelemetry.io/collector/pdata v1.47.0
 	go.opentelemetry.io/collector/pdata/pprofile v0.141.0
-	go.opentelemetry.io/collector/processor v1.46.0
-	go.opentelemetry.io/collector/processor/processorhelper v0.140.0
-	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.140.0
-	go.opentelemetry.io/collector/processor/processortest v0.140.0
-	go.opentelemetry.io/collector/processor/xprocessor v0.140.0
+	go.opentelemetry.io/collector/processor v1.47.0
+	go.opentelemetry.io/collector/processor/processorhelper v0.141.0
+	go.opentelemetry.io/collector/processor/processorhelper/xprocessorhelper v0.141.0
+	go.opentelemetry.io/collector/processor/processortest v0.141.0
+	go.opentelemetry.io/collector/processor/xprocessor v0.141.0
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/metric v1.38.0
 	go.opentelemetry.io/otel/trace v1.38.0
