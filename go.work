@@ -6,7 +6,6 @@ go 1.24.10
 godebug tlsmlkem=0
 
 use (
-
 	.
 	comp/api/api/def
 	comp/core/agenttelemetry/def
@@ -66,7 +65,6 @@ use (
 	comp/otelcol/otlp/components/exporter/serializerexporter
 	comp/otelcol/otlp/components/metricsclient
 	comp/otelcol/otlp/components/processor/infraattributesprocessor
-	comp/otelcol/otlp/components/statsprocessor
 	comp/otelcol/otlp/testutil
 	comp/otelcol/status/def
 	comp/otelcol/status/impl

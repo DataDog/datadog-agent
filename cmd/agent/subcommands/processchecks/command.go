@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	check "github.com/DataDog/datadog-agent/pkg/cli/subcommands/processchecks"
@@ -52,6 +53,7 @@ func getCoreAgentFxOptions(cliParams *check.CliParams, bundleParams core.BundleP
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		// Provide rdnsquerier module
 		rdnsquerierfx.Module(),
+		remotetraceroute.Module(),
 		// Provide npcollector module
 		npcollectorimpl.Module(),
 		// Provide the corresponding workloadmeta Params to configure the catalog

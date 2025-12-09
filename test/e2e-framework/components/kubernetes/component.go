@@ -45,3 +45,6 @@ type Workload struct {
 }
 
 type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*Workload, error)
+
+// AgentDependentWorkloadAppFunc is a function that deploys a workload app to a kube provider with the agent passed in
+type AgentDependentWorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*Workload, error)

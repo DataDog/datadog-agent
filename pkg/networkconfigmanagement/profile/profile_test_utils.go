@@ -214,6 +214,14 @@ func getRunningScrubber() *scrubber.Scrubber {
 	return sc
 }
 
+// DefaultProfile will parse the official default profile given the name of the profile file
+func DefaultProfile(profileName string) *NCMProfile {
+	file := profileName + ".json"
+	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, file))
+	prof, _ := parseNCMProfileFromBytes(b, profileName)
+	return prof
+}
+
 // IOSProfile parses the test profile for IOS devices to test with
 func IOSProfile() *NCMProfile {
 	b, _ := defaultProfilesFS.ReadFile(path.Join(defaultProfilesFolder, "cisco-ios.json"))
