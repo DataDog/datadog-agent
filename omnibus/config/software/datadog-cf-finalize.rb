@@ -33,10 +33,14 @@ build do
             mkdir "#{cf_bin_root_bin}/agent"
 
             copy "#{install_dir}/bin/agent/agent.exe", "#{cf_bin_root_bin}"
+            windows_symbol_stripping_file "#{cf_bin_root_bin}/agent.exe"
             copy "#{install_dir}/bin/agent/libdatadog-agent-three.dll", "#{cf_bin_root_bin}"
+            windows_symbol_stripping_file "#{cf_bin_root_bin}/libdatadog-agent-three.dll"
 
             copy "#{install_dir}/bin/agent/process-agent.exe", "#{cf_bin_root_bin}/agent"
+            windows_symbol_stripping_file "#{cf_bin_root_bin}/agent/process-agent.exe"
             copy "#{install_dir}/bin/agent/trace-agent.exe", "#{cf_bin_root_bin}/agent"
+            windows_symbol_stripping_file "#{cf_bin_root_bin}/agent/trace-agent.exe"
         end
     end
 end
