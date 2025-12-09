@@ -276,7 +276,7 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	// add pid one for hash resolution outside of a container
 	rootPIDs := []uint32{1, pid}
 	if resolver.cgroupResolver != nil {
-		w, ok := resolver.cgroupResolver.GetWorkload(ctrID)
+		w, ok := resolver.cgroupResolver.GetContainerWorkload(ctrID)
 		if ok {
 			rootPIDs = w.GetPIDs()
 		}
