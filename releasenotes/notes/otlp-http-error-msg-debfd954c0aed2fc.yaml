@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTLP spans describing an HTTP error now derive the `error.msg` attribute from the status code,
+    instead of sourcing it from the deprecated `http.status_text` attribute.
+    In other words, a span that previously had `error.msg: "500"` will now have `error.msg: "500 Internal Server Error"`.
+    Users who relied on this attribute to extract the status code should use `http.response.status_code` instead,
+    or can set `error.msg` manually to override this behavior.
