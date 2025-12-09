@@ -221,6 +221,10 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
 
 	env = append(env, testConfig.AdditionalEnvVars...)
 
+	if jobEnv, err := os.ReadFile("/job_env.txt"); err == nil {
+		env = append(env, strings.Split(string(jobEnv), "\n")...)
+	}
+
 	return env
 }
 
