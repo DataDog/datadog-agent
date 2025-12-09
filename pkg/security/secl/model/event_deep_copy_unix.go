@@ -288,7 +288,7 @@ func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied.CGroupFile = deepCopyPathKey(fieldToCopy.CGroupFile)
 	copied.CGroupID = fieldToCopy.CGroupID
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
-	copied.Releasable = deepCopyReleasable(fieldToCopy.Releasable)
+	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	return copied
 }
 func deepCopyPathKey(fieldToCopy PathKey) PathKey {
@@ -298,8 +298,11 @@ func deepCopyPathKey(fieldToCopy PathKey) PathKey {
 	copied.PathID = fieldToCopy.PathID
 	return copied
 }
-func deepCopyReleasable(fieldToCopy Releasable) Releasable {
-	copied := Releasable{}
+func deepCopyReleasablePtr(fieldToCopy *Releasable) *Releasable {
+	if fieldToCopy == nil {
+		return nil
+	}
+	copied := &Releasable{}
 	return copied
 }
 func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
@@ -309,6 +312,10 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.Releasable = deepCopyReleasable(fieldToCopy.Releasable)
 	copied.Resolved = fieldToCopy.Resolved
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
+	return copied
+}
+func deepCopyReleasable(fieldToCopy Releasable) Releasable {
+	copied := Releasable{}
 	return copied
 }
 func deepCopyCredentials(fieldToCopy Credentials) Credentials {
