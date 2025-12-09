@@ -367,12 +367,12 @@ func (m *Manager) cleanupTracedPids(ad *dump.ActivityDump) {
 	// Try to get workload from cgroup resolver
 	if ad.Profile.Metadata.ContainerID != "" {
 		// Container workload
-		if workload, found := m.resolvers.CGroupResolver.GetWorkload(ad.Profile.Metadata.ContainerID); found {
+		if workload, found := m.resolvers.CGroupResolver.GetContainerWorkload(ad.Profile.Metadata.ContainerID); found {
 			pids = workload.GetPIDs()
 		}
 	} else if ad.Profile.Metadata.CGroupContext.CGroupID != "" {
 		// Host workload
-		if workload, found := m.resolvers.CGroupResolver.GetWorkloadByCGroupID(ad.Profile.Metadata.CGroupContext.CGroupID); found {
+		if workload, found := m.resolvers.CGroupResolver.GetHostWorkload(ad.Profile.Metadata.CGroupContext.CGroupID); found {
 			pids = workload.GetPIDs()
 		}
 	}
