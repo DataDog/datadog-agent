@@ -1,18 +1,21 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2025-present Datadog, Inc.
 
-// Package npcollector used to manage network paths
-package npcollector
+// Package traceroute provides the traceroute component
+package traceroute
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 )
 
 // team: cloud-network-monitoring network-path
 
 // Component is the component type.
 type Component interface {
-	ScheduleConns(conns *model.Connections)
+	Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error)
 }
