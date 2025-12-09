@@ -7,7 +7,13 @@
 
 package battery
 
+import "errors"
+
+func hasBatteryAvailable() (bool, error) {
+	return false, errors.New("battery info only supported on macOS and Windows")
+}
+
 // getBatteryInfo returns no battery on unsupported platforms
 func getBatteryInfo() (batteryInfo, error) {
-	return batteryInfo{found: false}, nil
+	return batteryInfo{}, errors.New("battery info only supported on macOS and Windows")
 }
