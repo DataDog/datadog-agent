@@ -6,9 +6,7 @@
 package processor
 
 import (
-	"bytes"
 	"context"
-	"regexp"
 	"slices"
 	"sync"
 
@@ -16,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -51,6 +50,10 @@ type Processor struct {
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
 
+	// Token-based processing rule applicator (shared for all mask_sequences rules)
+	maskApplicator        *ProcessingRuleApplicator
+	tokenizerWithLiterals *automultilinedetection.Tokenizer
+
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
 	utilization     metrics.UtilizationMonitor
@@ -75,6 +78,9 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+
+		// Initialize tokenizer with literals for processing rules
+		tokenizerWithLiterals: automultilinedetection.NewTokenizerWithLiterals(1000),
 	}
 
 	// Initialize cached failover config
@@ -241,42 +247,61 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 }
 
 // applyRedactingRules returns given a message if we should process it or not,
-// it applies the change directly on the Message content.
+// it applies the change directly on the Message content using token-based matching.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	var content = msg.GetContent()
 
-	// Use the internal scrubbing implementation of the Agent
-	// ---------------------------
-
+	// Combine global and source-specific rules
 	rules := append(p.processingRules, msg.Origin.LogSource.Config.ProcessingRules...)
+
+	// Tokenize once for all rules
+	msgTokens, _ := p.tokenizerWithLiterals.Tokenize(content)
+
+	// Apply rules in order
 	for _, rule := range rules {
 		switch rule.Type {
 		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
+			// Prefilter check
+			if !hasPrefilterKeywords(content, rule.PrefilterKeywordsRaw) {
+				continue
 			}
+			// Check if message matches
+			if matchesTokenPattern(msgTokens, rule.TokenPattern) {
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				return false // Drop message
+			}
+
 		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
-				return false
+			// Prefilter check
+			if !hasPrefilterKeywords(content, rule.PrefilterKeywordsRaw) {
+				return false // Drop if prefilter fails
+			}
+			// Check if message matches
+			if !matchesTokenPattern(msgTokens, rule.TokenPattern) {
+				return false // Drop message if doesn't match
 			}
 			msg.RecordProcessingRule(rule.Type, rule.Name)
+
 		case config.MaskSequences:
-			if isMatchingLiteralPrefix(rule.Regex, content) {
-				originalContent := content
-				content = rule.Regex.ReplaceAll(content, rule.Placeholder)
-				if !bytes.Equal(originalContent, content) {
-					msg.RecordProcessingRule(rule.Type, rule.Name)
-				}
+			// Prefilter check
+			if !hasPrefilterKeywords(content, rule.PrefilterKeywordsRaw) {
+				continue
 			}
+			// Use applicator for replacement (handles overlaps)
+			maskApplicator := NewApplicator([]*config.ProcessingRule{rule})
+			newContent, matchedRules := maskApplicator.Apply(content, p.tokenizerWithLiterals, config.MaskSequences)
+			if len(matchedRules) > 0 {
+				content = newContent
+				msg.RecordProcessingRule(rule.Type, rule.Name)
+				// Re-tokenize for subsequent rules
+				msgTokens, _ = p.tokenizerWithLiterals.Tokenize(content)
+			}
+
 		case config.ExcludeTruncated:
 			if msg.IsTruncated {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
 		}
 	}
 
@@ -284,15 +309,28 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 	return true // we want to send this message
 }
 
-// isMatchingLiteralPrefix uses a potential literal prefix from the given regex
-// to indicate if the contant even has a chance of matching the regex
-func isMatchingLiteralPrefix(r *regexp.Regexp, content []byte) bool {
-	prefix, _ := r.LiteralPrefix()
-	if prefix == "" {
+// bytesContains is a simple byte slice contains check
+func bytesContains(haystack, needle []byte) bool {
+	if len(needle) == 0 {
 		return true
 	}
+	if len(haystack) < len(needle) {
+		return false
+	}
 
-	return bytes.Contains(content, []byte(prefix))
+	for i := 0; i <= len(haystack)-len(needle); i++ {
+		match := true
+		for j := 0; j < len(needle); j++ {
+			if haystack[i+j] != needle[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }
 
 // GetHostname returns the hostname to applied the given log message

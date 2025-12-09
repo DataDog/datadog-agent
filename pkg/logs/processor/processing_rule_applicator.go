@@ -6,54 +6,27 @@
 package processor
 
 import (
-	"bytes"
-
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
+	"github.com/DataDog/datadog-agent/pkg/logs/tokens"
 )
 
-// ProcessingRuleType indicates what type of detection the redactor uses, i.e. token-based
-type ProcessingRuleType string
-
-const (
-	// RuleTypeToken indicates token-based pattern matching
-	RuleTypeToken ProcessingRuleType = "token"
-)
-
-// TokenBasedProcessingRule represents a single detection and redaction rule
-type TokenBasedProcessingRule struct {
-	Name              string
-	Type              ProcessingRuleType
-	TokenPattern      []tokens.Token // For token-based rules
-	Replacement       []byte
-	PrefilterKeywords [][]byte // Literal strings that must be present for rule to apply
-}
-
-type ProcessingRuleApplicatorConfig struct {
-}
-
+// ProcessingRuleApplicator applies token-based processing rules
 type ProcessingRuleApplicator struct {
-	tokenRules []*TokenBasedProcessingRule // Fast token-based rules
+	rules []*config.ProcessingRule
 }
 
-// NewRedactor creates a new hybrid PII detector with predefined rules
-// filtered by the enabled PII types in the config
-func NewRedactor(config ProcessingRuleApplicatorConfig) *ProcessingRuleApplicator {
-	applicator := &ProcessingRuleApplicator{
-		tokenRules: make([]*TokenBasedProcessingRule, 0),
+// NewApplicator creates a new processing rule applicator
+func NewApplicator(rules []*config.ProcessingRule) *ProcessingRuleApplicator {
+	return &ProcessingRuleApplicator{
+		rules: rules,
 	}
-
-	allTokenRules := getTokenRules(config)
-
-	applicator.tokenRules = allTokenRules
-
-	return applicator
 }
 
 // Apply applies detection and redaction/replacement in a single pass.
 // Returns the updated content and a list of rule names that matched.
 // This method is thread-safe when each goroutine provides its own tokenizer.
-func (h *ProcessingRuleApplicator) Apply(content []byte, tokenizer *automultilinedetection.Tokenizer) ([]byte, []string) {
+func (p *ProcessingRuleApplicator) Apply(content []byte, tokenizer *automultilinedetection.Tokenizer, ruleType string) ([]byte, []string) {
 	if len(content) == 0 {
 		return content, nil
 	}
@@ -62,41 +35,45 @@ func (h *ProcessingRuleApplicator) Apply(content []byte, tokenizer *automultilin
 	result := make([]byte, len(content))
 	copy(result, content)
 
-	// Pass 1: Fast token-based detection for structured PII
-	// Tokenizer is provided by caller to avoid thread-safety issues
-	if tokenizer != nil && len(h.tokenRules) > 0 {
+	// Tokenize once
+	if tokenizer != nil && len(p.rules) > 0 {
 		toks, indices := tokenizer.Tokenize(result)
 		if len(toks) > 0 {
-			result, matchedRules = h.applyTokenRules(result, toks, indices, matchedRules)
+			result, matchedRules = p.applyRules(result, toks, indices, matchedRules, ruleType)
 		}
 	}
 
 	return result, matchedRules
 }
 
-// applyTokenRules applies token-based detection rules
-func (h *ProcessingRuleApplicator) applyTokenRules(content []byte, toks []tokens.Token, indices []int, matchedRules []string) ([]byte, []string) {
+// applyRules applies mask_sequences rules with overlap detection
+func (p *ProcessingRuleApplicator) applyRules(content []byte, toks []tokens.Token, indices []int, matchedRules []string, ruleType string) ([]byte, []string) {
 	type match struct {
 		start int
 		end   int
-		rule  *TokenBasedProcessingRule
+		rule  *config.ProcessingRule
 	}
 	matches := make([]match, 0)
 
-	// Find all token pattern matches
-	for _, rule := range h.tokenRules {
+	// Find all token pattern matches for mask_sequences rules
+	for _, rule := range p.rules {
+		if rule.Type != ruleType {
+			continue
+		}
+
 		patternLen := len(rule.TokenPattern)
 		if patternLen == 0 {
 			continue
 		}
 
-		if !h.hasPrefilterKeywords(content, rule.PrefilterKeywords) {
-			continue // skip further token matching
+		// Prefilter check
+		if !hasPrefilterKeywords(content, rule.PrefilterKeywordsRaw) {
+			continue
 		}
 
 		// Sliding window over tokens
 		for i := 0; i <= len(toks)-patternLen; i++ {
-			if h.matchesTokenPattern(toks[i:i+patternLen], rule.TokenPattern) {
+			if matchesTokenPatternWithConstraints(toks[i:i+patternLen], rule.TokenPattern, rule.LengthConstraints) {
 				// Token pattern matched! Get the byte range
 				startIdx := indices[i]
 				endIdx := len(content)
@@ -138,12 +115,10 @@ func (h *ProcessingRuleApplicator) applyTokenRules(content []byte, toks []tokens
 	}
 
 	// Apply replacements from end to start to maintain indices
-	// Work backwards so earlier replacements don't affect later indices
 	for _, m := range matches {
-		// Build new content: before + replacement + after
-		newContent := make([]byte, 0, len(content)-(m.end-m.start)+len(m.rule.Replacement))
+		newContent := make([]byte, 0, len(content)-(m.end-m.start)+len(m.rule.Placeholder))
 		newContent = append(newContent, content[:m.start]...)
-		newContent = append(newContent, m.rule.Replacement...)
+		newContent = append(newContent, m.rule.Placeholder...)
 		newContent = append(newContent, content[m.end:]...)
 		content = newContent
 		matchedRules = append(matchedRules, m.rule.Name)
@@ -152,32 +127,28 @@ func (h *ProcessingRuleApplicator) applyTokenRules(content []byte, toks []tokens
 	return content, matchedRules
 }
 
-// matchesTokenPattern checks if actual tokens match the expected pattern.
-// Pattern tokens with literal values must match exactly (kind + literal).
-// Pattern tokens without literals match any token of the same kind.
-func (h *ProcessingRuleApplicator) matchesTokenPattern(actual, expected []tokens.Token) bool {
+// matchesTokenPatternWithConstraints checks if actual tokens match the expected pattern
+// and validates length constraints for variable-length patterns (e.g., IPv4)
+func matchesTokenPatternWithConstraints(actual, expected []tokens.Token, constraints []config.LengthConstraint) bool {
 	if len(actual) != len(expected) {
 		return false
 	}
+
 	for i := range actual {
-		// Use the Equals method which handles literal matching
 		if !actual[i].Equals(expected[i]) {
 			return false
 		}
-	}
-	return true
-}
 
-// hasPrefilterKeywords checks if all required literal strings are present in content
-// This is a fast check to avoid expensive token matching when patterns can't possibly match
-func (h *ProcessingRuleApplicator) hasPrefilterKeywords(content []byte, keywords [][]byte) bool {
-	if len(keywords) == 0 {
-		return true // No prefilter requirements
-	}
-
-	for _, keyword := range keywords {
-		if !bytes.Contains(content, keyword) {
-			return false // Missing required keyword
+		// Validate length constraints (only if token has a literal)
+		if actual[i].Lit != "" {
+			for _, constraint := range constraints {
+				if i == constraint.TokenIndex {
+					length := len(actual[i].Lit)
+					if length < constraint.MinLength || length > constraint.MaxLength {
+						return false // Length out of range
+					}
+				}
+			}
 		}
 	}
 	return true

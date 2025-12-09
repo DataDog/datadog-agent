@@ -82,6 +82,10 @@ const (
 	Zone // Represents a timezone
 	T    // t (often `T`) denotes a time separator in many timestamp formats
 
+	// Wildcard tokens for matching variable-length patterns
+	DAny // Matches any digit run (D1-D10) - used with length constraints
+	CAny // Matches any character run (C1-C10) - used with length constraints
+
 	End // Not a valid token. Used to mark the end of the token list or as a terminator.
 )
 
@@ -100,14 +104,28 @@ func NewSimpleToken(kind TokenKind) Token {
 // Equals compares two tokens for equality
 // If both tokens have literals, compares both kind and literal
 // If pattern token has no literal, only compares kind
+// Supports wildcard matching for DAny and CAny
 func (t Token) Equals(pattern Token) bool {
+	// Handle wildcard digit matching (DAny matches any D1-D10)
+	if pattern.Kind == DAny && t.Kind >= D1 && t.Kind <= D10 {
+		return true
+	}
+
+	// Handle wildcard character matching (CAny matches any C1-C10)
+	if pattern.Kind == CAny && t.Kind >= C1 && t.Kind <= C10 {
+		return true
+	}
+
+	// Normal kind matching
 	if t.Kind != pattern.Kind {
 		return false
 	}
+
 	// If pattern has a literal value, it must match exactly
 	if pattern.Lit != "" {
 		return t.Lit == pattern.Lit
 	}
+
 	// Pattern has no literal, so kind match is sufficient
 	return true
 }
