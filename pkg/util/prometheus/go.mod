@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/pkg/util/prometheus
 
 go 1.24.0
 
-require github.com/prometheus/common v0.67.2
+require github.com/prometheus/common v0.67.4
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
