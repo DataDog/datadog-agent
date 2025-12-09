@@ -38,7 +38,7 @@ dda inv omnibus.docker-build && docker save localhost/datadog-agent:local | lima
 kubectl apply -f test-cluster.yaml --context kind-gadget-dev
 
 # 3. Restart agent to pick up new image
-kubectl delete pods -l app.kubernetes.io/name=datadog-agent -n default --context kind-gadget-dev
+kubectl delete pods -l app.kubernetes.io/name=datadog-agent-deployment -n default --context kind-gadget-dev
 
 # 4. Watch pods come up
 kubectl get pods -w --context kind-gadget-dev

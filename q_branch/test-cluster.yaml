@@ -48,3 +48,37 @@ spec:
     dogstatsd:
       unixDomainSocketConfig:
         enabled: true
+---
+# CPU Oscillation stress test - creates rapid on/off CPU pattern
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cpu-oscillator
+  labels:
+    app: cpu-oscillator
+spec:
+  containers:
+  - name: oscillator
+    image: busybox
+    command:
+    - /bin/sh
+    - -c
+    - |
+      # Oscillate CPU: 2 seconds busy, 2 seconds idle
+      # This creates ~0.25 Hz oscillation pattern
+      while true; do
+        # CPU spike: tight loop for 2 seconds
+        end=$(($(date +%s) + 2))
+        while [ $(date +%s) -lt $end ]; do
+          : # busy loop
+        done
+        # CPU idle: sleep for 2 seconds
+        sleep 2
+      done
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "32Mi"
+      limits:
+        cpu: "500m"
+        memory: "64Mi"
