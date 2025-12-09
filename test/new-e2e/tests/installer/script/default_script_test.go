@@ -46,7 +46,7 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	s.RunInstallScript(
 		s.url,
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
@@ -96,7 +96,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	// Full supported option set
 	params := []string{
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:3,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_REMOTE_UPDATES=true",

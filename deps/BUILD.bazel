@@ -23,6 +23,7 @@ filegroup(
             "@attr",
             "@gcrypt",
             "@gpg-error",
+            "@libpcap//:pcap",
             "@libsepol//:sepol",
             "@libxml2",
             "@libxslt",
