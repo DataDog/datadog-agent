@@ -8,18 +8,17 @@ package sharedlibrary
 
 import (
 	_ "embed"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	osVM "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	checkutils "github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	checkutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 //go:embed files/conf.yaml
@@ -33,20 +32,19 @@ type sharedLibrarySuite struct {
 }
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
-	config := fmt.Sprintf(
-		`shared_library_check.enabled: true
-shared_library_check.library_folder_path: %s`,
-		v.checksdPath,
-	)
+	config := `shared_library_check.enabled: true
+shared_library_check.library_folder_path: ` + v.checksdPath
 
 	var suiteOptions []e2e.SuiteOption
 	suiteOptions = append(suiteOptions, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithIntegration("example.d", exampleCheckYaml),
-				agentparams.WithAgentConfig(config),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithIntegration("example.d", exampleCheckYaml),
+					agentparams.WithAgentConfig(config),
+				),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 			),
-			awshost.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 		),
 	))
 
