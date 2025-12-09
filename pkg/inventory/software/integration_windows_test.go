@@ -226,6 +226,9 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
+	if os.Getenv("CI") == "true" {
+		t.Skip("Skipping test in CI environment: no Windows Store apps in containerized CI")
+	}
 
 	// Define struct to match PowerShell JSON output
 	type psAppxPackage struct {
@@ -239,7 +242,7 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	// Get PowerShell MS Store packages (doesn't include apps within the package)
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", `
 		$OutputEncoding = [Console]::OutputEncoding = [Text.Encoding]::UTF8;
-		Get-AppxPackage -AllUsers |
+		$apps = Get-AppxPackage -AllUsers |
 		Where-Object {
 			-not $_.IsFramework -and
 			-not $_.IsResourcePackage -and
@@ -247,8 +250,12 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 			-not $_.IsBundle
 		} |
 		Select-Object Name, Version, Publisher, Architecture, PackageFamilyName |
-		Sort-Object Name |
-		ConvertTo-Json
+		Sort-Object Name;
+		if ($apps) {
+			$apps | ConvertTo-Json -AsArray  # Force array output even for single item
+		} else {
+			Write-Output "[]"  # Return empty array if no apps
+		}
 	`)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -262,6 +269,12 @@ func TestIntegrationMSStoreApps(t *testing.T) {
 	// Skip UTF-8 BOM if present
 	if len(jsonBytes) >= 3 && jsonBytes[0] == 0xEF && jsonBytes[1] == 0xBB && jsonBytes[2] == 0xBF {
 		jsonBytes = jsonBytes[3:]
+	}
+	// Handle empty or whitespace-only output
+	jsonBytes = bytes.TrimSpace(jsonBytes)
+	if len(jsonBytes) == 0 || string(jsonBytes) == "[]" {
+		t.Skip("No MS Store apps found in the system")
+		return
 	}
 	err = json.Unmarshal(jsonBytes, &psApps)
 	require.NoError(t, err, "Failed to parse JSON output")
