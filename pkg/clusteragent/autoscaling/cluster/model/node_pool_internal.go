@@ -26,6 +26,9 @@ const (
 	DatadogCreatedLabelKey      = "autoscaling.datadoghq.com/created"
 	datadogModifiedLabelKey     = "autoscaling.datadoghq.com/modified"
 	datadogReplicaAnnotationKey = "autoscaling.datadoghq.com/target-nodepool"
+
+	// KarpenterNodePoolHashAnnotationKey is the annotation key that that tracks the Karpenter NodePool template hash
+	KarpenterNodePoolHashAnnotationKey = "karpenter.sh/nodepool-hash"
 )
 
 type NodePoolInternal struct {
