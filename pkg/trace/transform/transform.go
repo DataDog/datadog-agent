@@ -669,7 +669,7 @@ func SetMetricOTLPIfEmpty(s *pb.Span, k string, v float64) {
 
 // Status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func Status2Error(status ptrace.Status, events ptrace.SpanEventSlice, metaMap map[string]string) int32 {
+func Status2Error(status ptrace.Status, _ ptrace.SpanEventSlice, metaMap map[string]string) int32 {
 	if status.Code() != ptrace.StatusCodeError {
 		return 0
 	}
