@@ -26,7 +26,7 @@ type deploymentParser struct {
 
 // NewDeploymentParser initialises and returns a deployment parser
 func NewDeploymentParser(annotationsExclude []string) (ObjectParser, error) {
-	filters, err := parseFilters(annotationsExclude)
+	filters, err := ParseFilters(annotationsExclude)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 			Name:        deployment.Name,
 			Namespace:   deployment.Namespace,
 			Labels:      deployment.Labels,
-			Annotations: filterMapStringKey(deployment.Annotations, p.annotationsFilter),
+			Annotations: FilterMapStringKey(deployment.Annotations, p.annotationsFilter),
 		},
 		Env:                 deployment.Labels[ddkube.EnvTagLabelKey],
 		Service:             deployment.Labels[ddkube.ServiceTagLabelKey],
