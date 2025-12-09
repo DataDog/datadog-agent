@@ -181,4 +181,3 @@ func zoneToString(zone int) string {
 	}
 	return strconv.Itoa(zone)
 }
-
