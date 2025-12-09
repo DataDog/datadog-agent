@@ -48,7 +48,7 @@ const (
 	maxNoise = -75  // level above this will be extremely congested or faulty
 
 	// Data rate (PHY link rate) valid range in Mbps
-	minDataRate = 0     // 0 indicates unknown/inactive
+	minDataRate = 0      // 0 indicates unknown/inactive
 	maxDataRate = 100000 // 100 Gbps (supports WiFi 8 and beyond)
 
 	// MAC address standard format length (XX:XX:XX:XX:XX:XX)
@@ -101,17 +101,17 @@ func GetWiFiInfo() (wifiInfo, error) {
 		if launchErr := launchGUIApp(uid); launchErr != nil {
 			log.Warnf("Failed to launch console user's GUI app: %v", launchErr)
 		} else {
-		log.Info("Waiting for console user's GUI to start, retrying connection...")
+			log.Info("Waiting for console user's GUI to start, retrying connection...")
 
-		// Retry connection (give GUI ~1.6s to start, then fallback)
-		// This prevents blocking the check scheduler for too long (WiFi metrics are periodic, not critical)
-		retryErr := checkpkg.Retry(400*time.Millisecond, 4, func() error {
-			info, err = fetchWiFiFromGUI(socketPath, 1*time.Second)
-			if err != nil {
-				return checkpkg.RetryableError{Err: err}
-			}
-			return nil
-		}, "GUI WiFi socket connection")
+			// Retry connection (give GUI ~1.6s to start, then fallback)
+			// This prevents blocking the check scheduler for too long (WiFi metrics are periodic, not critical)
+			retryErr := checkpkg.Retry(400*time.Millisecond, 4, func() error {
+				info, err = fetchWiFiFromGUI(socketPath, 1*time.Second)
+				if err != nil {
+					return checkpkg.RetryableError{Err: err}
+				}
+				return nil
+			}, "GUI WiFi socket connection")
 
 			if retryErr == nil {
 				// Successfully connected after launch
