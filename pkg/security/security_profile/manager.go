@@ -717,15 +717,15 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		var cgceTags []string
 		var err error
 		var imageName, imageTag string
-		if cgce.ContainerID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerID)
+		if cgce.ContainerContext.ContainerID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerContext.ContainerID)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
-		} else if cgce.CGroupID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupID)
+		} else if cgce.CGroupContext.CGroupID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupContext.CGroupID)
 			if err != nil {
 				return false
 			}

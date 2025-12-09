@@ -13,14 +13,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-var prctlCapabilities = rules.FieldCapabilities{
+var setsockoptCapabilities = rules.FieldCapabilities{
 	{
-		Field:       "prctl.option",
+		Field:       "setsockopt.level",
+		TypeBitmask: eval.ScalarValueType,
+	},
+	{
+		Field:       "setsockopt.optname",
 		TypeBitmask: eval.ScalarValueType,
 	},
 }
 
-func prctlKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
+func setsockoptKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, error) {
 	var (
 		kfilters     []kFilter
 		fieldHandled []eval.Field
@@ -28,8 +32,17 @@ func prctlKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, err
 
 	for field, values := range approvers {
 		switch field {
-		case "prctl.option":
-			kfilter, err := getEnumsKFiltersWithIndex("prctl_option_approvers", 0, uintValues[uint64](values)...)
+		case "setsockopt.level":
+			// Use index 0 for level field in the eBPF map
+			kfilter, err := getEnumsKFiltersWithIndex("setsockopt_level_or_optname_approvers", 0, uintValues[uint64](values)...)
+			if err != nil {
+				return nil, nil, err
+			}
+			kfilters = append(kfilters, kfilter)
+			fieldHandled = append(fieldHandled, field)
+		case "setsockopt.optname":
+			// Use index 1 for optname field in the eBPF map
+			kfilter, err := getEnumsKFiltersWithIndex("setsockopt_level_or_optname_approvers", 1, uintValues[uint64](values)...)
 			if err != nil {
 				return nil, nil, err
 			}
