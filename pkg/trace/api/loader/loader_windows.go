@@ -12,11 +12,16 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"syscall"
 	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+)
+
+// Windows socket options not in golang.org/x/sys/windows
+const (
+	soRcvTimeo = 0x1006 // SO_RCVTIMEO
+	soSndTimeo = 0x1005 // SO_SNDTIMEO
 )
 
 // GetListenerFromFD creates a new net.Listener from a Windows socket handle
@@ -55,22 +60,17 @@ type winSocketListener struct {
 
 func (l *winSocketListener) initAddr() error {
 	// Get the local address from the socket using getsockname
-	var sa windows.RawSockaddrAny
-	saLen := int32(unsafe.Sizeof(sa))
-	err := windows.Getsockname(l.handle, &sa, &saLen)
+	sa, err := windows.Getsockname(l.handle)
 	if err != nil {
 		return err
 	}
-	l.addr = rawSockaddrToTCPAddr(&sa)
+	l.addr = sockaddrToTCPAddr(sa)
 	return nil
 }
 
 func (l *winSocketListener) Accept() (net.Conn, error) {
 	// Accept a new connection using Windows API
-	var sa windows.RawSockaddrAny
-	saLen := int32(unsafe.Sizeof(sa))
-
-	newHandle, err := windows.Accept(l.handle, &sa, &saLen)
+	newHandle, sa, err := windows.Accept(l.handle)
 	if err != nil {
 		return nil, &net.OpError{Op: "accept", Net: "tcp", Err: err}
 	}
@@ -79,7 +79,7 @@ func (l *winSocketListener) Accept() (net.Conn, error) {
 	conn := &winSocketConn{
 		handle:     newHandle,
 		localAddr:  l.addr,
-		remoteAddr: rawSockaddrToTCPAddr(&sa),
+		remoteAddr: sockaddrToTCPAddr(sa),
 	}
 
 	return conn, nil
@@ -147,11 +147,11 @@ func (c *winSocketConn) SetDeadline(t time.Time) error {
 }
 
 func (c *winSocketConn) SetReadDeadline(t time.Time) error {
-	return setSocketTimeout(c.handle, windows.SO_RCVTIMEO, t)
+	return setSocketTimeout(c.handle, soRcvTimeo, t)
 }
 
 func (c *winSocketConn) SetWriteDeadline(t time.Time) error {
-	return setSocketTimeout(c.handle, windows.SO_SNDTIMEO, t)
+	return setSocketTimeout(c.handle, soSndTimeo, t)
 }
 
 func setSocketTimeout(handle windows.Handle, opt int, t time.Time) error {
@@ -163,26 +163,22 @@ func setSocketTimeout(handle windows.Handle, opt int, t time.Time) error {
 		}
 		timeout = int32(d.Milliseconds())
 	}
-	return windows.SetsockoptInt(handle, syscall.SOL_SOCKET, opt, int(timeout))
+	return windows.SetsockoptInt(handle, windows.SOL_SOCKET, opt, int(timeout))
 }
 
-// rawSockaddrToTCPAddr converts a windows.RawSockaddrAny to a *net.TCPAddr
-func rawSockaddrToTCPAddr(sa *windows.RawSockaddrAny) *net.TCPAddr {
-	switch sa.Addr.Family {
-	case windows.AF_INET:
-		addr := (*windows.RawSockaddrInet4)(unsafe.Pointer(sa))
-		port := int(addr.Port>>8) | int(addr.Port&0xff)<<8 // network byte order
+// sockaddrToTCPAddr converts a windows.Sockaddr to a *net.TCPAddr
+func sockaddrToTCPAddr(sa windows.Sockaddr) *net.TCPAddr {
+	switch addr := sa.(type) {
+	case *windows.SockaddrInet4:
 		return &net.TCPAddr{
 			IP:   net.IPv4(addr.Addr[0], addr.Addr[1], addr.Addr[2], addr.Addr[3]),
-			Port: port,
+			Port: addr.Port,
 		}
-	case windows.AF_INET6:
-		addr := (*windows.RawSockaddrInet6)(unsafe.Pointer(sa))
-		port := int(addr.Port>>8) | int(addr.Port&0xff)<<8 // network byte order
+	case *windows.SockaddrInet6:
 		return &net.TCPAddr{
 			IP:   addr.Addr[:],
-			Port: port,
-			Zone: zoneToString(int(addr.Scope_id)),
+			Port: addr.Port,
+			Zone: zoneToString(int(addr.ZoneId)),
 		}
 	default:
 		return nil
