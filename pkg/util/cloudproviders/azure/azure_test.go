@@ -20,7 +20,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
-var expectedAPIVersion = "api-version=" + GetMetadataAPIVersion()
+var expectedAPIVersion = GetMetadataAPIVersion()
 
 func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
