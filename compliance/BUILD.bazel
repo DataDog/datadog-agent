@@ -1,7 +1,4 @@
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "filter_directory", "pkg_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("//compliance:license_csv.bzl", "license_csv")
 
 package(default_visibility = ["//visibility:public"])
 
