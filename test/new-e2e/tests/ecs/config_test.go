@@ -31,7 +31,7 @@ func TestECSConfigSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
-			},
+			),
 			// Using existing workloads (redis, nginx, tracegen) to test configuration
 			scenecs.WithTestingWorkload(),
 		),

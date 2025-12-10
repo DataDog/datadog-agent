@@ -33,7 +33,7 @@ func TestECSAPMSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
-			},
+			),
 			// Note: In a real implementation, we would add the multiservice workload here
 			// scenecs.WithMultiServiceWorkload(),
 			scenecs.WithTestingWorkload(),

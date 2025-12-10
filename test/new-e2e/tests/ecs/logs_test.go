@@ -33,7 +33,7 @@ func TestECSLogsSuite(t *testing.T) {
 			scenecs.WithECSOptions(
 				scenecs.WithFargateCapacityProvider(),
 				scenecs.WithLinuxNodeGroup(),
-			},
+			),
 			// Note: In a real implementation, we would add the log-generator workload here
 			// scenecs.WithFargateWorkloadApp(ecsloggenerator.FargateAppDefinition),
 			// scenecs.WithWorkloadApp(ecsloggenerator.EcsAppDefinition),
