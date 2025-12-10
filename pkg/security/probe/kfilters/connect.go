@@ -56,7 +56,7 @@ func connectKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, e
 		}
 	}
 
-	kfilter, err := getEnumsKFiltersWithIndex("connect_addr_family_approvers", 0, uintValues[uint64](connectAddrFamilyValues)...)
+	kfilter, err := getEnumsKFilters("connect_addr_family_approvers", uintValues[uint64](connectAddrFamilyValues)...)
 	if err != nil {
 		return nil, nil, err
 	}
