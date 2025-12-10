@@ -22,9 +22,6 @@ license "MIT"
 license_file "LICENSE"
 skip_transitive_dependency_licensing true
 
-# Is libtool actually necessary? Doesn't configure generate one?
-dependency "libtool" unless windows?
-
 version("3.4.8") { source sha256: "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b" }
 
 source url: "https://github.com/libffi/libffi/releases/download/v#{version}/libffi-#{version}.tar.gz"
