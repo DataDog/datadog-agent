@@ -32,6 +32,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 	payloadAppVersion := ""
 	payloadGitCommitSha := ""
 	payloadDecisionMaker := ""
+	payloadAPMMode := ""
 	for chunkIndex, chunk := range payload.Chunks {
 		if chunk == nil || len(chunk.Spans) == 0 {
 			continue
@@ -101,6 +102,7 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 					Attributes: convertSpanEventAttributes(event.Attributes, stringTable),
 				}
 			}
+			// TODO: Can I rewrite this to use shared logic with the SpanConvertedFields etc?
 			env := span.Meta["env"]
 			if env != "" && payloadEnv == "" {
 				// Take the first env found in any chunk and set it as the env for the tracer payload
@@ -120,6 +122,9 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 			}
 			if spanDecisionMaker, ok := span.Meta["_dd.p.dm"]; ok && payloadDecisionMaker == "" {
 				payloadDecisionMaker = spanDecisionMaker
+			}
+			if spanAPMMode, ok := span.Meta["_dd.apm_mode"]; ok && payloadAPMMode == "" {
+				payloadAPMMode = spanAPMMode
 			}
 			version := span.Meta["version"]
 			component := span.Meta["component"]
@@ -213,6 +218,9 @@ func ConvertToIdx(payload *pb.TracerPayload, originPayloadVersion string) *idx.I
 	idxPayload.SetHostname(payloadHostname)
 	idxPayload.SetAppVersion(payloadAppVersion)
 	idxPayload.SetStringAttribute("_dd.git.commit.sha", payloadGitCommitSha) // For improved compatibility, we copy the git commit sha to a payload level attribute
+	if payloadAPMMode != "" {
+		idxPayload.SetStringAttribute("_dd.apm_mode", payloadAPMMode)
+	}
 	return idxPayload
 }
 

@@ -38,7 +38,8 @@ func testBasicTraces(c *assert.CollectT, service string, intake *components.Fake
 	}
 	tp := idx.FromProto(trace.IdxTracerPayloads[0])
 	assert.Equal(c, "go", tp.LanguageName())
-	assert.NotContains(c, tp.Tags, "_dd.apm_mode")
+	_, ok := tp.GetAttributeAsString("_dd.apm_mode")
+	assert.False(c, ok)
 	if !assert.NotEmpty(c, tp.Chunks) {
 		return
 	}

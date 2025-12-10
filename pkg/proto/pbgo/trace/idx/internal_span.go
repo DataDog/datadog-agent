@@ -178,6 +178,11 @@ func (tp *InternalTracerPayload) RemoveUnusedStrings() {
 	}
 }
 
+// DeleteAttribute deletes an attribute from the tracer payload.
+func (tp *InternalTracerPayload) DeleteAttribute(key string) {
+	deleteAttribute(key, tp.Strings, tp.Attributes)
+}
+
 // FromProto creates an InternalTracerPayload from a proto TracerPayload
 func FromProto(tp *TracerPayload) *InternalTracerPayload {
 	strings := StringTableFromArray(tp.Strings)
@@ -509,6 +514,15 @@ func (c *InternalTraceChunk) GetAttributeAsString(key string) (string, bool) {
 // SetStringAttribute sets a string attribute for the trace chunk.
 func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
+}
+
+// setStringRefAttribute sets a string attribute for the trace chunk from a known string reference value.
+func (c *InternalTraceChunk) setStringRefAttribute(key string, value uint32) {
+	setAttribute(key, &AnyValue{
+		Value: &AnyValue_StringValueRef{
+			StringValueRef: value,
+		},
+	}, c.Strings, c.Attributes)
 }
 
 func (c *InternalTraceChunk) markUsedStrings(usedStrings []bool) {

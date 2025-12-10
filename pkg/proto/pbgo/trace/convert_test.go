@@ -320,6 +320,7 @@ func TestConvertedTracePayload(t *testing.T) {
 					"_dd.git.commit.sha": "abc123def456",
 					"_dd.p.dm":           "-1",
 					"_dd.origin":         "lambda",
+					"_dd.apm_mode":       "edge",
 				},
 				MetaStruct: map[string][]byte{
 					"bts": []byte("bar"),
@@ -369,4 +370,7 @@ func TestConvertedTracePayload(t *testing.T) {
 	gitCommitSha, found := tp.GetAttributeAsString("_dd.git.commit.sha")
 	assert.True(t, found)
 	assert.Equal(t, "abc123def456", gitCommitSha)
+	apmMode, found := tp.GetAttributeAsString("_dd.apm_mode")
+	assert.True(t, found)
+	assert.Equal(t, "edge", apmMode)
 }

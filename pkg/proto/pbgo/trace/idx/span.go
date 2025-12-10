@@ -856,6 +856,7 @@ type SpanConvertedFields struct {
 	HostnameRef       uint32 // the hostname reference
 	SamplingPriority  int32  // the sampling priority, initialized to sampler.PriorityNone (math.MinInt8)
 	OriginRef         uint32 // the origin reference
+	APMModeRef        uint32 // the APM mode reference
 }
 
 // NewSpanConvertedFields creates a new SpanConvertedFields object used to collect fields from v4 spans that have been promoted to the chunk level
@@ -868,6 +869,7 @@ func NewSpanConvertedFields() *SpanConvertedFields {
 // ChunkConvertedFields is used to collect fields from v4 chunks that have been promoted to the tracer payload level
 type ChunkConvertedFields struct {
 	EnvRef          uint32
+	APMModeRef      uint32
 	HostnameRef     uint32
 	AppVersionRef   uint32
 	GitCommitShaRef uint32
@@ -880,6 +882,9 @@ func (tp *InternalTracerPayload) applyPromotedFields(convertedFields *ChunkConve
 	tp.appVersionRef = convertedFields.AppVersionRef
 	if convertedFields.GitCommitShaRef != 0 {
 		tp.setStringRefAttribute("_dd.git.commit.sha", convertedFields.GitCommitShaRef)
+	}
+	if convertedFields.APMModeRef != 0 {
+		tp.setStringRefAttribute("_dd.apm_mode", convertedFields.APMModeRef)
 	}
 }
 
@@ -925,6 +930,9 @@ func (c *InternalTraceChunk) applyPromotedFields(convertedFields *SpanConvertedF
 	c.samplingMechanism = convertedFields.SamplingMechanism
 	c.Priority = int32(convertedFields.SamplingPriority)
 	c.originRef = convertedFields.OriginRef
+	if convertedFields.APMModeRef != 0 {
+		chunkConvertedFields.APMModeRef = convertedFields.APMModeRef
+	}
 	if convertedFields.EnvRef != 0 {
 		chunkConvertedFields.EnvRef = convertedFields.EnvRef
 	}
@@ -1689,6 +1697,8 @@ func (s *InternalSpan) handlePromotedMetaFields(metaKey, metaVal uint32, convert
 		convertedFields.HostnameRef = metaVal
 	case "_dd.origin":
 		convertedFields.OriginRef = metaVal
+	case "_dd.apm_mode":
+		convertedFields.APMModeRef = metaVal
 	}
 }
 
