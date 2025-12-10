@@ -78,6 +78,11 @@ class GoSymbolsInspector
 
   def inspect()
     log.info(self.class.name) { "Inspecting binary #{@binary}" }
+    log.info(self.class.name) { "PATH: #{ENV['PATH']}" }
+    log.info(self.class.name) { "GOROOT: #{ENV['GOROOT']}" }
+    log.info(self.class.name) { "GOPATH: #{ENV['GOPATH']}" }
+    log.info(self.class.name) { `echo "$PATH" "$GOROOT" "$GOPATH"` }
+    log.info(self.class.name) { `which go` }
     @block.call(`go tool nm #{@binary}`)
   end
 end
