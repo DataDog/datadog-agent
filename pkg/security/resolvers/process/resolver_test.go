@@ -885,7 +885,7 @@ func TestCGroupContext(t *testing.T) {
 			cgroupID    = containerutils.CGroupID("/kubepods/besteffort/pod8bbdd97b-f902-4e16-8235-4ac18307cef6/" + string(containerID))
 		)
 
-		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, model.CGroupContext{
+		resolver.UpdateProcessCGroupContext(node.ProcessCacheEntry.Pid, &model.CGroupContext{
 			Releasable: &model.Releasable{},
 			CGroupID:   cgroupID,
 			CGroupFile: model.PathKey{
