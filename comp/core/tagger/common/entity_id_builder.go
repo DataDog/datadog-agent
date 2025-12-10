@@ -35,6 +35,8 @@ func BuildTaggerEntityID(entityID workloadmeta.EntityID) types.EntityID {
 		return types.NewEntityID(types.Kubelet, entityID.ID)
 	case workloadmeta.KindCRD:
 		return types.NewEntityID(types.Crd, entityID.ID)
+	case workloadmeta.KindKubeCapabilities:
+		return types.NewEntityID(types.KubernetesCapabilities, entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)
