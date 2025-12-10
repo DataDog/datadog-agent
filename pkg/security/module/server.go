@@ -58,8 +58,9 @@ const (
 	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
 	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
 	//     time to trigger the kill and wait to catch the process exit)
-	maxRetry   = 62
-	retryDelay = time.Second
+	maxRetryForMsgWithActions = 62
+	maxRetryForRegularMsgs    = 5
+	retryDelay                = time.Second
 )
 
 type pendingMsg struct {
@@ -75,6 +76,14 @@ type pendingMsg struct {
 	retry           int
 
 	sshSessionPatcher sshSessionPatcher
+}
+
+func (p *pendingMsg) getMaxRetry() int {
+	if len(p.actionReports) != 0 {
+		return maxRetryForMsgWithActions
+	}
+
+	return maxRetryForRegularMsgs
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -246,11 +255,12 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 			return true
 		}
 
-		if msg.retry >= maxRetry {
+		msgMaxRetry := msg.getMaxRetry()
+		if msg.retry >= msgMaxRetry {
 			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
 			return true
 		}
-		seclog.Tracef("failed to sent event, retry %d/%d", msg.retry, maxRetry)
+		seclog.Tracef("failed to sent event, retry %d/%d", msg.retry, msgMaxRetry)
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -322,7 +332,7 @@ func (a *APIServer) start(ctx context.Context) {
 			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
 					tags, retryable := msg.extTagsCb()
-					if len(tags) == 0 && retryable && msg.retry < maxRetry {
+					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
 						return false
 					}
 
@@ -335,7 +345,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				// not fully resolved, retry
-				if !msg.isResolved() && msg.retry < maxRetry {
+				if !msg.isResolved() && msg.retry < msg.getMaxRetry() {
 					return false
 				}
 
