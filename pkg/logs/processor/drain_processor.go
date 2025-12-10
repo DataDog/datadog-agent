@@ -8,7 +8,6 @@ package processor
 import (
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/faceair/drain"
@@ -28,71 +27,80 @@ const (
 	drainMaxLineLength        = 160
 )
 
-var (
+type DrainProcessor struct {
 	drainProcessor        *drain.Drain
-	drainInitOnce         sync.Once
-	drainMutex            sync.Mutex
-	drainNLogs            int64
 	drainLastTimeReported time.Time
 	drainLastTimeUpdated  time.Time
-)
-
-func GetDrainProcessor() *drain.Drain {
-	drainInitOnce.Do(func() {
-		drainProcessor = drain.New(drain.DefaultConfig())
-		drainLastTimeReported = time.Now()
-		drainLastTimeUpdated = time.Now()
-		log.Info("Initialized drain processor")
-	})
-	return drainProcessor
+	drainNLogs            int64
+	id                    string
 }
 
-func UseDrain() bool {
-	canUse := drainMutex.TryLock()
-
-	if canUse {
-		updateDrain()
+func NewDrainProcessor(instanceID string) *DrainProcessor {
+	return &DrainProcessor{
+		drainProcessor:        drain.New(drain.DefaultConfig()),
+		drainLastTimeReported: time.Now(),
+		drainLastTimeUpdated:  time.Now(),
+		drainNLogs:            0,
+		id:                    instanceID,
 	}
-
-	return canUse
 }
 
-func ReleaseDrain() {
-	if time.Since(drainLastTimeReported) >= reportDrainInfoInterval {
-		reportDrainInfo()
-		drainLastTimeReported = time.Now()
+func (d *DrainProcessor) MatchAndTrain(tokens []string) (*drain.LogCluster, bool) {
+	start := time.Now()
+
+	metrics.TlmDrainProcessed.Inc()
+	d.drainNLogs++
+
+	cluster := d.drainProcessor.MatchFromTokens(tokens)
+	d.drainProcessor.TrainFromTokens(tokens)
+
+	// Update if necessary
+	if time.Since(d.drainLastTimeUpdated) < updateDrainInterval {
+		d.update()
 	}
 
-	drainMutex.Unlock()
+	// Report if necessary
+	if time.Since(d.drainLastTimeReported) >= reportDrainInfoInterval {
+		d.reportInfo()
+	}
+
+	toIgnore := cluster != nil && cluster.Size() >= drainClusterSizeThreshold
+	if toIgnore {
+		metrics.TlmDrainIgnored.Inc()
+	}
+
+	totalTimeDrainProcessing := time.Since(start).Nanoseconds()
+	metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing))
+
+	return cluster, toIgnore
 }
 
 // Decrease the size of each cluster by the decay factor
-func updateDrain() {
-	if time.Since(drainLastTimeUpdated) < updateDrainInterval {
-		return
-	}
-	drainLastTimeUpdated = time.Now()
+func (d *DrainProcessor) update() {
+	d.drainLastTimeUpdated = time.Now()
 
-	clusters := drainProcessor.Clusters()
+	clusters := d.drainProcessor.Clusters()
 	for _, cluster := range clusters {
-		// TODO: Can we remove clusters
-		cluster.SetSize(int(float64(cluster.Size()) * drainClusterSizeDecay))
+		// TODO: Can we remove clusters when size == 0?
+		cluster.SetSize(max(1, int(float64(cluster.Size())*drainClusterSizeDecay)))
 	}
 }
 
 // Reports metrics and display logs for drain clusters
-func reportDrainInfo() {
-	clusters := drainProcessor.Clusters()
-	drainClustersRatio := float64(len(clusters)) / float64(drainNLogs)
-	log.Infof("drain: %d clusters from %d logs (%f%%)", len(clusters), drainNLogs, drainClustersRatio*100)
-	log.Infof("drain: Displaying the top 10 clusters")
+func (d *DrainProcessor) reportInfo() {
+	d.drainLastTimeReported = time.Now()
+
+	clusters := d.drainProcessor.Clusters()
+	drainClustersRatio := float64(len(clusters)) / float64(d.drainNLogs)
+	log.Infof("drain(%s): %d clusters from %d logs (%f%%)", d.id, len(clusters), d.drainNLogs, drainClustersRatio*100)
+	log.Infof("drain(%s): Displaying the top 10 clusters", d.id)
 	// Sort by size
 	slices.SortFunc(clusters, func(a, b *drain.LogCluster) int {
 		return b.Size() - a.Size()
 	})
 	nClusters := len(clusters)
 	for i, cluster := range clusters[:min(10, nClusters)] {
-		log.Infof("drain: Cluster #%d: %s", i+1, cluster.String())
+		log.Infof("drain(%s): Cluster #%d: %s", d.id, i+1, cluster.String())
 	}
 
 	maxSize := 0
@@ -103,16 +111,16 @@ func reportDrainInfo() {
 	}
 	nClustersAboveThreshold := 0
 	for _, cluster := range clusters {
-		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size()) / float64(maxSize) * 100)
+		metrics.TlmDrainHistClusterSize.Observe(float64(cluster.Size())/float64(maxSize)*100, "drain_id", d.id)
 		if cluster.Size() >= drainClusterSizeThreshold {
 			nClustersAboveThreshold++
 		}
 	}
-	metrics.TlmDrainClustersAboveThreshold.Set(float64(nClustersAboveThreshold))
-	metrics.TlmDrainClusters.Set(float64(len(clusters)))
-	metrics.TlmDrainClustersRatio.Set(drainClustersRatio)
-	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize))
-	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize) / float64(drainNLogs))
+	metrics.TlmDrainClustersAboveThreshold.Set(float64(nClustersAboveThreshold), "drain_id", d.id)
+	metrics.TlmDrainClusters.Set(float64(len(clusters)), "drain_id", d.id)
+	metrics.TlmDrainClustersRatio.Set(drainClustersRatio, "drain_id", d.id)
+	metrics.TlmDrainMaxClusterSize.Set(float64(maxSize), "drain_id", d.id)
+	metrics.TlmDrainMaxClusterRatio.Set(float64(maxSize)/float64(d.drainNLogs), "drain_id", d.id)
 }
 
 const (

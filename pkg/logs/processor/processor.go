@@ -51,6 +51,7 @@ type Processor struct {
 	config                    pkgconfigmodel.Reader
 	configChan                chan failoverConfig
 	failoverConfig            failoverConfig
+	drainProcessor            *DrainProcessor
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -76,13 +77,11 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
+		drainProcessor:            NewDrainProcessor(instanceID),
 	}
 
 	// Initialize cached failover config
 	p.updateFailoverConfig()
-
-	// Init drain processor
-	GetDrainProcessor()
 
 	// Register for config change notifications
 	if config != nil {
@@ -180,10 +179,6 @@ func (p *Processor) run() {
 
 func (p *Processor) processMessage(msg *message.Message) {
 	log.Infof("Processing message: instance %s, drain_len %d (%d): %s", p.instanceID, len(msg.DrainTokenizedContent), len(msg.DrainTokenizedContent)%4, msg.GetContent())
-	useDrain := UseDrain()
-	if useDrain {
-		defer ReleaseDrain()
-	}
 	logStart := time.Now()
 	p.utilization.Start()
 	defer p.utilization.Stop()
@@ -199,10 +194,15 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
-	totalTimeDrainProcessing := int64(0)
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)
 		metrics.TlmLogsProcessed.Inc()
+
+		// Drain sampling
+		_, toIgnore := p.drainProcessor.MatchAndTrain(msg.DrainTokenizedContent)
+		if toIgnore {
+			msg.ProcessingTags = append(msg.ProcessingTags, "drain_ignored:true")
+		}
 
 		// render the message
 		rendered, err := msg.Render()
@@ -210,31 +210,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 			log.Error("can't render the msg", err)
 			return
 		}
-
-		// Drain sampling
-		// TODO: process bytes and not string for drain processor
-		renderedString := string(rendered)
-		start := time.Now()
-		// TODO: Clean code
-		if useDrain {
-			drainNLogs++
-			metrics.TlmDrainProcessed.Inc()
-			// TODO: What to do with long lines?
-			if len(renderedString) > drainMaxLineLength {
-				renderedString = renderedString[:drainMaxLineLength]
-			}
-
-			drainProcessor := GetDrainProcessor()
-			cluster := drainProcessor.Match(renderedString)
-			drainProcessor.Train(renderedString)
-			// Ignore log if belongs to a too big cluster
-			if cluster != nil && cluster.Size() >= drainClusterSizeThreshold {
-				msg.ProcessingTags = append(msg.ProcessingTags, "drain_ignored:true")
-				metrics.TlmDrainIgnored.Inc()
-			}
-		}
-		totalTimeDrainProcessing += time.Since(start).Nanoseconds()
-
 		msg.SetRendered(rendered)
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
@@ -257,10 +232,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 
 	// Drain metrics
 	processTime := time.Since(logStart)
-	if useDrain {
-		metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()))
-		metrics.TlmDrainProcessTime.Set(float64(totalTimeDrainProcessing))
-	}
+	metrics.TlmLogsProcessTime.Set(float64(processTime.Nanoseconds()))
 }
 
 // filterMRFMessages applies an MRF tag to messages that should be sent to MRF
