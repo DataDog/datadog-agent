@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/jsonapi"
 	"github.com/go-jose/go-jose/v4"
+	"gopkg.in/yaml.v2"
 
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
@@ -31,11 +32,18 @@ const (
 	versionHeaderName = "X-PAR-Version"
 )
 
+type MainConfigYaml struct {
+	ApiKey              string           `yaml:"api_key"`
+	Site                string           `yaml:"site"`
+	PrivateActionRunner RunnerConfigYaml `yaml:"privateactionrunner"`
+}
+
 // RunnerConfigYaml represents the runner configuration structure
 type RunnerConfigYaml struct {
 	Urn              string   `yaml:"urn"`
 	PrivateKey       string   `yaml:"private_key"`
 	ActionsAllowlist []string `yaml:"actions_allowlist"`
+	Enabled          bool     `yaml:"enabled"`
 }
 
 // CreateRunnerResponse represents the API response for creating a runner
@@ -75,17 +83,17 @@ func ProvisionRunnerIdentityWithAPIKey(apiKey, appKey, site, runnerName, actions
 
 	log.Info("Enrollment complete, printing configuration...")
 
-	confYaml, err := conf.toYAMLString()
+	confYaml, err := yaml.Marshal(conf)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("copy the following values in your config.yaml:\n========== Runner Config ==========\n%s\n===================================\n", confYaml)
+	fmt.Printf("copy the following values in your datadog.yaml:\n========== Runner Config ==========\n%s\n===================================\n", confYaml)
 	return nil
 }
 
 // RunEnrollmentWithAPIKey enrolls a runner using API key and application key authentication
-func RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlistStr, connectionGroupID string) (*RunnerConfigYaml, error) {
+func RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlistStr, connectionGroupID string) (*MainConfigYaml, error) {
 	actionsAllowlist := strings.Split(actionsAllowlistStr, ",")
 
 	log.Info("Enrolling runner with API key authentication",
@@ -181,33 +189,16 @@ func RunEnrollmentWithAPIKey(site, apiKey, appKey, runnerName, actionsAllowlistS
 
 	log.Info("Successfully created runner", log.String("runner_id", createRunnerResponse.RunnerID))
 
-	return newConfigurationFromAPIKeyEnrollment(siteToRegion(site), marshalledPrivateJwk, createRunnerResponse, actionsAllowlist), nil
-}
-
-// newConfigurationFromAPIKeyEnrollment creates a configuration from API key enrollment response
-func newConfigurationFromAPIKeyEnrollment(region string, marshalledPrivateJwk []byte, createRunnerResponse *CreateRunnerResponse, actionsAllowlist []string) *RunnerConfigYaml {
-	config := RunnerConfigYaml{
-		Urn:              fmt.Sprintf("urn:dd:apps:on-prem-runner:%s:%d:%s", region, createRunnerResponse.OrgID, createRunnerResponse.RunnerID),
-		PrivateKey:       base64.RawURLEncoding.EncodeToString(marshalledPrivateJwk),
-		ActionsAllowlist: actionsAllowlist,
-	}
-	return &config
-}
-
-// toYAMLString converts RunnerConfigYaml to YAML string
-func (c *RunnerConfigYaml) toYAMLString() (string, error) {
-	// Simple YAML serialization - in a real implementation you'd use yaml package
-	var builder strings.Builder
-
-	builder.WriteString(fmt.Sprintf("urn: %s\n", c.Urn))
-	builder.WriteString(fmt.Sprintf("private_key: %s\n", c.PrivateKey))
-
-	builder.WriteString("actions_allowlist:\n")
-	for _, action := range c.ActionsAllowlist {
-		builder.WriteString(fmt.Sprintf("  - %s\n", action))
-	}
-
-	return builder.String(), nil
+	return &MainConfigYaml{
+		ApiKey: apiKey,
+		Site:   site,
+		PrivateActionRunner: RunnerConfigYaml{
+			Urn:              fmt.Sprintf("urn:dd:apps:on-prem-runner:%s:%d:%s", siteToRegion(site), createRunnerResponse.OrgID, createRunnerResponse.RunnerID),
+			PrivateKey:       base64.RawURLEncoding.EncodeToString(marshalledPrivateJwk),
+			ActionsAllowlist: actionsAllowlist,
+			Enabled:          true,
+		},
+	}, nil
 }
 
 func siteToRegion(site string) string {
