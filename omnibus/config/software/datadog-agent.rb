@@ -145,7 +145,7 @@ build do
     command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
