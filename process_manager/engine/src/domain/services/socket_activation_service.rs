@@ -324,7 +324,7 @@ impl SocketActivationService {
     ) {
         use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS};
         use windows::Win32::Networking::WinSock::{
-            closesocket, select, fd_set, timeval, SOCKET, SOCKET_ERROR,
+            closesocket, select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR,
         };
 
         debug!(
@@ -362,12 +362,12 @@ impl SocketActivationService {
             // This ensures no connection is lost - the child will call accept()
             loop {
                 // Prepare fd_set for select()
-                let mut read_fds: fd_set = unsafe { std::mem::zeroed() };
+                let mut read_fds: FD_SET = unsafe { std::mem::zeroed() };
                 read_fds.fd_count = 1;
                 read_fds.fd_array[0] = handle as usize;
 
                 // Timeout: 100ms
-                let timeout = timeval {
+                let timeout = TIMEVAL {
                     tv_sec: 0,
                     tv_usec: 100_000,
                 };
