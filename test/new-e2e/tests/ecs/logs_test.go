@@ -14,8 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -114,10 +112,10 @@ func (suite *ecsLogsSuite) TestContainerLogCollection() {
 			assert.Truef(c, hasTaskArn, "Log missing task_arn tag")
 
 			// Validate log has timestamp
-			assert.NotZerof(c, log.GetTimestamp(), "Log missing timestamp")
+			assert.NotZerof(c, log.Timestamp, "Log missing timestamp")
 
 			// Validate log has message
-			assert.NotEmptyf(c, log.GetMessage(), "Log has empty message")
+			assert.NotEmptyf(c, log.Message, "Log has empty message")
 
 			suite.T().Logf("Container log collection validated: cluster=%s, container=%s",
 				suite.ecsClusterName, getTagValue(tags, "container_name"))
@@ -139,7 +137,7 @@ func (suite *ecsLogsSuite) TestLogMultiline() {
 			multilinePattern := regexp.MustCompile(`(?s)Exception.*\n\s+at\s+.*`)
 
 			for _, log := range logs {
-				message := log.GetMessage()
+				message := log.Message
 				if multilinePattern.MatchString(message) {
 					suite.T().Logf("Found multiline stack trace log (length: %d chars)", len(message))
 
@@ -175,7 +173,7 @@ func (suite *ecsLogsSuite) TestLogParsing() {
 
 			// Look for logs that were JSON and check if they're properly parsed
 			for _, log := range logs {
-				message := log.GetMessage()
+				message := log.Message
 
 				// Check if this looks like it was originally JSON
 				// (may have been parsed into structured fields)
@@ -229,7 +227,7 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 			infoLogs := 0
 
 			for _, log := range logs {
-				status := log.GetStatus()
+				status := log.Status
 				if status == "error" {
 					errorLogs++
 				} else if status == "info" {
@@ -267,7 +265,7 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 			// Count logs by source
 			sourceDistribution := make(map[string]int)
 			for _, log := range logs {
-				source := log.GetSource()
+				source := log.Source
 				if source != "" {
 					sourceDistribution[source]++
 				}
@@ -283,7 +281,7 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 			// (e.g., no debug logs if log level is INFO)
 			debugCount := 0
 			for _, log := range logs {
-				if strings.Contains(strings.ToLower(log.GetMessage()), "debug") {
+				if strings.Contains(strings.ToLower(log.Message), "debug") {
 					debugCount++
 				}
 			}
@@ -310,7 +308,7 @@ func (suite *ecsLogsSuite) TestLogSourceDetection() {
 			sources := make(map[string]bool)
 
 			for _, log := range logs {
-				source := log.GetSource()
+				source := log.Source
 				if source != "" {
 					logsWithSource++
 					sources[source] = true
@@ -347,7 +345,7 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 			// Check status distribution
 			statusDistribution := make(map[string]int)
 			for _, log := range logs {
-				status := log.GetStatus()
+				status := log.Status
 				if status != "" {
 					statusDistribution[status]++
 				}
@@ -361,8 +359,8 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 
 			// Look for logs with ERROR in message that should have error status
 			for _, log := range logs {
-				message := log.GetMessage()
-				status := log.GetStatus()
+				message := log.Message
+				status := log.Status
 
 				if strings.Contains(strings.ToUpper(message), "ERROR") {
 					// This log should likely have error status

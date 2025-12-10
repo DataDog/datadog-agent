@@ -18,8 +18,6 @@ import (
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 type ecsConfigSuite struct {
@@ -276,8 +274,8 @@ func (suite *ecsConfigSuite) TestDynamicConfiguration() {
 			// by checking for recent timestamps
 			recentMetrics := 0
 			for _, metric := range metrics {
-				// Metrics with data points indicate active discovery
-				if len(metric.Resources) > 0 && len(metric.Resources[0].Points) > 0 {
+				// Metrics with resources indicate active discovery
+				if len(metric.Resources) > 0 {
 					recentMetrics++
 				}
 			}

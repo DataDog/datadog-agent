@@ -12,8 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/stretchr/testify/assert"
 
@@ -75,7 +73,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
 
 				if hasCluster && hasTask {
 					foundECSMetrics = true
-					suite.T().Logf("Found metric with ECS metadata: %s", metric.GetMetricName())
+					suite.T().Logf("Found metric with ECS metadata: %s", metric.Metric)
 					break
 				}
 			}
@@ -122,7 +120,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 				}
 			}
 
-			suite.T().Logf("Managed instance metadata found: %v", getMapKeys(foundMetadata))
+			suite.T().Logf("Managed instance metadata found: %v", getKeys(foundMetadata))
 
 			// Verify essential metadata
 			assert.Truef(c, foundMetadata["ecs_cluster_name"],
@@ -170,7 +168,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceContainerDiscovery() {
 			}
 
 			suite.T().Logf("Discovered %d containers on managed instances", len(containers))
-			suite.T().Logf("Container names: %v", getMapKeys(containers))
+			suite.T().Logf("Container names: %v", getKeys(containers))
 
 			assert.GreaterOrEqualf(c, len(containers), 1,
 				"Should discover at least one container on managed instances")
@@ -242,7 +240,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceDaemonMode() {
 			// Look for agent metrics that indicate daemon mode
 			agentMetrics := 0
 			for _, metric := range metrics {
-				name := metric.GetMetricName()
+				name := metric.Metric
 				if strings.HasPrefix(name, "datadog.agent.") {
 					agentMetrics++
 				}
@@ -371,7 +369,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceNetworkMode() {
 			// Count containers with network metrics
 			containerNetworkMetrics := 0
 			for _, metric := range metrics {
-				name := metric.GetMetricName()
+				name := metric.Metric
 				if strings.Contains(name, "network") || strings.Contains(name, "net.") {
 					containerNetworkMetrics++
 				}
@@ -497,7 +495,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceResourceUtilization() {
 			diskMetrics := 0
 
 			for _, metric := range metrics {
-				name := metric.GetMetricName()
+				name := metric.Metric
 
 				if strings.Contains(name, "cpu") {
 					cpuMetrics++

@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/stretchr/testify/assert"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
@@ -71,7 +69,7 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 		// Verify agent resumes collecting after restart
 		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			// Flush old data to test new collection
-			suite.Fakeintake.FlushData()
+			suite.Fakeintake.FlushServerAndResetAggregators()
 			time.Sleep(30 * time.Second)
 
 			metrics, err := getAllMetrics(suite.Fakeintake)
@@ -90,7 +88,7 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 			recentMetrics := 0
 			now := time.Now().Unix()
 			for _, metric := range metrics {
-				if metric.GetTimestamp() > now-60 { // within last minute
+				if metric.GetCollectedTime().Unix() > now-60 { // within last minute
 					recentMetrics++
 				}
 			}
@@ -246,7 +244,7 @@ func (suite *ecsResilienceSuite) TestResourceExhaustion() {
 			// Look for agent health metrics
 			agentMetrics := 0
 			for _, metric := range metrics {
-				name := metric.GetMetricName()
+				name := metric.Metric
 				if len(name) > 9 && name[:9] == "datadog." {
 					agentMetrics++
 				}
@@ -267,7 +265,7 @@ func (suite *ecsResilienceSuite) TestResourceExhaustion() {
 			// Check for system metrics indicating resource usage
 			systemMetrics := 0
 			for _, metric := range metrics {
-				name := metric.GetMetricName()
+				name := metric.Metric
 				if len(name) > 7 && (name[:7] == "system." || name[:4] == "cpu." || name[:4] == "mem.") {
 					systemMetrics++
 				}
@@ -301,7 +299,7 @@ func (suite *ecsResilienceSuite) TestRapidContainerChurn() {
 			}
 
 			suite.T().Logf("Tracked containers: %d", len(containers))
-			suite.T().Logf("Container names: %v", getMapKeys(containers))
+			suite.T().Logf("Container names: %v", getKeys(containers))
 
 			// Note: In a real implementation with rapid task churn:
 			// 1. Multiple tasks would be created and destroyed
@@ -376,7 +374,7 @@ func (suite *ecsResilienceSuite) TestLargePayloads() {
 			if err == nil && len(logs) > 0 {
 				maxLogSize := 0
 				for _, log := range logs {
-					logSize := len(log.GetMessage())
+					logSize := len(log.Message)
 					if logSize > maxLogSize {
 						maxLogSize = logSize
 					}
@@ -436,7 +434,7 @@ func (suite *ecsResilienceSuite) TestBackpressure() {
 			// Check that agent internal metrics show healthy state
 			agentHealthy := false
 			for _, metric := range metrics2 {
-				name := metric.GetMetricName()
+				name := metric.Metric
 				// Look for agent health indicators
 				if name == "datadog.agent.running" || name == "datadog.trace_agent.normalizer.metrics_flushed" {
 					agentHealthy = true

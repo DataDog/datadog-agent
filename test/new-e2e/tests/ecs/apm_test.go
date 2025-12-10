@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"

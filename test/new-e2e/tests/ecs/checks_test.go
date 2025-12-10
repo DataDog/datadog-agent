@@ -6,7 +6,6 @@
 package ecs
 
 import (
-	"time"
 	"regexp"
 	"strings"
 	"testing"
