@@ -7,6 +7,7 @@ from typing import Dict, List
 
 from .backends import EbpfBackend
 from .constants import CONN_TUPLE_OFFSET
+from .logging_config import logger
 from .models import ConnTuple, ConnectionIndex, MapLeakInfo
 from .network import discover_namespaces, build_connection_index
 from .parser import hex_array_to_bytes, parse_conn_tuple
@@ -27,7 +28,7 @@ def seccomp_safe_sleep(delay: float) -> None:
             pass
 
 
-def _parse_entry_key(entry: Dict, conn_tuple_offset: int, verbose: bool = False):
+def _parse_entry_key(entry: Dict, conn_tuple_offset: int):
     """Parse a map entry's key into a ConnTuple.
 
     Handles multiple formats:
@@ -38,7 +39,6 @@ def _parse_entry_key(entry: Dict, conn_tuple_offset: int, verbose: bool = False)
     Args:
         entry: Map entry dict with 'key' field
         conn_tuple_offset: Byte offset of ConnTuple within key
-        verbose: Enable verbose output
 
     Returns:
         ConnTuple or None if parsing failed
@@ -67,20 +67,18 @@ def _parse_entry_key(entry: Dict, conn_tuple_offset: int, verbose: bool = False)
                 metadata=key.get("metadata", 0),
             )
         except (TypeError, ValueError):
-            if verbose:
-                print(f"  Warning: Could not parse BTF key: {key}")
+            logger.debug(f"  Warning: Could not parse BTF key: {key}")
             return None
 
     # Handle hex array keys (bpftool without BTF)
     if isinstance(key, list):
         key_bytes = hex_array_to_bytes(key)
         conn = parse_conn_tuple(key_bytes, offset=conn_tuple_offset)
-        if conn is None and verbose:
-            print(f"  Warning: Could not parse key of {len(key_bytes)} bytes")
+        if conn is None:
+            logger.debug(f"  Warning: Could not parse key of {len(key_bytes)} bytes")
         return conn
 
-    if verbose:
-        print(f"  Warning: Unknown key format: {type(key)}")
+    logger.debug(f"  Warning: Unknown key format: {type(key)}")
     return None
 
 
@@ -88,7 +86,6 @@ def analyze_map(
     map_name: str,
     backend: EbpfBackend,
     connection_index: Dict[int, ConnectionIndex],
-    verbose: bool = False,
     recheck_delay: float = 0,
     proc_root: str = "/proc"
 ) -> MapLeakInfo:
@@ -98,7 +95,6 @@ def analyze_map(
         map_name: Name of the eBPF map to analyze
         backend: eBPF backend to use for map operations
         connection_index: Per-namespace index of active connections
-        verbose: Enable verbose output
         recheck_delay: Seconds to wait before re-checking leaked entries (0 = disabled)
         proc_root: Path to /proc filesystem
 
@@ -115,7 +111,7 @@ def analyze_map(
     for entry in backend.iter_map_by_name(map_name):
         total += 1
 
-        conn = _parse_entry_key(entry, conn_tuple_offset, verbose)
+        conn = _parse_entry_key(entry, conn_tuple_offset)
         if conn is None:
             continue
 
@@ -127,8 +123,7 @@ def analyze_map(
 
     # Re-check leaked entries to filter out race condition false positives
     if recheck_delay > 0 and leaked:
-        if verbose:
-            print(f"  Re-checking {len(leaked)} leaked entries after {recheck_delay}s delay...")
+        logger.debug(f"  Re-checking {len(leaked)} leaked entries after {recheck_delay}s delay...")
         seccomp_safe_sleep(recheck_delay)
 
         # Rebuild fresh connection index
@@ -144,8 +139,8 @@ def analyze_map(
             else:
                 race_condition_fps += 1
 
-        if verbose and race_condition_fps > 0:
-            print(f"  Filtered {race_condition_fps} false positives (race condition)")
+        if race_condition_fps > 0:
+            logger.debug(f"  Filtered {race_condition_fps} false positives (race condition)")
 
         leaked = still_leaked
 

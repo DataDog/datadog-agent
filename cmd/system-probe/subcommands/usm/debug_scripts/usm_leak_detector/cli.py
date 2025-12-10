@@ -7,6 +7,7 @@ import os
 import sys
 
 from .backends import get_backend
+from .logging_config import configure_logging, logger
 from .map_discovery import find_conn_tuple_maps
 from .network import discover_namespaces, build_connection_index
 from .analyzer import analyze_map
@@ -66,6 +67,9 @@ def main():
     """Main entry point for the USM leak detector."""
     args = parse_args()
 
+    # Configure logging based on verbosity
+    configure_logging(args.verbose)
+
     # Check for root privileges
     if os.geteuid() != 0:
         print("Warning: Not running as root. May not have access to all maps/namespaces.",
@@ -75,15 +79,14 @@ def main():
         print("Analyzing USM eBPF maps (this may take a few seconds)...")
 
     # Step 1: Get eBPF backend
-    backend = get_backend(system_probe_path=args.system_probe, verbose=args.verbose)
+    backend = get_backend(system_probe_path=args.system_probe)
     if backend is None:
         print("Error: No eBPF backend available. Install bpftool or ensure system-probe is accessible.",
               file=sys.stderr)
         sys.exit(1)
 
     # Step 2: List eBPF maps
-    if args.verbose:
-        print("Listing eBPF maps...")
+    logger.debug("Listing eBPF maps...")
     all_maps = backend.list_maps()
     if not all_maps:
         print("Error: Could not list eBPF maps.", file=sys.stderr)
@@ -97,8 +100,7 @@ def main():
     if not args.pid_only:
         conn_tuple_maps = find_conn_tuple_maps(all_maps)
 
-        if args.verbose:
-            print(f"Found {len(conn_tuple_maps)} ConnTuple-keyed maps: {list(conn_tuple_maps.keys())}")
+        logger.debug(f"Found {len(conn_tuple_maps)} ConnTuple-keyed maps: {list(conn_tuple_maps.keys())}")
 
         # Filter to specific maps if requested
         if args.maps:
@@ -108,26 +110,22 @@ def main():
 
         if conn_tuple_maps:
             # Discover network namespaces
-            if args.verbose:
-                print("Discovering network namespaces...")
+            logger.debug("Discovering network namespaces...")
             namespaces = discover_namespaces(args.proc_root)
             if not namespaces:
                 print("Warning: No network namespaces discovered.", file=sys.stderr)
 
-            if args.verbose:
-                print(f"Found {len(namespaces)} namespaces")
+            logger.debug(f"Found {len(namespaces)} namespaces")
 
             # Build connection indexes
-            if args.verbose:
-                print("Building connection indexes...")
+            logger.debug("Building connection indexes...")
             connection_index = build_connection_index(namespaces, args.proc_root)
 
             # Analyze each ConnTuple-keyed map
             for map_name in sorted(conn_tuple_maps.keys()):
-                if args.verbose:
-                    print(f"Analyzing ConnTuple map: {map_name}...")
+                logger.debug(f"Analyzing ConnTuple map: {map_name}...")
                 info = analyze_map(
-                    map_name, backend, connection_index, args.verbose,
+                    map_name, backend, connection_index,
                     recheck_delay=args.recheck_delay, proc_root=args.proc_root
                 )
                 conn_tuple_results.append(info)
@@ -136,8 +134,7 @@ def main():
     if not args.conn_tuple_only:
         pid_maps = find_pid_keyed_maps(all_maps)
 
-        if args.verbose:
-            print(f"Found {len(pid_maps)} PID-keyed maps: {list(pid_maps.keys())}")
+        logger.debug(f"Found {len(pid_maps)} PID-keyed maps: {list(pid_maps.keys())}")
 
         # Filter to specific maps if requested
         if args.maps:
@@ -147,9 +144,8 @@ def main():
 
         # Analyze each PID-keyed map
         for map_name in sorted(pid_maps.keys()):
-            if args.verbose:
-                print(f"Analyzing PID-keyed map: {map_name}...")
-            info = analyze_pid_map(map_name, backend, args.proc_root, args.verbose)
+            logger.debug(f"Analyzing PID-keyed map: {map_name}...")
+            info = analyze_pid_map(map_name, backend, args.proc_root)
             pid_results.append(info)
 
     # Check if we found anything
@@ -160,12 +156,12 @@ def main():
     # Step 5: Print reports (PID-keyed first, then ConnTuple-keyed)
     print()
     if pid_results:
-        print_pid_report(pid_results, args.verbose)
+        print_pid_report(pid_results)
 
     if conn_tuple_results:
         if pid_results:
             print()  # Add separator between reports
-        print_report(conn_tuple_results, namespaces, args.verbose)
+        print_report(conn_tuple_results, namespaces)
 
 
 if __name__ == "__main__":

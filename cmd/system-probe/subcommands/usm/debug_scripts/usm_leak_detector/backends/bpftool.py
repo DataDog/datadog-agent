@@ -25,7 +25,7 @@ class BpftoolBackend(EbpfBackend):
         return "bpftool"
 
     @staticmethod
-    def is_available(try_download: bool = True, verbose: bool = False) -> bool:
+    def is_available(try_download: bool = True) -> bool:
         """Check if bpftool is available, optionally downloading it."""
         # First try system bpftool
         try:
@@ -41,14 +41,14 @@ class BpftoolBackend(EbpfBackend):
 
         # Try downloading if allowed
         if try_download:
-            path = download_bpftool(verbose=verbose)
+            path = download_bpftool()
             if path:
                 return True
 
         return False
 
     @staticmethod
-    def get_backend(try_download: bool = True, verbose: bool = False) -> Optional["BpftoolBackend"]:
+    def get_backend(try_download: bool = True) -> Optional["BpftoolBackend"]:
         """Get a BpftoolBackend instance, downloading bpftool if needed."""
         # Try system bpftool first
         try:
@@ -64,7 +64,7 @@ class BpftoolBackend(EbpfBackend):
 
         # Try downloading
         if try_download:
-            path = download_bpftool(verbose=verbose)
+            path = download_bpftool()
             if path:
                 return BpftoolBackend(path)
 

@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Set
 
 from .backends import EbpfBackend
 from .constants import PID_KEYED_MAPS
+from .logging_config import logger
 from .models import PIDLeakInfo
 
 
@@ -91,8 +92,7 @@ def find_pid_keyed_maps(maps: List[Dict]) -> Dict[str, int]:
 def analyze_pid_map(
     map_name: str,
     backend: EbpfBackend,
-    proc_root: str = "/proc",
-    verbose: bool = False
+    proc_root: str = "/proc"
 ) -> PIDLeakInfo:
     """Analyze a PID-keyed map for leaked entries using streaming.
 
@@ -100,7 +100,6 @@ def analyze_pid_map(
         map_name: Name of the eBPF map to analyze
         backend: eBPF backend to use for map operations
         proc_root: Path to /proc filesystem
-        verbose: Enable verbose output
 
     Returns:
         PIDLeakInfo with analysis results
@@ -123,14 +122,12 @@ def analyze_pid_map(
         if entry.get("_btf") and isinstance(key, dict):
             pid_tgid = key.get("pid_tgid")
             if pid_tgid is None:
-                if verbose:
-                    print("  Warning: BTF key missing pid_tgid field")
+                logger.debug("  Warning: BTF key missing pid_tgid field")
                 continue
         else:
             pid_tgid = parse_pid_tgid_key(key)
             if pid_tgid is None:
-                if verbose:
-                    print("  Warning: Could not parse pid_tgid key")
+                logger.debug("  Warning: Could not parse pid_tgid key")
                 continue
 
         pid = extract_pid(pid_tgid)

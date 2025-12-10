@@ -4,25 +4,24 @@ Report generation for leak detection results.
 
 from typing import Dict, List
 
+from .logging_config import logger
 from .models import MapLeakInfo, PIDLeakInfo
 
 
-def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int], verbose: bool = False):
+def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int]):
     """Print human-readable leak report for ConnTuple-keyed maps.
 
     Args:
         results: List of MapLeakInfo from analysis
         namespaces: Dict mapping netns inodes to representative PIDs
-        verbose: Enable verbose output (shows namespace details)
     """
     print("USM eBPF Map Leak Detection (ConnTuple-Keyed Maps)")
     print("=" * 60)
     print()
 
     print(f"Network Namespaces Discovered: {len(namespaces)}")
-    if verbose:
-        for netns_id, pid in sorted(namespaces.items()):
-            print(f"  - {netns_id} (pid={pid})")
+    for netns_id, pid in sorted(namespaces.items()):
+        logger.debug(f"  - {netns_id} (pid={pid})")
     print()
 
     print("## Connection Tuple-Keyed Maps")
@@ -68,12 +67,11 @@ def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int], verbose
         print(f"Race condition false positives filtered: {total_race_fps}")
 
 
-def print_pid_report(results: List[PIDLeakInfo], verbose: bool = False):
+def print_pid_report(results: List[PIDLeakInfo]):
     """Print human-readable leak report for PID-keyed maps.
 
     Args:
         results: List of PIDLeakInfo from analysis
-        verbose: Enable verbose output
     """
     print("USM eBPF Map Leak Detection (PID-Keyed Maps)")
     print("=" * 60)
