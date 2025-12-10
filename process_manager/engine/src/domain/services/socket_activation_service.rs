@@ -324,7 +324,7 @@ impl SocketActivationService {
     ) {
         use windows::Win32::Foundation::{SetHandleInformation, HANDLE, HANDLE_FLAGS};
         use windows::Win32::Networking::WinSock::{
-            closesocket, select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR,
+            select, FD_SET, TIMEVAL, SOCKET, SOCKET_ERROR,
         };
 
         debug!(
@@ -411,28 +411,15 @@ impl SocketActivationService {
                         break;
                     }
 
-                    // Wait briefly for child to start
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-
-                    // CRITICAL: Close daemon's copy of the socket handle
-                    // On Windows, both parent and child hold the same socket.
-                    // We must close our reference so child exclusively owns it.
-                    info!(
-                        socket = %socket_name,
-                        handle = handle,
-                        "Closing daemon's socket handle - child now owns it exclusively"
-                    );
-                    unsafe {
-                        closesocket(SOCKET(handle as usize));
-                    }
-
-                    // Exit the monitoring loop - we no longer own this socket
-                    // If the service crashes, supervisor will restart it normally
-                    // (without socket activation for subsequent restarts)
+                    // Exit the monitoring loop - child will take over the socket
+                    // Note: We do NOT call closesocket() here because on Windows,
+                    // closing the socket in the parent can invalidate it for the child
+                    // before the child has a chance to use it.
+                    // The child inherits the handle and will close it when done.
                     info!(
                         socket = %socket_name,
                         service = %service_name,
-                        "Socket activation complete - daemon released socket to child"
+                        "Socket activation complete - child will take over socket"
                     );
                     break;
                 }
