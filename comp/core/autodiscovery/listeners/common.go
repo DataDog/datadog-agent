@@ -12,8 +12,6 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/samber/lo"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -40,12 +38,13 @@ func getStandardTags(labels map[string]string) []string {
 		kubernetes.VersionTagLabelKey: tagKeyVersion,
 		kubernetes.ServiceTagLabelKey: tagKeyService,
 	}
-	return lo.FilterMapToSlice(labelToTagKeys, func(labelKey, tagKey string) (string, bool) {
+	tags := make([]string, 0, len(labelToTagKeys))
+	for labelKey, tagKey := range labelToTagKeys {
 		if tagValue, found := labels[labelKey]; found {
-			return tagKey + ":" + tagValue, true
+			tags = append(tags, tagKey+":"+tagValue)
 		}
-		return "", false
-	})
+	}
+	return tags
 }
 
 // standardTagsDigest computes the hash of standard tags in a map

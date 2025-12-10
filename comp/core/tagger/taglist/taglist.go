@@ -11,8 +11,6 @@ import (
 	"strings"
 	"unique"
 
-	"github.com/samber/lo"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -100,7 +98,17 @@ func (l *TagList) AddAuto(name, value string) {
 // - high cardinality
 // - standard tags
 func (l *TagList) Compute() ([]string, []string, []string, []string) {
-	return lo.Keys(l.lowCardTags), lo.Keys(l.orchestratorCardTags), lo.Keys(l.highCardTags), lo.Keys(l.standardTags)
+	return toSlice(l.lowCardTags), toSlice(l.orchestratorCardTags), toSlice(l.highCardTags), toSlice(l.standardTags)
+}
+
+func toSlice(m map[string]bool) []string {
+	s := make([]string, len(m))
+	index := 0
+	for tag := range m {
+		s[index] = tag
+		index++
+	}
+	return s
 }
 
 // Copy creates a deep copy of the taglist object for reuse
