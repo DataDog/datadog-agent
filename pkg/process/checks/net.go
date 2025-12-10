@@ -8,6 +8,7 @@ package checks
 import (
 	"fmt"
 	"net/http"
+	"net/netip"
 	"runtime"
 	"sort"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -181,7 +183,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 
 	log.Debugf("collected connections in %s", time.Since(start))
 
-	c.npCollector.ScheduleConns(conns)
+	c.scheduleNetworkPath(conns)
 
 	getContainersCB := c.getContainerTagsCallback(c.getContainersForExplicitTagging(conns.Conns))
 	getProcessTagsCB := c.getProcessTagsCallback()
@@ -193,6 +195,56 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 // Cleanup frees any resource held by the ConnectionsCheck before the agent exits
 func (c *ConnectionsCheck) Cleanup() {
 	c.localresolver.Stop()
+}
+
+func (c *ConnectionsCheck) scheduleNetworkPath(conns *model.Connections) {
+	c.npCollector.ScheduleNetworkPathTests(func(yield func(npmodel.NetworkPathConnection) bool) {
+		for _, conn := range conns.Conns {
+			srcIP, err := netip.ParseAddr(conn.Laddr.GetIp())
+			if err != nil {
+				continue
+			}
+			src := netip.AddrPortFrom(srcIP, uint16(conn.Laddr.Port))
+			dstIP, err := netip.ParseAddr(conn.Raddr.GetIp())
+			if err != nil {
+				continue
+			}
+			dest := netip.AddrPortFrom(dstIP, uint16(conn.Raddr.Port))
+			transDest := dest
+			if conn.IpTranslation != nil && conn.IpTranslation.ReplDstIP != "" {
+				transDestIP, err := netip.ParseAddr(conn.IpTranslation.ReplDstIP)
+				if err == nil {
+					transDest = netip.AddrPortFrom(transDestIP, uint16(conn.Raddr.Port))
+				}
+			}
+
+			npc := npmodel.NetworkPathConnection{
+				Source:            src,
+				Dest:              dest,
+				TranslatedDest:    transDest,
+				SourceContainerID: conn.Laddr.GetContainerId(),
+				Domain:            getDNSNameForIP(conns, conn.Raddr.GetIp()),
+				Type:              conn.Type,
+				Direction:         conn.Direction,
+				Family:            conn.Family,
+				IntraHost:         conn.IntraHost,
+				SystemProbeConn:   conn.SystemProbeConn,
+			}
+			if !yield(npc) {
+				return
+			}
+		}
+	})
+}
+
+func getDNSNameForIP(conns *model.Connections, ip string) string {
+	var domain string
+	if dnsEntry := conns.Dns[ip]; dnsEntry != nil && len(dnsEntry.Names) > 0 {
+		// We are only using the first entry for now, but in the future, if we find a good solution,
+		// we might want to report the other DNS names too if necessary (need more investigation on how to best achieve that).
+		domain = dnsEntry.Names[0]
+	}
+	return domain
 }
 
 // getContainersForExplicitTagging returns all containers that are relevant for explicit tagging based on the current connections.
