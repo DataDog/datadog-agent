@@ -226,3 +226,6 @@ tests_gpu:
   variables:
     FLAVORS: ''
     EXTRA_OPTS: '--targets=./pkg/gpu/integrationtests,./pkg/collector/corechecks/gpu/integrationtests'
+    KUBERNETES_CPU_REQUEST: 4
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
