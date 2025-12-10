@@ -16,6 +16,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -55,7 +56,7 @@ func (suite *ecsSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsSuite) TearDownSuite() {
@@ -150,13 +151,13 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					runningTasks := lo.CountBy(tasksDescription.Tasks, func(task awsecstypes.Task) bool {
 						return task.LastStatus != nil && *task.LastStatus == "RUNNING"
 					})
-					desiredTasks := *service.DesiredCount
+					desiredTasks := service.DesiredCount
 
 					if !assert.Equalf(c, int(desiredTasks), runningTasks, "Service %s: expected %d tasks to be running, got %d", *service.ServiceName, desiredTasks, runningTasks) {
 						return
 					}
 				}
 			}
-		}, 15*suite.Minute, 10*suite.Second, "All ECS services should be ready")
+		}, 15*time.Minute, 10*time.Second, "All ECS services should be ready")
 	})
 }

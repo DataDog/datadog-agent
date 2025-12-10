@@ -6,6 +6,7 @@
 package ecs
 
 import (
+	"time"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func (suite *ecsManagedSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
@@ -81,7 +82,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceBasicMetrics() {
 				"Should find metrics with ECS metadata from managed instances")
 
 			suite.T().Logf("Collected %d metrics from managed instances", len(metrics))
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance basic metrics validation failed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance basic metrics validation failed")
 	})
 }
 
@@ -132,14 +133,14 @@ func (suite *ecsManagedSuite) TestManagedInstanceMetadata() {
 			// Managed instances should show as EC2 launch type
 			assert.Truef(c, foundMetadata["launch_type_ec2"],
 				"Managed instances should have EC2 launch type")
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance metadata validation failed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance metadata validation failed")
 	})
 }
 
 func (suite *ecsManagedSuite) TestManagedInstanceAgentHealth() {
 	// Test agent health on managed instances
 	suite.Run("Managed instance agent health", func() {
-		suite.testAgentHealth(&testAgentHealthArgs{
+		suite.TestAgentHealth(&containers.TestAgentHealthArgs{
 			CheckComponents: []string{"core", "metadata"},
 		})
 	})
@@ -171,7 +172,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceContainerDiscovery() {
 
 			assert.GreaterOrEqualf(c, len(containers), 1,
 				"Should discover at least one container on managed instances")
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance container discovery validation failed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance container discovery validation failed")
 	})
 }
 
@@ -220,7 +221,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceTaskTracking() {
 			suite.T().Logf("Metrics with task attribution: %d/%d", taskMetrics, len(metrics))
 			assert.GreaterOrEqualf(c, taskMetrics, 10,
 				"Should have multiple metrics attributed to tasks")
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance task tracking validation failed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance task tracking validation failed")
 	})
 }
 
@@ -264,7 +265,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceDaemonMode() {
 			}
 
 			suite.T().Logf("Tracking %d unique container tags (daemon mode)", len(containers))
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance daemon mode validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance daemon mode validation completed")
 	})
 }
 
@@ -313,7 +314,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceLogCollection() {
 			} else {
 				suite.T().Logf("Note: No logs from managed instances found yet")
 			}
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance log collection validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance log collection validation completed")
 	})
 }
 
@@ -349,7 +350,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceTraceCollection() {
 					suite.T().Logf("Note: No traces from managed instances found yet")
 				}
 			}
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance trace collection validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance trace collection validation completed")
 	})
 }
 
@@ -393,7 +394,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceNetworkMode() {
 			}
 
 			suite.T().Logf("Found %d unique port tags (bridge mode indicator)", len(portTags))
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance network mode validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance network mode validation completed")
 	})
 }
 
@@ -432,7 +433,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceAutoscalingIntegration() {
 			// 1. Trigger scale-up/scale-down events
 			// 2. Verify agent on new instances is automatically configured
 			// 3. Verify agent on drained instances stops cleanly
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance autoscaling integration validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance autoscaling integration validation completed")
 	})
 }
 
@@ -475,7 +476,7 @@ func (suite *ecsManagedSuite) TestManagedInstancePlacementStrategy() {
 			// Should have tasks placed on managed instances
 			assert.GreaterOrEqualf(c, len(instanceTasks), 1,
 				"Should have tasks placed on managed instances")
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance placement strategy validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance placement strategy validation completed")
 	})
 }
 
@@ -513,7 +514,7 @@ func (suite *ecsManagedSuite) TestManagedInstanceResourceUtilization() {
 			// Should have resource metrics from managed instances
 			assert.GreaterOrEqualf(c, cpuMetrics+memMetrics+diskMetrics, 1,
 				"Should have resource utilization metrics from managed instances")
-		}, 3*suite.Minute, 10*suite.Second, "Managed instance resource utilization validation completed")
+		}, 3*time.Minute, 10*time.Second, "Managed instance resource utilization validation completed")
 	})
 }
 

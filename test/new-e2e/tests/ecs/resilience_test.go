@@ -43,7 +43,7 @@ func (suite *ecsResilienceSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsResilienceSuite) TestAgentRestart() {
@@ -61,7 +61,7 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 				"Should have baseline metrics before restart")
 
 			suite.T().Logf("Baseline metrics: %d", baselineMetricCount)
-		}, 2*suite.Minute, 10*suite.Second, "Failed to establish baseline")
+		}, 2*time.Minute, 10*time.Second, "Failed to establish baseline")
 
 		// Note: In a real implementation, we would restart the agent here
 		// For now, we simulate by checking that metrics continue to flow
@@ -97,7 +97,7 @@ func (suite *ecsResilienceSuite) TestAgentRestart() {
 			suite.T().Logf("Recent metrics (last 60s): %d", recentMetrics)
 			assert.GreaterOrEqualf(c, recentMetrics, 1,
 				"Should have recent metrics indicating agent is active")
-		}, 5*suite.Minute, 10*suite.Second, "Agent failed to recover from restart")
+		}, 5*time.Minute, 10*time.Second, "Agent failed to recover from restart")
 	})
 }
 
@@ -143,7 +143,7 @@ func (suite *ecsResilienceSuite) TestTaskFailureRecovery() {
 			suite.T().Logf("Container metrics: %d", containerMetrics)
 			assert.GreaterOrEqualf(c, containerMetrics, 5,
 				"Should continue collecting container metrics")
-		}, 3*suite.Minute, 10*suite.Second, "Task failure recovery validation completed")
+		}, 3*time.Minute, 10*time.Second, "Task failure recovery validation completed")
 	})
 }
 
@@ -180,7 +180,7 @@ func (suite *ecsResilienceSuite) TestNetworkInterruption() {
 			// Metrics should continue flowing
 			assert.GreaterOrEqualf(c, newCount, baselineCount,
 				"Metrics should continue to flow (agent is resilient)")
-		}, 3*suite.Minute, 10*suite.Second, "Network interruption handling validation completed")
+		}, 3*time.Minute, 10*time.Second, "Network interruption handling validation completed")
 	})
 }
 
@@ -228,7 +228,7 @@ func (suite *ecsResilienceSuite) TestHighCardinality() {
 
 			// Note: In a real implementation with chaos app in high_cardinality mode,
 			// we would see many unique tags and verify agent memory remains stable
-		}, 3*suite.Minute, 10*suite.Second, "High cardinality handling validation completed")
+		}, 3*time.Minute, 10*time.Second, "High cardinality handling validation completed")
 	})
 }
 
@@ -275,7 +275,7 @@ func (suite *ecsResilienceSuite) TestResourceExhaustion() {
 			suite.T().Logf("System resource metrics: %d", systemMetrics)
 			assert.GreaterOrEqualf(c, systemMetrics, 0,
 				"Should collect system resource metrics")
-		}, 3*suite.Minute, 10*suite.Second, "Resource exhaustion handling validation completed")
+		}, 3*time.Minute, 10*time.Second, "Resource exhaustion handling validation completed")
 	})
 }
 
@@ -329,7 +329,7 @@ func (suite *ecsResilienceSuite) TestRapidContainerChurn() {
 
 			suite.T().Logf("Metrics with container attribution: %d/%d",
 				containerMetrics, len(metrics))
-		}, 3*suite.Minute, 10*suite.Second, "Rapid container churn validation completed")
+		}, 3*time.Minute, 10*time.Second, "Rapid container churn validation completed")
 	})
 }
 
@@ -392,7 +392,7 @@ func (suite *ecsResilienceSuite) TestLargePayloads() {
 			// - Traces would have many spans or large span data
 			// - Logs would have large messages (multiline, stack traces)
 			// - Agent would chunk and send without data loss
-		}, 3*suite.Minute, 10*suite.Second, "Large payload handling validation completed")
+		}, 3*time.Minute, 10*time.Second, "Large payload handling validation completed")
 	})
 }
 
@@ -444,6 +444,6 @@ func (suite *ecsResilienceSuite) TestBackpressure() {
 			}
 
 			suite.T().Logf("Agent health indicators present: %v", agentHealthy)
-		}, 3*suite.Minute, 10*suite.Second, "Backpressure handling validation completed")
+		}, 3*time.Minute, 10*time.Second, "Backpressure handling validation completed")
 	})
 }

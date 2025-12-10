@@ -46,19 +46,19 @@ func (suite *ecsPlatformSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsPlatformSuite) TestWindowsFargate() {
-	suite.testCheckRun(&testCheckRunArgs{
-		Filter: testCheckRunFilterArgs{
+	suite.TestCheckRun(&containers.TestCheckRunArgs{
+		Filter: containers.TestCheckRunFilterArgs{
 			Name: "http.can_connect",
 			Tags: []string{
 				"^ecs_launch_type:fargate$",
 				"^container_name:aspnetsample$",
 			},
 		},
-		Expect: testCheckRunExpectArgs{
+		Expect: containers.TestCheckRunExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^availability_zone:`,
@@ -89,14 +89,14 @@ func (suite *ecsPlatformSuite) TestWindowsFargate() {
 	})
 
 	// Test container check
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
 				"^ecs_container_name:aspnetsample$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^availability_zone:`,
@@ -128,14 +128,14 @@ func (suite *ecsPlatformSuite) TestWindowsFargate() {
 
 func (suite *ecsPlatformSuite) TestCPU() {
 	// Test CPU metrics
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
 				"^ecs_container_name:stress-ng$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -161,7 +161,7 @@ func (suite *ecsPlatformSuite) TestCPU() {
 				`^task_name:.*-stress-ng-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &containers.TestMetricExpectValueArgs{
 				Max: 155000000,
 				Min: 145000000,
 			},

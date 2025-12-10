@@ -53,15 +53,15 @@ func (suite *eksSuite) SetupSuite() {
 }
 
 func (suite *eksSuite) TestEKSFargate() {
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "eks.fargate.cpu.capacity",
 			Tags: []string{
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
@@ -78,22 +78,22 @@ func (suite *eksSuite) TestEKSFargate() {
 				`^pod_phase:running$`,
 				`^virtual_node:fargate-ip-.*\.ec2\.internal$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 0.25,
 				Min: 0.25,
 			},
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "eks.fargate.memory.capacity",
 			Tags: []string{
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
@@ -110,22 +110,22 @@ func (suite *eksSuite) TestEKSFargate() {
 				`^pod_phase:running$`,
 				`^virtual_node:fargate-ip-.*\.ec2\.internal$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 1024 * 1024 * 1024,
 				Min: 1024 * 1024 * 1024,
 			},
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "eks.fargate.pods.running",
 			Tags: []string{
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
@@ -142,7 +142,7 @@ func (suite *eksSuite) TestEKSFargate() {
 				`^pod_phase:running$`,
 				`^virtual_node:fargate-ip-.*\.ec2\.internal$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
 			},
@@ -151,15 +151,15 @@ func (suite *eksSuite) TestEKSFargate() {
 }
 
 func (suite *eksSuite) TestDogstatsdFargate() {
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
 				`^kube_deployment:dogstatsd-fargate$`,
 				`^kube_namespace:workload-dogstatsd-fargate$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^eks_fargate_node:fargate-ip-.*\.ec2\.internal$`,
 				`^kube_cluster_name:`,
@@ -181,14 +181,14 @@ func (suite *eksSuite) TestDogstatsdFargate() {
 func (suite *eksSuite) TestNginxFargate() {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
@@ -221,14 +221,14 @@ func (suite *eksSuite) TestNginxFargate() {
 
 	// `http_check` is configured via AD annotation on service
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
@@ -243,14 +243,14 @@ func (suite *eksSuite) TestNginxFargate() {
 	})
 
 	// Test Nginx logs
-	suite.testLog(&testLogArgs{
-		Filter: testLogFilterArgs{
+	suite.TestLog(&TestLogArgs{
+		Filter: TestLogFilterArgs{
 			Service: "nginx-fargate",
 			Tags: []string{
 				`^kube_namespace:workload-nginx-fargate$`,
 			},
 		},
-		Expect: testLogExpectArgs{
+		Expect: TestLogExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,

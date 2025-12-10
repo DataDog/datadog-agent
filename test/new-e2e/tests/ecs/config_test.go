@@ -6,6 +6,7 @@
 package ecs
 
 import (
+	"time"
 	"regexp"
 	"strings"
 	"testing"
@@ -42,7 +43,7 @@ func (suite *ecsConfigSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsConfigSuite) TestEnvVarConfiguration() {
@@ -93,7 +94,7 @@ func (suite *ecsConfigSuite) TestEnvVarConfiguration() {
 			// Validate DD_TAGS propagation
 			suite.T().Logf("Environment variable configuration validated: service=%v, env=%v, cluster=%v",
 				foundServiceTag, foundEnvTag, foundClusterTag)
-		}, 3*suite.Minute, 10*suite.Second, "Environment variable configuration validation failed")
+		}, 3*time.Minute, 10*time.Second, "Environment variable configuration validation failed")
 	})
 }
 
@@ -152,7 +153,7 @@ func (suite *ecsConfigSuite) TestDockerLabelDiscovery() {
 					assert.Truef(c, true, "Docker label log configuration is working")
 				}
 			}
-		}, 3*suite.Minute, 10*suite.Second, "Docker label discovery validation completed")
+		}, 3*time.Minute, 10*time.Second, "Docker label discovery validation completed")
 	})
 }
 
@@ -219,7 +220,7 @@ func (suite *ecsConfigSuite) TestTaskDefinitionDiscovery() {
 
 			suite.T().Logf("Task definition discovery validated: task_arn=%v, container=%v, family=%v, port=%v",
 				foundTaskArn, foundContainerName, foundTaskFamily, foundContainerPort)
-		}, 3*suite.Minute, 10*suite.Second, "Task definition discovery validation failed")
+		}, 3*time.Minute, 10*time.Second, "Task definition discovery validation failed")
 	})
 }
 
@@ -282,7 +283,7 @@ func (suite *ecsConfigSuite) TestDynamicConfiguration() {
 			suite.T().Logf("Found %d metrics with timestamps (indicating active collection)", recentMetrics)
 			assert.GreaterOrEqualf(c, recentMetrics, 10,
 				"Should have recent metrics indicating dynamic updates")
-		}, 3*suite.Minute, 10*suite.Second, "Dynamic configuration validation failed")
+		}, 3*time.Minute, 10*time.Second, "Dynamic configuration validation failed")
 	})
 }
 
@@ -352,7 +353,7 @@ func (suite *ecsConfigSuite) TestMetadataEndpoints() {
 					}
 				}
 			}
-		}, 3*suite.Minute, 10*suite.Second, "ECS metadata endpoints validation failed")
+		}, 3*time.Minute, 10*time.Second, "ECS metadata endpoints validation failed")
 	})
 }
 
@@ -430,7 +431,7 @@ func (suite *ecsConfigSuite) TestServiceDiscovery() {
 
 				suite.T().Logf("Service '%s' has %d metrics", serviceName, serviceMetricsCount)
 			}
-		}, 3*suite.Minute, 10*suite.Second, "Service discovery validation completed")
+		}, 3*time.Minute, 10*time.Second, "Service discovery validation completed")
 	})
 }
 
@@ -529,7 +530,7 @@ func (suite *ecsConfigSuite) TestConfigPrecedence() {
 
 			suite.T().Logf("Configuration precedence validated: high-priority=%v, agent=%v, custom=%v",
 				hasHighPriorityTags, hasAgentTags, foundCustomTag)
-		}, 3*suite.Minute, 10*suite.Second, "Configuration precedence validation completed")
+		}, 3*time.Minute, 10*time.Second, "Configuration precedence validation completed")
 	})
 }
 

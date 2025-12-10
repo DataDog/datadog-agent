@@ -6,6 +6,7 @@
 package ecs
 
 import (
+	"time"
 	"regexp"
 	"strings"
 	"testing"
@@ -41,18 +42,18 @@ func (suite *ecsChecksSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsChecksSuite) TestNginxECS() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -83,12 +84,12 @@ func (suite *ecsChecksSuite) TestNginxECS() {
 		},
 	})
 
-	suite.testLog(&testLogArgs{
-		Filter: testLogFilterArgs{
+	suite.TestLog(&containers.TestLogArgs{
+		Filter: containers.TestLogFilterArgs{
 			Service: "apps-nginx-server",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
-		Expect: testLogExpectArgs{
+		Expect: containers.TestLogExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -122,12 +123,12 @@ func (suite *ecsChecksSuite) TestNginxECS() {
 func (suite *ecsChecksSuite) TestRedisECS() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{"^ecs_launch_type:ec2$"},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -157,12 +158,12 @@ func (suite *ecsChecksSuite) TestRedisECS() {
 		},
 	})
 
-	suite.testLog(&testLogArgs{
-		Filter: testLogFilterArgs{
+	suite.TestLog(&containers.TestLogArgs{
+		Filter: containers.TestLogFilterArgs{
 			Service: "redis",
 			Tags:    []string{"^ecs_launch_type:ec2$"},
 		},
-		Expect: testLogExpectArgs{
+		Expect: containers.TestLogExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -196,12 +197,12 @@ func (suite *ecsChecksSuite) TestRedisECS() {
 func (suite *ecsChecksSuite) TestNginxFargate() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^availability_zone:`,
@@ -234,12 +235,12 @@ func (suite *ecsChecksSuite) TestNginxFargate() {
 func (suite *ecsChecksSuite) TestRedisFargate() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 			Tags: []string{"^ecs_launch_type:fargate$"},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^availability_zone:`,
@@ -270,11 +271,11 @@ func (suite *ecsChecksSuite) TestRedisFargate() {
 
 func (suite *ecsChecksSuite) TestPrometheus() {
 	// Test Prometheus check
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&containers.TestMetricArgs{
+		Filter: containers.TestMetricFilterArgs{
 			Name: "prometheus.prom_gauge",
 		},
-		Expect: testMetricExpectArgs{
+		Expect: containers.TestMetricExpectArgs{
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,

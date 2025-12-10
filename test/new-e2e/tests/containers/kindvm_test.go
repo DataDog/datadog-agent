@@ -52,11 +52,11 @@ func (suite *kindSuite) SetupSuite() {
 
 func (suite *kindSuite) TestControlPlane() {
 	// Test `kube_apiserver` check is properly working
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kube_apiserver.apiserver_request_total",
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^apiserver:`,
 				`^code:[[:digit:]]{3}$`,
@@ -83,7 +83,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^version:`,
 			},
 		},
-		Optional: testMetricExpectArgs{
+		Optional: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^contentType:`,
 			},
@@ -91,11 +91,11 @@ func (suite *kindSuite) TestControlPlane() {
 	})
 
 	// Test `kube_controller_manager` check is properly working
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kube_controller_manager.queue.adds",
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:kube-controller-manager$`,
@@ -116,11 +116,11 @@ func (suite *kindSuite) TestControlPlane() {
 	})
 
 	// Test `kube_scheduler` check is properly working
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kube_scheduler.schedule_attempts",
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:kube-scheduler$`,

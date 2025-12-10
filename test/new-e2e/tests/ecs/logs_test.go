@@ -6,6 +6,7 @@
 package ecs
 
 import (
+	"time"
 	"regexp"
 	"strings"
 	"testing"
@@ -46,13 +47,13 @@ func (suite *ecsLogsSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsLogsSuite) Test00AgentLogsReady() {
 	// Test that the log agent is ready and collecting logs
 	suite.Run("Log agent readiness check", func() {
-		suite.testAgentHealth(&testAgentHealthArgs{
+		suite.TestAgentHealth(&containers.TestAgentHealthArgs{
 			CheckComponents: []string{"logs"},
 		})
 
@@ -63,7 +64,7 @@ func (suite *ecsLogsSuite) Test00AgentLogsReady() {
 			assert.NotEmptyf(c, logs, "No logs received - log agent may not be ready")
 
 			suite.T().Logf("Log agent is ready - received %d logs", len(logs))
-		}, 5*suite.Minute, 10*suite.Second, "Log agent readiness check failed")
+		}, 5*time.Minute, 10*time.Second, "Log agent readiness check failed")
 	})
 }
 
@@ -120,7 +121,7 @@ func (suite *ecsLogsSuite) TestContainerLogCollection() {
 
 			suite.T().Logf("Container log collection validated: cluster=%s, container=%s",
 				suite.ecsClusterName, getTagValue(tags, "container_name"))
-		}, 3*suite.Minute, 10*suite.Second, "Container log collection validation failed")
+		}, 3*time.Minute, 10*time.Second, "Container log collection validation failed")
 	})
 }
 
@@ -159,7 +160,7 @@ func (suite *ecsLogsSuite) TestLogMultiline() {
 			}
 
 			suite.T().Logf("Note: No multiline stack traces found yet (checking %d logs)", len(logs))
-		}, 3*suite.Minute, 10*suite.Second, "Multiline log handling check completed")
+		}, 3*time.Minute, 10*time.Second, "Multiline log handling check completed")
 	})
 }
 
@@ -200,7 +201,7 @@ func (suite *ecsLogsSuite) TestLogParsing() {
 			}
 
 			suite.T().Logf("Checked %d logs for JSON parsing", len(logs))
-		}, 2*suite.Minute, 10*suite.Second, "JSON log parsing check completed")
+		}, 2*time.Minute, 10*time.Second, "JSON log parsing check completed")
 	})
 }
 
@@ -244,7 +245,7 @@ func (suite *ecsLogsSuite) TestLogSampling() {
 
 			// Note: Actual sampling behavior depends on agent configuration
 			// This is a basic validation that logs are flowing
-		}, 2*suite.Minute, 10*suite.Second, "Log sampling validation completed")
+		}, 2*time.Minute, 10*time.Second, "Log sampling validation completed")
 	})
 }
 
@@ -288,7 +289,7 @@ func (suite *ecsLogsSuite) TestLogFiltering() {
 			}
 
 			suite.T().Logf("Found %d debug logs out of %d total", debugCount, len(logs))
-		}, 2*suite.Minute, 10*suite.Second, "Log filtering validation completed")
+		}, 2*time.Minute, 10*time.Second, "Log filtering validation completed")
 	})
 }
 
@@ -327,7 +328,7 @@ func (suite *ecsLogsSuite) TestLogSourceDetection() {
 			// Should detect at least one source
 			assert.GreaterOrEqualf(c, len(sources), 1,
 				"Should detect at least one log source")
-		}, 2*suite.Minute, 10*suite.Second, "Log source detection validation failed")
+		}, 2*time.Minute, 10*time.Second, "Log source detection validation failed")
 	})
 }
 
@@ -378,7 +379,7 @@ func (suite *ecsLogsSuite) TestLogStatusRemapping() {
 			}
 
 			suite.T().Logf("Status remapping check completed on %d logs", len(logs))
-		}, 2*suite.Minute, 10*suite.Second, "Log status remapping check completed")
+		}, 2*time.Minute, 10*time.Second, "Log status remapping check completed")
 	})
 }
 
@@ -407,7 +408,7 @@ func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
 					}
 				}
 			}
-		}, 2*suite.Minute, 10*suite.Second, "Failed to get trace ID")
+		}, 2*time.Minute, 10*time.Second, "Failed to get trace ID")
 
 		// Now check if logs have trace correlation
 		if traceID != 0 {
@@ -436,7 +437,7 @@ func (suite *ecsLogsSuite) TestLogTraceCorrelation() {
 				} else {
 					suite.T().Logf("Note: No logs with trace correlation found yet (checked %d logs)", len(logs))
 				}
-			}, 2*suite.Minute, 10*suite.Second, "Trace-log correlation check completed")
+			}, 2*time.Minute, 10*time.Second, "Trace-log correlation check completed")
 		}
 	})
 }

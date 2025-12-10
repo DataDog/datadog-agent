@@ -6,12 +6,14 @@
 package ecs
 
 import (
+	"time"
 	"regexp"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers"
 	"github.com/samber/lo"
@@ -45,13 +47,13 @@ func (suite *ecsAPMSuite) SetupSuite() {
 	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
-	suite.clusterName = suite.Env().ECSCluster.ClusterName
+	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
 func (suite *ecsAPMSuite) Test00AgentAPMReady() {
 	// Test that the APM agent is ready and receiving traces
 	suite.Run("APM agent readiness check", func() {
-		suite.testAgentHealth(&testAgentHealthArgs{
+		suite.TestAgentHealth(&containers.TestAgentHealthArgs{
 			CheckComponents: []string{"trace"},
 		})
 
@@ -62,7 +64,7 @@ func (suite *ecsAPMSuite) Test00AgentAPMReady() {
 			assert.NotEmptyf(c, traces, "No traces received - APM agent may not be ready")
 
 			suite.T().Logf("APM agent is ready - received %d traces", len(traces))
-		}, 5*suite.Minute, 10*suite.Second, "APM agent readiness check failed")
+		}, 5*time.Minute, 10*time.Second, "APM agent readiness check failed")
 	})
 }
 
@@ -70,11 +72,11 @@ func (suite *ecsAPMSuite) TestBasicTraceCollection() {
 	// Test basic trace collection and validation
 	suite.Run("Basic trace collection", func() {
 		// Use the existing tracegen app for basic trace validation
-		suite.testAPMTrace(&testAPMTraceArgs{
-			Filter: testAPMTraceFilterArgs{
+		suite.TestAPMTrace(&containers.TestAPMTraceArgs{
+			Filter: containers.TestAPMTraceFilterArgs{
 				ServiceName: "tracegen-test-service",
 			},
-			Expect: testAPMTraceExpectArgs{
+			Expect: containers.TestAPMTraceExpectArgs{
 				TraceIDPresent: true,
 				Tags: &[]string{
 					`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -126,7 +128,7 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 					for _, chunk := range payload.Chunks {
 						if len(chunk.Spans) > 1 {
 							// Check if spans have parent-child relationships
-							spansByID := make(map[uint64]aggregator.Span)
+							spansByID := make(map[uint64]pb.Span)
 							for _, span := range chunk.Spans {
 								spansByID[span.SpanID] = span
 							}
@@ -153,7 +155,7 @@ func (suite *ecsAPMSuite) TestMultiServiceTracing() {
 			}
 
 			suite.T().Logf("Note: No parent-child spans found yet, but traces are being collected")
-		}, 3*suite.Minute, 10*suite.Second, "Multi-service tracing validation failed")
+		}, 3*time.Minute, 10*time.Second, "Multi-service tracing validation failed")
 	})
 }
 
@@ -196,7 +198,7 @@ func (suite *ecsAPMSuite) TestTraceSampling() {
 			}
 
 			assert.Truef(c, foundSamplingPriority, "No traces with sampling priority found")
-		}, 2*suite.Minute, 10*suite.Second, "Trace sampling validation failed")
+		}, 2*time.Minute, 10*time.Second, "Trace sampling validation failed")
 	})
 }
 
@@ -244,7 +246,7 @@ func (suite *ecsAPMSuite) TestTraceTagEnrichment() {
 
 			assert.Truef(c, foundEnrichedTrace,
 				"No traces found with complete ECS metadata tags (cluster_name, task_arn, container_name)")
-		}, 2*suite.Minute, 10*suite.Second, "Trace tag enrichment validation failed")
+		}, 2*time.Minute, 10*time.Second, "Trace tag enrichment validation failed")
 	})
 }
 
@@ -278,7 +280,7 @@ func (suite *ecsAPMSuite) TestTraceCorrelation() {
 			}
 
 			assert.NotZerof(c, traceID, "No valid trace ID found")
-		}, 2*suite.Minute, 10*suite.Second, "Failed to get trace ID")
+		}, 2*time.Minute, 10*time.Second, "Failed to get trace ID")
 
 		// If we found a trace ID, check if logs have the same trace ID
 		if traceID != 0 {
@@ -314,7 +316,7 @@ func (suite *ecsAPMSuite) TestTraceCorrelation() {
 				} else {
 					suite.T().Logf("Note: No logs with trace correlation found yet")
 				}
-			}, 2*suite.Minute, 10*suite.Second, "Trace-log correlation check completed")
+			}, 2*time.Minute, 10*time.Second, "Trace-log correlation check completed")
 		}
 	})
 }
@@ -354,7 +356,7 @@ func (suite *ecsAPMSuite) TestAPMFargate() {
 			} else {
 				suite.T().Logf("No Fargate traces found yet - checking EC2 traces")
 			}
-		}, 3*suite.Minute, 10*suite.Second, "Fargate APM validation completed")
+		}, 3*time.Minute, 10*time.Second, "Fargate APM validation completed")
 	})
 }
 
@@ -411,6 +413,6 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 					}
 				}
 			}
-		}, 3*suite.Minute, 10*suite.Second, "EC2 APM validation failed")
+		}, 3*time.Minute, 10*time.Second, "EC2 APM validation failed")
 	})
 }

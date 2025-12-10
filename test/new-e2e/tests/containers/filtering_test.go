@@ -81,15 +81,15 @@ func (suite *k8sFilteringSuiteBase) TestWorkloadExcludeForAutodiscovery() {
 // continue to run and collect telemetry.
 func (suite *k8sFilteringSuiteBase) TestUnfilteredWorkloadsHaveTelemetry() {
 	// nginx workload in default namespace should have metrics
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "container.memory.usage",
 			Tags: []string{
 				`^container_name:nginx$`,
 				`^kube_namespace:workload-nginx$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags:                 &[]string{},
 			AcceptUnexpectedTags: true,
 		},

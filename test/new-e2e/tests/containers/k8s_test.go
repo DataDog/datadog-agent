@@ -61,7 +61,7 @@ type k8sSuite struct {
 
 func (suite *k8sSuite) SetupSuite() {
 	suite.baseSuite.SetupSuite()
-	suite.clusterName = suite.Env().KubernetesCluster.ClusterName
+	suite.ClusterName = suite.Env().KubernetesCluster.ClusterName
 }
 
 func (suite *k8sSuite) TearDownSuite() {
@@ -72,8 +72,8 @@ func (suite *k8sSuite) TearDownSuite() {
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
 	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
-		suite.clusterName,
-		suite.clusterName,
+		suite.ClusterName,
+		suite.ClusterName,
 		suite.StartTime().UnixMilli(),
 		suite.EndTime().UnixMilli(),
 	))
@@ -599,14 +599,14 @@ func (suite *k8sSuite) testDCALeaderElection(restartLeader bool) string {
 func (suite *k8sSuite) TestNginx() {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "nginx.net.request_per_s",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
@@ -639,14 +639,14 @@ func (suite *k8sSuite) TestNginx() {
 
 	// `http_check` is configured via AD annotation on service
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "network.http.response_time",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
@@ -660,15 +660,15 @@ func (suite *k8sSuite) TestNginx() {
 	})
 
 	// Test KSM metrics for the nginx deployment
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
 				"^kube_deployment:nginx$",
 				"^kube_namespace:workload-nginx$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
 				`^cluster_name:`,
@@ -680,9 +680,9 @@ func (suite *k8sSuite) TestNginx() {
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^sub-team:contint$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+				`^stackid:` + regexp.QuoteMeta(suite.ClusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
 			},
@@ -690,14 +690,14 @@ func (suite *k8sSuite) TestNginx() {
 	})
 
 	// Test Nginx logs
-	suite.testLog(&testLogArgs{
-		Filter: testLogFilterArgs{
+	suite.TestLog(&TestLogArgs{
+		Filter: TestLogFilterArgs{
 			Service: "apps-nginx-server",
 			Tags: []string{
 				`^kube_namespace:workload-nginx$`,
 			},
 		},
-		Expect: testLogExpectArgs{
+		Expect: TestLogExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
@@ -738,11 +738,11 @@ func (suite *k8sSuite) TestNginx() {
 func (suite *k8sSuite) TestRedis() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "redis.net.instantaneous_ops_per_sec",
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:redis$`,
@@ -769,15 +769,15 @@ func (suite *k8sSuite) TestRedis() {
 	})
 
 	// Test KSM metrics for the redis deployment
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes_state.deployment.replicas_available",
 			Tags: []string{
 				"^kube_deployment:redis$",
 				"^kube_namespace:workload-redis$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
 				`^kube_cluster_name:`,
 				`^cluster_name:`,
@@ -785,9 +785,9 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+				`^stackid:` + regexp.QuoteMeta(suite.ClusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 5,
 				Min: 1,
 			},
@@ -795,11 +795,11 @@ func (suite *k8sSuite) TestRedis() {
 	})
 
 	// Test Redis logs
-	suite.testLog(&testLogArgs{
-		Filter: testLogFilterArgs{
+	suite.TestLog(&TestLogArgs{
+		Filter: TestLogFilterArgs{
 			Service: "redis",
 		},
-		Expect: testLogExpectArgs{
+		Expect: TestLogExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:redis$`,
@@ -834,14 +834,14 @@ func (suite *k8sSuite) TestRedis() {
 
 func (suite *k8sSuite) TestArgoRollout() {
 	// Check that kube_argo_rollout tag is added to metric
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.system",
 			Tags: []string{
 				`^kube_namespace:workload-argo-rollout-nginx$`,
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
@@ -859,15 +859,15 @@ func (suite *k8sSuite) TestArgoRollout() {
 func (suite *k8sSuite) TestCPU() {
 	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 	// Test CPU metrics
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.usage",
 			Tags: []string{
 				"^kube_deployment:stress-ng$",
 				"^kube_namespace:workload-cpustress$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
@@ -889,22 +889,22 @@ func (suite *k8sSuite) TestCPU() {
 				`^runtime:containerd$`,
 				`^short_image:apps-stress-ng$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 155000000,
 				Min: 145000000,
 			},
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "container.cpu.limit",
 			Tags: []string{
 				"^kube_deployment:stress-ng$",
 				"^kube_namespace:workload-cpustress$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
@@ -926,22 +926,22 @@ func (suite *k8sSuite) TestCPU() {
 				`^runtime:containerd$`,
 				`^short_image:apps-stress-ng$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 200000000,
 				Min: 200000000,
 			},
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes.cpu.usage.total",
 			Tags: []string{
 				"^kube_deployment:stress-ng$",
 				"^kube_namespace:workload-cpustress$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
@@ -963,22 +963,22 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:apps-stress-ng$`,
 				`^kube_static_cpus:false$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 250000000,
 				Min: 75000000,
 			},
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes.cpu.limits",
 			Tags: []string{
 				"^kube_deployment:stress-ng$",
 				"^kube_namespace:workload-cpustress$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:stress-ng$`,
@@ -1000,7 +1000,7 @@ func (suite *k8sSuite) TestCPU() {
 				`^short_image:apps-stress-ng$`,
 				`^kube_static_cpus:false$`,
 			},
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 0.2,
 				Min: 0.2,
 			},
@@ -1010,26 +1010,26 @@ func (suite *k8sSuite) TestCPU() {
 
 func (suite *k8sSuite) TestKSM() {
 	// Test VPA metrics for nginx
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
 			Tags: []string{
 				"^kube_namespace:workload-nginx$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.ClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ClusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-nginx$`,
 				`^org:agent-org$`,
 				`^team:contp$`,
 				`^mail:team-container-platform@datadoghq.com$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+				`^stackid:` + regexp.QuoteMeta(suite.ClusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
 			},
@@ -1037,37 +1037,37 @@ func (suite *k8sSuite) TestKSM() {
 	})
 
 	// Test VPA metrics for redis
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes_state.vpa.count",
 			Tags: []string{
 				"^kube_namespace:workload-redis$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.ClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ClusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^kube_namespace:workload-redis$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+				`^stackid:` + regexp.QuoteMeta(suite.ClusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
-			Value: &testMetricExpectValueArgs{
+			Value: &TestMetricExpectValueArgs{
 				Max: 1,
 				Min: 1,
 			},
 		},
 	})
 
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "kubernetes_state_customresource.ddm_value",
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: suite.testClusterTags([]string{
-				`^kube_cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
-				`^cluster_name:` + regexp.QuoteMeta(suite.clusterName) + `$`,
+				`^kube_cluster_name:` + regexp.QuoteMeta(suite.ClusterName) + `$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ClusterName) + `$`,
 				`^orch_cluster_id:`,
 				`^customresource_group:datadoghq.com$`,
 				`^customresource_version:v1alpha1$`,
@@ -1076,7 +1076,7 @@ func (suite *k8sSuite) TestKSM() {
 				`^ddm_namespace:workload-(?:nginx|redis)$`,
 				`^ddm_name:(?:nginx|redis)$`,
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
-				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
+				`^stackid:` + regexp.QuoteMeta(suite.ClusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
 		},
 	})
@@ -1104,15 +1104,15 @@ func (suite *k8sSuite) TestDogstatsdStandalone() {
 }
 
 func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
 				"^kube_deployment:" + regexp.QuoteMeta(kubeDeployment) + "$",
 				"^kube_namespace:" + regexp.QuoteMeta(kubeNamespace) + "$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:dogstatsd$`,
@@ -1140,15 +1140,15 @@ func (suite *k8sSuite) testDogstatsd(kubeNamespace, kubeDeployment string) {
 
 func (suite *k8sSuite) TestPrometheus() {
 	// Test Prometheus check
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "prom_gauge",
 			Tags: []string{
 				"^kube_deployment:prometheus$",
 				"^kube_namespace:workload-prometheus$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
@@ -1181,15 +1181,15 @@ func (suite *k8sSuite) TestPrometheus() {
 // "prom_gauge_configured_in_etcd" to confirm that the check is using the
 // etcd-defined configuration.
 func (suite *k8sSuite) TestPrometheusWithConfigFromEtcd() {
-	suite.testMetric(&testMetricArgs{
-		Filter: testMetricFilterArgs{
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
 			Name: "prom_gauge_configured_in_etcd", // This is the name defined in the check config stored in etcd
 			Tags: []string{
 				"^kube_deployment:prometheus$",
 				"^kube_namespace:workload-prometheus$",
 			},
 		},
-		Expect: testMetricExpectArgs{
+		Expect: TestMetricExpectArgs{
 			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
@@ -1428,7 +1428,7 @@ func (suite *k8sSuite) TestContainerImage() {
 			AlertType: &alertType,
 			Tags: []string{
 				"app:agent-new-e2e-tests-containers",
-				"cluster_name:" + suite.clusterName,
+				"cluster_name:" + suite.ClusterName,
 				"contimage:ghcr.io/datadog/apps-nginx-server",
 				"test:" + suite.T().Name(),
 			},
@@ -1585,7 +1585,7 @@ datadog:
 						AlertType: &alertType,
 						Tags: []string{
 							"app:agent-new-e2e-tests-containers",
-							"cluster_name:" + suite.clusterName,
+							"cluster_name:" + suite.ClusterName,
 							"sbom:" + appImage,
 							"sbom_mode:" + m,
 							"test:" + suite.T().Name(),
@@ -1727,7 +1727,7 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			AlertType: &alertType,
 			Tags: []string{
 				"app:agent-new-e2e-tests-containers",
-				"cluster_name:" + suite.clusterName,
+				"cluster_name:" + suite.ClusterName,
 				"contlcycle:ghcr.io/datadog/apps-nginx-server",
 				"test:" + suite.T().Name(),
 			},
@@ -1819,7 +1819,7 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 				AlertType: &alertType,
 				Tags: []string{
 					"app:agent-new-e2e-tests-containers",
-					"cluster_name:" + suite.clusterName,
+					"cluster_name:" + suite.ClusterName,
 					"metric:kubernetes_state.deployment.replicas_available",
 					"filter_tag_kube_namespace:" + namespace,
 					"filter_tag_kube_deployment:" + deployment,
