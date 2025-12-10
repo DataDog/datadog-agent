@@ -364,7 +364,7 @@ impl SocketActivationService {
                 // Prepare fd_set for select()
                 let mut read_fds: FD_SET = unsafe { std::mem::zeroed() };
                 read_fds.fd_count = 1;
-                read_fds.fd_array[0] = handle as usize;
+                read_fds.fd_array[0] = SOCKET(handle as usize);
 
                 // Timeout: 100ms
                 let timeout = TIMEVAL {
