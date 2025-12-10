@@ -126,7 +126,11 @@ def get_modified_files(ctx, base_branch=None) -> list[str]:
 
 
 def get_current_branch(ctx) -> str:
-    return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    result = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True, warn=True)
+    if result.ok:
+        return result.stdout.strip()
+    # Not in a git repo (e.g., gitless omnibus build) - return placeholder
+    return "unknown"
 
 
 def is_a_release_branch(ctx, branch=None) -> bool:

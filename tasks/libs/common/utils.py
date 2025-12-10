@@ -8,6 +8,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -425,9 +426,17 @@ def get_go_version():
 
 def get_root():
     """
-    Get the root of the Go project
+    Get the root of the Go project.
+
+    Falls back to using __file__ path if not in a git repository
+    (e.g., during gitless builds like omnibus.docker-build).
     """
-    return check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip()
+    try:
+        return check_output(['git', 'rev-parse', '--show-toplevel'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+    except subprocess.CalledProcessError:
+        # Not in a git repo - fall back to deriving root from this file's location
+        # This file is at tasks/libs/common/utils.py, so repo root is 4 levels up
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 
 
 @contextmanager
