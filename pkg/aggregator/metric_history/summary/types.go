@@ -1,0 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package summary
+
+import "time"
+
+// AnomalyEvent represents a single detected anomaly
+type AnomalyEvent struct {
+	Timestamp time.Time
+	Metric    string
+	Tags      map[string]string
+	Severity  float64
+	Direction string  // "increase" or "decrease"
+	Magnitude float64 // absolute change amount
+}
+
+// TagPartition separates tags into constant vs varying
+type TagPartition struct {
+	ConstantTags map[string]string   // key -> value (same across all events)
+	VaryingTags  map[string][]string // key -> distinct values seen
+}
