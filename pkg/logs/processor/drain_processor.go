@@ -35,9 +35,13 @@ type DrainProcessor struct {
 	id                    string
 }
 
-func NewDrainProcessor(instanceID string) *DrainProcessor {
+func NewDrainProcessor(instanceID string, config *drain.Config) *DrainProcessor {
+	if config == nil {
+		config = drain.DefaultConfig()
+	}
+
 	return &DrainProcessor{
-		drainProcessor:        drain.New(drain.DefaultConfig()),
+		drainProcessor:        drain.New(config),
 		drainLastTimeReported: time.Now(),
 		drainLastTimeUpdated:  time.Now(),
 		drainNLogs:            0,

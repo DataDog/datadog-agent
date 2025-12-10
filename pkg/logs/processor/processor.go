@@ -77,7 +77,7 @@ func New(config pkgconfigmodel.Reader, inputChan, outputChan chan *message.Messa
 		pipelineMonitor:           pipelineMonitor,
 		utilization:               pipelineMonitor.MakeUtilizationMonitor(metrics.ProcessorTlmName, instanceID),
 		instanceID:                instanceID,
-		drainProcessor:            NewDrainProcessor(instanceID),
+		drainProcessor:            NewDrainProcessor(instanceID, nil),
 	}
 
 	// Initialize cached failover config

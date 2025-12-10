@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/faceair/drain"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -34,6 +35,21 @@ type CliParams struct {
 
 	// OutputFilePath represents the path to the output file (optional, defaults to stdout).
 	OutputFilePath string
+
+	// Threshold represents the cluster size threshold for filtering logs.
+	Threshold int
+
+	// TrainFirst indicates whether to train the drain processor on all logs before filtering.
+	TrainFirst bool
+
+	// LogClusterDepth represents the depth of the log cluster tree.
+	LogClusterDepth int
+
+	// SimTh represents the similarity threshold for clustering.
+	SimTh float64
+
+	// MaxChildren represents the maximum number of children in the cluster tree.
+	MaxChildren int
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -49,23 +65,31 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			cliParams.InputFilePath = args[0]
+			bundleParams := command.GetDefaultCoreBundleParams(cliParams.GlobalParams)
+			// Enable logging at info level
+			bundleParams.LogParams = log.ForOneShot(command.LoggerName, "info", true)
 			return fxutil.OneShot(runDrain,
 				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				fx.Supply(bundleParams),
 				core.Bundle(),
 				secretsnoopfx.Module(),
 			)
 		},
 	}
 	cmd.Flags().StringVarP(&cliParams.OutputFilePath, "output", "o", "", "Output file path (default: stdout)")
+	cmd.Flags().IntVarP(&cliParams.Threshold, "threshold", "t", 10, "Cluster size threshold for filtering logs (default: 10)")
+	cmd.Flags().BoolVarP(&cliParams.TrainFirst, "train-first", "", false, "Train the drain processor on all logs before filtering")
+	cmd.Flags().IntVar(&cliParams.LogClusterDepth, "log-cluster-depth", 4, "Depth of the log cluster tree (default: 4)")
+	cmd.Flags().Float64Var(&cliParams.SimTh, "sim-th", 0.4, "Similarity threshold for clustering (default: 0.4)")
+	cmd.Flags().IntVar(&cliParams.MaxChildren, "max-children", 100, "Maximum number of children in the cluster tree (default: 100)")
 
 	return []*cobra.Command{cmd}
 }
 
 // runDrain reads the input file, applies drain filtering, and writes filtered logs to output.
 func runDrain(lc log.Component, config config.Component, cliParams *CliParams) error {
-	threshold := 10
-	trainFirst := false
+	threshold := cliParams.Threshold
+	trainFirst := cliParams.TrainFirst
 
 	// Open input file
 	inputFile, err := os.Open(cliParams.InputFilePath)
@@ -100,7 +124,12 @@ func runDrain(lc log.Component, config config.Component, cliParams *CliParams) e
 	}
 
 	// Create drain processor
-	drainProcessor := processor.NewDrainProcessor("drain-command")
+	drainProcessor := processor.NewDrainProcessor("drain-command", &drain.Config{
+		LogClusterDepth: cliParams.LogClusterDepth,
+		SimTh:           cliParams.SimTh,
+		MaxChildren:     cliParams.MaxChildren,
+		ParamString:     "<*>",
+	})
 
 	// Read and process file line by line
 	scanner := bufio.NewScanner(inputFile)
@@ -110,6 +139,7 @@ func runDrain(lc log.Component, config config.Component, cliParams *CliParams) e
 
 	lines := make([][]byte, 0)
 	for scanner.Scan() {
+		lineNumber++
 		line := scanner.Bytes()
 		lines = append(lines, line)
 	}
@@ -132,7 +162,11 @@ func runDrain(lc log.Component, config config.Component, cliParams *CliParams) e
 		if !trainFirst {
 			drainProcessor.Train(tokens)
 		}
-		toIgnore := cluster != nil && cluster.Size() >= threshold
+		s := 0
+		if cluster != nil {
+			s = cluster.Size()
+		}
+		toIgnore := s >= threshold
 
 		// Write non-filtered lines to output
 		if !toIgnore {
@@ -163,7 +197,7 @@ func runDrain(lc log.Component, config config.Component, cliParams *CliParams) e
 
 	drainProcessor.ShowClusters()
 
-	fmt.Printf("Processed %d lines: %d written, %d filtered\n", lineNumber, processedCount, filteredCount)
+	lc.Infof("Processed %d lines: %d written, %d filtered (%f%%)", lineNumber, processedCount, filteredCount, float64(filteredCount)/float64(lineNumber)*100)
 
 	return nil
 }
