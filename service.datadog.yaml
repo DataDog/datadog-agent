@@ -92,7 +92,7 @@ extensions:
           parent_environments: ["staging"]
         - name: "stable-nightly-build"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
-          branch: "7.72.x"
+          branch: "7.73.x"
           schedule: "30 2 * * *"
           parent_environments: ["staging"]
           build_only: true
