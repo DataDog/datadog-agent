@@ -63,7 +63,13 @@ func (h *JavaHelper) StartJavaApp(javaSourceCode []byte) string {
 	output, err := host.Execute("cd C:\\JavaApp; javac DummyApp.java")
 	h.suite.Require().NoErrorf(err, "failed to compile Java app: %s", output)
 
-	output, err = host.Execute("cd C:\\JavaApp; java DummyApp")
+	script := `
+$env:DD_INJECT_LOG_SINKS = "stdout"
+$env:DD_INJECT_LOG_LEVEL = "debug"
+cd C:\JavaApp
+java DummyApp
+	`
+	output, err = host.Execute(script)
 	h.suite.Require().NoErrorf(err, "failed to run Java app: %s", output)
 
 	return strings.TrimSpace(output)
