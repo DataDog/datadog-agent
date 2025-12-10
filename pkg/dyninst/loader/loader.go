@@ -95,7 +95,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 
 	ringbufMapSpec, ok := spec.Maps[ringbufMapName]
 	if !ok {
-		return nil, fmt.Errorf("ringbuffer map not found in eBPF spec")
+		return nil, errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
@@ -112,7 +112,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	bpfProgram, ok := collection.Programs["probe_run_with_cookie"]
 	if !ok {
-		return nil, fmt.Errorf("probe_run_with_cookie program not found in collection")
+		return nil, errors.New("probe_run_with_cookie program not found in collection")
 	}
 
 	maps = nil
@@ -287,7 +287,7 @@ func (l *Loader) init(opts ...Option) error {
 	stripRelocations(l.ebpfSpec)
 	ringbufMapSpec, ok := l.ebpfSpec.Maps[ringbufMapName]
 	if !ok {
-		return fmt.Errorf("ringbuffer map not found in eBPF spec")
+		return errors.New("ringbuffer map not found in eBPF spec")
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 	return nil
@@ -441,7 +441,7 @@ func (l *Loader) loadData(
 
 	mapSpec, ok := spec.Maps[throttlerStateMapName]
 	if !ok {
-		return nil, fmt.Errorf("throttler_buf map not found in eBPF spec")
+		return nil, errors.New("throttler_buf map not found in eBPF spec")
 	}
 	mapSpec.MaxEntries = uint32(len(serialized.throttlerParams))
 
@@ -505,7 +505,7 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 	m := serialized.commonTypes.M
 	stack, ok := g.FieldByName("stack")
 	if !ok {
-		return fmt.Errorf("stack field not found in runtime.g")
+		return errors.New("stack field not found in runtime.g")
 	}
 	stackStruct, ok := stack.Type.(*ir.StructureType)
 	if !ok {

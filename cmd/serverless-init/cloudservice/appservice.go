@@ -7,7 +7,6 @@
 package cloudservice
 
 import (
-	"fmt"
 	"maps"
 	"os"
 
@@ -76,12 +75,12 @@ func (a *AppService) Init(_ interface{}) error {
 
 // Shutdown emits the shutdown metric for AppService
 func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
-	metric.Add(fmt.Sprintf("%s.enhanced.shutdown", appServicePrefix), 1.0, a.GetSource(), metricAgent)
+	metric.Add(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metricAgent)
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
 func (a *AppService) GetStartMetricName() string {
-	return fmt.Sprintf("%s.enhanced.cold_start", appServicePrefix)
+	return appServicePrefix + ".enhanced.cold_start"
 }
 
 // ShouldForceFlushAllOnForceFlushToSerializer is false usually.

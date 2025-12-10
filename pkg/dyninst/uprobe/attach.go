@@ -79,7 +79,7 @@ func Attach(
 
 	textSection := elfFile.Section(".text")
 	if textSection == nil {
-		return nil, fmt.Errorf("text section not found")
+		return nil, errors.New("text section not found")
 	}
 
 	// As close to injection as possible, check that executable that we analyzed

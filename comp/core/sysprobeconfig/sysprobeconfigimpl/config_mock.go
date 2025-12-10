@@ -60,7 +60,7 @@ func newMock(deps mockDependencies, t testing.TB) sysprobeconfig.Component {
 	for _, kv := range oldEnv {
 		if strings.HasPrefix(kv, "DD_") {
 			kvslice := strings.SplitN(kv, "=", 2)
-			os.Unsetenv(kvslice[0])
+			_ = os.Unsetenv(kvslice[0])
 		}
 	}
 	t.Cleanup(func() {

@@ -8,14 +8,14 @@ LABEL baseimage.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.base.name="ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.title="Datadog Agent"
 
-ARG CIBUILD
+ARG CI
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
-RUN if [ "$CIBUILD" = "true" ]; then \
+RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
   sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
@@ -136,8 +136,6 @@ ARG TARGETARCH
 ARG WITH_JMX
 
 ARG DD_AGENT_ARTIFACT=datadog-agent*-$TARGETARCH.tar.xz
-# copy everything - globbing with args wont work
-COPY ${DD_AGENT_ARTIFACT} /
 WORKDIR /output
 
 # Configuration:
@@ -156,8 +154,7 @@ COPY install_info etc/datadog-agent/
 #   - jmxfetch on nojmx build
 
 RUN --mount=from=artifacts,target=/artifacts \
- find /artifacts -maxdepth 1 -type f -name "datadog-*-$TARGETARCH.tar.xz" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
- && find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
+ find /artifacts -maxdepth 1 -name "${DD_AGENT_ARTIFACT}" -exec tar xvf {} -C . \; \
  && rm -rf usr etc/init lib \
     go/ \
     opt/datadog-agent/embedded/bin/installer \

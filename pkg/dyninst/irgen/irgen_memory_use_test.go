@@ -9,7 +9,6 @@ package irgen_test
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -44,7 +43,7 @@ func TestIrgenMemoryUse(t *testing.T) {
 	stderrPath := filepath.Join(tmpDir, "irgen-memory-use-test.stderr")
 	env := append(
 		os.Environ(),
-		fmt.Sprintf("%s=true", internalEnv),
+		internalEnv+"=true",
 		"GOMAXPROCS=1",
 		"GODEBUG=gctrace=1",
 		"--test.run=TestIrgenMemoryUseInternal",

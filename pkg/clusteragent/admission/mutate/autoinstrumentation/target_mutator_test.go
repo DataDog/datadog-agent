@@ -159,7 +159,7 @@ func TestMutatePod(t *testing.T) {
 			},
 			expectedInitContainerImages: []string{
 				"registry/apm-inject:0",
-				defaultLibInfo(python).image,
+				"registry/dd-lib-python-init:v3",
 			},
 			expectedEnv: map[string]string{
 				"DD_SERVICE": "best-service",
@@ -468,10 +468,10 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 
 			// Validate the output.
 			if test.expected == nil {
-				require.Nil(t, actual)
+				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
 			}
 		})
 	}
@@ -636,7 +636,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v5"),
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
 					defaultLibInfoWithVersion(php, "v1"),
@@ -688,7 +688,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				libVersions: []libInfo{
 					defaultLibInfoWithVersion(java, "v1"),
 					defaultLibInfoWithVersion(js, "v5"),
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(python, "v4"),
 					defaultLibInfoWithVersion(dotnet, "v3"),
 					defaultLibInfoWithVersion(ruby, "v2"),
 					defaultLibInfoWithVersion(php, "v1"),

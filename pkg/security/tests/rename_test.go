@@ -381,7 +381,7 @@ func TestRenameFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filename := fmt.Sprintf("%s/test-rename", testOldFolder)
+	filename := testOldFolder + "/test-rename"
 	defer os.Remove(filename)
 
 	for i := 0; i != 5; i++ {
@@ -405,7 +405,7 @@ func TestRenameFolder(t *testing.T) {
 			testOldFolder = testNewFolder
 			testNewFolder = old
 
-			filename = fmt.Sprintf("%s/test-rename", testOldFolder)
+			filename = testOldFolder + "/test-rename"
 		})
 	}
 }

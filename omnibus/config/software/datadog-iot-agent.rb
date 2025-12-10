@@ -8,7 +8,10 @@ require 'pathname'
 
 name 'datadog-iot-agent'
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/.cache/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do

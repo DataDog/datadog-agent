@@ -8,15 +8,11 @@
 package workload
 
 import (
-	"context"
-	"time"
-
 	corev1 "k8s.io/api/core/v1"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -25,8 +21,7 @@ import (
 )
 
 const (
-	subsystem              = "autoscaling_workload"
-	aliveTelemetryInterval = 5 * time.Minute
+	subsystem = "autoscaling_workload"
 )
 
 var (
@@ -239,27 +234,4 @@ func unsetHorizontalScaleAppliedRecommendations(ns, targetName, autoscalerName s
 	}
 
 	telemetryHorizontalScaleAppliedRecommendations.DeletePartialMatch(tags)
-}
-
-func startLocalTelemetry(ctx context.Context, sender sender.Sender, tags []string) {
-	submit := func() {
-		sender.Gauge("datadog.cluster_agent.autoscaling.workload.running", 1, "", tags)
-		sender.Commit()
-	}
-
-	go func() {
-		ticker := time.NewTicker(aliveTelemetryInterval)
-		defer ticker.Stop()
-
-		// Submit once immediately and then every ticker
-		submit()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				submit()
-			}
-		}
-	}()
 }

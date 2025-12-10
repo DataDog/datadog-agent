@@ -9,6 +9,7 @@ package dockerfile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -62,7 +63,7 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 	// Check if log is nil (e.g., when input is the JSON literal null)
 	if log == nil {
 		msg.Status = message.StatusInfo
-		return msg, fmt.Errorf("cannot parse docker message, invalid format: got null")
+		return msg, errors.New("cannot parse docker message, invalid format: got null")
 	}
 
 	var status string

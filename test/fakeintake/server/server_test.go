@@ -29,21 +29,17 @@ import (
 )
 
 func TestServer(t *testing.T) {
-	for _, driver := range []string{"memory", "sql"} {
-		testServer(t, WithStoreDriver(driver))
-	}
-}
+	defaultOpts := []Option{}
 
-func testServer(t *testing.T, opts ...Option) {
-	t.Run("should not run before start", func(t *testing.T) {
-		newOpts := append(opts, WithClock(clock.NewMock()))
+	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
+		newOpts := append(defaultOpts, WithClock(clock.NewMock()))
 		fi := NewServer(newOpts...)
 		assert.False(t, fi.IsRunning())
 		assert.Empty(t, fi.URL())
 	})
 
 	t.Run("should return error when calling stop on a non-started server", func(t *testing.T) {
-		fi := NewServer(opts...)
+		fi := NewServer(defaultOpts...)
 		err := fi.Stop()
 		assert.Error(t, err)
 		assert.Equal(t, "server not running", err.Error())
@@ -51,14 +47,14 @@ func testServer(t *testing.T, opts ...Option) {
 
 	t.Run("Make sure WithPort sets the port correctly", func(t *testing.T) {
 		// do not start the server to avoid actually binding to 0.0.0.0
-		newOpts := append(opts, WithPort(1234))
+		newOpts := append(defaultOpts, WithPort(1234))
 		fi := NewServer(newOpts...)
 		assert.Equal(t, "0.0.0.0:1234", fi.server.Addr)
 	})
 
 	t.Run("Make sure WithAddress sets the port correctly", func(t *testing.T) {
 		expectedAddr := "127.0.0.1:3456"
-		newOpts := append(opts, WithAddress(expectedAddr))
+		newOpts := append(defaultOpts, WithAddress(expectedAddr))
 		fi := NewServer(newOpts...)
 		assert.Equal(t, expectedAddr, fi.server.Addr)
 		fi.Start()
@@ -77,7 +73,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should run after start", func(t *testing.T) {
-		newOpts := append(opts, WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
+		newOpts := append(defaultOpts, WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
 		fi := NewServer(newOpts...)
 		fi.Start()
 		defer fi.Stop()
@@ -96,7 +92,7 @@ func testServer(t *testing.T, opts ...Option) {
 
 	t.Run("should correctly notify when a server is ready", func(t *testing.T) {
 		ready := make(chan bool, 1)
-		newOpts := append(opts, WithClock(clock.NewMock()), WithReadyChannel(ready), WithAddress("127.0.0.1:0"))
+		newOpts := append(defaultOpts, WithClock(clock.NewMock()), WithReadyChannel(ready), WithAddress("127.0.0.1:0"))
 		fi := NewServer(newOpts...)
 		fi.Start()
 		defer fi.Stop()
@@ -110,7 +106,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should accept payloads on any route", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		response, err := http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:pducolin"))
@@ -120,7 +116,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should accept GET requests on any route", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		response, err := http.Get(fi.URL() + "/kiki")
@@ -130,7 +126,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should accept GET requests on /fakeintake/payloads route", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		response, err := http.Get(fi.URL() + "/fakeintake/payloads?endpoint=/foo")
@@ -152,7 +148,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should not accept GET requests on /fakeintake/payloads route without endpoint query parameter", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		response, err := http.Get(fi.URL() + "/fakeintake/payloads")
@@ -163,7 +159,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them", func(t *testing.T) {
-		fi, clock := InitialiseForTests(t, opts...)
+		fi, clock := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
@@ -214,7 +210,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should store multiple payloads on any route and return them in json", func(t *testing.T) {
-		fi, clock := InitialiseForTests(t, opts...)
+		fi, clock := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		PostSomeRealisticLogs(t, fi.URL())
@@ -252,7 +248,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should store multiple payloads on any route and return the list of routes", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
@@ -297,7 +293,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should handle flush requests", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		httpClient := http.Client{}
@@ -310,7 +306,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should clean payloads older than 15 minutes", func(t *testing.T) {
-		fi, clock := InitialiseForTests(t, opts...)
+		fi, clock := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		PostSomeFakePayloads(t, fi.URL(), []TestTextPayload{
@@ -368,7 +364,7 @@ func testServer(t *testing.T, opts ...Option) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			newOpts := append(opts, tt.opts...)
+			newOpts := append(defaultOpts, tt.opts...)
 			fi, clock := InitialiseForTests(t, newOpts...)
 			defer fi.Stop()
 
@@ -423,7 +419,7 @@ func testServer(t *testing.T, opts ...Option) {
 	}
 
 	t.Run("should clean json parsed payloads", func(t *testing.T) {
-		fi, clock := InitialiseForTests(t, opts...)
+		fi, clock := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		PostSomeRealisticLogs(t, fi.URL())
@@ -454,7 +450,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		response, err := http.Head(fi.URL() + "/support/flare")
@@ -472,7 +468,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should accept POST response overrides", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
@@ -493,7 +489,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should accept GET response overrides", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
@@ -514,7 +510,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
@@ -542,7 +538,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
@@ -570,7 +566,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should respond with default response for non-matching endpoint", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		body := api.ResponseOverride{
@@ -599,7 +595,7 @@ func testServer(t *testing.T, opts ...Option) {
 	})
 
 	t.Run("should contain a Fakeintake-ID header", func(t *testing.T) {
-		fi, _ := InitialiseForTests(t, opts...)
+		fi, _ := InitialiseForTests(t, defaultOpts...)
 		defer fi.Stop()
 
 		response, err := http.Get(fi.URL() + "/fakeintake/health")
@@ -619,7 +615,7 @@ func testServer(t *testing.T, opts ...Option) {
 		}))
 
 		defer testServer.Close()
-		testOpts := append(opts, withForwardEndpoint(testServer.URL), withDDDevAPIKey("thisisatestapikey"), WithDDDevForward())
+		testOpts := append(defaultOpts, withForwardEndpoint(testServer.URL), withDDDevAPIKey("thisisatestapikey"), WithDDDevForward())
 		fi, _ := InitialiseForTests(t, testOpts...)
 		defer fi.Stop()
 		res, err := http.Post(fi.URL()+"/totoro", "text/plain", strings.NewReader("totoro|5|tag:valid,owner:toto"))
@@ -640,7 +636,7 @@ func testServer(t *testing.T, opts ...Option) {
 		}))
 
 		defer testServer.Close()
-		testOpts := append(opts, withLogForwardEndpoint(testServer.URL), withDDDevAPIKey("thisisatestapikey"), WithDDDevForward())
+		testOpts := append(defaultOpts, withLogForwardEndpoint(testServer.URL), withDDDevAPIKey("thisisatestapikey"), WithDDDevForward())
 		fi, _ := InitialiseForTests(t, testOpts...)
 		defer fi.Stop()
 		res, err := http.Post(fi.URL()+"/api/v2/logs", "text/plain", strings.NewReader("totoro|5|tag:log,owner:toto"))

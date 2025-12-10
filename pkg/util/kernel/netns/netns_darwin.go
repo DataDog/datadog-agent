@@ -7,7 +7,7 @@
 package netns
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/vishvananda/netns"
 )
@@ -15,10 +15,10 @@ import (
 // GetNetNsInoFromPid gets the network namespace inode number for the given
 // `pid`
 func GetNetNsInoFromPid(_ string, _ int) (uint32, error) {
-	return 0, fmt.Errorf("not supported")
+	return 0, errors.New("not supported")
 }
 
 // GetInoForNs gets the inode number for the given network namespace
 func GetInoForNs(_ netns.NsHandle) (uint32, error) {
-	return 0, fmt.Errorf("not supported")
+	return 0, errors.New("not supported")
 }

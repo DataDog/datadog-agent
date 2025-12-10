@@ -11,7 +11,6 @@ package controllers
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
@@ -156,7 +155,7 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	var err error
 	dc, ok := ctx.DatadogClient.Get()
 	if !ok {
-		c <- fmt.Errorf("datadog client is not initialized")
+		c <- errors.New("datadog client is not initialized")
 		return
 	}
 	autoscalersController, err := newAutoscalersController(

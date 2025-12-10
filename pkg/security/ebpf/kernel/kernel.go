@@ -25,6 +25,8 @@ import (
 var (
 	// KERNEL_VERSION(a,b,c) = (a << 16) + (b << 8) + (c)
 
+	// Kernel3_19 is the KernelVersion representation of kernel version 3.19
+	Kernel3_19 = kernel.VersionCode(3, 19, 0)
 	// Kernel4_9 is the KernelVersion representation of kernel version 4.9
 	Kernel4_9 = kernel.VersionCode(4, 9, 0)
 	// Kernel4_10 is the KernelVersion representation of kernel version 4.10
@@ -99,6 +101,8 @@ var (
 	Kernel6_6 = kernel.VersionCode(6, 6, 0)
 	// Kernel6_7 is the KernelVersion representation of kernel version 6.7
 	Kernel6_7 = kernel.VersionCode(6, 7, 0)
+	// Kernel6_8 is the KernelVersion representation of kernel version 6.8
+	Kernel6_8 = kernel.VersionCode(6, 8, 0)
 	// Kernel6_10 is the KernelVersion representation of kernel version 6.10
 	Kernel6_10 = kernel.VersionCode(6, 10, 0)
 	// Kernel6_11 is the KernelVersion representation of kernel version 6.11

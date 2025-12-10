@@ -4,6 +4,7 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
+require "./lib/omnibus/packagers/tarball.rb"
 flavor = ENV['AGENT_FLAVOR']
 output_config_dir = ENV["OUTPUT_CONFIG_DIR"]
 
@@ -210,9 +211,14 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target?
+  skip_packager (!do_build && !BUILD_OCIRU) || heroku_target? || (ENV["SKIP_PKG_COMPRESSION"] == "true")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# Uncompressed tar for faster local builds (skip the slow XZ compression)
+package :tarball do
+  skip_packager !(ENV["SKIP_PKG_COMPRESSION"] == "true")
 end
 
 # ------------------------------------
@@ -272,6 +278,7 @@ if linux_target?
   extra_package_file "#{output_config_dir}/etc/datadog-agent/"
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
+  extra_package_file "#{install_dir}/.install_root"
 end
 
 # all flavors use the same package scripts

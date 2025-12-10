@@ -9,6 +9,7 @@ package apiserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -83,7 +84,7 @@ func InitializeGlobalResourceTypeCache(discoveryClient discovery.DiscoveryInterf
 // GetResourceType retrieves the resource type for the given kind and group.
 func GetResourceType(kind, group string) (string, error) {
 	if resourceCache == nil {
-		return "", fmt.Errorf("resource type cache is not initialized")
+		return "", errors.New("resource type cache is not initialized")
 	}
 	return resourceCache.getResourceType(kind, group)
 }
@@ -91,7 +92,7 @@ func GetResourceType(kind, group string) (string, error) {
 // GetResourceKind retrieves the kind given the resource plural name and group.
 func GetResourceKind(resource, apiGroup string) (string, error) {
 	if resourceCache == nil {
-		return "", fmt.Errorf("resource type cache is not initialized")
+		return "", errors.New("resource type cache is not initialized")
 	}
 
 	return resourceCache.getResourceKind(resource, apiGroup)

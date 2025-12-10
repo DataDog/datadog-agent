@@ -9,13 +9,13 @@ package resolvers
 import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitydescriptors"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // Resolvers holds the list of the event attribute resolvers
@@ -28,7 +28,7 @@ type Resolvers struct {
 }
 
 // NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts) (*Resolvers, error) {
+func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, opts Opts) (*Resolvers, error) {
 	processResolver, err := process.NewResolver(config, statsdClient, scrubber, process.NewResolverOpts())
 	if err != nil {
 		return nil, err

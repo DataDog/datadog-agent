@@ -7,6 +7,7 @@ package server
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -133,7 +134,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	// especially important here since all the unidentified garbage gets
 	// identified as metrics
 	if !hasMetricSampleFormat(message) {
-		return dogstatsdMetricSample{}, fmt.Errorf("invalid dogstatsd message format")
+		return dogstatsdMetricSample{}, errors.New("invalid dogstatsd message format")
 	}
 
 	rawNameAndValue, message := nextField(message)
@@ -202,7 +203,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 				return dogstatsdMetricSample{}, fmt.Errorf("could not parse dogstatsd timestamp %q: %v", optionalField[len(timestampFieldPrefix):], err)
 			}
 			if ts < 1 {
-				return dogstatsdMetricSample{}, fmt.Errorf("dogstatsd timestamp should be > 0")
+				return dogstatsdMetricSample{}, errors.New("dogstatsd timestamp should be > 0")
 			}
 			timestamp = time.Unix(ts, 0)
 		// local data
@@ -290,7 +291,7 @@ func (p *parser) parseFloat64List(rawFloats []byte) ([]float64, error) {
 	}
 	if len(values) == 0 {
 		p.float64List.put(values)
-		return nil, fmt.Errorf("no value found")
+		return nil, errors.New("no value found")
 	}
 	return values, nil
 }

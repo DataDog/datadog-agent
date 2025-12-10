@@ -153,7 +153,7 @@ b:
 func TestUnknownVarsWarning(t *testing.T) {
 	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
-			env := []string{fmt.Sprintf("%s=foo", v)}
+			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
@@ -1130,9 +1130,9 @@ func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (inte
 			if err != nil {
 				return nil, err
 			}
-			if leaf, match := node.(nodetreemodel.LeafNode); match {
+			if node.IsLeafNode() {
 				// if we find a leaf, can't get a child of it
-				leafValue := leaf.Get()
+				leafValue := node.Get()
 				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
 					remain := strings.Join(parts[i:], ".")
 					return leafMap[remain], nil

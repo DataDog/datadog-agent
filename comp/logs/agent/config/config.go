@@ -257,7 +257,9 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, "", logsConfig.logsNoSSL())
+		apiKeyConfigPath := "multi_region_failover.api_key"
+
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, "", logsConfig.logsNoSSL())
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionLevel = main.CompressionLevel
@@ -269,6 +271,7 @@ func buildTCPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfigK
 		e.useSSL = main.useSSL
 		e.ConnectionResetInterval = logsConfig.connectionResetInterval()
 		e.ProxyAddress = logsConfig.socks5ProxyAddress()
+		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)
 	}
@@ -360,7 +363,9 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			return nil, fmt.Errorf("could not parse %s: %v", mrfURL, err)
 		}
 
-		e := NewEndpoint(coreConfig.GetString("multi_region_failover.api_key"), "multi_region_failover.api_key", mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
+		apiKeyConfigPath := "multi_region_failover.api_key"
+
+		e := NewEndpoint(coreConfig.GetString(apiKeyConfigPath), apiKeyConfigPath, mrfHost, mrfPort, mrfPathPrefix, mrfUseSSL)
 		e.IsMRF = true
 		e.UseCompression = main.UseCompression
 		e.CompressionKind = main.CompressionKind
@@ -374,6 +379,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol
 		e.Origin = intakeOrigin
+		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)
 	}

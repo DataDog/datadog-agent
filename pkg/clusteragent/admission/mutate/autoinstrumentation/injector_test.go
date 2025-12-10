@@ -97,11 +97,12 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 			var resolver ImageResolver
 			if tc.hasRemoteData {
 				mockClient := newMockRCClient("image_resolver_multi_repo.json")
+				datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 				resolver = newRemoteConfigImageResolverWithRetryConfig(
 					mockClient,
 					2,
 					1*time.Millisecond,
-					config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
+					datadoghqRegistries,
 				)
 			} else {
 				resolver = newNoOpImageResolver()
@@ -118,11 +119,12 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 
 func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 	mockClient := newMockRCClient("image_resolver_multi_repo.json")
+	datadoghqRegistries := newDatadoghqRegistries(config.NewMock(t).GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
 	resolver := newRemoteConfigImageResolverWithRetryConfig(
 		mockClient,
 		2,
 		1*time.Millisecond,
-		config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
+		datadoghqRegistries,
 	)
 
 	assert.Eventually(t, func() bool {

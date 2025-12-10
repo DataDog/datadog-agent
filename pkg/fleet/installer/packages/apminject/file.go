@@ -10,6 +10,7 @@ package apminject
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -60,6 +61,8 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 		}
 		originalFileExists = false
 	}
+
+	var data []byte
 	if originalFileExists {
 		if err := copyFile(ft.path, ft.pathBackup); err != nil {
 			return nil, fmt.Errorf("could not create backup file %s: %s", ft.pathBackup, err)
@@ -67,11 +70,10 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 		if err := copyFile(ft.pathBackup, ft.pathTmp); err != nil {
 			return nil, fmt.Errorf("could not create temporary file %s: %s", ft.pathTmp, err)
 		}
-	}
-
-	data, err := os.ReadFile(ft.pathTmp)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("could not read file %s: %s", ft.pathTmp, err)
+		data, err = os.ReadFile(ft.pathTmp)
+		if err != nil {
+			return nil, fmt.Errorf("could not read file %s: %s", ft.pathTmp, err)
+		}
 	}
 
 	res, err := ft.transformContent(ctx, data)
@@ -86,7 +88,6 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 
 	if err = writeFile(ft.pathTmp, res); err != nil {
 		return nil, fmt.Errorf("could not write file %s: %s", ft.pathTmp, err)
-
 	}
 
 	// validate temporary file if validation function provided
@@ -161,7 +162,7 @@ func copyFile(src, dst string) (err error) {
 	var ok bool
 	stat, ok = srcInfo.Sys().(*syscall.Stat_t)
 	if !ok || stat == nil {
-		return fmt.Errorf("could not get file stat")
+		return errors.New("could not get file stat")
 	}
 
 	// create dst file with same permissions

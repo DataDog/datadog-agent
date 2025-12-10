@@ -411,7 +411,7 @@ func createRemoteConfigPath(product data.Product, id string, data []byte) string
 
 func getRcTesterEnv(rcHost string, rcPort int, tmpDir string) []string {
 	return []string{
-		fmt.Sprintf("DD_AGENT_HOST=%s", rcHost),
+		"DD_AGENT_HOST=" + rcHost,
 		fmt.Sprintf("DD_AGENT_PORT=%d", rcPort),
 		"DD_DYNAMIC_INSTRUMENTATION_ENABLED=true",
 		"DD_REMOTE_CONFIGURATION_ENABLED=true",
@@ -492,7 +492,7 @@ func startSampleServiceWithDocker(
 	require.NoError(t, tarFile.Close())
 
 	containerTag := strings.ReplaceAll(strings.ReplaceAll(cfg.tmpDir, "/", "_"), ":", "_")
-	containerName := fmt.Sprintf("dyninst-e2e:%s", containerTag)
+	containerName := "dyninst-e2e:" + containerTag
 	// Build the docker image.
 	dockerBuildCmd := exec.Command("docker", "image", "import", tarPath, containerName)
 	out, err := dockerBuildCmd.CombinedOutput()

@@ -243,7 +243,7 @@ func (p *Processor) filterMRFMessages(msg *message.Message) {
 // applyRedactingRules returns given a message if we should process it or not,
 // it applies the change directly on the Message content.
 func (p *Processor) applyRedactingRules(msg *message.Message) bool {
-	var content []byte = msg.GetContent()
+	var content = msg.GetContent()
 
 	// Use the internal scrubbing implementation of the Agent
 	// ---------------------------

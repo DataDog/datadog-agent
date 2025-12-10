@@ -150,7 +150,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", c.IPC.GetAuthToken()), // TODO IPC: Remove this raw usage of the auth token
+						"Bearer " + c.IPC.GetAuthToken(), // TODO IPC: Remove this raw usage of the auth token
 					},
 				},
 			),

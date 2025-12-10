@@ -41,9 +41,7 @@ func (ev *Event) initProcess() {
 		ev.BaseEvent.ProcessContext.Parent = &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process
 	}
 
-	if ev.Exec.Process == nil {
-		ev.Exec.Process = &Process{}
-	}
+	ev.initProcessEventTypes()
 }
 
 // nolint: unused

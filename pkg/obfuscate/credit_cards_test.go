@@ -6,7 +6,7 @@
 package obfuscate
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -112,7 +112,7 @@ func TestIINValidCardPrefix(t *testing.T) {
 		{594388, false, false},
 		{219899, false, false},
 	} {
-		t.Run(fmt.Sprintf("%d", tt.in), func(t *testing.T) {
+		t.Run(strconv.Itoa(tt.in), func(t *testing.T) {
 			maybe, yes := validCardPrefix(tt.in)
 			assert.Equal(t, maybe, tt.maybe)
 			assert.Equal(t, yes, tt.yes)

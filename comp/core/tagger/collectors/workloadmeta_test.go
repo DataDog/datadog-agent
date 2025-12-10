@@ -48,9 +48,9 @@ func TestHandleKubePod(t *testing.T) {
 	)
 
 	standardTags := []string{
-		fmt.Sprintf("env:%s", env),
-		fmt.Sprintf("service:%s", svc),
-		fmt.Sprintf("version:%s", version),
+		"env:" + env,
+		"service:" + svc,
+		"version:" + version,
 	}
 
 	podEntityID := workloadmeta.EntityID{
@@ -232,15 +232,15 @@ func TestHandleKubePod(t *testing.T) {
 						"gitcommit:foobar",
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:datadog-agent",
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_app_instance:%s", podName),
-						fmt.Sprintf("kube_app_name:%s", svc),
-						fmt.Sprintf("kube_app_version:%s", version),
-						fmt.Sprintf("kube_deployment:%s", svc),
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_app_instance:" + podName,
+						"kube_app_name:" + svc,
+						"kube_app_version:" + version,
+						"kube_deployment:" + svc,
+						"kube_namespace:" + podNamespace,
 						"component:agent",
 						"kube_app_component:agent",
 						"kube_app_managed_by:helm",
@@ -295,10 +295,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:statefulset",
 						"persistentvolumeclaim:pvc-0",
 					},
@@ -308,15 +308,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						"container_id:" + noEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -350,10 +350,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -361,15 +361,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						"container_id:" + fullyFleshedContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -401,10 +401,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -412,15 +412,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: types.NewEntityID(types.ContainerID, otelEnvContainerID),
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", otelEnvContainerID),
+						"container_id:" + otelEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -456,10 +456,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -467,15 +467,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						"container_id:" + noEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -501,11 +501,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"oshift_deployment:gitlab-ce-1",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"oshift_deployment_config:gitlab-ce",
 					},
 					StandardTags: []string{},
@@ -531,10 +531,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"dd_remote_config_id:id",
 						"dd_remote_config_rev:123",
 					},
@@ -563,11 +563,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:daemonset",
 						"kube_daemon_set:owner_name",
 					},
@@ -596,11 +596,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicationcontroller",
 						"kube_replication_controller:owner_name",
 					},
@@ -632,11 +632,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:statefulset",
 						"kube_stateful_set:owner_name",
 						"persistentvolumeclaim:pvc-0",
@@ -666,11 +666,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:job",
 						"kube_job:owner_name",
 					},
@@ -703,12 +703,12 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:some_cronjob-123",
 						"kube_job:some_cronjob-123",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:job",
 						"kube_cronjob:some_cronjob",
 					},
@@ -737,11 +737,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:owner_name",
 					},
@@ -779,11 +779,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:some_deployment-bcd2",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:some_deployment-bcd2",
 						"kube_deployment:some_deployment",
@@ -811,10 +811,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"eks_fargate_node:foobar",
 					},
 					StandardTags: []string{},
@@ -839,10 +839,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_autoscaler_kind:datadogpodautoscaler",
 					},
 					StandardTags: []string{},
@@ -869,10 +869,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -901,10 +901,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"gpu_vendor:nvidia",
 					},
 					StandardTags: []string{},
@@ -913,15 +913,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						"container_id:" + fullyFleshedContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -1034,10 +1034,10 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:statefulset",
 					},
 					StandardTags: []string{},
@@ -1046,15 +1046,15 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 					Source:   podSource,
 					EntityID: types.NewEntityID(types.ContainerID, noEnvContainerID),
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						"container_id:" + noEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -1098,9 +1098,9 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	)
 
 	standardTags := []string{
-		fmt.Sprintf("env:%s", env),
-		fmt.Sprintf("service:%s", svc),
-		fmt.Sprintf("version:%s", version),
+		"env:" + env,
+		"service:" + svc,
+		"version:" + version,
 	}
 
 	podEntityID := workloadmeta.EntityID{
@@ -1183,10 +1183,10 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -1194,15 +1194,15 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 					Source:   podSource,
 					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						"container_id:" + fullyFleshedContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -1235,7 +1235,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	kubeMetadataEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesMetadata,
-		ID:   fmt.Sprintf("namespaces//%s", namespace),
+		ID:   "namespaces//" + namespace,
 	}
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -1248,7 +1248,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   fmt.Sprintf("namespaces//%s", namespace),
+			ID:   "namespaces//" + namespace,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: namespace,
@@ -1784,9 +1784,9 @@ func TestHandleContainer(t *testing.T) {
 	)
 
 	standardTags := []string{
-		fmt.Sprintf("env:%s", env),
-		fmt.Sprintf("service:%s", svc),
-		fmt.Sprintf("version:%s", version),
+		"env:" + env,
+		"service:" + svc,
+		"version:" + version,
 	}
 
 	entityID := workloadmeta.EntityID{
@@ -1830,8 +1830,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1875,14 +1875,14 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
 						"owner_team:container-integrations",
-						fmt.Sprintf("git.repository_url:%s", repositoryURL),
-						fmt.Sprintf("git.commit.sha:%s", commitSHA),
+						"git.repository_url:" + repositoryURL,
+						"git.commit.sha:" + commitSHA,
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -1913,8 +1913,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1949,8 +1949,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1985,8 +1985,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -2009,7 +2009,7 @@ func TestHandleContainer(t *testing.T) {
 					"TIER": "node",
 
 					// otel standard tags
-					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=,  =  , =%s", env),
+					"OTEL_RESOURCE_ATTRIBUTES": "service.name=,  =  , =" + env,
 				},
 			},
 			envAsTags: map[string]string{
@@ -2020,8 +2020,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2055,8 +2055,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 						"app_name:datadog-agent",
 					},
 					OrchestratorCardTags: []string{},
@@ -2092,8 +2092,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2126,8 +2126,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2159,8 +2159,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2193,8 +2193,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{
 						"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
@@ -2237,8 +2237,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 						"rancher_container:testAD-redis-1",
 					},
 					OrchestratorCardTags: []string{},
@@ -2272,8 +2272,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2301,8 +2301,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2329,8 +2329,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2356,8 +2356,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2384,8 +2384,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2971,16 +2971,16 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -3004,14 +3004,14 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -3070,17 +3070,17 @@ func TestHandleProcess(t *testing.T) {
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
 					"entrypoint.name:com.example.Main",
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
 					"service.type:tomcat",
-					fmt.Sprintf("version:%s", versionFromDD),
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -3139,14 +3139,14 @@ func TestHandleProcess(t *testing.T) {
 					"entrypoint.name:com.myapp.Server1",
 					"entrypoint.name:com.myapp.Server2",
 					"entrypoint.workdir:myapp",
-					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:" + serviceNameFromDD,
 					"service.runtime:openjdk-17",
 					"service.type:web-server",
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:" + serviceNameFromDD,
 				},
 			},
 		},
@@ -3174,13 +3174,13 @@ func TestHandleProcess(t *testing.T) {
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
 					"entrypoint.name:my.package.Main",
-					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:" + serviceNameFromDD,
 					"service.framework:nodejs",
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("service:%s", serviceNameFromDD),
+					"service:" + serviceNameFromDD,
 				},
 			},
 		},
@@ -3227,7 +3227,7 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
+					"env:" + envFromDD,
 					"framework:express",
 					"runtime:nodejs",
 					"tracer_service_env:dev",
@@ -3236,15 +3236,15 @@ func TestHandleProcess(t *testing.T) {
 					"tracer_service_name:second-tracer-service",
 					"tracer_service_version:1.0.0",
 					"tracer_service_version:2.0.0",
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -3267,11 +3267,11 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("gpu_device:%s", strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_"))),
-					fmt.Sprintf("gpu_driver_version:%s", gpuDriverVersion),
-					fmt.Sprintf("gpu_uuid:%s", strings.ToLower(gpuUUID)),
-					fmt.Sprintf("gpu_vendor:%s", strings.ToLower(gpuVendor)),
-					fmt.Sprintf("gpu_virtualization_mode:%s", gpuVirtMode),
+					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
+					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_uuid:" + strings.ToLower(gpuUUID),
+					"gpu_vendor:" + strings.ToLower(gpuVendor),
+					"gpu_virtualization_mode:" + gpuVirtMode,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
@@ -3304,21 +3304,21 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("gpu_device:%s", strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_"))),
-					fmt.Sprintf("gpu_driver_version:%s", gpuDriverVersion),
-					fmt.Sprintf("gpu_uuid:%s", strings.ToLower(gpuUUID)),
-					fmt.Sprintf("gpu_vendor:%s", strings.ToLower(gpuVendor)),
-					fmt.Sprintf("gpu_virtualization_mode:%s", gpuVirtMode),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
+					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_uuid:" + strings.ToLower(gpuUUID),
+					"gpu_vendor:" + strings.ToLower(gpuVendor),
+					"gpu_virtualization_mode:" + gpuVirtMode,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -3348,16 +3348,16 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},

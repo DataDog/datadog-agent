@@ -27,7 +27,7 @@ type WindowsOpenRegistryKeyTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_windows_open_registry_key_name", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_windows_open_registry_key_name"
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,

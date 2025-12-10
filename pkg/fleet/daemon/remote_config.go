@@ -7,6 +7,7 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -225,13 +226,13 @@ func handleUpdaterCatalogDDUpdate(h handleCatalogUpdate, firstCatalogApplied fun
 
 func validatePackage(pkg Package) error {
 	if pkg.Name == "" {
-		return fmt.Errorf("package name is empty")
+		return errors.New("package name is empty")
 	}
 	if pkg.Version == "" {
-		return fmt.Errorf("package version is empty")
+		return errors.New("package version is empty")
 	}
 	if pkg.URL == "" {
-		return fmt.Errorf("package URL is empty")
+		return errors.New("package URL is empty")
 	}
 	url, err := url.Parse(pkg.URL)
 	if err != nil {

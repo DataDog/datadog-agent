@@ -280,7 +280,11 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 				"deployments.apps": pulumi.Map{"x-team": pulumi.String("team")},
 				"pods":             pulumi.Map{"x-parent-type": pulumi.String("domain")},
 				"namespaces":       pulumi.Map{"related_org": pulumi.String("org")},
-				"nodes":            pulumi.Map{"kubernetes.io/os": pulumi.String("os"), "kubernetes.io/arch": pulumi.String("arch")},
+				"nodes": pulumi.Map{
+					"kubernetes.io/os":                  pulumi.String("os"),
+					"kubernetes.io/arch":                pulumi.String("arch"),
+					"eks.amazonaws.com/nodegroup-image": pulumi.String("nodegroup-image"),
+				},
 			},
 			"originDetectionUnified": pulumi.Map{
 				"enabled": pulumi.Bool(true),
@@ -367,7 +371,7 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"init_config":    map[string]any{},
 					"instances": []map[string]any{
 						{
-							"periodic_refresh_seconds": 300, // To have at least one refresh per test
+							"periodic_refresh_seconds": 60, // To have at least one refresh per test
 						},
 					},
 				})),
@@ -376,7 +380,7 @@ func buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentI
 					"init_config":    map[string]any{},
 					"instances": []map[string]any{
 						{
-							"periodic_refresh_seconds": 300, // To have at least one refresh per test
+							"periodic_refresh_seconds": 60, // To have at least one refresh per test
 						},
 					},
 				})),

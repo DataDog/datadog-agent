@@ -10,6 +10,7 @@ package kubemetadata
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"strings"
 	"time"
@@ -355,7 +356,7 @@ func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, err
 	}
 
 	if !c.isDCAEnabled() {
-		return nil, fmt.Errorf("cluster agent should be enabled in order to allow fetching namespace metadata")
+		return nil, stderrors.New("cluster agent should be enabled in order to allow fetching namespace metadata")
 	}
 	return c.dcaClient.GetNamespaceMetadata(ns)
 }

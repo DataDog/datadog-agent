@@ -22,7 +22,7 @@ import (
 // CheckInstallation run tests to check the installation of the agent
 func CheckInstallation(t *testing.T, client *TestClient) {
 	t.Run("example config file", func(tt *testing.T) {
-		exampleFilePath := client.Helper.GetConfigFolder() + fmt.Sprintf("%s.example", client.Helper.GetConfigFileName())
+		exampleFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName() + ".example"
 
 		_, err := client.FileManager.FileExists(exampleFilePath)
 		require.NoError(tt, err, "Example config file should be present")

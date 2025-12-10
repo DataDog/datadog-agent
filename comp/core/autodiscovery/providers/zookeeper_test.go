@@ -9,7 +9,7 @@ package providers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/samuel/go-zookeeper/zk"
@@ -59,14 +59,14 @@ func (m *zkTest) Children(key string) ([]string, *zk.Stat, error) {
 func TestZKGetIdentifiers(t *testing.T) {
 	backend := &zkTest{}
 
-	backend.On("Children", "/test/").Return(nil, nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Children", "/test/").Return(nil, nil, errors.New("some error")).Times(1)
 	backend.On("Children", "/datadog/tpl").Return([]string{"nginx", "redis", "incomplete", "error"}, nil, nil).Times(1)
 
 	expectedKeys := []string{checkNamePath, initConfigPath, instancePath}
 	backend.On("Children", "/datadog/tpl/nginx").Return(expectedKeys, nil, nil).Times(1)
 	backend.On("Children", "/datadog/tpl/redis").Return(append(expectedKeys, "an extra one"), nil, nil).Times(1)
 	backend.On("Children", "/datadog/tpl/incomplete").Return([]string{checkNamePath, "other one"}, nil, nil).Times(1)
-	backend.On("Children", "/datadog/tpl/error").Return(nil, nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Children", "/datadog/tpl/error").Return(nil, nil, errors.New("some error")).Times(1)
 
 	zk := ZookeeperConfigProvider{client: backend}
 
@@ -85,19 +85,19 @@ func TestZKGetIdentifiers(t *testing.T) {
 func TestZKGetTemplates(t *testing.T) {
 	backend := &zkTest{}
 
-	backend.On("Get", "/error1/check_names").Return(nil, nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Get", "/error1/check_names").Return(nil, nil, errors.New("some error")).Times(1)
 	zk := ZookeeperConfigProvider{client: backend}
 	res := zk.getTemplates("/error1/")
 	assert.Nil(t, res)
 
 	backend.On("Get", "/error2/check_names").Return([]byte("[\"first_name\"]"), nil, nil).Times(1)
-	backend.On("Get", "/error2/init_configs").Return(nil, nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Get", "/error2/init_configs").Return(nil, nil, errors.New("some error")).Times(1)
 	res = zk.getTemplates("/error2/")
 	assert.Nil(t, res)
 
 	backend.On("Get", "/error3/check_names").Return([]byte("[\"first_name\"]"), nil, nil).Times(1)
 	backend.On("Get", "/error3/init_configs").Return([]byte("[{}]"), nil, nil).Times(1)
-	backend.On("Get", "/error3/instances").Return(nil, nil, fmt.Errorf("some error")).Times(1)
+	backend.On("Get", "/error3/instances").Return(nil, nil, errors.New("some error")).Times(1)
 	res = zk.getTemplates("/error3/")
 	assert.Nil(t, res)
 

@@ -430,6 +430,10 @@
         "rule_context": {
           "$ref": "#/$defs/RuleContext",
           "description": "RuleContext rule context"
+        },
+        "source": {
+          "type": "string",
+          "description": "Source of the event"
         }
       },
       "additionalProperties": false,
@@ -2168,13 +2172,21 @@
     },
     "UserSessionContext": {
       "properties": {
+        "session_type": {
+          "type": "string",
+          "description": "Type of the user session"
+        },
         "id": {
           "type": "string",
           "description": "Unique identifier of the user session on the host"
         },
-        "session_type": {
+        "identity": {
           "type": "string",
-          "description": "Type of the user session"
+          "description": "Identity of the user session"
+        },
+        "k8s_session_id": {
+          "type": "string",
+          "description": "Unique identifier of the user session on the host"
         },
         "k8s_username": {
           "type": "string",
@@ -2201,7 +2213,11 @@
           "type": "object",
           "description": "Extra of the Kubernetes \"kubectl exec\" session"
         },
-        "ssh_port": {
+        "ssh_session_id": {
+          "type": "string",
+          "description": "Unique identifier of the SSH session"
+        },
+        "ssh_client_port": {
           "type": "integer",
           "description": "Port of the SSH session"
         },

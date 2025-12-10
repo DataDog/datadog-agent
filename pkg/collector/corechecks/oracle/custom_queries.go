@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -50,7 +51,7 @@ func (c *Check) CustomQueries() error {
 			return err
 		}
 		if db == nil {
-			return fmt.Errorf("empty connection")
+			return errors.New("empty connection")
 		}
 		c.dbCustomQueries = db
 	}
@@ -93,7 +94,7 @@ func (c *Check) CustomQueries() error {
 			if pdb == "" {
 				pdb = "cdb$root"
 			}
-			_, err := c.dbCustomQueries.Exec(fmt.Sprintf("alter session set container = %s", pdb))
+			_, err := c.dbCustomQueries.Exec("alter session set container = " + pdb)
 			if err != nil {
 				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
@@ -112,7 +113,7 @@ func (c *Check) CustomQueries() error {
 			var metricsFromSingleRow []metricRow
 			var tags []string
 			if pdb != "" {
-				tags = []string{fmt.Sprintf("pdb:%s", pdb)}
+				tags = []string{"pdb:" + pdb}
 			}
 			cols, err := rows.SliceScan()
 			if err != nil {

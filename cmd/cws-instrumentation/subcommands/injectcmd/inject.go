@@ -89,8 +89,7 @@ func injectUserSession(params *InjectCliParams) error {
 	sessionTypeString := params.SessionType
 	if sessionTypeString == "k8s" {
 		sessionType = usersession.UserSessionTypeK8S
-	}
-	if sessionType == 0 {
+	} else {
 		return fmt.Errorf("unknown user session type: %v", params.SessionType)
 	}
 

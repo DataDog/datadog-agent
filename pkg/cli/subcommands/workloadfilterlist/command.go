@@ -46,13 +46,12 @@ type GlobalParams struct {
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
-	return &cobra.Command{
+	parentCmd := &cobra.Command{
 		Use:   "workloadfilter",
 		Short: "Print the workload filter status of a running agent",
 		Long:  ``,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			globalParams := globalParamsGetter()
-
 			cliParams.GlobalParams = globalParams
 
 			return fxutil.OneShot(workloadFilterList,
@@ -71,6 +70,20 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			)
 		},
 	}
+
+	// Add verify-cel subcommand
+	verifyCelCmd := &cobra.Command{
+		Use:   "verify-cel",
+		Short: "Validate CEL workload filter rules from a YAML file",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return verifyCELConfig(cmd.OutOrStdout(), cmd.InOrStdin())
+		},
+	}
+
+	parentCmd.AddCommand(verifyCelCmd)
+
+	return parentCmd
 }
 
 func workloadFilterList(_ log.Component, filterComponent workloadfilter.Component, _ *cliParams) error {

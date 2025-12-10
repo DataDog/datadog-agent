@@ -132,6 +132,8 @@ const (
 	GPUDriverVersion = "gpu_driver_version"
 	// GPUVirtualizationMode is the tag for the GPU virtualization mode
 	GPUVirtualizationMode = "gpu_virtualization_mode"
+	// GPUArchitecture is the tag for the GPU model architecture (e.g. Blackwell, Hopper, ...)
+	GPUArchitecture = "gpu_architecture"
 
 	// KubeArgoRollout is the tag for the Argo Rollout name
 	KubeArgoRollout = "kube_argo_rollout"

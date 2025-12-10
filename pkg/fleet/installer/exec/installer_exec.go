@@ -47,7 +47,7 @@ type installerCmd struct {
 }
 
 func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, command string, path string, args ...string) *installerCmd {
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "installer."+command)
 	span.SetTag("args", strings.Join(args, " "))
 	// NOTE: We very intentionally don't provide ctx to exec.Command.
 	//       exec.Command will kill the process if the context is cancelled. We don't want that here since
@@ -65,7 +65,7 @@ func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, c
 }
 
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "installer."+command)
 	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
 	cmd.Stdout = os.Stdout

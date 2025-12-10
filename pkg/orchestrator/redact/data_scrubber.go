@@ -107,7 +107,7 @@ func (ds *DataScrubber) ScrubSimpleCommand(cmd, args []string) ([]string, []stri
 	for _, pattern := range ds.RegexSensitivePatterns {
 		if pattern.MatchString(rawCmdline) {
 			regexChanged = true
-			rawCmdline = pattern.ReplaceAllString(rawCmdline, fmt.Sprintf(`${key}${delimiter}%s`, redactedSecret))
+			rawCmdline = pattern.ReplaceAllString(rawCmdline, "${key}${delimiter}"+redactedSecret)
 		}
 	}
 

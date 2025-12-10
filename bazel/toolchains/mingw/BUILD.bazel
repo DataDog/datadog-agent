@@ -1,10 +1,13 @@
 load("@rules_cc//cc:defs.bzl", "cc_toolchain")
 load("//bazel/toolchains/mingw:toolchain.bzl", "mingw_cc_toolchain_config")
 
+MSYS2_PATH = "C:/tools/msys64"
+
 mingw_cc_toolchain_config(
     name = "mingw-cc-toolchain-config",
     GCC_VERSION = "14.2.0",
-    MINGW_PATH = "C:/tools/msys64/mingw64",
+    MINGW_PATH = MSYS2_PATH + "/mingw64",
+    MSYS2_PATH = MSYS2_PATH,
 )
 
 filegroup(

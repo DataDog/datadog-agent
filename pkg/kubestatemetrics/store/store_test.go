@@ -8,7 +8,7 @@
 package store
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -101,7 +101,7 @@ func TestBuildTags(t *testing.T) {
 				LabelKeys:   []string{"bar", "ole", "toolong"},
 			},
 			expected: map[string]string{},
-			err:      fmt.Errorf("LabelKeys and LabelValues not same size"),
+			err:      errors.New("LabelKeys and LabelValues not same size"),
 		},
 	}
 	for _, test := range tests {

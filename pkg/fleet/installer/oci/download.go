@@ -126,11 +126,11 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}
 	name, ok := manifest.Annotations[AnnotationPackage]
 	if !ok {
-		return nil, fmt.Errorf("package manifest is missing package annotation")
+		return nil, errors.New("package manifest is missing package annotation")
 	}
 	version, ok := manifest.Annotations[AnnotationVersion]
 	if !ok {
-		return nil, fmt.Errorf("package manifest is missing version annotation")
+		return nil, errors.New("package manifest is missing version annotation")
 	}
 	size := uint64(0)
 	rawSize, ok := manifest.Annotations[AnnotationSize]
@@ -310,7 +310,7 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 	}
 	return nil, installerErrors.Wrap(
 		installerErrors.ErrPackageNotFound,
-		fmt.Errorf("no matching image found in the index"),
+		errors.New("no matching image found in the index"),
 	)
 }
 

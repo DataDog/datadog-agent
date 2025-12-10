@@ -17,7 +17,7 @@ load(
 )
 load("//compliance/rules:ship_source_offer.bzl", "SHIP_SOURCE_ATTR_KIND")
 
-DEBUG_LEVEL = 1
+DEBUG_LEVEL = 0
 
 def update_attribute_to_consumers(attribute_to_consumers, file, target):
     """Maintains map of metadata attribute files to the targets using them.
@@ -163,8 +163,16 @@ def _license_csv_impl(ctx):
         # buildifier: disable=print
         print(t_m_i)
 
+    if ctx.attr.offers_dir and ctx.outputs.offers_out:
+        fail("You can not set both offers_dir and offsets_out.")
+
     inputs = []
     outputs = []
+
+    # We need to declare output groups so that we can isolate the tree
+    # artifact which is the licenses directory. But if we are doing it,
+    # let's do it for everything.
+    output_groups = {}
     report = []
     attribute_to_consumers = {}
     attribute_kinds = {}
@@ -173,9 +181,21 @@ def _license_csv_impl(ctx):
     if ctx.outputs.csv_out:
         args.add("--csv_out", ctx.outputs.csv_out.path)
         outputs.append(ctx.outputs.csv_out)
+        output_groups["csv"] = [ctx.outputs.csv_out]
+    if ctx.attr.licenses_dir:
+        copy_dir = ctx.actions.declare_directory(ctx.attr.licenses_dir)
+        args.add("--licenses_dir", copy_dir.path)
+        outputs.append(copy_dir)
+        output_groups["licenses"] = [copy_dir]
+    if ctx.attr.offers_dir:
+        offers_dir = ctx.actions.declare_directory(ctx.attr.offers_dir)
+        args.add("--offers_dir", offers_dir.path)
+        outputs.append(offers_dir)
+        output_groups["offers"] = [offers_dir]
     if ctx.outputs.offers_out:
         args.add("--offers_out", ctx.outputs.offers_out.path)
         outputs.append(ctx.outputs.offers_out)
+        output_groups["offers"] = [ctx.outputs.offers_out]
 
     report.append("Top label: %s" % str(ctx.attr.target.label))
     if hasattr(t_m_i, "target"):
@@ -248,7 +268,12 @@ def _license_csv_impl(ctx):
         },
         use_default_shell_env = True,
     )
-    return [DefaultInfo(files = depset(outputs))]
+
+    ret = [
+        DefaultInfo(files = depset(outputs)),
+        OutputGroupInfo(**output_groups),
+    ]
+    return ret
 
 license_csv = rule(
     implementation = _license_csv_impl,
@@ -262,8 +287,14 @@ license_csv = rule(
             doc = """LICENSES.csv style output file.""",
             mandatory = True,
         ),
+        "offers_dir": attr.string(
+            doc = """Name of folder to write ship source offers to.""",
+        ),
         "offers_out": attr.output(
             doc = """Output file for ship source offers.""",
+        ),
+        "licenses_dir": attr.string(
+            doc = """Name of folder to copy licenses to.""",
         ),
         "usage_map_private": attr.output(
             doc = """Intermediate dump of data to drive gather_licenses. Private.""",

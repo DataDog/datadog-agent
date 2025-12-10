@@ -422,7 +422,7 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
+	body, err := c.get("fakeintake/payloads?endpoint=" + endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -437,7 +437,7 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/health", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/health")
 	if err != nil {
 		return err
 	}
@@ -450,7 +450,7 @@ func (c *Client) GetServerHealth() error {
 
 // ConfigureOverride sets a response override on the fakeintake server
 func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
-	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+	route := c.fakeIntakeURL + "/fakeintake/configure/override"
 
 	buf := new(bytes.Buffer)
 	err := json.NewEncoder(buf).Encode(override)
@@ -472,7 +472,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 
 // GetLastAPIKey returns the last apiKey sent with a payload to the intake
 func (c *Client) GetLastAPIKey() (string, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/debug/lastAPIKey", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
 	if err != nil {
 		return "", err
 	}
@@ -675,7 +675,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
 	if err != nil {
 		return err
 	}

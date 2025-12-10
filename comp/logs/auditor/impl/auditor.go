@@ -8,7 +8,7 @@ package auditorimpl
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -410,7 +410,7 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	}
 	version, exists := r["Version"].(float64)
 	if !exists {
-		return nil, fmt.Errorf("registry retrieved from disk must have a version number")
+		return nil, errors.New("registry retrieved from disk must have a version number")
 	}
 	// ensure backward compatibility
 	switch int(version) {
@@ -421,6 +421,6 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	case 0:
 		return unmarshalRegistryV0(b)
 	default:
-		return nil, fmt.Errorf("invalid registry version number")
+		return nil, errors.New("invalid registry version number")
 	}
 }

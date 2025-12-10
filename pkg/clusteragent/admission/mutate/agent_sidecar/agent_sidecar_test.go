@@ -604,7 +604,7 @@ func TestDefaultSidecarTemplateAgentImage(t *testing.T) {
 			name:              "no configuration set",
 			setConfig:         func() model.Config { return configmock.New(t) },
 			containerRegistry: commonRegistry,
-			expectedImage:     fmt.Sprintf("%s/agent:latest", commonRegistry),
+			expectedImage:     commonRegistry + "/agent:latest",
 		},
 		{
 			name:              "setting custom registry, image and tag",

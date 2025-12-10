@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -441,7 +442,7 @@ func (f *DefaultForwarder) Start() error {
 	defer f.m.Unlock()
 
 	if f.internalState.Load() == Started {
-		return fmt.Errorf("the forwarder is already started")
+		return errors.New("the forwarder is already started")
 	}
 
 	for _, df := range f.domainForwarders {
@@ -552,7 +553,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 				t.Destination = payload.Destination
 				auth.Authorize(t)
 				t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-				t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+				t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 				if allowArbitraryTags {
 					t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")
 				}
@@ -574,7 +575,7 @@ func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.E
 
 func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTPTransaction) error {
 	if f.internalState.Load() == Stopped {
-		return fmt.Errorf("the forwarder is not started")
+		return errors.New("the forwarder is not started")
 	}
 
 	f.retryQueueDurationCapacityMutex.Lock()
@@ -793,7 +794,7 @@ func (f *DefaultForwarder) GetDomainResolvers() []pkgresolver.DomainResolver {
 // SubmitTransaction adds a transaction to the queue for sending.
 func (f *DefaultForwarder) SubmitTransaction(t *transaction.HTTPTransaction) error {
 	t.Headers.Set(versionHTTPHeaderKey, version.AgentVersion)
-	t.Headers.Set(useragentHTTPHeaderKey, fmt.Sprintf("datadog-agent/%s", version.AgentVersion))
+	t.Headers.Set(useragentHTTPHeaderKey, "datadog-agent/"+version.AgentVersion)
 
 	if f.config.GetBool("allow_arbitrary_tags") {
 		t.Headers.Set(arbitraryTagHTTPHeaderKey, "true")

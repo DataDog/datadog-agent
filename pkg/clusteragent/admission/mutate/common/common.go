@@ -176,7 +176,7 @@ func InjectVolume(pod *corev1.Pod, volume corev1.Volume, volumeMount corev1.Volu
 // PodString returns a string that helps identify the pod
 func PodString(pod *corev1.Pod) string {
 	if pod.GetNamespace() == "" || pod.GetName() == "" {
-		return fmt.Sprintf("with generate name %s", pod.GetGenerateName())
+		return "with generate name " + pod.GetGenerateName()
 	}
 	return fmt.Sprintf("%s/%s", pod.GetNamespace(), pod.GetName())
 }

@@ -150,7 +150,7 @@ func getArchiveName() string {
 	logLevel, err := log.GetLogLevel()
 	logLevelString := ""
 	if err == nil {
-		logLevelString = fmt.Sprintf("-%s", logLevel.String())
+		logLevelString = "-" + logLevel.String()
 	}
 
 	return fmt.Sprintf("datadog-agent-%s%s.zip", timeString, logLevelString)

@@ -67,7 +67,8 @@ func (g *Server) Start() error {
 			return fmt.Errorf("invalid port '%s' for vsock", g.address)
 		}
 
-		ln, err = vsock.Listen(uint32(port), &vsock.Config{})
+		seclog.Infof("starting runtime security agent gRPC server on vsock port %d with host context", port)
+		ln, err = vsock.ListenContextID(vsock.Host, uint32(port), &vsock.Config{})
 	} else {
 		ln, err = net.Listen(g.family, g.address)
 	}

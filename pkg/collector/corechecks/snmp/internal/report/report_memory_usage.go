@@ -6,6 +6,7 @@
 package report
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -293,10 +294,10 @@ func (ms *MetricSender) trySendColumnMemoryUsage(columnSamples map[string]map[st
 
 func evaluateMemoryUsage(memoryUsed float64, memoryTotal float64) (float64, error) {
 	if memoryTotal == 0 {
-		return 0, fmt.Errorf("cannot evaluate memory usage, total memory is 0")
+		return 0, errors.New("cannot evaluate memory usage, total memory is 0")
 	}
 	if memoryUsed < 0 {
-		return 0, fmt.Errorf("cannot evaluate memory usage, memory used is < 0")
+		return 0, errors.New("cannot evaluate memory usage, memory used is < 0")
 	}
 	return (memoryUsed / memoryTotal) * 100, nil
 }

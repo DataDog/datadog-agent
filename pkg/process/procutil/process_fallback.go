@@ -8,7 +8,7 @@
 package procutil
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	// using process.AllProcesses()
@@ -47,5 +47,5 @@ func (p *probe) ProcessesByPID(_ time.Time, _ bool) (map[int32]*Process, error) 
 }
 
 func (p *probe) StatsWithPermByPID(_ []int32) (map[int32]*StatsWithPerm, error) {
-	return nil, fmt.Errorf("StatsWithPermByPID is not implemented in this environment")
+	return nil, errors.New("StatsWithPermByPID is not implemented in this environment")
 }

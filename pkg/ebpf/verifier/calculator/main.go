@@ -210,7 +210,7 @@ func main() {
 
 			// The format of progName is "objectName/programName" so we need to make the
 			// directory structure to ensure we can save the file in the correct place.
-			destPath := filepath.Join(*complexityDataDir, fmt.Sprintf("%s.json", progName))
+			destPath := filepath.Join(*complexityDataDir, progName+".json")
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				log.Fatalf("failed to create directory %s: %v", filepath.Dir(destPath), err)
 			}

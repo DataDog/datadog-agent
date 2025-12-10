@@ -9,6 +9,7 @@ package autoinstrumentation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -189,23 +190,23 @@ func NewInstrumentationConfig(datadogConfig config.Component) (*InstrumentationC
 
 	// Ensure both enabled and disabled namespaces are not set together.
 	if len(cfg.EnabledNamespaces) > 0 && len(cfg.DisabledNamespaces) > 0 {
-		return nil, fmt.Errorf("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
+		return nil, errors.New("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.disabled_namespaces are mutually exclusive and cannot be set together")
 	}
 
 	// Ensure both enabled namespaces and targets are not set together.
 	if len(cfg.EnabledNamespaces) > 0 && len(cfg.Targets) > 0 {
-		return nil, fmt.Errorf("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
+		return nil, errors.New("apm_config.instrumentation.enabled_namespaces and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
 	}
 
 	// Ensure both library versions and targets are not set together.
 	if len(cfg.LibVersions) > 0 && len(cfg.Targets) > 0 {
-		return nil, fmt.Errorf("apm_config.instrumentation.lib_versions and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
+		return nil, errors.New("apm_config.instrumentation.lib_versions and apm_config.instrumentation.targets are mutually exclusive and cannot be set together")
 	}
 
 	// Ensure both namespace names and labels are not set together.
 	for _, target := range cfg.Targets {
 		if target.NamespaceSelector != nil && len(target.NamespaceSelector.MatchNames) > 0 && (len(target.NamespaceSelector.MatchLabels) > 0 || len(target.NamespaceSelector.MatchExpressions) > 0) {
-			return nil, fmt.Errorf("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
+			return nil, errors.New("apm_config.instrumentation.targets[].namespaceSelector.matchNames and apm_config.instrumentation.targets[].namespaceSelector.matchLabels/matchExpressions are mutually exclusive and cannot be set together")
 		}
 	}
 

@@ -107,8 +107,6 @@ modules:
     used_by_otel: true
   comp/otelcol/logsagentpipeline/logsagentpipelineimpl:
     used_by_otel: true
-  comp/otelcol/otlp/components/connector/datadogconnector:
-    used_by_otel: true
   comp/otelcol/otlp/components/exporter/datadogexporter:
     used_by_otel: true
   comp/otelcol/otlp/components/exporter/logsagentexporter:
@@ -118,8 +116,6 @@ modules:
   comp/otelcol/otlp/components/metricsclient:
     used_by_otel: true
   comp/otelcol/otlp/components/processor/infraattributesprocessor: default
-  comp/otelcol/otlp/components/statsprocessor:
-    used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
   comp/otelcol/status/def: default
@@ -271,6 +267,7 @@ modules:
     should_test_condition: never
   pkg/serializer:
     used_by_otel: true
+  pkg/ssi/testutils: default
   pkg/status/health:
     used_by_otel: true
   pkg/tagger/types:
@@ -372,8 +369,6 @@ modules:
     - ./examples
     should_test_condition: is_linux
     test_targets:
-    - ./pkg/runner
-    - ./pkg/utils/e2e/client
     - ./system-probe/
   test/otel:
     used_by_otel: true

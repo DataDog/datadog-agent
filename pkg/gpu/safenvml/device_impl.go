@@ -348,3 +348,11 @@ func (d *safeDeviceImpl) RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) e
 	ret := d.nvmlDevice.RegisterEvents(evtTypes, evtSet)
 	return NewNvmlAPIErrorOrNil("RegisterEvents", ret)
 }
+
+func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetMemoryErrorCounter")); err != nil {
+		return 0, err
+	}
+	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
+	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+}
