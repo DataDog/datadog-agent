@@ -1207,7 +1207,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("reverse_dns_enrichment.rate_limiter.recovery_interval", time.Duration(0))
 
 	// Remote agents
-	config.BindEnvAndSetDefault("remote_agent_registry.enabled", true)
+	config.BindEnvAndSetDefault("remote_agent_registry.enabled", false)
 	config.BindEnvAndSetDefault("remote_agent_registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent_registry.recommended_refresh_interval", time.Duration(10*time.Second))
@@ -2040,11 +2040,15 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
 
-	defaultPodresourcesSocket := "/var/lib/kubelet/pod-resources/kubelet.sock"
 	if runtime.GOOS == "windows" {
-		defaultPodresourcesSocket = `\\.\pipe\kubelet-pod-resources`
+		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", `\\.\pipe\kubelet-pod-resources`)
+		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", `\\.\pipe\kubelet-device-plugins`)
+	} else {
+		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", "/var/lib/kubelet/pod-resources/kubelet.sock")
+		config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_socketdir", "/var/lib/kubelet/device-plugins")
 	}
-	config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", defaultPodresourcesSocket)
+
+	config.BindEnvAndSetDefault("kubernetes_kubelet_deviceplugins_cache_duration", 5*time.Second)
 }
 
 func podman(config pkgconfigmodel.Setup) {

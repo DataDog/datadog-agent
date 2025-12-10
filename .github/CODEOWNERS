@@ -305,7 +305,6 @@
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
 /omnibus/config/software/datadog-security-agent*.rb       @DataDog/agent-security @DataDog/agent-build
 /omnibus/config/software/openscap.rb                      @DataDog/agent-cspm
-/omnibus/config/software/snmp-traps.rb                    @DataDog/ndm-core
 /omnibus/config/templates/init-scripts-agent/             @DataDog/agent-build @DataDog/fleet
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
@@ -652,6 +651,7 @@
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/ndm-core
 /pkg/snmp/                              @DataDog/ndm-core
+/pkg/ssi/                               @DataDog/injection-platform
 /pkg/tagger/                            @DataDog/container-platform
 /pkg/windowsdriver/                     @DataDog/windows-products
 /comp/core/workloadmeta/collectors/internal/cloudfoundry     @DataDog/agent-integrations
@@ -822,3 +822,5 @@
 
 /pkg/util/scrubber/go.mod                @DataDog/agent-runtimes
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
+
+/q_branch/                               @scottopell @val06
