@@ -22,3 +22,9 @@ type TagPartition struct {
 	ConstantTags map[string]string   // key -> value (same across all events)
 	VaryingTags  map[string][]string // key -> distinct values seen
 }
+
+// MetricPattern captures the structure of metrics in a cluster
+type MetricPattern struct {
+	Family   string   // common prefix, e.g., "system.disk"
+	Variants []string // differing suffixes, e.g., ["free", "used"]
+}
