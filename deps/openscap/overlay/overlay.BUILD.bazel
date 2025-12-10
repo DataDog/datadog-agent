@@ -1,7 +1,7 @@
+"""BUILD for openscap."""
+
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
 
 package(
     default_package_metadata = [":package_metadata"],
