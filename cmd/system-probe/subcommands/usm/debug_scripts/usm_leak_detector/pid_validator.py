@@ -14,6 +14,11 @@ from .constants import PID_KEYED_MAPS
 from .logging_config import logger
 from .models import PIDLeakInfo
 
+# PID extraction from uint64 pid_tgid key
+PID_SHIFT_BITS = 32  # Upper 32 bits contain PID
+PID_TGID_SIZE = 8  # Size of uint64 in bytes
+UINT32_MASK = 0xFFFFFFFF  # 32-bit mask
+
 
 def extract_pid(pid_tgid: int) -> int:
     """Extract PID from a uint64 pid_tgid key.
@@ -21,7 +26,7 @@ def extract_pid(pid_tgid: int) -> int:
     In Linux, pid_tgid is stored as (pid << 32) | tgid.
     The PID is in the upper 32 bits.
     """
-    return (pid_tgid >> 32) & 0xFFFFFFFF
+    return (pid_tgid >> PID_SHIFT_BITS) & UINT32_MASK
 
 
 def pid_exists(pid: int, proc_root: str = "/proc") -> bool:
@@ -58,7 +63,7 @@ def parse_pid_tgid_key(key) -> Optional[int]:
     else:
         return None
 
-    if len(key_bytes) != 8:
+    if len(key_bytes) != PID_TGID_SIZE:
         return None
 
     # Unpack as little-endian uint64

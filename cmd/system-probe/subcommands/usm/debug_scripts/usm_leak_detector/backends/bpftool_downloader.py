@@ -10,6 +10,7 @@ import tempfile
 import urllib.request
 from typing import Optional
 
+from ..constants import DOWNLOAD_TIMEOUT
 from ..logging_config import logger
 from ..subprocess_utils import safe_subprocess_run
 
@@ -43,7 +44,7 @@ def _download_with_curl(url: str, dest: str) -> bool:
     """Try downloading using curl."""
     try:
         cmd = ["curl", "-fsSL", "-o", dest, url]
-        result = safe_subprocess_run(cmd, capture_output=True, timeout=60)
+        result = safe_subprocess_run(cmd, capture_output=True, timeout=DOWNLOAD_TIMEOUT)
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
@@ -53,7 +54,7 @@ def _download_with_wget(url: str, dest: str) -> bool:
     """Try downloading using wget."""
     try:
         cmd = ["wget", "-q", "-O", dest, url]
-        result = safe_subprocess_run(cmd, capture_output=True, timeout=60)
+        result = safe_subprocess_run(cmd, capture_output=True, timeout=DOWNLOAD_TIMEOUT)
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False

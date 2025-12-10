@@ -7,6 +7,7 @@ import os
 import sys
 
 from .backends import get_backend
+from .constants import DEFAULT_RECHECK_DELAY
 from .logging_config import configure_logging, logger
 from .map_discovery import find_conn_tuple_maps
 from .map_utils import filter_maps_by_names
@@ -56,9 +57,9 @@ def parse_args():
     parser.add_argument(
         "--recheck-delay",
         type=float,
-        default=2.0,
+        default=DEFAULT_RECHECK_DELAY,
         metavar="SECONDS",
-        help="Delay before re-checking leaked entries to filter race conditions (default: 2.0, 0 to disable)"
+        help=f"Delay before re-checking leaked entries to filter race conditions (default: {DEFAULT_RECHECK_DELAY}, 0 to disable)"
     )
 
     return parser.parse_args()

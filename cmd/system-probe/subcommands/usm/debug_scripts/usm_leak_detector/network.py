@@ -9,6 +9,11 @@ from typing import Dict, List, Tuple
 from .models import ConnectionIndex
 from .constants import TCP_LISTEN
 
+# /proc/net/tcp hex address format
+IPV4_HEX_CHARS = 8  # Hex chars for IPv4 address (e.g., "0100007F")
+IPV6_HEX_CHARS = 32  # Total hex chars for IPv6 address
+IPV6_HEX_CHARS_PER_WORD = 8  # Hex chars per 32-bit word in /proc/net/tcp6
+
 
 def discover_namespaces(proc_root: str = "/proc") -> Dict[int, int]:
     """Scan /proc/*/ns/net to build netns -> pid mapping.
@@ -48,11 +53,11 @@ def parse_hex_addr(hex_addr: str) -> Tuple[int, int]:
     IPv4: 8 hex chars (e.g., "0100007F" for 127.0.0.1)
     IPv6: 32 hex chars (four 32-bit little-endian values in network order)
     """
-    if len(hex_addr) == 8:
+    if len(hex_addr) == IPV4_HEX_CHARS:
         # IPv4: stored as little-endian 32-bit value in /proc
         addr_l = int(hex_addr, 16)
         return (0, addr_l)
-    elif len(hex_addr) == 32:
+    elif len(hex_addr) == IPV6_HEX_CHARS:
         # IPv6 in /proc/net/tcp6: four 32-bit words, each printed in big-endian hex
         # but representing little-endian values. We need to match eBPF ConnTuple format.
         #
@@ -67,7 +72,7 @@ def parse_hex_addr(hex_addr: str) -> Tuple[int, int]:
         # printed as big-endian hex but stored as little-endian in memory.
         # To get the eBPF format: interpret as little-endian uint64s.
 
-        parts = [hex_addr[i:i+8] for i in range(0, 32, 8)]
+        parts = [hex_addr[i:i+IPV6_HEX_CHARS_PER_WORD] for i in range(0, IPV6_HEX_CHARS, IPV6_HEX_CHARS_PER_WORD)]
         # /proc/net/tcp6 prints each 32-bit word as big-endian hex, but the
         # actual bytes in memory are little-endian. Pack as little-endian.
         reconstructed = b""

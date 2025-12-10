@@ -65,3 +65,9 @@ PID_KEYED_MAPS = [
 
 # TCP states from /proc/net/tcp (hex values)
 TCP_LISTEN = 0x0A
+
+# Recheck delay for race condition filtering
+DEFAULT_RECHECK_DELAY = 2.0  # seconds
+
+# Download timeouts
+DOWNLOAD_TIMEOUT = 60  # seconds for downloading bpftool

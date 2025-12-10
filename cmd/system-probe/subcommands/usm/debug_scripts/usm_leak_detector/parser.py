@@ -7,6 +7,11 @@ from typing import List, Optional
 
 from .models import ConnTuple
 
+# ConnTuple structure layout (48 bytes total)
+CONN_TUPLE_SIZE = 48  # Total size in bytes
+CONN_TUPLE_PORT_OFFSET = 32  # Offset of sport/dport fields
+CONN_TUPLE_META_OFFSET = 36  # Offset of netns/pid/metadata fields
+
 
 def hex_array_to_bytes(hex_array: List[str]) -> bytes:
     """Convert bpftool hex array ["0x01", "0x02", ...] to bytes."""
@@ -31,13 +36,13 @@ def parse_conn_tuple(key_bytes: bytes, offset: int = 0) -> Optional[ConnTuple]:
         40-43: pid (uint32)
         44-47: metadata (uint32)
     """
-    if len(key_bytes) < offset + 48:
+    if len(key_bytes) < offset + CONN_TUPLE_SIZE:
         return None
 
     # Unpack using little-endian format from specified offset
     saddr_h, saddr_l, daddr_h, daddr_l = struct.unpack_from("<QQQQ", key_bytes, offset)
-    sport, dport = struct.unpack_from("<HH", key_bytes, offset + 32)
-    netns, pid, metadata = struct.unpack_from("<III", key_bytes, offset + 36)
+    sport, dport = struct.unpack_from("<HH", key_bytes, offset + CONN_TUPLE_PORT_OFFSET)
+    netns, pid, metadata = struct.unpack_from("<III", key_bytes, offset + CONN_TUPLE_META_OFFSET)
 
     return ConnTuple(
         saddr_h=saddr_h,
