@@ -6,19 +6,35 @@
 package ecs
 
 import (
+	"context"
 	"time"
 	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
+)
+
+const (
+	taskNameDogstatsdUDS = "dogstatsd-uds"
+	taskNameDogstatsdUDP = "dogstatsd-udp"
+
+	taskNameTracegenUDS = "tracegen-uds"
+	taskNameTracegenTCP = "tracegen-tcp"
 )
 
 type ecsAPMSuite struct {
@@ -48,7 +64,99 @@ func (suite *ecsAPMSuite) SetupSuite() {
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
 }
 
-func (suite *ecsAPMSuite) Test00AgentAPMReady() {
+// Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,
+// for the containers to be started, for the agent collectors to collect workload information
+// and to feed workload meta and the tagger.
+//
+// We could increase the timeout of all tests to cope with the agent tagger warmup time.
+// But in case of a single bug making a single tag missing from every metric,
+// all the tests would time out and that would be a waste of time.
+//
+// It's better to have the first test having a long timeout to wait for the agent to warmup,
+// and to have the following tests with a smaller timeout.
+//
+// Inside a testify test suite, tests are executed in alphabetical order.
+// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for all tasks to be ready
+// is run first.
+func (suite *ecsAPMSuite) Test00UpAndRunning() {
+	ctx := context.Background()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	suite.Require().NoErrorf(err, "Failed to load AWS config")
+
+	client := awsecs.NewFromConfig(cfg)
+
+	suite.Run("ECS tasks are ready", func() {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			var initToken string
+			for nextToken := &initToken; nextToken != nil; {
+				if nextToken == &initToken {
+					nextToken = nil
+				}
+
+				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
+					Cluster:    &suite.ecsClusterName,
+					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
+					NextToken:  nextToken,
+				})
+				// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
+					return
+				}
+
+				nextToken = servicesList.NextToken
+
+				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
+					Cluster:  &suite.ecsClusterName,
+					Services: servicesList.ServiceArns,
+				})
+				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
+					continue
+				}
+
+				for _, serviceDescription := range servicesDescription.Services {
+					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
+
+					for nextToken := &initToken; nextToken != nil; {
+						if nextToken == &initToken {
+							nextToken = nil
+						}
+
+						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
+							Cluster:       &suite.ecsClusterName,
+							ServiceName:   serviceDescription.ServiceName,
+							DesiredStatus: awsecstypes.DesiredStatusRunning,
+							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
+							NextToken:     nextToken,
+						})
+						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
+							break
+						}
+
+						nextToken = tasksList.NextToken
+
+						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
+							Cluster: &suite.ecsClusterName,
+							Tasks:   tasksList.TaskArns,
+						})
+						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
+							continue
+						}
+
+						for _, taskDescription := range tasksDescription.Tasks {
+							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
+								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
+								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+						}
+					}
+				}
+			}
+		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+	})
+}
+
+func (suite *ecsAPMSuite) Test01AgentAPMReady() {
 	// Test that the APM agent is ready and receiving traces
 	suite.Run("APM agent readiness check", func() {
 		suite.TestAgentHealth(&TestAgentHealthArgs{
@@ -413,4 +521,100 @@ func (suite *ecsAPMSuite) TestAPMEC2() {
 			}
 		}, 3*time.Minute, 10*time.Second, "EC2 APM validation failed")
 	})
+}
+
+func (suite *ecsAPMSuite) TestDogtstatsdUDS() {
+	suite.testDogstatsd(taskNameDogstatsdUDS)
+}
+
+func (suite *ecsAPMSuite) TestDogtstatsdUDP() {
+	suite.testDogstatsd(taskNameDogstatsdUDP)
+}
+
+func (suite *ecsAPMSuite) testDogstatsd(taskName string) {
+	suite.TestMetric(&TestMetricArgs{
+		Filter: TestMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+			},
+		},
+		Expect: TestMetricExpectArgs{
+			Tags: &[]string{
+				`^aws_account:[[:digit:]]{12}$`,
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
+				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:dogstatsd$`,
+				`^ecs_service:` + regexp.QuoteMeta(strings.TrimSuffix(suite.ecsClusterName, "-ecs")) + `-dogstatsd-ud[ps]$`,
+				`^git\.commit\.sha:[[:xdigit:]]{40}$`,                                    // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-dogstatsd$`,
+				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
+				`^region:us-east-1$`,
+				`^series:`,
+				`^service_arn:`,
+				`^short_image:apps-dogstatsd$`,
+				`^task_arn:`,
+				`^task_definition_arn:`,
+				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+		},
+	})
+}
+
+func (suite *ecsAPMSuite) TestTraceUDS() {
+	suite.testTrace(taskNameTracegenUDS)
+}
+
+func (suite *ecsAPMSuite) TestTraceTCP() {
+	suite.testTrace(taskNameTracegenTCP)
+}
+
+// testTrace verifies that traces are tagged with container and pod tags.
+func (suite *ecsAPMSuite) testTrace(taskName string) {
+	suite.EventuallyWithTf(func(c *assert.CollectT) {
+		traces, cerr := suite.Fakeintake.GetTraces()
+		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+		if !assert.NoErrorf(c, cerr, "Failed to query fake intake") {
+			return
+		}
+
+		var err error
+		// Iterate starting from the most recent traces
+		for _, trace := range traces {
+			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
+				return k + ":" + v
+			})
+			// Assert origin detection is working properly
+			err = assertTags(tags, []*regexp.Regexp{
+				regexp.MustCompile(`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^container_id:`),
+				regexp.MustCompile(`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`),
+				regexp.MustCompile(`^docker_image:ghcr\.io/datadog/apps-tracegen:` + regexp.QuoteMeta(apps.Version) + `$`),
+				regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				regexp.MustCompile(`^ecs_container_name:tracegen`),
+				regexp.MustCompile(`^git\.commit\.sha:[[:xdigit:]]{40}$`),                                    // org.opencontainers.image.revision docker image label
+				regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
+				regexp.MustCompile(`^image_id:sha256:`),
+				regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-tracegen`),
+				regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`),
+				regexp.MustCompile(`^short_image:apps-tracegen`),
+				regexp.MustCompile(`^task_arn:`),
+				regexp.MustCompile(`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`),
+				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
+			}, []*regexp.Regexp{}, false)
+			if err == nil {
+				break
+			}
+		}
+		require.NoErrorf(c, err, "Failed finding trace with proper tags")
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
 }
