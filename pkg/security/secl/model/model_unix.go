@@ -6,6 +6,7 @@
 //go:build unix
 
 //go:generate accessors -tags unix -types-file model.go -output accessors_unix.go -field-handlers field_handlers_unix.go -doc ../../../../docs/cloud-workload-security/secl_linux.json -field-accessors-output field_accessors_unix.go
+//go:generate event_deep_copy -tags unix -types-file model.go -output event_deep_copy_unix.go
 
 // Package model holds model related files
 package model
