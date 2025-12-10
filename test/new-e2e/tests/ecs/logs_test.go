@@ -43,7 +43,7 @@ func TestECSLogsSuite(t *testing.T) {
 }
 
 func (suite *ecsLogsSuite) SetupSuite() {
-	suite.baseSuite.SetupSuite()
+	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
 	suite.clusterName = suite.Env().ECSCluster.ClusterName
@@ -471,12 +471,4 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
-}
-
-func getKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }

@@ -42,7 +42,7 @@ func TestECSAPMSuite(t *testing.T) {
 }
 
 func (suite *ecsAPMSuite) SetupSuite() {
-	suite.baseSuite.SetupSuite()
+	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
 	suite.clusterName = suite.Env().ECSCluster.ClusterName

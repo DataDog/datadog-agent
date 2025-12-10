@@ -40,7 +40,7 @@ func TestECSResilienceSuite(t *testing.T) {
 }
 
 func (suite *ecsResilienceSuite) SetupSuite() {
-	suite.baseSuite.SetupSuite()
+	suite.BaseSuite.SetupSuite()
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
 	suite.clusterName = suite.Env().ECSCluster.ClusterName
@@ -446,13 +446,4 @@ func (suite *ecsResilienceSuite) TestBackpressure() {
 			suite.T().Logf("Agent health indicators present: %v", agentHealthy)
 		}, 3*suite.Minute, 10*suite.Second, "Backpressure handling validation completed")
 	})
-}
-
-// Helper function to get map keys
-func getMapKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
