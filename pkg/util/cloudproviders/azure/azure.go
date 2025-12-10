@@ -31,13 +31,13 @@ var (
 )
 
 const (
-	hostnameStyleSetting = "azure_hostname_style"
-	metadataAPIVersion   = "api-version=2021-02-01"
+	hostnameStyleSetting      = "azure_hostname_style"
+	metadataAPIVersionSetting = "azure_metadata_api_version"
 )
 
-// GetMetadataAPIVersion returns the Azure metadata API version used by the agent
+// GetMetadataAPIVersion returns the Azure metadata API version query parameter used by the agent
 func GetMetadataAPIVersion() string {
-	return "2021-02-01"
+	return "api-version=" + pkgconfigsetup.Datadog().GetString(metadataAPIVersionSetting)
 }
 
 // IsRunningOn returns true if the agent is running on Azure
@@ -52,7 +52,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 	Name: "Azure vmID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		res, err := getResponseWithMaxLength(ctx,
-			fmt.Sprintf("%s/metadata/instance/compute/vmId?%s&format=text", metadataURL, metadataAPIVersion),
+			fmt.Sprintf("%s/metadata/instance/compute/vmId?%s&format=text", metadataURL, GetMetadataAPIVersion()),
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
@@ -70,7 +70,7 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 	Name: "Azure Cluster Name",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		rg, err := getResponse(ctx,
-			fmt.Sprintf("%s/metadata/instance/compute/resourceGroupName?%s&format=text", metadataURL, metadataAPIVersion))
+			fmt.Sprintf("%s/metadata/instance/compute/resourceGroupName?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 		}
@@ -108,7 +108,7 @@ var instanceTypeFetcher = cachedfetch.Fetcher{
 	Name: "Azure Instance Type",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		instanceType, err := getResponse(ctx,
-			fmt.Sprintf("%s/metadata/instance/compute/vmSize?%s&format=text", metadataURL, metadataAPIVersion))
+			fmt.Sprintf("%s/metadata/instance/compute/vmSize?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure instance type: %s", err)
 		}
@@ -150,7 +150,7 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	Name: "Azure Instance Metadata",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		metadataJSON, err := getResponse(ctx,
-			fmt.Sprintf("%s/metadata/instance/compute?%s", metadataURL, metadataAPIVersion))
+			fmt.Sprintf("%s/metadata/instance/compute?%s", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
 		}
@@ -205,7 +205,7 @@ var hostCCRIDFetcher = cachedfetch.Fetcher{
 	Name: "Azure Host CCRID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		rg, err := getResponse(ctx,
-			fmt.Sprintf("%s/metadata/instance/compute/resourceId?%s&format=text", metadataURL, metadataAPIVersion))
+			fmt.Sprintf("%s/metadata/instance/compute/resourceId?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 		}
@@ -229,7 +229,7 @@ var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "Azure Public IP",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		publicIPv4, err := getResponse(ctx,
-			fmt.Sprintf("%s/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?%s&format=text", metadataURL, metadataAPIVersion))
+			fmt.Sprintf("%s/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure public ip: %s", err)
 		}

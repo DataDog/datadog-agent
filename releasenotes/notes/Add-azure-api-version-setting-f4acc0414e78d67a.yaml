@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Add a new ``azure_metadata_api_version`` configuration option to allow customers
+    to specify the Azure Instance Metadata Service (IMDS) API version used by the Agent.
+    The default value is now ``2021-02-01``. This setting can be configured via
+    ``azure_metadata_api_version`` in ``datadog.yaml`` or the ``DD_AZURE_METADATA_API_VERSION``
+    environment variable.
