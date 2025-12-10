@@ -167,15 +167,15 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 		return fmt.Errorf("error getting absolute path of destination %s %s: %w", destination, source, err)
 	}
 
-	return filepath.Walk(source, func(fpath string, info os.FileInfo, err error) error {
+	return filepath.WalkDir(source, func(fpath string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return fmt.Errorf("error traversing  %s: %w", fpath, err)
 		}
-		if info == nil {
+		if d == nil {
 			return fmt.Errorf("%s: no file info", fpath)
 		}
 
-		if info.Mode()&os.ModeSymlink != 0 {
+		if d.Type()&fs.ModeSymlink != 0 {
 			// We skip symlink for security reasons
 			return nil
 		}
@@ -195,6 +195,11 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 		nameInArchive, err := makeNameInArchive(sourceInfo, source, "", fpath)
 		if err != nil {
 			return err
+		}
+
+		info, err := d.Info()
+		if err != nil {
+			return fmt.Errorf("error getting file info %s: %w", fpath, err)
 		}
 
 		finfo := fileInfo{
@@ -223,7 +228,7 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 			return nil
 		}
 
-		if info.Mode().IsRegular() {
+		if d.Type().IsRegular() {
 			file, err := os.Open(fpath)
 			if err != nil {
 				return fmt.Errorf("error opening %s: %w", fpath, err)

@@ -154,7 +154,7 @@ type Event struct {
 
 // NewEventZeroer returns a function that can be used to zero an Event
 func NewEventZeroer() func(*Event) {
-	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS, ProcessContext: &ProcessContext{}}}
+	var eventZero = Event{BaseEvent: BaseEvent{Os: runtime.GOOS}}
 
 	return func(e *Event) {
 		*e = eventZero
