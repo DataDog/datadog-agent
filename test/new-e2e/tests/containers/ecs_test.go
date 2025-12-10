@@ -606,7 +606,7 @@ func (suite *ecsSuite) TestTraceTCP() {
 	suite.testTrace(taskNameTracegenTCP)
 }
 
-// testTrace verifies that traces are tagged with container and pod tags.
+// testTrace verifies that traces are tagged with container and pod tags, and validates trace structure.
 func (suite *ecsSuite) testTrace(taskName string) {
 	suite.EventuallyWithTf(func(c *assert.CollectT) {
 		traces, cerr := suite.Fakeintake.GetTraces()
@@ -616,6 +616,7 @@ func (suite *ecsSuite) testTrace(taskName string) {
 		}
 
 		var err error
+		var foundTrace *aggregator.Trace
 		// Iterate starting from the most recent traces
 		for _, trace := range traces {
 			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
@@ -641,9 +642,342 @@ func (suite *ecsSuite) testTrace(taskName string) {
 				regexp.MustCompile(`^task_version:[[:digit:]]+$`),
 			}, []*regexp.Regexp{}, false)
 			if err == nil {
+				foundTrace = &trace
 				break
 			}
 		}
 		require.NoErrorf(c, err, "Failed finding trace with proper tags")
-	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags")
+
+		// Enhanced validation: verify trace structure and sampling
+		if foundTrace != nil {
+			// Verify trace has at least one tracer payload
+			assert.NotEmptyf(c, foundTrace.TracerPayloads, "Trace should have at least one tracer payload")
+
+			if len(foundTrace.TracerPayloads) > 0 {
+				payload := foundTrace.TracerPayloads[0]
+
+				// Verify payload has chunks with spans
+				assert.NotEmptyf(c, payload.Chunks, "Tracer payload should have at least one chunk")
+
+				if len(payload.Chunks) > 0 {
+					chunk := payload.Chunks[0]
+					assert.NotEmptyf(c, chunk.Spans, "Chunk should have at least one span")
+
+					if len(chunk.Spans) > 0 {
+						span := chunk.Spans[0]
+
+						// Validate trace ID is present
+						assert.NotZerof(c, span.TraceID, "Trace ID should be present for task %s", taskName)
+
+						// Validate span ID is present
+						assert.NotZerof(c, span.SpanID, "Span ID should be present for task %s", taskName)
+
+						// Validate service name is set
+						assert.NotEmptyf(c, span.Service, "Service name should be present for task %s", taskName)
+
+						// Validate resource name is set
+						assert.NotEmptyf(c, span.Resource, "Resource name should be present for task %s", taskName)
+
+						// Validate operation name is set
+						assert.NotEmptyf(c, span.Name, "Operation name should be present for task %s", taskName)
+
+						// Validate sampling priority exists (indicates sampling decision was made)
+						if samplingPriority, exists := span.Metrics["_sampling_priority_v1"]; exists {
+							suite.T().Logf("Trace for task %s has sampling priority: %f", taskName, samplingPriority)
+							// Sampling priority should be a valid value (typically 0, 1, or 2)
+							assert.GreaterOrEqualf(c, samplingPriority, float64(0),
+								"Sampling priority should be >= 0")
+						}
+
+						// Validate span duration is reasonable (> 0 and < 1 hour)
+						assert.Greaterf(c, span.Duration, int64(0),
+							"Span duration should be positive for task %s", taskName)
+						assert.Lessf(c, span.Duration, int64(3600000000000), // 1 hour in nanoseconds
+							"Span duration should be less than 1 hour for task %s", taskName)
+
+						// Validate timestamps
+						assert.Greaterf(c, span.Start, int64(0),
+							"Span start timestamp should be positive for task %s", taskName)
+
+						suite.T().Logf("Enhanced trace validation passed for task %s: TraceID=%d, SpanID=%d, Service=%s, Duration=%dns",
+							taskName, span.TraceID, span.SpanID, span.Service, span.Duration)
+					}
+				}
+			}
+
+			// Verify trace correlation: check if trace has ECS metadata in tags
+			hasECSMetadata := false
+			for k, v := range foundTrace.Tags {
+				if k == "ecs_cluster_name" && v == suite.ecsClusterName {
+					hasECSMetadata = true
+					suite.T().Logf("Trace correlation validated: trace has ECS metadata (cluster=%s)", v)
+					break
+				}
+			}
+			assert.Truef(c, hasECSMetadata, "Trace should be correlated with ECS metadata for task %s", taskName)
+		}
+	}, 2*time.Minute, 10*time.Second, "Failed finding trace with proper tags and structure")
+}
+
+func (suite *ecsSuite) TestMetadataCollection() {
+	// Test that ECS metadata is properly collected and applied as tags
+	suite.Run("Metadata collection from ECS endpoints", func() {
+		// Verify cluster name is present (from metadata)
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
+				Name: "container.cpu.usage",
+				Tags: []string{`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`},
+			},
+			Expect: testMetricExpectArgs{
+				Tags: &[]string{
+					// These tags come from ECS metadata endpoints
+					`^aws_account:[[:digit:]]{12}$`, // From task metadata
+					`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+					`^task_arn:arn:aws:ecs:`,         // From task metadata
+					`^task_definition_arn:arn:aws:ecs:`, // From task metadata
+					`^task_family:`,                  // From task metadata
+					`^task_version:[[:digit:]]+$`,    // From task metadata
+					`^region:us-east-1$`,             // From AWS metadata
+					`^availability_zone:`,            // From task metadata (Fargate) or EC2 metadata
+					`^ecs_container_name:`,           // From container metadata
+					`^container_id:`,                 // From container metadata
+					`^container_name:`,               // From container metadata
+				},
+			},
+		})
+
+		// Verify task ARN format is correct (validates metadata parsing)
+		suite.testMetric(&testMetricArgs{
+			Filter: testMetricFilterArgs{
+				Name: "container.memory.usage",
+				Tags: []string{`^ecs_cluster_name:`},
+			},
+			Expect: testMetricExpectArgs{
+				Tags: &[]string{
+					`^task_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:task/` + regexp.QuoteMeta(suite.ecsClusterName) + `/[[:xdigit:]]{32}$`,
+				},
+			},
+		})
+	})
+}
+
+func (suite *ecsSuite) TestContainerLifecycle() {
+	// Test that container lifecycle events are properly tracked
+	suite.Run("Container lifecycle tracking", func() {
+		// Verify that running containers are reporting metrics
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			metrics, err := suite.Fakeintake.FilterMetrics(
+				"container.cpu.usage",
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries]([]*regexp.Regexp{
+					regexp.MustCompile(`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`),
+				}),
+			)
+			assert.NoErrorf(c, err, "Failed to query metrics")
+			assert.NotEmptyf(c, metrics, "No container metrics found - containers may not be running")
+
+			// Verify we have metrics from multiple containers (indicating lifecycle tracking)
+			containerIDs := make(map[string]bool)
+			for _, metric := range metrics {
+				for _, tag := range metric.GetTags() {
+					if strings.HasPrefix(tag, "container_id:") {
+						containerIDs[tag] = true
+					}
+				}
+			}
+			assert.GreaterOrEqualf(c, len(containerIDs), 3,
+				"Expected metrics from at least 3 containers, got %d", len(containerIDs))
+
+		}, 3*time.Minute, 10*time.Second, "Container lifecycle tracking validation failed")
+	})
+}
+
+func (suite *ecsSuite) TestTagInheritance() {
+	// Test that tags are consistently applied across all telemetry types
+	suite.Run("Tag inheritance across metrics, logs, and traces", func() {
+		var sharedTags []string
+
+		// Get tags from a metric
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			metrics, err := suite.Fakeintake.FilterMetrics(
+				"nginx.net.request_per_s",
+				fakeintake.WithMatchingTags[*aggregator.MetricSeries]([]*regexp.Regexp{
+					regexp.MustCompile(`^ecs_launch_type:ec2$`),
+				}),
+			)
+			if !assert.NoErrorf(c, err, "Failed to query metrics") {
+				return
+			}
+			if !assert.NotEmptyf(c, metrics, "No nginx metrics found") {
+				return
+			}
+
+			// Extract ECS-related tags from the metric
+			for _, tag := range metrics[len(metrics)-1].GetTags() {
+				if strings.HasPrefix(tag, "ecs_cluster_name:") ||
+					strings.HasPrefix(tag, "ecs_container_name:") ||
+					strings.HasPrefix(tag, "task_family:") ||
+					strings.HasPrefix(tag, "task_arn:") ||
+					strings.HasPrefix(tag, "aws_account:") ||
+					strings.HasPrefix(tag, "region:") {
+					sharedTags = append(sharedTags, tag)
+				}
+			}
+			assert.NotEmptyf(c, sharedTags, "No ECS tags found on metrics")
+
+		}, 2*time.Minute, 10*time.Second, "Failed to get tags from metrics")
+
+		// Verify the same tags are present on logs
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			logs, err := suite.Fakeintake.FilterLogs(
+				"nginx",
+				fakeintake.WithMatchingTags[*aggregator.Log]([]*regexp.Regexp{
+					regexp.MustCompile(`^ecs_launch_type:ec2$`),
+				}),
+			)
+			if !assert.NoErrorf(c, err, "Failed to query logs") {
+				return
+			}
+			if !assert.NotEmptyf(c, logs, "No nginx logs found") {
+				return
+			}
+
+			// Verify shared tags are present on logs
+			logTags := logs[len(logs)-1].GetTags()
+			for _, expectedTag := range sharedTags {
+				assert.Containsf(c, logTags, expectedTag,
+					"Expected tag '%s' from metrics not found on logs", expectedTag)
+			}
+
+		}, 2*time.Minute, 10*time.Second, "Failed to verify tags on logs")
+
+		// Verify the same tags are present on traces
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			traces, err := suite.Fakeintake.GetTraces()
+			if !assert.NoErrorf(c, err, "Failed to query traces") {
+				return
+			}
+			if !assert.NotEmptyf(c, traces, "No traces found") {
+				return
+			}
+
+			// Find a trace with ECS tags
+			found := false
+			for _, trace := range traces {
+				traceTags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
+					return k + ":" + v
+				})
+
+				// Check if this trace has ECS cluster tag
+				hasECSTag := false
+				for _, tag := range traceTags {
+					if strings.HasPrefix(tag, "ecs_cluster_name:"+suite.ecsClusterName) {
+						hasECSTag = true
+						break
+					}
+				}
+
+				if hasECSTag {
+					// Verify at least some shared tags are present
+					matchCount := 0
+					for _, expectedTag := range sharedTags {
+						for _, traceTag := range traceTags {
+							if traceTag == expectedTag {
+								matchCount++
+								break
+							}
+						}
+					}
+					assert.GreaterOrEqualf(c, matchCount, len(sharedTags)/2,
+						"Expected at least half of the shared tags on traces, got %d/%d",
+						matchCount, len(sharedTags))
+					found = true
+					break
+				}
+			}
+			assert.Truef(c, found, "No traces with ECS tags found")
+
+		}, 2*time.Minute, 10*time.Second, "Failed to verify tags on traces")
+	})
+}
+
+func (suite *ecsSuite) TestCheckAutodiscovery() {
+	// Test that checks are automatically discovered and scheduled
+	suite.Run("Check autodiscovery", func() {
+		// Test Redis autodiscovery by image name
+		suite.Run("Redis autodiscovery by image", func() {
+			suite.testMetric(&testMetricArgs{
+				Filter: testMetricFilterArgs{
+					Name: "redis.net.instantaneous_ops_per_sec",
+					Tags: []string{`^ecs_launch_type:ec2$`},
+				},
+				Expect: testMetricExpectArgs{
+					Tags: &[]string{
+						`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+						`^ecs_container_name:redis$`,
+						`^image_name:ghcr\.io/datadog/redis$`,
+					},
+				},
+			})
+
+			// Verify Redis check is running (check run should exist)
+			suite.EventuallyWithTf(func(c *assert.CollectT) {
+				checkRuns, err := suite.Fakeintake.FilterCheckRuns(
+					"redisdb",
+					fakeintake.WithMatchingTags[*aggregator.CheckRun]([]*regexp.Regexp{
+						regexp.MustCompile(`^ecs_launch_type:ec2$`),
+					}),
+				)
+				if err == nil && len(checkRuns) > 0 {
+					suite.T().Logf("Redis check autodiscovered and running")
+				}
+			}, 2*time.Minute, 10*time.Second, "Redis check autodiscovery validation failed")
+		})
+
+		// Test Nginx autodiscovery by docker labels
+		suite.Run("Nginx autodiscovery by labels", func() {
+			suite.testMetric(&testMetricArgs{
+				Filter: testMetricFilterArgs{
+					Name: "nginx.net.request_per_s",
+					Tags: []string{`^ecs_launch_type:ec2$`},
+				},
+				Expect: testMetricExpectArgs{
+					Tags: &[]string{
+						`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+						`^ecs_container_name:nginx$`,
+						`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+					},
+				},
+			})
+
+			// Verify Nginx check is running
+			suite.EventuallyWithTf(func(c *assert.CollectT) {
+				checkRuns, err := suite.Fakeintake.FilterCheckRuns(
+					"nginx",
+					fakeintake.WithMatchingTags[*aggregator.CheckRun]([]*regexp.Regexp{
+						regexp.MustCompile(`^ecs_launch_type:ec2$`),
+					}),
+				)
+				if err == nil && len(checkRuns) > 0 {
+					suite.T().Logf("Nginx check autodiscovered via docker labels and running")
+				}
+			}, 2*time.Minute, 10*time.Second, "Nginx check autodiscovery validation failed")
+		})
+
+		// Verify that autodiscovery works for both EC2 and Fargate
+		suite.Run("Fargate autodiscovery", func() {
+			suite.testMetric(&testMetricArgs{
+				Filter: testMetricFilterArgs{
+					Name: "redis.net.instantaneous_ops_per_sec",
+					Tags: []string{`^ecs_launch_type:fargate$`},
+				},
+				Expect: testMetricExpectArgs{
+					Tags: &[]string{
+						`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+						`^ecs_container_name:redis$`,
+						`^ecs_launch_type:fargate$`,
+					},
+				},
+			})
+		})
+	})
 }

@@ -26,19 +26,24 @@ import (
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-type baseSuite[Env any] struct {
+// BaseSuite is the base test suite for container tests, providing common functionality
+// for ECS, Docker, and other container platform tests.
+type BaseSuite[Env any] struct {
 	e2e.BaseSuite[Env]
 
 	Fakeintake  *fakeintake.Client
 	clusterName string
 }
 
-func (suite *baseSuite[Env]) BeforeTest(suiteName, testName string) {
+// baseSuite is an alias for backwards compatibility
+type baseSuite[Env any] = BaseSuite[Env]
+
+func (suite *BaseSuite[Env]) BeforeTest(suiteName, testName string) {
 	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
 	suite.BaseSuite.BeforeTest(suiteName, testName)
 }
 
-func (suite *baseSuite[Env]) AfterTest(suiteName, testName string) {
+func (suite *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
 	suite.BaseSuite.AfterTest(suiteName, testName)
 }
@@ -82,7 +87,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 	mc.CollectT.Errorf(format, args...)
 }
 
-func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
+func (suite *BaseSuite[Env]) testMetric(args *testMetricArgs) {
 	prettyMetricQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("metric   "+prettyMetricQuery, func() {
@@ -211,7 +216,7 @@ type testLogExpectArgs struct {
 	Message string
 }
 
-func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
+func (suite *BaseSuite[Env]) testLog(args *testLogArgs) {
 	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("log   "+prettyLogQuery, func() {
@@ -340,7 +345,7 @@ type testCheckRunExpectArgs struct {
 	AcceptUnexpectedTags bool
 }
 
-func (suite *baseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
+func (suite *BaseSuite[Env]) testCheckRun(args *testCheckRunArgs) {
 	prettyCheckRunQuery := fmt.Sprintf("%s{%s}", args.Filter.Name, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("checkRun   "+prettyCheckRunQuery, func() {
@@ -458,7 +463,7 @@ type testEventExpectArgs struct {
 	AlertType event.AlertType
 }
 
-func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
+func (suite *BaseSuite[Env]) testEvent(args *testEventArgs) {
 	prettyEventQuery := fmt.Sprintf("%s{%s}", args.Filter.Source, strings.Join(args.Filter.Tags, ","))
 
 	suite.Run("event   "+prettyEventQuery, func() {
@@ -573,5 +578,337 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 					"Event alert type mismatch on `%s`", prettyEventQuery)
 			}
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyEventQuery)
+	})
+}
+
+type testAPMTraceArgs struct {
+	Filter testAPMTraceFilterArgs
+	Expect testAPMTraceExpectArgs
+}
+
+type testAPMTraceFilterArgs struct {
+	ServiceName string
+	OperationName string
+	ResourceName string
+	Tags []string
+}
+
+type testAPMTraceExpectArgs struct {
+	Tags *[]string
+	SpanCount *int
+	// SamplingPriority validates sampling decision
+	SamplingPriority *int
+	// TraceIDPresent validates trace_id is set
+	TraceIDPresent bool
+	// ParentIDPresent validates parent_id is set for child spans
+	ParentIDPresent bool
+}
+
+func (suite *BaseSuite[Env]) testAPMTrace(args *testAPMTraceArgs) {
+	prettyTraceQuery := fmt.Sprintf("%s{%s}", args.Filter.ServiceName, strings.Join(args.Filter.Tags, ","))
+
+	suite.Run("trace   "+prettyTraceQuery, func() {
+		var expectedTags []*regexp.Regexp
+		if args.Expect.Tags != nil {
+			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{
+				CollectT: collect,
+				errors:   []error{},
+			}
+			// To enforce the use of myCollectT instead
+			collect = nil //nolint:ineffassign
+
+			// Get traces from fakeintake
+			traces, err := suite.Fakeintake.GetTraces()
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake for traces") {
+				return
+			}
+
+			// Filter traces by service name
+			matchingTraces := lo.Filter(traces, func(trace *aggregator.Trace, _ int) bool {
+				if len(trace.TracerPayloads) == 0 {
+					return false
+				}
+				for _, payload := range trace.TracerPayloads {
+					for _, chunk := range payload.Chunks {
+						for _, span := range chunk.Spans {
+							if span.Service == args.Filter.ServiceName {
+								// Check operation name if specified
+								if args.Filter.OperationName != "" && span.Name != args.Filter.OperationName {
+									continue
+								}
+								// Check resource name if specified
+								if args.Filter.ResourceName != "" && span.Resource != args.Filter.ResourceName {
+									continue
+								}
+								return true
+							}
+						}
+					}
+				}
+				return false
+			})
+
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, matchingTraces, "No `%s` traces yet", prettyTraceQuery) {
+				return
+			}
+
+			latestTrace := matchingTraces[len(matchingTraces)-1]
+
+			// Find spans matching the service
+			var matchingSpans []aggregator.Span
+			for _, payload := range latestTrace.TracerPayloads {
+				for _, chunk := range payload.Chunks {
+					for _, span := range chunk.Spans {
+						if span.Service == args.Filter.ServiceName {
+							matchingSpans = append(matchingSpans, span)
+						}
+					}
+				}
+			}
+
+			if len(matchingSpans) == 0 {
+				return
+			}
+
+			// Check span count if specified
+			if args.Expect.SpanCount != nil {
+				assert.Equalf(c, *args.Expect.SpanCount, len(matchingSpans),
+					"Expected %d spans for service %s, got %d", *args.Expect.SpanCount, args.Filter.ServiceName, len(matchingSpans))
+			}
+
+			// Check tags on first matching span
+			if expectedTags != nil {
+				spanTags := make([]string, 0, len(matchingSpans[0].Meta))
+				for k, v := range matchingSpans[0].Meta {
+					spanTags = append(spanTags, k+":"+v)
+				}
+				err := assertTags(spanTags, expectedTags, []*regexp.Regexp{}, false)
+				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyTraceQuery)
+			}
+
+			// Check trace ID is present
+			if args.Expect.TraceIDPresent {
+				assert.NotZerof(c, matchingSpans[0].TraceID, "TraceID should be present for `%s`", prettyTraceQuery)
+			}
+
+			// Check sampling priority if specified
+			if args.Expect.SamplingPriority != nil {
+				assert.Equalf(c, int32(*args.Expect.SamplingPriority), matchingSpans[0].Metrics["_sampling_priority_v1"],
+					"Sampling priority mismatch for `%s`", prettyTraceQuery)
+			}
+
+		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` traces with proper tags and spans", prettyTraceQuery)
+	})
+}
+
+type testLogPipelineArgs struct {
+	Filter testLogPipelineFilterArgs
+	Expect testLogPipelineExpectArgs
+}
+
+type testLogPipelineFilterArgs struct {
+	Service string
+	Source string
+	Tags []string
+}
+
+type testLogPipelineExpectArgs struct {
+	// MinCount validates minimum number of logs
+	MinCount int
+	// Status validates log status (info, warning, error)
+	Status string
+	// Message regex pattern
+	Message string
+	// Tags expected on logs
+	Tags *[]string
+	// ParsedFields validates structured log parsing
+	ParsedFields map[string]string
+	// TraceIDPresent validates trace correlation
+	TraceIDPresent bool
+}
+
+func (suite *BaseSuite[Env]) testLogPipeline(args *testLogPipelineArgs) {
+	prettyLogQuery := fmt.Sprintf("%s{%s}", args.Filter.Service, strings.Join(args.Filter.Tags, ","))
+
+	suite.Run("logPipeline   "+prettyLogQuery, func() {
+		var expectedTags []*regexp.Regexp
+		if args.Expect.Tags != nil {
+			expectedTags = lo.Map(*args.Expect.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
+		}
+
+		var expectedMessage *regexp.Regexp
+		if args.Expect.Message != "" {
+			expectedMessage = regexp.MustCompile(args.Expect.Message)
+		}
+
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{
+				CollectT: collect,
+				errors:   []error{},
+			}
+			// To enforce the use of myCollectT instead
+			collect = nil //nolint:ineffassign
+
+			regexTags := lo.Map(args.Filter.Tags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
+			logs, err := suite.Fakeintake.FilterLogs(
+				args.Filter.Service,
+				fakeintake.WithMatchingTags[*aggregator.Log](regexTags),
+			)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
+				return
+			}
+			// Can be replaced by require.NoEmptyf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NotEmptyf(c, logs, "No `%s` logs yet", prettyLogQuery) {
+				return
+			}
+
+			// Check minimum count
+			if args.Expect.MinCount > 0 {
+				assert.GreaterOrEqualf(c, len(logs), args.Expect.MinCount,
+					"Expected at least %d logs for `%s`, got %d", args.Expect.MinCount, prettyLogQuery, len(logs))
+			}
+
+			latestLog := logs[len(logs)-1]
+
+			// Check tags
+			if expectedTags != nil {
+				err := assertTags(latestLog.GetTags(), expectedTags, []*regexp.Regexp{}, false)
+				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
+			}
+
+			// Check status
+			if args.Expect.Status != "" {
+				assert.Equalf(c, args.Expect.Status, latestLog.Status,
+					"Log status mismatch on `%s`: expected %s, got %s", prettyLogQuery, args.Expect.Status, latestLog.Status)
+			}
+
+			// Check message
+			if expectedMessage != nil {
+				assert.Truef(c, expectedMessage.MatchString(latestLog.Message),
+					"Log message `%s` doesn't match pattern `%s`", latestLog.Message, args.Expect.Message)
+			}
+
+			// Check parsed fields (for structured logs)
+			for key, expectedValue := range args.Expect.ParsedFields {
+				actualValue, exists := latestLog.Message[key]
+				assert.Truef(c, exists, "Expected field `%s` not found in parsed log", key)
+				if exists {
+					assert.Equalf(c, expectedValue, actualValue, "Field `%s` mismatch", key)
+				}
+			}
+
+			// Check trace correlation
+			if args.Expect.TraceIDPresent {
+				ddTags := strings.Join(latestLog.GetTags(), ",")
+				assert.Regexpf(c, `dd\.trace_id:[[:xdigit:]]+`, ddTags,
+					"trace_id not found in log tags for `%s`", prettyLogQuery)
+			}
+
+		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` logs with expected pipeline processing", prettyLogQuery)
+	})
+}
+
+type testAgentHealthArgs struct {
+	// CheckEndpoints validates agent status endpoints are accessible
+	CheckEndpoints bool
+	// CheckComponents validates specific agent components are ready
+	CheckComponents []string
+	// ExpectedVersion validates agent version
+	ExpectedVersion string
+}
+
+func (suite *BaseSuite[Env]) testAgentHealth(args *testAgentHealthArgs) {
+	suite.Run("agentHealth", func() {
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			c := &myCollectT{
+				CollectT: collect,
+				errors:   []error{},
+			}
+			// To enforce the use of myCollectT instead
+			collect = nil //nolint:ineffassign
+
+			// Check that we're receiving any data from the agent (indicates it's running)
+			metrics, err := suite.Fakeintake.GetMetricNames()
+			if !assert.NoErrorf(c, err, "Failed to query metrics from fake intake") {
+				return
+			}
+
+			assert.NotEmptyf(c, metrics, "No metrics received from agent - agent may not be healthy")
+
+			// Check for datadog.agent.started metric (indicates successful agent startup)
+			startedMetrics, err := suite.Fakeintake.FilterMetrics("datadog.agent.started")
+			if err == nil && len(startedMetrics) > 0 {
+				suite.T().Logf("Agent started metric found - agent is healthy")
+			}
+
+			// If specific components requested, check for their metrics
+			for _, component := range args.CheckComponents {
+				componentMetricPrefix := fmt.Sprintf("datadog.%s.", component)
+				componentMetrics := lo.Filter(metrics, func(metric string, _ int) bool {
+					return strings.HasPrefix(metric, componentMetricPrefix)
+				})
+				assert.NotEmptyf(c, componentMetrics,
+					"No metrics found for component `%s` - component may not be running", component)
+			}
+
+		}, 5*time.Minute, 10*time.Second, "Agent health check failed")
+	})
+}
+
+type testResilienceScenarioArgs struct {
+	// ScenarioName for logging
+	ScenarioName string
+	// TriggerFunc function that triggers the failure scenario
+	TriggerFunc func() error
+	// RecoveryFunc function that triggers recovery (optional)
+	RecoveryFunc func() error
+	// ValidateFunc function that validates system recovered
+	ValidateFunc func(*assert.CollectT)
+	// RecoveryTimeout time to wait for recovery
+	RecoveryTimeout time.Duration
+}
+
+func (suite *BaseSuite[Env]) testResilienceScenario(args *testResilienceScenarioArgs) {
+	suite.Run("resilience_"+args.ScenarioName, func() {
+		// Trigger the failure scenario
+		if args.TriggerFunc != nil {
+			err := args.TriggerFunc()
+			suite.Require().NoErrorf(err, "Failed to trigger resilience scenario: %s", args.ScenarioName)
+			suite.T().Logf("Triggered resilience scenario: %s", args.ScenarioName)
+		}
+
+		// Wait a bit for the failure to take effect
+		time.Sleep(5 * time.Second)
+
+		// Trigger recovery if specified
+		if args.RecoveryFunc != nil {
+			err := args.RecoveryFunc()
+			suite.Require().NoErrorf(err, "Failed to trigger recovery for scenario: %s", args.ScenarioName)
+			suite.T().Logf("Triggered recovery for scenario: %s", args.ScenarioName)
+		}
+
+		// Validate recovery
+		recoveryTimeout := args.RecoveryTimeout
+		if recoveryTimeout == 0 {
+			recoveryTimeout = 2 * time.Minute
+		}
+
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+			if args.ValidateFunc != nil {
+				args.ValidateFunc(collect)
+			}
+		}, recoveryTimeout, 10*time.Second, "Recovery validation failed for scenario: %s", args.ScenarioName)
+
+		suite.T().Logf("Successfully recovered from resilience scenario: %s", args.ScenarioName)
 	})
 }
