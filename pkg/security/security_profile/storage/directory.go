@@ -139,6 +139,15 @@ func NewDirectory(directoryPath string, maxProfiles int) (*Directory, error) {
 			seclog.Warnf("failed to load profile from file [%s]: %s", file.path, err)
 			continue
 		}
+		if pProto.Metadata == nil {
+			seclog.Warnf("profile loaded from file [%s] has no metadata", file.path)
+			continue
+		}
+		if pProto.Selector == nil {
+			seclog.Warnf("profile loaded from file [%s] has no selector", file.path)
+			continue
+		}
+
 		profiles.Add(pProto.Metadata.Name, &profileEntry{
 			selector:  cgroupModel.ProtoToWorkloadSelector(pProto.Selector),
 			filePaths: []string{file.path},
