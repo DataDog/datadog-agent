@@ -43,6 +43,8 @@ send_pkg_size:
       optional: true
     - job: iot_agent_suse-x64
       optional: true
+    - job: windows_msi_and_bosh_zip_x64-a7
+      optional: true
   script:
     # Get API key to send metrics
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
@@ -52,6 +54,7 @@ send_pkg_size:
 
     - ls -l $OMNIBUS_PACKAGE_DIR
     - ls -l $OMNIBUS_PACKAGE_DIR_SUSE
+    - ls -l $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID || true
 
     # Agent 7
     - dda inv -- package.send-size --flavor "agent" --package-os "debian" --package-path $OMNIBUS_PACKAGE_DIR/datadog-agent_7*_amd64.deb --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
@@ -75,6 +78,8 @@ send_pkg_size:
     - dda inv -- package.send-size --flavor "dogstatsd" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-dogstatsd-7.*.x86_64.rpm --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
     - dda inv -- package.send-size --flavor "agent" --package-os "suse" --package-path $OMNIBUS_PACKAGE_DIR_SUSE/datadog-agent-7.*.aarch64.rpm --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch arm64
+
+    - dda inv -- package.send-size --flavor "agent" --package-os "windows" --package-path $OMNIBUS_PACKAGE_DIR/pipeline-$CI_PIPELINE_ID/datadog-agent-7*.msi --git-ref "${CI_COMMIT_REF_SLUG}" --bucket-branch "${BUCKET_BRANCH}" --arch amd64
 
 check_pkg_size:
   stage: pkg_metrics
