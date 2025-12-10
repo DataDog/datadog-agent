@@ -93,7 +93,7 @@ Example:
 	cmd.Flags().StringVarP(&appKey, "app-key", "", "", "Datadog APP key for authentication (required)")
 	cmd.Flags().StringVarP(&site, "site", "", "", "Datadog site (e.g., datadoghq.com, datadoghq.eu, us3.datadoghq.com). Defaults to datadoghq.com")
 	cmd.Flags().StringVarP(&runnerName, "name", "", "", "Name of the private action runner")
-	cmd.Flags().StringVarP(&actionsAllowList, "actions-allowlist", "", "com.datadoghq.datadog.agentactions.helloWorld", "Allowlist of actions for the private action runner")
+	cmd.Flags().StringVarP(&actionsAllowList, "actions-allowlist", "", "com.datadoghq.agentactions.hellowWorld", "Allowlist of actions for the private action runner")
 	cmd.Flags().StringVarP(&connectionGroupID, "connection-group-id", "", "", "Join a connection group on creation")
 	//cmd.MarkFlagRequired("api-key")
 	//cmd.MarkFlagRequired("app-key")
