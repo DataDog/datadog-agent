@@ -71,3 +71,10 @@ type SymmetryPattern struct {
 	Metrics    [2]string // the two metrics involved
 	Confidence float64   // 0-1, how confident we are in the pattern
 }
+
+// ClusterSummary is the human-readable output for a cluster
+type ClusterSummary struct {
+	Headline    string   // e.g., "Disk space shift across 6 devices"
+	Details     []string // bullet points of relevant information
+	LikelyCause string   // heuristic guess, may be empty
+}
