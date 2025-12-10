@@ -7,6 +7,7 @@ import subprocess
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
+from ..constants import COMMAND_TIMEOUT
 from ..logging_config import logger
 from .streaming import iter_json_objects
 from ..models import ConnTuple
@@ -68,7 +69,7 @@ class SystemProbeBackend(EbpfBackend):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=COMMAND_TIMEOUT
             )
             if result.returncode != 0:
                 logger.error(f"Error running system-probe: {result.stderr}")

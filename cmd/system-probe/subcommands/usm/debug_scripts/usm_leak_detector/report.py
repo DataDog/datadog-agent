@@ -4,6 +4,7 @@ Report generation for leak detection results.
 
 from typing import Dict, List
 
+from .constants import MAX_REPORT_SAMPLES, MAX_DEAD_PIDS_SHOWN
 from .logging_config import logger
 from .models import MapLeakInfo, PIDLeakInfo
 
@@ -47,10 +48,10 @@ def print_report(results: List[MapLeakInfo], namespaces: Dict[int, int]):
 
         if info.leaked > 0:
             print(f"  Leaked entries: {info.leaked}")
-            for conn, reason in info.samples[:10]:  # Show max 10 samples
+            for conn, reason in info.samples[:MAX_REPORT_SAMPLES]:
                 print(f"    {conn} [{reason}]")
-            if len(info.samples) > 10:
-                print(f"    ... and {len(info.samples) - 10} more")
+            if len(info.samples) > MAX_REPORT_SAMPLES:
+                print(f"    ... and {len(info.samples) - MAX_REPORT_SAMPLES} more")
         else:
             print("  No leaks detected")
 
@@ -94,11 +95,10 @@ def print_pid_report(results: List[PIDLeakInfo]):
             print(f"{info.name}: {info.leaked}/{info.total} entries ({leak_pct:.1f}% leaked)")
 
         if info.leaked > 0 and info.dead_pids:
-            # Show up to 20 dead PIDs
-            shown_pids = info.dead_pids[:20]
+            shown_pids = info.dead_pids[:MAX_DEAD_PIDS_SHOWN]
             print(f"  Dead PIDs: {shown_pids}")
-            if len(info.dead_pids) > 20:
-                print(f"    ... and {len(info.dead_pids) - 20} more")
+            if len(info.dead_pids) > MAX_DEAD_PIDS_SHOWN:
+                print(f"    ... and {len(info.dead_pids) - MAX_DEAD_PIDS_SHOWN} more")
         elif info.leaked == 0:
             print("  No leaks detected")
         print()

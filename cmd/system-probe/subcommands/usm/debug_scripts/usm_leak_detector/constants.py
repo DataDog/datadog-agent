@@ -2,6 +2,26 @@
 Constants used throughout the USM leak detector.
 """
 
+# Default path to /proc filesystem
+DEFAULT_PROC_ROOT = "/proc"
+
+# Subprocess and timeout constants
+DEFAULT_SUBPROCESS_TIMEOUT = 5  # seconds for simple commands like "which" or "version"
+COMMAND_TIMEOUT = 30  # seconds for longer operations like map dumps
+POLL_INTERVAL = 0.5  # seconds between subprocess polls
+
+# Buffer sizes for streaming and I/O
+STREAM_CHUNK_SIZE = 8192  # bytes for reading from streams
+PIPE_READ_BUFFER_SIZE = 65536  # bytes for pipe read operations
+
+# Report display limits
+MAX_REPORT_SAMPLES = 10  # max leaked entries to show in detailed report
+MAX_DEAD_PIDS_SHOWN = 20  # max dead PIDs to show in PID leak report
+MAX_SAMPLES_STORED = 100  # max samples to store for analysis
+
+# JSON parsing truncation for error messages
+JSON_ERROR_PREVIEW_LENGTH = 100
+
 # ConnTuple-keyed maps to validate (48-byte ConnTuple keys)
 CONN_TUPLE_MAPS = [
     "connection_states",

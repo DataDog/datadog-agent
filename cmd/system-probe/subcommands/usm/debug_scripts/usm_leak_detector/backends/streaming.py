@@ -8,6 +8,7 @@ enabling O(1) memory usage instead of loading all entries at once.
 import json
 from typing import Generator, Dict, TextIO
 
+from ..constants import STREAM_CHUNK_SIZE, JSON_ERROR_PREVIEW_LENGTH
 from ..logging_config import logger
 
 
@@ -32,7 +33,7 @@ def iter_json_objects(stream: TextIO) -> Generator[Dict, None, None]:
     obj_chars = []
     in_object = False
 
-    for chunk in iter(lambda: stream.read(8192), ''):
+    for chunk in iter(lambda: stream.read(STREAM_CHUNK_SIZE), ''):
         for char in chunk:
             # Handle string escaping
             if escape_next:
@@ -79,7 +80,7 @@ def iter_json_objects(stream: TextIO) -> Generator[Dict, None, None]:
                         try:
                             yield json.loads(obj_str)
                         except json.JSONDecodeError:
-                            logger.warning("Failed to parse JSON object: %s...", obj_str[:100])
+                            logger.warning("Failed to parse JSON object: %s...", obj_str[:JSON_ERROR_PREVIEW_LENGTH])
                         obj_chars = []
                         in_object = False
             elif in_object:

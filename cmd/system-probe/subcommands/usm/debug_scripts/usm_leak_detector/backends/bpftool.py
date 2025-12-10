@@ -7,6 +7,7 @@ import subprocess
 from typing import Dict, Generator, List, Optional
 
 from .ebpf_backend import EbpfBackend
+from ..constants import COMMAND_TIMEOUT
 from ..logging_config import logger
 from .bpftool_downloader import download_bpftool
 from .streaming import iter_json_objects
@@ -78,7 +79,7 @@ class BpftoolBackend(EbpfBackend):
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=COMMAND_TIMEOUT
             )
             if result.returncode != 0:
                 logger.error(f"Error running bpftool: {result.stderr}")

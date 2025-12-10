@@ -13,6 +13,8 @@ import subprocess
 import time
 from typing import List, Optional, Union
 
+from .constants import DEFAULT_SUBPROCESS_TIMEOUT, POLL_INTERVAL, PIPE_READ_BUFFER_SIZE
+
 
 def _safe_kill(proc: subprocess.Popen) -> None:
     """Attempt to kill a process, ignoring errors if blocked."""
@@ -29,7 +31,7 @@ def _safe_kill(proc: subprocess.Popen) -> None:
 
 def safe_subprocess_run(
     cmd: Union[List[str], str],
-    timeout: Optional[float] = 5,
+    timeout: Optional[float] = DEFAULT_SUBPROCESS_TIMEOUT,
     capture_output: bool = False,
     text: bool = False,
     **kwargs
@@ -68,7 +70,6 @@ def safe_subprocess_run(
 
     try:
         start_time = time.monotonic()
-        poll_interval = 0.5  # Check every 500ms
         stdout_chunks = []
         stderr_chunks = []
 
@@ -99,7 +100,7 @@ def safe_subprocess_run(
                         if fd:
                             try:
                                 while True:
-                                    data = fd.read(65536)
+                                    data = fd.read(PIPE_READ_BUFFER_SIZE)
                                     if not data:
                                         break
                                     chunks.append(data)
@@ -125,13 +126,13 @@ def safe_subprocess_run(
 
             # Wait for data or timeout using select()
             # This is the key: select() uses kernel timers, not nanosleep
-            wait_time = min(poll_interval, time_remaining)
+            wait_time = min(POLL_INTERVAL, time_remaining)
             if read_fds:
                 ready, _, _ = select.select(read_fds, [], [], wait_time)
                 # Read any available data to prevent pipe buffer from filling
                 for fd in ready:
                     try:
-                        data = fd.read(65536)
+                        data = fd.read(PIPE_READ_BUFFER_SIZE)
                         if data:
                             if fd == proc.stdout:
                                 stdout_chunks.append(data)

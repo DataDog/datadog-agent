@@ -6,7 +6,7 @@ import time
 from typing import Dict, List
 
 from .backends import EbpfBackend
-from .constants import CONN_TUPLE_OFFSET
+from .constants import CONN_TUPLE_OFFSET, DEFAULT_PROC_ROOT, MAX_SAMPLES_STORED
 from .logging_config import logger
 from .models import ConnTuple, ConnectionIndex, MapLeakInfo
 from .network import discover_namespaces, build_connection_index
@@ -87,7 +87,7 @@ def analyze_map(
     backend: EbpfBackend,
     connection_index: Dict[int, ConnectionIndex],
     recheck_delay: float = 0,
-    proc_root: str = "/proc"
+    proc_root: str = DEFAULT_PROC_ROOT
 ) -> MapLeakInfo:
     """Analyze a single map for leaks using streaming to minimize memory usage.
 
@@ -148,6 +148,6 @@ def analyze_map(
         name=map_name,
         total=total,
         leaked=len(leaked),
-        samples=leaked[:100],  # Limit samples
+        samples=leaked[:MAX_SAMPLES_STORED],
         race_condition_fps=race_condition_fps
     )
