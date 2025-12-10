@@ -52,7 +52,7 @@ type envoyGatewayInjectionPattern struct {
 
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	gvrToName := func(gvr schema.GroupVersionResource) string {
-		return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group)
+		return gvr.Resource + "." + gvr.Group
 	}
 
 	// Check if the EnvoyExtensionPolicy CRD is present
