@@ -13,40 +13,38 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
-// Host struct contains agents host-tags payload and attributes to fit Aggregator implementation
+// HostTags struct contains agents host-tags payload and attributes to fit Aggregator implementation
 //
 // Use a pointer to assign `HostTags` inner struct.
 // When we ParseHostPayload we receive variaous payload types.
 // We only want to keep those with host-tags
 // Using a pointer allows us to check if the pointer has been allocated
 // and therefore found the right payload
-type Host struct {
-	HostTags *struct {
-		System []string `json:"system"`
-	} `json:"host-tags"`
+type HostTags struct {
+	InternalHostname string
+	HostTags         []string
 
-	InternalHostname string `json:"internalHostname"`
-	collectedTime    time.Time
+	collectedTime time.Time
 }
 
 // GetCollectedTime return the time the payload was collected
-func (host *Host) GetCollectedTime() time.Time {
+func (host *HostTags) GetCollectedTime() time.Time {
 	return host.collectedTime
 }
 
 // GetTags returns the tags collected by the payload
 // currently none
-func (host *Host) GetTags() []string {
+func (host *HostTags) GetTags() []string {
 	return nil
 }
 
 // name return the payload name
-func (host *Host) name() string {
+func (host *HostTags) name() string {
 	return host.InternalHostname
 }
 
-// ParseHostPayload parses the generic payload and returns a typed struct with hostImpl data
-func ParseHostPayload(payload api.Payload) ([]*Host, error) {
+// ParseHostTagsPayload parses the generic payload and returns a typed struct with hostImpl data
+func ParseHostTagsPayload(payload api.Payload) ([]*HostTags, error) {
 	if len(payload.Data) == 0 {
 		return nil, nil
 	}
@@ -56,7 +54,12 @@ func ParseHostPayload(payload api.Payload) ([]*Host, error) {
 		return nil, fmt.Errorf("failed to inflate host Payload: %w", err)
 	}
 
-	var data = &Host{}
+	var data struct {
+		HostName string `json:"internalHostname"`
+		HostTags *struct {
+			System []string `json:"system"`
+		} `json:"host-tags"`
+	}
 
 	if err := json.Unmarshal(inflated, &data); err != nil {
 		return nil, fmt.Errorf("failed to unmarshall payload: %w", err)
@@ -66,23 +69,26 @@ func ParseHostPayload(payload api.Payload) ([]*Host, error) {
 	// we only want to keep the matching payloads with host information
 	// return an empty list with no error to skip this non-matching payload
 	if data.HostTags == nil {
-		return []*Host{}, nil
+		return []*HostTags{}, nil
 	}
 
-	// set hostname and collected time
-	data.collectedTime = payload.Timestamp
-
-	return []*Host{data}, nil
+	return []*HostTags{
+		{
+			collectedTime:    payload.Timestamp,
+			InternalHostname: data.HostName,
+			HostTags:         data.HostTags.System,
+		},
+	}, nil
 }
 
-// HostAggregator structure
-type HostAggregator struct {
-	Aggregator[*Host]
+// HostTagsAggregator structure
+type HostTagsAggregator struct {
+	Aggregator[*HostTags]
 }
 
-// NewHostAggregator returns a new Host aggregator
-func NewHostAggregator() HostAggregator {
-	return HostAggregator{
-		Aggregator: newAggregator(ParseHostPayload),
+// NewHostTagsAggregator returns a new Host aggregator
+func NewHostTagsAggregator() HostTagsAggregator {
+	return HostTagsAggregator{
+		Aggregator: newAggregator(ParseHostTagsPayload),
 	}
 }

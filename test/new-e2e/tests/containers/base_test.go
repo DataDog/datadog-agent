@@ -575,3 +575,116 @@ func (suite *baseSuite[Env]) testEvent(args *testEventArgs) {
 		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and message", prettyEventQuery)
 	})
 }
+
+type testHostTags struct {
+	ExpectedTags *[]string
+	OptionalTags *[]string
+}
+
+func sendEvent[Env any](suite *baseSuite[Env], alertType, text string, args *testHostTags) {
+	formattedArgs, err := yaml.Marshal(args)
+	suite.Require().NoError(err)
+
+	_, err = suite.DatadogClient().PostEvent(&datadog.Event{
+		Title:     pointer.Ptr("test Host-Tags " + suite.T().Name()),
+		AlertType: &alertType,
+		Tags: append([]string{
+			"app:agent-new-e2e-tests-containers",
+			"cluster_name:" + suite.clusterName,
+			"test:" + suite.T().Name(),
+		}, *args.ExpectedTags...),
+		Text: pointer.Ptr(fmt.Sprintf(
+			`%%%%%%
+### Result
+
+`+"```"+`
+%s
+`+"```"+`
+
+### Expected Tags
+
+`+"```"+`
+%s
+`+"```"+`
+%%%%%%
+`, text, formattedArgs)),
+	})
+
+	if err != nil {
+		suite.T().Logf("Failed to post event: %s", err)
+	}
+}
+
+func getLatestHostInfos(hostInfos []*aggregator.HostTags) *aggregator.HostTags {
+	if len(hostInfos) <= 0 {
+		return nil
+	}
+
+	var latestHostInfo = hostInfos[0]
+
+	for _, host := range hostInfos {
+		if latestHostInfo.GetCollectedTime().Before(host.GetCollectedTime()) {
+			// current `host` is more recent, keep it
+			latestHostInfo = host
+		}
+	}
+
+	return latestHostInfo
+}
+
+func (suite *baseSuite[Env]) testHostTags(args *testHostTags) {
+	suite.EventuallyWithT(func(ct *assert.CollectT) {
+		c := &myCollectT{
+			CollectT: ct,
+			errors:   []error{},
+		}
+
+		defer func() {
+			if len(c.errors) == 0 {
+				sendEvent(suite, "success", "All good!", args)
+			} else {
+				sendEvent(suite, "warning", errors.Join(c.errors...).Error(), args)
+			}
+		}()
+
+		hosts, err := suite.Fakeintake.GetHosts()
+		assert.NoError(c, err, "failed to get hosts from host-tags payload")
+		assert.GreaterOrEqual(c, len(hosts), 1, "empty host-tags payload, no hosts found")
+
+		for _, host := range hosts {
+			suite.T().Logf("%s - validate host tags on host %s", time.Now().Format(time.TimeOnly), host)
+
+			hostInfos := suite.Fakeintake.GetHostTags(host)
+			assert.GreaterOrEqual(c, len(hostInfos), 1, "missing host tags in payload, should be len >= 1")
+
+			regexTags := lo.Map(*args.ExpectedTags, func(tag string, _ int) *regexp.Regexp {
+				return regexp.MustCompile(tag)
+			})
+
+			var optionalRegexTags []*regexp.Regexp
+			if args.OptionalTags != nil {
+				optionalRegexTags = lo.Map(*args.OptionalTags, func(tag string, _ int) *regexp.Regexp {
+					return regexp.MustCompile(tag)
+				})
+			}
+
+			// we only want the latest known hostInfos
+			hostInfo := getLatestHostInfos(hostInfos)
+			suite.NotNil(c, hostInfo, "non empty list of hostInfos should never return nil")
+
+			// we don't know how to handle payloads with no host-name.
+			// these are fargate host that runs side containers for the test.
+			if hostInfo.InternalHostname == "" {
+				continue
+			}
+
+			hostTags := hostInfo.HostTags
+
+			suite.NotNil(c, hostTags, "wrong payload, could not find 'host-tags' object in payload")
+			err := assertTags(hostTags, regexTags, optionalRegexTags, false)
+			assert.NoError(c, err, "failed to match host-tags - found host-tags: %s", strings.Join(hostTags, ","))
+
+		}
+
+	}, 33*time.Minute, 1*time.Minute, "Failed to validate all host-tags")
+}
